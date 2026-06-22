@@ -294,6 +294,7 @@ def Module.declarationBaseParams [Monad m] [MonadQuotation m] [MonadError m] (mo
   | .stateAssertion .termination | .stateAssertion .stateConstraint => pure mod.parameters -- the same as `invariant`
   | .procedure _ => pure mod.parameters
   | .derivedDefinition k _ => derivedDefinitionBaseParams mod k
+  | .temporalProperty => pure mod.parameters      -- CHECK This might be wrong
 where
   theoryParameters (mod : Module) : Array Parameter :=
     mod.parameters.filterMap fun p => match p.kind with
@@ -333,6 +334,10 @@ def Module.declarationSplitParams [Monad m] [MonadError m] [MonadQuotation m] (m
         let .some proc := mod.procedures.find? (fun a => a.name == forDeclaration)
           | throwError "[Module.declarationSplitParams]: procedure {forDeclaration} not found"
         pure (proc.extraParams, proc.params)
+    | .temporalProperty => do
+        let .some tp := mod.temporalProperties.find? (fun a => a.name == forDeclaration)
+          | throwError "[Module.declarationSplitParams]: temporal property {forDeclaration} not found"
+        pure (tp.extraParams, #[])
     | _ => throwError "[Module.declarationSplitParams]: declaration {forDeclaration} has unsupported kind {repr k}")
   -- dbg_trace "declarationSplitParams: {repr k} {forDeclaration} -> baseParams {baseParams.map (·.name)} extraParams {extraParams.map (·.name)}"
   return (baseParams, extraParams, actualParams)
@@ -389,6 +394,7 @@ def Module.mkDerivedDefinitionsParamsMapFn [Monad m] [MonadError m] [MonadQuotat
     | .stateAssertion _ => return mod.assertions.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | .procedure _ => return mod.procedures.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | .derivedDefinition _ _ => return mod._derivedDefinitions.valuesArray.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
+    | .temporalProperty => return mod.temporalProperties.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | _ => throwError "[Module.mkDerivedDefinitionsParamsMapFn]: declaration {dec} (included in derivedFrom) has unsupported kind")
     pure $ Array.flatten extraParams)
   return (← baseParams.mapM f, ← extraParams.mapM f)

@@ -3,6 +3,7 @@ open Lake DSL System
 
 require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.28.0-for-veil-experimental"
 require Loom from git "https://github.com/verse-lab/loom.git" @ "upgrade-v4.28"
+require «lentil» from git "https://github.com/verse-lab/Lentil.git" @ "v4.28.0"
 
 package veil where
   preferReleaseBuild := true

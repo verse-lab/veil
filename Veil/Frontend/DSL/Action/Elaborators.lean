@@ -7,6 +7,8 @@ import Veil.Util.Meta
 import Mathlib.Tactic.Push
 import Veil.Util.ReplacingInstances
 import Veil.Frontend.DSL.Tactic
+import Veil.Frontend.DSL.Action.Semantics.Theorems
+import Veil.Util.Theorems
 
 open Lean Elab Command Term
 
@@ -624,15 +626,99 @@ private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) :
         let derivedExpr ← withoutErrToSorry $ elabTermAndSynthesize derivedDef none
         trace[veil.debug] "[{decl_name%}] derivedExpr for derived_eq: {derivedExpr}"
         let proof ← do
-          let wpEq_fqn ← resolveGlobalConstNoOverloadCore (toWpEqName nm)
-          let heq1 ← Meta.mkAppOptM wpEq_fqn (vs.map some)
-          let trEq_fqn ← resolveGlobalConstNoOverloadCore (toTransitionEqName nm)
-          let heq2 ← Meta.mkAppOptM trEq_fqn (vs.map some)
+          let heq1 ← fetchWpEqExpr nm vs
+          let heq2 ← fetchTrEqExpr nm vs
           let res ← Meta.mkAppM ``derive_eq_template #[heq1, heq2]
           pure res
         let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => do elabAttr $ ← `(Parser.Term.attrInstance| $(Lean.mkIdent attr):ident))
         proveEqAboutBody derivedExpr trDef_fqn vs proof (toDerivedEqName nm) attrs
           (extraFVars := extraFVars)
+where
+  fetchWpEqExpr (nm : Name) (vs : Array Expr) : TermElabM Expr := do
+    let wpEq_fqn ← resolveGlobalConstNoOverloadCore (toWpEqName nm)
+    Meta.mkAppOptM wpEq_fqn (vs.map some)
+  fetchTrEqExpr (nm : Name) (vs : Array Expr) : TermElabM Expr := do
+    let trEq_fqn ← resolveGlobalConstNoOverloadCore (toTransitionEqName nm)
+    Meta.mkAppOptM trEq_fqn (vs.map some)
+
+private theorem enabled_derive_eq_template {act : VeilM m ρ σ α}
+  {spec : (Int → Prop) → VeilSpecM ρ σ α}
+  {pred : SProp ρ σ}
+  {tr : Transition ρ σ}
+  (heq1 : ∀ (handler : Int → Prop) (post : RProp α ρ σ),
+    [IgnoreEx handler| wp act post ] = spec handler post)
+  (heq2 : act.toTransitionDerived = tr)
+  (heq3 : VeilSpecM.enabledDerived spec = pred) :
+  tr.enabled = pred := by
+  subst tr pred ; rw [← VeilM.toTransitionDerived_sound, Transition.enabled_of_wp,
+    VeilM.enabled_of_wp, VeilSpecM.enabledDerived, ← heq1, VeilM.enabledDerived]
+
+open Meta in
+private def defineEnabledByDerivingFromWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermElabM Unit :=
+  withTraceNode (`veil.perf.extract.defineEnabled ++ nm) (fun _ => return s!"defineEnabled (derived) {nm}") do
+  let sourceWpFqn ← getFullyQualifiedName (toWpName nm)
+  let (allBinders, _, extraStart, extraStop) ← declarationAllBindersArgsWithExtraRange mod nm dk
+  elabBinders allBinders $ fun vs => do
+    let extraFVars := vs.extract extraStart extraStop
+    let e ← do
+      let wp ← mkAppOptM sourceWpFqn (vs.map some)
+      mkAppM ``VeilSpecM.enabledDerived #[wp]
+    let e ← instantiateMVars e
+    let simp := (Simp.dsimp #[``VeilSpecM.enabledDerived, ``Compl.compl, ``Bot.bot])
+      |>.andThen (Simp.simp #[`wpSimp])
+      |>.andThen (Mathlib.Tactic.Push.pushCore (.const ``Not) {} none)
+      |>.andThen (Simp.simp #[``ite_self, ``and_true, ``true_and])
+    let res ← withTraceNode (`veil.perf.extract.enabledSimp ++ nm) (fun _ => return s!"enabledSimp (derived) {nm}") do simp e
+    let enabledExpr ← instantiateMVars $ ← Meta.mkLambdaFVars vs res.expr
+    let attrs ← #[`nextSimp].mapM (fun attr => do elabAttr $ ← `(Parser.Term.attrInstance| $(Lean.mkIdent attr):ident))
+    let enabledDef_fqn ← addVeilDefinition (toEnabledName nm) enabledExpr (attr := attrs)
+    proveEqAboutBody e enabledDef_fqn vs (← res.getProof) (toEnabledEqName nm) #[]
+      (extraFVars := extraFVars)
+
+    -- Prove equality
+    let proof ← do
+      let heq1 ← defineTransition.fetchWpEqExpr nm vs
+      let heq2 ← fetchTrDerivedEqExpr nm vs
+      let heq3 ← res.getProof
+      let res ← mkAppM ``enabled_derive_eq_template #[heq1, heq2, heq3]
+      pure res
+    let lhs ← do
+      let (_, _, enabledOriginal) ← mkEnabledExpr nm vs
+      pure enabledOriginal
+    -- let eqProof ← instantiateMVars <| ← mkLambdaFVars vs proof
+    -- let eqStatement ← instantiateMVars $ ← inferType eqProof
+    -- let _ ← addVeilTheorem (toEnabledDerivedEqName nm) eqStatement eqProof
+    proveEqAboutBody lhs enabledDef_fqn vs proof (toEnabledDerivedEqName nm) #[]
+      (extraFVars := extraFVars)
+where
+  mkEnabledExpr (nm : Name) (vs : Array Expr) : TermElabM (Name × Expr × Expr) := do
+    let trDef_fqn ← resolveGlobalConstNoOverloadCore (toTransitionName nm)
+    let tr ← mkAppOptM trDef_fqn (vs.map some)
+    let enabled ← mkAppM ``Transition.enabled #[tr]
+    return (trDef_fqn, tr, enabled)
+  -- fetchEnabledDerivedEqExpr (nm : Name) (vs : Array Expr) : TermElabM Expr := do
+  --   let enabledDerivedEq_fqn ← resolveGlobalConstNoOverloadCore (toEnabledEqName nm)
+  --   Meta.mkAppOptM enabledDerivedEq_fqn (vs.map some)
+  fetchTrDerivedEqExpr (nm : Name) (vs : Array Expr) : TermElabM Expr := do
+    let trDerivedEq_fqn ← resolveGlobalConstNoOverloadCore (toDerivedEqName nm)
+    Meta.mkAppOptM trDerivedEq_fqn (vs.map some)
+
+-- NOTE: Not sure if this can be used, since this is higher-order?
+open Meta in
+private def defineEnabledForNativeTransition (mod : Module) (nm : Name) (dk : DeclarationKind) : TermElabM Unit :=
+  withTraceNode (`veil.perf.extract.defineEnabled ++ nm) (fun _ => return s!"defineEnabled (transition) {nm}") do
+  let (allBinders, _, extraStart, extraStop) ← declarationAllBindersArgsWithExtraRange mod nm dk
+  elabBinders allBinders $ fun vs => do
+    let extraFVars := vs.extract extraStart extraStop
+    let (trDef_fqn, _, enabledOriginal) ← defineEnabledByDerivingFromWp.mkEnabledExpr nm vs
+    let simp := (Simp.dsimp #[``Transition.enabled, trDef_fqn, ``id] { unfoldPartialApp := true : Meta.Simp.Config })
+      |>.andThen (Simp.simp #[``decide_eq_true_iff, ])
+    let res ← withTraceNode (`veil.perf.extract.enabledSimp ++ nm) (fun _ => return s!"enabledSimp (transition) {nm}") do simp enabledOriginal
+    let enabledExpr ← instantiateMVars $ ← Meta.mkLambdaFVars vs res.expr
+    let enabledDef_fqn ← addVeilDefinition (toEnabledName nm) enabledExpr
+    -- let eqProof ← instantiateMVars <| ← mkLambdaFVars vs (← res.getProof)
+    proveEqAboutBody enabledOriginal enabledDef_fqn vs (← res.getProof) (toEnabledDerivedEqName nm) #[]
+      (extraFVars := extraFVars)
 
 end AuxiliaryDefinitions
 
@@ -908,11 +994,15 @@ where
 
 def Module.defineTransitionAbstractForNext (mod : Module) : TermElabM (Option Command) := do
   -- Completely syntax-based approach here
-  if mod.actions.isEmpty then
+  let actions := mod.actions
+  if actions.isEmpty then
     return none
+  -- Sanity check
+  for act in actions do
+    let _ ← resolveGlobalConstNoOverloadCore <| toTransitionAbstractName <| toExtName act.name
 
   -- Prepare
-  let [r₀, s₀, s₁, r₀', s₀', s₁', label] := [`r₀, `s₀, `s₁, `r₀', `s₀', `s₁', `label].map mkVeilImplementationDetailIdent | unreachable!
+  let [r₀, s₀, s₁, r₀', s₀', s₁', idxs] := [`r₀, `s₀, `s₁, `r₀', `s₀', `s₁', `idxs].map mkVeilImplementationDetailIdent | unreachable!
   let sortIdents ← mod.uninterpretedParamIdents
   let abstractStateSortTerm ← `($fieldAbstractDispatcher $sortIdents*)
   let abstractStateTypeTerm ← `($stateIdent $abstractStateSortTerm)
@@ -926,80 +1016,83 @@ def Module.defineTransitionAbstractForNext (mod : Module) : TermElabM (Option Co
   let some dk := mod._declarations[assembledNextName]?
     | throwError "simplifyLocalRPropCore: {assembledNextName} not found in module declarations"
   let (params, _) ← mod.declarationAllParams assembledNextName dk
-  let binders ← params.mapM (·.binder)
+  let binders ← params.mapM fun x => x.binder >>= mkImplicitBinder
   let allBinders : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) := binders ++ [
     (← `(bracketedBinder| ($r₀ : $environmentTheory)) ),
     (← `(bracketedBinder| ($s₀ : $environmentState)) ),
-    (← `(bracketedBinder| ($s₁ : $environmentState)) )]
-  let actions := mod.actions
-  -- Sanity check
-  for act in actions do
-    let _ ← resolveGlobalConstNoOverloadCore <| toTransitionAbstractName <| toExtName act.name
+    (← `(bracketedBinder| ($s₁ : $environmentState)) ),
+    (← `(bracketedBinder| ($idxs : $(mkIdent ``List) ($(mkIdent ``Fin) $(Syntax.mkNatLit actions.size)))) )]
 
-  let nextStx ← do
-    let args ← params.mapM (·.arg)
-    -- FIXME: Is this ordering of these 4 variables hardcoded?
-    `(term| ∃ $label:ident, @$(mkIdent <| assembledNextName.appendAfter "'") $args* $r₀ $s₀ $label $s₁)
   let res ← actions.mapM fun s => do
     let tr := Lean.mkIdent <| toTransitionName <| toExtName s.name
     let (allModParams, actualParams) ← mod.declarationAllParams s.name s.declarationKind
     let allParams := allModParams ++ actualParams
     let allArgs ← allParams.mapM (·.arg)
-    -- NOTE: This line comes from `assembleLabelCasesLemma`
-    let actualArgs ← parametersToExplicitBinders actualParams
+    let actualBinders ← actualParams.mapM fun x => x.binder >>= bracketedBinderToFunBinder
     let specializedArgs := Module.declareTransitionWeakeningLemma.specializeArgsForStateAbstractStx allParams allArgs theoryTy abstractStateTypeTerm abstractStateSortTerm hole
-    let stx ← `(term| exists? $actualArgs, @$tr $specializedArgs* $r₀' $s₀' $s₁')
-    pure (stx, (allArgs, actualParams))
-  let (specializedActTrStxs, actArgsAndActualParams) := res.unzip
-  let goalStx ← do
-    let rhs ← repeatedOr specializedActTrStxs
-    -- Use `letI` to avoid too many occurrences of the same huge expressions
+    let lhs ← mkFunSyntax actualBinders <| ← `(term| @$tr $allArgs* $r₀ $s₀ $s₁)
+    let rhs ← mkFunSyntax actualBinders <| ← `(term| @$tr $specializedArgs* $r₀' $s₀' $s₁')
+    let placeholders := Array.replicate actualParams.size hole
+    let trPair ← `(⟨[$placeholders,*], ($lhs, $rhs)⟩)
+    let thm ← mkFunSyntax actualBinders <| ← `(@$(mkIdent <| toTransitionAbstractName <| toExtName s.name) $allArgs* $r₀ $s₀ $s₁)
+    pure (trPair, thm)
+  let (actionTrPairs, actionTrAbstractProofs) := res.unzip
+  let bigAndProof := actionTrAbstractProofs.foldr (β := Term) (init := mkIdent ``True.intro) fun pf acc =>
+    Syntax.mkApp (mkIdent ``And.intro) #[pf, acc]
+  let body ←
     `(letI $r₀' := $absr₀
       letI $s₀' := $absst₀
       letI $s₁' := $absst₁
-      $nextStx → $rhs)
+      $(mkIdent ``IteratedPred.bigor_exists_implies) [$actionTrPairs,*] $bigAndProof $idxs)
+  `(open $(mkIdent `Classical):ident in def $(mkIdent <| toTransitionAbstractName assembledNextName) $allBinders* := $body)
 
-  let tac ← do
-    let simps :=
-      -- let derivedEqs := actions.map fun s => toDerivedEqName <| toExtName s.name
-      -- derivedEqs.map Lean.mkIdent ++ #[labelCases, assembledNext, assembledNextAct]
-      #[labelCases, mkIdent <| assembledNextName.appendAfter "'"]
-    let h := mkVeilImplementationDetailIdent `h
-    let splitOrPat ← do
-      let tmp := Array.replicate actions.size h
-      `(Lean.Parser.Tactic.rcasesPatMed| $tmp:rcasesPat|*)
-    let leafTacs ← do
-      let rightTac ← `(tactic| right )
-      let leftTac ← `(tactic| left )
-      let res ← actions.zip actArgsAndActualParams |>.mapIdxM fun i (s, allArgs, actualParams) => do
-        let pathFindingTac ← do
-          let seq := Array.replicate i rightTac
-          let seq := if i == actions.size - 1 then seq else seq.push leftTac
-          if seq.isEmpty then `(tactic| skip) else `(tactic| ($seq*) )
-        let existsTac ← if actualParams.isEmpty then
-          `(tactic| skip )
-        else
-          let args := actualParams.map fun p => mkIdent p.name
-          let casesPat ← do
-            let tmp := args.push h
-            `(Lean.Parser.Tactic.rcasesPatMed| ⟨$tmp,*⟩)
-          `(tactic| (rcases $h:ident with $casesPat ; exists $args,*) )
-        let revertAndApplyTac ← do
-          -- NOTE: As somewhere mentioned, directly `apply` can sometimes fail due to
-          -- failing to synthesize instance of instance does not match, so need to
-          -- be very careful here
-          let thm ← `(@$(mkIdent <| toTransitionAbstractName <| toExtName s.name) $allArgs* $r₀ $s₀ $s₁)
-          let tmp := mkIdent `tmp   -- using `mkVeilImplementationDetailIdent` here causes some problem
-          `(tactic| (revert $h:ident ; have $tmp := $thm ; __veil_neutralize_decidable_inst ! at * ; exact $tmp) )
-        pure #[pathFindingTac, existsTac, revertAndApplyTac]
-      pure res.flatten
-    `(term| by
-      intro $h:ident
-      simp only [$[$simps:ident],*] at $h:ident
-      rcases $h:ident with $splitOrPat
-      $leafTacs*
+-- NOTE: Currently, the following only works for actions
+open Meta AuxiliaryDefinitions in
+private def defineEnabledLocalEq (mod : Module) (nm : Name) (dk : DeclarationKind) : TermElabM Unit := do
+  let (allModParams, actualParams) ← mod.declarationAllParams nm dk
+  let allParams := allModParams ++ actualParams
+  let allArgs ← allParams.mapM (·.arg)
+  let allBinders ← allParams.mapM (·.binder)
+
+  let sortIdents ← mod.uninterpretedParamIdents
+  let abstractStateSortTerm ← `($fieldAbstractDispatcher $sortIdents*)
+  let abstractStateTypeTerm ← `($stateIdent $abstractStateSortTerm)
+  let theoryTy ← `($theoryIdent $sortIdents*)
+  let hole ← `(term| _ )
+
+  let [r, s] := [`r, `s].map mkVeilImplementationDetailIdent | unreachable!
+  let absr ← `($(mkIdent ``readFrom) $r)
+  let absst ← mod.toAbstractStateBodyStx (← `($(mkIdent ``getFrom) $s)) abstractStateSortTerm
+  let allBinders : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) := allBinders ++ [
+    (← `(bracketedBinder| ($r : $environmentTheory)) ),
+    (← `(bracketedBinder| ($s : $environmentState)) )
+  ]
+
+  let enabledName := toEnabledName nm
+  let lhsStx ← `($(mkIdent ``Transition.enabled) (@$(mkIdent <| toTransitionName nm) $allArgs*) $r $s)
+  let rhsStx ← do
+    let specializedArgs := Module.declareTransitionWeakeningLemma.specializeArgsForStateAbstractStx allParams allArgs theoryTy abstractStateTypeTerm abstractStateSortTerm hole
+    `(@$(mkIdent enabledName) $specializedArgs* $absr $absst)
+  elabBinders allBinders fun vs => do
+    let eqStx ← `(by classical exact ($lhsStx = $rhsStx))
+    trace[veil.debug] "Defining {toEnabledLocalEqName nm} with statement: {eqStx}"
+    let statement ← withoutErrToSorry <| elabTermAndSynthesize eqStx (some <| .sort .zero)
+    let dsimps := #[``VeilSpecM.enabledDerived, ``Compl.compl, ``Bot.bot].map mkIdent
+    let proof ← `(by
+      rw [$(mkIdent <| toEnabledDerivedEqName nm):ident]
+      repeat rw [← $(mkIdent <| toEnabledEqName nm):ident]
+      veil_dsimp only [$[$dsimps:ident],*]
+      try (refine $(mkIdent ``congrArg) $(mkIdent ``Not) ?_)
+      try (conv => rhs ; rw [$(mkIdent <| toWpEqLocalName nm):ident])
+      try (conv => lhs ; rw [← $(mkIdent <| toWpEqName nm):ident] ; rw [$(mkIdent <| toWpLocalEqName nm):ident])
+      try (__veil_neutralize_decidable_inst ! ; (try rfl))
     )
-  `(open $(mkIdent `Classical):ident in theorem $(mkIdent <| toTransitionAbstractName assembledNextName) $allBinders* : $goalStx := $tac)
+    trace[veil.debug] "Proof for {toEnabledLocalEqName nm}: {proof}"
+    let proof ← withoutErrToSorry <| elabTermAndSynthesize proof (some statement)
+    let statement ← mkForallFVars vs statement >>= instantiateMVars
+    let proof ← mkLambdaFVars vs proof >>= instantiateMVars
+    let enabledSimpAttr ← elabAttr $ ← `(Parser.Term.attrInstance| enabledSimp ↓ )
+    let _ ← addVeilTheorem (toEnabledLocalEqName nm) statement proof (attr := #[enabledSimpAttr])
 
 /-! ## Procedure elaboration -/
 
@@ -1089,6 +1182,13 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
           AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
           if deriveTransition? then
             AuxiliaryDefinitions.defineTransition mod nmExt extKind
+            AuxiliaryDefinitions.defineEnabledByDerivingFromWp mod nmExt extKind
+            try
+              defineEnabledLocalEq mod nmExt extKind
+            catch ex =>
+              logWarning m!"unable to generate enabled local eq theorem for {nmExt}: {ex.toMessageData}"
+          else
+            AuxiliaryDefinitions.defineEnabledForNativeTransition mod nmExt extKind
           if mod._useFieldRepTC then
             try
               defineTransitionAbstract mod nmExt extKind deriveTransition?

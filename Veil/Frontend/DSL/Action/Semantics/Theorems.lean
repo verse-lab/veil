@@ -39,6 +39,16 @@ lemma VeilM.raises_true_imp_wp_eq_angel_fail_iwp (act : VeilM m ρ σ α) (post 
     simp [iwp, ←f_ih, @Pi.compl_def] }
   simp [@compl_iInf, himp_eq, ←f_ih, inf_comm]
 
+lemma VeilM.angel_fail_of_ignore_ex (act : VeilM m ρ σ α) (post : RProp α ρ σ) :
+  [AngelFail| wp act post ] = [IgnoreEx (fun _ => True)| Cont.inv (wp act) post ] := by
+  rw [← VeilM.raises_true_imp_wp_eq_angel_fail_iwp]
+
+lemma VeilM.enabled_of_wp (act : VeilM m ρ σ α) :
+  act.enabled = act.enabledDerived := by
+  unfold VeilM.enabled VeilM.enabledDerived
+  rw [angel_fail_of_ignore_ex]
+  simp [Cont.inv, Compl.compl, Top.top, Bot.bot]
+
 open PartialCorrectness DemonicChoice ExceptionAsSuccess in
 lemma VeilM.wp_iInf {ι : Type} (act : VeilM m ρ σ α) (post : ι -> RProp α ρ σ) :
   wp act (fun a r s => iInf (fun i => post i a r s)) = ⨅ i, wp act (post i) := by
@@ -215,7 +225,7 @@ lemma VeilM.toTransitionDerived_sound (act : VeilM m ρ σ α) :
 --   rw [← VeilM.toTransitionDerived_sound]
 --   apply VeilM.toTransition_complete act chs h
 
-lemma Transition.meetsSpecificationIfSuccessful_eq [Inhabited α] (act : VeilM m ρ σ α) (pre post : SProp ρ σ) :
+lemma Transition.meetsSpecificationIfSuccessful_eq (act : VeilM m ρ σ α) (pre post : SProp ρ σ) :
   act.toTransition.meetsSpecificationIfSuccessful pre post = act.meetsSpecificationIfSuccessful pre (fun _ => post) := by
   simp [Transition.meetsSpecificationIfSuccessful, VeilM.meetsSpecificationIfSuccessful,
     VeilM.toTransitionDerived_sound, VeilM.toTransitionDerived, VeilSpecM.toTransitionDerived,
@@ -238,9 +248,34 @@ lemma Transition.meetsSpecificationIfSuccessful_eq [Inhabited α] (act : VeilM m
   apply wp_cons act; rotate_left; apply hwp _ _ hpre
   intro _ _ _; aesop
 
-lemma Transition.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m ρ σ α) (inv : SProp ρ σ) :
+lemma Transition.preservesInvariantsOnSuccesful_eq (act : VeilM m ρ σ α) (inv : SProp ρ σ) :
   act.toTransition.preservesInvariantsIfSuccesful inv = act.preservesInvariantsIfSuccesful inv := by
   apply Transition.meetsSpecificationIfSuccessful_eq
+
+lemma Transition.enabled_of_wp (act : VeilM m ρ σ α) :
+  act.toTransition.enabled = act.enabled := by
+  ext r s
+  unfold VeilM.toTransition Transition.enabled _root_.triple VeilM.enabled --VeilM.toTransitionDerived VeilSpecM.toTransitionDerived
+  simp [LE.le]
+  constructor
+  · rintro ⟨s', h⟩
+    revert h ; apply [AngelFail| wp_cons (m := VeilM m ρ σ)]
+    simp
+  · intro h
+    -- Erh, `VeilExecM` is a pretty special case
+    induction act generalizing r s
+    · simp at h ⊢
+    · rename_i β x f ih
+      simp [VeilExecM.wp_eq] at h ⊢
+      generalize x r s = o at *
+      rcases o with ⟨e | a, s'⟩ | _ <;> simp [TotalCorrectness.DivM.wp_eq] at *
+      aesop
+    · rename_i τ p f ih
+      simp at h ⊢
+      rw [exists_comm]
+      rcases h with ⟨w, hw, h⟩
+      exists w
+      aesop
 
 end TransitionSemanticsTheorems
 

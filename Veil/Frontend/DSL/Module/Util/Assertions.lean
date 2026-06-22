@@ -26,7 +26,7 @@ inductive TheoryAndStateTermTemplateArgKind where
 
 def _root_.Lean.TSyntax.getPropertyName (stx : TSyntax `propertyName) : Name :=
   match stx with
-  | `(propertyName| [$id]) => id.getId
+  | `(propertyName| [$id]) => id.getId.eraseMacroScopes
   | _ => unreachable!
 
 def Module.mkAssertion [Monad m] (mod : Module) (kind : StateAssertionKind) (name : Option (TSyntax `propertyName)) (prop : Term) (stx : Syntax) : m StateAssertion := do

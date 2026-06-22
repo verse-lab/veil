@@ -1184,7 +1184,7 @@ where
 /-- Shared tactic sequence: simplify with
 initial simp sets, introduce HO values, and handle ghost relations. Used by
 both `elabVeilConcretizeWp` and `elabVeilSolveWplo`. -/
-private def elabSimplifyBeforeConcretizeWp [Monad m] [MonadOptions m] [MonadQuotation m] (fast simpHinv : Bool) : m (TSyntax ``Lean.Parser.Tactic.tacticSeq) := do
+def elabSimplifyBeforeConcretizeWp [Monad m] [MonadOptions m] [MonadQuotation m] (fast simpHinv : Bool) : m (TSyntax ``Lean.Parser.Tactic.tacticSeq) := do
   let classicalIdent := mkIdent `Classical
   let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
   let initialSimps := if fast

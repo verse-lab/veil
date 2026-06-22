@@ -70,7 +70,21 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (List Command) := do
         @$localRPropTC $args* (fun $th $st => $p $th $st ∧ $q $th $st) where
       $core:ident := $coreFn
       $core_eq:ident := fun $th $st => $(mkIdent ``congrArg₂) $(mkIdent ``And) ($inst1.$(mkIdent `core_eq) $th $st) ($inst2.$(mkIdent `core_eq) $th $st))
-  return [cmd1, cmd2, cmd3]
+  -- Trivial instance for `⊤` and `⊥`
+  let cmds ← [mkIdent ``True, mkIdent ``False].mapM (defineTrivialInstances params paramBinders)
+  return [cmd1, cmd2, cmd3] ++ cmds
+where
+  defineTrivialInstances (params : Array Parameter) (paramBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (body : Term) : MetaM Command := do
+    let args ← params.mapM (·.arg)
+    let args := args.push <| ← `(fun _ _ => $body)
+    let binders ← paramBinders.mapM mkImplicitBinder
+    let wildcards : Array (TSyntax ``Lean.Parser.Term.funBinder) ← do
+      let wc ← `(Lean.Parser.Term.funBinder| _ )
+      pure <| Array.replicate (mod.immutableComponents.size + mod.mutableComponents.size) wc
+    let coreStx ← mkFunSyntax wildcards (← `(term| $body))
+    `(command| scoped instance $[$binders]* : @$localRPropTC $args* where
+      core := $coreStx
+      core_eq := fun _ _ => rfl)
 
 /-! ## Simplification Infrastructure -/
 

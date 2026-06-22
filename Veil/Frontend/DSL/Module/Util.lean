@@ -7,6 +7,7 @@ import Veil.Frontend.DSL.Module.Util.LocalTheoryProp
 import Veil.Frontend.DSL.Module.Util.Assemble
 import Veil.Frontend.DSL.Module.Util.ForModelChecker
 import Veil.Frontend.DSL.Module.Util.VeilDeclAttr
+import Veil.Frontend.DSL.Module.Util.VeilTerm
 
 /-!
 # Module Utilities
@@ -22,4 +23,5 @@ The implementation is split across multiple files for better organization:
 - `Util/Assemble.lean`: Definition registration and assembly functions
 - `Util/ForModelChecker.lean`: Utilities for model checking
 - `Util/VeilDeclAttr.lean`: Implementing the `veil_decl` attribute
+- `Util/VeilTerm.lean`: Implementing the `veil_term%` elaborator and delaborator
 -/

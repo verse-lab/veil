@@ -66,6 +66,15 @@ def assembledNextAct : Ident := mkIdent assembledNextActName
 def assembledNextName : Name := `Next
 def assembledNext : Ident := mkIdent assembledNextName
 
+/-- Direct transition relation assembled by case-splitting over action transitions.
+This is distinct from `Next`, which is derived via `NextAct`. -/
+def assembledNextTrName : Name := `NextTr
+def assembledNextTr : Ident := mkIdent assembledNextTrName
+
+/-- Unlabelled TLA action predicate (label becomes `∃`-quantified) assembled from `NextTr`. -/
+def assembledNextStepName : Name := `NextStep
+def assembledNextStep : Ident := mkIdent assembledNextStepName
+
 def nextActSimplifiedName : Name := `NextAct'
 def nextActSimplified : Ident := mkIdent nextActSimplifiedName
 

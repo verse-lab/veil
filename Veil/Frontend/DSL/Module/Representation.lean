@@ -1,4 +1,6 @@
 import Lean
+import Lentil
+
 open Lean Parser
 
 namespace Veil
@@ -180,6 +182,7 @@ inductive DeclarationKind where
   | stateAssertion (k : StateAssertionKind)
   | procedure (info : ProcedureInfo)
   | derivedDefinition (k : DerivedDefinitionKind) (derivedFrom : Std.HashSet Name)
+  | temporalProperty
 deriving Inhabited
 
 instance : BEq DeclarationKind where
@@ -190,6 +193,7 @@ instance : BEq DeclarationKind where
     | .stateAssertion a, .stateAssertion b => a == b
     | .procedure a, .procedure b => a == b
     | .derivedDefinition a b, .derivedDefinition c d => a == c && b.all (fun x => d.contains x) && d.all (fun x => b.contains x)
+    | .temporalProperty, .temporalProperty => true
     | _, _ => false
 
 instance : Repr DeclarationKind where
@@ -200,6 +204,7 @@ instance : Repr DeclarationKind where
     | .stateAssertion a => s!"stateAssertion {repr a}"
     | .procedure a => s!"procedure {repr a}"
     | .derivedDefinition a b => s!"derivedDefinition {repr a} (derivedFrom: {repr b.toArray})"
+    | .temporalProperty => "temporalProperty"
 
 /-! ## Actual representations -/
 
@@ -259,6 +264,17 @@ deriving Inhabited
 
 def StateAssertion.declarationKind (sa : StateAssertion) : DeclarationKind := .stateAssertion sa.kind
 
+/-- A temporal property is a temporal formula over the system's execution traces. -/
+structure TemporalProperty where
+  name : Name
+  /-- Extra parameters needed to elaborate this temporal property. -/
+  extraParams : Array Parameter := #[]
+  /-- Lean term for this temporal property (should have type `TLA.pred State`) -/
+  term : TSyntax `tlafml
+  /-- The user-written syntax -/
+  userSyntax : Syntax
+deriving Inhabited
+
 /--
   A `procedure` is a chunk of imperative code that takes arguments and
   potentially returns a value.
@@ -303,10 +319,11 @@ structure ModuleDependency where
   /-- The name of the module that this module depends on. This is used
   to lookup the module in the global environment. -/
   name : Name
+  -- FIXME: `alias` clashes with a reserved keyword from `Batteries.Tactic.Alias`. We should rename this field.
   /-- Modules can be referred to in the dependee by an alias. This
   allows multiple instantiations of child/depended on modules in a
   parent. -/
-  alias : Option Name
+  «alias» : Option Name
   /-- Instantiations of the module's parameters, i.e. the arguments
   passed to the module when it is instantiated. -/
   arguments : Array Term
@@ -354,6 +371,8 @@ structure Module where
   procedures : Array ProcedureSpecification
   /-- The assertions that this module makes -/
   assertions : Array StateAssertion
+  /-- Temporal properties declared in this module -/
+  temporalProperties : Array TemporalProperty := #[]
 
   /-- Derived definitions that this module has. -/
   protected _derivedDefinitions : Std.HashMap Name DerivedDefinition

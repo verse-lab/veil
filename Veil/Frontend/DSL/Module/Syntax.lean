@@ -1,6 +1,7 @@
 
 import Lean
 import Lean.Parser
+import Lentil
 
 open Lean Lean.Parser
 
@@ -64,6 +65,19 @@ scoped syntax (name := kw_state_constraint) "state_constraint" : veilKeyword
 
 scoped syntax (name := kw_gen_spec) "#gen_spec" : veilKeyword
 scoped syntax (name := kw_gen_theorems) "#gen_theorems" : veilKeyword
+
+scoped syntax (name := kw_temporal) "temporal" : veilKeyword
+scoped syntax (name := kw_prove_temporal_by) "prove_temporal_by" : veilKeyword
+
+/-- Resolve a Veil module declaration by name, inserting hidden module parameters
+and an ambient theory argument when appropriate. -/
+scoped syntax (name := kw_veil_term) "veil_term% " ident : term
+
+/-- Shorthand for the transition view of a Veil action: `veil_tr% act` expands
+to `veil_term% act.ext.tr`. -/
+scoped syntax (name := kw_veil_tr) "veil_tr% " ident : term
+
+scoped syntax (name := kw_fetch_temporal_theorem_body) "temporal_theorem_body_of% " ident : term
 
 end VeilKeywords
 
@@ -297,6 +311,17 @@ scoped syntax (name := stateConstraintKind) kw_state_constraint : propertyKind
 
 /-- An assertion. -/
 scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term : command
+
+/-- A temporal property is an LTL formula over the system's state.
+Unlike safety properties which are state predicates, temporal properties
+are properties about traces. Declared before or after `#gen_spec`. -/
+syntax (name := temporalDeclaration) kw_temporal (propertyName)? tlafml : command
+
+/-- Prove a previously declared temporal property using tactics.
+Must come after `#gen_spec` since it needs the assembled transition system.
+The tactic block should prove that the temporal property holds on all
+system behaviors. -/
+syntax (name := proveTemporalBy) kw_prove_temporal_by (propertyName)? tacticSeq : command
 
 /-- Assemble the specification. -/
 scoped syntax (name := genSpec) kw_gen_spec : command

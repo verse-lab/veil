@@ -29,8 +29,8 @@ info: AssertionDecidableFieldRep.decidableForallFieldRep.local_abstract_eq {ρ �
       (x_conc : χ State.Label.x) →
         Decidable (∀ (m : node), FieldRepresentation.get r_conc (id (FieldRepresentation.get x_conc)) m = true)]
   (th : ρ := by veil_exact_theory) (st : σ := by veil_exact_state) :
-  decidableForallFieldRep th st =
-    decidableForallFieldRep (readFrom th)
+  (veil_term% decidableForallFieldRep) th st =
+    (veil_term% decidableForallFieldRep) (readFrom th)
       (State.casesOn (getFrom st) fun r_conc x_conc =>
         let r := FieldRepresentation.get r_conc;
         let x := FieldRepresentation.get x_conc;

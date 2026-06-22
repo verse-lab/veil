@@ -45,6 +45,8 @@ register_simp_attr derivedActSimp
 /-- Attribute added to theorems about invariants. -/
 register_simp_attr invProof
 
+register_simp_attr enabledSimp
+
 /-- Lemmas to perform simplification of `if` expressions, before `split_ifs` is
 called. -/
 register_simp_attr ifSimp

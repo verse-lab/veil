@@ -50,4 +50,9 @@ def toCoreSimplifiedEqName (n : Name) : Name := n ++ `core_simplified_eq
 
 def toTransitionAbstractName (n : Name) : Name := n ++ `tr_abstract
 
+def toEnabledName (n : Name) : Name := n ++ `enabled
+def toEnabledEqName (n : Name) : Name := n ++ `enabled_eq
+def toEnabledDerivedEqName (n : Name) : Name := n ++ `enabled_derived_eq
+def toEnabledLocalEqName (n : Name) : Name := n ++ `enabled_local_eq
+
 end Veil

@@ -214,6 +214,16 @@ def VeilM.preservesInvariantsIfSuccessfulAssuming (act : VeilM m ρ σ α) (assu
 
 -- noncomputable def VeilM.run (act : VeilM m ρ σ α) (chs : act.choices) : VeilExecM m ρ σ α := act.runWeak chs
 
+def VeilM.enabled (act : VeilM m ρ σ α) : SProp ρ σ :=
+  [AngelFail| wp act ⊤ ]
+
+/-- Slightly simplified from `[IgnoreEx (fun _ => True)| Cont.inv (wp act) post ]`. -/
+def VeilM.enabledDerived (act : VeilM m ρ σ α) : SProp ρ σ :=
+  [IgnoreEx (fun _ => True)| (wp act ⊥)ᶜ ]
+
+def VeilSpecM.enabledDerived (spec : (Int → Prop) → VeilSpecM ρ σ α) : SProp ρ σ :=
+  (spec (fun _ => True) ⊥)ᶜ
+
 end WeakestPreconditionsSemantics
 
 section TransitionSemantics
@@ -247,6 +257,8 @@ def Transition.meetsSpecificationIfSuccessfulAssuming (act : Transition ρ σ) (
 def Transition.preservesInvariantsIfSuccessfulAssuming (act : Transition ρ σ) (assu : ρ → Prop) (inv : SProp ρ σ) : Prop :=
   Transition.meetsSpecificationIfSuccessfulAssuming act assu inv inv
 
+def Transition.enabled (tr : Transition ρ σ) : SProp ρ σ :=
+  fun r s => ∃ s', tr r s s'
 
 end TransitionSemantics
 
