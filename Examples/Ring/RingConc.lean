@@ -1,11 +1,10 @@
+import Mathlib.Data.List.Cycle
 import Veil
 
-attribute [instance] leOfOrd
 
-veil module RingNat
+veil module RingTheorems
 
 immutable individual allNodes : List Nat
-immutable function nextNode : Nat → Nat
 
 individual leader : List Nat
 
@@ -17,6 +16,21 @@ individual leader : List Nat
 individual messages : List Message
 
 #gen_state
+
+theory ghost function nextNode (n : Nat) : Nat :=
+  if h : n ∈ allNodes then allNodes.next n h else n
+
+theory ghost relation lt (x y : Nat) := allNodes.idxOf x ≤ allNodes.idxOf y ∧ x ≠ y
+
+theory ghost relation btw (x y z : Nat) :=
+  (lt x y ∧ lt y z) ∨ (lt z x ∧ lt x y) ∨ (lt y z ∧ lt z x)
+
+theory ghost relation isNext (n : Nat) (next : Nat) :=
+  n ∈ allNodes ∧ next ∈ allNodes ∧ n ≠ next ∧
+  ∀ Z ∈ allNodes, Z ≠ n ∧ Z ≠ next → btw n next Z
+
+assumption [allNodes_nodup] allNodes.Nodup
+assumption [allNodes_nontrivial] 1 < allNodes.length
 
 after_init {
   leader := []
@@ -46,10 +60,9 @@ action recv {
 }
 
 safety [single_leader] leader.length ≤ 1
-invariant [messages_nodup] messages.Nodup
 
 #gen_spec
 
--- #check_invariants
+#check_invariants
 
-end RingNat
+end RingTheorems
