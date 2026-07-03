@@ -374,6 +374,12 @@ structure Module where
   can still be added after this. -/
   protected _specFinalizedAt : Option Syntax := none
 
+  /-- Implementation detail. Names of assertion declarations that failed to
+  elaborate. Such assertions are not registered in `assertions`, so the
+  specification must not be finalized while any exist; otherwise the failed
+  assertion would be silently omitted from all subsequent checks. -/
+  protected _failedAssertions : Array Name := #[]
+
   /-- Assertions can be grouped into "sets", which are checked
   independently of each other. Sets are per-module. By default, all
   assertions are added to the same set. -/
