@@ -268,6 +268,8 @@ generating compiled model source. -/
 def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Module := do
   if mod.isSpecFinalized then
     return mod
+  unless mod._failedAssertions.isEmpty do
+    throwError "cannot finalize the specification: the following assertion declaration(s) failed to elaborate: {mod._failedAssertions.toList}"
   let mod ← mod.ensureStateIsDefined
   throwIfNoInitializerDefined mod
   warnIfNoInvariantsDefined mod
@@ -590,9 +592,17 @@ def elabAssertion : CommandElab := fun stx => do
     | .stateConstraint => "state_constraint"
   withTraceNode (`veil.perf.elaborator.assertion ++ assertion.name) (fun _ => return s!"{kindStr} {assertion.name}") do
     -- Elaborate the assertion in the Lean environment
-    let mod' ← mod.defineAssertion assertion
+    try
+      let mod' ← mod.defineAssertion assertion
   --   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
-    localEnv.modifyModule (fun _ => mod')
+      localEnv.modifyModule (fun _ => mod')
+    catch ex =>
+      -- A failed assertion is not registered in the module. Record its name so
+      -- that `#gen_spec` refuses to finalize a specification that would
+      -- silently omit it (`#check_invariants` would then report all-green
+      -- without it).
+      localEnv.modifyModule (fun _ => { mod with _failedAssertions := mod._failedAssertions.push assertion.name })
+      throw ex
 
 @[command_elab Veil.genSpec]
 def elabGenSpec : CommandElab := fun stx => do
