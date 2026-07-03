@@ -62,9 +62,14 @@ syntax (name := traceAssertion) "assert " term:max : trace_line
 syntax traceLine := (traceAction <|> traceAssertion)
 syntax traceSpec := (traceLine colEq)*
 
+/-- The optional proof term must start on the same line as the closing brace.
+Without the `lineEq` guard, the parser greedily tries to consume whatever
+follows the trace command as its proof term; e.g. a subsequent
+`set_option ... in <command>` parses as a term up to `in` and then fails,
+taking the whole trace command down with it. -/
 syntax expected_smt_result "trace" ("[" ident "]")? "{"
   traceSpec
-"}" (term)? : command
+withPosition("}" (lineEq term)?) : command
 
 
 namespace Veil
