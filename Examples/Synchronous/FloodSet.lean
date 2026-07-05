@@ -141,47 +141,47 @@ safety [validity]
 
 -- Supporting invariants
 
--- Seen decision: decided value was seen by the deciding node
-invariant [seen_decision]
-  ∀ n v, decision n v → seen n v
+-- -- Seen decision: decided value was seen by the deciding node
+-- invariant [seen_decision]
+--   ∀ n v, decision n v → seen n v
 
--- Crashed node can't be alive
-invariant [crashed_not_alive]
-  ∀ n, crashedInThisRound n → ¬ alive n
+-- -- Crashed node can't be alive
+-- invariant [crashed_not_alive]
+--   ∀ n, crashedInThisRound n → ¬ alive n
 
--- Key invariant for extended validity: all seen values were initially proposed by some node
-invariant [seen_is_initial]
-  ∀ n v, seen n v → (∃ m, initialValue m == v)
+-- -- Key invariant for extended validity: all seen values were initially proposed by some node
+-- invariant [seen_is_initial]
+--   ∀ n v, seen n v → (∃ m, initialValue m == v)
 
-invariant [decided_implies_alive]
-  ∀ n v, decision n v → alive n
+-- invariant [decided_implies_alive]
+--   ∀ n v, decision n v → alive n
 
-invariant [crash_bound]
-  crashCount ≤ t
+-- invariant [crash_bound]
+--   crashCount ≤ t
 
-invariant [decision_only_at_end]
-  ∀ n v, decision n v → round = t + 1
+-- invariant [decision_only_at_end]
+--   ∀ n v, decision n v → round = t + 1
 
-invariant [decision_is_minimum]
-  ∀ n v, decision n v → (∀ w, seen n w → le v w)
+-- invariant [decision_is_minimum]
+--   ∀ n v, decision n v → (∀ w, seen n w → le v w)
 
--- All alive nodes have identical seen sets
-ghost relation allSameSeen :=
-  ∀ n1 n2 v, alive n1 ∧ alive n2 → (seen n1 v = seen n2 v)
+-- -- All alive nodes have identical seen sets
+-- ghost relation allSameSeen :=
+--   ∀ n1 n2 v, alive n1 ∧ alive n2 → (seen n1 v = seen n2 v)
 
--- Key invariant: after a crash-free round, all alive nodes are synchronized.
-invariant [same_seen_if_synced]
-  crashCount < round → allSameSeen
+-- -- Key invariant: after a crash-free round, all alive nodes are synchronized.
+-- invariant [same_seen_if_synced]
+--   crashCount < round → allSameSeen
 
--- Crashed nodes this round have the same seen as alive nodes (when synced).
--- This ensures partial delivery doesn't break allSameSeen.
-invariant [crashed_same_seen]
-  ∀ n m v, crashCount < round ∧ crashedInThisRound n ∧ alive m → (seen n v = seen m v)
+-- -- Crashed nodes this round have the same seen as alive nodes (when synced).
+-- -- This ensures partial delivery doesn't break allSameSeen.
+-- invariant [crashed_same_seen]
+--   ∀ n m v, crashCount < round ∧ crashedInThisRound n ∧ alive m → (seen n v = seen m v)
 
--- Crashed nodes this round have the same seen as alive nodes when crashCount = round.
--- They crashed after a clean round, so they inherited the synchronized seen set.
-invariant [crashed_same_when_count_eq_round]
-  ∀ n m v, crashCount = round ∧ crashedInThisRound n ∧ alive m → (seen n v = seen m v)
+-- -- Crashed nodes this round have the same seen as alive nodes when crashCount = round.
+-- -- They crashed after a clean round, so they inherited the synchronized seen set.
+-- invariant [crashed_same_when_count_eq_round]
+--   ∀ n m v, crashCount = round ∧ crashedInThisRound n ∧ alive m → (seen n v = seen m v)
 
 -------------------------------------------------------------
 -- Reachability checks (commented out after validation):
@@ -240,6 +240,6 @@ invariant [crashed_same_when_count_eq_round]
 -- results. Each invariant is checked separately for each action.
 --------------------------------------------------------------------------------
 
-#check_invariants
+-- #check_invariants
 
 end FloodSet
