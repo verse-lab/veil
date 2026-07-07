@@ -40,3 +40,15 @@ example : True := by
 example : True := by
   set_option veil.solver "custom" in
   veil_solve
+
+-- `veil.smt.seed` is forwarded to the solver (cvc5 `seed`/`sat-random-seed`).
+-- An invalid option name or value would make the solver call fail, so a
+-- successful proof exercises the pass-through end to end.
+example : True := by
+  set_option veil.smt.seed 3 in
+  veil_smt
+
+-- Seed 0 (the default) means "don't pass a seed"; behavior must be unchanged.
+example : True := by
+  set_option veil.smt.seed 0 in
+  veil_smt
