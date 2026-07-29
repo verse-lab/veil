@@ -9,10 +9,11 @@ import Mathlib.Data.Set.Basic
   assumptions in the current Veil model of SCP.
 -/
 
-theorem Set.ne_empty_iff_exists_mem {α : Type u} {s : Set α} : s ≠ ∅ ↔ ∃ a, a ∈ s := by
-  rw [← Set.nonempty_iff_ne_empty] ; aesop
-
 namespace FBA
+
+theorem set_ne_empty_iff_exists_mem {α : Type u} {s : Set α} : s ≠ ∅ ↔ ∃ a, a ∈ s := by
+  rw [← Set.nonempty_iff_ne_empty]
+  aesop
 
 def project {α β : Type} (slices : β → Set (Set α)) (S : Set α) : β → Set (Set α) :=
   fun n => { Sl ∩ S | Sl ∈ slices n }
@@ -35,7 +36,8 @@ def System.project (sys : System Node) (I : Set Node) : System Node :=
       intro p hin
       unfold FBA.project
       have h := sys.slices_ne _ hin
-      rw [Set.ne_empty_iff_exists_mem] at h ⊢ ; aesop }
+      rw [set_ne_empty_iff_exists_mem] at h ⊢
+      aesop }
 
 variable [inst : System Node]
 open System
@@ -44,13 +46,20 @@ open System
     included in the set. -/
 def quorum (Q : Set Node) : Prop := ∀ p ∈ Q ∩ W, ∃ Sl ∈ slices p, Sl ⊆ Q
 
--- `System.project` allows more quorums
+-- `System.project` allows more quorums.
 theorem quorum_after_proj (Q S : Set Node) : quorum (inst := inst) Q → quorum (inst := inst.project S) Q := by
   rcases inst with ⟨W, slices, slices_ne⟩
-  unfold quorum System.project FBA.project ; simp
-  intro hq p h1 h2 ; specialize hq _ h1 h2 ; rcases hq with ⟨Sl, hq1, hq2⟩
-  exists Sl ; apply And.intro ; assumption
-  rw [Set.subset_def] at hq2 ⊢ ; simp ; aesop
+  unfold quorum System.project FBA.project
+  simp
+  intro hq p h1 h2
+  specialize hq _ h1 h2
+  rcases hq with ⟨Sl, hq1, hq2⟩
+  exists Sl
+  apply And.intro
+  · assumption
+  · rw [Set.subset_def] at hq2 ⊢
+    simp
+    aesop
 
 /-- A set `S` is a slice-blocking set for a node `p` when every slice of
     `p` intersects `S`. -/
@@ -66,10 +75,10 @@ structure intertwined (S : Set Node) where
       Check [the original FMBC'20 paper](https://drops.dagstuhl.de/storage/01oasics/oasics-vol084-fmbc2020/OASIcs.FMBC.2020.9/OASIcs.FMBC.2020.9.pdf) and
       [the DISC'19 paper](https://drops.dagstuhl.de/storage/00lipics/lipics-vol146-disc2019/LIPIcs.DISC.2019.27/LIPIcs.DISC.2019.27.pdf)
       for more information. -/
-  q_inter : (∀ Q Q',
+  q_inter : ∀ Q Q',
     quorum (inst := inst.project S) Q →
     quorum (inst := inst.project S) Q' →
-    Q ∩ S ≠ ∅ → Q' ∩ S ≠ ∅ → Q ∩ Q' ∩ S ≠ ∅)
+    Q ∩ S ≠ ∅ → Q' ∩ S ≠ ∅ → Q ∩ Q' ∩ S ≠ ∅
 
 /-- A set of node is intact if all of its members are well-behaved
     and it satisfies both the quorum availability property and
@@ -79,22 +88,31 @@ structure intact (I : Set Node) extends intertwined I where
   q_avail : quorum (inst := inst) I
 
 theorem intact_implies_intertwined : ∀ I, intact (inst := inst) I → intertwined I := by
-  intro I h ; cases h ; assumption
+  intro I h
+  cases h
+  assumption
 
 theorem intertwined_node_is_well_behaved : ∀ n S, intertwined (inst := inst) S → n ∈ S → n ∈ W := by
-  intro n S ⟨h, _⟩ ; aesop
+  intro n S ⟨h, _⟩
+  aesop
 
 theorem intact_node_is_well_behaved : ∀ n I, intact (inst := inst) I → n ∈ I → n ∈ W := by
-  intro n S h ; apply intertwined_node_is_well_behaved ; apply intact_implies_intertwined _ h
+  intro n S h
+  apply intertwined_node_is_well_behaved
+  apply intact_implies_intertwined _ h
 
 theorem slice_blocks_ne : ∀ n S I, intact (inst := inst) I → n ∈ I → blocks_slices S n →
     S ∩ I ≠ ∅ := by
   intro n S I hI hin hblock
   unfold blocks_slices at hblock
-  have h := hI.q_avail ; unfold quorum at h
-  simp at h ; specialize h _ hin (intact_node_is_well_behaved _ _ hI hin)
-  rcases h with ⟨Sl, hSl, h⟩ ; specialize hblock _ hSl
-  rw [Set.ne_empty_iff_exists_mem] at hblock ⊢ ; simp at hblock ⊢
+  have h := hI.q_avail
+  unfold quorum at h
+  simp at h
+  specialize h _ hin (intact_node_is_well_behaved _ _ hI hin)
+  rcases h with ⟨Sl, hSl, h⟩
+  specialize hblock _ hSl
+  rw [set_ne_empty_iff_exists_mem] at hblock ⊢
+  simp at hblock ⊢
   aesop
 
 end FBA

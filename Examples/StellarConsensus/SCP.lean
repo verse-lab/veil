@@ -29,7 +29,7 @@ class SCP.Background (node : outParam Type) (nset : outParam Type) where
 /-- Given a concrete system model `FBA.System`, fix the intertwined set `S` and
     the intact set `I ⊆ S` to consider, all abstracted properties can be satisfied. -/
 def one_such_Background (node : Type) [fba : FBA.System node]
-    (I : Set node) (hI : FBA.intact (inst := fba) I)
+    (I : Set node) (_hI : FBA.intact (inst := fba) I)
     (S : Set node) (hS : FBA.intertwined (inst := fba) S)
     (hIS : I ⊆ S) : SCP.Background node (Set node) where
   well_behaved n := n ∈ fba.W
@@ -40,23 +40,28 @@ def one_such_Background (node : Type) [fba : FBA.System node]
   blocks_slices := FBA.blocks_slices (inst := fba)
 
   axiom_0 := by assumption
-  axiom_1 := by intro n ; apply FBA.intertwined_node_is_well_behaved ; assumption
+  axiom_1 := by
+    intro n
+    apply FBA.intertwined_node_is_well_behaved
+    assumption
   qi_intertwined := by
-    simp ; intro q1 q2
+    simp
+    intro q1 q2
     have hinter := hS.q_inter q1 q2
-    repeat rw [Set.ne_empty_iff_exists_mem] at hinter
+    repeat rw [FBA.set_ne_empty_iff_exists_mem] at hinter
     simp at hinter
     intro n hin hq1 hinq1 n' hin' hq2 hinq2
     specialize hinter
       (FBA.quorum_after_proj (inst := { W := fba.W, slices := fba.slices, slices_ne := fba.slices_ne }) _ _ hq1)
       (FBA.quorum_after_proj (inst := { W := fba.W, slices := fba.slices, slices_ne := fba.slices_ne }) _ _ hq2)
       _ hinq1 hin _ hinq2 hin'
-    rcases hinter with ⟨nn, h11, h22⟩ ; exists nn ; apply And.intro
-    next => apply FBA.intertwined_node_is_well_behaved <;> assumption
-    next => assumption
+    rcases hinter with ⟨nn, h11, h22⟩
+    exists nn
+    apply And.intro
+    · apply FBA.intertwined_node_is_well_behaved <;> assumption
+    · assumption
 
 veil module SCP
-
 
 type value
 type node
@@ -69,27 +74,27 @@ type ballot
 instantiate tot : TotalOrderWithMinimum ballot
 instantiate bg : Background node nset
 
-open TotalOrderWithMinimum Background
+open Background
 
--- parts for the protocol
-relation voted_prepared : node → ballot → value → Prop
-relation accepted_prepared : node → ballot → value → Prop
-relation confirmed_prepared : node → ballot → value → Prop
-relation voted_committed : node → ballot → value → Prop
-relation accepted_committed : node → ballot → value → Prop
-relation confirmed_committed : node → ballot → value → Prop
-relation nomination_output : node → value → Prop
-relation started : node → ballot → Prop
-relation left_ballot : node → ballot → Prop
+-- Parts for the protocol.
+relation voted_prepared (N : node) (B : ballot) (V : value)
+relation accepted_prepared (N : node) (B : ballot) (V : value)
+relation confirmed_prepared (N : node) (B : ballot) (V : value)
+relation voted_committed (N : node) (B : ballot) (V : value)
+relation accepted_committed (N : node) (B : ballot) (V : value)
+relation confirmed_committed (N : node) (B : ballot) (V : value)
+relation nomination_output (N : node) (V : value)
+relation started (N : node) (B : ballot)
+relation left_ballot (N : node) (B : ballot)
 
-relation received_vote_prepare : node → node → ballot → value → Prop
-relation received_accept_prepare : node → node → ballot → value → Prop
-relation received_vote_commit : node → node → ballot → value → Prop
-relation received_accept_commit : node → node → ballot → value → Prop
+relation received_vote_prepare (N1 : node) (N2 : node) (B : ballot) (V : value)
+relation received_accept_prepare (N1 : node) (N2 : node) (B : ballot) (V : value)
+relation received_vote_commit (N1 : node) (N2 : node) (B : ballot) (V : value)
+relation received_accept_commit (N1 : node) (N2 : node) (B : ballot) (V : value)
 
 #gen_state
 
--- NOTE: the following seem to be unnecessary for proving the safety
+-- NOTE: the following seem to be unnecessary for proving the safety.
 /-
 assumption [qi_intact]
   ∀ (q1 q2 : nset),
@@ -105,91 +110,91 @@ assumption [intact_is_quorum]
 -/
 
 after_init {
-  voted_prepared N B V := False;
-  accepted_prepared N B V := False;
-  confirmed_prepared N B V := False;
-  voted_committed N B V := False;
-  accepted_committed N B V := False;
-  confirmed_committed N B V := False;
-  nomination_output N X := False;
-  left_ballot N B := False;
-  started N B := False;
-  received_vote_prepare N1 N2 B V := False;
-  received_vote_commit N1 N2 B V := False;
-  received_accept_prepare N1 N2 B V := False;
-  received_accept_commit N1 N2 B V := False;
+  voted_prepared N B V := false
+  accepted_prepared N B V := false
+  confirmed_prepared N B V := false
+  voted_committed N B V := false
+  accepted_committed N B V := false
+  confirmed_committed N B V := false
+  nomination_output N X := false
+  left_ballot N B := false
+  started N B := false
+  received_vote_prepare N1 N2 B V := false
+  received_vote_commit N1 N2 B V := false
+  received_accept_prepare N1 N2 B V := false
+  received_accept_commit N1 N2 B V := false
 }
 
-action nomination_update (n : node) (v : value) = {
-  nomination_output n V := V = v;
+action nomination_update (n : node) (v : value) {
+  nomination_output n V := V == v
 }
 
-action change_ballot (n : node) (b : ballot) = {
+action change_ballot (n : node) (b : ballot) {
   require ¬ left_ballot n b ∧ ¬ started n b
-  left_ballot n B := lt B b
-  started n b := True
-  let bmax : ballot ← fresh
-  let vmax : value ← fresh
+  left_ballot n B := decide $ tot.lt B b
+  started n b := true
+  let bmax : ballot ← pick
+  let vmax : value ← pick
   require
-    ((∀ B V, lt B b → ¬ confirmed_prepared n B V) ∧ nomination_output n vmax) ∨
-    (lt bmax b ∧ confirmed_prepared n bmax vmax ∧
-      (∀ B V, lt B b ∧ confirmed_prepared n B V → le B bmax))
-  voted_prepared n b vmax := True;
+    ((∀ B V, tot.lt B b → ¬ confirmed_prepared n B V) ∧ nomination_output n vmax) ∨
+      (tot.lt bmax b ∧ confirmed_prepared n bmax vmax ∧
+        (∀ B V, tot.lt B b ∧ confirmed_prepared n B V → tot.le B bmax))
+  voted_prepared n b vmax := true
 }
 
-action receive_vote_prepare (na nb : node) (b : ballot) (v : value) = {
+action receive_vote_prepare (na nb : node) (b : ballot) (v : value) {
   require voted_prepared nb b v
-  received_vote_prepare na nb b v := True
+  received_vote_prepare na nb b v := true
   if (∃ Q, is_quorum Q ∧ member na Q ∧
       (∀ N, member N Q → (received_vote_prepare na N b v ∨ received_accept_prepare na N b v)))
-    ∧ (∀ B V, ¬ (accepted_committed na B V ∧ lt B b ∧ V ≠ v))
+    ∧ (∀ B V, ¬ (accepted_committed na B V ∧ tot.lt B b ∧ V ≠ v))
     ∧ (∀ V, ¬ accepted_prepared na b V) then
-    accepted_prepared na b v := True
+    accepted_prepared na b v := true
 }
 
-action receive_accept_prepare (na nb : node) (b : ballot) (v : value) = {
+action receive_accept_prepare (na nb : node) (b : ballot) (v : value) {
   require accepted_prepared nb b v
-  received_accept_prepare na nb b v := True
+  received_accept_prepare na nb b v := true
   if (∃ Q, is_quorum Q ∧ member na Q ∧
       (∀ N, member N Q → received_accept_prepare na N b v)) then
-    confirmed_prepared na b v := True
+    confirmed_prepared na b v := true
     if ¬ left_ballot na b then
-      voted_committed na b v := True
+      voted_committed na b v := true
   if ((∃ Q, is_quorum Q ∧ member na Q ∧
         (∀ N, member N Q → (received_vote_prepare na N b v ∨ received_accept_prepare na N b v)))
       ∨ (∃ S, blocks_slices S na ∧ (∀ N, member N S → received_accept_prepare na N b v)))
-    ∧ (∀ B V, ¬ (accepted_committed na B V ∧ lt B b ∧ V ≠ v))
+    ∧ (∀ B V, ¬ (accepted_committed na B V ∧ tot.lt B b ∧ V ≠ v))
     ∧ (∀ V, ¬ accepted_prepared na b V) then
-    accepted_prepared na b v := True
+    accepted_prepared na b v := true
 }
 
-action receive_vote_commit (na nb : node) (b : ballot) (v : value) = {
+action receive_vote_commit (na nb : node) (b : ballot) (v : value) {
   require voted_committed nb b v
-  received_vote_commit na nb b v := True
+  received_vote_commit na nb b v := true
   if (∃ Q, is_quorum Q ∧ member na Q ∧
       (∀ N, member N Q → (received_vote_commit na N b v ∨ received_accept_commit na N b v)))
-    ∧ (∀ B V, ¬ (accepted_prepared na B V ∧ lt b B ∧ V ≠ v))
+    ∧ (∀ B V, ¬ (accepted_prepared na B V ∧ tot.lt b B ∧ V ≠ v))
     ∧ (∀ V, ¬ accepted_committed na b V)
     ∧ confirmed_prepared na b v then
-    accepted_committed na b v := True
+    accepted_committed na b v := true
 }
 
-action receive_accept_commit (na nb : node) (b : ballot) (v : value) = {
+action receive_accept_commit (na nb : node) (b : ballot) (v : value) {
   require accepted_committed nb b v
-  received_accept_commit na nb b v := True
+  received_accept_commit na nb b v := true
   if (∃ Q, is_quorum Q ∧ member na Q ∧
       (∀ N, member N Q → received_accept_commit na N b v)) then
-    confirmed_committed na b v := True
+    confirmed_committed na b v := true
   if ((∃ Q, is_quorum Q ∧ member na Q ∧
         (∀ N, member N Q → (received_vote_commit na N b v ∨ received_accept_commit na N b v)))
       ∨ (∃ S, blocks_slices S na ∧ (∀ N, member N S → received_accept_commit na N b v)))
-    ∧ (∀ B V, ¬ (accepted_prepared na B V ∧ lt b B ∧ V ≠ v))
+    ∧ (∀ B V, ¬ (accepted_prepared na B V ∧ tot.lt b B ∧ V ≠ v))
     ∧ (∀ V, ¬ accepted_committed na b V)
     ∧ confirmed_prepared na b v then
-    accepted_committed na b v := True
+    accepted_committed na b v := true
 }
 
-internal transition byzantine_step = {
+transition byzantine_step {
   (∀ N B X, well_behaved N → voted_prepared N B X = voted_prepared' N B X) ∧
   (∀ N B X, well_behaved N → accepted_prepared N B X = accepted_prepared' N B X) ∧
   (∀ N B X, well_behaved N → voted_committed N B X = voted_committed' N B X) ∧
@@ -205,25 +210,34 @@ internal transition byzantine_step = {
   (∀ N1 N2 B X, well_behaved N1 → received_accept_commit N1 N2 B X = received_accept_commit' N1 N2 B X)
 }
 
--- the main safety
+-- The main safety property.
 safety [intertwined_safe]
   ∀ (n1 n2 : node) (b1 b2 : ballot) (v1 v2 : value),
     intertwined n1 ∧ intertwined n2 ∧ confirmed_committed n1 b1 v1 ∧ confirmed_committed n2 b2 v2 → v1 = v2
 
--- aux invariants
+-- Auxiliary invariants.
 invariant ∀ N B V, well_behaved N ∧ accepted_committed N B V → confirmed_prepared N B V
 
-invariant ∀ N B1 B2 V1 V2, well_behaved N ∧ accepted_prepared N B2 V2 ∧ (lt B1 B2 ∧ V1 ≠ V2) → ¬ accepted_committed N B1 V1
+invariant ∀ N B1 B2 V1 V2,
+  well_behaved N ∧ accepted_prepared N B2 V2 ∧ (tot.lt B1 B2 ∧ V1 ≠ V2) →
+    ¬ accepted_committed N B1 V1
 
 invariant (∃ N, intertwined N ∧ confirmed_committed N B V) →
-  ∃ Q, is_quorum Q ∧ (∃ N, intertwined N ∧ member N Q) ∧ (∀ N, well_behaved N ∧ member N Q → accepted_committed N B V)
+  ∃ Q, is_quorum Q ∧ (∃ N, intertwined N ∧ member N Q) ∧
+    (∀ N, well_behaved N ∧ member N Q → accepted_committed N B V)
+
 invariant (∃ N, intertwined N ∧ confirmed_prepared N B V) →
-  ∃ Q, is_quorum Q ∧ (∃ N, intertwined N ∧ member N Q) ∧ (∀ N, well_behaved N ∧ member N Q → accepted_prepared N B V)
+  ∃ Q, is_quorum Q ∧ (∃ N, intertwined N ∧ member N Q) ∧
+    (∀ N, well_behaved N ∧ member N Q → accepted_prepared N B V)
 
-invariant ∀ N N2 B V, well_behaved N ∧ received_accept_commit N N2 B V ∧ well_behaved N2 → accepted_committed N2 B V
-invariant ∀ N N2 B V, well_behaved N ∧ received_accept_prepare N N2 B V ∧ well_behaved N2 → accepted_prepared N2 B V
+invariant ∀ N N2 B V, well_behaved N ∧ received_accept_commit N N2 B V ∧ well_behaved N2 →
+  accepted_committed N2 B V
 
-invariant ∀ N B V1 V2, well_behaved N ∧ accepted_prepared N B V1 ∧ accepted_prepared N B V2 → V1 = V2
+invariant ∀ N N2 B V, well_behaved N ∧ received_accept_prepare N N2 B V ∧ well_behaved N2 →
+  accepted_prepared N2 B V
+
+invariant ∀ N B V1 V2,
+  well_behaved N ∧ accepted_prepared N B V1 ∧ accepted_prepared N B V2 → V1 = V2
 
 #gen_spec
 

@@ -1,140 +1,200 @@
 import Lake
 open Lake DSL System
 
-require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "36d85bf6372f1a35fb5487325d1ef965b33c6296"
-require smt from git "https://github.com/ufmg-smite/lean-smt.git" @ "3c6b049eb0ccf7c331f3686e12e5f5b666bdd30a"
+require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.28.0-for-veil-experimental"
+require Loom from git "https://github.com/verse-lab/loom.git" @ "upgrade-v4.28"
 
-package veil
+package veil where
+  preferReleaseBuild := true
+  buildArchive? := .none
+  releaseRepo := "https://github.com/verse-lab/veil"
 
--- ## Dependencies
--- IMPORTANT: If you change any of these, also change `dependencies.toml`
-def z3.version := "4.15.4"
-def cvc5.version := "1.3.1"
-def uv.version := "0.9.13"
--- Changes to this file trigger re-downloading dependencies
--- FIXME: changing one version triggers re-downloading ALL dependencies
-def dependencyFile := "dependencies.toml"
+-- Widget build configuration (adapted from ProofWidgets)
+def widgetDir : FilePath := "widget"
 
-def z3.baseUrl := "https://github.com/Z3Prover/z3/releases/download"
-def z3.arch := if System.Platform.target.startsWith "x86_64" then "x64" else "arm64"
-def z3.platform :=
-  if System.Platform.isWindows then "win"
-  else if System.Platform.isOSX then "osx-13.7.6"
-  -- linux x64
-  else if System.Platform.target.startsWith "x86_64" then "glibc-2.39"
-  -- linux arm64
-  else if System.Platform.target.startsWith "aarch64" then "glibc-2.34"
-  else panic! s!"Unsupported platform: {System.Platform.target}"
+nonrec def Lake.Package.widgetDir (pkg : Package) : FilePath :=
+  pkg.dir / widgetDir
 
-def z3.target := s!"{arch}-{platform}"
-def z3.fullName := s!"z3-{version}-{z3.target}"
--- https://github.com/Z3Prover/z3/releases/download/z3-4.14.0/z3-4.14.0-arm64-osx-13.7.2.zip
-def z3.url := s!"{baseUrl}/z3-{version}/{fullName}.zip"
-
-def cvc5.baseUrl := "https://github.com/cvc5/cvc5/releases/download"
-def cvc5.os :=
-  if System.Platform.isWindows then "Win64"
-  else if System.Platform.isOSX then "macOS"
-  else "Linux"
-def cvc5.arch := if System.Platform.target.startsWith "x86_64" then "x86_64" else "arm64"
-def cvc5.target := s!"{os}-{arch}-static"
-def cvc5.fullName := s!"cvc5-{cvc5.target}"
--- https://github.com/cvc5/cvc5/releases/download/cvc5-1.2.1/cvc5-macOS-arm64-static.zip
-def cvc5.url := s!"{baseUrl}/cvc5-{version}/{fullName}.zip"
-
-def uv.url := s!"https://astral.sh/uv/{uv.version}/install.sh"
-
-inductive Solver
-| z3
-| cvc5
-
-instance : ToString Solver where
-  toString := fun
-    | Solver.z3 => "z3"
-    | Solver.cvc5 => "cvc5"
-
-def Solver.fullName (solver : Solver) : String :=
-  match solver with
-  | Solver.z3 => z3.fullName
-  | Solver.cvc5 => cvc5.fullName
-
-def Solver.url (solver : Solver) : String :=
-  match solver with
-  | Solver.z3 => z3.url
-  | Solver.cvc5 => cvc5.url
-
--- ## Code to download dependencies
-
-def Lake.unzip (file : FilePath) (dir : FilePath) : LogIO PUnit := do
-  IO.FS.createDirAll dir
-  proc (quiet := true) {
-    cmd := "unzip"
-    args := #["-q", "-d", dir.toString, file.toString]
-  }
-
-/-- We use `cp` because it sets up the file permissions correctly. -/
-def copyFile' (src : FilePath) (dst : FilePath) : LogIO PUnit := do
-  proc (quiet := true) {
-    cmd := "cp"
-    args := #[src.toString, dst.toString]
-  }
-
--- curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL="/custom/path" sh
-def downloadPythonUv (pkg : Package) (oFile : FilePath) : JobM PUnit := do
-  let uvShPath := pkg.buildDir / "install-uv.sh"
-  logInfo s!"Downloading uv from {uv.url}"
-  download uv.url uvShPath
-  proc (quiet := true) {
-    cmd := "env"
-    args := #[s!"UV_UNMANAGED_INSTALL={pkg.buildDir}", "sh", uvShPath.toString]
-  }
-  if ← oFile.pathExists then
-    logInfo s!"uv is now at {oFile}"
+def Lake.Package.runNpmCommand (pkg : Package) (args : Array String) : LogIO Unit :=
+  -- Running `cmd := "npm.cmd"` directly fails on Windows sometimes
+  -- so run in PowerShell instead
+  if Platform.isWindows then
+    proc {
+      cmd := "powershell"
+      args := #["-Command", "npm.cmd"] ++ args
+      cwd := some pkg.widgetDir
+    } (quiet := true)
   else
-    logError s!"Failed to download uv to {oFile}"
-  IO.FS.removeFile uvShPath
+    proc {
+      cmd := "npm"
+      args
+      cwd := some pkg.widgetDir
+    } (quiet := true)
 
--- Modelled after https://github.com/abdoo8080/lean-cvc5/blob/6ab43688cff28aaf5096fb153e3dd89014bf4410/lakefile.lean#L62
-def downloadSolver (solver : Solver) (pkg : Package) (oFile : FilePath) : JobM PUnit := do
-  let zipPath := (pkg.buildDir / s!"{solver}").addExtension "zip"
-  logInfo s!"Downloading {solver} from {solver.url}"
-  download solver.url zipPath
-  let extractedPath := pkg.buildDir / solver.fullName
-  if ← extractedPath.pathExists then
-    IO.FS.removeDirAll extractedPath
-  unzip zipPath pkg.buildDir
-  let binPath := extractedPath/ "bin" / s!"{solver}"
-  copyFile' binPath oFile
-  if ← oFile.pathExists then
-    logInfo s!"{solver} is now at {oFile}"
-  else
-    logError s!"Failed to download {solver} to {oFile}"
-  IO.FS.removeFile zipPath
-  IO.FS.removeDirAll extractedPath
+input_file widgetPackageJson where
+  path := widgetDir / "package.json"
+  text := true
 
-def downloadDependency (pkg : Package) (oFile : FilePath) (build : Package → FilePath → JobM PUnit) := do
-  let lakefilePath := pkg.lakeDir / ".." / dependencyFile
-  let srcJob ← inputTextFile lakefilePath
-  buildFileAfterDep oFile srcJob fun _srcFile => build pkg oFile
+/-- Target to update `package-lock.json` whenever `package.json` has changed. -/
+target widgetPackageLock pkg : FilePath := do
+  let packageFile ← widgetPackageJson.fetch
+  let packageLockFile := pkg.widgetDir / "package-lock.json"
+  buildFileAfterDep (text := true) packageLockFile packageFile fun _srcFile => do
+    pkg.runNpmCommand #["install"]
 
-target downloadDependencies pkg : Array FilePath := do
-  let uv ← downloadDependency pkg (pkg.buildDir / "uv") downloadPythonUv
-  let z3 ← downloadDependency pkg (pkg.buildDir / "z3") (downloadSolver Solver.z3)
-  let cvc5 ← downloadDependency pkg (pkg.buildDir / "cvc5") (downloadSolver Solver.cvc5)
-  return Job.collectArray #[uv, z3, cvc5]
+input_file widgetRollupConfig where
+  path := widgetDir / "rollup.config.js"
+  text := true
+
+input_file widgetTsconfig where
+  path := widgetDir / "tsconfig.json"
+  text := true
+
+/-- The TypeScript widget modules in `widget/src`. -/
+input_dir widgetJsSrcs where
+  path := widgetDir / "src"
+  filter := .extension <| .mem #["ts", "tsx", "js", "jsx"]
+  text := true
+
+/-- Target to build all widget modules from `widgetJsSrcs`. -/
+def widgetJsAllTarget (pkg : Package) (isDev : Bool) : FetchM (Job Unit) := do
+  let srcs ← widgetJsSrcs.fetch
+  let rollupConfig ← widgetRollupConfig.fetch
+  let tsconfig ← widgetTsconfig.fetch
+  let widgetPackageLock ← widgetPackageLock.fetch
+  /- `widgetJsAll` is built via `needs`,
+  and Lake's default build order is `needs -> cloud release -> main build`.
+  We must instead ensure that the cloud release is fetched first
+  so that this target does not build from scratch unnecessarily.
+  `afterBuildCacheAsync` guarantees this. -/
+  pkg.afterBuildCacheAsync do
+  srcs.bindM (sync := true) fun _ =>
+  rollupConfig.bindM (sync := true) fun _ =>
+  tsconfig.bindM (sync := true) fun _ =>
+  widgetPackageLock.mapM fun _ => do
+    let traceFile := pkg.buildDir / "js" / "lake.trace"
+    buildUnlessUpToDate traceFile (← getTrace) traceFile do
+      if let some msg := get_config? errorOnBuild then
+        error msg
+      /- Ensure that NPM modules are installed before building TypeScript,
+       *if* we are building Typescript.
+       This only runs when some TypeScript needs building. -/
+      pkg.runNpmCommand #["clean-install"]
+      pkg.runNpmCommand #["run", if isDev then "build-dev" else "build"]
+
+target widgetJsAll pkg : Unit :=
+  widgetJsAllTarget pkg (isDev := false)
+
+target widgetJsAllDev pkg : Unit :=
+  widgetJsAllTarget pkg (isDev := true)
 
 @[default_target]
 lean_lib «Veil» {
   globs := #[`Veil, .submodules `Veil]
   -- precompileModules := true
-  extraDepTargets := #[``downloadDependencies]
+  needs := #[widgetJsAll]
 }
 
 @[default_target, test_driver]
-lean_lib Test {
-  globs := #[Glob.submodules `Test]
+lean_lib VeilTest {
+  globs := #[Glob.submodules `VeilTest]
+  leanOptions := #[⟨`weak.veil.smt.trust, false⟩]
 }
 
 lean_lib Examples {
   globs := #[.submodules `Examples]
 }
+
+/--
+Run performance tests with timeout enforcement.
+
+USAGE:
+  lake script run perftest
+
+Runs all `.lean` files under `VeilTest/Performance/` and checks that each
+completes within the timeout specified in its accompanying `.timeout` file
+(in seconds). If no `.timeout` file exists, a default of 20 seconds is used.
+
+Example `.timeout` file contents:
+```
+20
+```
+-/
+script perftest do
+  let perfDir : FilePath := "VeilTest" / "Performance"
+  if !(← perfDir.pathExists) then
+    IO.println "No VeilTest/Performance/ directory found."
+    return 1
+  let entries ← perfDir.readDir
+  let tests := entries.filterMap fun e =>
+    if e.path.extension = some "lean" then some e.path else none
+  if tests.isEmpty then
+    IO.println "No performance tests found in VeilTest/Performance/."
+    return 0
+  let lean ← getLean
+  let env ← getAugmentedEnv
+  let mut allPassed := true
+  for test in tests do
+    let timeoutSec ← readTimeout test
+    IO.println s!"Running {test} (timeout: {timeoutSec}s) ..."
+    let (timedOut, elapsedMs, exitCode, stdout, stderr) ←
+      runWithTimeout lean.toString #[test.toString] env (timeoutSec * 1000)
+    let elapsedSec := elapsedMs / 1000
+    if timedOut then
+      IO.println s!"  TIMEOUT after {elapsedSec}s (limit: {timeoutSec}s)"
+      allPassed := false
+    else if exitCode ≠ 0 then
+      IO.println s!"  FAILED (exit code {exitCode}, {elapsedSec}s)"
+      if !stderr.isEmpty then
+        IO.println s!"  Stderr: {stderr.trimAscii}"
+      allPassed := false
+    else
+      IO.println s!"  PASSED ({elapsedSec}s)"
+      if !stdout.isEmpty then
+        for line in stdout.trimAscii.toString.splitOn "\n" do
+          IO.println s!"    {line}"
+  return if allPassed then 0 else 1
+where
+  readTimeout (test : FilePath) : IO Nat := do
+    let timeoutFile := test.withExtension "timeout"
+    if ← timeoutFile.pathExists then
+      let content ← IO.FS.readFile timeoutFile
+      return content.trimAscii.toNat?.getD 20
+    else return 120
+  runWithTimeout (cmd : String) (args : Array String)
+      (env : Array (String × Option String)) (timeoutMs : Nat)
+      : IO (Bool × Nat × UInt32 × String × String) := do
+    IO.println s!"  Executing: {cmd} {String.intercalate " " args.toList}"
+    let child ← IO.Process.spawn {
+      cmd := cmd
+      args := args
+      env := env
+      stdout := .piped
+      stderr := .piped
+    }
+    -- Read stdout/stderr in background tasks to avoid pipe deadlock
+    let stdoutTask ← IO.asTask child.stdout.readToEnd
+    let stderrTask ← IO.asTask child.stderr.readToEnd
+    -- Track process completion via shared flag
+    let doneRef ← IO.mkRef false
+    let exitCodeRef ← IO.mkRef (0 : UInt32)
+    let _ ← IO.asTask do
+      let code ← child.wait
+      exitCodeRef.set code
+      doneRef.set true
+    -- Poll until done or timeout
+    let startTime ← IO.monoMsNow
+    let mut timedOut := false
+    repeat
+      if ← doneRef.get then break
+      IO.sleep 1000
+      let elapsed := (← IO.monoMsNow) - startTime
+      if elapsed > timeoutMs then
+        timedOut := true
+        child.kill
+        break
+    let exitCode ← exitCodeRef.get
+    let stdout ← IO.ofExcept stdoutTask.get
+    let stderr ← IO.ofExcept stderrTask.get
+    let elapsed := (← IO.monoMsNow) - startTime
+    return (timedOut, elapsed, exitCode, stdout, stderr)

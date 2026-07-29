@@ -1,7 +1,4 @@
 import Lean
-import Veil.SMT.Base
-import Auto.Solver.SMT
-
 open Lean
 
 /-! # Veil
@@ -25,181 +22,129 @@ framework.
 /-! ## Trace classes -/
 
 initialize
-  registerTraceClass `veil
+  registerTraceClass `veil (inherited := true)
   registerTraceClass `veil.info
   registerTraceClass `veil.warning
   registerTraceClass `veil.debug
-
-  registerTraceClass `veil.smt
-  registerTraceClass `veil.smt.query
-  registerTraceClass `veil.smt.result
-  registerTraceClass `veil.smt.model
-  registerTraceClass `veil.smt.debug
-
-  -- the following are primarily for performance profiling
-  registerTraceClass `veil.smt.perf.translate
-  registerTraceClass `veil.smt.perf.query
-  registerTraceClass `veil.smt.perf.checkSat
-  registerTraceClass `veil.smt.perf.getModel
-  registerTraceClass `veil.smt.perf.minimizeModel
+  registerTraceClass `veil.desugar
+  registerTraceClass `veil.wp
+  registerTraceClass `veil.timing
+  registerTraceClass `veil.extraction
+  -- Performance trace classes (integrate with Lean's profiler)
+  registerTraceClass `veil.perf (inherited := true)
+  registerTraceClass `veil.perf.elaborator
+  registerTraceClass `veil.perf.tactic
+  registerTraceClass `veil.perf.extract
+  registerTraceClass `veil.perf.smt
+  registerTraceClass `veil.perf.definition
+  registerTraceClass `veil.perf.discharger
 
 /-! ## Options -/
 
-/-- We support two styles of verification condition generation:
-  - `wp`, which is what Ivy does
-  - `transition`, which is what mypyvy does
-
-  The `transition` style is more general, but `wp` generates smaller, usually
-  better queries.
--/
-inductive VCGenStyle
-  | wp
-  | transition
-deriving Inhabited, BEq
-
-instance : ToString VCGenStyle where
-  toString
-    | .wp => "wp"
-    | .transition => "transition"
-
-instance : Lean.KVMap.Value VCGenStyle where
-  toDataValue n := toString n
-  ofDataValue?
-  | "wp"  => some .wp
-  | "transition" => some .transition
-  | _     => none
-
-
-register_option veil.perf.profile.checkInvariants : Bool := {
-  defValue := false
-  descr := "Profile performance of Veil's `#check_invariants`."
-}
-
-register_option veil.gen_sound : Bool := {
-  defValue := false
-  descr := "Generate soundness instances for actions."
-}
-
-register_option veil.vc_gen : VCGenStyle := {
-  defValue := .wp
-  descr := "Verification condition generation style: wp or transition (default: wp)"
-}
+namespace Veil
+/-- Veil does some pretty crazy stuff, so we override some of Lean's defaults
+when you open a `veil module`. -/
+def veilDefaultOptions : List (Name × DataValue) := [
+  -- Helpful when elaborating nested procedures.
+  (`maxRecDepth, DataValue.ofNat 1024),
+  -- Needed because the model checker produces the code for the transition
+  -- system (partly) via typeclass inference.
+  (`maxHeartbeats, DataValue.ofNat 500000),
+  (`synthInstance.maxSize, DataValue.ofNat 4096),
+]
 
 register_option veil.printCounterexamples : Bool := {
-  defValue := false
+  defValue := true
   descr := "Print counterexamples (models) when they are found in `#check_invariants`."
 }
 
-register_option veil.failedCheckThrowsError : Bool := {
+register_option veil.unfoldGhostRel : Bool := {
   defValue := true
-  descr := "Throw an error if a check fails? (default: true)"
+  descr := "If true, `veil_fol` will unfold ghost relations during \
+  simplification. This is the behaviour in Veil 1.0. Otherwise, it \
+  will use small-scale axiomatization. This option must be set before `#gen_spec`."
 }
 
-register_option veil.showVerificationTime : Bool := {
+register_option veil.desugarTactic : Bool := {
   defValue := false
-  descr := "Show the time taken to verify each invariant clause."
+  descr := "If true, Veil-specific tactics will be desugared and the \
+  desugared version will be displayed as a suggestion. \
+  Note that the formatting of the desugared version depends on **whether \
+  the original tactic is placed in isolation** (i.e., whether the lines \
+  it spans contain only whitespace characters other than the tactic itself)."
 }
 
-register_option veil.smt.solver : SmtSolver := {
-  defValue := SmtSolver.cvc5
-  descr := "SMT solver to use (default: cvc5)"
-}
 
-register_option veil.smt.seed : Nat := {
-  defValue := 0xcafe
-  descr := "SMT seed to use"
-}
-
-register_option veil.smt.retryOnUnknown : Bool := {
+register_option veil.violationIsError : Bool := {
   defValue := true
-  descr := "Should the query be retried with a different SMT solver if it the first check returns `unknown`? (default: true)"
+  descr := "If true, violations found by verification or model checking are \
+  logged as errors. If false, they are logged as info messages."
 }
 
-register_option veil.smt.timeout : Nat := {
-  defValue := 5
-  descr := "SMT timeout to use (in seconds)"
+register_option veil.__modelCheckCompileMode : Bool := {
+  defValue := false
+  descr := "(INTERNAL ONLY. DO NOT USE.) When true, skip verification-only operations for model checking compilation."
+}
+
+inductive VeilSolver : Type where
+  | smt
+  | grind
+  | grindAndSMT
+  | custom
+
+instance : Inhabited VeilSolver := ⟨.smt⟩
+
+instance : ToString VeilSolver where
+  toString
+    | .smt => "smt"
+    | .grind => "grind"
+    | .grindAndSMT => "grindAndSMT"
+    | .custom => "custom"
+
+instance : Lean.KVMap.Value VeilSolver where
+  toDataValue s := toString s
+  ofDataValue?
+    | .ofString "smt" => some .smt
+    | .ofString "grind" => some .grind
+    | .ofString "grind+smt" => some .grindAndSMT
+    | .ofString "custom" => some .custom
+    | _ => none
+
+register_option veil.solver : VeilSolver := {
+  defValue := .smt
+  descr := "Solver strategy used by `veil_solve`.
+   - `smt` uses `veil_smt`
+   - `grind` uses Lean's `grind`
+   - `grind+smt` tries `grind` first, then falls back to `veil_smt`
+   - `custom` uses a user-provided `veil_solve` tactic
+
+  For `custom`, define a macro such as
+  ```lean
+  macro_rules
+  | `(tactic| veil_solve) => `(tactic| <your tactic here>)
+  ```"
 }
 
 register_option veil.smt.finiteModelFind : Bool := {
   defValue := true
-  descr := "Should the `--finite-model-find` option be passed to CVC5? (This option has no effect if a different solver is used.)"
+  descr := "If true, the SMT solver will use finite model finding mode (finite-model-find). \
+  If you work in a decidable fragment, this will tend to speed things up."
 }
 
-register_option veil.smt.model.minimize : Bool := {
-  defValue := false
-  descr := "Should models be minimized before being displayed?"
+register_option veil.smt.trust : Bool := {
+  defValue := true
+  descr := "If true, `veil_smt` trusts unsat results from the SMT solver. \
+  If false, `veil_smt` asks the SMT backend to reconstruct Lean proofs."
 }
 
-register_option veil.smt.translator : SmtTranslator := {
-  defValue := SmtTranslator.leanAuto
-  descr := "Which package to use for translating Lean to SMT (`lean-auto` or `lean-smt`)"
+register_option veil.smt.timeout : Nat := {
+  defValue := 60
+  descr := "Timeout for the SMT solver in seconds. Default is 60 seconds."
 }
 
-register_option veil.smt.reconstructProofs : Bool := {
-  defValue := false
-  descr := "Whether to use Lean SMT's proof reconstruction"
+register_option veil.experimental.wpCompact : Bool := {
+  defValue := true
+  descr := "Experimental. If true, compact generated `wp_local_eq.pred` definitions by sharing duplicated postcondition branches with `letEq` and exposing abstract-state conditionals field-wise."
 }
 
-/-! ## `simp` attributes
-
-We have a large number of `simp` attributes in Veil, since we want
-precise control over what gets simplified when. Moreover, we want to
-keep simplification times low, so we purposefully keep our lemma sets
-small.
-
-We use these attributes to control simplification in our DSL constructs
-(e.g. `action`) and in the verification conditions (VCs) we generate.
--/
-
-/-! ### General -/
-
-/-- Simplifiers to prepare a goal for SMT. See `SMT/Preparation.lean`.
-This is designed to be a "cheap" lemma set, that can be quickly
-applied. -/
-register_simp_attr smtSimp
-
-/-- Simplifiers to get rid of trivial if conditions. We need these to
-simplify `Wp` goals. -/
-register_simp_attr ifSimp
-
-/-- We specifically identify lemmas for quantifier elimination and
-hoisting, since we run these in a loop and `logicSimp` is too
-large/expensive a set to run in a loop. See `SMT/Preparation.lean` -/
-register_simp_attr quantifierSimp
-
-/-- Simplifiers to perform logic-based simplification. This mostly
-corresponds to Lean's default `simp` set, but with some lemmas that
-change quantifier structure removed. (We remove these lemmas because we
-need to be careful to preserve decidability of our queries, and
-changing the quantifier structure is a sure-fire way of losing
-decidability, even if the obtained goals are logically equivalent.) -/
-register_simp_attr logicSimp
-
-
-/-! ### DSL-specific -/
-
-/-- Attribute added to conjunctions of invariant clauses, to unfold
-them into their components named invariants. -/
-register_simp_attr invSimpTopLevel
-
-/-- Attribute added to invariant clauses, as well as conjunctions of
-invariant clauses, to unfold them. -/
-register_simp_attr invSimp
-
-/-- Attribute added to individual safety clauses, as well as the
-top-level safety property. -/
-register_simp_attr safeSimp
-
-/-- Attribute added to initial state specifications. -/
-register_simp_attr initSimp
-
-/-- Attribute added to individual actions, as well as collections of
-actions, to unfold them. -/
-register_simp_attr actSimp
-
-/-- Attribute added to `Wp` constructs, to unfold them. -/
-register_simp_attr wpSimp
-
-/-- Implementation detail. Tagged to `genE` and `genI` instances to unfold them.
-Used to make `lift_transition` work. -/
-register_simp_attr generatorSimp
+end Veil
