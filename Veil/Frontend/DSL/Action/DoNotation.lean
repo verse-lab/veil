@@ -149,6 +149,13 @@ when it runs, so refreshing after it is still correct. -/
 def stmtRunsComputation (stx : Syntax) : Bool :=
   (stx.find? (·.isOfKind ``Lean.Parser.Term.liftMethod)).isSome
 
+/-- Append a state refresh when `stx` contains an embedded computation. -/
+private def appendStateRefreshIfNeeded (mod : Module) (stx : Syntax)
+    (items : Array doSeqItem) : TermElabM (Array doSeqItem) := do
+  if stmtRunsComputation stx then
+    return items ++ (← getState mod)
+  return items
+
 macro_rules
   | `(assume  $t) => `($(mkIdent ``VeilM.assume) $t)
   | `(pick   $t)  => `($(mkIdent ``MonadNonDet.pick) $t)
@@ -177,7 +184,7 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
   | `(Term.doSeqItem| veil_var $x:ident : $ty:term) => do
     let pickItem ← `(Term.doSeqItem| let $x:ident ← pick ($ty:term))
     let mutItem ← `(Term.doSeqItem| let mut $x:ident := $x:ident)
-    return #[pickItem] ++ (← expandDoElemVeil proc mutItem)
+    return (← expandDoElemVeil proc pickItem) ++ (← expandDoElemVeil proc mutItem)
   | `(Term.doSeqItem| veil_let $decl:letDecl) => do
     let eqWS := mkIdent ``Veil.eqWithoutSubst
     let thisId := mkIdent `this
@@ -199,13 +206,9 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
   -- Ordinary local `let`s do not mutate state. Refresh only if their initializer
   -- runs an embedded VeilM computation via `(← ...)`.
   | `(Term.doSeqItem| let $decl:letDecl) =>
-    if stmtRunsComputation decl.raw then
-      return #[stx] ++ (← getState mod)
-    return #[stx]
+    appendStateRefreshIfNeeded mod decl.raw #[stx]
   | `(Term.doSeqItem| let mut $decl:letDecl) =>
-    if stmtRunsComputation decl.raw then
-      return #[stx] ++ (← getState mod)
-    return #[stx]
+    appendStateRefreshIfNeeded mod decl.raw #[stx]
   -- `pure $t` where `$t` embeds a state-modifying computation (e.g.
   -- `pure (← act)`): Lean lifts the `←` out and runs it, mutating the state,
   -- so the cached binders must be refreshed before any later read. We handle it
@@ -225,8 +228,8 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
       let bind ← `(Term.doSeqItem| let $b:ident ← $(mkIdent ``pure):ident $t:term)
       return #[bind] ++ (← getState mod) ++ #[← `(Term.doSeqItem| $(mkIdent ``pure):ident $b:ident)]
     return #[stx]
-  -- We don't want to introduce state updates after pure statements, so
-  -- we pass these through unchanged
+  -- We don't want to introduce state updates after statements that cannot
+  -- affect any later read, so we pass these through unchanged.
   -- FIXME: we could have `pure (← state_modifying_action)`, so this isn't
   -- sound. In general, you could even have multiple binds in a single
   -- `term`, so this entire approach is broken and really unfixable until
@@ -234,19 +237,26 @@ partial def expandDoElemVeil (proc : Name) (stx : doSeqItem) : TermElabM (Array 
   | `(Term.doSeqItem| return $t:term)
   -- NOTE: all the expressions in `require`, `assert`, and `assume`,
   -- `pick-such-that` and `if` need to be `Decidable` for execution.
-  | `(Term.doSeqItem| assume $t)
   | `(Term.doSeqItem| let $_ :| $t)
-  | `(Term.doSeqItem| let $_ : $_ ← pick $_) | `(Term.doSeqItem| let $_ : $_ ← pick)
-  | `(Term.doSeqItem| let $_ ← pick $_) | `(Term.doSeqItem| let $_ ← pick)
   => return #[stx]
+  -- `pick` itself does not modify state, but a computation embedded in its
+  -- binder or type (e.g. `pick (Fin (← proc))`) can. Refresh afterward so
+  -- later field reads see the state written by that computation.
+  | `(Term.doSeqItem| let $_ : $_ ← pick $_) | `(Term.doSeqItem| let $_ : $_ ← pick)
+  | `(Term.doSeqItem| let $_ ← pick $_) | `(Term.doSeqItem| let $_ ← pick) =>
+    appendStateRefreshIfNeeded mod stx.raw #[stx]
+  | `(Term.doSeqItem| assume $t) =>
+    appendStateRefreshIfNeeded mod t.raw #[stx]
   -- We elaborate `require` and `assert` here, since we need to record
   -- which procedure they belong to
   | `(Term.doSeqItem| require $t) =>
     let assertId ← mkNewAssertion proc stx
-    return #[← `(Term.doSeqItem| $(mkIdent ``VeilM.require):ident $t $(Syntax.mkNatLit assertId.toNat))]
+    let requireItem ← `(Term.doSeqItem| $(mkIdent ``VeilM.require):ident $t $(Syntax.mkNatLit assertId.toNat))
+    appendStateRefreshIfNeeded mod t.raw #[requireItem]
   | `(Term.doSeqItem| assert $t) =>
     let assertId ← mkNewAssertion proc stx
-    return #[← `(Term.doSeqItem| $(mkIdent ``VeilM.assert):ident $t $(Syntax.mkNatLit assertId.toNat))]
+    let assertItem ← `(Term.doSeqItem| $(mkIdent ``VeilM.assert):ident $t $(Syntax.mkNatLit assertId.toNat))
+    appendStateRefreshIfNeeded mod t.raw #[assertItem]
   -- Conditional boolean statements (`if`)
   | `(Term.doSeqItem| if $t:term then $thn:doSeq $[else if $ts:term then $elifs:doSeq]* $[else $e?:doSeq]?) =>
     let mkIfWithRefresh (c : Term) (thn els : Array doSeqItem) : TermElabM doSeqItem := do
@@ -354,9 +364,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
     -- have mutated *any* field of the state, so the cached state binders for
     -- every field are stale. Reload them. (A pure RHS cannot change the state,
     -- so no refresh is emitted in that case.)
-    if stmtRunsComputation t then
-      return #[res] ++ (← getState mod)
-    return #[res]
+    appendStateRefreshIfNeeded mod t.raw #[res]
   else
     let .some component := component | unreachable!
     mod.throwIfImmutable name
@@ -414,17 +422,13 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
       -- *other* fields too; their cached binders (including their `f_conc`) are
       -- now stale, and a later indexed update of such a field would write back
       -- from the stale value, discarding the callee's writes. Reload all fields.
-      if stmtRunsComputation t then
-        return #[bind, modifyGetConcrete, getAgain] ++ (← getState mod)
-      return #[bind, modifyGetConcrete, getAgain]
+      return ← appendStateRefreshIfNeeded mod t.raw #[bind, modifyGetConcrete, getAgain]
     let bind ← `(Term.doSeqItem| let $bindId:ident := $t:term)
     let res ← withRef stx `(Term.doSeqItem| $id:ident ← $(mkIdent ``modifyGet):ident
     (fun $(mkIdent `st):ident => (($bindId, {$(mkIdent `st) with $id:ident := $bindId}))))
     -- Same rationale as the field-representation branch above: refresh all
     -- field binders when the RHS may have mutated state beyond `name`.
-    if stmtRunsComputation t then
-      return #[bind, res] ++ (← getState mod)
-    return #[bind, res]
+    appendStateRefreshIfNeeded mod t.raw #[bind, res]
 end
 
 def elabVeilDo (proc : Name) (readerTp : Term) (stateTp : Term) (instx : doSeq) : TermElabM Expr := do
