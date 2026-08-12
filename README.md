@@ -61,7 +61,7 @@ Then, clone Veil:
 
 ```bash
 git clone https://github.com/verse-lab/veil.git
-cd veil && git checkout veil-2.0
+cd veil && git checkout veil-2.0-preview
 ```
 
 And, finally, build it:
