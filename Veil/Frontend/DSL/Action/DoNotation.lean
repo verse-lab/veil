@@ -90,16 +90,16 @@ correctly), we use projections.
 /-- Make available the (immutable) theory with `let` binders. Only called once. -/
 def makeTheoryAvailable [Monad m] [MonadEnv m] [MonadQuotation m] (mod : Module) : m (Array doSeqItem) := do
   let thVar := mkVeilImplementationDetailName `theory
-  let readTheory ← `(Term.doSeqItem| let $(mkIdent thVar) := (← $(mkIdent ``read)))
+  let readTheory ← `(Term.doSeqItem| let $(mkIdent thVar) := (← $(mkIdent ``read):term))
   let bindFields ← mod.immutableComponents.mapM (fun f => return ← `(Term.doSeqItem| let $(mkIdent f.name) := $(mkIdent thVar).$(mkIdent f.name)))
   return #[readTheory] ++ bindFields
 
 private abbrev concreteFieldFromName (nm : Name) : Ident := mkIdent <| Name.mkSimple s!"{nm}_conc"
 
 /-- Called in the preamble, to make available `let mut` binders for the state. Only called once. -/
-def makeStateAvailable [Monad m] [MonadEnv m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array doSeqItem) := do
+def makeStateAvailable [Monad m] [MonadEnv m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array doSeqItem) := do
   let stVar := mkVeilImplementationDetailName `state
-  let getState ← `(Term.doSeqItem| let mut $(mkIdent stVar) := (← $(mkIdent ``get)))
+  let getState ← `(Term.doSeqItem| let mut $(mkIdent stVar) := (← $(mkIdent ``get):term))
   let bindFields ← mod.mutableComponents.flatMapM fun f => do
     if mod._useFieldRepTC then
       let concreteField := concreteFieldFromName f.name
@@ -115,9 +115,9 @@ def makeStateAvailable [Monad m] [MonadEnv m] [MonadQuotation m] [MonadError m] 
   return #[getState] ++ bindFields
 
 /-- Refresh the state variables. -/
-def getState [Monad m] [MonadEnv m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array doSeqItem) := do
+def getState [Monad m] [MonadEnv m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array doSeqItem) := do
   let stVar := mkVeilImplementationDetailName `state
-  let getState ← `(Term.doSeqItem| $(mkIdent stVar):ident := (← $(mkIdent ``get)))
+  let getState ← `(Term.doSeqItem| $(mkIdent stVar):ident := (← $(mkIdent ``get):term))
   let bindFields ← mod.mutableComponents.flatMapM fun f => do
     if mod._useFieldRepTC then
       -- slightly repeating code, but anyway
@@ -137,7 +137,7 @@ sub-computation embedded via `(← e)`?
 
 By the time the assignment cases of `expandDoElemVeil` run, the bind-arrow
 forms (`v ← t`, `r a ← t`) have already been normalized into `:= ←`, i.e. the
-embedded computation appears as a `Term.liftMethod` (`(← e)`) node. We detect
+embedded computation appears as a `Term.nestedAction` (`(← e)`) node. We detect
 *any* such node anywhere in the statement.
 
 This is deliberately an over-approximation: refreshing the cached state binders
@@ -147,7 +147,7 @@ silent soundness bug (a stale read). So when in doubt, we refresh. A `←`
 belonging to a nested `do` still denotes a computation in the *same* VeilM monad
 when it runs, so refreshing after it is still correct. -/
 def stmtRunsComputation (stx : Syntax) : Bool :=
-  (stx.find? (·.isOfKind ``Lean.Parser.Term.liftMethod)).isSome
+  (stx.find? (·.isOfKind ``Lean.Parser.Term.nestedAction)).isSome
 
 /-- Append a state refresh when `stx` contains an embedded computation. -/
 private def appendStateRefreshIfNeeded (mod : Module) (stx : Syntax)
@@ -410,7 +410,7 @@ assignState (mod : Module) (id : Ident) (t : Term) : TermElabM (Array doSeqItem)
         let components ← `($(fieldLabelToDomain stateName)
           $(← mod.uninterpretedParamIdents):ident*
           $(mkIdent <| structureFieldLabelTypeName stateName ++ name):ident)
-        `(veil_dsimp% [$(mkIdent `fieldRepresentationPatSimp)] ($(mkIdent ``FieldUpdatePat.pad) ($components) $(Syntax.mkNatLit patOpt.size) $patOpt*))
+        `(veil_dsimp% +$(mkIdent `instances) [$(mkIdent `fieldRepresentationPatSimp)] ($(mkIdent ``FieldUpdatePat.pad) ($components) $(Syntax.mkNatLit patOpt.size) $patOpt*))
       let concreteField := concreteFieldFromName name
       let bind ← `(Term.doSeqItem| let $bindId:ident := ($fieldRepresentation _).$(mkIdent `setSingle) ($patTerm) ($vPadded) $concreteField)
       let modifyGetConcrete ← withRef stx `(Term.doSeqItem| $concreteField:ident ← $(mkIdent ``modifyGet):ident
@@ -457,6 +457,7 @@ getDoElems (stx : doSeq) : TermElabM (Array doSeqItem) := do
   | `(doSeq| $doE*) => pure doE
   | `(doSeq| { $doE* }) => pure doE
   | _ => throwErrorAt stx "unexpected syntax of Veil `do`-notation sequence {stx}"
+  return doS
 
 elab (name := VeilDo) "veil_do" name:ident "in" readerTp:term "," stateTp:term "in" instx:doSeq : term => do
   elabVeilDo name.getId readerTp stateTp instx

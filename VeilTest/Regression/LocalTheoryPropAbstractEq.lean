@@ -151,7 +151,7 @@ invariant true
 /--
 info: LocalTheoryPropAbstractEq.Assumptions.local_abstract_eq (ρ node : Type) [node_dec_eq : DecidableEq node]
   [node_inhabited : Inhabited node] [ρ_sub : IsSubReaderOf (Theory node) ρ]
-  [assumeDecidableForall_dec_0 : (edge : node → node → Bool) → (x : node) → Decidable (∀ (m : node), edge x m = true)]
+  [theoryDecidableForall_dec_0 : (edge : node → node → Bool) → (x : node) → Decidable (∀ (m : node), edge x m = true)]
   (rd : ρ) : Assumptions ρ node rd = Assumptions (Theory node) node (readFrom rd)
 -/
 #guard_msgs in

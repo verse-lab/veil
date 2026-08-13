@@ -90,7 +90,7 @@ private def Module.localDeclarationName? (mod : Module) (fullName : Name) : Opti
     let localName := fullName.updatePrefix Name.anonymous
     if mod._declarations.contains localName then some localName else none
 
-private def Module.statePredicateExprParams [Monad m] [MonadQuotation m] [MonadError m]
+private def Module.statePredicateExprParams [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
     (mod : Module) (nm : Name) (dk : DeclarationKind) : m (Array Parameter) := do
   -- TODO Replace this reconstruction with a systematic Parameter-layout API.
   -- Locality needs the exact binder order of generated Lean declarations, but
@@ -131,7 +131,7 @@ where
   | .assumption => false
   | .invariant | .safety | .trustedInvariant | .termination | .stateConstraint => true
 
-private def Module.statePredicateLayout [Monad m] [MonadQuotation m] [MonadError m]
+private def Module.statePredicateLayout [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
     (mod : Module) (nm : Name) : m StatePredicateLayout := do
   let some dk := mod._declarations[nm]?
     | throwError "statePredicateLayout: {nm} not found in module declarations"
@@ -142,7 +142,7 @@ private def Module.statePredicateLayout [Monad m] [MonadQuotation m] [MonadError
     | throwError "statePredicateLayout: missing state argument for {nm}"
   pure { params, thPos, stPos }
 
-private def Module.statePredicateLayout? [Monad m] [MonadQuotation m] [MonadError m]
+private def Module.statePredicateLayout? [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
     (mod : Module) (nm : Name) : m (Option StatePredicateLayout) := do
   try
     pure (some (← mod.statePredicateLayout nm))
@@ -297,7 +297,7 @@ private def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name)
               mkLambdaFVars (theoryFields ++ stateFieldsConc) bodyResult.expr
           trace[veil.debug] "core for LocalRProp instance of {nm}: {core}"
           let targetInstName ← resolveGlobalConstNoOverloadCore localRPropTCName
-          let some ctor := getStructureLikeCtor? (← getEnv) targetInstName
+          let some ctor := getNonRecStructureCtor? (← getEnv) targetInstName
             | throwError "unexpected error: unable to find constructor for {localRPropTCName}"
           let ctorArgs ← do
             -- This mirrors `getLocalRPropInst`: `LocalRProp` is parameterized
@@ -818,7 +818,8 @@ def Module.proveLocalityForStatePredicate (mod : Module) (nm : Name) (stx : Synt
     let attrs ← do
       let tmp ← `(Parser.Term.attrInstance| scoped instance)
       elabAttrs (#[tmp])
-    let _ ← addVeilDefinition (generateLocalRPropInstName nm) inst (attr := attrs)
+    let _ ← addVeilDefinition (generateLocalRPropInstName nm) inst
+      (attr := #[{ name := `implicit_reducible }] ++ attrs)
   catch ex =>
     logWarningAt stx m!"unable to prove locality for state predicate {nm}: {ex.toMessageData}"
 where

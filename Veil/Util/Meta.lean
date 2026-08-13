@@ -76,6 +76,67 @@ def Lean.Elab.Attribute.mkStx [Monad m] [MonadQuotation m] (attr : Attribute) : 
 
 namespace Veil
 
+/--
+Run Veil-controlled rewriting or unification with backwards compatible behaviour.
+
+FIXME: Remove this temporary workaround once Veil no longer depends on legacy
+definitional equations (such as `List.foldr.eq_1`) during simplification.
+-/
+def withBackwardsCompatibility [Monad m] [MonadWithOptions m] (x : m α) : m α :=
+  withOptions
+    (fun opts =>
+      opts
+        |>.set `backward.isDefEq.respectTransparency false
+        |>.set `backward.defeqAttrib.useBackward true)
+    x
+
+/-- Stable, first-occurrence canonicalization registry: `byKey` is an exact
+(hash) fast path; on a miss, a caller-supplied match predicate (e.g.
+`isDefEq`) scans the canonical entries, recording any match as an alias key
+so the same shape later hits the fast path. -/
+structure CanonicalRegistry (α : Type u) (Key : Type v) [BEq Key] [Hashable Key] where
+  /-- Key → index into `canonical`; several keys may alias one entry. -/
+  byKey : Std.HashMap Key Nat := .emptyWithCapacity 0
+  /-- Canonical items in registration order, with their first-registered key. -/
+  canonical : Array (α × Key) := #[]
+deriving Inhabited
+
+/-- Return `item`'s canonical representative, registering it as a new
+canonical entry if `key` neither hashes to nor `matches?` an existing one. -/
+def CanonicalRegistry.canonicalize {α Key : Type} [BEq Key] [Hashable Key]
+    (reg : CanonicalRegistry α Key) (item : α) (key : Key)
+    (matches? : Key → Key → MetaM Bool) : MetaM (CanonicalRegistry α Key × α) := do
+  let index? ← match reg.byKey[key]? with
+    | some i => pure (some i)
+    | none => reg.canonical.zipIdx.findSomeM? fun ((_, cKey), i) =>
+        return if ← matches? key cKey then some i else none
+  match index? with
+  | some i =>
+    let some (canonicalItem, _) := reg.canonical[i]? | throwError "[CanonicalRegistry] key maps to index {i}, but only {reg.canonical.size} canonical entries exist"
+    return ({ reg with byKey := reg.byKey.insertIfNew key i }, canonicalItem)
+  | none => return ({ byKey := reg.byKey.insert key reg.canonical.size, canonical := reg.canonical.push (item, key) }, item)
+
+/--
+The stable, first-occurrence canonicalization of `items` by the definitional
+equality of their associated types. `representatives[i]` is the member of
+`unique` representing `items[i]`.
+
+This is used for generated instance parameters, where syntactically different
+field or predicate occurrences may elaborate to the same type.
+-/
+structure DefEqCanonicalization (α : Type u) where
+  unique : Array α
+  representatives : Array α
+
+def canonicalizeByDefEqType (items : Array α) (typeOf : α → TermElabM Expr) :
+    TermElabM (DefEqCanonicalization α) := do
+  let mut reg : CanonicalRegistry α Expr := {}
+  let mut representatives := #[]
+  for item in items do
+    let (reg', repr) ← reg.canonicalize item (← typeOf item) (withBackwardsCompatibility <| Meta.isDefEq · ·)
+    (reg, representatives) := (reg', representatives.push repr)
+  return { unique := reg.canonical.map (·.1), representatives }
+
 declare_syntax_cat commands
 syntax (command ppLine ppLine)* : commands
 elab_rules : command
@@ -92,7 +153,7 @@ def withTiming {m α} [Monad m] [MonadTrace m] [MonadOptions m] [MonadRef m] [Mo
   return res
 
 /-- Syntax for `∀ a₀ a₁ .. aₙ, Decidable (P a₀ a₁ .. aₙ)`. -/
-def decidableNStx [Monad m] [MonadError m] [MonadQuotation m] (n : Nat) (relName : Name) : m Term := do
+def decidableNStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (n : Nat) (relName : Name) : m Term := do
   let idents := (Array.range n).map fun i => mkIdent $ Name.mkSimple s!"a{i}"
   if n == 0 then
     `(term| $(mkIdent ``Decidable) ($(mkIdent relName)))
@@ -260,6 +321,14 @@ def isDecidableInstance (type : Expr) : TermElabM Bool := do
 private def mkVeilDecidableTypeName (owner : Name) (idx : Nat) : Name :=
   owner.mkStr s!"_veil_dec_type_{idx}"
 
+/-- Rename `e`'s universe parameters to canonical names determined only by
+its structure, so expressions differing only in universe-param naming become
+syntactically equal. -/
+def normalizeLevelParams (e : Expr) : Expr :=
+  let params := (collectLevelParams {} e).params
+  e.instantiateLevelParams params.toList
+    (params.toList.mapIdx fun i _ => .param (Name.mkSimple s!"__veil_u_{i}"))
+
 /-- Elaborates the term (ignoring typeclass inference failures) and
 returns the set of `Decidable` instances needed to make it elaborate
 correctly. `decBodyTransform` is for simplifying the body of the
@@ -278,6 +347,11 @@ def getRequiredDecidableInstances (owner : Name) (stx : Term) (decBodyTransform 
   Term.synthesizeSyntheticMVars (postpone := .no) (ignoreStuckTC := true)
   let mvars ← (Array.map Expr.mvar) <$> Meta.getMVars e
   let decInsts ← mvars.zipIdx.filterMapM fun (mv, idx) => simplifyMVarType idx mv isBodyDecidable
+  let canonicalized ← canonicalizeByDefEqType decInsts fun inst => Meta.inferType inst.2
+  for (inst, representative) in decInsts.zip canonicalized.representatives do
+    unless inst.2 == representative.2 do
+      inst.2.mvarId!.assign representative.2
+  let decInsts := canonicalized.unique
   return (decInsts, e)
 where
   isBodyDecidable (body : Expr) : TermElabM Bool := do
@@ -362,7 +436,7 @@ def getSimpleBinderType [Monad m] [MonadError m] (sig : TSyntax `Lean.Parser.Com
 /-- Given `t : type1 → type2 → .. → typeN → codomain`,
     return `([type1, type2, .., typeN], codomain)`.
     Best efforts. A better way would be to use elaboration. -/
-partial def splitForallArgsCodomain [Monad m] [MonadError m] [MonadQuotation m] (t : Term) : m (Array Term × Term) := do
+partial def splitForallArgsCodomain [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (t : Term) : m (Array Term × Term) := do
   let rec go (t : Term) (acc : Array Term) : m (Array Term × Term) := do
     match t with
     | `(term| $a → $b) | `(term| [$_:ident : $a] → $b) | `(term| [$a:term] → $b)
@@ -375,7 +449,7 @@ partial def splitForallArgsCodomain [Monad m] [MonadError m] [MonadQuotation m] 
   go t #[]
 
 /-- Create the syntax for something like `type1 → type2 → .. → typeN`, ending with `terminator`. -/
-def mkArrowStx [Monad m] [MonadQuotation m] [MonadError m] (tps : List Term) (terminator : Option $ TSyntax `term := none) : m (TSyntax `term) := do
+def mkArrowStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (tps : List Term) (terminator : Option $ TSyntax `term := none) : m (TSyntax `term) := do
   match tps with
   | [] => if let some t := terminator then return t else throwError "empty list of types and no terminator"
   | [a] => match terminator with
@@ -386,7 +460,7 @@ def mkArrowStx [Monad m] [MonadQuotation m] [MonadError m] (tps : List Term) (te
     `(term| $a -> $cont)
 
 /-- Given `nm`, `(r : Int) (v : vertex)` and `Prop`, return `nm : Int -> vertex -> Prop` -/
-def complexBinderToSimpleBinder [Monad m] [MonadQuotation m] [MonadError m] (nm : TSyntax `ident) (br : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (domT : TSyntax `term) : m (TSyntax `Lean.Parser.Command.structSimpleBinder) := do
+def complexBinderToSimpleBinder [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (nm : TSyntax `ident) (br : TSyntaxArray `Lean.Parser.Term.bracketedBinder) (domT : TSyntax `term) : m (TSyntax `Lean.Parser.Command.structSimpleBinder) := do
   let types ← br.mapM fun m => match m with
     | `(bracketedBinder| ($_arg:ident : $tp:term)) => return tp
     | _ => throwError "Invalid binder syntax {br}"
@@ -415,7 +489,7 @@ def mkImplicitBinder [Monad m] [MonadQuotation m] : TSyntax `Lean.Parser.Term.br
   | stx => return stx
 end Binders
 
-def bracketedBinderIdent [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.Parser.Term.bracketedBinder) : m (Option Ident) := do
+def bracketedBinderIdent [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (stx : TSyntax `Lean.Parser.Term.bracketedBinder) : m (Option Ident) := do
   match stx with
   | `(bracketedBinder| ($id:ident : $_tp)) => return id
   | `(bracketedBinder| [$id:ident : $_tp]) => return id
@@ -424,14 +498,14 @@ def bracketedBinderIdent [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyn
 
 /-- Given a set of binders, return the terms that correspond to them.
 Typeclasses that are not named are replaced with `_`, to be inferred. -/
-def bracketedBindersToTerms [Monad m] [MonadError m] [MonadQuotation m] (stx : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : m (Array Term) := do
+def bracketedBindersToTerms [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (stx : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) : m (Array Term) := do
   let idents : Array (Option Ident) ← stx.mapM bracketedBinderIdent
   idents.mapM (fun mid => do
     match mid with
     | some id => `(term|$id)
     | none => `(term|_))
 
-def explicitBindersFlatMapM [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) (f : TSyntax `Lean.binderIdent → TSyntax `term → m α) : m (Array α) :=
+def explicitBindersFlatMapM [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (stx : TSyntax `Lean.explicitBinders) (f : TSyntax `Lean.binderIdent → TSyntax `term → m α) : m (Array α) :=
   match stx with
   | `(explicitBinders|$bs*) =>
     bs.flatMapM fun
@@ -441,22 +515,22 @@ def explicitBindersFlatMapM [Monad m] [MonadError m] [MonadQuotation m] (stx : T
   | _ => throwError "unexpected syntax in explicit binder: {stx}"
 
 /-- Convert existential binders into function binders. -/
-def toFunBinderArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `Lean.Parser.Term.funBinder) :=
+def toFunBinderArray [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `Lean.Parser.Term.funBinder) :=
   explicitBindersFlatMapM stx fun bi tp => do
     let id ← binderIdentToIdent bi
     `(Lean.Parser.Term.funBinder| ($id : $tp:term))
 
 /-- Convert existential binders into definition binders. -/
-def toBracketedBinderArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `Lean.Parser.Term.bracketedBinder) := do
+def toBracketedBinderArray [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `Lean.Parser.Term.bracketedBinder) := do
   explicitBindersFlatMapM stx fun bi tp => do
     let id ← binderIdentToIdent bi
     `(bracketedBinder| ($id : $tp:term))
 
-def explicitBindersToTerms [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (Array Term) := do
+def explicitBindersToTerms [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (stx : TSyntax `Lean.explicitBinders) : m (Array Term) := do
   toBracketedBinderArray stx >>= bracketedBindersToTerms
 
 open Lean.Parser.Term in
-def bracketedBinderToFunBinder [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax ``bracketedBinder) : m (TSyntax ``funBinder) := do
+def bracketedBinderToFunBinder [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (stx : TSyntax ``bracketedBinder) : m (TSyntax ``funBinder) := do
   match stx with
   | `(bracketedBinder| ($id:ident : $tp:term))
   | `(bracketedBinder| ($id:ident : $tp:term := by $_))
@@ -468,10 +542,10 @@ def bracketedBinderToFunBinder [Monad m] [MonadError m] [MonadQuotation m] (stx 
   | _ => throwError "bracketedBinderToFunBinder: unexpected syntax {stx}"
 
 /-- Convert existential binders (`explicitBinders`) into identifiers. -/
-def toIdentArray [Monad m] [MonadError m] [MonadQuotation m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `ident) := do
+def toIdentArray [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (stx : TSyntax `Lean.explicitBinders) : m (TSyntaxArray `ident) := do
   explicitBindersFlatMapM stx fun bi _tp => do `(ident| $(← binderIdentToIdent bi))
 
-def Option.stxArrMapM [Monad m] [MonadError m] [MonadQuotation m] (o : Option (TSyntax α)) (f : TSyntax α → m (TSyntaxArray β)) : m (TSyntaxArray β) := do
+def Option.stxArrMapM [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (o : Option (TSyntax α)) (f : TSyntax α → m (TSyntaxArray β)) : m (TSyntaxArray β) := do
   match o with
   | .some stx => f stx
   | .none => pure #[]
@@ -484,7 +558,7 @@ def liftTermElabMWithBinders (binders : Array (TSyntax `Lean.Parser.Term.bracket
   Elab.Command.liftTermElabM <| Term.elabBinders binders fun vs => x vs
 
 /-- Like `throwErrorAt`, but if `stx` is `none`, use `getRef` instead. -/
-def _root_.Lean.throwErrorAtOpt [Monad m] [MonadRef m] [MonadError m] (stx : Option Syntax) (msg : MessageData) : m α := do
+def _root_.Lean.throwErrorAtOpt [Monad m] [MonadError m] (stx : Option Syntax) (msg : MessageData) : m α := do
   match stx with
   | .some stx => throwErrorAt stx msg
   | .none => throwErrorAt (← getRef) msg
@@ -552,7 +626,9 @@ private partial def withAutoBoundCapitals (k : TermElabM α) : TermElabM α := d
   else
     `($t)
 
-def expandTermMacro [Monad m] [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m] (stx : Term) : m Term := do
+def expandTermMacro [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadEnv m] [MonadRecDepth m]
+    [MonadResolveName m] [MonadTrace m] [MonadOptions m] [AddMessageContext m]
+    [MonadLiftT IO m] (stx : Term) : m Term := do
   TSyntax.mk <$> (Elab.liftMacroM <| expandMacros stx)
 
 /-- All capitalized variables inside `uqc%` will be automatically

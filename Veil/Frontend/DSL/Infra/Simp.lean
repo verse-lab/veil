@@ -1,4 +1,4 @@
-import Lean
+import Veil.Util.Meta
 
 namespace Veil
 
@@ -121,7 +121,7 @@ def Simplifier.andThen (s1 : Simplifier) (s2 : Simplifier) : Simplifier := fun e
   let res2 ← s2 res1.expr
   res1.mkEqTrans res2
 
-def unfold (defs : Array Name) : Simplifier := fun e => do
+def unfold (defs : Array Name) : Simplifier := fun e => withBackwardsCompatibility do
   let mut res : Meta.Simp.Result := { expr := e }
   for name in defs do
     let res' ← Meta.unfold res.expr name
@@ -138,16 +138,16 @@ private def getSimprocs (simps : Array Name) : CoreM Meta.Simp.SimprocsArray := 
       simprocs := simprocs.push (← ext.getSimprocs)
   return simprocs
 
-def simpCore (ctx : Meta.Simp.Context) (simps : Array Name := #[]) : Simplifier := fun e => do
+def simpCore (ctx : Meta.Simp.Context) (simps : Array Name := #[]) : Simplifier := fun e => withBackwardsCompatibility do
   let (res, _stats) ← Meta.simp e ctx (discharge? := none) (simprocs := ← getSimprocs simps)
   let _usedTheorems := _stats.usedTheorems.toArray.map (·.key)
   trace[veil.debug] "simp {simps} (used: {_usedTheorems}):\n{e}\n~>\n{res.expr}"
   return res
 
-def simp (simps : Array Name) (config : Meta.Simp.Config := {}) : Simplifier := fun e => do
+def simp (simps : Array Name) (config : Meta.Simp.Config := {}) : Simplifier := fun e => withBackwardsCompatibility do
   simpCore (← mkVeilSimpCtx simps config) simps e
 
-def dsimp (simps : Array Name) (config : Meta.Simp.Config := {}) : Simplifier := fun e => do
+def dsimp (simps : Array Name) (config : Meta.Simp.Config := {}) : Simplifier := fun e => withBackwardsCompatibility do
   let (expr, _stats) ← Meta.dsimp e (← mkVeilSimpCtx simps config) (simprocs := ← getSimprocs simps)
   let _usedTheorems := _stats.usedTheorems.toArray.map (·.key)
   trace[veil.debug] "dsimp {simps} (used: {_usedTheorems}):\n{e}\n~>\n{expr}"
@@ -178,6 +178,7 @@ where interpretConfigItemWithSign (a : Meta.Simp.Config) (sign : Bool) (field : 
   | `beta => some { a with beta := sign }
   | `failIfUnchanged => some { a with failIfUnchanged := sign }
   | `unfoldPartialApp => some { a with unfoldPartialApp := sign }
+  | `instances => some { a with instances := sign }
   | _ => none
 
 -- NOTE: We could use `Lean.Parser.Tactic.optConfig` for `cfg`, but

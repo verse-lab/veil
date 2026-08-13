@@ -376,7 +376,7 @@ theorem check_totality_doesNotThrow (ρ : Type) (σ : Type) (party : Type) [part
       obtain ⟨y, hym, hyr⟩ := (h_ready_dis P v hP hPr).2 Q_a
       exact absurd (hQ_a y hym).2 (by simp [hyr])
     · -- P ready for V' ≠ v: inv4 with Q_a member gives V' = v, contradiction
-      push_neg at hPr; obtain ⟨V', hV'⟩ := hPr; simp only [Bool.not_eq_false] at hV'
+      push Not at hPr; obtain ⟨V', hV'⟩ := hPr; simp only [Bool.not_eq_false] at hV'
       obtain ⟨p₀, hp₀nf, hp₀m⟩ := h_amp_nf Q_a
       have := inv4 p₀ P v V' hp₀nf hP (hQ_a p₀ hp₀m).2 hV'
       subst this; grind
@@ -404,7 +404,7 @@ theorem check_totality_doesNotThrow (ρ : Type) (σ : Type) (party : Type) [part
         have hynb : y ≠ th.broadcaster := by rintro rfl; grind
         by_cases hye : ∀ V, st.echo y V = false
         · exact absurd h_pv (by simp [h_echo_dis y v hynf hynb hye])
-        · push_neg at hye; obtain ⟨V', hV'e⟩ := hye; simp only [Bool.not_eq_false] at hV'e
+        · push Not at hye; obtain ⟨V', hV'e⟩ := hye; simp only [Bool.not_eq_false] at hV'e
           have hV'eq := (inv7 hbf).1 V' ((inv7 hbf).2 y V' hynf |>.1 hV'e)
           have hveq := (inv7 hbf).1 v h_pv
           rw [hV'eq, ← hveq] at hV'e; grind
@@ -426,7 +426,7 @@ theorem check_totality_doesNotThrow (ρ : Type) (σ : Type) (party : Type) [part
       have hynb : y ≠ th.broadcaster := by rintro rfl; grind
       exact absurd (all_acked y (hQ_cf y hym) hynb) (by simp [hyr])
     · -- P ready for V': by inv2 + quorum_not_faulty + naa, V' = v, contradiction
-      push_neg at hPr; obtain ⟨V', hV'⟩ := hPr; simp only [Bool.not_eq_false] at hV'
+      push Not at hPr; obtain ⟨V', hV'⟩ := hPr; simp only [Bool.not_eq_false] at hV'
       obtain ⟨Q, hQ⟩ := inv2 P V' hP hV'
       obtain ⟨P₃, hP₃nf, hP₃m⟩ := h_q_nf Q
       have hP₃a := hQ P₃ hP₃m hP₃nf

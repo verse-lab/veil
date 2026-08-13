@@ -67,13 +67,13 @@ instance : ToString StateComponentType where
 instance : ToString StateComponent where
   toString sc := s!"{sc.mutability} {sc.kind} {sc.name} {sc.type}"
 
-def StateComponentType.stx [Monad m] [MonadQuotation m] [MonadError m] (sct : StateComponentType) : m (TSyntax `term) := do
+def StateComponentType.stx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (sct : StateComponentType) : m (TSyntax `term) := do
     match sct with
     | .simple t => getSimpleBinderType t
     | .complex b d => getSimpleBinderType $ ← complexBinderToSimpleBinder (mkIdent Name.anonymous) b d
 
 /-- Returns, e.g., `initial_msg : address → address → round → value → Prop` -/
-def StateComponent.getSimpleBinder [Monad m] [MonadQuotation m] [MonadError m] (sc : StateComponent) : m (TSyntax ``Command.structSimpleBinder) := do
+def StateComponent.getSimpleBinder [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (sc : StateComponent) : m (TSyntax ``Command.structSimpleBinder) := do
   match sc.type with
   | .simple t => return t
   | .complex b d => return ← complexBinderToSimpleBinder (mkIdent sc.name) b d
@@ -81,8 +81,8 @@ def StateComponent.getSimpleBinder [Monad m] [MonadQuotation m] [MonadError m] (
 def StateComponent.isMutable (sc : StateComponent) : Bool := sc.mutability == Mutability.mutable
 def StateComponent.isImmutable (sc : StateComponent) : Bool := sc.mutability == Mutability.immutable
 
-def StateComponent.stx [Monad m] [MonadQuotation m] [MonadError m] (sc : StateComponent) : m Syntax := sc.getSimpleBinder
-def StateComponent.typeStx [Monad m] [MonadQuotation m] [MonadError m] (sc : StateComponent) : m Term := sc.type.stx
+def StateComponent.stx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (sc : StateComponent) : m Syntax := sc.getSimpleBinder
+def StateComponent.typeStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (sc : StateComponent) : m Term := sc.type.stx
 
 /-! ## Assertions about state (or background theory) -/
 
@@ -189,15 +189,15 @@ def Parameter.binder [Monad m] [MonadQuotation m] (p : Parameter) : m (TSyntax `
     | .some (.term defValue) => `(bracketedBinder|($(mkIdent p.name) : $(p.type) := $defValue))
     | .some (.tactic tactic) => `(bracketedBinder|($(mkIdent p.name) : $(p.type) := by $tactic:tacticSeq))
 
-def Parameter.bracketedExplicitBinder [Monad m] [MonadQuotation m] [MonadError m] (p : Parameter) : m (TSyntax ``Lean.bracketedExplicitBinders) := do
+def Parameter.bracketedExplicitBinder [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (p : Parameter) : m (TSyntax ``Lean.bracketedExplicitBinders) := do
   match p.kind with
   | .definitionParameter _ .explicit => `(bracketedExplicitBinders|($(identToBinderIdent $ mkIdent p.name) : $(p.type)))
   | _ => throwError "[Parameter.bracketedExplicitBinder]: unexpected parameter kind: {repr p.kind}"
 
-def ProcedureSpecification.binders [Monad m] [MonadQuotation m] [MonadError m] (a : ProcedureSpecification) : m (TSyntaxArray ``Lean.Parser.Term.bracketedBinder) :=
+def ProcedureSpecification.binders [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (a : ProcedureSpecification) : m (TSyntaxArray ``Lean.Parser.Term.bracketedBinder) :=
   a.params.mapM (·.binder)
 
-def DerivedDefinition.binders [Monad m] [MonadQuotation m] [MonadError m] (dd : DerivedDefinition) : m (TSyntaxArray ``Lean.Parser.Term.bracketedBinder) :=
+def DerivedDefinition.binders [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (dd : DerivedDefinition) : m (TSyntaxArray ``Lean.Parser.Term.bracketedBinder) :=
   dd.params.mapM (·.binder)
 
 /-- Convert a `Parameter` to a `Term` syntax for the equivalent
@@ -214,19 +214,65 @@ def Parameter.arg [Monad m] [MonadQuotation m] (p : Parameter) : m Term := do
 
 def Parameter.ident [Monad m] [MonadQuotation m] (p : Parameter) : m Ident := return mkIdent p.name
 
+/-! ## Extra Parameter Canonicalization
+
+Generated typeclass parameters ("extra params") are deduplicated across
+declarations at registration time: every producer (actions, transitions,
+assertions, ghost definitions) passes its freshly extracted params through
+`Module.canonicalizeExtraParams`, so def-eq duplicates share one canonical
+name and type module-wide. Consumers that bind a union of declarations'
+extra params then only need `Parameter.deduplicateByName`, and by-name
+references from any source declaration resolve in any such context. -/
+
+/-- Recover a generated typeclass parameter's `ExtraParamKey` from its
+`delta% @<decl>._veil_dec_type_<i> <args>` type syntax: the minted abbrev's
+environment value is the closed type, so no elaboration is needed. -/
+private def Parameter.extraParamKey? (p : Parameter) : MetaM (Option ExtraParamKey) := do
+  let some (constName, args) := parse? p.type | return none
+  let some closedType := ((← getEnv).find? constName).bind (·.value?) | return none
+  return some { closedType := normalizeLevelParams closedType, args }
+where
+  parse? : Term → Option (Name × Array Name)
+    | `(delta% @$c:ident $args:ident*) => some (c.getId, args.map (·.getId))
+    | `(delta% @$c:ident) => some (c.getId, #[])
+    | _ => none
+
+/-- Canonicalize freshly extracted extra params against the module-wide
+registry: def-eq duplicates take their representative's name/type (count and
+order preserved). Each param costs one hash lookup of its derived key; on a
+miss, the cached *closed* types of same-`args` entries are compared with
+`isDefEq` (nothing is re-elaborated) and a match is recorded as an alias key
+for future fast-path hits. Requiring equal `args` keeps the substitution
+def-eq in any context, and keeps a declaration's own params (already def-eq
+distinct) from merging with each other. -/
+def Module.canonicalizeExtraParams (mod : Module) (params : Array Parameter) : MetaM (Module × Array Parameter) := do
+  let (reg, canonicalParams) ← params.foldlM (init := (mod._extraParamRegistry, (#[] : Array Parameter))) fun (reg, acc) p => do
+    let some key ← p.extraParamKey? | throwError "[canonicalizeExtraParams] extra parameter {p.name} does not have the expected `delta% @<abbrev> <args>` type: {p.type}"
+    let (reg, canonical) ← reg.canonicalize p key fun k ck =>
+      if k.args != ck.args then pure false
+      else withBackwardsCompatibility (Meta.isDefEq k.closedType ck.closedType)
+    return (reg, acc.push { p with name := canonical.name, «type» := canonical.type })
+  return ({ mod with _extraParamRegistry := reg }, canonicalParams)
+
+/-- Keep the first occurrence of each name; canonicalized extra params share
+names module-wide, so unions bind each shared instance exactly once. -/
+def Parameter.deduplicateByName (params : Array Parameter) : Array Parameter :=
+  params.foldl (init := ((∅ : Std.HashSet Name), #[])) (fun (seen, acc) p =>
+    if seen.contains p.name then (seen, acc) else (seen.insert p.name, acc.push p)) |>.2
+
 /-! ## Binder/Parameter Conversions -/
 
-def explicitBindersToParameters [Monad m] [MonadQuotation m] [MonadError m] (stx : Option (TSyntax ``Lean.explicitBinders)) (forDef : Name) : m (Array Parameter) := do
+def explicitBindersToParameters [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (stx : Option (TSyntax ``Lean.explicitBinders)) (forDef : Name) : m (Array Parameter) := do
   match stx with
   | .none => pure #[]
   | .some stx => explicitBindersFlatMapM stx fun bi tp => do
       let id ← binderIdentToIdent bi
       pure { kind := .definitionParameter forDef .explicit, name := id.getId, «type» := tp, userSyntax := stx }
 
-def parametersToExplicitBinders [Monad m] [MonadQuotation m] [MonadError m] (params : Array Parameter) : m (TSyntax ``Lean.explicitBinders) := do
+def parametersToExplicitBinders [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (params : Array Parameter) : m (TSyntax ``Lean.explicitBinders) := do
   `(explicitBinders| $(← params.mapM (·.bracketedExplicitBinder))*)
 
-def bracketedBinderToParameter [Monad m] [MonadQuotation m] [MonadError m] (stx : TSyntax `Lean.Parser.Term.bracketedBinder) (forDef : Name) : m Parameter := do
+def bracketedBinderToParameter [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (stx : TSyntax `Lean.Parser.Term.bracketedBinder) (forDef : Name) : m Parameter := do
   match stx with
   | `(bracketedBinder| ($id:ident : $tp)) => return { kind := .definitionParameter forDef .explicit, name := id.getId, «type» := tp, userSyntax := stx }
   -- explicit binder with default value (provided by either a term or a tactic), e.g. for `th` and `st` in ghost relations
@@ -285,7 +331,7 @@ def Module.uninterpretedParamIdentsForTheoryOrState [Monad m] [MonadQuotation m]
 
 /-! ## Declaration Parameter Queries -/
 
-def Module.declarationBaseParams [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (k : DeclarationKind) : m (Array Parameter) := do
+def Module.declarationBaseParams [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (k : DeclarationKind) : m (Array Parameter) := do
   match k with
   | .moduleParameter => throwError "[Module.declarationBaseParams]: moduleParameter has no base parameters"
   | .stateComponent _ _ => mod.uninterpretedParamFilterMapFn (pure ·)
@@ -317,7 +363,7 @@ three components:
   executable)
   - actual parameters (the parameters that the definition actually takes)
  -/
-def Module.declarationSplitParams [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Parameter × Array Parameter × Array Parameter) := do
+def Module.declarationSplitParams [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Parameter × Array Parameter × Array Parameter) := do
   let baseParams ← mod.declarationBaseParams k
   let (extraParams, actualParams) ← (do
     match k with
@@ -342,33 +388,33 @@ def Module.declarationSplitParams [Monad m] [MonadError m] [MonadQuotation m] (m
 including "extra" parameters (decidable instances)
 - `actualParams`: the parameters that the declaration "actually" takes
 -/
-def Module.declarationAllParams [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Parameter × Array Parameter) := do
+def Module.declarationAllParams [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Parameter × Array Parameter) := do
   let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams forDeclaration k
   return (baseParams ++ extraParams, actualParams)
 
-def Module.declarationAllParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (forDeclaration : Name) (k : DeclarationKind) : m (Array α × Array Parameter) := do
+def Module.declarationAllParamsMapFn [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (f : Parameter → m α) (forDeclaration : Name) (k : DeclarationKind) : m (Array α × Array Parameter) := do
   let (allModParams, actualParams) ← mod.declarationAllParams forDeclaration k
   return (← allModParams.mapM f, actualParams)
 
 /-- Utility function to get the binders and arguments for a declaration, split
 between those imposed by the module and those the declaration "actually" has.
 -/
-def Module.declarationSplitBindersArgs [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m ((Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Array Term) × (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Array Term)) := do
+def Module.declarationSplitBindersArgs [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m ((Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Array Term) × (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Array Term)) := do
   let (allModParams, specificParams) ← mod.declarationAllParams forDeclaration k
   let (allModBinders, allModArgs) := (← allModParams.mapM (·.binder), ← allModParams.mapM (·.ident))
   let (specificBinders, specificArgs) := (← specificParams.mapM (·.binder), ← specificParams.mapM (·.arg))
   return ((allModBinders, allModArgs), (specificBinders, specificArgs))
 
 /-- Utility function to get all the binders and arguments for a declaration -/
-def Module.declarationAllBindersArgs {m} [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Array Term) := do
+def Module.declarationAllBindersArgs {m} [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Array Term) := do
   let ((allModBinders, allModArgs), (specificBinders, specificArgs)) ← mod.declarationSplitBindersArgs forDeclaration k
   return (allModBinders ++ specificBinders, allModArgs ++ specificArgs)
 
-def Module.declarationAllBinders {m} [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+def Module.declarationAllBinders {m} [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   let ((allModBinders, _), (specificBinders, _)) ← mod.declarationSplitBindersArgs forDeclaration k
   return allModBinders ++ specificBinders
 
-def Module.declarationAllArgs {m} [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Term) := do
+def Module.declarationAllArgs {m} [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (forDeclaration : Name) (k : DeclarationKind) : m (Array Term) := do
   let ((_, allModArgs), (_, specificArgs)) ← mod.declarationSplitBindersArgs forDeclaration k
   return allModArgs ++ specificArgs
 
@@ -376,7 +422,7 @@ def Module.declarationAllArgs {m} [Monad m] [MonadError m] [MonadQuotation m] (m
 exist**. FIXME: this is `O(n^2)`-ish, so it might become a bottleneck.
 The solution is to also store an index into the appropriate array in
 `_declarations`. -/
-def Module.mkDerivedDefinitionsParamsMapFn [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (f : Parameter → m α) (k : DeclarationKind) : m (Array α × Array α) := do
+def Module.mkDerivedDefinitionsParamsMapFn [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (f : Parameter → m α) (k : DeclarationKind) : m (Array α × Array α) := do
   let .derivedDefinition _ derivedFrom := k
     | throwError "[Module.mkDerivedDefinitionsParamsMapFn]: invalid kind"
   let baseParams ← mod.declarationBaseParams k
@@ -391,6 +437,8 @@ def Module.mkDerivedDefinitionsParamsMapFn [Monad m] [MonadError m] [MonadQuotat
     | .derivedDefinition _ _ => return mod._derivedDefinitions.valuesArray.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | _ => throwError "[Module.mkDerivedDefinitionsParamsMapFn]: declaration {dec} (included in derivedFrom) has unsupported kind")
     pure $ Array.flatten extraParams)
+  -- Canonicalized extra params repeat by name across declarations; bind each once.
+  let extraParams := Parameter.deduplicateByName extraParams
   return (← baseParams.mapM f, ← extraParams.mapM f)
 
 /-! ## Assertion & Procedure Filters -/
@@ -452,7 +500,7 @@ where
 
 /-- Throw an error if the field (which we're trying to assign to) was
 declared immutable. -/
-def Module.throwIfImmutable [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) (nm : Name) (isTransition : Bool := false) : m Unit := do
+def Module.throwIfImmutable [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) (nm : Name) (isTransition : Bool := false) : m Unit := do
   -- NOTE: This code supports two modes of operation:
   -- (a) child modules' state is immutable in the parent
   -- (b) child modules' state mutability annotations are inherited in the parent
@@ -495,10 +543,10 @@ where
 
 /-! ## Syntax Generation -/
 
-def Module.stateStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (withFieldConcreteType? : Bool := false) : m Term :=
+def Module.stateStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (withFieldConcreteType? : Bool := false) : m Term :=
   return ← `(term| @$(mkIdent stateName) $(← mod.uninterpretedParamIdentsForTheoryOrState withFieldConcreteType?)*)
 
-def Module.theoryStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term :=
+def Module.theoryStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m Term :=
   return ← `(term| @$(mkIdent theoryName) $(← mod.uninterpretedParamIdents)*)
 
 end Veil

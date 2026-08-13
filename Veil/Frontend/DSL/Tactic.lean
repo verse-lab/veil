@@ -358,7 +358,7 @@ private def unaryClassArg? (className : Name) (ty : Expr) : TacticM (Option Expr
 private def hasNonemptyLocalInstance (sort : Expr) : TacticM Bool := do
   for inst in (← getLocalInstances) do
     let some sort' ← unaryClassArg? ``Nonempty (← Meta.inferType inst.fvar) | continue
-    if ← Meta.isDefEq sort sort' then
+    if ← withBackwardsCompatibility (Meta.isDefEq sort sort') then
       return true
   return false
 
@@ -449,7 +449,7 @@ partial def elabVeilDestructSpecificHyp (ids : Array (TSyntax `ident)) (onlyStru
     -- Simplify FieldAbstractType in new field hypotheses
     -- This handles types like `FieldAbstractType node State.Label.leader`
     let dsimpLemmas := #[fieldAbstractDispatcher, fieldLabelToDomain sn, fieldLabelToCodomain sn]
-    veilEvalTactic $ ← `(tactic| try dsimp [$[$dsimpLemmas:ident],*] at $[$newFieldNames:ident]*)
+    veilEvalTactic $ ← `(tactic| try dsimp +$(mkIdent `instances) [$[$dsimpLemmas:ident],*] at $[$newFieldNames:ident]*)
     -- TODO: try to give better names to the new hypotheses if they are named clauses
 
 /-- Destruct all structures in the context into their respective
@@ -552,7 +552,7 @@ def elabVeilConcretizeStateTr : DesugarTacticM Unit := veilWithMainContext do
 
   let classicalIdent := mkIdent `Classical
   let initialSimps := #[`substateSimp, `invSimp, `smtSimp, `forallQuantifierSimp].map Lean.mkIdent
-  veilEvalTactic $ ← `(tacticSeq|open $classicalIdent:ident in veil_simp only [$[$initialSimps:ident],*] at * )
+  veilEvalTactic $ ← `(tacticSeq|open $classicalIdent:ident in veil_simp +$(mkIdent `instances) only [$[$initialSimps:ident],*] at * )
 
   -- Step 1: Destructuring (sometimes required to enable `subst`)
   let doubleNegTac ← `(tactic| $veilDestruct )
@@ -570,7 +570,7 @@ def elabVeilConcretizeStateTr : DesugarTacticM Unit := veilWithMainContext do
   -- Step 3: Concretize remaining abstract state hyps using generalize
   -- NOTE: `subst` might have removed some of the abstract state hyps, so we need to recompute them
   elabVeilConcretizeStateWp
-  veilWithMainContext $ veilEvalTactic (← `(tacticSeq|veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `smtSimp):ident] at *; $veilDestruct))
+  veilWithMainContext $ veilEvalTactic (← `(tacticSeq|veil_simp +$(mkIdent `instances) only [$(mkIdent `substateSimp):ident, $(mkIdent `smtSimp):ident] at *; $veilDestruct))
 
 /-- Similar idea to `elabVeilConcretizeState`, but for fields when
 `FieldRepresentation` is used. This also does simplification using
@@ -601,13 +601,13 @@ def elabVeilConcretizeFieldsWp (fast : Bool) : DesugarTacticM Unit := veilWithMa
   let localSimpTerms := #[fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
   if !fast then
     -- (1) do basic simplification using `LawfulFieldRepresentation`
-    tacs := tacs.push <| ← `(tacticSeq| veil_simp only [$(mkIdent `fieldRepresentationSetSimpPre):ident])
+    tacs := tacs.push <| ← `(tacticSeq| veil_simp +$(mkIdent `instances) only [$(mkIdent `fieldRepresentationSetSimpPre):ident])
     -- (2) simplify using `get_set_idempotent'`
     let simpTerms ← fields.mapM fun f =>
       `(($lawfulRep .$f).$(mkIdent `get_set_idempotent') (by infer_instance_for_iterated_prod))
-    tacs := tacs.push <| ← `(tacticSeq| open $(mkIdent `Classical):ident in veil_simp only [$[$simpTerms:term],*] at *)
+    tacs := tacs.push <| ← `(tacticSeq| open $(mkIdent `Classical):ident in veil_simp +$(mkIdent `instances) only [$[$simpTerms:term],*] at *)
     -- (3) simplify the resulting things
-    tacs := tacs.push <| ← `(tacticSeq| open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `fieldRepresentationSetSimpPost):ident, $[$localSimpTerms:ident],*] at *)
+    tacs := tacs.push <| ← `(tacticSeq| open $(mkIdent `Classical):ident in veil_simp +$(mkIdent `instances) only [$(mkIdent `fieldRepresentationSetSimpPost):ident, $[$localSimpTerms:ident],*] at *)
   -- (4) concretize the `FieldRepresentation.get`-ed fields
   let rep := mkIdent hyp.userName
   for stHyp in stHyps do
@@ -616,7 +616,7 @@ def elabVeilConcretizeFieldsWp (fast : Bool) : DesugarTacticM Unit := veilWithMa
       let f : Ident := f
       let fDestructed := mkIdent <| Name.append st.getId f.getId -- Name.mkSimple s!"{st.getId}_{f.getId}"
       let tmpField := mkIdent <| mkVeilImplementationDetailName f.getId
-      tacs := tacs.push <| ← `(tacticSeq| generalize (($rep _).$(mkIdent `get)) $st.$f = $tmpField at * ; dsimp [$[$localSimpTerms:ident],*] at $tmpField:ident ; veil_rename_hyp $tmpField:ident => $fDestructed:ident)
+      tacs := tacs.push <| ← `(tacticSeq| generalize (($rep _).$(mkIdent `get)) $st.$f = $tmpField at * ; dsimp +$(mkIdent `instances) [$[$localSimpTerms:ident],*] at $tmpField:ident ; veil_rename_hyp $tmpField:ident => $fDestructed:ident)
     -- Clear the original state hypothesis
     tacs := tacs.push <| ← `(tacticSeq| try clear $st:ident)
   for t in tacs do
@@ -667,13 +667,13 @@ def elabVeilConcretizeFieldsTr : DesugarTacticM Unit := veilWithMainContext do
   -- Step 3: Final simplification
   -- NOTE: `Bool.decide_eq_bool_eq` is ONLY used here for now; it might be
   -- added into `smtSimp` as well, but just to be very conservative
-  veilWithMainContext $ veilEvalTactic (← `(tactic| veil_simp only [$(mkIdent `substateSimp):ident, $(mkIdent `smtSimp):ident,
+  veilWithMainContext $ veilEvalTactic (← `(tactic| veil_simp +$(mkIdent `instances) only [$(mkIdent `substateSimp):ident, $(mkIdent `smtSimp):ident,
     $(mkIdent ``Bool.decide_eq_bool_eq):ident] at *))
 
 @[inherit_doc __veil_neutralize_decidable_inst]
 def elabVeilNeutralizeDecidableInst (deep : Bool) (loc : Option (TSyntax ``Lean.Parser.Tactic.location)) : DesugarTacticM Unit := veilWithMainContext do
   let nm := if deep then ``Veil.Util.neutralizeDecidableInstGeneral else ``Veil.Util.neutralizeDecidableInstDepth0
-  veilEvalTactic $ ← `(tactic| veil_simp only [$(mkIdent nm):ident] $[$loc]?)
+  veilEvalTactic $ ← `(tactic| veil_simp +$(mkIdent `instances) only [$(mkIdent nm):ident] $[$loc]?)
   clearDecidableInsts
 where
   clearDecidableInsts : DesugarTacticM Unit := veilWithMainContext do
@@ -747,7 +747,8 @@ private def smallScaleAxiomatization (nBaseParams nExtraParams : Nat) (nm nmFull
 
   -- step 3: do some simplification (this makes this code a bit too specific, but anyway)
   -- for now, only do `dsimp` here
-  let newEq' ← (Simp.dsimp <| smallScaleAxiomatizationSimpSet withLocalRPropTC?) newEq
+  let newEq' ← (Simp.dsimp (smallScaleAxiomatizationSimpSet withLocalRPropTC?)
+    { instances := true : Meta.Simp.Config }) newEq
   -- create the `have` binding
   let eqName ← mkFreshBinderNameForTactic (nm'.appendAfter "_eq")
   -- simulating `have eqName : newEq := proof`; not sure why there is no direct API for this?
@@ -849,7 +850,7 @@ where
         let specificArgs := args.drop nBaseParams |>.take nSpecificArgs
         -- check if we can replace `e'` with `grfv specificArgs`
         let target := mkAppN grfv specificArgs
-        if ← isDefEq e' target then
+        if ← withBackwardsCompatibility (isDefEq e' target) then
           trace[veil.debug] "folding {e'} to {target}"
           return .done target
         return .done e'
@@ -867,7 +868,7 @@ def elabGhostRelationSSA (hyp : Option Ident) : DesugarTacticM Unit := veilWithM
   -- do some simplification for the goal
   let simps := smallScaleAxiomatizationSimpSet mod._useLocalRPropTC |>.map Lean.mkIdent
   withMainContextGeneral do
-  veilEvalTactic $ ← `(tactic| expose_names ; veil_dsimp only [$[$simps:ident],*])
+  veilEvalTactic $ ← `(tactic| expose_names ; veil_dsimp +$(mkIdent `instances) only [$[$simps:ident],*])
 
 private def mkVeilSmtTactic : TacticM (TSyntax `tactic) := do
   let idents ← getPropsInContext
@@ -876,16 +877,24 @@ private def mkVeilSmtTactic : TacticM (TSyntax `tactic) := do
   let timeout := veil.smt.timeout.get opts
   let trustEnabled := veil.smt.trust.get opts
   let fmfValue := if fmfEnabled then "true" else "false"
-  let trustValue := mkIdent <| if trustEnabled then ``true else ``false
-  let trustValueNegated := mkIdent <| if trustEnabled then ``false else ``true
+  let trustSmt := mkIdent <| if trustEnabled then ``true else ``false
+  let embedBool := mkIdent <| if trustEnabled then ``false else ``true
   let solverOptions ← `(term| [("finite-model-find", $(Syntax.mkStrLit fmfValue)), ("nl-ext-tplanes", "true"), ("enum-inst-interleave", "true")])
-  let smtTac ← `(tactic| smt ($(mkIdent `config):ident := {$(mkIdent `trust):ident := $trustValue:ident, $(mkIdent `embedBool):ident := $trustValueNegated:ident, $(mkIdent `model):ident := $(mkIdent ``true), $(mkIdent `timeout):ident := $(mkIdent ``Option.some) $(quote timeout), $(mkIdent `extraSolverOptions):ident := $solverOptions}) [$[$idents:ident],*])
+  let smtTac ← `(tactic|
+    open $(mkIdent `Classical):ident in
+    smt
+      ($(mkIdent `trust):ident := $trustSmt:ident)
+      ($(mkIdent `embedBool):ident := $embedBool:ident)
+      ($(mkIdent `model):ident := $(mkIdent ``true))
+      ($(mkIdent `timeout):ident := $(mkIdent ``Option.some) $(quote timeout))
+      ($(mkIdent `extraSolverOptions):ident := $solverOptions)
+      [$[$idents:ident],*])
   if trustEnabled then
-    return ← `(tactic| open $(mkIdent `Classical):ident in $smtTac:tactic)
+    return smtTac
   else
-    return ← `(tactic| (veil_infer_nonempty; open $(mkIdent `Classical):ident in $smtTac:tactic))
+    return ← `(tactic| (veil_infer_nonempty; $smtTac:tactic))
 
-def elabVeilSolve : DesugarTacticM Unit := veilWithMainContext do
+def elabVeilSolve : DesugarTacticM Unit := withBackwardsCompatibility <| veilWithMainContext do
   let solver := veil.solver.get (← getOptions)
   let tac ← match solver with
     | .smt => `(tactic| veil_smt)
@@ -894,7 +903,7 @@ def elabVeilSolve : DesugarTacticM Unit := veilWithMainContext do
     | .custom => `(tactic| fail "Custom solver is not specified")
   veilEvalTactic tac
 
-def elabVeilSmt (stx : Syntax) (trace : Bool := false) : DesugarTacticM Unit := veilWithMainContext do
+def elabVeilSmt (stx : Syntax) (trace : Bool := false) : DesugarTacticM Unit := withBackwardsCompatibility <| veilWithMainContext do
   -- It's necessary to `open Classical` to make proof reconstruction work.
   -- Otherwise, sometimes it fails due to failing to infer `Decidable` instances.
   let auto_tac ← mkVeilSmtTactic
@@ -920,7 +929,7 @@ def elabVeilSimp (trace? : Bool) (cfg : TSyntax ``Lean.Parser.Tactic.optConfig) 
     | true => `(tactic| simp? $cfg:optConfig $[$discharger]? $[only%$o]? $[[$[$params],*]]? $[$loc]?)
     | false => `(tactic| simp $cfg:optConfig $[$discharger]? $[only%$o]? $[[$[$params],*]]? $[$loc]?)
   -- FIXME: the suggestion won't work properly for `simp?` because `evalTactic` does `withRef`
-  veilEvalTactic simpCall
+  withBackwardsCompatibility <| veilEvalTactic simpCall
 
 def elabVeilDSimp (trace? : Bool) (cfg : TSyntax ``Lean.Parser.Tactic.optConfig) (o : Option Syntax) (params : Option (Array (TSyntax [`Lean.Parser.Tactic.simpErase, `Lean.Parser.Tactic.simpLemma]))) (loc : Option (TSyntax `Lean.Parser.Tactic.location)) : DesugarTacticM Unit := veilWithMainContext do
   let cfg ← disableFailIfUnchangedInSimpConfig cfg
@@ -928,14 +937,14 @@ def elabVeilDSimp (trace? : Bool) (cfg : TSyntax ``Lean.Parser.Tactic.optConfig)
     | true => `(tactic| dsimp? $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?)
     | false => `(tactic| dsimp $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?)
   -- FIXME: the same issue as above?
-  veilEvalTactic simpCall
+  withBackwardsCompatibility <| veilEvalTactic simpCall
 
 attribute [loomLogicSimpForVeil ↓] topE topPureE
 
 def elabVeilWp : DesugarTacticM Unit := veilWithMainContext do
   -- NOTE: In some cases (e.g. for `doesNotThrow`), we get internal Loom
   -- definitions like `⊤`. `loomLogicSimp` ensures these are unfolded.
-  let tac ← `(tactic| open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `wpSimp):ident, $(mkIdent `loomLogicSimpForVeil):ident])
+  let tac ← `(tactic| open $(mkIdent `Classical):ident in veil_simp +$(mkIdent `instances) only [$(mkIdent `wpSimp):ident, $(mkIdent `loomLogicSimpForVeil):ident])
   veilEvalTactic tac
 
 private def mkTrueLocalRPropComponents [Monad m] [MonadQuotation m] (mod : Module) : m (Term × Term) := do
@@ -958,7 +967,7 @@ private def mkLocalPreconditionTactics (mod : Module) (theoryType stateType pre 
     -- `Invariants.core_simplified` loses the module-prefix arguments because
     -- the expected type is already just the field-core function type.
     pure (none, ← `(tactic| exact $(mkIdent invariantsEqName):ident))
-  else if ← isDefEq pre truePre then
+  else if ← withBackwardsCompatibility (isDefEq pre truePre) then
     -- Initializer VCs have precondition `fun _ _ => True`.  Build the matching
     -- field-level core directly instead of asking Lean to infer a shared
     -- definition's module/typeclass prefix while bridge theorem arguments are
@@ -994,7 +1003,7 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
           fun xs => mkLambdaFVars xs (mkConst ``True)
         pure (theoryType, stateType, act, pre,
           ← `(term| fun _ => $(mkIdent ``True)),
-          ← isDefEq post truePost)
+          ← withBackwardsCompatibility (isDefEq post truePost))
       | VeilM.doesNotThrowAssuming_ex _ theoryType stateType _ act _ pre ex =>
         -- NOTE: We rely on the assumption that `ex` is a fvar; otherwise, constructing
         -- the handler at the syntax level might not be reliable, if through delaboration
@@ -1074,8 +1083,8 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
     try unfold $(mkIdent <| toWpLocalPredName actName):ident
     try unfold $(mkIdent <| toCoreSimplifiedName assembledAssumptionsName):ident at $has:ident
     try unfold $(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident at $hinv:ident
-    veil_dsimp only [$(mkIdent `nextSimp):ident]
-    veil_dsimp only [↓ $(mkIdent `reduceStateLabelDomainCodomainDsimproc):ident]
+    veil_dsimp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]
+    veil_dsimp +$(mkIdent `instances) only [↓ $(mkIdent `reduceStateLabelDomainCodomainDsimproc):ident]
     )
   veilEvalTactic tac
 
@@ -1140,7 +1149,7 @@ def elabVeilApplyLocalTr : DesugarTacticM Unit := veilWithMainContext do
     try unfold $(mkIdent trName) at $htr:ident
     try unfold $(mkIdent <| toCoreSimplifiedName assembledAssumptionsName):ident at $has:ident
     try unfold $(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident at $hinv:ident
-    veil_dsimp only [$(mkIdent `nextSimp):ident] at $htr:ident ⊢
+    veil_dsimp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident] at $htr:ident ⊢
     )
   veilEvalTactic tac
 where
@@ -1197,9 +1206,9 @@ private def elabSimplifyBeforeConcretizeWp [Monad m] [MonadOptions m] [MonadQuot
     -- NOTE: Both here and below assume the hypothesis for `Invariants` has name `hinv`
     else `(tactic| (__veil_ghost_relation_ssa at $(mkIdent `hinv):ident ; __veil_ghost_relation_ssa ))
   let simpTac ← if simpHinv
-    then `(tactic| open $classicalIdent:ident in veil_simp only [$[$initialSimps:ident],*] at *)
+    then `(tactic| open $classicalIdent:ident in veil_simp +$(mkIdent `instances) only [$[$initialSimps:ident],*] at *)
     else -- skip `hinv`
-      `(tactic| open $classicalIdent:ident in veil_simp only [$[$initialSimps:ident],*] at $(mkIdent `has):ident ⊢ )
+      `(tactic| open $classicalIdent:ident in veil_simp +$(mkIdent `instances) only [$[$initialSimps:ident],*] at $(mkIdent `has):ident ⊢ )
   `(tacticSeq| $simpTac ; veil_intro_ho ; $ghostRelTac )
 
 @[inherit_doc veil_concretize_wp]
@@ -1215,7 +1224,7 @@ def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainCont
 @[inherit_doc veil_concretize_tr]
 def elabVeilConcretizeTr : DesugarTacticM Unit := veilWithMainContext do
   -- FIXME: figure out how to do the axiomatisation for ghost relations in TR
-  let ghostRel ← `(tactic| veil_simp only [$(mkIdent `ghostRelSimp):ident] at *)
+  let ghostRel ← `(tactic| veil_simp +$(mkIdent `instances) only [$(mkIdent `ghostRelSimp):ident] at *)
   let tac ← `(tacticSeq| __veil_neutralize_decidable_inst at * ; $ghostRel; __veil_concretize_state_tr; __veil_concretize_fields_tr)
   veilEvalTactic tac
 
@@ -1224,14 +1233,14 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
     let classicalIdent := mkIdent `Classical
     let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
     let tac ← if fast
-      then `(tactic| (veil_destruct' ; veil_dsimp only at *; veil_intros) )
-      else `(tactic| (veil_destruct; (open $classicalIdent:ident in veil_simp only [$(mkIdent `smtSimp):ident] at * ); veil_intros) )
+      then `(tactic| (veil_destruct' ; veil_dsimp +$(mkIdent `instances) only at *; veil_intros) )
+      else `(tactic| (veil_destruct; (open $classicalIdent:ident in veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident] at * ); veil_intros) )
     -- FIXME: There is `inferNonemptyTac` both in `veil_fol` and `veil_smt` and `concretize_wp`. Just keep one?
     `(tactic| ($inferNonemptyTac:tactic; $tac:tactic))
   veilEvalTactic tac
 
 def elabVeilHuman : DesugarTacticM Unit := veilWithMainContext do
-  veilEvalTactic $ ← `(tactic| veil_intros; veil_wp; __veil_neutralize_decidable_inst at *; veil_concretize_wp; veil_clear; veil_simp at *)
+  veilEvalTactic $ ← `(tactic| veil_intros; veil_wp; __veil_neutralize_decidable_inst at *; veil_concretize_wp; veil_clear; veil_simp +$(mkIdent `instances) at *)
 
 /-- The fast WP-local continuation after `veil_apply_local_wp` has succeeded.
 
@@ -1239,7 +1248,7 @@ At this point the goal is already the field-exposed local/core obligation, so
 this path deliberately avoids the old concretization steps. -/
 def elabVeilSolveWplo : DesugarTacticM Unit := veilWithMainContext do
   let tac ← `(tacticSeq|
-    open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident]
+    open $(mkIdent `Classical):ident in veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]
     veil_intro_ho
     veil_fol !
     veil_solve
@@ -1261,8 +1270,8 @@ def elabVeilSolveTrlo : DesugarTacticM Unit := veilWithMainContext do
   -- `veil_smt` fail. So we do the dsimproc after `smtSimp`.
   let htr := mkIdent `htr
   let tac ← `(tacticSeq|
-    open $(mkIdent `Classical):ident in veil_simp only [$(mkIdent `smtSimp):ident] at $htr:ident
-    veil_dsimp only [↓ $(mkIdent `reduceStateLabelDomainCodomainDsimproc):ident] at $htr:ident
+    open $(mkIdent `Classical):ident in veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident] at $htr:ident
+    veil_dsimp +$(mkIdent `instances) only [↓ $(mkIdent `reduceStateLabelDomainCodomainDsimproc):ident] at $htr:ident
     __veil_neutralize_decidable_inst at $htr:ident ⊢
     $solveTac
     )
@@ -1277,7 +1286,7 @@ def elabVeilSolveWpDoesNotThrow : DesugarTacticM Unit := veilWithMainContext do
   -- If you don't write `assert`, then most likely the goal is trivial
   veilEvalTactic <| ← `(tactic| solve
     | veil_intros; veil_wp;
-      veil_simp only [↓ $(mkIdent ``ite_self):ident, ↓ $(mkIdent ``implies_true):ident]
+      veil_simp +$(mkIdent `instances) only [↓ $(mkIdent ``ite_self):ident, ↓ $(mkIdent ``implies_true):ident]
     | veil_apply_local_wp; __veil_solve_wplo )
 
 /-- Try the local-WP path first; if applying the local bridge theorem fails,
@@ -1304,7 +1313,7 @@ def elabVeilSolveTrConservative : DesugarTacticM Unit := veilWithMainContext do
   -- NOTE: `veil_fol !` seems to sometimes remove variables from the context
   -- if they're not used. This is undesirable when the variable is an action
   -- parameter, because we need to keep it in the context for model extraction.
-  let tac ← `(tactic| veil_simp only [$(mkIdent `invSimp):ident, $(mkIdent `actSimp):ident] at *; veil_simp only [$(mkIdent `ifSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_solve))
+  let tac ← `(tactic| veil_simp +$(mkIdent `instances) only [$(mkIdent `invSimp):ident, $(mkIdent `actSimp):ident] at *; veil_simp +$(mkIdent `instances) only [$(mkIdent `ifSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_solve))
   veilEvalTactic tac
 
 /-- Try the local-TR path first; if applying the local bridge theorem fails,
@@ -1329,9 +1338,9 @@ def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
   -- FIXME: sometimes we still have abstract dispatchers in the types, so as a
   -- hack, we just dsimp them here
   let dsimpLemmas := #[mkIdent ``Inhabited.default, fieldAbstractDispatcher, fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
-  let dsimpTac←  `(tactic| try dsimp [$[$dsimpLemmas:ident],*])
+  let dsimpTac←  `(tactic| try dsimp +$(mkIdent `instances) [$[$dsimpLemmas:ident],*])
   let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
-  let tac ← `(tacticSeq| $inferNonemptyTac:tactic; veil_simp only [$(mkIdent `nextSimp):ident]; veil_simp only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; $inferNonemptyTac:tactic; veil_destruct; $dsimpTac; veil_simp only [$(mkIdent `smtSimp):ident]; $dsimpTac; veil_smt)
+  let tac ← `(tacticSeq| $inferNonemptyTac:tactic; veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]; veil_simp +$(mkIdent `instances) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; $inferNonemptyTac:tactic; veil_destruct; $dsimpTac; veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]; $dsimpTac; veil_smt)
   veilEvalTactic tac
 
 def elabVeilSplitIfs : DesugarTacticM Unit := veilWithMainContext do

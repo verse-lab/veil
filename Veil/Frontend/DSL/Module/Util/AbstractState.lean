@@ -1,5 +1,6 @@
 import Veil.Frontend.DSL.Module.Util.Assertions
 import Veil.Util.ReplacingInstances
+import Veil.Util.Meta
 
 open Lean Parser Elab Command Term Meta Tactic
 
@@ -109,7 +110,7 @@ def proveEqModuloDecidableInstances? (e1 e2 : Expr) : MetaM (Option Expr) := do
   let e2 ← whnf e2
   let r1 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneral]) e1
   let r2 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneral]) e2
-  if ← isDefEq r1.expr r2.expr then
+  if ← withBackwardsCompatibility (isDefEq r1.expr r2.expr) then
     -- Return the proof that `e1` = `e2`
     -- `r1.proof : e1 = r1.expr, r2.proof : e2 = r2.expr`
     -- So `Eq.trans (r1.proof) (Eq.symm (r2.proof)) : e1 = e2`
@@ -119,7 +120,7 @@ def proveEqModuloDecidableInstances? (e1 e2 : Expr) : MetaM (Option Expr) := do
   return none
 
 def isDefEqModuloDecidableInstances (e1 e2 : Expr) : MetaM (Option <| Option Expr) := do
-  if ← isDefEq e1 e2 then
+  if ← withBackwardsCompatibility (isDefEq e1 e2) then
     return some none
   match ← proveEqModuloDecidableInstances? e1 e2 with
   | some pf => return some (some pf)

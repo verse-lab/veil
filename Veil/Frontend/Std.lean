@@ -15,7 +15,8 @@ def List.insertOrdered [inst : Ord α] := @List.orderedInsert _ (fun x y => inst
 
 /-! # Axiomatizations of various structures -/
 
-instance Fin.pos_then_inhabited {n : Nat} (h : 0 < n) : Inhabited (Fin n) where
+@[implicit_reducible]
+def Fin.pos_then_inhabited {n : Nat} (h : 0 < n) : Inhabited (Fin n) where
   default := Fin.mk 0 h
 
 instance : FinEnum Bool := FinEnum.ofNodupList [true, false] (by decide) (by decide)
@@ -36,6 +37,7 @@ class TotalOrder (t : Type) where
 
 /-- Form a total order from an injective mapping to `Nat`. This could be
 used for enumerate types with `.ctorIdx`. -/
+@[implicit_reducible]
 def total_order_by_inj_on_nat {t : Type} (f : t → Nat) (h : Function.Injective f)
   : TotalOrder t where
   le x y := (f x) ≤ (f y)
@@ -44,6 +46,7 @@ def total_order_by_inj_on_nat {t : Type} (f : t → Nat) (h : Function.Injective
   le_antisymm _ _ h1 h2 := Nat.le_antisymm h1 h2 |> h
   le_total x y := Nat.le_total (f x) (f y)
 
+@[implicit_reducible]
 def total_order_by_inj_on_fin {t : Type} {n : Nat} (f : t → Fin n) (h : Function.Injective f)
   : TotalOrder t := total_order_by_inj_on_nat (fun x => (f x).val)
   (by whnf ; simp ; intro a1 a2 h ; aesop)
@@ -203,7 +206,8 @@ instance between_fin (n : Nat) : Between (Fin n) where
 /-- A rank-based ring topology, where each node is assigned with a
 unique `Nat` rank, nodes are sorted by their rank, and the ring is
 formed by connecting the sorted list of nodes. -/
-instance ordered_ring (node : Type) (rank : node → Nat) (rank_inj : ∀ n1 n2, n1 ≠ n2 → rank n1 ≠ rank n2) : Between node where
+@[implicit_reducible]
+def ordered_ring (node : Type) (rank : node → Nat) (rank_inj : ∀ n1 n2, n1 ≠ n2 → rank n1 ≠ rank n2) : Between node where
   btw := fun a b c => (rank a < rank b ∧ rank b < rank c) ∨ (rank c < rank a ∧ rank a < rank b) ∨ (rank b < rank c ∧ rank c < rank a)
   btw_ring := by aesop
   btw_trans := by omega
@@ -310,6 +314,7 @@ def allQuorums (n : Nat) : List (Quorum n) :=
     simp only [BitVec.popCount, decide_eq_true_eq] at h
     exact h)
 
+set_option backward.isDefEq.respectTransparency false in
 theorem allQuorums_complete {n : Nat} : ∀ (q : Quorum n), q ∈ allQuorums n := by
   intro ⟨bv, hbv⟩
   simp only [allQuorums, List.mem_attachWith, List.mem_filter, BitVec.popCount]
@@ -446,6 +451,7 @@ include hbyz
 
 /-- ByzNodeSet instance for `Fin n` with at most `f` Byzantine nodes.
     Assumes `n = 3 * f + 1` (standard Byzantine fault tolerance assumption). -/
+@[implicit_reducible]
 def byzNodeSetFin : ByzNodeSet (Fin n) (ByzNSet n) where
   is_byz := is_byz
   member a s := a ∈ s.val
@@ -466,7 +472,7 @@ def byzNodeSetFin : ByzNodeSet (Fin n) (ByzNSet n) where
     have hunion := Finset.card_le_univ (s1.toFinset ∪ s2.toFinset) ; simp at hunion
     have hinter_size : f + 1 ≤ (s1.toFinset ∩ s2.toFinset).card := by omega
     -- The intersection contains at least f+1 nodes, and at most f are Byzantine
-    by_contra h ; push_neg at h
+    by_contra h ; push Not at h
     have hall_byz : ∀ a ∈ s1.toFinset ∩ s2.toFinset, is_byz a := by
       intro a ha ; simp at h ha
       have := h a ha.1 ha.2 ; tauto
@@ -483,7 +489,7 @@ def byzNodeSetFin : ByzNodeSet (Fin n) (ByzNSet n) where
     intro ⟨s, hs_sorted⟩ hgt
     simp only at hgt
     -- s has ≥ f+1 elements, ≤ f are Byzantine, so ≥ 1 honest
-    by_contra h ; push_neg at h
+    by_contra h ; push Not at h
     have hall_byz : ∀ a ∈ s, is_byz a := by
       intro a ha ; simp at h ; have := h a ha ; tauto
     have hnodup := List.Pairwise.nodup hs_sorted
@@ -505,19 +511,19 @@ def byzNodeSetFin : ByzNodeSet (Fin n) (ByzNSet n) where
 -- These instances are required, even after setting `byzNodeSetFin` to be `abbrev`
 instance byzNodeSetFin_is_byz_dec :
   ∀ a, Decidable (ByzNodeSet.is_byz (self := byzNodeSetFin n f hf is_byz hbyz) a) := by
-  dsimp [byzNodeSetFin] ; intros ; infer_instance
+  dsimp +instances [byzNodeSetFin] ; intros ; infer_instance
 
 instance byzNodeSetFin_member_dec :
   ∀ a b, Decidable (ByzNodeSet.member (self := byzNodeSetFin n f hf is_byz hbyz) a b) := by
-  dsimp [byzNodeSetFin] ; intros ; infer_instance
+  dsimp +instances [byzNodeSetFin] ; intros ; infer_instance
 
 instance byzNodeSetFin_supermajority_dec :
   ∀ a, Decidable (ByzNodeSet.supermajority _ (self := byzNodeSetFin n f hf is_byz hbyz) a) := by
-  dsimp [byzNodeSetFin] ; intros ; infer_instance
+  dsimp +instances [byzNodeSetFin] ; intros ; infer_instance
 
 instance byzNodeSetFin_greater_than_third_dec :
   ∀ a, Decidable (ByzNodeSet.greater_than_third _ (self := byzNodeSetFin n f hf is_byz hbyz) a) := by
-  dsimp [byzNodeSetFin] ; intros ; infer_instance
+  dsimp +instances [byzNodeSetFin] ; intros ; infer_instance
 
 end
 
@@ -528,7 +534,7 @@ this instance, `f` must be given explicitly (e.g., write
 `#synth ByzNodeSet (Fin 4) (ByzNSet 4)`. -/
 instance insByzNodeSetFinSimple : ByzNodeSet (Fin (3 * f + 1)) (ByzNSet (3 * f + 1)) :=
   byzNodeSetFin (3 * f + 1) f rfl (fun i => i.val < f) (by
-    dsimp ; apply Nat.le_of_eq
+    apply Nat.le_of_eq
     rw [← List.take_append_drop f (List.ofFn id), List.filter_append, List.length_append]
     conv => rhs ; rw [← Nat.add_zero f]
     congr
@@ -609,7 +615,7 @@ instance [TSet α κ] (s1 s2 : κ) : Decidable (TSet.isSubset s1 s2) :=
 
 instance (priority := high) instEnumerationTSetSubset [TSet α κ] (superSet : κ) : Veil.Enumeration ({ s : κ // TSet.isSubset s superSet }) where
   allValues := TSet.subsets superSet |>.attachWith _ (fun x => TSet.subsets_iff x superSet |>.mp)
-  complete := by simp [TSet.isSubset, TSet.subsets_iff]
+  complete := by simp +instances [TSet.isSubset, TSet.subsets_iff]
 
 instance [TSet α κ] (k : κ) : Veil.Enumeration ({ a : α // a ∈ k }) := instEnumerationTSetContains k
 

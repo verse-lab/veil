@@ -88,12 +88,13 @@ lemma VeilExecM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId) :
   wp (@VeilExecM.assert m ρ σ p _ ex) post = fun r s => if p then post () r s else hd ex := by
   simp [VeilExecM.assert]; split
   { simp [wp_pure] }
-  simp only [throw, throwThe, ReaderT.instMonadExceptOf]
+  simp +instances only [throw, throwThe, ReaderT.instMonadExceptOf]
   have : ∀ (α σ : Type) (m : Type -> Type) [Monad m], StateT.lift (σ := σ) (α := α) (m := m) = liftM := by
-    simp [liftM, monadLift, StateT.instMonadLift]
+    simp +instances [liftM, monadLift, StateT.instMonadLift]
   simp only [MAlgLift.wp_lift]; erw [ExceptT.wp_throw]
   simp [loomLogicSimp]; rfl
 
+set_option backward.isDefEq.respectTransparency false in
 @[wpSimp ↓]
 lemma VeilM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId) :
   wp (@VeilM.assert m ρ σ p _ ex) post = fun r s => if p then post () r s else hd ex := by

@@ -15,7 +15,7 @@ instance : Repr Std.Format where
   reprPrec x _ := x
 
 -- NOTE: Not sure why resolution does not work without this
-instance [inst : Repr (m (Except ε α))] : Repr (ExceptT ε m α) := inst
+instance {ε α : Type u} [inst : Repr (m (Except ε α))] : Repr (ExceptT ε m α) := inst
 
 instance (priority := high) finFunctionReprCurry (α₁ : Type u) (α₂ : Type v) (β : Type w)
   [Repr α₁] [Enumeration α₁] [Repr α₂] [Enumeration α₂] [Repr β] [inst : Repr (α₁ × α₂ → β)] :

@@ -60,7 +60,7 @@ syntax traceAction := (traceActionName <|> traceAnyAction <|> traceAnyNActions)
 syntax (name := traceAssertion) "assert " term:max : trace_line
 
 syntax traceLine := (traceAction <|> traceAssertion)
-syntax traceSpec := (traceLine colEq)*
+syntax traceSpec := manyIndent(traceLine)
 
 syntax expected_smt_result "trace" ("[" ident "]")? "{"
   traceSpec
@@ -86,7 +86,7 @@ instance : ToString TraceSpecLine := ⟨fun
 
 abbrev TraceSpec := List TraceSpecLine
 
-def parseTraceSpec [Monad m] [MonadExceptOf Exception m] [MonadError m] (stx : Syntax) : m TraceSpec := do
+def parseTraceSpec [Monad m] [MonadError m] (stx : Syntax) : m TraceSpec := do
   match stx with
   | `(traceSpec| $[$ts]* ) => do
     let mut ts ← ts.mapM fun t => match t with
@@ -304,14 +304,14 @@ private partial def runTraceRefreshStep (isExpectedSat : Bool) (_vcName : Name)
     return none
   match result? with
   | none =>
-    token.refresh (.text traceLoadingMessage)
+    token.update (.text traceLoadingMessage)
     runTraceRefreshStep isExpectedSat _vcName vcFilter token
   | some vcResult =>
     -- Show trace widget if we have JSON, otherwise show status message
     if let some (traceJson, rawHtml?) := extractTraceDataFromVC vcResult then
-      token.refresh (Html.ofComponent TraceDisplayViewer { result := traceJson, layout := "vertical", rawHtml := rawHtml? } #[])
+      token.update (Html.ofComponent TraceDisplayViewer { result := traceJson, layout := "vertical", rawHtml := rawHtml? } #[])
     else
-      token.refresh (.text s!"{formatTraceStatus isExpectedSat vcResult.status}")
+      token.update (.text s!"{formatTraceStatus isExpectedSat vcResult.status}")
 
 /-- Display a streaming widget for trace verification that shows the TraceDisplayViewer when done. -/
 private def displayTraceStreamingResults (stx : Syntax) (isExpectedSat : Bool)

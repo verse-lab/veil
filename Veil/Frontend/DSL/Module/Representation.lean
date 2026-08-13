@@ -1,4 +1,5 @@
 import Lean
+import Veil.Util.Meta
 open Lean Parser
 
 namespace Veil
@@ -219,6 +220,24 @@ structure Parameter where
   userSyntax : Syntax
 deriving Inhabited, BEq
 
+/-- Context-independent identity of a generated typeclass parameter (an
+"extra param"): the closed value of its minted `_veil_dec_type` abbrev plus
+the names of the binders the parameter's `type` syntax applies it to. This
+identifies the instance across elaboration contexts without re-elaboration.
+Not stored on parameters; recovered by `Parameter.extraParamKey?`. -/
+structure ExtraParamKey where
+  /-- Value of the minted abbrev (fvar-free), universe params renamed
+  canonically. -/
+  closedType : Expr
+  /-- Names of the binders the abbrev is applied to. -/
+  args : Array Name
+deriving Inhabited, BEq, Hashable
+
+/-- Module-wide registry giving definitionally equal extra params one
+canonical name and type across declarations; see
+`Module.canonicalizeExtraParams`. -/
+abbrev ExtraParamRegistry := CanonicalRegistry Parameter ExtraParamKey
+
 structure StateComponent where
   /-- Is this state component mutable or immutable? -/
   mutability : Mutability
@@ -386,6 +405,11 @@ structure Module where
   /-- Per-module configuration of which concrete types to use for fields.
   Key is the field kind (`relation` or `function`), value is the type name. -/
   protected _concreteRepConfig : Std.HashMap StateComponentKind Name := Std.HashMap.emptyWithCapacity
+
+  /-- Gives def-eq generated typeclass parameters ("extra params") one
+  canonical name and type across declarations. See
+  `Module.canonicalizeExtraParams`. -/
+  protected _extraParamRegistry : ExtraParamRegistry := {}
 deriving Inhabited
 
 def Module.defaultAssertionSet (mod : Module) : Name := mod.name

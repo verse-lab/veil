@@ -16,7 +16,10 @@ invariant ¬ (foo 0 1)
 
 invariant ¬ (foo 0 0 ∧ foo 0 1)
 
-#time #gen_spec
+#time
+/-- warning: you have not defined any actions for this specification; did you forget? -/
+#guard_msgs in
+#gen_spec
 
 /--
 error: Initialization must establish the invariant:

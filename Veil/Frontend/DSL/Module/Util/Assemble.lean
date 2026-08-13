@@ -26,7 +26,6 @@ private def cleanupVeilDefinitionExpr (e : Expr) : TermElabM Expr := do
 `Decidable` instances extracted during elaboration. -/
 def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM Module := do
   mod.throwIfAlreadyDeclared base.name
-  let mut mod := mod
   let justTheory := match base.kind with | .assumption => true | _ => false
   -- NOTE(SUBTLE): we do something counter-intuitive here. Making the `ρ` and `σ`
   -- arguments implicit ensures that whenever the default values for `thstBinders`
@@ -35,7 +34,8 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   -- things like `assert invariant` in action without having to provide any
   -- explicit arguments.
   let veilTerm ← liftTermElabM $ mod.mkVeilTerm base.name base.declarationKind (params := .none) base.term (some $ ← `(term| Prop)) (justTheory := justTheory) (quantifyCapitals := true)
-  mod ← mod.registerAssertion { base with extraParams := veilTerm.extraParams }
+  let (mod, extraParams) ← liftTermElabM $ mod.canonicalizeExtraParams veilTerm.extraParams
+  let mut mod ← mod.registerAssertion { base with extraParams := extraParams }
   let attrs : Array Attribute := #[{name := `invSimp}, {name := `nextSimp}] ++ veilAbbrevAttrs
   let expr ← liftTermElabM <| cleanupVeilDefinitionExpr veilTerm.expr
   let _ ← liftTermElabM <| addVeilDefinition base.name expr (red := .abbrev) (attr := attrs)
@@ -50,7 +50,7 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
 
 /-! ## Derived Definition Management -/
 
-def Module.registerDerivedDefinition [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (ddef : DerivedDefinition) : m Module := do
+def Module.registerDerivedDefinition [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (ddef : DerivedDefinition) : m Module := do
   mod.throwIfAlreadyDeclared ddef.name
   return { mod with _declarations := mod._declarations.insert ddef.name ddef.declarationKind, _derivedDefinitions := mod._derivedDefinitions.insert ddef.name ddef }
 
@@ -64,6 +64,7 @@ def Module.defineGhostDefinition (mod : Module) (name : Name) (params : Option (
     | some ty => pure (some ty)
     | none => pure none
   let veilTerm ← liftTermElabM $ mod.mkVeilTerm name kind? params term motiveType (justTheory := justTheory) (quantifyCapitals := isRelation)
+  let (mod, extraParams) ← liftTermElabM $ mod.canonicalizeExtraParams veilTerm.extraParams
   let thstParams ← veilTerm.thstBinders.mapIdxM fun i x => do
     -- TODO This is bad, but should be working now
     let p ← bracketedBinderToParameter x name
@@ -82,7 +83,7 @@ def Module.defineGhostDefinition (mod : Module) (name : Name) (params : Option (
     else #[]
   let expr ← liftTermElabM <| cleanupVeilDefinitionExpr veilTerm.expr
   let _ ← liftTermElabM <| addVeilDefinition name expr (red := .abbrev) (attr := attrs)
-  let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := veilTerm.extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := .none }
+  let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := .none }
   let mod ← mod.registerDerivedDefinition ddef
   if isRelation && mod._useLocalRPropTC && !(← isModelCheckCompileMode) then
     liftTermElabM do
@@ -97,7 +98,7 @@ def Module.defineGhostDefinition (mod : Module) (name : Name) (params : Option (
 
 /-! ## Assertion Assembly (Private) -/
 
-private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (kind : DerivedDefinitionKind) (assembledName : Name) (specificBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (onlySafety : Bool := false) : m (Command × Module) := do
+private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (kind : DerivedDefinitionKind) (assembledName : Name) (specificBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (onlySafety : Bool := false) : m (Command × Module) := do
   mod.throwIfAlreadyDeclared assembledName
   let assertions ← match kind with
     | .assumptionLike => pure mod.assumptions
@@ -127,26 +128,26 @@ private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadError m
 /-- Syntax for the conjunction of all `invariant`, `safety`, and
 `trusted invariant` clauses. This modifies the `Module` to record which
 parameters are necessary for this definition. -/
-def Module.assembleInvariants [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+def Module.assembleInvariants [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Command × Module) := do
   let binders := #[← `(bracketedBinder| ($(mkIdent `rd) : $environmentTheory)), ← `(bracketedBinder| ($(mkIdent `st) : $environmentState))]
   mod.assembleAssertions .invariantLike assembledInvariantsName binders
 
-def Module.assembleAssumptions [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+def Module.assembleAssumptions [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Command × Module) := do
   let binders := #[← `(bracketedBinder| ($(mkIdent `rd) : $environmentTheory))]
   mod.assembleAssertions .assumptionLike assembledAssumptionsName binders
 
-def Module.assembleSafeties [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+def Module.assembleSafeties [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Command × Module) := do
   let binders := #[← `(bracketedBinder| ($(mkIdent `rd) : $environmentTheory)), ← `(bracketedBinder| ($(mkIdent `st) : $environmentState))]
   mod.assembleAssertions .invariantLike assembledSafetiesName binders (onlySafety := true)
 
 /-! ## Label Type Utilities -/
 
-def Module.labelTypeStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Term := do
+def Module.labelTypeStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m Term := do
   `(term|$labelType $(← mod.uninterpretedParamIdents)*)
 
 /-! ## Label Assembly (Private) -/
 
-private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Command × Module) := do
   mod.throwIfAlreadyDeclared labelTypeName
   let labelT ← mod.labelTypeStx
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
@@ -163,7 +164,7 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadError m] 
   let mod ← mod.registerDerivedDefinition derivedDef
   return (labelDef, mod)
 
-private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Command × Module) := do
   mod.throwIfAlreadyDeclared labelCasesName
   let P := mkIdent `P
   let labelT ← mod.labelTypeStx
@@ -187,8 +188,9 @@ private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadEr
   let mod ← mod.registerDerivedDefinition derivedDef
   return (casesLemma, mod)
 
-def Module.mkInstantiationStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m Command := do
-  let fields ← mod.parameters.filterMapM fun p => do
+def Module.mkInstantiationStructure [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
+    (mod : Module) : m (Array Command) := do
+  let (fields, defaultFields) := Array.unzip <| ← mod.parameters.filterMapM fun p => do
     match p.kind with
     | .sort sortKind =>
       let sort ← p.ident
@@ -196,29 +198,37 @@ def Module.mkInstantiationStructure [Monad m] [MonadQuotation m] [MonadError m] 
       | .enumSort =>
         -- Enum type: add default value of SortName_IndT
         let defaultType := Ident.toEnumConcreteType sort
-        `(Command.structSimpleBinder| $sort:ident : Type := $defaultType)
+        return some (← `(Command.structSimpleBinder| $sort:ident : Type := $defaultType),
+                     ← `(Lean.Parser.Term.structInstField| $sort:ident := $defaultType))
       | .uninterpretedSort =>
-        -- Regular sort: no default
-        `(Command.structSimpleBinder| $sort:ident : Type)
+        -- Regular sort: no default in the structure; defaults to PUnit in the Inhabited instance
+        return some (← `(Command.structSimpleBinder| $sort:ident : Type),
+                     ← `(Lean.Parser.Term.structInstField| $sort:ident := $(mkIdent ``PUnit)))
     | .userParameter =>
       let id ← p.ident
-      `(Command.structSimpleBinder| $id:ident : $(p.type))
-    | _ => pure .none
-  let instances := #[``Inhabited, ``Repr].map Lean.mkIdent
-  `(structure $instantiationType where $[$fields]* deriving $[$instances:ident],*)
+      return some (← `(Command.structSimpleBinder| $id:ident : $(p.type)),
+                   ← `(Lean.Parser.Term.structInstField| $id:ident := $(mkIdent ``default)))
+    | _ => return none
+  let instances := #[``Repr].map Lean.mkIdent
+  let structureCmd ← `(structure $instantiationType where $[$fields]* deriving $[$instances:ident],*)
+  let inhabitedCmd ← `(command|
+    instance : $(mkIdent ``Inhabited) $instantiationType where
+      default := { $[$defaultFields]* })
+  return #[structureCmd, inhabitedCmd]
 
 /-! ## Public Label Assembly -/
 
-def Module.assembleLabel [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Command × Module) := do
+def Module.assembleLabel [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array Command × Module) := do
   let (labelDef, mod) ← mod.assembleLabelDef
   let (casesLemma, mod) ← mod.assembleLabelCasesLemma
   return (#[labelDef, casesLemma], mod)
 
 /-! ## Next Action Assembly -/
 
-def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m (Command × Module) := do
+def Module.assembleNext (mod : Module) : CommandElabM (Command × Module) := do
   mod.throwIfAlreadyDeclared assembledNextActName
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
+  -- The union binds each canonicalized instance once; per-action by-name references resolve against it.
   let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
   let binders ← (baseParams ++ extraParams).mapM (·.binder)
   let acts ← mod.actions.mapM (fun s => do
@@ -242,10 +252,11 @@ def Module.assembleNext [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
 /-- Assembles the `Next` transition relation from `NextAct`.
 `Next rd st l st'` holds iff there exists an execution of `NextAct l`
 from state `(rd, st)` to state `(rd, st')`. -/
-def Module.assembleNextTransition [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m (Command × Module) := do
+def Module.assembleNextTransition (mod : Module) : CommandElabM (Command × Module) := do
   mod.throwIfAlreadyDeclared assembledNextName
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
-  let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
+  let (baseParams, extraParams, _) ←
+    mod.declarationSplitParams assembledNextActName (.derivedDefinition .actionLike actionNames)
   let binders ← (baseParams ++ extraParams).mapM (·.binder)
   let labelT ← mod.labelTypeStx
   let nextTrT ← `(term| $environmentTheory → $environmentState → $labelT → $environmentState → Prop)
@@ -265,7 +276,7 @@ def Module.assembleNextTransition [Monad m] [MonadQuotation m] [MonadError m] [M
 -- of `Transition.toVeilM`. It is **NOT** meant to be maintained and should be
 -- immediately removed once that issue is fixed.
 
-def Module.assembleNextTransition' [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
+def Module.assembleNextTransition' (mod : Module) : CommandElabM Command := do
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
   let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
   let binders ← (baseParams ++ extraParams).mapM (·.binder)
@@ -289,7 +300,7 @@ def Module.assembleNextTransition' [Monad m] [MonadQuotation m] [MonadError m] [
 
 /-- Assembles the `Init` predicate from the initializer.
 `Init rd st` holds iff `st` is a valid initial state under theory `rd`. -/
-def Module.assembleInit [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m (Command × Module) := do
+def Module.assembleInit (mod : Module) : CommandElabM (Command × Module) := do
   mod.throwIfAlreadyDeclared assembledInitName
   -- Get the initializer transition name
   let initTrName := Lean.mkIdent $ toTransitionName (toExtName initializerName)
@@ -300,12 +311,12 @@ def Module.assembleInit [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
   let initExtraParams := Array.flatten <|
     mod.procedures.filterMap (fun a => if initializerName == a.name then .some a.extraParams else .none)
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
-  let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
+  let baseParams ← mod.declarationBaseParams (.derivedDefinition .actionLike actionNames)
   -- We need `Inhabited σ` since we use `default` as the pre-state
   let inhType ← `(term| $(mkIdent ``Inhabited).{1} $environmentState)
   let inhParam : Parameter := { kind := .definitionParameter assembledInitName .typeclass, name := `σ_inhabited, «type» := inhType, userSyntax := .missing }
   let initExtraParams := initExtraParams.push inhParam
-  let binders ← (baseParams ++ extraParams ++ initExtraParams).mapM (·.binder)
+  let binders ← (baseParams ++ initExtraParams).mapM (·.binder)
   let initT ← `(term| $environmentTheory → $environmentState → Prop)
   let (rd, st) := (mkIdent `rd, mkIdent `st)
   -- We use `default` as the pre-state; this matches the behaviour in the explicit model checker
@@ -314,7 +325,7 @@ def Module.assembleInit [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
   let initDef ← `(command|
     @[$attrs,*] def $assembledInit $[$(binders)]* : $initT :=
       fun ($rd : $environmentTheory) ($st : $environmentState) => $body)
-  let derivedDef : DerivedDefinition := { name := assembledInitName, kind := .actionLike, params := #[], extraParams := extraParams ++ initExtraParams, derivedFrom := {initializerName}, stx := initDef }
+  let derivedDef : DerivedDefinition := { name := assembledInitName, kind := .actionLike, params := #[], extraParams := initExtraParams, derivedFrom := {initializerName}, stx := initDef }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (initDef, mod)
 
@@ -322,7 +333,7 @@ def Module.assembleInit [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace 
 
 /-- Assembles a `RelationalTransitionSystem` instance combining `Assumptions`, `Init`, and `Next`.
     This is a noncomputable definition that uses Classical logic. -/
-def Module.assembleRelationalTransitionSystem [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Command × Module) := do
+def Module.assembleRelationalTransitionSystem [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Command × Module) := do
   mod.throwIfAlreadyDeclared assembledRTSName
   let sorts ← mod.uninterpretedParamIdents
   -- Module parameter binders: (node : Type) (n : Nat) etc.

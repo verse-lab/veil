@@ -70,10 +70,10 @@ def IteratedProd.zip {ts : List Type} {T₁ T₂ : Type → Type}
 def IteratedProd.zipWithM [Monad m] {ts : List Type} {T₁ T₂ T₃ : Type → Type}
   (elements₁ : IteratedProd (ts.map T₁))
   (elements₂ : IteratedProd (ts.map T₂))
-  (zip : ∀ {ty : Type}, T₁ ty → T₂ ty → m (T₃ ty)) : m (IteratedProd (ts.map T₃)) := do
+  (zip : ∀ {ty : Type}, T₁ ty → T₂ ty → m (T₃ ty)) : m (IteratedProd (ts.map T₃)) :=
   match ts, elements₁, elements₂ with
   | [], _, _ => pure ()
-  | _ :: _, (e₁, elements₁), (e₂, elements₂) =>
+  | _ :: _, (e₁, elements₁), (e₂, elements₂) => do
     let e ← zip e₁ e₂
     let elements ← IteratedProd.zipWithM elements₁ elements₂ zip
     pure (e, elements)
@@ -246,7 +246,7 @@ class Enumeration (α : Type u) where
   allValues : List α
   complete : ∀ a : α, a ∈ allValues
 
-@[inline]
+@[inline, implicit_reducible]
 def Enumeration.ofEquiv (α : Type u) {β : Type v} [inst : Enumeration α] (h : α ≃ β) : Enumeration β where
   allValues := inst.allValues.map h
   complete := by simp ; intro b ; exists (h.symm b) ; simp ; apply inst.complete
@@ -369,7 +369,7 @@ private def mkAllValuesFromHeader (header : Header) (localInsts fieldNames : Arr
 
 def mkEnumerationInstCmdForStructure (declName : Name) : CommandElabM Bool := ForStructure.mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
-  let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``Enumeration indVal header.argNames fieldNames
+  let (localInsts, binders') ← mkInstImplicitBindersForFields ``Enumeration indVal header.argNames fieldNames
   let allValues ← mkAllValuesFromHeader header localInsts fieldNames
   let completeProof ← do
     let aIdent ← mkIdent <$> mkFreshUserName `a
@@ -388,7 +388,7 @@ def mkEnumerationInstCmdGeneralCase (declName : Name) : CommandElabM Bool := do
       let funBinders ← header.binders.mapM bracketedBinderToFunBinder
       let target ← `(($(mkIdent ``Enumeration.ofEquiv) _ (proxy_equiv% $header.targetType) : $(mkIdent ``Enumeration) $header.targetType))
       let defBody ← mkFunSyntax funBinders target
-      `(command|@[instance] def $(mkIdent instName) := remove_unused_args% $defBody)
+      `(command|@[implicit_reducible, instance] def $(mkIdent instName) := remove_unused_args% $defBody)
     pure auxDefCmd
   elabVeilCommand cmd
   return true
@@ -433,10 +433,11 @@ class FinEncodable (α : Type u) where
   card : Nat
   equiv : α ≃ Fin card
 
+@[implicit_reducible]
 def Ord.ofFinEncodable (α : Type u) [inst : FinEncodable α] : Ord α where
   compare a b := compare (inst.equiv a) (inst.equiv b)
 
-def Std.TransOrd.ofFinEncodable (α : Type u) [inst : FinEncodable α] :
+theorem Std.TransOrd.ofFinEncodable (α : Type u) [inst : FinEncodable α] :
     let _ : Ord α := Ord.ofFinEncodable α
     Std.TransOrd α :=
   let _ : Ord α := Ord.ofFinEncodable α
@@ -447,7 +448,7 @@ def Std.TransOrd.ofFinEncodable (α : Type u) [inst : FinEncodable α] :
       intro a b c
       exact Std.TransOrd.isLE_trans (a := inst.equiv a) (b := inst.equiv b) (c := inst.equiv c) }
 
-def Std.LawfulEqOrd.ofFinEncodable (α : Type u) [inst : FinEncodable α] :
+theorem Std.LawfulEqOrd.ofFinEncodable (α : Type u) [inst : FinEncodable α] :
     let _ : Ord α := Ord.ofFinEncodable α
     Std.LawfulEqOrd α :=
   let _ : Ord α := Ord.ofFinEncodable α
@@ -709,7 +710,7 @@ instance (priority := low) [inst : FinEncodable κ] : FinEncodableInjOnly κ whe
 
 /-- Transfer `FinEncodableInjOnly` across an `Equiv`. Given `e : ProxyType ≃ TargetType`
     and `[FinEncodableInjOnly ProxyType]`, produce `FinEncodableInjOnly TargetType`. -/
-@[inline]
+@[inline, implicit_reducible]
 def FinEncodableInjOnly.ofEquiv {β : Type u} [inst : FinEncodableInjOnly β] {α : Type v}
     (e : α ≃ β) : FinEncodableInjOnly α where
   card := inst.card
@@ -746,7 +747,7 @@ instance instFinEncodableInjOnlyNonDepSigma [insta : FinEncodableInjOnly α] [in
     function. `enc` computes the same `Nat` value as the proxy-type's encode — verified by the
     `h_enc` proof, typically `by intro x; cases x <;> rfl`. Proofs are transferred from the
     proxy-type instance (erased at runtime); only `enc` survives compilation. -/
-@[inline]
+@[inline, implicit_reducible]
 def FinEncodableInjOnly.ofEquivWithEnc {β : Type u} [inst : FinEncodableInjOnly β] {α : Type v}
     (e : α ≃ β) (enc : α → Nat) (h_enc : ∀ a, enc a = (inst.encode (e a)).val)
     : FinEncodableInjOnly α where
@@ -880,7 +881,7 @@ def mkFinEncodableInjOnlyInstCmdDeforested (declName : Name) : CommandElabM Bool
       (by intro x; cases x <;> rfl) :
       FinEncodableInjOnly $header.targetType))
     let defBody ← mkFunSyntax funBinders target
-    `(command|@[instance] def $(mkIdent instName) := remove_unused_args% $defBody)
+    `(command|@[implicit_reducible, instance] def $(mkIdent instName) := remove_unused_args% $defBody)
   elabVeilCommand cmd
   return true
 
@@ -976,7 +977,7 @@ def genAllSomePredicateTermElab (dfName : Name) : TermElabM Expr := do
 --   let cmd ← liftTermElabM <| genAllSomePredicateDefSyntax dfName outputName
 --   elabVeilCommand cmd
 
-def genAllSomePredicateCmd [Monad m] [MonadQuotation m] [MonadError m] (dfName : Name) (outputName : Name) : m Syntax := do
+def genAllSomePredicateCmd [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (dfName : Name) (outputName : Name) : m Syntax := do
   let checkTerm := Syntax.mkApp (mkIdent ``OptionalTC.genAllSomePredicateTermElab) #[quote dfName]
   `(def $(mkIdent outputName) := by_elab $checkTerm:term)
 

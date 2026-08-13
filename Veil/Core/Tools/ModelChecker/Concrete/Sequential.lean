@@ -158,7 +158,7 @@ theorem SequentialSearchContext.bfsStep_preserves_invs
   on_goal 1=>
     -- easy case
     constructor ; on_goal 1=> constructor
-    all_goals dsimp only ; try solve | assumption | grind
+    all_goals (try dsimp only) ; try solve | assumption | grind
   -- simplify the depth expression
   generalize h_eq_ncd : (if depth > ctx.currentFrontierDepth then depth - 1 else ctx.completedDepth) = newCompleteDepth
   generalize h_eq_nfd : (if depth > ctx.currentFrontierDepth then depth else ctx.currentFrontierDepth) = newFrontierDepth
@@ -211,7 +211,8 @@ def breadthFirstSearchSequential {m : Type → Type}
   let mut lastUpdateTime : Nat := 0
   let mut cancelled := false
   while h_not_finished : sctx.val.1.hasFinished = false do
-    let ⟨sctx_val, h_sctx⟩ := sctx
+    let sctx_val := sctx.val
+    let h_sctx := sctx.property
     let oldFrontierDepth := sctx_val.1.currentFrontierDepth
     let sctx' := sctx_val.bfsStep params th sys.tr
     let h_sctx' : SequentialSearchContextInvariants sys params .none sctx' :=

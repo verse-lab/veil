@@ -133,7 +133,7 @@ private def DeclarationKind.assumesInvariantsForInductionVC : DeclarationKind �
   | .procedure .initializer => false
   | _ => true
 
-private def mkInductionPrecondition [Monad m] [MonadQuotation m] [MonadError m]
+private def mkInductionPrecondition [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
     (mod : Module) (dependsOn : Std.HashSet Name) (assumesInvariants : Bool) : m Term := do
   if assumesInvariants then
     let (_, invArgs) ← mod.declarationAllBindersArgs assembledInvariantsName
@@ -142,8 +142,8 @@ private def mkInductionPrecondition [Monad m] [MonadQuotation m] [MonadError m]
   else
     `(term| (fun _ _ => $(mkIdent ``True)))
 
-private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m]
-    [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m]
+private def mkVCForSpecTheorem [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadEnv m]
+    [MonadRecDepth m] [MonadResolveName m] [MonadTrace m] [MonadOptions m]
     [AddMessageContext m] [MonadLiftT IO m]
     (mod : Module) (actName : Name) (propertyName : Name) (actKind : DeclarationKind)
     (specName : Name) (vcName : Name) (vcKind : InductionVCKind)
@@ -190,8 +190,8 @@ private def mkVCForSpecTheorem [Monad m] [MonadQuotation m] [MonadMacroAdapter m
     }
   }
 
-private def mkDoesNotThrowVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] [MonadEnv m]
-    [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m] [MonadOptions m]
+private def mkDoesNotThrowVC [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadEnv m]
+    [MonadRecDepth m] [MonadResolveName m] [MonadTrace m] [MonadOptions m]
     [AddMessageContext m] [MonadLiftT IO m]
     (mod : Module) (actName : Name) (actKind : DeclarationKind) (vcKind : InductionVCKind)
     : m (VCData VCMetadata) := do
@@ -200,8 +200,7 @@ private def mkDoesNotThrowVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] 
     (extraBinders := #[← `(bracketedBinder| ($exception:ident : ExId))])
     (extraTerms := #[← `(term| $exception:ident)])
 
-private def mkMeetsSpecificationIfSuccessfulClauseVC [Monad m] [MonadQuotation m]
-    [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m]
+private def mkMeetsSpecificationIfSuccessfulClauseVC [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadEnv m] [MonadRecDepth m] [MonadResolveName m]
     [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
     (mod : Module) (actName : Name) (actKind : DeclarationKind) (invariantClause : Name)
     (vcKind : InductionVCKind) : m (VCData VCMetadata) := do
@@ -215,8 +214,8 @@ private def mkMeetsSpecificationIfSuccessfulClauseVC [Monad m] [MonadQuotation m
     (extraDeps := extraDeps)
     (extraTerms := extraTerms)
 
-private def mkPreservesInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m]
-    [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m]
+private def mkPreservesInvariantsIfSuccessfulVC [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
+    [MonadEnv m] [MonadRecDepth m] [MonadResolveName m] [MonadTrace m]
     [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
     (mod : Module) (actName : Name) (actKind : DeclarationKind) (vcKind : InductionVCKind)
     : m (VCData VCMetadata) := do
@@ -224,8 +223,8 @@ private def mkPreservesInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [Mo
     ``VeilM.preservesInvariantsIfSuccessfulAssuming
     (Name.mkSimple s!"{actName}_preservesInvariants") vcKind
 
-private def mkSucceedsAndInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m]
-    [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m] [MonadTrace m]
+private def mkSucceedsAndInvariantsIfSuccessfulVC [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
+    [MonadEnv m] [MonadRecDepth m] [MonadResolveName m] [MonadTrace m]
     [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
     (mod : Module) (actName : Name) (actKind : DeclarationKind) (vcKind : InductionVCKind)
     : m (VCData VCMetadata) := do
@@ -236,8 +235,7 @@ private def mkSucceedsAndInvariantsIfSuccessfulVC [Monad m] [MonadQuotation m] [
 /-- Generate a TR-style (transition-based) VC for checking if an action preserves
 an invariant clause. For ordinary actions this is the fallback VC; for actions
 defined with `transition`, this is the primary VC. -/
-private def mkMeetsSpecificationIfSuccessfulClauseTrVC [Monad m] [MonadQuotation m]
-    [MonadMacroAdapter m] [MonadEnv m] [MonadRecDepth m] [MonadError m] [MonadResolveName m]
+private def mkMeetsSpecificationIfSuccessfulClauseTrVC [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadEnv m] [MonadRecDepth m] [MonadResolveName m]
     [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
     (mod : Module) (actName : Name) (actKind : DeclarationKind) (invariantClause : Name)
     (vcKind : InductionVCKind) : m (VCData VCMetadata) := do

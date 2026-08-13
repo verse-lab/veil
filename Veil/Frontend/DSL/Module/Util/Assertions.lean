@@ -250,6 +250,8 @@ structure ElaboratedVeilTerm where
   -- definitions currently store user params, generated theory/state binders,
   -- and extracted Decidable params in different places, so later code has to
   -- reconstruct the binder order in fragile declaration-kind-specific ways.
+  /-- Extracted `Decidable` instance parameters; pass through
+  `Module.canonicalizeExtraParams` before storing in the `Module`. -/
   extraParams : Array Parameter
   thstBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
   term : Term

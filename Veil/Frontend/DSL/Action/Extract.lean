@@ -68,7 +68,7 @@ Further checks:
 
 section Specialization
 
-variable [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadOptions m] [AddMessageContext m]
+variable [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadTrace m] [MonadOptions m] [AddMessageContext m]
   (baseParams extraParams : Array Parameter)
   (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder))
   (finalBody : Term)
@@ -170,7 +170,7 @@ scoped elab "veil_extract_list_tactic" : tactic => do
 
 section Extraction
 
-variable [Monad m] [MonadQuotation m] [MonadError m]
+variable [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
   (injectedBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (extraDsimpsForSpecialize : TSyntaxArray `ident)
   (κ : TSyntax `term) (useWeak intoMonadicActions : Bool)
 
@@ -219,7 +219,7 @@ where
   let extractSimps : Array Ident :=
     #[`multiExtractSimp, ``instMonadLiftT,
       -- NOTE: The following are added to work around a bug (?) fixed in Lean v4.27.0-rc1
-      ``id, ``inferInstance, ``inferInstanceAs, instFieldRepresentationName].map Lean.mkIdent
+      ``id, ``inferInstance, ``«inferInstanceAs», instFieldRepresentationName].map Lean.mkIdent
   let extractSimps := if intoMonadicActions then extractSimps.push extractor else extractSimps
   let extractedBody ← if intoMonadicActions then `(($extractor ($κ) _ _ ($body) (h := by veil_extract_list_tactic) : $targetType))
     -- Use the first `show` to have more concise type information that can be
@@ -289,7 +289,8 @@ elab_rules : command
     let injectedBinders := injectedBinders.getD #[]
     specializeAndExtract injectedBinders extraDsimps logelem notUseWeakSign.isNone
 
-private def bindersToInjectForExecution [Monad m] [MonadQuotation m] [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadError m] [MonadEnv m] (mod : Veil.Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+private def bindersToInjectForExecution [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadEnv m]
+    (mod : Veil.Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
   let binders ← mod.assumeInstArgsWithConcreteRepConfig mod.mutableComponents repConfigs
     ConcreteRepConfig.domainLawfulFieldRepInstances ConcreteRepConfig.codomainLawfulFieldRepInstances
@@ -405,7 +406,7 @@ def extractAssertionFailures (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (
     | .assertionFailure e s => some (e, s)
     | _ => none
 
-def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [MonadError m] [MonadTrace m] [MonadEnv m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
+def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadTrace m] [MonadEnv m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
   mod.throwIfAlreadyDeclared enumerableTransitionSystemName
 
   -- Step 1: Use mkDerivedDefinitionsParamsMapFn pattern (like specializeActionsCore)

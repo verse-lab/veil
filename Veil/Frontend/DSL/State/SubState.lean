@@ -53,6 +53,7 @@ instance instIsSubStateOfRefl : IsSubStateOf σ σ where
   setIn_setIn_last         := by simp
   getFrom_setIn_idempotent := by simp
 
+@[implicit_reducible]
 def IsSubStateOf.trans {σₛ σₘ σ : Type} (S₁ : IsSubStateOf σₛ σₘ) (S₂ : IsSubStateOf σₘ σ) : IsSubStateOf σₛ σ :=
 {
   setIn := fun σₛ σ => let σₘ := (S₂.getFrom σ); S₂.setIn (S₁.setIn σₛ σₘ) σ

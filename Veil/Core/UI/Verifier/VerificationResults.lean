@@ -91,7 +91,7 @@ private partial def runStreamingResults (theoremInsertPos : Lsp.Position)
     optionInsertPos,
     documentUri
   } #[]
-  token.refresh html
+  token.update html
   match status with
   | .running => runStreamingResults theoremInsertPos optionInsertPos documentUri getter token
   | .done => pure ()

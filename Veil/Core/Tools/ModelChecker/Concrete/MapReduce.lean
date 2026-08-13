@@ -559,53 +559,59 @@ def breadthFirstSearchParallel {m : Type → Type}
   let mut lastUpdateTime : Nat := 0
   let mut cancelled := false
   while h_not_finished : mctx.val.base.hasFinished = false do
-    match mctx with
-    | ⟨⟨base, tovisitLen, tovisit, globalSeen, accLogs⟩, h_mctx⟩ =>
-      -- Check if the frontier is empty
-      if h_empty : tovisit.isEmpty then
-        mctx := Subtype.mk ⟨{ base with finished := some (.exploredAllReachableStates) }, tovisitLen, tovisit, globalSeen, accLogs⟩
-          (h_mctx.setExploredAll_preserves_invs h_not_finished h_empty)
-        break
-      else
-        -- FIXME: Need to add a proper sequential fallback if the frontier is too small
-        -- Split the queue into sub-lists; fall back to 1 split (sequential) if frontier is too small
-        let numSplits := if tovisitLen < parallelCfg.thresholdToParallel then 1
-                         else max 1 parallelCfg.numSubTasks
-        let chunkSize := tovisitLen / numSplits
-        let numLarge := tovisitLen % numSplits
-        let splitLists := ListSplit.splitList numSplits chunkSize numLarge tovisit
-        let completedDepth := base.completedDepth
-        -- Map step: spawn parallel tasks
-        -- **CAVEAT**: The call to `IO.asTask` **SHOULD NOT** be put in this procedure,
-        -- as that might cause parallelism to vanish!!! Instead, the call should be defined
-        -- in some other file.
-        let tasks ← IteratedProd.taskSplit splitLists fun subList h_sublist_in =>
-          LawfulMapReduceSearchContextLocal.bfsBigStep params sys globalSeen completedDepth subList
-            (breadthFirstSearchParallel.subproof1 h_mctx.queue_sound splitLists
-              (fun item hm => (ListSplit.splitList_mem_iff numSplits chunkSize numLarge tovisit item).mp hm) _ h_sublist_in)
-        let results ← IteratedProd.mapM
-          (T₂ := (fun a => LawfulMapReduceSearchContextLocal sys params globalSeen (· ∈ a)))
-          (fun task => IO.ofExcept task.get) tasks
-        -- CHECK Ideally, `tovisit` should not be involved in any computational part from this point on
-        -- Reduce step
-        let mctxValForMerge : MapReduceSearchContextMain σ κ σₕ asm :=
-          { base := { base with completedDepth := base.currentFrontierDepth, currentFrontierDepth := base.currentFrontierDepth + 1 } , tovisitLen := 0, tovisit := [], globalSeen := globalSeen, accumulatedLogs := accLogs }
-        let mctxVal' := mctxValForMerge.mergeWithLocalOnes results
-        have h_mctx' : MapReduceSearchContextMainInvariants sys params mctxVal' :=
-          MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs h_not_finished h_mctx results
-        match heq : mctxVal' with
-        | ⟨base', tovisitLen', tovisit', globalSeen', accLogs'⟩ =>
-          trySetViolationFound progressInstanceId base'
-          -- Update progress on every diameter change
-          updateProgressDuringBFS progressInstanceId base' tovisitLen' globalSeen'.size
-          -- Prove invariants are preserved using local invariants from `lawfulResults`
-          mctx := Subtype.mk ⟨base', tovisitLen', tovisit', globalSeen', accLogs'⟩ (heq.symm ▸ h_mctx')
-          -- Check for cancellation/handoff at most once per second
-          let newtime? ← checkCancellationWithoutPeriodicUpdate progressInstanceId lastUpdateTime 1000 cancelToken
-          match newtime? with
-          | .updateTime t => lastUpdateTime := t
-          | .searchCancelled => cancelled := true ; break
-          | .noUpdate => pure ()
+    let mctxVal := mctx.val
+    have h_not_finished_val : mctxVal.base.hasFinished = false := h_not_finished
+    have h_mctx : MapReduceSearchContextMainInvariants sys params mctxVal := mctx.property
+    let base := mctxVal.base
+    let tovisitLen := mctxVal.tovisitLen
+    let tovisit := mctxVal.tovisit
+    let globalSeen := mctxVal.globalSeen
+    let accLogs := mctxVal.accumulatedLogs
+    -- Check if the frontier is empty
+    if h_empty : tovisit.isEmpty then
+      mctx := Subtype.mk ⟨{ base with finished := some (.exploredAllReachableStates) }, tovisitLen, tovisit, globalSeen, accLogs⟩
+        (h_mctx.setExploredAll_preserves_invs h_not_finished_val h_empty)
+      break
+    else
+      -- FIXME: Need to add a proper sequential fallback if the frontier is too small
+      -- Split the queue into sub-lists; fall back to 1 split (sequential) if frontier is too small
+      let numSplits := if tovisitLen < parallelCfg.thresholdToParallel then 1
+                       else max 1 parallelCfg.numSubTasks
+      let chunkSize := tovisitLen / numSplits
+      let numLarge := tovisitLen % numSplits
+      let splitLists := ListSplit.splitList numSplits chunkSize numLarge tovisit
+      let completedDepth := base.completedDepth
+      -- Map step: spawn parallel tasks
+      -- **CAVEAT**: The call to `IO.asTask` **SHOULD NOT** be put in this procedure,
+      -- as that might cause parallelism to vanish!!! Instead, the call should be defined
+      -- in some other file.
+      let tasks ← IteratedProd.taskSplit splitLists fun subList h_sublist_in =>
+        LawfulMapReduceSearchContextLocal.bfsBigStep params sys globalSeen completedDepth subList
+          (breadthFirstSearchParallel.subproof1 h_mctx.queue_sound splitLists
+            (fun item hm => (ListSplit.splitList_mem_iff numSplits chunkSize numLarge tovisit item).mp hm) _ h_sublist_in)
+      let results ← IteratedProd.mapM
+        (T₂ := (fun a => LawfulMapReduceSearchContextLocal sys params globalSeen (· ∈ a)))
+        (fun task => IO.ofExcept task.get) tasks
+      -- CHECK Ideally, `tovisit` should not be involved in any computational part from this point on
+      -- Reduce step
+      let mctxValForMerge : MapReduceSearchContextMain σ κ σₕ asm :=
+        { base := { base with completedDepth := base.currentFrontierDepth, currentFrontierDepth := base.currentFrontierDepth + 1 } , tovisitLen := 0, tovisit := [], globalSeen := globalSeen, accumulatedLogs := accLogs }
+      let mctxVal' := mctxValForMerge.mergeWithLocalOnes results
+      have h_mctx' : MapReduceSearchContextMainInvariants sys params mctxVal' :=
+        MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs h_not_finished_val h_mctx results
+      match heq : mctxVal' with
+      | ⟨base', tovisitLen', tovisit', globalSeen', accLogs'⟩ =>
+        trySetViolationFound progressInstanceId base'
+        -- Update progress on every diameter change
+        updateProgressDuringBFS progressInstanceId base' tovisitLen' globalSeen'.size
+        -- Prove invariants are preserved using local invariants from `lawfulResults`
+        mctx := Subtype.mk ⟨base', tovisitLen', tovisit', globalSeen', accLogs'⟩ (heq.symm ▸ h_mctx')
+        -- Check for cancellation/handoff at most once per second
+        let newtime? ← checkCancellationWithoutPeriodicUpdate progressInstanceId lastUpdateTime 1000 cancelToken
+        match newtime? with
+        | .updateTime t => lastUpdateTime := t
+        | .searchCancelled => cancelled := true ; break
+        | .noUpdate => pure ()
   -- Final update to ensure stats reflect finished state
   let ⟨mctxVal, _⟩ := mctx
   let mctxVal := { mctxVal with base := { mctxVal.base with currentFrontierDepth := mctxVal.base.completedDepth } }

@@ -92,7 +92,7 @@ private def Module.localDeclarationName? (mod : Module) (fullName : Name) : Opti
     let localName := fullName.updatePrefix Name.anonymous
     if mod._declarations.contains localName then some localName else none
 
-private def Module.theoryPredicateExprParams [Monad m] [MonadQuotation m] [MonadError m]
+private def Module.theoryPredicateExprParams [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
     (mod : Module) (nm : Name) (dk : DeclarationKind) : m (Array Parameter) := do
   -- TODO Replace this reconstruction with a systematic Parameter-layout API.
   -- As with `LocalRProp`, locality needs the exact binder order of generated
@@ -117,7 +117,7 @@ private def Module.theoryPredicateExprParams [Monad m] [MonadQuotation m] [Monad
   | _ =>
     throwError "{nm} is not a recognized LocalTheoryProp predicate"
 
-private def Module.theoryPredicateLayout [Monad m] [MonadQuotation m] [MonadError m]
+private def Module.theoryPredicateLayout [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
     (mod : Module) (nm : Name) : m TheoryPredicateLayout := do
   let some dk := mod._declarations[nm]?
     | throwError "theoryPredicateLayout: {nm} not found in module declarations"
@@ -126,7 +126,7 @@ private def Module.theoryPredicateLayout [Monad m] [MonadQuotation m] [MonadErro
     | throwError "theoryPredicateLayout: missing theory argument for {nm}"
   pure { params, thPos }
 
-private def Module.theoryPredicateLayout? [Monad m] [MonadQuotation m] [MonadError m]
+private def Module.theoryPredicateLayout? [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
     (mod : Module) (nm : Name) : m (Option TheoryPredicateLayout) := do
   try
     pure (some (← mod.theoryPredicateLayout nm))
@@ -232,7 +232,7 @@ private def Module.proveLocalityForTheoryPredicateCore (mod : Module) (nm : Name
       let core ← mkLambdaFVars theoryFields bodyResult.expr
       trace[veil.debug] "core for LocalTheoryProp instance of {nm}: {core}"
       let targetInstName ← resolveGlobalConstNoOverloadCore localTheoryPropTCName
-      let some ctor := getStructureLikeCtor? (← getEnv) targetInstName
+      let some ctor := getNonRecStructureCtor? (← getEnv) targetInstName
         | throwError "unexpected error: unable to find constructor for {localTheoryPropTCName}"
       let ctorArgs ← do
         let classParams := mod.localTheoryPropParams
@@ -340,7 +340,8 @@ def Module.proveLocalityForTheoryPredicate (mod : Module) (nm : Name) (stx : Syn
     let attrs ← do
       let tmp ← `(Parser.Term.attrInstance| scoped instance)
       elabAttrs (#[tmp])
-    let _ ← addVeilDefinition (generateLocalTheoryPropInstName nm) inst (attr := attrs)
+    let _ ← addVeilDefinition (generateLocalTheoryPropInstName nm) inst
+      (attr := #[{ name := `implicit_reducible }] ++ attrs)
   catch ex =>
     logWarningAt stx m!"unable to prove theory locality for predicate {nm}: {ex.toMessageData}"
 where

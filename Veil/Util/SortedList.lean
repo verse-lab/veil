@@ -57,7 +57,7 @@ private theorem mem_destutter'_of_weakly_sorted [TransOrd α] [LawfulEqOrd α]
         subst hab_eq
         -- result = destutter' cmpLt a t, and x ∈ a :: t
         have hsorted' : (a :: t).Pairwise (fun p q => (compare p q != .gt) = true) :=
-          hsorted.sublist ((List.sublist_cons_self a t).cons₂ a)
+          hsorted.sublist ((List.sublist_cons_self a t).cons_cons a)
         exact ih a hsorted' (by rcases List.mem_cons.mp hmem' with rfl | h <;> simp_all)
 
 -- TODO check these proofs later?
@@ -71,7 +71,7 @@ private theorem isLE_of_ne_gt {o : Ordering} (h : o ≠ .gt) : o.isLE = true := 
 private theorem ne_gt_of_isLE {o : Ordering} (h : o.isLE = true) : o ≠ .gt := by
   cases o <;> simp_all
 
-private theorem mergeSort_pairwise_le [TransOrd α] [OrientedOrd α] (l : List α) :
+private theorem mergeSort_pairwise_le [TransOrd α] (l : List α) :
     (l.mergeSort (le_fn α)).Pairwise (fun a b => (le_fn α a b) = true) := by
   apply List.pairwise_mergeSort
   · intro a b c hab hbc
@@ -79,7 +79,7 @@ private theorem mergeSort_pairwise_le [TransOrd α] [OrientedOrd α] (l : List �
     exact ne_gt_of_isLE (TransOrd.isLE_trans (isLE_of_ne_gt hab) (isLE_of_ne_gt hbc))
   · intro a b
     simp only [le_fn, Bool.or_eq_true, bne_iff_ne, ne_eq]
-    by_contra h ; push_neg at h
+    by_contra h ; push Not at h
     have h1 := h.1 ; have h2 := h.2
     have := OrientedCmp.eq_swap (cmp := compare) (a := a) (b := b)
     cases ha : compare a b <;> simp_all
@@ -885,11 +885,11 @@ def sublists [TransOrd α] [LawfulEqOrd α] (l : OrdList α) : List (OrdList α)
 
 -- TODO check these instances later?
 
-scoped instance cmpLt_irrefl [TransOrd α] [OrientedOrd α] :
+scoped instance cmpLt_irrefl [TransOrd α] :
     Std.Irrefl (cmpLt (α := α)) where
   irrefl a h := by simp [cmpLt, ReflOrd.compare_self] at h
 
-scoped instance cmpLt_antisymm [TransOrd α] [OrientedOrd α] :
+scoped instance cmpLt_antisymm [TransOrd α] :
     Std.Antisymm (cmpLt (α := α)) where
   antisymm {a} {b} hab hba := by
     exact absurd (TransCmp.lt_trans hab hba) (by simp [ReflOrd.compare_self])

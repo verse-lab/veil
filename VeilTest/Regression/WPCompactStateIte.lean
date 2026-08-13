@@ -161,6 +161,7 @@ example {node : Type} [DecidableEq node] [Inhabited node]
                   true } := by
   unfold compact_verify.ext.wp_local_eq.pred
   __veil_neutralize_decidable_inst !
+  rfl
 
 invariant [r_refl] r N → r N
 invariant [f_refl] f N = f N

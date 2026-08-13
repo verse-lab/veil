@@ -545,7 +545,8 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
                 `fieldRepresentationSetSimpPost]))
         else pure <| tmp
       let simp := (Simp.unfold #[fqn]) |>.andThen mainSimp
-      let resBody ← withTraceNode (`veil.perf.extract.wpSimp ++ nm) (fun _ => return s!"wpSimp {nm}") do simp body
+      let resBody ← withTraceNode (`veil.perf.extract.wpSimp ++ nm) (fun _ => return s!"wpSimp {nm}") do
+        withBackwardsCompatibility <| simp body
       -- (3) Construct the expression for `act.wp`
       -- The expression for `act.wp`; **TODO** register as a derived definition
       let wpExpr ← instantiateMVars $ ← Meta.mkLambdaFVars (vs ++ xs) resBody.expr
@@ -944,6 +945,7 @@ def Module.defineTransitionAbstractForNext (mod : Module) : TermElabM (Option Co
     let tr := Lean.mkIdent <| toTransitionName <| toExtName s.name
     let (allModParams, actualParams) ← mod.declarationAllParams s.name s.declarationKind
     let allParams := allModParams ++ actualParams
+    -- Canonicalized typeclass args resolve by name against `Next`'s deduplicated binders.
     let allArgs ← allParams.mapM (·.arg)
     -- NOTE: This line comes from `assembleLabelCasesLemma`
     let actualArgs ← parametersToExplicitBinders actualParams
@@ -1051,7 +1053,7 @@ def Module.registerProcedureSpecification [Monad m] [MonadError m] (mod : Module
   mod.throwIfAlreadyDeclared ps.name
   return { mod with procedures := mod.procedures.push ps, _declarations := mod._declarations.insert ps.name (.procedure ps.info) }
 
-private def Module.registerDerivedActionDefinition [Monad m] [MonadError m] [MonadQuotation m] (mod : Module) (base : ProcedureSpecification) (mode? : Option Mode) : m (Module × DeclarationKind) := do
+private def Module.registerDerivedActionDefinition [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (base : ProcedureSpecification) (mode? : Option Mode) : m (Module × DeclarationKind) := do
   let derivedName := base.info.nameInMode mode?
   mod.throwIfAlreadyDeclared derivedName
   let derivedDefKind := match mode? with | .none => .actionDoLike | .some _ => .actionLike
@@ -1100,6 +1102,7 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
   -- Obtain `extraParams` so we can register the action
   let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
   let (extraParams, eDo) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureDoNotation vs pi br l
+  let (mod, extraParams) ← liftTermElabM $ mod.canonicalizeExtraParams extraParams
   let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams spec l stx
   mod.defineProcedureCore pi eDo ps true
 
@@ -1110,6 +1113,7 @@ def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TS
   -- Obtain `extraParams` so we can register the action
   let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
   let (extraParams, eTr) ← liftTermElabMWithBinders actionBinders $ fun vs => elabTransitionTerm vs pi br t
+  let (mod, extraParams) ← liftTermElabM $ mod.canonicalizeExtraParams extraParams
   let eDo ← liftTermElabM do
     let tmp ← withVeilModeVar BinderInfo.implicit fun mode => do
       Meta.lambdaTelescope eTr fun xs eTrBody => do

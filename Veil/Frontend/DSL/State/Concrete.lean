@@ -134,7 +134,8 @@ def FieldRepresentation.FinmapLike.setSingle'
   (v : CanonicalField FieldDomain FieldCodomain) (fc : γ) :=
   delta% FieldRepresentation.FinmapLike.setSingle'Core equiv v fc (fa.footprintRaw instfin)
 
-instance instFinmapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain γ :=
+@[implicit_reducible]
+def instFinmapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain γ :=
   FieldRepresentation.mkFromSingleSet
     (get := delta% FieldRepresentation.FinmapLike.get equiv)
     (setSingle := FieldRepresentation.FinmapLike.setSingle' equiv instfin)
@@ -201,7 +202,8 @@ def HybridFinmapLike.setSingle
     | some footprint => .concrete <|
       FieldRepresentation.FinmapLike.setSingle'Core equiv v fc' footprint
 
-instance instHybridFinmapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain
+@[implicit_reducible]
+def instHybridFinmapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain
   (HybridFinmapLike γ FieldDomain FieldCodomain) :=
   FieldRepresentation.mkFromSingleSet
     (get := HybridFinmapLike.get equiv)
@@ -215,7 +217,7 @@ instance instHybridFinmapLikeLawfulFieldRep : LawfulFieldRepresentation FieldDom
     LawfulFieldRepresentationSet.mkFromSingleSet ..
   get_set_idempotent := by open Classical in
     introv ; rcases fav with ⟨fa, v⟩
-    simp +unfoldPartialApp [instHybridFinmapLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
+    simp +unfoldPartialApp +instances [instHybridFinmapLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
       FieldRepresentation.set, HybridFinmapLike.setSingle,
       HybridFinmapLike.get]
     rcases fc with cf | fc <;> dsimp only

@@ -228,18 +228,18 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
       return (mod, fieldStxs ++ stateStxs)
     else mod.declareStateStructure)
   let (mod, theoryStxs) ← mod.declareTheoryStructure
-  let instantiationStx ← mod.mkInstantiationStructure
-  for stx in stateStxs ++ theoryStxs ++ #[instantiationStx] do
+  let instantiationStxs ← mod.mkInstantiationStructure
+  for stx in stateStxs ++ theoryStxs ++ instantiationStxs do
     elabVeilCommand stx
   generateIgnoreFn mod
   let mod := { mod with _stateDefined := true }
   if mod._useLocalRPropTC && !(← isModelCheckCompileMode) then
     let stxs ← liftTermElabM mod.declareLocalTheoryPropTC
     for stx in stxs do
-      elabVeilCommand stx
+      elabVeilCommand stx.raw
     let stxs ← liftTermElabM mod.declareLocalRPropTC
     for stx in stxs do
-      elabVeilCommand stx
+      elabVeilCommand stx.raw
     -- Generate the transition weakening lemma for this module
     if mod._useFieldRepTC then
       try

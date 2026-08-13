@@ -32,7 +32,7 @@ private instance [BEq α] [PartialEquivBEq α] : PartialEquivBEq (List α) where
       | y :: ys =>
         show List.beq (y :: ys) (x :: xs) = true
         have h : List.beq (x :: xs) (y :: ys) = true := h
-        rw [List.beq_cons₂, Bool.and_eq_true] at h ⊢
+        rw [List.beq_cons_cons, Bool.and_eq_true] at h ⊢
         exact ⟨(BEq.comm (α := α) ▸ h.1 :), ih h.2⟩
   trans {l1 l2 l3} h1 h2 := by
     induction l1 generalizing l2 l3 with
@@ -48,7 +48,7 @@ private instance [BEq α] [PartialEquivBEq α] : PartialEquivBEq (List α) where
         show List.beq (x :: xs) (z :: zs) = true
         have h1 : List.beq (x :: xs) (y :: ys) = true := h1
         have h2 : List.beq (y :: ys) (z :: zs) = true := h2
-        rw [List.beq_cons₂, Bool.and_eq_true] at h1 h2 ⊢
+        rw [List.beq_cons_cons, Bool.and_eq_true] at h1 h2 ⊢
         exact ⟨BEq.trans h1.1 h2.1, ih h1.2 h2.2⟩
 
 private instance [BEq α] [ReflBEq α] : ReflBEq (List α) where
@@ -57,7 +57,7 @@ private instance [BEq α] [ReflBEq α] : ReflBEq (List α) where
     | nil => rfl
     | cons x xs ih =>
       show List.beq (x :: xs) (x :: xs) = true
-      rw [List.beq_cons₂, Bool.and_eq_true]
+      rw [List.beq_cons_cons, Bool.and_eq_true]
       exact ⟨beq_self_eq_true x, ih⟩
 
 instance [BEq α] [EquivBEq α] : EquivBEq (fQueue α) where
@@ -320,7 +320,6 @@ theorem mem_of_dequeue {α : Type} (q q' : fQueue α) (x : α)
   unfold toList at spec
   have h_mem : x ∈ q.front ++ q.back.reverse := by
     grind
-  simp only at h_mem
   unfold Membership.mem
   grind
 
@@ -333,7 +332,7 @@ theorem isEmpty_iff_empty_lists {α : Type} (q : fQueue α) :
 @[grind =]
 theorem not_mem_iff_isEmpty {α : Type} (q : fQueue α) :
     q.isEmpty = true ↔ ∀ a : α, a ∉ q := by
-  simp [isEmpty_iff_empty_lists, fQueue.instMembership, List.eq_nil_iff_forall_not_mem]
+  simp +instances [isEmpty_iff_empty_lists, fQueue.instMembership, List.eq_nil_iff_forall_not_mem]
   grind
 
 /-- If isEmpty is true, then dequeue? returns none -/
@@ -379,11 +378,11 @@ theorem enqueue_preserves_head {α : Type} (q : fQueue α) (x : α) (head : α)
 /-- If an element is in a list, it is in the queue constructed from that list -/
 theorem mem_ofList {α : Type} (L : List α) (x : α) :
   x ∈ L ↔ x ∈ fQueue.ofList L := by
-  unfold fQueue.ofList ; simp [fQueue.instMembership] at *
+  unfold fQueue.ofList ; simp +instances [fQueue.instMembership] at *
 
 theorem mem_toList {α : Type} (L : fQueue α) (x : α) :
   x ∈ L ↔ x ∈ fQueue.toList L := by
-  unfold fQueue.toList ; simp [fQueue.instMembership] at *
+  unfold fQueue.toList ; simp +instances [fQueue.instMembership] at *
 
 @[grind =]
 theorem mem_enqueue_iff {α : Type} (q : fQueue α) (x y : α) :
@@ -579,7 +578,7 @@ theorem getElem?_insertIfNew_of_not_contains_same_key {σₕ β : Type}
   split
   · next h_cond => rfl
   · next h_cond =>
-    push_neg at h_cond
+    push Not at h_cond
     have h_beq_refl : (k == k) = true := by simp
     have h := h_cond h_beq_refl
     simp only [Std.HashMap.mem_iff_contains] at h_not_in
@@ -710,7 +709,7 @@ theorem List.foldl_insertIfNew_source {σₕ β : Type}
         right; exact h_in_tl
       · simp only [Std.HashMap.mem_iff_contains] at h_not_in_step ⊢
         simp only [Std.HashMap.contains_insertIfNew] at h_not_in_step
-        push_neg at h_not_in_step
+        push Not at h_not_in_step
         grind
 
 /-- Trace back the source of a lookup result from HashMap.fold insertIfNew.

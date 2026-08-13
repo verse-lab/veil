@@ -1,8 +1,8 @@
 import Lake
 open Lake DSL System
 
-require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.28.0-for-veil-experimental"
-require Loom from git "https://github.com/verse-lab/loom.git" @ "upgrade-v4.28"
+require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.32.0-veil-no-mathlib"
+require Loom from git "https://github.com/verse-lab/loom.git" @ "v4.32.0-for-veil"
 
 package veil where
   preferReleaseBuild := true

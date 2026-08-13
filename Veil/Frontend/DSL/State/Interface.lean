@@ -130,6 +130,7 @@ theorem FieldUpdatePat.footprintRestricted_valid
       cases b <;> cases fin <;> simp at h1 <;> grind
     · solve_by_elim
 
+set_option backward.isDefEq.respectTransparency false in
 theorem FieldUpdatePat.footprint_match_iff_when_valid
   {FieldDomain : List Type}
   (dec : IteratedProd (FieldDomain.map DecidableEq))
@@ -203,6 +204,7 @@ abbrev FieldRepresentation.setSingle {FieldDomain : List Type}
   (fc : FieldTypeConcrete) : FieldTypeConcrete :=
   self.set [(fa, v)] fc
 
+@[implicit_reducible]
 def FieldRepresentation.mkFromSingleSet {FieldDomain : List Type}
   {FieldCodomain : Type} {FieldTypeConcrete : Type}
   (get : FieldTypeConcrete → ⌞_ CanonicalField ⌟)
@@ -218,9 +220,9 @@ theorem LawfulFieldRepresentationSet.mkFromSingleSet {FieldDomain : List Type}
   (⌞_ LawfulFieldRepresentationSet FieldTypeConcrete ⌟)
     (FieldRepresentation.mkFromSingleSet get setSingle) where
   set_append := by
-    introv ; simp [FieldRepresentation.mkFromSingleSet, FieldRepresentation.set]
+    introv ; simp [FieldRepresentation.set]
   set_nil := by
-    introv ; simp [FieldRepresentation.mkFromSingleSet, FieldRepresentation.set]
+    introv ; simp [FieldRepresentation.set]
 
 end RepresentationInterface
 
@@ -234,7 +236,8 @@ the "default" representation of a field, and used for translation to SMT.
 
 -/
 
-instance canonicalFieldRepresentation {FieldDomain : List Type} {FieldCodomain : Type}
+@[implicit_reducible]
+def canonicalFieldRepresentation {FieldDomain : List Type} {FieldCodomain : Type}
   (dec : IteratedProd (FieldDomain.map DecidableEq)) :
   (⌞_ FieldRepresentation ⌟) (⌞_ CanonicalField ⌟) where
   get := id
@@ -276,6 +279,7 @@ instance (priority := high + 1) instFieldRepresentationIndividual
   get := id
   set favs fc := List.head? favs |>.elim fc Prod.snd
 
+set_option backward.isDefEq.respectTransparency false in
 instance (priority := high + 1) instLawfulFieldRepresentationIndividual
   : LawfulFieldRepresentation [] FieldCodomain FieldCodomain
     (instFieldRepresentationIndividual FieldCodomain) where

@@ -798,7 +798,7 @@ omit [Ord α] [TransOrd α] [LawfulEqOrd α] in
 set_option maxHeartbeats 3200000 in
 private theorem append_subarray_toList (acc ys : Array α) (j : Nat) :
     (acc ++ ys[j:]).toList = acc.toList ++ ys.toList.drop j := by
-  simp only [Array.toList_append, Subarray.toList_toArray]
+  simp only [Array.toList_append, Subarray.copy_eq_toArray, Subarray.toList_toArray]
   rw [← Array.toList_mkSlice_rci (xs := ys) (lo := j)]
   congr 1
   simp only [Array.toSubarray, Rci.Sliceable.mkSlice, Rci.HasRcoIntersection.intersection]
@@ -1045,7 +1045,7 @@ theorem ordArrayIntersect_sorted (arr1 arr2 : Array α)
   rw [ordArrayIntersect_toList arr1 arr2]
   exact sortedIntersectNoDup_sorted arr1.toList arr2.toList hs₁ hs₂
 
-@[inline] def ofOrdList [TransOrd α] [LawfulEqOrd α] (l : OrdList α) : OrdArray α :=
+@[inline] def ofOrdList (l : OrdList α) : OrdArray α :=
   ⟨l.val.toArray, by simp; exact l.property⟩
 
 @[inline] def toOrdList (arr : OrdArray α) : OrdList α :=
@@ -1054,13 +1054,13 @@ theorem ordArrayIntersect_sorted (arr1 arr2 : Array α)
 -- FIXME: Possibly use `Array.sortDedup` in the future?
 
 /-- Build an `OrdArray` from an arbitrary list by sorting and removing duplicates. -/
-@[inline] def ofList [TransOrd α] [LawfulEqOrd α] (l : List α) : OrdArray α :=
+@[inline] def ofList (l : List α) : OrdArray α :=
   ⟨(OrdList.ofList.inner l).toArray, by simp; exact (OrdList.ofList.inner_spec l).left⟩
 
 /-- The empty `OrdArray`. -/
 @[inline] def empty : OrdArray α := ⟨#[], by simp⟩
 
-@[inline] def subarrays [TransOrd α] [LawfulEqOrd α] (l : OrdArray α) : List (OrdArray α) :=
+@[inline] def subarrays (l : OrdArray α) : List (OrdArray α) :=
   l.toOrdList.sublists.map ofOrdList
 
 end Bridge

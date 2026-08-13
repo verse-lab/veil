@@ -16,14 +16,13 @@ def IteratedProd.reverseAux :
   | [], _, _, acc => acc
   | t :: _, ts', (b, bs), acc => reverseAux (ts' := t :: ts') bs (b, acc)
 
-@[expose]
 def IteratedProd.reverse {ts : List Type} (ip : IteratedProd ts) : IteratedProd (ts.reverse) :=
   reverseAux (ts' := []) ip ()
 
 /-- Version of `ofListM` that provides membership proof to the callback function.
     This is useful when the callback needs to prove properties about list elements.
     We use this function to inject _proof_ in concurrent search algorithm. -/
-@[inline, expose]
+@[inline]
 def IteratedProd.ofListMWithMem {m : Type → Type} [Monad m]
   {α : Type} {β : α → Type} (as : List α) (f : (a : α) → a ∈ as → m (β a))
   : m (IteratedProd (as.map β)) :=
@@ -34,7 +33,7 @@ def IteratedProd.ofListMWithMem {m : Type → Type} [Monad m]
       loop (ts := β a :: ts) as' (fun a ha => pf a (by simp ; right ; exact ha)) (b, bs)
   loop (ts := []) as (by simp) ()
 
-@[inline, expose]
+@[inline]
 def IteratedProd.mapM [Monad m] {as : List α} {T₁ T₂ : α → Type}
   (f : ∀ {a : α}, T₁ a → m (T₂ a)) : IteratedProd (as.map T₁) → m (IteratedProd (as.map T₂)) :=
   let rec @[specialize] loop : ∀ {ts : List Type} (as' : List α), IteratedProd ts → IteratedProd (as'.map T₁) → m (IteratedProd (ts.reverseAux <| as'.map T₂))

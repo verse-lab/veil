@@ -16,12 +16,8 @@ private def isEqualToOneOf {m} [Monad m] [MonadQuotation m] (x : TSyntax `term) 
 def mkEnumAxiomatisation {m} [Monad m] [MonadQuotation m] (id : Ident) (elems : Array Ident) : m (Ident × TSyntax `command) := do
   let variants ← elems.mapM (fun elem => `(Command.structSimpleBinder|$elem:ident : $id))
   let (class_name, ax_distinct, ax_complete) := (Ident.toEnumClass id, enumDistinct, enumComplete)
-  -- NOTE: Lean's large list literal macro introduces `let` binders, while
-  -- Lean-SMT's `distinctN` translator currently recognizes only direct
-  -- `List.cons`/`List.nil` list literals. `zeta%` keeps large enum axioms in
-  -- the shape that Lean-SMT can translate.
-  let fullyExpandedList ← `(zeta% [$[$elems],*])
-  let ax_distinct ← `(Command.structSimpleBinder|$ax_distinct:ident : $(mkIdent ``distinctN) $fullyExpandedList)
+  let ax_distinct ←
+    `(Command.structSimpleBinder|$ax_distinct:ident : $(mkIdent ``distinctN) [$[$elems],*])
   let x := mkVeilImplementationDetailIdent `x
   let ax_complete ← `(Command.structSimpleBinder|$ax_complete:ident : ∀ ($x : $id), $(← isEqualToOneOf x elems))
   let class_decl ← `(

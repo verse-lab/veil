@@ -6,7 +6,7 @@ open Lean Parser Elab Command Term
 
 namespace Veil
 
-def Module.declareUninterpretedSort [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (name : Name) (userStx : Syntax) (sortKind : SortKind := .uninterpretedSort) : m Module := do
+def Module.declareUninterpretedSort [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (name : Name) (userStx : Syntax) (sortKind : SortKind := .uninterpretedSort) : m Module := do
   mod.throwIfAlreadyDeclared name
   let typeT ← `(term|Type)
   let sortParam : Parameter := { kind := .sort sortKind, name := name, «type» := typeT, userSyntax := userStx }
@@ -64,12 +64,12 @@ def Module.immutableComponents (mod : Module) : Array StateComponent :=
 def Module.mutableComponents (mod : Module) : Array StateComponent :=
   mod.signature.filter fun sc => sc.mutability == Mutability.mutable
 
-def Module.getStateComponentTypeStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (name : Name) : m Term := do
+def Module.getStateComponentTypeStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (name : Name) : m Term := do
   match mod.signature.find? (fun sc => sc.name == name) with
   | some sc => return ← sc.typeStx
   | none => throwErrorAt (← getRef) s!"State component {name} not found in module {mod.name}"
 
-def Module.getTheoryBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+def Module.getTheoryBinders [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   mod.signature.filterMapM fun sc => do
     match sc.mutability with
     | .immutable => return .some $ ← mkBinder sc
@@ -80,7 +80,7 @@ def Module.getTheoryBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : M
       `(bracketedBinder| ($(mkIdent sc.name) : $(← sc.typeStx)))
 
 /-
-def Module.getStateBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+def Module.getStateBinders [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   mod.signature.filterMapM fun sc => do
     match sc.mutability with
     | .mutable =>
@@ -91,10 +91,10 @@ def Module.getStateBinders [Monad m] [MonadQuotation m] [MonadError m] (mod : Mo
     | _ => pure .none
 -/
 
-def Module.assumeForOneSort [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (className : Name) (sort : Term) (filterWithHeuristics : Bool := true) : m (Option (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+def Module.assumeForOneSort [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (className : Name) (sort : Term) (filterWithHeuristics : Bool := true) : m (Option (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   -- Special case `TransCmp` and `LawfulEqCmp`
   if #[``Std.TransCmp, ``Std.LawfulEqCmp, ``Std.ReflCmp].contains className then
-    `(bracketedBinder|[$(mkIdent className) ($(mkIdent ``Ord.compare) ( $(mkIdent `self) := $(mkIdent ``inferInstanceAs) ($(mkIdent ``Ord) $sort) ))])
+    `(bracketedBinder|[$(mkIdent className) ($(mkIdent ``Ord.compare) ( $(mkIdent `self) := inferInstanceAs ($(mkIdent ``Ord) $sort) ))])
   else if [``Veil.Enumeration, ``Veil.FinEncodable].contains className then
     -- A special check for enumerative typeclass: if this sort does not appear in the
     -- domain of any *state field*, then *do not* add enumerative typeclass instance binder.
@@ -106,7 +106,8 @@ def Module.assumeForOneSort [Monad m] [MonadQuotation m] [MonadError m] (mod : M
   else
     `(bracketedBinder|[$(mkIdent className) $sort])
 
-def Module.assumeInstArgsWithConcreteRepConfig [Monad m] [MonadQuotation m] [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadError m] (mod : Module)
+def Module.assumeInstArgsWithConcreteRepConfig [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
+    [AddMessageContext m] [MonadOptions m] [MonadTrace m] (mod : Module)
   (fields : Array StateComponent) (repConfigs : ResolvedConcreteRepConfigs)
   (domainInsts codomainInsts : ConcreteRepConfig → Array Name)
   (extraInstancesToAssume : Array Name := #[])
@@ -153,14 +154,14 @@ where
     Option.isSome <| dom.raw.find? fun subtm => subtm == mkIdent sortName
 
 /-- Get binders for assuming that every sort has an instance of `className` (e.g. `Ord node`). -/
-def Module.assumeForEverySort [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (className : Name) (filterWithHeuristics : Bool := true) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
+def Module.assumeForEverySort [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (className : Name) (filterWithHeuristics : Bool := true) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   (← mod.sortIdents).filterMapM fun sortIdent => mod.assumeForOneSort className sortIdent filterWithHeuristics
 
 /-! ## Structure Definition Helpers -/
 
 /-- Given a list of state components, return the syntax for a structure
 definition including those components. -/
-private def structureDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (name : Name) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) (deriveInstances : Bool := true)
+private def structureDefinitionStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (name : Name) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) (deriveInstances : Bool := true)
   (fields : Array (TSyntax `Lean.Parser.Command.structSimpleBinder)) : m (Array Syntax) := do
   if deriveInstances then
     let instances := #[``Inhabited, ``Nonempty].map Lean.mkIdent
@@ -177,7 +178,7 @@ private def structureDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (
 
 /-- Syntax for *defining* the mutable state of a module as a `structure`. The
 syntax for the type is `mod.stateStx`. -/
-private def Module.stateDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Syntax) := do
+private def Module.stateDefinitionStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array Syntax) := do
   let defCmds ← structureDefinitionStx stateName (← mod.uninterpretedParamBindersForTheoryOrState false) (deriveInstances := true)
     (← mod.mutableComponents.mapM fun sc => sc.getSimpleBinder)
   let isHOInst ← mkIsHigherOrderInstance
@@ -192,7 +193,7 @@ where
 /-- Similar to `Module.stateDefinitionStx` but each field of `State` is
 abstracted by a function from its label to a certain type. Note that
 in this case, `deriveInstances` has to be `false`. -/
-private def Module.fieldsAbstractedStateDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Syntax) := do
+private def Module.fieldsAbstractedStateDefinitionStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array Syntax) := do
   let stateLabelTypeName := structureFieldLabelTypeName stateName
   let fields ← mod.mutableComponents.mapM fun sc => do
     let ty ← `($fieldConcreteType $(mkIdent <| stateLabelTypeName ++ sc.name):ident)
@@ -232,7 +233,7 @@ states as a field-wise structure literal.  Relation/function fields are
 eta-expanded so the condition is pushed to pointwise applications instead of
 forming a function-valued conditional.  The theorem is used only by the WP
 compactification pipeline. -/
-private def Module.stateIteEtaFieldsTheoremStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Option Syntax) := do
+private def Module.stateIteEtaFieldsTheoremStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Option Syntax) := do
   if mod.mutableComponents.isEmpty then
     return none
   let paramBinders ← mod.uninterpretedParamBinders
@@ -251,7 +252,7 @@ private def Module.stateIteEtaFieldsTheoremStx [Monad m] [MonadQuotation m] [Mon
       split <;> rfl)
   return some thm
 where
-  mkFieldIte [Monad m] [MonadQuotation m] (p s1 s2 : Ident) (sc : StateComponent) : m Term := do
+  mkFieldIte (p s1 s2 : Ident) (sc : StateComponent) : m Term := do
     let field := mkIdent sc.name
     let res ← sc.domainTerms.mapIdxM fun i domain => do
       let arg := mkVeilImplementationDetailIdent <| Name.mkSimple s!"wpcompact_{sc.name}_{i}"
@@ -265,7 +266,7 @@ where
 
 /-- Syntax for *defining* the immutable background theory of a module as a
 `structure`. The syntax for the type is `mod.theoryStx`. -/
-private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Array Syntax) := do
+private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array Syntax) := do
   let defCmds ← structureDefinitionStx theoryName (← mod.uninterpretedParamBindersForTheoryOrState false) (deriveInstances := true)
     (← mod.immutableComponents.mapM fun sc => sc.getSimpleBinder)
   return defCmds ++ #[← `(command| veil_deriving $(mkIdent ``Repr) for $theoryIdent), (← mkToJsonInstance)]
@@ -275,14 +276,14 @@ where
 
 /-! ## Public Structure Declaration APIs -/
 
-def Module.declareStateStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Array Syntax) := do
+def Module.declareStateStructure [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Module × Array Syntax) := do
   mod.throwIfAlreadyDeclared environmentSubStateName
   let stx ← mod.stateDefinitionStx
   let stateStx ← mod.stateStx
   let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
   return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stx)
 
-def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) : m (Module × Array Syntax) := do
+def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Module × Array Syntax) := do
   mod.throwIfAlreadyDeclared environmentSubTheoryName
   let stxs ← mod.theoryDefinitionStx
   let theoryStx ← mod.theoryStx
@@ -291,7 +292,9 @@ def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadError m] (m
 
 /-- Similar to `Module.declareStateStructure` but here `FieldRepresentation`
 is involved. -/
-def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadError m] (mod : Module) (repConfigs : ResolvedConcreteRepConfigs) : m (Module × (Array Syntax)) := do
+def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
+    [AddMessageContext m] [MonadOptions m] [MonadTrace m]
+    (mod : Module) (repConfigs : ResolvedConcreteRepConfigs) : m (Module × (Array Syntax)) := do
   mod.throwIfAlreadyDeclared environmentSubStateName
   let stateDefs ← mod.fieldsAbstractedStateDefinitionStx
   let concreteFieldRepInsts ← mkFieldRepresentationInstancesForConcrete mod repConfigs
@@ -418,7 +421,7 @@ where
 
 /-- Declare an inductive type with each constructor corresponding to each
 field of `State` (i.e., each `State` component). -/
-private def declareStructureFieldLabelType [Monad m] [MonadQuotation m] [MonadError m] (base : Name) (components : Array StateComponent) : m (Name × TSyntax `command) := do
+private def declareStructureFieldLabelType [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (base : Name) (components : Array StateComponent) : m (Name × TSyntax `command) := do
   let fields ← components.mapM fun sc => `(Command.ctor| | $(mkIdent sc.name):ident )
   let name := structureFieldLabelTypeName base
   let res ← `(inductive $(mkIdent name) : Type where $[$fields]*)
@@ -429,7 +432,9 @@ private def declareStructureFieldLabelType [Monad m] [MonadQuotation m] [MonadEr
 /-- Declare dispatchers that given the label for a specific field, returns the
 types of its arguments and its codomain, as well as the concrete and abstract
 types of the field. -/
-private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadError m] (mod : Module) (base : Name) (fields : Array StateComponent) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) (repConfigs : ResolvedConcreteRepConfigs)
+private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
+    [AddMessageContext m] [MonadOptions m] [MonadTrace m]
+    (mod : Module) (base : Name) (fields : Array StateComponent) (params : Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) (repConfigs : ResolvedConcreteRepConfigs)
   : m ((Array (Name × Syntax)) × (Name × Syntax) × (Name × Syntax)) := do
   let domainComponents ← fields.mapM (·.domainList)
   let coDomainComponents := fields.map (·.codomainTerm)
@@ -495,22 +500,28 @@ private def Module.declareFieldDispatchers [Monad m] [MonadQuotation m] [AddMess
 
 /-- Helper function to generate typeclass instance lifting declarations. -/
 @[inline]
-private def Module.declareInstanceLifting [Monad m] [MonadQuotation m] [MonadError m]
+private def Module.declareInstanceLifting [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
     (mod : Module) (assumingClasses : Array Name) (fieldLabelIdent : Ident)
-    (instanceType : Term) (instanceName : Option Name := .none) (tactic : Option (TSyntax `tactic) := .none) : m Syntax := do
+    (instanceType : Term) (instanceName : Option Name := .none) (tactic : Option (TSyntax `tactic) := .none)
+    (isInstance : Bool := true) : m Syntax := do
   let tactic := tactic.getD (← `(tactic| infer_instance_for_iterated_prod'))
   let assumedInstances ← assumingClasses.flatMapM fun className => mod.assumeForEverySort className
   let fieldLabel ← `(bracketedBinder|($fieldLabelIdent:ident : $(mkIdent `State.Label)))
   let binders := (← mod.uninterpretedParamBinders) ++ assumedInstances ++ [fieldLabel]
-  match instanceName with
-  | some name => `(scoped instance (priority := low) $(mkIdent name):ident $[$binders]* : $instanceType := by cases $fieldLabelIdent:ident <;> $tactic)
-  | none => `(scoped instance (priority := low) $[$binders]* : $instanceType := by cases $fieldLabelIdent:ident <;> $tactic)
+  if isInstance then
+    match instanceName with
+    | some name => `(scoped instance (priority := low) $(mkIdent name):ident $[$binders]* : $instanceType := by cases $fieldLabelIdent:ident <;> $tactic)
+    | none => `(scoped instance (priority := low) $[$binders]* : $instanceType := by cases $fieldLabelIdent:ident <;> $tactic)
+  else
+    let some name := instanceName
+      | throwError "a name is required for a non-instance lifting declaration"
+    `(def $(mkIdent name):ident $[$binders]* : $instanceType := by cases $fieldLabelIdent:ident <;> $tactic)
 
 /-- NOTE: This is actually needed.-/
-private def Module.declareInstanceLiftingForIteratedProd [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) (instName : Option Name := .none) (tactic : Option (TSyntax `tactic) := .none) : m (Array Syntax) := do
+private def Module.declareInstanceLiftingForIteratedProd [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) (instName : Option Name := .none) (tactic : Option (TSyntax `tactic) := .none) : m (Array Syntax) := do
   let (cls, sorts, fieldLabelIdent) := (mkIdent deriveClass, ← mod.uninterpretedParamIdents, mkVeilImplementationDetailIdent `f)
   let ty ← `(term | ($(mkIdent ``IteratedProd) <| ($(mkIdent ``List.map) $cls <| ($(fieldLabelToDomain stateName) $sorts*) $fieldLabelIdent)))
-  let inst ← mod.declareInstanceLifting assumingClasses fieldLabelIdent ty instName tactic
+  let inst ← mod.declareInstanceLifting assumingClasses fieldLabelIdent ty instName tactic (isInstance := false)
   return #[inst]
 
 /-- States that if every sort has an instance of `className` (e.g. `Ord node`),
@@ -520,20 +531,20 @@ then the domain has instances of that class.
 inferred if `IteratedProd'`, `toDomain` and `toCodomain` are defined as
 `abbrev`. We keep this code for explicitness, in case we want to change the
 representation and typeclass inference will then fail. -/
-private def Module.declareInstanceLiftingForDomain [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) (instName : Option Name := .none) : m (Array Syntax) := do
+private def Module.declareInstanceLiftingForDomain [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) (instName : Option Name := .none) : m (Array Syntax) := do
   let (cls, sorts, fieldLabelIdent) := (mkIdent deriveClass, ← mod.uninterpretedParamIdents, mkVeilImplementationDetailIdent `f)
   let domainInst ← mod.declareInstanceLifting assumingClasses fieldLabelIdent (← `(term|$cls ($(mkIdent ``IteratedProd') (($(fieldLabelToDomain stateName) $sorts*) $fieldLabelIdent)))) instName
   return #[domainInst]
 /-- States that if every sort has an instance of `className` (e.g. `Ord node`),
 then the codomain has instances of that class. See NOTE [AutomaticallyInferred].-/
-private def Module.declareInstanceLiftingForCodomain [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) (instName : Option Name := .none) : m (Array Syntax) := do
+private def Module.declareInstanceLiftingForCodomain [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) (instName : Option Name := .none) : m (Array Syntax) := do
   let (cls, sorts, fieldLabelIdent) := (mkIdent deriveClass, ← mod.uninterpretedParamIdents, mkVeilImplementationDetailIdent `f)
   let codomainInst ← mod.declareInstanceLifting assumingClasses fieldLabelIdent (← `(term|$cls (($(fieldLabelToCodomain stateName) $sorts*) $fieldLabelIdent))) instName
   return #[codomainInst]
 
 /-- States that `deriveClass` can be inferred assuming `assumingClasses` for
 every concrete type of every field. See NOTE [AutomaticallyInferred]. -/
-private def Module.declareInstanceLiftingForDispatcher [Monad m] [MonadQuotation m] [MonadError m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) (dispatcher : Ident := fieldConcreteDispatcher) (instName : Option Name := .none) : m (Array Syntax) := do
+private def Module.declareInstanceLiftingForDispatcher [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (deriveClass : Name) (assumingClasses : Array Name := #[deriveClass]) (dispatcher : Ident := fieldConcreteDispatcher) (instName : Option Name := .none) : m (Array Syntax) := do
   let (cls, sorts, fieldLabelIdent) := (mkIdent deriveClass, ← mod.uninterpretedParamIdents, mkVeilImplementationDetailIdent `f)
   let inst ← mod.declareInstanceLifting assumingClasses fieldLabelIdent (← `(term|$cls ($dispatcher $sorts* $fieldLabelIdent))) instName
   return #[inst]
@@ -543,7 +554,9 @@ private def Module.declareInstanceLiftingForDispatcher [Monad m] [MonadQuotation
 /-- Return the syntax for declaring `State.Label` and dispatchers; also
 update the module to include the new parameters for concrete field type,
 `FieldRepresentation` and `LawfulFieldRepresentation`. -/
-def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m] [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadError m] (mod : Module) (repConfigs : ResolvedConcreteRepConfigs) : m (Module × Array Syntax) := do
+def Module.declareStateFieldLabelTypeAndDispatchers [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
+    [AddMessageContext m] [MonadOptions m] [MonadTrace m]
+    (mod : Module) (repConfigs : ResolvedConcreteRepConfigs) : m (Module × Array Syntax) := do
   let components := mod.mutableComponents
   -- declare field label type
   let (stateLabelTypeName, stateLabelTypeDefStx) ← declareStructureFieldLabelType stateName components

@@ -100,10 +100,10 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
   }
   let (ctx, distinctCount) ← match parallelCfg with
     | some cfg => do
-      let mctx ← breadthFirstSearchParallel params sys cfg progressInstanceId cancelToken
+      let mctx ← breadthFirstSearchParallel (σₕ := UInt64) params sys cfg progressInstanceId cancelToken
       pure (mctx.base, mctx.globalSeen.size)
     | none => do
-      let sctx ← breadthFirstSearchSequential params sys 60000 progressInstanceId cancelToken
+      let sctx ← breadthFirstSearchSequential (σₕ := UInt64) params sys 60000 progressInstanceId cancelToken
       pure (sctx.1, sctx.1.log.size)
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do

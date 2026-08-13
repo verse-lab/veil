@@ -52,7 +52,7 @@ open Elab Term in
 def VCStatement.type (vc : VCStatement) : TermElabM Expr := do
   Term.elabBinders vc.params fun vs => do
   let body ← withSynthesize (postpone := .no) $
-    withoutErrToSorry $ elabTerm vc.statement (Expr.sort levelZero)
+    withoutErrToSorry $ elabTerm vc.statement (Expr.sort Level.zero)
   let typ ← Meta.mkForallFVars vs body >>= instantiateMVars
   if typ.hasMVar || typ.hasFVar || typ.hasSorry then
     throwError "VCStatement.type: {vc.name}'s type is not fully determined"
@@ -180,7 +180,7 @@ instance : BEq (VerificationCondition VCMetaT ResultT) where
 instance : Hashable (VerificationCondition VCMetaT ResultT) where
   hash x := hash x.uid
 
-def VerificationCondition.theoremStx [Monad m] [MonadQuotation m] [MonadError m] (vc : VerificationCondition VCMetaT ResultT) : m Command := do
+def VerificationCondition.theoremStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (vc : VerificationCondition VCMetaT ResultT) : m Command := do
   let veilHuman : TSyntax `tactic := ⟨mkIdent `unveil⟩
   let defaultDischargedBy ← `(term|by
     $veilHuman:tactic
@@ -194,7 +194,7 @@ def VerificationCondition.theoremStx [Monad m] [MonadQuotation m] [MonadError m]
   `(command| theorem $(mkIdent vc.name) $(vc.params)* : $(vc.statement) := $dischargedBy)
 
 open Lean.Meta.Tactic.TryThis in
-def VerificationCondition.suggestion [Monad m] [MonadQuotation m] [MonadError m] (vc : VerificationCondition VCMetaT ResultT) : m Suggestion :=
+def VerificationCondition.suggestion [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (vc : VerificationCondition VCMetaT ResultT) : m Suggestion :=
   vc.theoremStx
 
 end DataStructures
@@ -381,17 +381,17 @@ def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (m
     pure <| mgr.addDischarger vcId (← mk vc.toVCStatement id ch)
   | none => pure mgr
 
-def VCManager.theorems [Monad m] [MonadQuotation m] [MonadError m] (mgr : VCManager VCMetaT ResultT) : m (Array Command) :=
+def VCManager.theorems [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mgr : VCManager VCMetaT ResultT) : m (Array Command) :=
   mgr.nodes.valuesArray.mapM (·.theoremStx)
 
-def VCManager.undischargedTheorems [Monad m] [MonadQuotation m] [MonadError m] (mgr : VCManager VCMetaT ResultT) : m (Array Command) :=
+def VCManager.undischargedTheorems [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mgr : VCManager VCMetaT ResultT) : m (Array Command) :=
   mgr.nodes.valuesArray.filterMapM (fun vc => do
     match vc.successful with
     | some _ => return none
     | none => return some (← vc.theoremStx))
 
 open Lean.Meta.Tactic.TryThis in
-def VCManager.suggestions [Monad m] [MonadQuotation m] [MonadError m] (mgr : VCManager VCMetaT ResultT) : m (Array Suggestion) :=
+def VCManager.suggestions [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mgr : VCManager VCMetaT ResultT) : m (Array Suggestion) :=
   mgr.nodes.valuesArray.mapM (·.suggestion)
 
 /-- VC ids matching `filter`, ordered so upstream dependencies appear before

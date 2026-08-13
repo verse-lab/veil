@@ -17,14 +17,14 @@ variable {α : Type u} {β : Type v} [Ord α] [Ord β] (equiv : α ≃ β)
 
 include hmorph
 
-def Std.OrientedOrd.by_equiv [inst : Std.OrientedOrd α] : Std.OrientedOrd β where
+theorem Std.OrientedOrd.by_equiv [inst : Std.OrientedOrd α] : Std.OrientedOrd β where
   eq_swap := by
     intro b1 b2
     rw [← equiv.right_inv b1, ← equiv.right_inv b2] ; dsimp [Equiv.coe_fn_mk]
     repeat rw [← hmorph]
     apply inst.eq_swap
 
-def Std.TransOrd.by_equiv [inst : Std.TransOrd α] : Std.TransOrd β where
+theorem Std.TransOrd.by_equiv [inst : Std.TransOrd α] : Std.TransOrd β where
   eq_swap := Std.OrientedOrd.by_equiv equiv hmorph |>.eq_swap
   isLE_trans := by
     intro b1 b2 b3
@@ -32,11 +32,11 @@ def Std.TransOrd.by_equiv [inst : Std.TransOrd α] : Std.TransOrd β where
     repeat rw [← hmorph]
     apply inst.isLE_trans
 
-def Std.ReflOrd.by_equiv [inst : Std.ReflOrd α] : Std.ReflOrd β where
+theorem Std.ReflOrd.by_equiv [inst : Std.ReflOrd α] : Std.ReflOrd β where
   compare_self := by
     intro b ; specialize hmorph (equiv.symm b) (equiv.symm b) ; grind
 
-def Std.LawfulEqOrd.by_equiv [inst : Std.LawfulEqOrd α] : Std.LawfulEqOrd β where
+theorem Std.LawfulEqOrd.by_equiv [inst : Std.LawfulEqOrd α] : Std.LawfulEqOrd β where
   compare_self := Std.ReflOrd.by_equiv equiv hmorph |>.compare_self
   eq_of_compare := by
     intro b1 b2
@@ -62,6 +62,7 @@ instance : Std.TransOrd PUnit where
 instance : Std.LawfulEqOrd PUnit where
   eq_of_compare := by intros ; rfl
 
+@[implicit_reducible]
 def sumOrd [Ord α] [Ord β] : Ord (Sum α β) where
   compare
     | Sum.inl a1, Sum.inl a2 => compare a1 a2
@@ -69,6 +70,7 @@ def sumOrd [Ord α] [Ord β] : Ord (Sum α β) where
     | Sum.inr _,  Sum.inl _  => Ordering.gt
     | Sum.inr b1, Sum.inr b2 => compare b1 b2
 
+@[implicit_reducible]
 def lexOrdForNonDepSigma [Ord α] [Ord β] : Ord ((_ : α) × β) where
   compare x y := lexOrd.compare ⟨x.1, x.2⟩ ⟨y.1, y.2⟩
 
@@ -97,16 +99,16 @@ variable {α β} [Ord α] [Ord β]
 attribute [local instance] sumOrd
 
 instance [Std.ReflOrd α] [Std.ReflOrd β] : Std.ReflOrd (Sum α β) where
-  compare_self := by intro a ; cases a <;> simp [sumOrd]
+  compare_self := by intro a ; cases a <;> simp +instances [sumOrd]
 
 instance [Std.OrientedOrd α] [Std.OrientedOrd β] : Std.OrientedOrd (Sum α β) where
-  eq_swap := by intro a b ; cases a <;> cases b <;> simp [sumOrd] <;> apply Std.OrientedOrd.eq_swap
+  eq_swap := by intro a b ; cases a <;> cases b <;> simp +instances [sumOrd] <;> apply Std.OrientedOrd.eq_swap
 
 instance [Std.TransOrd α] [Std.TransOrd β] : Std.TransOrd (Sum α β) where
-  isLE_trans := by intro a b c ; cases a <;> cases b <;> cases c <;> simp [sumOrd] <;> apply Std.TransOrd.isLE_trans
+  isLE_trans := by intro a b c ; cases a <;> cases b <;> cases c <;> simp +instances [sumOrd] <;> apply Std.TransOrd.isLE_trans
 
 instance [Std.LawfulEqOrd α] [Std.LawfulEqOrd β] : Std.LawfulEqOrd (Sum α β) where
-  eq_of_compare := by intro a b ; cases a <;> cases b <;> simp [sumOrd]
+  eq_of_compare := by intro a b ; cases a <;> cases b <;> simp +instances [sumOrd]
 
 end InstancesForSum
 
@@ -306,16 +308,25 @@ private def mkTargetTypeArgsBinders (arity : Nat) (targetType : Term) :
   pure (targetNames, binders)
 
 /-- Similar to `Lean.Elab.Deriving.mkInstImplicitBinders`, but produces
-*named* binders for fields. Also, here does not check whether the
-instance binders are type-correct. -/
+*named* binders for fields. Definitionally equal field types share one
+instance binder; the first field's instance name is returned for every
+later occurrence. -/
 def mkInstImplicitBindersForFields (className : Name) (indVal : InductiveVal) (argNames : Array Name)
-  (fieldNames : Array Name) : TermElabM (Array (Name × Syntax)) := do
-  fieldNames.mapIdxM fun i fieldName => do
-    let proj ← mkStructureProj indVal argNames fieldName
-    let nm ← mkFreshUserName <| Name.mkSimple s!"inst{i}"
-    let fieldType ← `(body_type_of_struct_field% ($proj))
-    let binder ← `(Lean.Elab.Deriving.instBinderF| [ $(mkIdent nm) : $(mkCIdent className):ident ($fieldType) ])
-    pure (nm, binder)
+  (fieldNames : Array Name) : TermElabM (Array Name × Array Syntax) := do
+  -- Attach a fresh instance name to every field before canonicalizing, so
+  -- `representatives` directly maps each field to the instance name of its
+  -- first definitionally equal occurrence.
+  let fields ← fieldNames.mapIdxM fun i fieldName =>
+    return (fieldName, ← mkFreshUserName <| Name.mkSimple s!"inst{i}")
+  let canonicalized ← forallBoundedTelescope indVal.type indVal.numParams fun params _ => do
+    let structType := mkAppN (mkConst indVal.name <| indVal.levelParams.map mkLevelParam) params
+    withLocalDeclD `s structType fun s =>
+      canonicalizeByDefEqType fields fun (fieldName, _) => do
+        inferType (← mkProjection s fieldName)
+  let binders ← canonicalized.unique.mapM fun (fieldName, instName) => do
+    let fieldType ← `(body_type_of_struct_field% ($(← mkStructureProj indVal argNames fieldName)))
+    `(Lean.Elab.Deriving.instBinderF| [ $(mkIdent instName) : $(mkCIdent className):ident ($fieldType) ])
+  return (canonicalized.representatives.map (·.2), binders.map (·.raw))
 where
  -- similar to `mkInductiveApp`, but produces a projection of a field
  mkStructureProj (indVal : InductiveVal) (argNames : Array Name) (fieldName : Name) : TermElabM Term :=
@@ -347,7 +358,7 @@ variable (declName : Name) (target? : Option Ident) (priority? : Option (TSyntax
 
 def mkBEqInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
-  let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``BEq indVal header.argNames fieldNames
+  let (localInsts, binders') ← mkInstImplicitBindersForFields ``BEq indVal header.argNames fieldNames
   let (targetNames, targetTypeArgBinders) ← mkTargetTypeArgsBinders 2 header.targetType
   let #[s1, s2] := targetNames.map Lean.mkIdent | unreachable!
   let beqTerms ← fieldNames.zipWithM (bs := localInsts) fun field inst => `(term| $(mkIdent inst).$(mkIdent `beq) $s1.$(mkIdent field) $s2.$(mkIdent field))
@@ -359,7 +370,7 @@ def mkBEqInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indV
 
 def mkDecidableEqInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
-  let (_, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``DecidableEq indVal header.argNames fieldNames
+  let (_, binders') ← mkInstImplicitBindersForFields ``DecidableEq indVal header.argNames fieldNames
   let (targetNames, targetTypeArgBinders) ← mkTargetTypeArgsBinders 2 header.targetType
   let #[s1, s2] := targetNames.map Lean.mkIdent | unreachable!
   -- Build the conjunction: s1.field1 = s2.field1 ∧ s1.field2 = s2.field2 ∧ ...
@@ -373,7 +384,7 @@ def mkDecidableEqInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun i
 
 def mkHashableInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
-  let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``Hashable indVal header.argNames fieldNames
+  let (localInsts, binders') ← mkInstImplicitBindersForFields ``Hashable indVal header.argNames fieldNames
   let (targetNames, targetTypeArgBinders) ← mkTargetTypeArgsBinders 1 header.targetType
   let #[s] := targetNames.map Lean.mkIdent | unreachable!
   -- Build the hash body: (hash s.field1) |> mixHash (hash s.field2) |> ...
@@ -391,7 +402,7 @@ def mkHashableInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info
 
 def mkInhabitedInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
-  let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``Inhabited indVal header.argNames fieldNames
+  let (localInsts, binders') ← mkInstImplicitBindersForFields ``Inhabited indVal header.argNames fieldNames
   let defaults ← localInsts.mapM fun inst => `(term| $(mkIdent inst).$(mkIdent `default))
   `(command|
   scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
@@ -400,7 +411,7 @@ def mkInhabitedInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun inf
 
 def mkToJsonInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
-  let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``ToJson indVal header.argNames fieldNames
+  let (localInsts, binders') ← mkInstImplicitBindersForFields ``ToJson indVal header.argNames fieldNames
   let (targetNames, targetTypeArgBinders) ← mkTargetTypeArgsBinders 1 header.targetType
   let #[s] := targetNames.map Lean.mkIdent | unreachable!
   let jsonPairs ← fieldNames.zipWithM (bs := localInsts) fun field inst => do
@@ -414,7 +425,7 @@ def mkToJsonInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info i
 
 def mkReprInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
-  let (localInsts, binders') ← Array.unzip <$> mkInstImplicitBindersForFields ``Repr indVal header.argNames fieldNames
+  let (localInsts, binders') ← mkInstImplicitBindersForFields ``Repr indVal header.argNames fieldNames
   let s ← mkIdent <$> mkFreshUserName `s
   let n ← mkIdent <$> mkFreshUserName `n
   let embeddedStringStx (x : String) : TSyntax `str :=

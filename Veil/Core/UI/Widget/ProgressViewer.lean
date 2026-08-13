@@ -580,10 +580,10 @@ private partial def runProgressUpdates (id : Nat) (token : RefreshToken) : CoreM
   IO.sleep 100
   let progress ← getProgress id
   if progress.isRunning then
-    token.refresh (progressToHtml progress (some id))
+    token.update (progressToHtml progress (some id))
     runProgressUpdates id token
   else
-    token.refresh (mkFinalResultHtml progress (← getResultJson id))
+    token.update (mkFinalResultHtml progress (← getResultJson id))
 
 /-- Create a streaming progress widget that polls progress by instance ID. -/
 def mkProgressWidget (instanceId : Nat) : CoreM Html := do

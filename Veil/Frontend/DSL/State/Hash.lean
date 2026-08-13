@@ -43,7 +43,7 @@ instance [Lean.ToJson β] [Lean.ToJson ι] : Lean.ToJson (HashCompanioned β ι 
 instance [Inhabited β] : Inhabited (HashCompanioned β ι op) where
   default := { inner := default, hashval := op default, invariant := rfl }
 
-instance : β ≃ HashCompanioned β ι op where
+def instEquiv : β ≃ HashCompanioned β ι op where
   toFun b := { inner := b, hashval := op b, invariant := rfl }
   invFun b := b.inner
   left_inv b := rfl
@@ -58,6 +58,7 @@ omit op in
 scoped instance [Hashable β] : Hashable (HashCompanioned β UInt64 hash) where
   hash := HashCompanioned.hashval
 
+@[implicit_reducible]
 def toFieldRepresentation (inst : FieldRepresentation FieldDomain FieldCodomain β)
   : FieldRepresentation FieldDomain FieldCodomain (HashCompanioned β ι op) where
   get cf := inst.get cf.inner
@@ -65,14 +66,14 @@ def toFieldRepresentation (inst : FieldRepresentation FieldDomain FieldCodomain 
     let res := inst.set favs cf.inner
     { inner := res, hashval := op res, invariant := rfl }
 
-def toLawfulFieldRepresentation
+theorem toLawfulFieldRepresentation
   (inst : FieldRepresentation FieldDomain FieldCodomain β)
   (instl : LawfulFieldRepresentation FieldDomain FieldCodomain β inst)
   : LawfulFieldRepresentation FieldDomain FieldCodomain (HashCompanioned β ι op)
     (toFieldRepresentation _ inst) where
-  set_nil := by intro fc ; cases fc ; simp [toFieldRepresentation, instl.set_nil] ; grind
-  set_append := by intro favs1 favs2 fc ; cases fc ; simp [toFieldRepresentation, instl.set_append]
-  get_set_idempotent := by intro dec fc favs ; cases fc ; simp [toFieldRepresentation] ; apply instl.get_set_idempotent
+  set_nil := by intro fc ; cases fc ; simp +instances [toFieldRepresentation, instl.set_nil] ; grind
+  set_append := by intro favs1 favs2 fc ; cases fc ; simp +instances [toFieldRepresentation, instl.set_append]
+  get_set_idempotent := by intro dec fc favs ; cases fc ; simp +instances [toFieldRepresentation] ; apply instl.get_set_idempotent
 
 end Simple
 

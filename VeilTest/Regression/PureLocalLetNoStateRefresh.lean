@@ -4,7 +4,13 @@ set_option linter.unusedTactic false
 
 open Lean Elab Tactic Meta in
 elab "log_lctx_size" : tactic => do
-  logInfo m!"local declarations: {(← getLCtx).getFVarIds.size}"
+  let lctx ← getLCtx
+  -- Lean 4.32 introduces inaccessible implementation-detail locals named `__r`
+  -- while elaborating the generated state accessors.  They are not source-level
+  -- declarations and should not affect this regression test's context-size metric.
+  let declarations := lctx.getFVarIds.filter fun id =>
+    (lctx.get! id).userName.getRoot != `__r
+  logInfo m!"local declarations: {declarations.size}"
 
 /-!
 # Regression: pure local lets do not refresh state binders

@@ -28,7 +28,7 @@ lemma VeilExecM.total_imp_partial (act : VeilExecM m ρ σ α) :
 
 lemma VeilExecM.raises_true_imp_wp_eq_angel_fail_iwp (act : VeilExecM m ρ σ α) (post : RProp α ρ σ) :
   [IgnoreEx (fun _ => True)| iwp act post] = [AngelFail| wp act post] := by
-  simp [iwp, VeilExecM.wp_eq, TotalCorrectness.DivM.wp_eq, PartialCorrectness.DivM.wp_eq]
+  simp [Id, iwp, VeilExecM.wp_eq, TotalCorrectness.DivM.wp_eq, PartialCorrectness.DivM.wp_eq]
   ext r s; simp; cases (act r s) <;> simp [loomLogicSimp]
   rename_i x; rcases x with ⟨_ | _, _⟩ <;> simp
 
@@ -299,7 +299,7 @@ instance
   : LawfulMonadPersistentLog κ (VeilMultiExecM κ ε ρ σ) (ρ → σ → Prop) where
   log_sound := by
     introv ; ext r st
-    simp +unfoldPartialApp [wp, liftM, monadLift, MAlg.lift, Functor.map,
+    simp +instances +unfoldPartialApp [Id, wp, liftM, monadLift, MAlg.lift, Functor.map,
       MAlgOrdered.μ, OfHd, MAlgExcept, pointwiseSup,
       ExceptT.map, ExceptT.mk, Except.getD, TsilTCore.op,
       StateT.map, StateT.pure, StateT.bind,

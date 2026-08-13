@@ -39,14 +39,14 @@ structure WithUnit (ρ : Type u) where
 theorem insertManyFast_array_eq_insertManyFast_toList {α : Type u} {cmp : α → α → Ordering} [BEq α]
     {t : Std.TreeSet α cmp} {arr : Array α} :
     t.insertManyFast arr = t.insertManyFast arr.toList := by
-  simp only [insertManyFast, TreeMap.insertMany, DTreeMap.Const.insertMany,
+  simp +instances only [insertManyFast, TreeMap.insertMany, DTreeMap.Const.insertMany,
     DTreeMap.Internal.Impl.Const.insertMany, WithUnit.ForIn]
   simp only [Array.forIn_toList]
 
 theorem insertManyFast_hashset_eq_insertManyFast_toList {α : Type u} {cmp : α → α → Ordering} [BEq α] [Hashable α]
     {t : Std.TreeSet α cmp} {hs : Std.HashSet α} :
     t.insertManyFast hs = t.insertManyFast hs.toList := by
-  simp only [insertManyFast, TreeMap.insertMany, DTreeMap.Const.insertMany,
+  simp +instances only [insertManyFast, TreeMap.insertMany, DTreeMap.Const.insertMany,
     DTreeMap.Internal.Impl.Const.insertMany, WithUnit.ForIn,
     Std.HashSet.forIn_eq_forIn_toList]
 
@@ -58,7 +58,7 @@ theorem contains_insertManyFast_list
     {t : Std.TreeSet α cmp} {l : List α} {k : α} :
     (t.insertManyFast l).contains k = (t.contains k || l.contains k) := by
   rw [← contains_insertMany_list (t := t) (l := l) (k := k)]
-  dsimp only [insertManyFast, TreeMap.insertMany, DTreeMap.Const.insertMany,
+  dsimp +instances only [insertManyFast, TreeMap.insertMany, DTreeMap.Const.insertMany,
     DTreeMap.Internal.Impl.Const.insertMany, WithUnit.ForIn,
     insertMany, TreeMap.insertManyIfNewUnit, DTreeMap.Const.insertManyIfNewUnit,
     DTreeMap.Internal.Impl.Const.insertManyIfNewUnit, DTreeMap.Internal.Impl.insertIfNew,

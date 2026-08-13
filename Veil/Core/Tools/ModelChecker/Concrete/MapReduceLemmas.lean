@@ -56,7 +56,7 @@ theorem MapReduceSearchContextMainInvariants.setExploredAll_preserves_invs
   rcases mctx with ⟨ctx, mlen, q, gs⟩ ; rcases mctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed, h_len⟩ ; dsimp only at *
   simp [BaseSearchContext.hasFinished] at h_not_finished
   constructor ; on_goal 1=> constructor
-  all_goals dsimp only ; try solve | assumption | grind
+  all_goals (try dsimp only) ; try solve | assumption | grind
 
 theorem MapReduceSearchContextMainInvariants.bfs_completeness
   {mctx : MapReduceSearchContextMain σ κ σₕ asm}
