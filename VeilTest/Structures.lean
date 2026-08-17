@@ -23,7 +23,9 @@ veil module StructureSupport
 individual point : StructurePoint
 individual envelope : StructureEnvelope
 individual pair : Int × Bool
+individual pairStruct : StructurePoint × StructurePoint
 individual triplet : Int × Bool × Bool
+-- individual tripletStruct : StructurePoint × StructurePoint × StructurePoint
 
 after_init {
   point := { x := 0, enabled := false }
@@ -41,6 +43,7 @@ action change {
 invariant point.x ≥ 0
 invariant envelope.point.x = 2
 invariant pair.1 ≥ 0
+invariant pairStruct.1.x ≤ pairStruct.1.x + 1
 
 #gen_spec
 
@@ -52,11 +55,13 @@ info: ✅ Satisfying trace found
   State 0 (via init):
     envelope = {point: {enabled: true, x: 2}, sequence: 3}
     pair = [4, true]
+    pairStruct = [{enabled: false, x: 0}, {enabled: false, x: 0}]
     point = {enabled: false, x: 0}
     triplet = [5, [true, false]]
   State 1 (via change):
     envelope = {point: {enabled: true, x: 2}, sequence: 3}
     pair = [8, false]
+    pairStruct = [{enabled: false, x: 0}, {enabled: false, x: 0}]
     point = {enabled: true, x: 7}
     triplet = [42, [false, true]]
 -/

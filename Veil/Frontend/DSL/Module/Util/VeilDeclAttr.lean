@@ -48,7 +48,8 @@ initialize registerBuiltinAttribute {
     -- the generated constructor-injectivity theorem makes structure equalities
     -- reduce to field equalities in the existing `smtSimp` pass. Keep inductive
     -- declarations on their existing deriving-only path.
-    if let some _ := getStructureInfo? (← getEnv) declName then
+    let isStructureDecl := (getStructureInfo? (← getEnv) declName).isSome
+    if isStructureDecl then
       if let some (.inductInfo indInfo) := (← getEnv).find? declName then
         if let some ctorName := indInfo.ctors.head? then
           let injEqName := ctorName ++ `injEq
@@ -56,6 +57,16 @@ initialize registerBuiltinAttribute {
             liftCommandElabM (throwOnError := true) do
               elabVeilCommand <| ← `(command|
                 attribute [$(mkIdent `smtSimp):ident] $(mkIdent injEqName):ident)
+    -- Compute this before deriving `Inhabited`: `mkInstName` chooses a fresh
+    -- name, so calling it afterwards would identify the next unused name.
+    let inhabitedDefaultName? ← if isStructureDecl then
+      liftCommandElabM do
+        liftTermElabM do
+          let instName ← Lean.Elab.Deriving.mkInstName ``Inhabited declName
+          let instName := if instName.isAtomic then declName.getPrefix ++ instName else instName
+          return some (instName ++ `default)
+    else
+      pure none
     for className in defaultDerivingClasses do
       let classIdent := mkIdent className
       try
@@ -65,6 +76,14 @@ initialize registerBuiltinAttribute {
       catch ex =>
         liftCommandElabM (throwOnError := false) do
           logWarning m!"Could not automatically derive {className} for {declName}. You may need to provide a manual instance.\nError: {← ex.toMessageData.toString}"
+    -- Lean's built-in `Inhabited` derivation puts the chosen constructor in a
+    -- separate opaque `<instance>.default` declaration. Unfold it before SMT,
+    -- otherwise an unconstrained structure field can escape flattening.
+    if let some defaultName := inhabitedDefaultName? then
+      if (← getEnv).contains defaultName then
+        liftCommandElabM (throwOnError := true) do
+          elabVeilCommand <| ← `(command|
+            attribute [$(mkIdent `smtSimp):ident] $(mkIdent defaultName):ident)
 }
 
 end Veil
