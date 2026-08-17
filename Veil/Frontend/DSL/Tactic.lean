@@ -153,6 +153,8 @@ syntax (name := __veil_concretize_state_wp) "__veil_concretize_state_wp" : tacti
 syntax (name := __veil_concretize_state_tr) "__veil_concretize_state_tr" : tactic
 syntax (name := __veil_concretize_fields_wp) "__veil_concretize_fields_wp" ("!")? : tactic
 syntax (name := __veil_concretize_fields_tr) "__veil_concretize_fields_tr" : tactic
+syntax (name := __veil_destruct_tagged) "__veil_destruct_tagged" : tactic
+syntax (name := __veil_destruct_tagged') "__veil_destruct_tagged'" : tactic
 
 syntax (name := veil_intros) "veil_intros" : tactic
 /-- Do `intros` to bring all higher-order values (e.g., values of structures
@@ -427,13 +429,34 @@ where
       | _ => pure false
     return isStateχ || ofBadType
 
+/-- Structures generated as part of a Veil module are implementation details,
+not user declarations, so they do not need `@[veil_decl]`. -/
+private def isGeneratedVeilStructure (structureName : Name) : Bool :=
+  match structureName with
+  | .str _ suffix => [stateName.toString, theoryName.toString,
+      instantiationTypeName.toString].contains suffix
+  | _ => false
+
+private def ensureVeilStructureIsTagged (structureName : Name) : TacticM Unit := do
+  let env ← getEnv
+  -- Veil already destructs typeclasses such as TotalOrder and generated
+  -- enumeration classes as proof/configuration context, not as user data.
+  if structureName == ``Inhabited || isClass env structureName
+      || isGeneratedVeilStructure structureName then
+    return
+  unless hasVeilDeclAttr env structureName do
+    throwError "Structure {structureName} is used in an SMT obligation but is not marked with `@[veil_decl]`"
+
 mutual
 
 /-- Destruct a structure into its fields. If `onlyStructs` is non-empty, only destructs
 structures whose type names are in the `onlyStructs` list. -/
-partial def elabVeilDestructSpecificHyp (ids : Array (TSyntax `ident)) (onlyStructs : List Name := []) (excludedStructs : List Name := []) : DesugarTacticM Unit := veilWithMainContext do
+partial def elabVeilDestructSpecificHyp (ids : Array (TSyntax `ident))
+    (onlyStructs : List Name := []) (excludedStructs : List Name := [])
+    (requireTagged : Bool := false) : DesugarTacticM Unit := veilWithMainContext do
   if ids.size == 0 then
-    elabVeilDestructAllHyps (recursive := true) (onlyStructs := onlyStructs) (excludedStructs := excludedStructs)
+    elabVeilDestructAllHyps (recursive := true) (onlyStructs := onlyStructs)
+      (excludedStructs := excludedStructs) (requireTagged := requireTagged)
   else for id in ids do
     let lctx ← getLCtx
     let name := (getNameOfIdent' id)
@@ -443,6 +466,8 @@ partial def elabVeilDestructSpecificHyp (ids : Array (TSyntax `ident)) (onlyStru
     if excludedStructs.contains sn || (!onlyStructs.isEmpty && !onlyStructs.contains sn) then
       continue
     let .some _sinfo := getStructureInfo? (← getEnv) sn | throwError "veil_destruct: {id} ({sn} is not a structure)"
+    if requireTagged then
+      ensureVeilStructureIsTagged sn
     let newFieldNames := _sinfo.fieldNames.map (mkIdent $ Name.append name ·)
     let s ← `(rcasesPat| ⟨ $[$newFieldNames],* ⟩)
     veilEvalTactic $ ← `(tactic| unhygienic rcases $(mkIdent ld.userName):ident with $s)
@@ -455,7 +480,9 @@ partial def elabVeilDestructSpecificHyp (ids : Array (TSyntax `ident)) (onlyStru
 /-- Destruct all structures in the context into their respective
 fields, (potentially) recursively. Also destructs all existentials.
 If `onlyStructs` is non-empty, only destructs structures whose type names are in the list. -/
-partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Array LocalDecl := #[]) (onlyStructs : List Name := []) (excludedStructs : List Name := []) : DesugarTacticM Unit := veilWithMainContext do
+partial def elabVeilDestructAllHyps (recursive : Bool := false)
+    (ignoreHyps : Array LocalDecl := #[]) (onlyStructs : List Name := [])
+    (excludedStructs : List Name := []) (requireTagged : Bool := false) : DesugarTacticM Unit := veilWithMainContext do
   let mut ignoreHyps := ignoreHyps
   let hypsToVisit : (Array LocalDecl → DesugarTacticM (Array LocalDecl)) := (fun ignoreHyps => veilWithMainContext do
     return (← getLCtx).decls.toArray.filterMap fun hyp? =>
@@ -471,7 +498,7 @@ partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Ar
     if let some sn := structureName? then
       -- Skip if onlyStructs is non-empty and this structure is not in the list
       if !hypTypesToSkipDestruct.contains sn && !excludedStructs.contains sn && (onlyStructs.isEmpty || onlyStructs.contains sn) then
-        elabVeilDestructSpecificHyp #[name]
+        elabVeilDestructSpecificHyp #[name] (requireTagged := requireTagged)
     else
       let hypType ← Meta.whnf hyp.type
       if hypType.isAppOf ``Exists then
@@ -483,7 +510,7 @@ partial def elabVeilDestructAllHyps (recursive : Bool := false) (ignoreHyps : Ar
         veilEvalTactic $ ← `(tactic| rcases $name:ident with ⟨$x, $name'⟩)
   -- Recursively call ourselves until the context stops changing
   if recursive && (← hypsToVisit ignoreHyps).size > 0 then
-    elabVeilDestructAllHyps recursive ignoreHyps onlyStructs
+    elabVeilDestructAllHyps recursive ignoreHyps onlyStructs excludedStructs requireTagged
 where
   existsBinderName (whnfType : Expr) : MetaM Name := do
   match_expr whnfType with
@@ -492,7 +519,7 @@ where
 
 end
 
-def elabVeilDestruct' : DesugarTacticM Unit := veilWithMainContext do
+partial def elabVeilDestruct' (requireTagged : Bool := false) : DesugarTacticM Unit := veilWithMainContext do
   let mut targets := #[]
   for hyp in (← getLCtx) do
     if hyp.isImplementationDetail then continue
@@ -504,9 +531,26 @@ def elabVeilDestruct' : DesugarTacticM Unit := veilWithMainContext do
     -- Special check
     -- FIXME: This is too ad-hoc ...
     if nm == ``And then continue
+    if requireTagged then
+      ensureVeilStructureIsTagged nm
     targets := targets.push nm
   let targetIdents := targets.map mkIdent
   veilEvalTactic $ ← `(tactic| (try veil_cases_type* $[$targetIdents:ident]*) ; expose_names )
+  if requireTagged then
+    let env ← getEnv
+    let injEqLemmas := targets.filterMap fun structureName => do
+      let some (.inductInfo indInfo) := env.find? structureName | none
+      let ctorName ← indInfo.ctors.head?
+      let injEqName := ctorName ++ `injEq
+      guard (env.contains injEqName)
+      return mkIdent injEqName
+    unless injEqLemmas.isEmpty do
+      veilEvalTactic $ ← `(tactic| simp only [$[$injEqLemmas:ident],*] at *)
+  -- `cases_type*` only knows about the structure types present before it runs.
+  -- Destructing an outer structure can reveal a nested structure of a new type,
+  -- so repeat the internal SMT-preparation variant until no targets remain.
+  if requireTagged && !targets.isEmpty then
+    elabVeilDestruct' requireTagged
 
 private inductive GenericStateKind
   | environmentState
@@ -1233,8 +1277,8 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
     let classicalIdent := mkIdent `Classical
     let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
     let tac ← if fast
-      then `(tactic| (veil_destruct' ; veil_dsimp +$(mkIdent `instances) only at *; veil_intros) )
-      else `(tactic| (veil_destruct; (open $classicalIdent:ident in veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident] at * ); veil_intros) )
+      then `(tactic| (__veil_destruct_tagged' ; veil_dsimp +$(mkIdent `instances) only at *; veil_intros) )
+      else `(tactic| (__veil_destruct_tagged; (open $classicalIdent:ident in veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident] at * ); veil_intros) )
     -- FIXME: There is `inferNonemptyTac` both in `veil_fol` and `veil_smt` and `concretize_wp`. Just keep one?
     `(tactic| ($inferNonemptyTac:tactic; $tac:tactic))
   veilEvalTactic tac
@@ -1263,8 +1307,8 @@ def elabVeilSolveTrlo : DesugarTacticM Unit := veilWithMainContext do
     -- FIXME: `veil_destruct' ; (unhygienic intros)` is like a wachy `veil_fol !`,
     -- but somehow we need to avoid `subst` here, otherwise the counterexample
     -- printing might miss some substituted variables
-    | .smt | .grindAndSMT => `(tactic| (repeat' (first | veil_cases_type* $(mkIdent ``Exists) $(mkIdent ``And) without [$(mkIdent `hinv)] | split_ifs at *)) <;> (expose_names ; veil_destruct' ; (unhygienic intros) ; veil_solve) )
-    | _ => `(tactic| (veil_destruct' ; veil_solve) )
+    | .smt | .grindAndSMT => `(tactic| (repeat' (first | veil_cases_type* $(mkIdent ``Exists) $(mkIdent ``And) without [$(mkIdent `hinv)] | split_ifs at *)) <;> (expose_names ; __veil_destruct_tagged' ; (unhygienic intros) ; veil_solve) )
+    | _ => `(tactic| (__veil_destruct_tagged' ; veil_solve) )
   -- NOTE: For `tr` case, usually `smtSimp` will call `State.ext_iff`
   -- and this will incur `@Eq (FieldAbstractType ...)` which can make
   -- `veil_smt` fail. So we do the dsimproc after `smtSimp`.
@@ -1340,7 +1384,7 @@ def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
   let dsimpLemmas := #[mkIdent ``Inhabited.default, fieldAbstractDispatcher, fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
   let dsimpTac←  `(tactic| try dsimp +$(mkIdent `instances) [$[$dsimpLemmas:ident],*])
   let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
-  let tac ← `(tacticSeq| $inferNonemptyTac:tactic; veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]; veil_simp +$(mkIdent `instances) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; $inferNonemptyTac:tactic; veil_destruct; $dsimpTac; veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]; $dsimpTac; veil_smt)
+  let tac ← `(tacticSeq| $inferNonemptyTac:tactic; veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]; veil_simp +$(mkIdent `instances) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; $inferNonemptyTac:tactic; __veil_destruct_tagged; $dsimpTac; veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]; $dsimpTac; veil_smt)
   veilEvalTactic tac
 
 def elabVeilSplitIfs : DesugarTacticM Unit := veilWithMainContext do
@@ -1358,6 +1402,8 @@ def elabVeilFail : TacticM Unit := veilWithMainContext do
   tactic __veil_concretize_state_tr,
   tactic __veil_concretize_fields_wp,
   tactic __veil_concretize_fields_tr,
+  tactic __veil_destruct_tagged,
+  tactic __veil_destruct_tagged',
   tactic __veil_neutralize_decidable_inst,
   tactic __veil_ghost_relation_ssa,
   tactic __veil_solve_wplo,
@@ -1406,6 +1452,12 @@ def elabVeilTactics : Tactic := fun stx => do
     withTraceNode `veil.perf.tactic (fun _ => return "__veil_concretize_fields_wp") (elabVeilConcretizeFieldsWp (agg.isSome))
   | `(tactic| __veil_concretize_fields_tr) => do
     withTraceNode `veil.perf.tactic (fun _ => return "__veil_concretize_fields_tr") elabVeilConcretizeFieldsTr
+  | `(tactic| __veil_destruct_tagged) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "__veil_destruct_tagged") $
+      elabVeilDestructSpecificHyp #[] (requireTagged := true)
+  | `(tactic| __veil_destruct_tagged') => do
+    withTraceNode `veil.perf.tactic (fun _ => return "__veil_destruct_tagged'") $
+      elabVeilDestruct' (requireTagged := true)
   | `(tactic| __veil_neutralize_decidable_inst $[!%$agg]? $[$loc]?) => do
     withTraceNode `veil.perf.tactic (fun _ => return "__veil_neutralize_decidable_inst") (elabVeilNeutralizeDecidableInst (agg.isSome) loc)
   | `(tactic| __veil_ghost_relation_ssa $[at $hyp:ident]?) => do

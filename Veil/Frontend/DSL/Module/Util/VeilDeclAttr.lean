@@ -1,4 +1,5 @@
 import Lean
+import Veil.Backend.SMT.Base
 import Veil.Util.Meta
 import Veil.Util.Deriving
 
@@ -23,10 +24,15 @@ initialize veilDeclExt : SimplePersistentEnvExtension Name (Array Name) ←
     addImportedFn := fun arrays => arrays.foldl (fun acc a => acc ++ a) #[]
   }
 
+/-- Return whether a declaration is supported as Veil data. `Prod` is built in;
+all other structures and inductives must be marked with `@[veil_decl]`. -/
+def hasVeilDeclAttr (env : Environment) (declName : Name) : Bool :=
+  declName == ``Prod || (veilDeclExt.getState env).contains declName
+
 initialize registerBuiltinAttribute {
   name := veilDeclAttrName
   descr := "Marks a structure or inductive as a Veil declaration and automatically derives common instances for it."
-  applicationTime := .afterTypeChecking
+  applicationTime := .afterCompilation
   add := fun declName _stx _kind => do
     let info ← getConstInfo declName
     unless info.isInductive do
@@ -38,6 +44,18 @@ initialize registerBuiltinAttribute {
     -- non-anonymous namespace. Restore the declaration's namespace so that
     -- scoped attributes work correctly.
     let ns := (← read).currNamespace
+    -- Veil eliminates structures into their fields before calling SMT. Registering
+    -- the generated constructor-injectivity theorem makes structure equalities
+    -- reduce to field equalities in the existing `smtSimp` pass. Keep inductive
+    -- declarations on their existing deriving-only path.
+    if let some _ := getStructureInfo? (← getEnv) declName then
+      if let some (.inductInfo indInfo) := (← getEnv).find? declName then
+        if let some ctorName := indInfo.ctors.head? then
+          let injEqName := ctorName ++ `injEq
+          if (← getEnv).contains injEqName then
+            liftCommandElabM (throwOnError := true) do
+              elabVeilCommand <| ← `(command|
+                attribute [$(mkIdent `smtSimp):ident] $(mkIdent injEqName):ident)
     for className in defaultDerivingClasses do
       let classIdent := mkIdent className
       try

@@ -75,17 +75,16 @@ structure VeilTrace where
 private def parseNat? (s : String.Slice) : Option Nat :=
   s.toNat?
 
-/-- Check if a name matches the pattern "st{n}.fieldName" and return (n, fieldName).
-    For example: `st0.leader` → `some (0, leader)`, `st3.msgs` → `some (3, msgs)` -/
+/-- Check if a name starts with `st{n}` and return the state index and complete
+    field path. For example, `st0.message.payload` returns `(0, message.payload)`. -/
 def isIndexedStateField (name : Name) : Option (Nat × Name) :=
-  match name with
-  | .str (.str .anonymous stN) fieldName =>
-    if stN.startsWith "st" then
-      match parseNat? (stN.drop 2) with
-      | some n => some (n, .mkSimple fieldName)
-      | none => none
-    else none
-  | _ => none
+  do
+    let root :: suffix := name.components | none
+    let .str .anonymous stN := root | none
+    guard (stN.startsWith "st")
+    let n ← parseNat? (stN.drop 2)
+    guard (!suffix.isEmpty)
+    return (n, suffix.foldl Name.append .anonymous)
 
 /-- Check if a name matches the pattern "_tr{n}_tag" and return n.
     For example: `_tr1_tag` → `some 1`, `_tr3_tag` → `some 3` -/
@@ -109,23 +108,25 @@ private def parseArgParam (s : String) : Option (Nat × Name) := do
 /-- Check if a name matches the pattern "_tr{n}_arg{m}_{param}" and return (trIdx, argIdx, paramName).
     For example: `_tr1_arg0_sender` → `some (1, 0, sender)` -/
 def isSpecificActionParam (name : Name) : Option (Nat × Nat × Name) := do
-  let .str .anonymous s := name | none
+  let root :: suffix := name.components | none
+  let .str .anonymous s := root | none
   let afterTr ← (s.dropPrefix? "_tr").map (·.toString)
   let [trIdxStr, rest] := afterTr.splitOn "_arg" | none
   let trIdx ← parseNat? trIdxStr
   let (argIdx, paramName) ← parseArgParam rest
-  return (trIdx, argIdx, paramName)
+  return (trIdx, argIdx, suffix.foldl Name.append paramName)
 
 /-- Check if a name matches the pattern "_tr{n}_act_{actionName}_arg{m}_{param}" and return (trIdx, actionName, argIdx, paramName).
     For example: `_tr1_act_send_arg0_sender` → `some (1, send, 0, sender)` -/
 def isAnyActionParam (name : Name) : Option (Nat × Name × Nat × Name) := do
-  let .str .anonymous s := name | none
+  let root :: suffix := name.components | none
+  let .str .anonymous s := root | none
   let afterTr ← (s.dropPrefix? "_tr").map (·.toString)
   let [trIdxStr, rest] := afterTr.splitOn "_act_" | none
   let trIdx ← parseNat? trIdxStr
   let [actNameStr, argRest] := rest.splitOn "_arg" | none
   let (argIdx, paramName) ← parseArgParam argRest
-  return (trIdx, .mkSimple actNameStr, argIdx, paramName)
+  return (trIdx, .mkSimple actNameStr, argIdx, suffix.foldl Name.append paramName)
 
 /-- Check if a name matches the pattern `actionTagEnumInstName.actionName` and return actionName.
     For example: `__veil_tag.send` → `some send` -/
@@ -137,15 +138,15 @@ def isVeilTagEntry (name : Name) : Option Name :=
 
 /-! ## Model Classification -/
 
-/-- Classify model values into indexed state fields, theory fields, transition tags,
-    action parameters, and extras.
+/-- Classify model values into indexed state field paths, theory field paths,
+    transition tags, action parameter paths, and extras.
 
     Returns:
-    - `stateFields`: Array of hashmaps, one per state index, mapping field names to values
-    - `theoryFields`: HashMap of theory field names to values
+    - `stateFields`: Array of hashmaps, one per state index, mapping field paths to values
+    - `theoryFields`: HashMap of theory field paths to values
     - `transitionTags`: HashMap of transition index to tag value expression
-    - `specificActionParams`: HashMap of (trIdx, argIdx) to parameter value expression
-    - `anyActionParams`: HashMap of (trIdx, actionName, argIdx) to parameter value expression
+    - `specificActionParams`: HashMap of (trIdx, parameter path) to values
+    - `anyActionParams`: HashMap of (trIdx, actionName, parameter path) to values
     - `tagToAction`: HashMap of tag value (Nat) to action name
     - `extraVals`: Array of unclassified (name, value) pairs
 -/
@@ -153,8 +154,8 @@ def classifyTraceModelValues (model : Model) (mod : Module) (numStates : Nat)
     : IO (Array (Std.HashMap Name Expr)
         × Std.HashMap Name Expr
         × Std.HashMap Nat Expr
-        × Std.HashMap (Nat × Nat) Expr
-        × Std.HashMap (Nat × Name × Nat) Expr
+        × Std.HashMap (Nat × Name) Expr
+        × Std.HashMap (Nat × Name × Name) Expr
         × Std.HashMap Nat Name
         × Array (Expr × Expr)) := do
   let stateFieldNames := mod.mutableComponents.map (·.name) |>.toList
@@ -164,8 +165,8 @@ def classifyTraceModelValues (model : Model) (mod : Module) (numStates : Nat)
   let mut stateFields : Array (Std.HashMap Name Expr) := Array.replicate numStates {}
   let mut theoryFields : Std.HashMap Name Expr := {}
   let mut transitionTags : Std.HashMap Nat Expr := {}
-  let mut specificActionParams : Std.HashMap (Nat × Nat) Expr := {}
-  let mut anyActionParams : Std.HashMap (Nat × Name × Nat) Expr := {}
+  let mut specificActionParams : Std.HashMap (Nat × Name) Expr := {}
+  let mut anyActionParams : Std.HashMap (Nat × Name × Name) Expr := {}
   let mut tagToAction : Std.HashMap Nat Name := {}
   let mut extraVals : Array (Expr × Expr) := #[]
 
@@ -178,26 +179,26 @@ def classifyTraceModelValues (model : Model) (mod : Module) (numStates : Nat)
         if let some tagValue ← extractFinValue model.ctx valueExpr then
           tagToAction := tagToAction.insert tagValue actionName
       -- Check if it's an indexed state field (st{n}.fieldName)
-      else if let some (stateIdx, fieldName) := isIndexedStateField name then
-        if stateIdx < numStates && stateFieldNames.contains fieldName then
-          stateFields := stateFields.modify stateIdx (·.insert fieldName valueExpr)
+      else if let some (stateIdx, fieldPath) := isIndexedStateField name then
+        if stateIdx < numStates && (firstNameComponent? fieldPath).any stateFieldNames.contains then
+          stateFields := stateFields.modify stateIdx (·.insert fieldPath valueExpr)
         else
           extraVals := extraVals.push (nameExpr, valueExpr)
       -- Check if it's a theory field (th.fieldName)
-      else if let some fieldName := isTheoryField name then
-        if theoryFieldNames.contains fieldName then
-          theoryFields := theoryFields.insert fieldName valueExpr
+      else if let some fieldPath := isTheoryField name then
+        if (firstNameComponent? fieldPath).any theoryFieldNames.contains then
+          theoryFields := theoryFields.insert fieldPath valueExpr
         else
           extraVals := extraVals.push (nameExpr, valueExpr)
       -- Check if it's a transition tag (_tr{n}_tag)
       else if let some trIdx := isTransitionTag name then
         transitionTags := transitionTags.insert trIdx valueExpr
       -- Check if it's a specific action parameter (_tr{n}_arg{m}_{param})
-      else if let some (trIdx, argIdx, _paramName) := isSpecificActionParam name then
-        specificActionParams := specificActionParams.insert (trIdx, argIdx) valueExpr
+      else if let some (trIdx, _argIdx, paramPath) := isSpecificActionParam name then
+        specificActionParams := specificActionParams.insert (trIdx, paramPath) valueExpr
       -- Check if it's an any-action parameter (_tr{n}_act_{actionName}_arg{m}_{param})
-      else if let some (trIdx, actName, argIdx, _paramName) := isAnyActionParam name then
-        anyActionParams := anyActionParams.insert (trIdx, actName, argIdx) valueExpr
+      else if let some (trIdx, actName, _argIdx, paramPath) := isAnyActionParam name then
+        anyActionParams := anyActionParams.insert (trIdx, actName, paramPath) valueExpr
       else
         extraVals := extraVals.push (nameExpr, valueExpr)
     | none =>
@@ -217,17 +218,17 @@ def resolveActionFromTag (ctx : ModelContext) (tagExpr : Expr)
   return some (actionName, tagValue)
 
 /-- Build a Label constructor expression from action name and parameter values.
-    Uses the transition index and action name to look up parameters.
-    First tries specific params (trIdx, argIdx), then any-action params (trIdx, actionName, argIdx). -/
+    First tries the specific action's flattened parameter path, then the
+    corresponding any-action parameter path. -/
 def buildLabelFromAction (mod : Module) (sortArgs : Array Expr)
     (actionName : Name) (trIdx : Nat)
-    (specificParams : Std.HashMap (Nat × Nat) Expr)
-    (anyActionParams : Std.HashMap (Nat × Name × Nat) Expr)
+    (specificParams : Std.HashMap (Nat × Name) Expr)
+    (anyActionParams : Std.HashMap (Nat × Name × Name) Expr)
     (enumAdapts : Array EnumSortAdaptation := #[])
     : MetaM (Option Expr) :=
-  buildLabelExprCore mod sortArgs actionName (fun idx =>
+  buildLabelExprCore mod sortArgs actionName (fun _idx path =>
     -- First try specific params, then fall back to any-action params
-    specificParams[(trIdx, idx)]? <|> anyActionParams[(trIdx, actionName, idx)]?
+    specificParams[(trIdx, path)]? <|> anyActionParams[(trIdx, actionName, path)]?
   ) enumAdapts
 
 /-! ## Main Construction -/

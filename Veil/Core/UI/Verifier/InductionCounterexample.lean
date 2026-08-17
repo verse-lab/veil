@@ -5,6 +5,7 @@ import Veil.Frontend.DSL.Module.Representation
 import Veil.Frontend.DSL.Module.Names
 import Veil.Frontend.DSL.Module.Util.Basic
 import Veil.Frontend.DSL.Module.Util.StateTheory
+import Veil.Frontend.DSL.Module.Util.VeilDeclAttr
 import Veil.Frontend.DSL.Infra.EnvExtensions
 import Veil.Core.UI.Verifier.Model
 import Veil.Backend.SMT.Model
@@ -133,12 +134,23 @@ def getExprName (ctx : ModelContext) (e : Expr) : IO (Option Name) := do
     else
       return none
 
-/-- Check if a name matches one of `prefix.fieldName` and return fieldName. -/
-def isFieldWithPrefix (prefixes : List String) (n : Name) : Option Name :=
-  match n with
-  | .str (.str .anonymous prefixName) fieldName =>
-    if prefixes.contains prefixName then some (.mkSimple fieldName) else none
-  | _ => none
+/-- Build a hierarchical name from its root-to-leaf components. -/
+private def nameFromComponents (components : List Name) : Name :=
+  components.foldl Name.append .anonymous
+
+/-- Return the first component of a hierarchical name. -/
+def firstNameComponent? (name : Name) : Option Name :=
+  name.components.head?
+
+/-- Check whether `n` starts with one of `prefixes` and return its complete
+suffix. Unlike the old two-component matcher, this preserves paths such as
+`st.message.metadata.term` as `message.metadata.term`. -/
+def isFieldWithPrefix (prefixes : List String) (n : Name) : Option Name := do
+  let root :: suffix := n.components | none
+  let .str .anonymous rootName := root | none
+  guard (prefixes.contains rootName)
+  guard (!suffix.isEmpty)
+  return nameFromComponents suffix
 
 /-- Check if a name matches a pre-state field and return fieldName. -/
 def isPreStateField (n : Name) : Option Name :=
@@ -278,25 +290,25 @@ def classifyModelValues (model : Model) (mod : Module) (actionName : Name)
     match name? with
     | some name =>
       -- Check if it's a pre-state field (st.fieldName)
-      if let some fieldName := isPreStateField name then
-        if stateFieldNames.contains fieldName then
-          preStateFields := preStateFields.insert fieldName valueExpr
+      if let some fieldPath := isPreStateField name then
+        if (firstNameComponent? fieldPath).any stateFieldNames.contains then
+          preStateFields := preStateFields.insert fieldPath valueExpr
         else
           extraVals := extraVals.push (nameExpr, valueExpr)
       -- Check if it's a post-state field (st'.fieldName)
-      else if let some fieldName := isPostStateField name then
-        if stateFieldNames.contains fieldName then
-          postStateFields := postStateFields.insert fieldName valueExpr
+      else if let some fieldPath := isPostStateField name then
+        if (firstNameComponent? fieldPath).any stateFieldNames.contains then
+          postStateFields := postStateFields.insert fieldPath valueExpr
         else
           extraVals := extraVals.push (nameExpr, valueExpr)
       -- Check if it's a theory field (th.fieldName)
-      else if let some fieldName := isTheoryField name then
-        if theoryFieldNames.contains fieldName then
-          theoryFields := theoryFields.insert fieldName valueExpr
+      else if let some fieldPath := isTheoryField name then
+        if (firstNameComponent? fieldPath).any theoryFieldNames.contains then
+          theoryFields := theoryFields.insert fieldPath valueExpr
         else
           extraVals := extraVals.push (nameExpr, valueExpr)
       -- Check if it's an action parameter
-      else if actionParamNames.contains name then
+      else if (firstNameComponent? name).any actionParamNames.contains then
         actionParams := actionParams.insert name valueExpr
       else
         extraVals := extraVals.push (nameExpr, valueExpr)
@@ -306,6 +318,34 @@ def classifyModelValues (model : Model) (mod : Module) (actionName : Name)
   return (preStateFields, postStateFields, theoryFields, actionParams, extraVals)
 
 /-! ## Expression Building Functions -/
+
+/-- Build a model value of the expected Lean type. Scalar values are looked up
+directly. Values of structures marked with `@[veil_decl]` are rebuilt
+recursively from the flattened field names produced by `veil_destruct`, e.g.
+`message.metadata.term`. -/
+partial def buildModelValue (expectedType : Expr) (path : Name)
+    (lookup : Name → Option Expr) (enumAdapts : Array EnumSortAdaptation := #[]) : MetaM Expr := do
+  let expectedType ← Meta.reduceAll expectedType
+  let env ← getEnv
+  if let some structName := expectedType.getAppFn.constName? then
+    if let some structInfo := getStructureInfo? env structName then
+      if hasVeilDeclAttr env structName then
+        let fieldValues ← Meta.withLocalDeclD `_modelValue expectedType fun modelValue =>
+          structInfo.fieldNames.mapIdxM fun idx fieldName => do
+            let some projName := structInfo.getProjFn? idx
+              | throwError "Cannot find projector {idx} for structure {structName}"
+            let projection ← Meta.mkAppM projName #[modelValue]
+            let fieldType ← Meta.reduceAll (← Meta.inferType projection)
+            buildModelValue fieldType (path ++ fieldName) lookup enumAdapts
+        let some (.inductInfo indInfo) := env.find? structName
+          | throwError "Cannot find inductive metadata for structure {structName}"
+        let some ctorName := indInfo.ctors.head?
+          | throwError "Structure {structName} has no constructor"
+        let params := expectedType.getAppArgs.take indInfo.numParams
+        return ← Meta.mkAppOptM ctorName <| (params ++ fieldValues).map (Option.some ·)
+  match lookup path with
+  | some value => adaptSmtExprType value expectedType enumAdapts
+  | none => Meta.mkAppOptM ``default #[some expectedType, none]
 
 /-- Build an Instantiation struct literal expression from resolved sort arguments. -/
 def buildInstantiationExpr (mod : Module) (sortArgs : Array Expr) : MetaM Expr := do
@@ -325,11 +365,7 @@ def buildStateExpr (mod : Module) (sortArgs : Array Expr)
     let fieldLabelName := mod.name ++ `State ++ `Label ++ sc.name
     let fieldLabel := mkConst fieldLabelName
     let expectedType ← Meta.reduceAll (← mkAppM fieldAbstractTypeName (sortArgs.push fieldLabel))
-    match fieldMap[sc.name]? with
-    | some e => adaptSmtExprType e expectedType enumAdapts
-    | none =>
-      -- dbg_trace "State field {sc.name} not found in model, using default"
-      mkAppOptM ``default #[some expectedType, none]
+    buildModelValue expectedType sc.name (fieldMap[·]?) enumAdapts
   mkAppOptM (stateName ++ `mk) <| (#[dispatcher] ++ fieldValues).map (Option.some ·)
 
 /-- Build a Theory struct literal expression from field values.
@@ -346,20 +382,16 @@ def buildTheoryExpr (mod : Module) (sortArgs : Array Expr)
     let projTypeInstantiated ← Meta.instantiateForall projType sortArgs
     -- Extract the return type (FieldType) by skipping only the first forall (the Theory argument)
     let expectedType ← Meta.reduceAll (← Meta.forallBoundedTelescope projTypeInstantiated (some 1) fun _ retTy => pure retTy)
-    match fieldMap[sc.name]? with
-    | some e => adaptSmtExprType e expectedType enumAdapts
-    | none =>
-      -- dbg_trace "Theory field {sc.name} not found in model, using default"
-      mkAppOptM ``default #[some expectedType, none]
+    buildModelValue expectedType sc.name (fieldMap[·]?) enumAdapts
   mkAppOptM (theoryName ++ `mk) <| (sortArgs ++ fieldValues).map (Option.some ·)
 
 /-- Build a Label constructor expression from action name and a parameter lookup function.
     Uses `default` for parameters not found by the lookup function.
     Returns `none` if the action is an initializer (which has no Label constructor).
 
-    The `lookupParam` function takes the parameter index and returns an optional expression. -/
+    `lookupParam` takes the parameter index and its complete flattened field path. -/
 def buildLabelExprCore (mod : Module) (sortArgs : Array Expr)
-    (actionName : Name) (lookupParam : Nat → Option Expr)
+    (actionName : Name) (lookupParam : Nat → Name → Option Expr)
     (enumAdapts : Array EnumSortAdaptation := #[]) : MetaM (Option Expr) := do
   let some p := mod.procedures.find? (·.name == actionName) | return none
   -- Initializers don't have a Label constructor
@@ -370,9 +402,8 @@ def buildLabelExprCore (mod : Module) (sortArgs : Array Expr)
   let paramValues ← Meta.forallTelescope ctorTypeInst fun args _ => do
     p.params.mapIdxM fun idx _param => do
       let expectedType ← Meta.reduceAll (← Meta.inferType args[idx]!)
-      match lookupParam idx with
-      | some e => adaptSmtExprType e expectedType enumAdapts
-      | none => mkAppOptM ``default #[some expectedType, none]
+      let paramName := p.params[idx]!.name
+      buildModelValue expectedType paramName (lookupParam idx) enumAdapts
   some <$> mkAppOptM labelName ((sortArgs ++ paramValues).map (Option.some ·))
 
 /-- Build a Label constructor expression from action name and a parameter map (by name).
@@ -381,11 +412,7 @@ def buildLabelExprCore (mod : Module) (sortArgs : Array Expr)
 def buildLabelExpr (mod : Module) (sortArgs : Array Expr)
     (actionName : Name) (paramMap : Std.HashMap Name Expr)
     (enumAdapts : Array EnumSortAdaptation := #[]) : MetaM (Option Expr) := do
-  let paramNames := mod.procedures.find? (·.name == actionName)
-    |>.map (·.params.map (·.name)) |>.getD #[]
-  buildLabelExprCore mod sortArgs actionName (fun idx =>
-    if h : idx < paramNames.size then paramMap[paramNames[idx]]? else none
-  ) enumAdapts
+  buildLabelExprCore mod sortArgs actionName (fun _idx path => paramMap[path]?) enumAdapts
 
 /-! ## Main Construction -/
 
