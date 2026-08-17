@@ -147,22 +147,28 @@ def Module.labelTypeStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m]
 
 /-! ## Label Assembly (Private) -/
 
-private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Command × Module) := do
+private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array Command × Module) := do
   mod.throwIfAlreadyDeclared labelTypeName
   let labelT ← mod.labelTypeStx
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
   let ctors ← mod.actions.mapM (fun a => do
     `(Command.ctor| | $(mkIdent a.name):ident $(← a.binders)* : $labelT ))
   let labelDef ← do
-    let instances := #[``DecidableEq,``Repr, ``ToJson, ``Hashable, ``Veil.Enumeration, ``Veil.FinEncodableInjOnly].map Lean.mkIdent
+    let instances := #[``DecidableEq,``Repr, ``ToJson, ``Hashable].map Lean.mkIdent
     if ctors.isEmpty then
       `(inductive $labelType $(← mod.uninterpretedParamBinders)* where $[$ctors]* deriving $[$instances:ident],*)
     else
       let instances := instances ++ #[``Inhabited, ``Nonempty].map Lean.mkIdent
       `(inductive $labelType $(← mod.uninterpretedParamBinders)* where $[$ctors]* deriving $[$instances:ident],*)
+  -- `Enumeration`/`FinEncodableInjOnly` require every constructor-argument
+  -- (i.e. action-parameter) type to be enumerable, which fails for
+  -- non-enumerable concrete types such as `Nat`. Derive them best-effort:
+  -- such modules remain verifiable, and the missing instance only surfaces
+  -- if model checking (which needs `Enumeration Label`) is attempted.
+  let tryDerivingCmd ← `(command| veil_try_deriving $(mkIdent ``Veil.Enumeration):ident, $(mkIdent ``Veil.FinEncodableInjOnly):ident for $labelType)
   let derivedDef : DerivedDefinition := { name := labelTypeName, kind := .stateLike, params := #[], extraParams := #[], derivedFrom := actionNames, stx := labelDef }
   let mod ← mod.registerDerivedDefinition derivedDef
-  return (labelDef, mod)
+  return (#[labelDef, tryDerivingCmd], mod)
 
 private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Command × Module) := do
   mod.throwIfAlreadyDeclared labelCasesName
@@ -219,9 +225,9 @@ def Module.mkInstantiationStructure [Monad m] [MonadQuotation m] [MonadExceptOf 
 /-! ## Public Label Assembly -/
 
 def Module.assembleLabel [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array Command × Module) := do
-  let (labelDef, mod) ← mod.assembleLabelDef
+  let (labelDefCmds, mod) ← mod.assembleLabelDef
   let (casesLemma, mod) ← mod.assembleLabelCasesLemma
-  return (#[labelDef, casesLemma], mod)
+  return (labelDefCmds.push casesLemma, mod)
 
 /-! ## Next Action Assembly -/
 

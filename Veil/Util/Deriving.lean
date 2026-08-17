@@ -1,5 +1,6 @@
 import Lean
 import Mathlib.Tactic.ProxyType
+import Veil.Base
 import Veil.Util.Meta
 
 open Lean Meta Elab Term Command Deriving
@@ -459,5 +460,42 @@ elab_rules : command
 end ForStructure
 
 end DerivingInstanceForStructure
+
+section BestEffortDeriving
+
+/-- `veil_try_deriving C₁, C₂ for T` attempts `deriving instance Cᵢ for T` for
+each class, but rolls back and skips a class whose derivation fails instead of
+reporting an error. This is meant for instances that merely enable extra
+functionality: e.g. `Veil.Enumeration` for a module's `Label` type enables
+model checking, but cannot be derived when an action parameter has a
+non-enumerable type such as `Nat`. Such modules should still elaborate (and be
+verifiable); the missing instance only surfaces if the extra functionality is
+actually used. Skipped derivations are traced under `veil.debug`. -/
+syntax "veil_try_deriving " ident,+ " for " ident : command
+
+elab_rules : command
+| `(veil_try_deriving $[$classes:ident],* for $decl:ident) => do
+  for cls in classes do
+    let savedState ← get
+    -- Elaborate against an empty message log so we can tell whether *this*
+    -- derivation logged errors (nested command elaboration logs errors
+    -- rather than throwing).
+    modify fun s => { s with messages := {} }
+    let failed ← try
+        elabVeilCommand (← `(command| deriving instance $cls:ident for $decl:ident))
+        pure (← get).messages.hasErrors
+      catch ex =>
+        if ex.isInterrupt || ex.isRuntime then throw ex
+        pure true
+    if failed then
+      let attemptErrors := (← get).messages.toList.map (·.data)
+      -- Roll back the failed attempt (declarations, info trees, messages),
+      -- keeping the traces collected so far.
+      modify fun s => { savedState with traceState := s.traceState }
+      trace[veil.debug] "veil_try_deriving: skipping {cls} for {decl}, derivation failed with:{indentD <| MessageData.joinSep attemptErrors Format.line}"
+    else
+      modify fun s => { s with messages := savedState.messages ++ s.messages }
+
+end BestEffortDeriving
 
 end Veil.Deriving
