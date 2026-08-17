@@ -6,19 +6,23 @@ open Lean Elab Tactic Meta in
 elab "log_lctx_size" : tactic => do
   let lctx ← getLCtx
   -- Lean 4.32 introduces inaccessible implementation-detail locals named `__r`
-  -- while elaborating the generated state accessors.  They are not source-level
-  -- declarations and should not affect this regression test's context-size metric.
+  -- while elaborating generated state accessors. Veil's extensible-do port also
+  -- opens a fresh implementation-detail state view before every statement.
+  -- Neither is source-level and neither should affect this metric.
   let declarations := lctx.getFVarIds.filter fun id =>
-    (lctx.get! id).userName.getRoot != `__r
+    let decl := lctx.get! id
+    decl.kind != .implDetail &&
+      decl.userName.getRoot != `__r &&
+      !Veil.isVeilImplementationDetailName decl.userName
   logInfo m!"local declarations: {declarations.size}"
 
 /-!
-# Regression: pure local lets do not refresh state binders
+# Regression: per-statement state views do not leak into user scope
 
-Ordinary local `let` statements do not mutate Veil state, so they should not
-trigger the state-binder refresh machinery. Otherwise every pure local binding
-reintroduces all mutable fields into the local context. The `#guard_msgs`
-below pins the local-context size observed inside the last pure `let`.
+Every statement receives a fresh current-state view, including ordinary local
+`let` statements. Those generated declarations are implementation details, so
+the user-visible context below must still grow only with the source-level local
+bindings.
 -/
 
 veil module PureLocalLetNoStateRefresh
@@ -30,13 +34,13 @@ relation r3 : t → t → Bool
 
 #gen_state
 
-/-- info: local declarations: 21
+/-- info: local declarations: 10
 ---
-info: local declarations: 22
+info: local declarations: 11
 ---
-info: local declarations: 23
+info: local declarations: 12
 ---
-info: local declarations: 24
+info: local declarations: 13
 -/
 #guard_msgs(info, drop warning) in
 action pure_local_lets {

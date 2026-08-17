@@ -1,35 +1,16 @@
 import Veil
 
 /-!
-# Regression: state binders are refreshed after a call in an argument position
+# Regression: current-state coherence after a call in an argument position
 
-Veil's action do-notation caches each mutable state field in a binder and
-refreshes it (re-reads `get`) after a statement that runs a computation. The
-refresh is applied per syntactic shape. The shapes that return `#[stx]`
-unchanged (`DoNotation.lean`, the `assume` / `require` / `assert` group) do not
-refresh, so a read *after* a call embedded as `(← p)` in one of those positions
-observes the pre-call value.
+Lean lifts a call embedded as `(← p)` into a preceding bind. Veil opens the
+current state before the assertion-bearing statement and before its successor,
+so a later field read observes the call's post-state.
 action embedded {
 assert (← set_x) -- set_x performs x := true
 y := x -- must read x = true, hence y := true
 }
-
-
-The elaborated post-state shows it directly (`set_option trace.veil.desugar`):
-
-    embedded   __veil_post ... { x := true, y := State.x __veil_st }
-    hoisted    __veil_post ... { x := true, y := true }
-
-`embedded` assigns `y` from `__veil_st`, the state captured *before* the call.
-
-**Effect.** A false rejection: a specification that is correct is reported as
-violating its invariant. Confirmed for `assert`, `require` and `assume`.
-`return (← p)` is unaffected -- the caller refreshes after the call, so a stale
-binding cannot escape the callee. `let x :| (← p)` cannot host the form at all
-(the lift over a binder is rejected).
-
-This file pins the CORRECT (post-fix) behaviour, so it FAILS if the defect is
-present.
+This file pins that behavior for `assert`, `require`, and `assume`.
 -/
 
 set_option linter.unusedVariables false
@@ -54,8 +35,8 @@ procedure set_x {
   return true
 }
 
--- Control: the call is bound by `let`, which refreshes.
-action c_let {
+-- Control: bind the call explicitly.
+action c_let_assert {
   let h ← set_x
   assert h
   y := x
@@ -80,10 +61,10 @@ The following set of actions must preserve the invariant and successfully termin
   p_require
     doesNotThrow ... ✅
     xy ... ✅
-  p_assert
+  c_let_assert
     doesNotThrow ... ✅
     xy ... ✅
-  c_let
+  p_assert
     doesNotThrow ... ✅
     xy ... ✅
   p_assume

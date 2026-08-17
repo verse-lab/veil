@@ -320,6 +320,17 @@ def elabVeilCommand (stx : Syntax) : CommandElabM Unit := do
     trace[veil.desugar] "{stx}"
     elabCommand stx
 
+/-- Remove `let`/`have` bindings whose variable does not occur in their body.
+Bindings kept alive only by other dead bindings are removed as well, since
+`Core.transform` rewrites bottom-up. -/
+def eraseUnusedLets [Monad m] [MonadLiftT CoreM m] [MonadControlT CoreM m]
+    (e : Expr) : m Expr :=
+  Core.transform e (post := fun e => do
+    if let .letE _ _ _ b _ := e then
+      unless b.hasLooseBVar 0 do
+        return .done (b.lowerLooseBVars 1 1)
+    return .continue)
+
 /-- Is this type a `Decidable` instance? -/
 def isDecidableInstance (type : Expr) : TermElabM Bool := do
   let ty ← Meta.reduce (skipTypes := false) type

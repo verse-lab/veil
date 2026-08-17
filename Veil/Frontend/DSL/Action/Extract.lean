@@ -159,7 +159,8 @@ short Veil-facing diagnostic. In particular, this avoids Lean's noisy
 type that cannot be enumerated.
 -/
 scoped elab "veil_extract_list_tactic" : tactic => do
-  evalTactic (← `(tactic| extract_list_tactic))
+  evalTactic (← `(tactic|
+    repeat' (intros; first | extract_list_step | (split <;> try dsimp))))
   unless (← getUnsolvedGoals).isEmpty do
     throwError
       "could not extract executable choices for a nondeterministic pick.\n\n\
@@ -391,6 +392,23 @@ def getPostState (c : DivM ((Except ε α) × σ)) : Option σ :=
 def getAllPostStates (c : List (DivM ((Except ε α) × σ))) : List (Option σ) :=
   c.map getPostState
 
+/-- Full result of executing an extracted Veil computation, preserving the
+return value for successful executions. FIXME: remove duplication with
+`ExecutionOutcome` in model checker. -/
+inductive ExecutionResult (ε σ α : Type) where
+  | success (returnValue : α) (state : σ)
+  | assertionFailure (error : ε) (state : σ)
+  | divergence
+deriving Repr, BEq, Inhabited
+
+/-- Extract the full execution result from a DivM-wrapped result. -/
+@[inline]
+def getExecutionResult (c : DivM ((Except ε α) × σ)) : ExecutionResult ε σ α :=
+  match c with
+  | .res ((.ok a, st)) => .success a st
+  | .res ((.error e, st)) => .assertionFailure e st
+  | .div => .divergence
+
 /-- Extract all valid states from a VeilMultiExecM computation -/
 def extractValidStates (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
   exec rd st |>.map Prod.snd |> getAllPostStates
@@ -398,6 +416,10 @@ def extractValidStates (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : �
 /-- Extract all execution outcomes (including assertion failures) from a VeilMultiExecM computation -/
 def extractAllOutcomes (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Veil.ExecutionOutcome ℤ σ) :=
   exec rd st |>.map fun (_, st) => getExecutionOutcome st
+
+/-- Extract all execution results, preserving successful return values. -/
+def extractAllResults (exec : Veil.VeilMultiExecM κᵣ ε ρ σ α) (rd : ρ) (st : σ) : List (ExecutionResult ε σ α) :=
+  exec rd st |>.map fun (_, st) => getExecutionResult st
 
 /-- Extract only assertion failures from a VeilMultiExecM computation.
 Returns a list of (exception ID, state at failure) pairs. -/

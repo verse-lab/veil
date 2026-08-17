@@ -1,11 +1,12 @@
 import Veil
 
 /-!
-# Regression: state binders are refreshed after calls in `pick` and `veil_var` types
+# Regression: state reads stay coherent after calls in `pick` and `veil_var` types
 
 Although `pick` itself does not modify state, its type can contain a lifted
 computation. In each action below, `set_x_return_nat` runs while computing the
-type `Fin 1`, so the following `y := x` must observe its write to `x`.
+type `Fin 1`, so the next statement's current-state view must observe its write
+to `x` when evaluating `y := x`.
 
 This covers untyped and explicitly typed `pick` binders, plus `veil_var`, which
 generates a `pick` binder internally.

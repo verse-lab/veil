@@ -1,7 +1,7 @@
 import Veil
 
 /-!
-# Regression: state binders are refreshed after `pure (← someProc)`
+# Regression: current-state coherence after `pure (← someProc)`
 
 A statement-level `pure (← proc)` runs `proc` (Lean lifts the `←` out and
 executes it, mutating the state) and discards/forwards its value. Any subsequent
@@ -14,22 +14,9 @@ y := x           -- must read x = true, hence y := true
 
 the post-state must be `x = true, y = true`, and `x → y` is an invariant.
 
-**History:** previously `pure $t` was passed through unchanged (the
-self-acknowledged FIXME at DoNotation.lean:121-126: "we could have
-`pure (← state_modifying_action)`, so this isn't sound"), so the cached `let mut
-x` binder stayed stale and `y := x` read the pre-call `false`. Fixed 2026-06-11:
-a `pure $t` whose argument runs a sub-computation is now handled like a bare-term
-statement — bind the value, refresh the field binders, then re-emit `pure b` —
-which preserves the statement's return value *and* refreshes the state.
-
-`return $t` deliberately stays a passthrough: it short-circuits the rest of the
-block, so no later statement can read the (stale) binders.
-
-**Reference:** audit/02-action-dsl.md issue B2; audit/fix-plan-stale-binders.md.
-**Source:** Veil/Frontend/DSL/Action/DoNotation.lean (`pure $t` case).
-
-This file pins the CORRECT (post-fix) behavior, so it FAILS if the stale-binder
-bug ever regresses.
+Lean lifts the nested action into a preceding bind. Veil opens the current
+state for that bind and again for the following assignment, so the read is
+coherent with the callee's write. This file pins that behavior.
 -/
 
 set_option linter.unusedVariables false
@@ -53,16 +40,14 @@ procedure set_x {
   x := true
 }
 
--- The previously-buggy form: a state-modifying call invoked via `pure (← …)`
--- for effect. The field binders are now refreshed after it, so `y := x` reads
--- the up-to-date `x = true`.
+-- A state-modifying call invoked via `pure (← …)` for effect. The next
+-- statement reads its post-state.
 action pure_call_then_read {
   pure (← set_x)
   y := x
 }
 
--- Control: the same call as a bare statement (the bare-term path, which always
--- refreshed). Both actions must behave identically.
+-- Control: the same call as a bare statement; both forms behave identically.
 action bare_call_then_read {
   set_x
   y := x

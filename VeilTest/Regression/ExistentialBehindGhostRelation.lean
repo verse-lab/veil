@@ -87,8 +87,8 @@ theorem pay_paid_imp_proposed_tr (ρ : Type) (σ : Type) (validator : Type) [val
         (k : destination) →
           (v : value) →
             (d : deadline) →
-              (__do_lift : State χ) →
-                (__do_lift_1 : Theory validator destination value deadline signature quorum) →
+              (__do_lift_1 : Theory validator destination value deadline signature quorum) →
+                (__do_lift : State χ) →
                   Decidable
                     (∃ (q : quorum),
                       ∀ (S : signature),

@@ -1,7 +1,7 @@
 import Veil
 
 /-!
-# Regression: field-rep binders are refreshed after a call, so a later indexed update keeps the callee's writes
+# Regression: indexed updates use the current represented field after a call
 
 In field-representation mode (the DEFAULT, `Module._useFieldRepTC := true`) each
 field `f` is exposed through cached `let mut` binders `f_conc`/`f`. After a call
@@ -19,20 +19,9 @@ action a (a : node) {
 
 the post-state must have `∀ N, r N`, and `r N → r M` is an invariant.
 
-**History:** previously the component-target branch of `assignState`
-(DoNotation.lean) re-bound only the assigned field `w` after the call, leaving
-`r_conc` stale. The later `r a := true` then computed `setSingle ⟨a⟩ true r_conc`
-from the pre-call all-false `r_conc` and wrote it back wholesale, silently
-DISCARDING the callee's writes to every other entry of `r`. Fixed 2026-06-11 by
-refreshing all field binders after any assignment whose RHS runs a
-sub-computation (`stmtRunsComputation`).
-
-**Reference:** audit/02-action-dsl.md issue B1; audit/fix-plan-stale-binders.md.
-**Source:** Veil/Frontend/DSL/Action/DoNotation.lean (`assignState`, both
-component-target branches, conditional `getState` refresh).
-
-This file pins the CORRECT (post-fix) behavior, so it FAILS if the discarded-
-writes bug ever regresses.
+The assignment compiler opens the state after the arrow RHS and bases
+`FieldRepresentation.setSingle` on that current concrete field. This file
+pins preservation of the callee's other writes.
 -/
 
 set_option linter.unusedVariables false
@@ -62,16 +51,14 @@ procedure set_all_r {
   return true
 }
 
--- The previously-buggy form: `w ← set_all_r` binds the call's result to the
--- state component `w`. The field binders for `r` are now refreshed after the
--- call, so the indexed update below applies to the callee's all-true `r`.
+-- `w ← set_all_r` binds the result to a state component. The following
+-- indexed update bases itself on the callee's all-true `r`.
 action call_then_partial_update (a : node) {
   w ← set_all_r
   r a := true
 }
 
--- Control: binding the call's result to a LOCAL variable (the generic-doElem
--- path, which always refreshed). Both actions must behave identically.
+-- Control: bind the result to a local variable; both forms behave identically.
 action control_write_back (a : node) {
   let v ← set_all_r
   r a := true

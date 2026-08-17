@@ -18,7 +18,8 @@ import Veil.Frontend.DSL.Module.Util.Enumeration
 import Veil.Util.Multiprocessing
 import Veil.Frontend.DSL.Module.AssertionInfo
 
-open Lean Parser Elab Command
+open Lean Parser Elab Command Term
+open scoped Veil.Extract
 
 namespace Veil
 
@@ -669,6 +670,41 @@ def getModelCheckingMode (modeStx : Syntax) : ModelCheckingMode :=
     | `(modelCheckMode| interpreted) => .interpreted
     | `(modelCheckMode| compiled) => .compiled
     | _ => .default
+
+def mkVeilExecActionResultTerm [Monad m] [MonadQuotation m]
+    [MonadExceptOf Exception m] [AddErrorMessageContext m]
+    (mod : Module) (instTerm theoryTerm stateTerm actionTerm : Term) : m Term := do
+  let inst := mkVeilImplementationDetailIdent `inst
+  let th := mkVeilImplementationDetailIdent `th
+  let st := mkVeilImplementationDetailIdent `st
+  let act := mkVeilImplementationDetailIdent `act
+  let exec := mkVeilImplementationDetailIdent `exec
+  let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
+  let theoryTy ← `(@$theoryIdent $instSortArgs*)
+  let fieldConcrete ← `($fieldConcreteDispatcher $instSortArgs*)
+  let stateTy ← `(@$stateIdent $fieldConcrete)
+  let actionTy ← `($(mkIdent ``VeilM) _ $theoryTy $stateTy _)
+  let execTy ← `($(mkIdent ``VeilMultiExecM) $(mkIdent ``Std.Format) $(mkIdent ``Int) $theoryTy $stateTy _)
+  `(term|
+    let $inst : $instantiationType := $instTerm
+    let $th : $theoryTy := $theoryTerm
+    let $st : $stateTy := $stateTerm
+    let $act : $actionTy := $actionTerm
+    let $exec : $execTy :=
+      ($(mkIdent ``MultiExtractor.NonDetT.extractList) $(mkIdent ``Std.Format) _ _ $act
+        (h := by veil_extract_list_tactic) : $execTy)
+    $(mkIdent ``Veil.Extract.extractAllResults) $exec $th $st)
+
+elab_rules : term
+  | `(__veil_exec_action% $instTerm:term $theoryTerm:term $stateTerm:term $actionTerm:term) => do
+    let mod ← getCurrentModule (errMsg := "You cannot use __veil_exec_action% outside of a Veil module!")
+    elabTerm (← mkVeilExecActionResultTerm mod instTerm theoryTerm stateTerm actionTerm) none
+
+elab_rules : command
+  | `(#__veil_exec_action $instTerm:term $theoryTerm:term $stateTerm:term $actionTerm:term) => do
+    let mod ← getCurrentModule (errMsg := "You cannot #__veil_exec_action outside of a Veil module!")
+    let resultTerm ← mkVeilExecActionResultTerm mod instTerm theoryTerm stateTerm actionTerm
+    elabVeilCommand <| ← `(command| #eval $resultTerm)
 
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do

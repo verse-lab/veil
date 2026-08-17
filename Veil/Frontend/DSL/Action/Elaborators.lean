@@ -1,6 +1,6 @@
 import Lean
 import Veil.Frontend.DSL.Action.Syntax
-import Veil.Frontend.DSL.Action.DoNotation
+import Veil.Frontend.DSL.Action.DoElab
 import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Util
 import Veil.Util.Meta
@@ -1017,6 +1017,9 @@ def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSynt
     /- We want to throw an error if anything fails or is missing during elaboration. -/
     withoutErrToSorry $ do
     let (decInstsMvars, e) ← elabTermDecidable pi.name stx (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
+    /- The state/theory openings conservatively bind every field for every
+    statement. This removes unused lets to keep the term as small as possible. -/
+    let e ← eraseUnusedLets e
     let (decInsts, mvars) := decInstsMvars.unzip
     let e ← Meta.mkLambdaFVarsImplicit ((if addModeArg then #[mode] else #[]) ++ vs ++ mvars) e (binderInfoForMVars := BinderInfo.instImplicit) >>= instantiateMVars
     -- `e` should not contain any metavariable; capture the error here
@@ -1031,7 +1034,7 @@ where
   mvarToParam (inAction : Name) (i : Nat) (typeSyntax : Term) : TermElabM Parameter := do
     return { kind := .definitionParameter inAction .typeclass, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := typeSyntax, userSyntax := .missing }
 
-def elabProcedureDoNotation (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : doSeq) : TermElabM (Array Parameter × Expr) := do
+def elabProcedureBody (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : ActionSyntax) : TermElabM (Array Parameter × Expr) := do
   let body ← `(veil_do $(mkIdent pi.name) in $environmentTheory, $environmentState in $l)
   elabProcedureCore vs pi br body
 
@@ -1098,10 +1101,10 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
               logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
     return mod
 
-def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option doSeq) (l : doSeq) (stx : Syntax) : CommandElabM Module := do
+def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option ActionSyntax) (l : ActionSyntax) (stx : Syntax) : CommandElabM Module := do
   -- Obtain `extraParams` so we can register the action
   let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
-  let (extraParams, eDo) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureDoNotation vs pi br l
+  let (extraParams, eDo) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureBody vs pi br l
   let (mod, extraParams) ← liftTermElabM $ mod.canonicalizeExtraParams extraParams
   let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams spec l stx
   mod.defineProcedureCore pi eDo ps true

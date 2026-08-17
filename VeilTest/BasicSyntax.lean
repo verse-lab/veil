@@ -56,7 +56,7 @@ action foo3 (k : Nat3) {
 #guard_msgs(drop warning) in
 action foo4 (k : Nat3) (m : node) {
   let mut y := m
-  if x : r x k then
+  if x :| r x k then
     y := x
   else y := y
   return y
@@ -68,7 +68,7 @@ action foo4 (k : Nat3) (m : node) {
 
 #guard_msgs(drop warning) in
 action foo5 {
-  if (x, k) : r x k then
+  if (x, k) :| r x k then
     n := x
   else
     n := n
@@ -80,7 +80,7 @@ action foo5 {
 
 #guard_msgs(drop warning) in
 action foo6 {
-  if (x, k, y, j) : r4 x k y j then
+  if (x, k, y, j) :| r4 x k y j then
     n := y
   else
     n := n

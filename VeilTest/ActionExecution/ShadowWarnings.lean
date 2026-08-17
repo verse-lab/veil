@@ -1,0 +1,155 @@
+import VeilTest.ActionExecution
+
+set_option linter.unusedVariables false
+
+open VeilTest.ActionExecution
+
+def ACK : Bool := true
+
+inductive CapitalIndex where
+  | ZERO
+  | ONE
+deriving DecidableEq
+
+open CapitalIndex
+
+veil module ActionExecutionShadowWarnings
+
+immutable individual bias : Nat
+individual X : Bool
+relation r : Bool → Bool
+relation q : CapitalIndex → Bool
+
+veil_set_field_representation relation Veil.CanonicalField
+
+#gen_state
+
+/--
+warning: parameter `bias` shadows immutable theory component `bias`; references to this name resolve to the parameter
+-/
+#guard_msgs(warning) in
+procedure parameter_shadows_theory (bias : Nat) {
+  return bias
+}
+
+/--
+warning: local `bias` shadows immutable theory component `bias`; references to this name resolve to the local
+-/
+#guard_msgs(warning) in
+procedure local_shadows_theory {
+  let bias := 11
+  return bias
+}
+
+/--
+warning: capitalized index `X` resolves to mutable state component `X`; this is a point update, not a universal update
+-/
+#guard_msgs(warning) in
+procedure capital_component_is_point_update {
+  r X := true
+}
+
+/--
+warning: capitalized index `N` resolves to parameter `N`; this is a point update, not a universal update
+-/
+#guard_msgs(warning) in
+procedure capital_parameter_is_point_update (N : Bool) {
+  r N := true
+}
+
+/--
+warning: capitalized index `N` resolves to local `N`; this is a point update, not a universal update
+-/
+#guard_msgs(warning) in
+procedure capital_local_is_point_update {
+  let N := false
+  r N := true
+}
+
+/--
+warning: capitalized index `ACK` resolves to Lean declaration `ACK`; this is a point update, not a universal update
+-/
+#guard_msgs(warning) in
+procedure capital_global_is_point_update {
+  r ACK := true
+}
+
+/- Havoc used to run the capital analysis twice — once itself and once in the
+assignment it delegates to — duplicating this warning. The guard requires it
+exactly once. -/
+/--
+warning: capitalized index `ACK` resolves to Lean declaration `ACK`; this is a point update, not a universal update
+-/
+#guard_msgs(warning) in
+procedure havoc_capital_warns_once {
+  r ACK := *
+}
+
+/--
+warning: capitalized index `ZERO` resolves to Lean declaration `ZERO`; this is a point update, not a universal update
+-/
+#guard_msgs(warning) in
+procedure capital_constructor_is_point_update {
+  q ZERO := true
+}
+
+/--
+warning: local `bias` shadows immutable theory component `bias`; references to this name resolve to the local
+-/
+#guard_msgs(warning) in
+procedure theory_shadow_scope_restores {
+  if true then
+    let bias := 19
+    let _ := bias
+  return bias
+}
+
+def background : Theory := { bias := 5 }
+def initial : State FieldConcreteType := {
+  X := false
+  r := fun _ => false
+  q := fun _ => false
+}
+
+def parameterShadowResult :=
+  __veil_exec_action% {} background initial (parameter_shadows_theory 17)
+#guard exactlyOneSuccess parameterShadowResult fun value state =>
+  value == 17 && !state.X
+
+def localShadowResult :=
+  __veil_exec_action% {} background initial local_shadows_theory
+#guard exactlyOneSuccess localShadowResult fun value state =>
+  value == 11 && !state.X
+
+def componentResult :=
+  __veil_exec_action% {} background initial capital_component_is_point_update
+#guard exactlyOneSuccess componentResult fun _ state =>
+  (state.r : Bool → Bool) false && !(state.r : Bool → Bool) true
+
+def parameterResult :=
+  __veil_exec_action% {} background initial (capital_parameter_is_point_update true)
+#guard exactlyOneSuccess parameterResult fun _ state =>
+  !(state.r : Bool → Bool) false && (state.r : Bool → Bool) true
+
+def localCapitalResult :=
+  __veil_exec_action% {} background initial capital_local_is_point_update
+#guard exactlyOneSuccess localCapitalResult fun _ state =>
+  (state.r : Bool → Bool) false && !(state.r : Bool → Bool) true
+
+def globalResult :=
+  __veil_exec_action% {} background initial capital_global_is_point_update
+#guard exactlyOneSuccess globalResult fun _ state =>
+  !(state.r : Bool → Bool) false && (state.r : Bool → Bool) true
+
+def constructorResult :=
+  __veil_exec_action% {} background initial capital_constructor_is_point_update
+#guard exactlyOneSuccess constructorResult fun _ state =>
+  (state.q : CapitalIndex → Bool) ZERO &&
+    !(state.q : CapitalIndex → Bool) ONE
+
+def restoredTheoryResult :=
+  __veil_exec_action% {} background initial theory_shadow_scope_restores
+#guard exactlyOneSuccess restoredTheoryResult fun value state =>
+  value == 5 && !state.X
+
+end ActionExecutionShadowWarnings

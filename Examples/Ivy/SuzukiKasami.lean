@@ -96,7 +96,7 @@ action exit (n : node) {
   n_requesting n := false;
   t_LN (n_token_seq n) n := n_RN n n;
   t_q (n_token_seq n) N := decide $ seq.next (t_LN (n_token_seq n) N) (n_RN n N);
-  if m : (t_q (n_token_seq n) m) then
+  if m :| (t_q (n_token_seq n) m) then
     t_q (n_token_seq n) m := false;
     n_have_privilege n := false;
     let k : seq_t ← succ (n_token_seq n)
