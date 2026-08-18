@@ -281,7 +281,7 @@ private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp : Expr) (w
         let eqProof ← do
           -- NOTE: `wpAppAfterSimp` DOES NOT have `r` and `s`, so need to do a congruence here
           let pf ← do
-            let pfPre ← wpAppAfterSimp.getProof
+            let pfPre ← Simp.healEqTransJunctions (← wpAppAfterSimp.getProof)
             let pfPreCongr ← mkCongrFun pfPre r
             let pfPreCongr ← mkCongrFun pfPreCongr s
             mkEqTrans pfPreCongr proof
@@ -561,7 +561,8 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
       -- (*) it's easier to construct the proof here with the body
       let #[handler, post] := xs | throwError "defineWp: expected 2 arguments, got {xs.size}"
       let wpSimpAttrHigh ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ high)
-      proveEqAboutBody body wpDef_fqn (vs ++ xs) (← resBody.getProof) (toWpEqName nm) #[wpSimpAttrHigh]
+      let eqProof ← Simp.healEqTransJunctions (← resBody.getProof)
+      proveEqAboutBody body wpDef_fqn (vs ++ xs) eqProof (toWpEqName nm) #[wpSimpAttrHigh]
         (extraFVars := extraFVars)
 
       if mod._useLocalRPropTC then
