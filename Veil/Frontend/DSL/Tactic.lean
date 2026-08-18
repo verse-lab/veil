@@ -731,7 +731,7 @@ where
       veilEvalTactic $ ← `(tactic| try clear $id:ident)
 
 private def smallScaleAxiomatizationSimpSet (withLocalRPropTC? : Bool) : Array Name :=
-  let base := #[``id, ``instIsSubStateOfRefl, ``instIsSubReaderOfRefl]
+  let base := #[``id, ``instIsSubStateOfRefl, ``instIsSubReaderOfRefl, `ghostDefSimp]
   if withLocalRPropTC? then
     base.push ``Veil.replaceLocalRPropWithCoreAppOnLCtxFields |>.push `LocalRProp.core
   else base.push `ghostRelSimp
@@ -1241,8 +1241,8 @@ private def elabSimplifyBeforeConcretizeWp [Monad m] [MonadOptions m] [MonadQuot
   let classicalIdent := mkIdent `Classical
   let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
   let initialSimps := if fast
-    then #[`invSimp, `smtSimp]
-    else #[`substateSimp, `invSimp, `smtSimp, `forallQuantifierSimp]
+    then #[`invSimp, `ghostDefSimp, `smtSimp]
+    else #[`substateSimp, `invSimp, `ghostDefSimp, `smtSimp, `forallQuantifierSimp]
   let initialSimps := if unfoldghostRel? then initialSimps.push `ghostRelSimp else initialSimps
   let initialSimps := initialSimps.map Lean.mkIdent
   let ghostRelTac ← if unfoldghostRel?
@@ -1268,7 +1268,7 @@ def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainCont
 @[inherit_doc veil_concretize_tr]
 def elabVeilConcretizeTr : DesugarTacticM Unit := veilWithMainContext do
   -- FIXME: figure out how to do the axiomatisation for ghost relations in TR
-  let ghostRel ← `(tactic| veil_simp +$(mkIdent `instances) only [$(mkIdent `ghostRelSimp):ident] at *)
+  let ghostRel ← `(tactic| veil_simp +$(mkIdent `instances) only [$(mkIdent `ghostRelSimp):ident, $(mkIdent `ghostDefSimp):ident] at *)
   let tac ← `(tacticSeq| __veil_neutralize_decidable_inst at * ; $ghostRel; __veil_concretize_state_tr; __veil_concretize_fields_tr)
   veilEvalTactic tac
 

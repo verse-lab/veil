@@ -278,10 +278,26 @@ private def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name)
         -- now, `body` should be the actual body of the predicate
         letBoundedTelescope body (.some <| if mod._useFieldRepTC then stateFieldsConc.size else 0) fun stateFields body => do
           let simplifyBody : Simp.Simplifier :=
-            Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType]
+            Simp.simp #[`ghostDefSimp,
+              ``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType]
+              |>.andThen (Simp.dsimp #[``instIsSubReaderOfRefl.readFrom_id,
+                ``instIsSubStateOfRefl.getFrom_id])
               |>.andThen (Simp.simp #[``replaceLocalTheoryPropWithCoreAppOnLCtxFields,
                 ``replaceLocalRPropWithCoreAppOnLCtxFields])
           let bodyResult ← simplifyBody body
+          -- Unfolding a non-predicate ghost can expose fresh occurrences of a
+          -- concrete field projection (for example, `get rank_conc`) after
+          -- `letBoundedTelescope` has already introduced the canonical field
+          -- variable (`rank`). Fold those occurrences back into the let-bound
+          -- variables so the generated `core` does not capture concrete fields.
+          let bodyResult ← if mod._useFieldRepTC then do
+              let folded ← stateFields.foldlM (init := bodyResult.expr) fun e field ↦ do
+                let decl ← field.fvarId!.getDecl
+                let some value := decl.value? | pure e
+                let e ← Meta.kabstract e value
+                pure <| e.instantiate1 field
+              pure { bodyResult with expr := folded }
+            else pure bodyResult
           -- Construct `core` independently from the simplified leaf body. In
           -- field-representation mode, the canonical state fields are let-bound
           -- in the peeled expression, so re-declare them as ordinary locals
@@ -861,7 +877,7 @@ def Module.simplifyLocalRPropCore (mod : Module) (nm : Name) : TermElabM Unit :=
     let core' ← (Simp.dsimp #[``reduceStateLabelDomainCodomainDsimproc]) core
     let core' ← (Simp.dsimp #[`nextSimp]) core'.expr
     let core' ← do
-      let simps := #[`invSimp, `smtSimp]
+      let simps := #[`invSimp, `ghostDefSimp, `smtSimp]
       -- let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
       -- let simps := if unfoldghostRel? then simps.push `ghostRelSimp else simps
       (evalOpenClassical ∘ Simp.simp simps) core'.expr

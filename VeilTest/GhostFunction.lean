@@ -30,16 +30,20 @@ ghost function doubleRank (n : node) := rank n + rank n
 
 -- Theory ghost function
 theory ghost function maxRank : Nat := 10
+theory ghost function nextRank (r : Nat) := r + 1
 
 action promote (n : node) {
   require ¬ isLeader n
-  rank n := baseRank n + 1
+  rank n := nextRank (baseRank n)
   leader n := true
 }
 
--- CHECK fix this later, once `LocalRProp` is required
-veil_set_option useLocalRPropTC false
 safety [rank_nonneg] getRank N ≤ maxRank
+safety [ghost_function_definitions]
+  getRank N = rank N ∧
+  doubleRank N = rank N + rank N ∧
+  maxRank = 10 ∧
+  nextRank (baseRank N) = baseRank N + 1
 
 #gen_spec
 

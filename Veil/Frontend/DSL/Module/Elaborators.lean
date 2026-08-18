@@ -37,6 +37,9 @@ def extractDefinitionName (stx : Syntax) : Name :=
   -- ghostRelationDefinition
   | `(command|ghost relation $nm:ident $_br:explicitBinders ? := $_t:term) => nm.getId
   | `(command|theory ghost relation $nm:ident $_br:explicitBinders ? := $_t:term) => nm.getId
+  -- ghostIndividualDefinition
+  | `(command|ghost individual $nm:ident $[: $_tp:term]? := $_t:term) => nm.getId
+  | `(command|theory ghost individual $nm:ident $[: $_tp:term]? := $_t:term) => nm.getId
   -- ghostFunctionDefinition
   | `(command|ghost function $nm:ident $_br:explicitBinders ? $[: $_tp:term]? := $_t:term) => nm.getId
   | `(command|theory ghost function $nm:ident $_br:explicitBinders ? $[: $_tp:term]? := $_t:term) => nm.getId
@@ -550,10 +553,12 @@ def elabProcedureWithSpec : CommandElab := fun stx => do
     | _ => throwUnsupportedSyntax
     localEnv.modifyModule (fun _ => new_mod)
 
-@[command_elab Veil.ghostRelationDefinition, command_elab Veil.ghostFunctionDefinition]
+@[command_elab Veil.ghostRelationDefinition,
+  command_elab Veil.ghostIndividualDefinition,
+  command_elab Veil.ghostFunctionDefinition]
 def elabGhostDefinition : CommandElab := fun stx => do
   let nm := extractDefinitionName stx
-  -- Use dynamic trace class name that includes the ghost relation name
+  -- Use a dynamic trace class name that includes the ghost definition name.
   withTraceNode (`veil.perf.elaborator.ghostDefinition ++ nm) (fun _ => return s!"ghost {nm}") do
     let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a ghost definition outside of a Veil module!")
     mod ← mod.ensureStateIsDefined
@@ -561,6 +566,8 @@ def elabGhostDefinition : CommandElab := fun stx => do
     let new_mod ← match stx with
     | `(command|$[theory%$forTheory]? ghost relation $nm:ident $br:explicitBinders ? := $t:term) =>
       mod.defineGhostDefinition nm.getId br t (justTheory := forTheory.isSome) (isRelation := true)
+    | `(command|$[theory%$forTheory]? ghost individual $nm:ident $[: $retTy:term]? := $t:term) =>
+      mod.defineGhostDefinition nm.getId none t (justTheory := forTheory.isSome) (isRelation := false) (retType := retTy)
     | `(command|$[theory%$forTheory]? ghost function $nm:ident $br:explicitBinders ? $[: $retTy:term]? := $t:term) =>
       mod.defineGhostDefinition nm.getId br t (justTheory := forTheory.isSome) (isRelation := false) (retType := retTy)
     | _ => throwUnsupportedSyntax

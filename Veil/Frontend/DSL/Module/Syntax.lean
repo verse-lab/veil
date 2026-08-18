@@ -202,6 +202,20 @@ only depends on the background theory, define a `theory ghost relation`. Example
 -/
 scoped syntax (name := ghostRelationDefinition) kw_theory ? kw_ghost kw_relation ident explicitBinders ? ":=" term : command
 
+/-- Define a ghost individual. Ghost individuals are scalar derived values,
+with no explicit arguments. An optional type annotation is supported. By
+default, ghost individuals depend on both the background theory and the state.
+Use `theory ghost individual` for values that depend only on the background
+theory. Example:
+
+  ```lean
+  ghost individual currentLeader : node := leader
+  ghost individual nextRound := round + 1
+  theory ghost individual firstRound : round := round.zero
+  ```
+-/
+scoped syntax (name := ghostIndividualDefinition) kw_theory ? kw_ghost kw_individual ident (":" term)? ":=" term : command
+
 /-- Define a ghost function. Ghost functions are like ghost relations but can
 return any type (not just `Prop`). An optional return type annotation is
 supported. By default, ghost functions depend on both the background theory

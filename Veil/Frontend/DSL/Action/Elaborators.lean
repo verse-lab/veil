@@ -385,7 +385,7 @@ where
     -- (d) Prove source = step3Target by simplifying source
     let step3Simp ← do
       let dsimpSubstate : Simplifier :=
-        Simp.dsimp #[``instIsSubStateOfRefl, ``instIsSubReaderOfRefl, ``id, `ghostRelSimp] { zeta := false }    -- note the ``ghostRelSimp` here
+        Simp.dsimp #[``instIsSubStateOfRefl, ``instIsSubReaderOfRefl, ``id, `ghostRelSimp, `ghostDefSimp] { zeta := false }    -- note the ghost simp sets here
       let getSetSimp ← simplifierGetSetForFieldRepTC
       -- let localRPropSimp : Simplifier := (evalOpenClassical ∘ (Simp.simp #[`LocalRProp.core_eq]))
       pure <| Simp.unfold #[wpDef_fqn] |>.andThen dsimpSubstate

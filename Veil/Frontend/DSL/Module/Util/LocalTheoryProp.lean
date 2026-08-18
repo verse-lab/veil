@@ -408,7 +408,7 @@ def Module.simplifyLocalTheoryPropCore (mod : Module) (nm : Name) : TermElabM Un
     let core' ← (Simp.dsimp #[``reduceStateLabelDomainCodomainDsimproc]) core
     let core' ← (Simp.dsimp #[`nextSimp]) core'.expr
     let core' ← do
-      let simps := #[`invSimp, `smtSimp]
+      let simps := #[`invSimp, `ghostDefSimp, `smtSimp]
       -- let unfoldghostRel? := veil.unfoldGhostRel.get (← getOptions)
       -- let simps := if unfoldghostRel? then simps.push `ghostRelSimp else simps
       (evalOpenClassical ∘ Simp.simp simps) core'.expr
