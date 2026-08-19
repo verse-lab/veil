@@ -60,111 +60,170 @@ theorem VeilM.wp_returnUnit {hd' : ExId → Prop} {act : VeilM m ρ σ α} {q : 
   [IgnoreEx hd'| wp (VeilM.returnUnit act : VeilM m ρ σ Unit) post] = q (fun _ => post ()) := by
   simp only [wp_bind, wp_pure, h]
 
-@[wpSimp ↓]
-lemma VeilExecM.wp_assume :
-  wp (assume p : VeilM m ρ σ PUnit) post = fun r s => p -> post .unit r s := by
-  simp [MonadNonDet.wp_assume, loomLogicSimp, himp];
+/-!
+## WP rewrites
 
-/-- This formulation avoid a blowup in formula size by avoiding copies of `post`. -/
+`wpSimp` rewrites WPs only after they are fully applied to their reader and
+state. This keeps all intermediate equality endpoints proposition-valued and
+avoids eta junctions around large interpreter applications. -/
+
+lemma VeilM.wp_bind (act : VeilM m ρ σ α) (f : α → VeilM m ρ σ β)
+    (post : RProp β ρ σ) (r : ρ) (s : σ) :
+    wp (act >>= f) post r s = wp act (fun x => wp (f x) post) r s := by
+  rw [_root_.wp_bind]
+
 @[wpSimp ↓]
-lemma VeilM.wp_require (p : Prop) [Decidable p] (ex : ExId) :
-  wp (require p ex : VeilM m ρ σ Unit) post =
-    letI wpI := fun _p [Decidable _p] _post => wp (VeilM.assert _p ex : VeilM .internal ρ σ Unit) _post
-    letI wpE := fun _p [Decidable _p] _post => wp (VeilM.assume _p    : VeilM .external ρ σ Unit) _post
-    (match m with | .internal => wpI | .external => wpE) p post := by
+lemma VeilM.wp_pure (x : α) (post : RProp α ρ σ) (r : ρ) (s : σ) :
+    wp (pure x : VeilM m ρ σ α) post r s = post x r s := by
+  rw [_root_.wp_pure]
+
+@[wpSimp ↓]
+lemma VeilM.wp_map (act : VeilM m ρ σ α) (f : α → β)
+    (post : RProp β ρ σ) (r : ρ) (s : σ) :
+    wp (f <$> act) post r s = wp act (fun x => post (f x)) r s := by
+  rw [_root_.wp_map]
+
+@[wpSimp ↓]
+lemma VeilExecM.wp_assume (p : Prop) [Decidable p]
+    (post : RProp PUnit ρ σ) (r : ρ) (s : σ) :
+    wp (VeilM.assume p : VeilM m ρ σ PUnit) post r s = (p → post .unit r s) := by
+  simp [MonadNonDet.wp_assume, loomLogicSimp, himp]
+
+/-- This formulation avoids a blowup in formula size by avoiding copies of `post`. -/
+@[wpSimp ↓]
+lemma VeilM.wp_require (p : Prop) [Decidable p] (ex : ExId)
+    (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
+    wp (VeilM.require p ex : VeilM m ρ σ Unit) post r s =
+      (letI wpI := fun _p [Decidable _p] _post =>
+        wp (VeilM.assert _p ex : VeilM .internal ρ σ Unit) _post
+       letI wpE := fun _p [Decidable _p] _post =>
+        wp (VeilM.assume _p : VeilM .external ρ σ Unit) _post
+       (match m with | .internal => wpI | .external => wpE) p post) r s := by
   cases m <;> rfl
 
-/-- This formulation avoid a blowup in formula size by avoiding copies of `post`. -/
+/-- This formulation avoids a blowup in formula size by avoiding copies of `post`. -/
 @[wpSimp ↓]
-lemma VeilM.wp_ensure (p : Prop) [Decidable p] (ex : ExId) :
-  wp (ensure p ex : VeilM m ρ σ Unit) post =
-    letI wpI := fun _p [Decidable _p] _post => wp (VeilM.assume _p    : VeilM .internal ρ σ Unit) _post
-    letI wpE := fun _p [Decidable _p] _post => wp (VeilM.assert _p ex : VeilM .external ρ σ Unit) _post
-    (match m with | .internal => wpI | .external => wpE) p post := by
+lemma VeilM.wp_ensure (p : Prop) [Decidable p] (ex : ExId)
+    (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
+    wp (VeilM.ensure p ex : VeilM m ρ σ Unit) post r s =
+      (letI wpI := fun _p [Decidable _p] _post =>
+        wp (VeilM.assume _p : VeilM .internal ρ σ Unit) _post
+       letI wpE := fun _p [Decidable _p] _post =>
+        wp (VeilM.assert _p ex : VeilM .external ρ σ Unit) _post
+       (match m with | .internal => wpI | .external => wpE) p post) r s := by
   cases m <;> rfl
 
 @[wpSimp ↓]
-lemma VeilExecM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId) :
-  wp (@VeilExecM.assert m ρ σ p _ ex) post = fun r s => if p then post () r s else hd ex := by
-  simp [VeilExecM.assert]; split
-  { simp [wp_pure] }
+lemma VeilExecM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId)
+    (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
+    wp (@VeilExecM.assert m ρ σ p _ ex) post r s =
+      if p then post () r s else hd ex := by
+  simp [VeilExecM.assert]
+  split
+  · simp [_root_.wp_pure]
   simp +instances only [throw, throwThe, ReaderT.instMonadExceptOf]
-  have : ∀ (α σ : Type) (m : Type -> Type) [Monad m], StateT.lift (σ := σ) (α := α) (m := m) = liftM := by
+  have : ∀ (α σ : Type) (m : Type -> Type) [Monad m],
+      StateT.lift (σ := σ) (α := α) (m := m) = liftM := by
     simp +instances [liftM, monadLift, StateT.instMonadLift]
-  simp only [MAlgLift.wp_lift]; erw [ExceptT.wp_throw]
-  simp [loomLogicSimp]; rfl
+  simp only [MAlgLift.wp_lift]
+  erw [ExceptT.wp_throw]
+  simp [loomLogicSimp]
+  rfl
 
 set_option backward.isDefEq.respectTransparency false in
 @[wpSimp ↓]
-lemma VeilM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId) :
-  wp (@VeilM.assert m ρ σ p _ ex) post = fun r s => if p then post () r s else hd ex := by
+lemma VeilM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId)
+    (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
+    wp (@VeilM.assert m ρ σ p _ ex) post r s =
+      if p then post () r s else hd ex := by
   simp only [assert, MAlgLift.wp_lift, monadLift_self, ↓VeilExecM.wp_assert]
 
 @[wpSimp ↓]
-lemma VeilM.wp_get {_ : IsSubStateOf σₛ σ} :
-  wp (get : VeilM m ρ σ σₛ) post = fun r s => post (getFrom s) r s := by rfl
+lemma VeilM.wp_get {_ : IsSubStateOf σₛ σ}
+    (post : RProp σₛ ρ σ) (r : ρ) (s : σ) :
+    wp (get : VeilM m ρ σ σₛ) post r s = post (getFrom s) r s := by
+  rfl
 
 /-- This is used when converting transitions to actions, which require getting
 the full state, not just the sub-state. -/
 @[wpSimp ↓]
-lemma VeilM.wp_getOf {σₛ σ m ρ post} {_ : IsSubStateOf σₛ σ} :
-  wp (MonadStateOf.get : VeilM m ρ σ σ) post = fun r s => post s r s := by rfl
+lemma VeilM.wp_getOf (post : RProp σ ρ σ) (r : ρ) (s : σ) :
+    wp (MonadStateOf.get : VeilM m ρ σ σ) post r s = post s r s := by
+  rfl
 
 @[wpSimp ↓ high]
-lemma VeilM.wp_get' :
-  wp (get : VeilM m ρ σ σ) post = fun r s => post s r s := by rfl
+lemma VeilM.wp_get' (post : RProp σ ρ σ) (r : ρ) (s : σ) :
+    wp (get : VeilM m ρ σ σ) post r s = post s r s := by
+  rfl
 
 @[wpSimp ↓]
-lemma VeilM.wp_set {_ : IsSubStateOf σₛ σ} :
-  wp (set s': VeilM m ρ σ Unit) post = fun r s => post () r (setIn s' s) := by rfl
+lemma VeilM.wp_set {_ : IsSubStateOf σₛ σ} (s' : σₛ)
+    (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
+    wp (set s' : VeilM m ρ σ Unit) post r s = post () r (setIn s' s) := by
+  rfl
 
 @[wpSimp ↓ high]
-lemma VeilM.wp_set' :
-  wp (set s': VeilM m ρ σ Unit) post = fun r _s => post () r s' := by rfl
+lemma VeilM.wp_set' (s' : σ) (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
+    wp (set s' : VeilM m ρ σ Unit) post r s = post () r s' := by
+  rfl
 
 @[wpSimp ↓]
-lemma VeilM.wp_modifyGet {_ : IsSubStateOf σₛ σ} :
-  wp (modifyGet f : VeilM m ρ σ α) post = fun r s => post (f (getFrom s)).1 r (setIn (f (getFrom s)).2 s) := by rfl
+lemma VeilM.wp_modifyGet {_ : IsSubStateOf σₛ σ} (f : σₛ → α × σₛ)
+    (post : RProp α ρ σ) (r : ρ) (s : σ) :
+    wp (modifyGet f : VeilM m ρ σ α) post r s =
+      post (f (getFrom s)).1 r (setIn (f (getFrom s)).2 s) := by
+  rfl
 
 @[wpSimp ↓ high]
-lemma VeilM.wp_modifyGet' :
-  wp (modifyGet f : VeilM m ρ σ α) post = fun r s => post (f s).1 r (f s).2 := by rfl
+lemma VeilM.wp_modifyGet' (f : σ → α × σ)
+    (post : RProp α ρ σ) (r : ρ) (s : σ) :
+    wp (modifyGet f : VeilM m ρ σ α) post r s = post (f s).1 r (f s).2 := by
+  rfl
 
 @[wpSimp ↓]
-lemma VeilM.wp_read {_ : IsSubReaderOf ρₛ ρ} :
-  wp (read : VeilM m ρ σ ρₛ) post = fun r s => post (readFrom r) r s := by rfl
+lemma VeilM.wp_read {_ : IsSubReaderOf ρₛ ρ}
+    (post : RProp ρₛ ρ σ) (r : ρ) (s : σ) :
+    wp (read : VeilM m ρ σ ρₛ) post r s = post (readFrom r) r s := by
+  rfl
 
 @[wpSimp ↓ high]
-lemma VeilM.wp_read' :
-  wp (read : VeilM m ρ σ ρ) post = fun r s => post r r s := by rfl
+lemma VeilM.wp_read' (post : RProp ρ ρ σ) (r : ρ) (s : σ) :
+    wp (read : VeilM m ρ σ ρ) post r s = post r r s := by
+  rfl
 
-lemma VeilM.wp_pick :
-  wp (pick τ : VeilM m ρ σ τ) post = fun r s => ∀ t, post t r s := by
+lemma VeilM.wp_pick (post : RProp τ ρ σ) (r : ρ) (s : σ) :
+    wp (pick τ : VeilM m ρ σ τ) post r s = ∀ t, post t r s := by
   simp only [MonadNonDet.wp_pick, iInf, sInf, Set.mem_range, eq_iff_iff, Subtype.exists,
-    exists_prop, exists_exists_eq_and, forall_exists_index]; aesop
+    exists_prop, exists_exists_eq_and, forall_exists_index]
+  aesop
 
-lemma VeilM.wp_pickSuchThat {m : Mode} {ρ σ τ : Type} {p : τ → Prop} {_ : ∀ x, Decidable (p x)} {post : τ → ρ → σ → Prop} :
-  wp (VeilM.pickSuchThat τ p : VeilM m ρ σ τ) post = fun r s => ∀ t, p t -> post t r s := by
-  simp only [VeilM.pickSuchThat, MonadNonDet.wp_pickSuchThat, iInf, sInf, himpE, himpPureE, Set.mem_range, eq_iff_iff,
-    Subtype.exists, pureE, purePropE, exists_prop, exists_exists_eq_and, forall_exists_index]
+lemma VeilM.wp_pickSuchThat {p : τ → Prop} {_ : ∀ x, Decidable (p x)}
+    (post : RProp τ ρ σ) (r : ρ) (s : σ) :
+    wp (VeilM.pickSuchThat τ p : VeilM m ρ σ τ) post r s =
+      ∀ t, p t → post t r s := by
+  simp only [VeilM.pickSuchThat, MonadNonDet.wp_pickSuchThat, iInf, sInf, himpE,
+    himpPureE, Set.mem_range, eq_iff_iff, Subtype.exists, pureE, purePropE,
+    exists_prop, exists_exists_eq_and, forall_exists_index]
   aesop
 
 @[wpSimp ↓]
-lemma VeilM.wp_if [Decidable p] :
-  wp (if p then a else b : VeilM m ρ σ τ) post =
-  if p then wp a post else wp b post := by
-  split_ifs <;> simp only
+lemma VeilM.wp_if [Decidable p] (a b : VeilM m ρ σ τ)
+    (post : RProp τ ρ σ) (r : ρ) (s : σ) :
+    wp (if p then a else b) post r s =
+      if p then wp a post r s else wp b post r s := by
+  split <;> rfl
 
-attribute [wpSimp ↓] wp_pure wp_map VeilM.returnUnit
+-- Keep this as an unfolding rule so the binder-preserving bind simproc sees
+-- the continuation introduced by `returnUnit` with its source names intact.
+attribute [wpSimp ↓] VeilM.returnUnit
 
 /-!
 ## Binder-preserving WP rewrites for `bind`, `pick`, and `pickSuchThat`
 
-The lemmas `wp_bind`, `VeilM.wp_pick`, and `VeilM.wp_pickSuchThat` are
-logically correct, but applying them as plain simp rules replaces source
-binder names from do-notation with generic ones like `x`, `x_1`, or `t`.
-These simprocs perform the same rewrites and then alpha-rename the
-introduced binders to match the original source names.
+Applying the pointwise WP lemmas as plain simp rules replaces source binder
+names from do-notation with generic ones like `x`, `x_1`, or `t`. These
+simprocs perform the same rewrites and then alpha-rename the introduced
+binders to match the original source names.
 -/
 section PickSimprocs
 
@@ -233,7 +292,7 @@ simproc_decl wpBindPreserveBinder (_) := fun e => do
   let act := e.getAppArgs'[postIdx - 1]!
   unless act.getAppFn'.isConstOf ``Bind.bind do return .continue
   let name := (lambdaName? act.getAppArgs'.back!).getD `x
-  let some (rhs, proof) ← rewriteRoot? e ``wp_bind | return .continue
+  let some (rhs, proof) ← rewriteRoot? e ``VeilM.wp_bind | return .continue
   let some postIdx' ← wpPostIdx? rhs | return .continue
   let result := mkAppN rhs.getAppFn' (rhs.getAppArgs'.modify postIdx' (renameBinder name))
   return .visit { expr := result, proof? := some proof }
