@@ -90,4 +90,16 @@ action foo6 {
 #guard_msgs in
 #eval isElaboratedCorrectly ``foo6
 
+#guard_msgs(drop warning) in
+action foo7 {
+  if x : node :| r x 0 then
+    n := x
+  if (x, k) : node × Nat3 :| r x k then
+    n := x
+}
+
+/-- info: true -/
+#guard_msgs in
+#eval isElaboratedCorrectly ``foo7
+
 end Test

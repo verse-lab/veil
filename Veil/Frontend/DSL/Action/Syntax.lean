@@ -71,12 +71,13 @@ scoped syntax (name := assertDo) (priority := high) kw_assert term : doElem
 /--
 `if x :| p then … else …` is the conditional twin of `let x :| p`: if a
 witness satisfying `p` exists, bind it and run the then-branch; otherwise run
-the else-branch (defaulting to `pure ()`). The witness may be an identifier or
-a flat tuple of identifiers, e.g. `if (x, y) :| r x y then …`.
+the else-branch (defaulting to `pure ()`). Like `let x : τ :| p`, an explicit
+witness type is optional. The witness may be an identifier or a flat tuple of
+identifiers, e.g. `if (x, y) : α × β :| r x y then …`.
 -/
 scoped syntax (name := ifSomeDo)
   withPosition(ppRealGroup(
-    ppRealFill(ppIndent("if " term:max " :| " term " then") ppSpace doSeq)
+    ppRealFill(ppIndent("if " term:max (" : " term)? " :| " term " then") ppSpace doSeq)
     (colGe ppDedent(ppSpace "else " doSeq))?
   )) : doElem
 
@@ -98,12 +99,28 @@ private def prependDoSeqItem (item : TSyntax ``Lean.Parser.Term.doSeqItem)
   | _ => Macro.throwUnsupported
 
 macro_rules
-  | `(doElem| if $witness:term :| $predicate:term then $thenSeq:doSeq $[else $elseSeq?:doSeq]?) => do
+  | `(doElem| if $witness:term $[: $type?:term]? :| $predicate:term then $thenSeq:doSeq $[else $elseSeq?:doSeq]?) => do
     let some ids := ifSomeBinderIdents? witness
       | Macro.throwErrorAt witness
           "unsupported witness pattern for Veil existential `if`; expected an identifier or flat tuple of identifiers"
-    let existsGuard ← `(term| ∃ $[$ids:ident]*, $predicate)
-    let pickItem ← `(Lean.Parser.Term.doSeqItem| let $witness:term :| $predicate)
+    let existsGuard ← match type? with
+      | none => `(term| ∃ $[$ids:ident]*, $predicate)
+      | some type =>
+        if h : ids.size = 1 then
+          `(term| ∃ $(ids[0]):ident : $type, $predicate)
+        else
+          /- NOTE: `let (x, y) : α × β :| p` expands to a `do` pattern bind,
+          which Lean supports and internally destructures. Existential binders
+          do not accept tuple patterns (`∃ (x, y) : α × β, p`), so the
+          typed tuple guard must instead quantify a fresh packed value and
+          destructure it with an ordinary `let`. -/
+          let packedName ← withFreshMacroScope
+            (MonadQuotation.addMacroScope `__veil_if_some_witness)
+          let packed := mkIdent packedName
+          `(term| ∃ $packed:ident : $type, let $witness:term := $packed; $predicate)
+    let pickItem ← match type? with
+      | none => `(Lean.Parser.Term.doSeqItem| let $witness:term :| $predicate)
+      | some type => `(Lean.Parser.Term.doSeqItem| let $witness:term : $type :| $predicate)
     let thenSeq ← prependDoSeqItem pickItem thenSeq
     let elseSeq ← elseSeq?.getDM `(Lean.Parser.Term.doSeq| pure PUnit.unit)
     `(doElem| if $existsGuard then $thenSeq else $elseSeq)
