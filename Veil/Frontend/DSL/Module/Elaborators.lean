@@ -412,10 +412,12 @@ private def runFilteredInvariantCheck
     : CommandElabM Unit := do
   Verifier.runFilteredAsync filter (logVerificationResults stx)
   Verifier.displayStreamingResults stx
-    (Verifier.vcManager.atomically fun ref => do
-      let mgr ← ref.get
-      let results ← mgr.toResults filter
-      pure (results, if mgr.isDoneFiltered filter then .done else .running))
+    (do
+      -- CAREFUL: do not hold the lock to print
+      let mgr ← Verifier.vcManager.atomically fun ref => ref.get
+      let done := mgr.isDoneFiltered filter
+      let results ← mgr.toResults filter (includeTheoremText := done)
+      pure (results, if done then .done else .running))
     mod.specFinalizedAtStx
 
 private def isInductionForAction (actionName : Name) : VCMetadata → Bool

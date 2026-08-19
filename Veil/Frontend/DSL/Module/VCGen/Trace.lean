@@ -93,14 +93,14 @@ def TraceDischarger.fromAssertion (numTransitions : Nat) (isExpectedSat : Bool)
   let resultPromise ← IO.Promise.new
   -- Use wrapAsyncAsSnapshot for proper snapshot tree integration with the language server
   let mk ← Command.wrapAsyncAsSnapshot (fun vcStatement : VCStatement => do
-    -- Wrap in profiler trace for discharger timing
-    withTraceNode (`veil.perf.discharger ++ dischargerId.name)
-        (fun _ => return s!"trace discharger {dischargerId.name}") do
-      let res ← (do
-        -- Resolve the start time promise when the discharger actually begins
-        let startTime ← IO.monoMsNow
-        startTimePromise.resolve startTime
-        try
+    -- Resolve the start time promise when the discharger actually begins
+    let startTime ← IO.monoMsNow
+    startTimePromise.resolve startTime
+    let res ← (do
+      try
+        -- Wrap in profiler trace for discharger timing
+        withTraceNode (`veil.perf.discharger ++ dischargerId.name)
+            (fun _ => return s!"trace discharger {dischargerId.name}") do
           liftTermElabM $ do
             let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
             -- Elaborate the tactic against the goal type (same pattern as Induction.lean)
@@ -113,18 +113,24 @@ def TraceDischarger.fromAssertion (numTransitions : Nat) (isExpectedSat : Bool)
             let dischargerResult ← mkTraceDischargerResult dischargerId.name numTransitions
               isExpectedSat smtCh (endTime - startTime)
             return dischargerResult
-        catch ex =>
-          let endTime ← IO.monoMsNow
+      catch ex =>
+        -- The handler elaborates and can itself throw; an escape would skip
+        -- publication and leave the VC `.running` forever (see the analogous
+        -- comment in `VCDischarger.fromTerm`). Fall back to a bare error
+        -- result built without elaboration.
+        let endTime ← IO.monoMsNow
+        try
           liftTermElabM $ mkTraceDischargerResult dischargerId.name numTransitions
             isExpectedSat smtCh (endTime - startTime) (ex? := some ex)
-      )
-      -- Resolve the result promise so Discharger.status can read it
-      resultPromise.resolve res
-      -- Send notification to manager
-      let _ ← ch.send (.dischargerResult dischargerId res)
-      -- Note: wrapAsyncAsSnapshot expects Unit, so no return value
+        catch ex2 =>
+          return .error #[← safeExceptionEntry ex, ← safeExceptionEntry ex2]
+            (endTime - startTime)
+    )
+    -- BaseIO: cannot throw. Publishes the result exactly once on every path.
+    publishDischargerResult resultPromise ch dischargerId res
   ) cancelTk
-  let mkTask := (mk vcStatement).asTask
+  -- Dedicated thread; see the analogous comment in `VCDischarger.fromTerm`.
+  let mkTask := (mk vcStatement).asTask (prio := .dedicated)
   return {
     id := dischargerId,
     term := smtTactic,

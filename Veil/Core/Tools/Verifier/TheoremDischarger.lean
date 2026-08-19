@@ -97,6 +97,10 @@ private def registerFinishedTheoremDischarger
         mgr := { mgr with _doneWith := mgr._doneWith.erase vcId }
       mgr ← mgr.recordDischargerResult discharger.id result
       ref.set mgr
+      -- This bypasses the notification channel, so schedule a fill: the
+      -- result may have completed a VC (unlocking dependents) or re-opened
+      -- one whose remaining automatic dischargers should now run.
+      let _ ← vcManagerCh.send .fill
       pure (Except.ok ())
     else
       pure <| Except.error s!"`@[veil]` is ambiguous for `{declName}`; matched {vcIds.size} verification conditions")

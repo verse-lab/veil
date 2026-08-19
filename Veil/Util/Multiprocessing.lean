@@ -1,3 +1,4 @@
+import Lean
 
 namespace Veil
 
@@ -5,11 +6,9 @@ namespace Veil
 def isVeilOnlineEnv : IO Bool := do
   return (← IO.getEnv "VEIL_ONLINE_ENV").isSome
 
-def getNumCores : IO Nat := do
-  -- A malformed value must not yield 0: `toNat!` panics *and continues with 0*,
-  -- which would make the VC manager's `.startAll` start zero tasks and wedge
-  -- awaiting commands with no exception anywhere. Parse defensively, floor at 1.
-  -- First check if LEAN_NUM_THREADS is set (controls the Lean runtime thread pool)
+/-- Detect the number of cores: `LEAN_NUM_THREADS` if set (this is what sizes
+the Lean task pool), otherwise platform-specific detection. -/
+private def detectNumCores : IO Nat := do
   if let some n := (← IO.getEnv "LEAN_NUM_THREADS") then
     if let some k := n.toNat? then
       return max 1 k
@@ -21,5 +20,16 @@ def getNumCores : IO Nat := do
     -- Linux and other Unix-like systems (POSIX compliant)
     let output ← IO.Process.output { cmd := "getconf", args := #["_NPROCESSORS_ONLN"] }
     return max 1 (output.stdout.trimAscii.toNat?.getD 1)
+
+initialize numCoresCache : IO.Ref (Option Nat) ← IO.mkRef none
+
+/-- Number of cores available to this process, memoized. This must be cheap and
+never throw. On detection failure this falls back to 1 (slow but safe). -/
+def getNumCores : BaseIO Nat := do
+  if let some n := ← numCoresCache.get then
+    return n
+  let n ← EIO.catchExceptions detectNumCores fun _ => pure 1
+  numCoresCache.set (some n)
+  return n
 
 end Veil

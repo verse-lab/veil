@@ -83,7 +83,8 @@ private partial def runStreamingResults (theoremInsertPos : Lsp.Position)
     (optionInsertPos : Option Lsp.Position) (documentUri : String)
     (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus))
     (token : RefreshToken) : CoreM Unit := do
-  vcManager.atomicallyOnce frontendNotification (fun _ => return true) (fun _ => do IO.sleep 100; return ())
+  -- CAREFUL: do not sleep while holding the lock
+  IO.sleep 100
   let (results, status) ← getter
   let html := Html.ofComponent VerificationResultsViewer {
     results,

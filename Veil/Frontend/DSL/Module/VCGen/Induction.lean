@@ -85,14 +85,14 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
   let env0 ← getEnv
   -- Use wrapAsyncAsSnapshot for proper snapshot tree integration with the language server
   let mk ← Command.wrapAsyncAsSnapshot (fun vcStatement : VCStatement => do
-    -- Wrap in profiler trace for discharger timing
-    withTraceNode (`veil.perf.discharger ++ dischargerId.name)
-        (fun _ => return s!"discharger {dischargerId.name}") do
-      let res ← (do
-        -- Resolve the start time promise when the discharger actually begins
-        let startTime ← IO.monoMsNow
-        startTimePromise.resolve startTime
-        try
+    -- Resolve the start time promise when the discharger actually begins
+    let startTime ← IO.monoMsNow
+    startTimePromise.resolve startTime
+    let res ← (do
+      try
+        -- Wrap in profiler trace for discharger timing
+        withTraceNode (`veil.perf.discharger ++ dischargerId.name)
+            (fun _ => return s!"discharger {dischargerId.name}") do
           liftTermElabM $ do
             let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
             let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
@@ -104,19 +104,23 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
             let dischargerResult ← mkDischargerResult dischargerId.name actName smtCh
               (.inl witness) (endTime - startTime)
             return dischargerResult
-        catch ex =>
-          let endTime ← IO.monoMsNow
-          let dischargerResult ← liftTermElabM $ mkDischargerResult dischargerId.name actName smtCh
+      catch ex =>
+        -- An exception escaping this function would skip publication and leave
+        -- the VC `.running` forever; fall back to a bare error result built
+        -- without elaboration. (Interrupts still escape.)
+        let endTime ← IO.monoMsNow
+        try
+          liftTermElabM $ mkDischargerResult dischargerId.name actName smtCh
             (.inr ex) (endTime - startTime)
-          return dischargerResult
-      )
-      -- Resolve the result promise so Discharger.status can read it
-      resultPromise.resolve res
-      -- Send notification to manager
-      let _ ← ch.send (.dischargerResult dischargerId res)
-      -- Note: wrapAsyncAsSnapshot expects Unit, so no return value
+        catch ex2 =>
+          return .error #[← safeExceptionEntry ex, ← safeExceptionEntry ex2]
+            (endTime - startTime)
+    )
+    publishDischargerResult resultPromise ch dischargerId res
   ) cancelTk
-  let mkTask := (mk vcStatement).asTask
+  -- Dedicated thread: the task blocks in in-process solver FFI for its whole
+  -- duration, which would starve the bounded elaboration thread pool
+  let mkTask := (mk vcStatement).asTask (prio := .dedicated)
   return {
     id := dischargerId,
     term := term,

@@ -296,12 +296,14 @@ private def traceLoadingMessage : String := "⏳ Verifying trace query..."
 
 private partial def runTraceRefreshStep (isExpectedSat : Bool) (_vcName : Name)
     (vcFilter : VCMetadata → Bool) (token : RefreshToken) : CoreM Unit := do
-  Verifier.vcManager.atomicallyOnce frontendNotification (fun _ => return true) (fun _ => do IO.sleep 100; return ())
-  let result? ← Verifier.vcManager.atomically fun ref => do
-    let mgr ← ref.get
+  -- CAREFUL: do not sleep while holding the lock
+  IO.sleep 100
+  let mgr ← Verifier.vcManager.atomically fun ref => ref.get
+  let result? ←
     if mgr.isDoneFiltered vcFilter then
-      return (← mgr.toResults vcFilter).vcs.find? (vcFilter ·.metadata)
-    return none
+      pure ((← mgr.toResults vcFilter).vcs.find? (vcFilter ·.metadata))
+    else
+      pure none
   match result? with
   | none =>
     token.update (.text traceLoadingMessage)

@@ -209,6 +209,11 @@ inductive ManagerNotification (VCMetaT ResultT : Type) where
   | startAll
   /-- Start VCs matching the filter. -/
   | startFiltered (filter : VCMetaT → Bool)
+  /-- Top the pool of running dischargers back up to capacity from already-
+  enabled VCs, without enabling anything new. Sent after frontend mutations
+  that can make enabled work ready (e.g. an interactive `@[veil]` result that
+  completes a VC or re-opens one). -/
+  | fill
 deriving Inhabited
 
 instance [ToString ResultT] : ToString (ManagerNotification VCMetaT ResultT) where
@@ -218,6 +223,16 @@ instance [ToString ResultT] : ToString (ManagerNotification VCMetaT ResultT) whe
     | .reset managerId => s!"reset {managerId}"
     | .startAll => s!"startAll"
     | .startFiltered _ => s!"startFiltered"
+    | .fill => s!"fill"
+
+/-- Resolve the discharger's result promise and notify the manager. `BaseIO`,
+so it cannot throw or be interrupted: dischargers must call this on every
+path (success, handled failure, non-elaborating fallback). -/
+def publishDischargerResult (resultPromise : IO.Promise (DischargerResult ResultT))
+    (ch : Std.Channel (ManagerNotification VCMetaT ResultT))
+    (id : DischargerIdentifier) (res : DischargerResult ResultT) : BaseIO Unit := do
+  resultPromise.resolve res
+  let _ ← ch.send (.dischargerResult id res)
 
 inductive VCStatus where
   /-- The VC has been proven (shown to be true). -/
@@ -276,6 +291,11 @@ structure VCManager (VCMetaT ResultT: Type) where
   /-- VCs that should NOT be started automatically (waiting for trigger).
   Used for alternative VCs that only run when their primary VC fails. -/
   dormantVCs : HashSet VCId := HashSet.emptyWithCapacity
+
+  /-- VCs a verifier command has requested (via `.startAll`/`.startFiltered`).
+  This set grows monotonically: once a VC is enabled, it remains enabled.
+  If a primary VC fails, its alternative VCs become enabled. -/
+  enabledVCs : HashSet VCId := HashSet.emptyWithCapacity
 
   protected _nextVcId : VCId := 0
   /-- Number of dischargers that have finished executing. -/
@@ -431,7 +451,10 @@ def Discharger.status (discharger : Discharger ResultT) : BaseIO (DischargeStatu
   | true =>
     match resultTask.get with
     | some res => return .finished res
-    | none => panic! "Discharger.status: result promise resolved to none"
+    | none =>
+      -- The promise was dropped without being resolved: the discharger died
+      -- without publishing. Report it as a finished error.
+      return .finished (.error #[] 0)
   | false =>
     match discharger.task with
     | none => return .notStarted
@@ -487,19 +510,47 @@ def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT Re
       | .finished (.error _ _) => continue
     return none
 
+/-- Enable every VC currently in the manager (dormant ones included: they
+stay dormant until woken, but need no separate enabling then). -/
+def VCManager.enableAll (mgr : VCManager VCMetaT ResultT) : VCManager VCMetaT ResultT :=
+  let enabled := mgr.nodes.fold (fun s vcId _ => s.insert vcId) mgr.enabledVCs
+  { mgr with enabledVCs := enabled }
+
+/-- Enable every VC whose metadata matches `filter`. -/
+def VCManager.enableMatching (mgr : VCManager VCMetaT ResultT)
+    (filter : VCMetaT → Bool) : VCManager VCMetaT ResultT :=
+  let enabled := mgr.nodes.fold (init := mgr.enabledVCs)
+    (fun s vcId vc => if filter vc.metadata then s.insert vcId else s)
+  { mgr with enabledVCs := enabled }
+
+/-- The enabled, not-yet-done, non-dormant VCs with no outstanding
+dependencies whose next discharger can be started. -/
 def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT)
-    (filter : VCMetaT → Bool := fun _ => true) : BaseIO (List (VerificationCondition VCMetaT ResultT × Discharger ResultT)) := do
+    : BaseIO (List (VerificationCondition VCMetaT ResultT × Discharger ResultT)) := do
   let ready ← mgr.inDegree.toList.filterMapM (fun (vcId, inDegree) => do
     let .some vc := mgr.nodes[vcId]? | panic! "VCManager.readyTasks: VC {vcId} not found"
+    -- Only VCs some verifier command has requested
+    if !mgr.enabledVCs.contains vcId then pure none
+    -- Skip completed VCs (also covers `.blocked`-style terminal states)
+    else if mgr._doneWith.contains vcId then pure none
     -- Skip dormant VCs (e.g., alternative VCs waiting for their primary to fail)
-    if mgr.dormantVCs.contains vcId then pure none
-    -- Skip VCs that don't match the filter
-    else if !filter vc.metadata then pure none
+    else if mgr.dormantVCs.contains vcId then pure none
     else if inDegree != 0 then pure none else
       match ← vc.nextDischarger? with
       | some discharger => pure (some (vc, discharger))
       | none => pure none)
   return ready
+
+/-- Number of dischargers that have been started but have not yet published a
+result. Relies on every started discharger eventually resolving its result
+promise via `publishDischargerResult`. FIXME: this is inefficient. -/
+def VCManager.inFlightCount (mgr : VCManager VCMetaT ResultT) : BaseIO Nat := do
+  let mut count := 0
+  for (_, vc) in mgr.nodes do
+    for d in vc.dischargers do
+      if d.task.isSome && !(← IO.hasFinished d.resultPromise.result?) then
+        count := count + 1
+  return count
 
 /-- Set the cancellation token of every discharger in the manager. Used on
 reset, so abandoned dischargers stop (cooperatively, see `Discharger.cancelTk`)
@@ -598,8 +649,11 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
     if vcStatus != .proven && !vc'.hasInteractiveDischarger then
       if let .some altIds := mgr.alternativeVCs[vcId]? then
         for altId in altIds do
-          -- Wake up the alternative VC by removing from dormant set
-          mgr := { mgr with dormantVCs := mgr.dormantVCs.erase altId }
+          -- Wake up the alternative VC: remove from the dormant set and
+          -- enable it (its primary was necessarily enabled to have run).
+          mgr := { mgr with
+            dormantVCs := mgr.dormantVCs.erase altId
+            enabledVCs := mgr.enabledVCs.insert altId }
   return mgr
 
 /-- Record a finished discharger result, updating aggregate counters and VC

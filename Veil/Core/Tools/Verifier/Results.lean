@@ -231,12 +231,14 @@ def mkTheoremText (vc : VerificationCondition VCMetaT ResultT) : CoreM String :=
   let fmt ← Lean.PrettyPrinter.ppCommand cmd
   return s!"@[veil]\n{fmt.pretty}"
 
-/-- Build `VCResult` for a specific VC. -/
-def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT CoreM m] (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : m (VCResult VCMetaT ResultT) := do
+/-- Build `VCResult` for a specific VC. `includeTheoremText` controls whether
+the theorem statement is pretty-printed (needed for click-to-insert stubs);
+callers that render repeatedly while verification is running should pass
+`false`, since pretty-printing every VC is expensive. -/
+def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT CoreM m] (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (includeTheoremText : Bool := true) : m (VCResult VCMetaT ResultT) := do
   let .some vc := mgr.nodes[vcId]? | throwError s!"mkVCResult: VC {vcId} not found in manager"
   let timing ← mkTimingData mgr vc
-  -- Generate theorem text for all VCs (for click-to-insert functionality)
-  let theoremText ← some <$> liftM (mkTheoremText vc)
+  let theoremText ← if includeTheoremText then some <$> liftM (mkTheoremText vc) else pure none
   return {
     id := vcId
     name := vc.name
@@ -249,12 +251,14 @@ def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT CoreM 
     theoremText := theoremText
   }
 
-/-- Convert a `VCManager` to `VerificationResults`, filtering VCs by the given predicate. -/
+/-- Convert a `VCManager` to `VerificationResults`, filtering VCs by the given
+predicate. -/
 def VCManager.toResults [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT CoreM m]
     (mgr : VCManager VCMetadata ResultT) (filter : VCMetadata → Bool)
+    (includeTheoremText : Bool := true)
     : m (VerificationResults VCMetadata ResultT) := do
   let filteredNodes := mgr.nodes.toArray.filter fun (_, vc) => filter vc.metadata
-  let vcResults ← filteredNodes.mapM fun (vcId, _) => mkVCResult mgr vcId
+  let vcResults ← filteredNodes.mapM fun (vcId, _) => mkVCResult mgr vcId includeTheoremText
 
   let totalTime := filteredNodes.foldl (init := 0) fun acc (uid, _) =>
     acc + ((mgr.vcTotalTime uid).getD 0)

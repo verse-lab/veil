@@ -90,6 +90,14 @@ def withBackwardsCompatibility [Monad m] [MonadWithOptions m] (x : m α) : m α 
         |>.set `backward.defeqAttrib.useBackward true)
     x
 
+/-- Render an exception without elaboration, for fallback error results built
+on paths that must not throw (message rendering itself can fail or be
+interrupted). -/
+def safeExceptionEntry (ex : Lean.Exception) : BaseIO (Lean.Exception × Json) := do
+  let msg ← EIO.catchExceptions (ε := IO.Error) ex.toMessageData.toString
+    fun _ => pure "<exception could not be rendered>"
+  return (ex, Json.str msg)
+
 /-- Stable, first-occurrence canonicalization registry: `byKey` is an exact
 (hash) fast path; on a miss, a caller-supplied match predicate (e.g.
 `isDefEq`) scans the canonical entries, recording any match as an alias key

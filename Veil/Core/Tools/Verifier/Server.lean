@@ -35,22 +35,25 @@ def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := sendNoti
 
 def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
 
-/-- Start up to `count` ready dischargers matching `filter`: spawn each task
-(`Discharger.run` only *spawns* — the elaboration/solving runs on the thread
-pool), send it to the task registration channel for the frontend to register
-via `logSnapshotTask`, and write the started discharger back into its node.
+/-- Start ready dischargers from the enabled set until the number in flight
+reaches the core count: spawn each task (`Discharger.run` only *spawns* — the
+elaboration/solving runs on the thread pool), send it to the task
+registration channel for the frontend to register via `logSnapshotTask`, and
+write the started discharger back into its node.
 
 Must be called with the `vcManager` lock held, as part of a handler's single
 critical section: holding the lock, the `(vc, discharger)` pairs returned by
 `readyTasks` are *current*, so the write-back cannot clobber concurrent
 frontend updates (interactive `@[veil]` registrations, added dischargers, a
-reset) — the lost-update interleavings the old unlock-between-phases structure
-allowed. The caller is responsible for `ref.set` of the returned manager. -/
-private def startReadyTasksLocked (mgr : VCManager VCMetadata SmtResult)
-    (count : Nat) (filter : VCMetadata → Bool := fun _ => true)
-    : CommandElabM (VCManager VCMetadata SmtResult) := do
+reset). `BaseIO`, so the handler cannot fail or be interrupted between
+spawning tasks and the caller's single `ref.set` — spawned work and recorded
+state stay consistent. -/
+private def fillAvailableSlotsLocked (mgr : VCManager VCMetadata SmtResult)
+    : BaseIO (VCManager VCMetadata SmtResult) := do
   let mut mgr := mgr
-  let ready := (← mgr.readyTasks filter).take count
+  let numCores ← getNumCores
+  let inFlight ← mgr.inFlightCount
+  let ready := (← mgr.readyTasks).take (numCores - inFlight)
   for (vc, discharger) in ready do
     let discharger' ← discharger.run
     if let some task := discharger'.task then
@@ -102,21 +105,23 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
             if dischargerId.managerId != mgr._managerId then
               return
             mgr ← mgr.recordDischargerResult dischargerId res
-            -- Start ready tasks AFTER recordDischargerResult so freshly woken
-            -- alternatives can be scheduled. Only start 1 at a time.
-            mgr ← startReadyTasksLocked mgr 1
+            -- Refill AFTER recordDischargerResult so freshly woken
+            -- alternatives and unlocked dependents can all be scheduled.
+            mgr ← fillAvailableSlotsLocked mgr
             ref.set mgr)
           Frontend.notify
         | .startAll => do
-          let numCores ← getNumCores
           vcManager.atomically (fun ref => do
-            ref.set (← startReadyTasksLocked (← ref.get) numCores))
+            ref.set (← fillAvailableSlotsLocked (← ref.get).enableAll))
           Frontend.notify
         | .startFiltered filter => do
-          let numCores ← getNumCores
           vcManager.atomically (fun ref => do
-            ref.set (← startReadyTasksLocked (← ref.get) numCores filter))
+            ref.set (← fillAvailableSlotsLocked ((← ref.get).enableMatching filter)))
           -- Wake pollers (they re-check `isDoneFiltered` under their own lock)
+          Frontend.notify
+        | .fill => do
+          vcManager.atomically (fun ref => do
+            ref.set (← fillAvailableSlotsLocked (← ref.get)))
           Frontend.notify
         | .reset managerId => vcManager.atomically (fun ref => do
           let mut mgr ← ref.get
@@ -170,13 +175,10 @@ private def awaitFilteredWithLogging (filter : VCMetadata → Bool)
     -- cannot log to the editor (it is not registered with `logSnapshotTask`).
     for err in ← managerLoopErrors.modifyGet fun errs => (errs, #[]) do
       logWarning m!"VC manager loop error: {err}"
-    let result? ← vcManager.atomically fun ref => do
-      let mgr ← ref.get
-      if mgr.isDoneFiltered filter then
-        return some (← liftCoreM (mgr.toResults filter))
-      else
-        return none
-    if let some results := result? then return results
+    -- Snapshot under the lock, render outside it (`toResults` pretty-prints).
+    let mgr ← vcManager.atomically fun ref => ref.get
+    if mgr.isDoneFiltered filter then
+      return ← liftCoreM (mgr.toResults filter)
     IO.sleep 10
   panic! "unreachable"
 
@@ -192,7 +194,7 @@ def runFilteredAsync (filter : VCMetadata → Bool)
   let wrappedTask ← Command.wrapAsyncAsSnapshot (fun () => do
     let results ← awaitFilteredWithLogging filter
     callback results) cancelTk
-  let task ← (wrappedTask ()).asTask
+  let task ← (wrappedTask ()).asTask (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := cancelTk, task := task }
 
 /-- Start VCs matching the filter and wait synchronously for completion.
