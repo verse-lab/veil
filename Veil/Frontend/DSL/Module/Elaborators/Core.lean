@@ -408,11 +408,96 @@ def elabAssertion : CommandElab := fun stx => do
     | .trustedInvariant => "trusted_invariant"
     | .termination => "termination"
     | .stateConstraint => "state_constraint"
+    | .livenessAtom => "liveness_atom"
   withTraceNode (`veil.perf.elaborator.assertion ++ assertion.name) (fun _ => return s!"{kindStr} {assertion.name}") do
     -- Elaborate the assertion in the Lean environment
     let mod' ← mod.defineAssertion assertion
   --   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
     localEnv.modifyModule (fun _ => mod')
+
+partial def elabLtlFormula (mod : Module) (livenessName : Name) (atoms : Array Name)
+    (stx : TSyntax `ltlFormula) : CommandElabM (Term × Module × Array Name) := do
+  match stx with
+  -- Each atomic proposition `⌜ AP ⌝` becomes a fresh `livenessAtom` assertion (elaborated exactly like `safety`/`invariant`)
+  | `(ltlFormula| ⌜ $t:term ⌝) =>
+    let atomName := Name.mkSimple s!"{livenessName}_atom{atoms.size}"
+    let assertion : StateAssertion :=
+      { kind := .livenessAtom, name := atomName, extraParams := #[], term := t, userSyntax := stx.raw, inSets := Std.HashSet.emptyWithCapacity }
+    let mod ← mod.defineAssertion assertion
+    return (← `(term| $(mkIdent ``LTLLib.Formula.atom) $(quote atomName.toString)), mod, atoms.push atomName)
+  | `(ltlFormula| ⊤) => return (← `(term| $(mkIdent ``LTLLib.Formula.tt)), mod, atoms)
+  | `(ltlFormula| ⊥) => return (← `(term| $(mkIdent ``LTLLib.Formula.ff)), mod, atoms)
+  | `(ltlFormula| ($f)) => elabLtlFormula mod livenessName atoms f
+  | `(ltlFormula| ¬$f) =>
+    let (t, mod, atoms) ← elabLtlFormula mod livenessName atoms f
+    return (← `(term| $(mkIdent ``LTLLib.Formula.not) $t), mod, atoms)
+  | `(ltlFormula| ◇$f) =>
+    let (t, mod, atoms) ← elabLtlFormula mod livenessName atoms f
+    return (← `(term| $(mkIdent ``LTLLib.Formula.eventually) $t), mod, atoms)
+  | `(ltlFormula| □$f) =>
+    let (t, mod, atoms) ← elabLtlFormula mod livenessName atoms f
+    return (← `(term| $(mkIdent ``LTLLib.Formula.always) $t), mod, atoms)
+  | `(ltlFormula| $f1 ∧ $f2) =>
+    let (t1, mod, atoms) ← elabLtlFormula mod livenessName atoms f1
+    let (t2, mod, atoms) ← elabLtlFormula mod livenessName atoms f2
+    return (← `(term| $(mkIdent ``LTLLib.Formula.and) $t1 $t2), mod, atoms)
+  | `(ltlFormula| $f1 ∨ $f2) =>
+    let (t1, mod, atoms) ← elabLtlFormula mod livenessName atoms f1
+    let (t2, mod, atoms) ← elabLtlFormula mod livenessName atoms f2
+    return (← `(term| $(mkIdent ``LTLLib.Formula.or) $t1 $t2), mod, atoms)
+  | `(ltlFormula| $f1 → $f2) =>
+    let (t1, mod, atoms) ← elabLtlFormula mod livenessName atoms f1
+    let (t2, mod, atoms) ← elabLtlFormula mod livenessName atoms f2
+    return (← `(term| $(mkIdent ``LTLLib.Formula.implies) $t1 $t2), mod, atoms)
+  | `(ltlFormula| $f1 ↔ $f2) =>
+    let (t1, mod, atoms) ← elabLtlFormula mod livenessName atoms f1
+    let (t2, mod, atoms) ← elabLtlFormula mod livenessName atoms f2
+    return (← `(term| $(mkIdent ``LTLLib.Formula.iff) $t1 $t2), mod, atoms)
+  | _ => throwUnsupportedSyntax
+
+@[command_elab Veil.livenessDeclaration]
+def elabLivenessDeclaration : CommandElab := fun stx => do
+  let mut mod ← getCurrentModule (errMsg := "You cannot declare a liveness property outside of a Veil module!")
+  mod ← mod.ensureStateIsDefined
+  mod.throwIfSpecAlreadyFinalized
+  let (nameStx, formulaStx) ← match stx with
+    | `(command|liveness $name:propertyName ? $f:ltlFormula) => pure (name, f)
+    | _ => throwUnsupportedSyntax
+  let name := match nameStx with
+    | some n => n.getPropertyName
+    | none => Name.mkSimple s!"liveness_{mod.livenessProperties.size}"
+  withTraceNode (`veil.perf.elaborator.liveness ++ name) (fun _ => return s!"liveness {name}") do
+    let (formula, mod, atoms) ← elabLtlFormula mod name #[] formulaStx
+    let livenessProperty : LivenessAssertion := { name := name, atoms := atoms, formula := formula, userSyntax := stx }
+    localEnv.modifyModule (fun _ => { mod with livenessProperties := mod.livenessProperties.push livenessProperty })
+
+def Module.generateLivenessDefinitions (mod : Module) : CommandElabM Module := do
+  let mut mod := mod
+  for lp in mod.livenessProperties do
+    mod.throwIfAlreadyDeclared lp.name
+    mod ← withTraceNode (`veil.perf.elaborator.liveness ++ lp.name) (fun _ => return s!"liveness {lp.name} (gen)") do
+      let atomTerms ← lp.atoms.mapM fun atomName => do
+        let (params, _) ← mod.declarationAllParams atomName (.stateAssertion .livenessAtom)
+        let args ← params.mapM (·.arg)
+        -- Atomic propositions as `SafetyProperty` (like in `#model_check`)
+        let atomApp ← `(term| @$(mkIdent (mod.name ++ atomName)):ident $args* $(mkIdent `th) $(mkIdent `st))
+        `(term| $(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
+            ($(mkIdent `name) := $(quote atomName))
+            ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $atomApp))
+      let propTerm ← `(term| { $(mkIdent `name):ident := $(quote lp.name), $(mkIdent `atoms):ident := [$atomTerms,*], $(mkIdent `φ):ident := $(lp.formula) })
+      let derivedFrom := Std.HashSet.ofArray lp.atoms
+      let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .invariantLike derivedFrom)
+      -- Require `Enumeration` for every sort, so that `∀`/`∃` over a sort inside a
+      -- liveness atom can synthesize `Decidable` (see `Module.livenessEnumerationParams`).
+      let enumParams ← mod.livenessEnumerationParams
+      let binders ← (baseParams ++ extraParams ++ enumParams).mapM (·.binder)
+      let propCmd ← `(command| def $(mkIdent lp.name) $[$binders]* :
+        $(mkIdent ``Veil.LivenessMC.LivenessProperty) $environmentTheory $environmentState := $propTerm)
+      elabVeilCommand propCmd
+      let derivedDef : DerivedDefinition :=
+        { name := lp.name, kind := .invariantLike, params := #[], extraParams := extraParams, derivedFrom := derivedFrom, stx := propCmd }
+      mod.registerDerivedDefinition derivedDef
+  return mod
 
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/

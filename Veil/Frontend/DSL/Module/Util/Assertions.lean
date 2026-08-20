@@ -53,6 +53,7 @@ where
       | .trustedInvariant => s!"trusted_inv_{sz}"
       | .termination => s!"termination_{sz}"
       | .stateConstraint => s!"state_constraint_{sz}"
+      | .livenessAtom => s!"liveness_atom_{sz}"
 
 def Module.registerAssertion [Monad m] [MonadError m] (mod : Module) (sc : StateAssertion) : m Module := do
   mod.throwIfAlreadyDeclared sc.name

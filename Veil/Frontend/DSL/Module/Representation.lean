@@ -145,6 +145,9 @@ inductive StateAssertionKind
   /-- A `state_constraint` filters out states during model checking.
   States that do not satisfy the constraint are not explored. -/
   | stateConstraint
+  /-- An atomic proposition (`⌜ AP ⌝`) occurring inside a `liveness` LTL
+  formula. Like `invariant`/`safety`, but not checked as an invariant. -/
+  | livenessAtom
 deriving BEq, Hashable, Repr
 
 instance : Inhabited StateAssertionKind where
@@ -282,6 +285,17 @@ deriving Inhabited
 
 def StateAssertion.declarationKind (sa : StateAssertion) : DeclarationKind := .stateAssertion sa.kind
 
+
+structure LivenessAssertion where
+  name : Name
+  /-- List of atomic propositions `⌜ AP ⌝` checked per state -/
+  atoms : Array Name
+  formula : Term
+  /-- The user-written syntax that resulted in the declaration of this
+  assertion. -/
+  userSyntax : Syntax
+deriving Inhabited
+
 /--
   A `procedure` is a chunk of imperative code that takes arguments and
   potentially returns a value.
@@ -377,6 +391,9 @@ structure Module where
   procedures : Array ProcedureSpecification
   /-- The assertions that this module makes -/
   assertions : Array StateAssertion
+
+  /-- The `liveness` (LTL) properties that this module makes. -/
+  livenessProperties : Array LivenessAssertion := #[]
 
   /-- Derived definitions that this module has. -/
   protected _derivedDefinitions : Std.HashMap Name DerivedDefinition

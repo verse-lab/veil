@@ -98,6 +98,7 @@ instance : ToString StateAssertionKind where
     | StateAssertionKind.safety => "safety"
     | StateAssertionKind.termination => "termination"
     | StateAssertionKind.stateConstraint => "state_constraint"
+    | StateAssertionKind.livenessAtom => "liveness_atom"
 
 instance : ToString StateAssertion where
   toString sa := s!"{sa.kind} [{sa.name}] {sa.term}"
@@ -315,6 +316,14 @@ def Module.sortNames (mod : Module) : Array Name := mod.sortFilterMapFn (m := Id
 /-- Returns sort parameters along with their kind (uninterpreted or enum). -/
 def Module.sortParams (mod : Module) : Array (Parameter × SortKind) := mod.sortFilterMapFn (m := Id) fun p k => (p, k)
 
+/-- For each sort parameter this module declares (`type X` or `enum X`), build a `Veil.Enumeration X`.
+  This lets a `liveness` atom's `∀`/`∃` over such a sort. -/
+def Module.livenessEnumerationParams [Monad m] [MonadQuotation m] (mod : Module) : m (Array Parameter) :=
+  mod.sortFilterMapFn fun p _ => do
+    let enumType ← `(term| $(mkIdent ``Veil.Enumeration) $(mkIdent p.name))
+    pure { kind := .moduleTypeclass .sortAssumption, name := Name.mkSimple s!"{p.name}_livenessEnum",
+           «type» := enumType, userSyntax := p.userSyntax : Parameter }
+
 /-! ## Uninterpreted Parameter Utilities (sorts + user parameters) -/
 
 /-- Filters and maps over uninterpreted parameters, including sorts and user-declared
@@ -350,7 +359,7 @@ def Module.declarationBaseParams [Monad m] [MonadQuotation m] [MonadExceptOf Exc
   | .stateComponent _ _ => mod.uninterpretedParamFilterMapFn (pure ·)
   | .stateAssertion .assumption => pure (theoryParameters mod)
   | .stateAssertion .invariant | .stateAssertion .safety | .stateAssertion .trustedInvariant => pure mod.parameters
-  | .stateAssertion .termination | .stateAssertion .stateConstraint => pure mod.parameters -- the same as `invariant`
+  | .stateAssertion .termination | .stateAssertion .stateConstraint | .stateAssertion .livenessAtom => pure mod.parameters -- the same as `invariant`
   | .procedure _ => pure mod.parameters
   | .derivedDefinition k _ => derivedDefinitionBaseParams mod k
 where

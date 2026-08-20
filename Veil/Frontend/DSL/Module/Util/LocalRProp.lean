@@ -130,7 +130,7 @@ private def Module.statePredicateExprParams [Monad m] [MonadQuotation m] [MonadE
 where
   isStateAssertionWithState : StateAssertionKind → Bool
   | .assumption => false
-  | .invariant | .safety | .trustedInvariant | .termination | .stateConstraint => true
+  | .invariant | .safety | .trustedInvariant | .termination | .stateConstraint | .livenessAtom => true
 
 private def Module.statePredicateLayout [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
     (mod : Module) (nm : Name) : m StatePredicateLayout := do

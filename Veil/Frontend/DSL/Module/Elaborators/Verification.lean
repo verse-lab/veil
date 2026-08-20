@@ -155,6 +155,7 @@ def elabGenSpec : CommandElab := fun stx => do
     -- A previous #gen_spec may have finalized the spec while deferring verification.
     let mod ← if veil.deferVCGeneration.get (← getOptions) then pure mod
       else mod.ensureVerificationSpec stx
+    let mod ← mod.generateLivenessDefinitions
     localEnv.modifyModule (fun _ => mod)
 
 private def proofHasSorryGoalCount (results : VerificationResults VCMetadata SmtResult) : Nat :=
