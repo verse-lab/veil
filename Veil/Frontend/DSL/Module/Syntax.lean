@@ -65,6 +65,7 @@ scoped syntax (name := kw_invariant) "invariant" : veilKeyword
 scoped syntax (name := kw_safety) "safety" : veilKeyword
 scoped syntax (name := kw_termination) "termination" : veilKeyword
 scoped syntax (name := kw_state_constraint) "state_constraint" : veilKeyword
+scoped syntax (name := kw_liveness) "liveness" : veilKeyword
 
 scoped syntax (name := kw_gen_spec) "#gen_spec" : veilKeyword
 scoped syntax (name := kw_gen_executable) "#gen_executable" : veilKeyword
@@ -302,6 +303,34 @@ scoped syntax (name := stateConstraintKind) kw_state_constraint : propertyKind
 
 /-- An assertion. -/
 scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term : command
+
+/- ## Liveness (LTL) properties -/
+
+declare_syntax_cat ltlFormula
+
+/-- Atomic proposition: lifts a state predicate into an LTL atom. -/
+scoped syntax (name := ltlAtom) "⌜" term "⌝" : ltlFormula
+scoped syntax (name := ltlTop) "⊤" : ltlFormula
+scoped syntax (name := ltlBot) "⊥" : ltlFormula
+scoped syntax (name := ltlParen) "(" ltlFormula ")" : ltlFormula
+
+scoped syntax:max (name := ltlNot) "¬" ltlFormula:max : ltlFormula
+scoped syntax:max (name := ltlEventually) "◇" ltlFormula:max : ltlFormula
+scoped syntax:max (name := ltlAlways) "□" ltlFormula:max : ltlFormula
+
+scoped syntax:35 (name := ltlAnd) ltlFormula " ∧ " ltlFormula:36 : ltlFormula
+scoped syntax:30 (name := ltlOr) ltlFormula " ∨ " ltlFormula:31 : ltlFormula
+scoped syntax:25 (name := ltlImplies) ltlFormula " → " ltlFormula:26 : ltlFormula
+scoped syntax:20 (name := ltlIff) ltlFormula " ↔ " ltlFormula:21 : ltlFormula
+
+/-- Declare a liveness (LTL) property.
+
+Example:
+```lean
+liveness [someChosen] ◇ ⌜ chosen = 1 ⌝
+```
+-/
+scoped syntax (name := livenessDeclaration) kw_liveness (propertyName)? ltlFormula : command
 
 /-- Assemble the specification. -/
 scoped syntax (name := genSpec) kw_gen_spec : command
