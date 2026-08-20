@@ -79,9 +79,10 @@ def check
     (p.sysLabel th)
     (finiteReach_of_closed (sysSucc sys) sys.initStates (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed)
 
-def checkResultToString [Repr σ] (sysName propName : String) :
-    LTLLib.EmptinessResult (σ × LTLLib.BAState) → String
-  | .empty n => s!"{sysName} ⊨ {propName} (explored {n} product states)"
-  | .nonEmpty stem loop => s!"{sysName} ⊭ {propName}; counterexample stem={reprStr stem} loop={reprStr loop}"
+def printCheckResult [Repr σ] (sysName propName : String) :
+    LTLLib.EmptinessResult (σ × LTLLib.BAState) → IO Unit
+  | .empty n => IO.println s!"{sysName} ⊨ {propName} (explored {n} product states)"
+  | .nonEmpty stem loop => IO.println
+    s!"{sysName} ⊭ {propName}; counterexample\n\nstem={reprStr (stem.map Prod.fst)}\n\nloop={reprStr (loop.map Prod.fst)}"
 
 end Veil.LivenessMC
