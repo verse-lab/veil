@@ -24,12 +24,12 @@ liveness [eventuallyFalse] ◇ ⊥
 
 #model_check {}
 
-#eval Veil.LivenessMC.checkResultToString "Live" "□⊤"
+#eval Veil.LivenessMC.printCheckResult "Live" "□⊤"
   (Veil.LivenessMC.check (enumerableTransitionSystem {})
     (alwaysTrue Theory (State FieldConcreteType) FieldConcreteType)
     (by native_decide) (by native_decide))
 
-#eval Veil.LivenessMC.checkResultToString "Live" "◇⊥"
+#eval Veil.LivenessMC.printCheckResult "Live" "◇⊥"
   (Veil.LivenessMC.check (enumerableTransitionSystem {})
     (eventuallyFalse Theory (State FieldConcreteType) FieldConcreteType)
     (by native_decide) (by native_decide))
