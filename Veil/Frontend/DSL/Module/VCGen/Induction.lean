@@ -76,60 +76,20 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
   let dischargerId :=
     if nameSuffix.isEmpty then dischargerId
     else { dischargerId with name := Name.mkSimple s!"{dischargerId.name.getString!}{nameSuffix}" }
-  -- let cancelTk := cancelTk?.getD $ (Context.cancelTk? (← read)).getD (← IO.CancelToken.new)
-  let cancelTk ← IO.CancelToken.new
-  let smtCh ← Std.CloseableChannel.new
-  -- Create promises to track start time and result
-  let startTimePromise ← IO.Promise.new
-  let resultPromise ← IO.Promise.new
   let env0 ← getEnv
-  -- Use wrapAsyncAsSnapshot for proper snapshot tree integration with the language server
-  let mk ← Command.wrapAsyncAsSnapshot (fun vcStatement : VCStatement => do
-    -- Resolve the start time promise when the discharger actually begins
-    let startTime ← IO.monoMsNow
-    startTimePromise.resolve startTime
-    let res ← (do
-      try
-        -- Wrap in profiler trace for discharger timing
-        withTraceNode (`veil.perf.discharger ++ dischargerId.name)
-            (fun _ => return s!"discharger {dischargerId.name}") do
-          liftTermElabM $ do
-            let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
-            let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
-              withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
-            let witness ← inlineFreshProofs env0 witness
-            let endTime ← IO.monoMsNow
-            if witness.hasMVar || witness.hasFVar || witness.hasSyntheticSorry then
-              throwError "unsolved goals"
-            let dischargerResult ← mkDischargerResult dischargerId.name actName smtCh
-              (.inl witness) (endTime - startTime)
-            return dischargerResult
-      catch ex =>
-        -- An exception escaping this function would skip publication and leave
-        -- the VC `.running` forever; fall back to a bare error result built
-        -- without elaboration. (Interrupts still escape.)
-        let endTime ← IO.monoMsNow
-        try
-          liftTermElabM $ mkDischargerResult dischargerId.name actName smtCh
-            (.inr ex) (endTime - startTime)
-        catch ex2 =>
-          return .error #[← safeExceptionEntry ex, ← safeExceptionEntry ex2]
-            (endTime - startTime)
-    )
-    publishDischargerResult resultPromise ch dischargerId res
-  ) cancelTk
-  -- Dedicated thread: the task blocks in in-process solver FFI for its whole
-  -- duration, which would starve the bounded elaboration thread pool
-  let mkTask := (mk vcStatement).asTask (prio := .dedicated)
-  return {
-    id := dischargerId,
-    term := term,
-    cancelTk := cancelTk,
-    task := Option.none,
-    startTimePromise := startTimePromise,
-    resultPromise := resultPromise,
-    mkTask := mkTask
-  }
+  Discharger.fromTermWith term vcStatement dischargerId ch fun smtCh data time => do
+    let data : Witness ⊕ Exception ← match data with
+      | .inl witness => do
+        let witness ← inlineFreshProofs env0 witness
+        -- A throw here is caught by `Discharger.fromTermWith`, which re-invokes
+        -- us with the exception (`.inr`); `mkDischargerResult` then throws its
+        -- "unsat, but no witness provided" when the solver succeeded but the
+        -- tactic still failed, and the fallback error result is published.
+        if witness.hasMVar || witness.hasFVar || witness.hasSyntheticSorry then
+          throwError "unsolved goals"
+        pure (.inl witness)
+      | .inr ex => pure (.inr ex)
+    mkDischargerResult dischargerId.name actName smtCh data time
 
 /-! ## VC Statement Building -/
 

@@ -86,4 +86,61 @@ def buildSmtResult [Monad m] [MonadError m] [MonadLiftT BaseIO m]
   -- the SMT solver wasn't involved in proving this goal
   return .none
 
+/-- Create a discharger that elaborates `term` against the VC statement's type
+    and builds its result via `mkResult`.
+
+    `mkResult` runs inside `liftTermElabM` and receives the SMT output channel,
+    either the elaborated witness (`.inl`) or the exception that interrupted
+    elaboration (`.inr`), and the elapsed time in milliseconds. -/
+def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
+    (dischargerId : DischargerIdentifier)
+    (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
+    (mkResult : Std.CloseableChannel ((Name × Nat) × Smt.AsyncOutput) →
+      Witness ⊕ Exception → Nat → TermElabM (DischargerResult SmtResult))
+    (traceLabel : String := "discharger") : CommandElabM (Discharger SmtResult) := do
+  let cancelTk ← IO.CancelToken.new
+  let smtCh ← Std.CloseableChannel.new
+  -- Create promises to track start time and result
+  let startTimePromise ← IO.Promise.new
+  let resultPromise ← IO.Promise.new
+  -- Use wrapAsyncAsSnapshot for proper snapshot tree integration with the language server
+  let mk ← Command.wrapAsyncAsSnapshot (fun vcStatement : VCStatement => do
+    -- Resolve the start time promise when the discharger actually begins
+    let startTime ← IO.monoMsNow
+    startTimePromise.resolve startTime
+    let res ← (do
+      try
+        -- Wrap in profiler trace for discharger timing
+        withTraceNode (`veil.perf.discharger ++ dischargerId.name)
+            (fun _ => return s!"{traceLabel} {dischargerId.name}") do
+          liftTermElabM $ do
+            let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
+            let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
+              withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
+            let endTime ← IO.monoMsNow
+            mkResult smtCh (.inl witness) (endTime - startTime)
+      catch ex =>
+        --`mkResult` can throw, but a result must be published on every path.
+        let endTime ← IO.monoMsNow
+        try
+          liftTermElabM $ mkResult smtCh (.inr ex) (endTime - startTime)
+        catch ex2 =>
+          return .error #[← safeExceptionEntry ex, ← safeExceptionEntry ex2]
+            (endTime - startTime)
+    )
+    publishDischargerResult resultPromise ch dischargerId res
+  ) cancelTk
+  -- Dedicated thread: the task blocks in in-process solver FFI for its whole
+  -- duration, which would starve the bounded elaboration thread pool
+  let mkTask := (mk vcStatement).asTask (prio := .dedicated)
+  return {
+    id := dischargerId,
+    term := term,
+    cancelTk := cancelTk,
+    task := Option.none,
+    startTimePromise := startTimePromise,
+    resultPromise := resultPromise,
+    mkTask := mkTask
+  }
+
 end Veil
