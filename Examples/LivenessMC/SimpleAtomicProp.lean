@@ -33,7 +33,7 @@ liveness [chosenEqOne] □ ◇ ⌜ chosen = 1 ⌝
 
 #model_check {}
 
-#eval Veil.LivenessMC.checkResultToString "Live" "□◇(chosen = 1)"
+#eval Veil.LivenessMC.printCheckResult "Live" "□◇(chosen = 1)"
   (Veil.LivenessMC.check (enumerableTransitionSystem {})
     (chosenEqOne Theory (State FieldConcreteType) FieldConcreteType)
     (by native_decide) (by native_decide))
