@@ -24,6 +24,7 @@ private def assignmentTarget? (stx : Syntax) : Option Term :=
   match elem with
   | `(doElem| $target:term $[: $_]? := $_) => some target
   | `(doReassignArrow| $target:term $[: $_]? ← $_ $[| $_ $[$_]?]?) => some target
+  | `(doElem| $target:term := *) => some target
   | _ => none
 
 private def nestedActionInAssignmentTarget? (stx : Syntax) : Option Syntax := do
@@ -43,9 +44,9 @@ private def findKindOutsideQuotations? (stx : Syntax) (kind : SyntaxNodeKind) : 
   findOutsideQuotations? stx fun candidate =>
     if candidate.isOfKind kind then some candidate else none
 
-/-- Structural checks which must run before Lean expands macros and lifts
-nested actions. Defensive `DoElab` handlers cover statement kinds introduced
-later by macros. -/
+/-- Structural checks which must run before Lean lifts nested actions. This is
+applied both to the user's surface syntax and to the syntax obtained after
+`prepareStateAssignments` expands `doElem` macros. -/
 def validateVeilDo (body : ActionSyntax) : TermElabM Unit := do
   if let some termDo := findKindOutsideQuotations? body.raw ``Lean.Parser.Term.do then
     throwErrorAt termDo
@@ -89,6 +90,11 @@ def elabVeilDo (procName : Name) (readerType stateType : Term)
   let parameters ← currentParameters
   warnParameterShadows mod body parameters
   let body : ActionSyntax := ⟨← prepareStateAssignments body.raw⟩
+  /- `prepareStateAssignments` recursively expands `doElem` macros.  Validate
+  the syntax that will actually reach Lean's nested-action lifting as well as
+  the original surface syntax above, so a macro cannot introduce a forbidden
+  term-level `do`, `do←`, or effectful assignment target. -/
+  validateVeilDo body
   let expectedTypeStx ←
     `(term| $(mkIdent ``VeilM) $veilModeVar $readerType $stateType _)
   let expectedType ← Term.elabType expectedTypeStx
