@@ -70,9 +70,9 @@ transform them into assignments Lean accepts. -/
 def prepareStateAssignments (stx : Syntax) : TermElabM Syntax :=
   rewriteAssignments stx false
 
-/-- The head name of an assignment-shaped statement's target (wrapped
+/-- The head identifier of an assignment-shaped statement's target (wrapped
 assignments and havoc). -/
-private def assignmentTargetHead? (elem : DoElem) : Option Name :=
+private def assignmentTargetHead? (elem : DoElem) : Option Ident :=
   let lhs? : Option Term :=
     match elem with
     | `(doReassign| $lhs:term $[: $_]? := $_) => some lhs
@@ -81,9 +81,9 @@ private def assignmentTargetHead? (elem : DoElem) : Option Name :=
     | _ => none
   lhs?.bind fun lhs =>
     if lhs.raw.isIdent then
-      some lhs.raw.getId
+      some ⟨lhs.raw⟩
     else
-      lhs.isApp?.map fun (head, _) => head.getId
+      lhs.isApp?.map fun (head, _) => head
 
 /-- Wrapped assignments must still report their target as reassigned: Lean
 threads `let mut` locals through branch join points based on this set, and an
@@ -96,14 +96,31 @@ join. -/
 def assignmentControlInfo : ControlInfoHandler := fun stx => do
   let `(doElem| veil_state_assign% $elem:doElem) := stx | throwUnsupportedSyntax
   let some head := assignmentTargetHead? elem | return ControlInfo.pure
-  return { ControlInfo.pure with reassigns := ({} : NameSet).insert head }
+  /- This is the same composition used by Lean's
+  `InferControlInfo.ofLetOrReassignArrow`, except that we supply the target
+  head directly instead of asking Lean to interpret an application-shaped
+  target as a reassignment pattern. -/
+  match elem with
+  | `(doReassign| $_:term $[: $_]? := $_) =>
+    InferControlInfo.ofLetOrReassign #[head] none none none
+  | `(doReassignArrow| $decl:doIdDecl) =>
+    match decl with
+    | `(doIdDecl| $_:ident $[: $_]? ← $rhs:doElem) =>
+      InferControlInfo.ofLetOrReassign #[head] (some rhs) none none
+    | _ => throwUnsupportedSyntax
+  | `(doReassignArrow| $decl:doPatDecl) =>
+    match decl with
+    | `(doPatDecl| $_:term $[: $_]? ← $rhs:doElem $[| $otherwise? $[$body??]?]?) =>
+      InferControlInfo.ofLetOrReassign #[head] (some rhs) otherwise? body??.join
+    | _ => throwUnsupportedSyntax
+  | _ => throwUnsupportedSyntax
 
 /-- Havoc reassigns its target when the target resolves to a `let mut` local,
 so it reports the head conservatively, like wrapped assignments. -/
 @[doElem_control_info havocAssignment]
 def havocControlInfo : ControlInfoHandler := fun stx => do
   let some head := assignmentTargetHead? stx | return ControlInfo.pure
-  return { ControlInfo.pure with reassigns := ({} : NameSet).insert head }
+  return { ControlInfo.pure with reassigns := ({} : NameSet).insert head.getId }
 
 /-! ## Targets: parsing and resolution -/
 
