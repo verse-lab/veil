@@ -24,7 +24,7 @@ private def assignmentNeedsWrapper (lhs : Term) : Bool :=
 private def wrapAssignment (stx : Syntax) : TermElabM Syntax := do
   let elem : DoElem := ⟨stx⟩
   match elem with
-  | `(doElem| $lhs:term := $_)
+  | `(doReassign| $lhs:term $[: $_]? := $_)
   | `(doReassignArrow| $lhs:term $[: $_]? ← $_ $[| $_ $[$_]?]?) =>
     if assignmentNeedsWrapper lhs then
       return (← `(doElem| veil_state_assign% $elem:doElem)).raw
@@ -143,19 +143,20 @@ private def parseReassign (stx : DoElem) : TermElabM (Target × Option Term × T
     return (← parseTarget lhs, ty, rhs)
   | _ => throwError m!"internal Veil assignment parser mismatch:{indentD stx} raw: {stx.raw}"
 
-private def parseReassignArrow (stx : DoElem) : TermElabM (Target × DoElem) := do
+private def parseReassignArrow (stx : DoElem) :
+    TermElabM (Target × Option Term × DoElem) := do
   match stx with
   | `(doReassignArrow| $decl:doIdDecl) =>
     match decl with
-    | `(doIdDecl| $id:ident $[: $_]? ← $rhs:doElem) =>
-      return (← parseTargetHead id, rhs)
+    | `(doIdDecl| $id:ident $[: $ty:term]? ← $rhs:doElem) =>
+      return (← parseTargetHead id, ty, rhs)
     | _ => throwUnsupportedSyntax
   | `(doReassignArrow| $decl:doPatDecl) =>
     match decl with
     | `(doPatDecl| $_:term $[: $_]? ← $_ | $_ $[$_]? ) =>
       throwErrorAt decl "fallback branches are not supported on Veil state arrow assignments"
-    | `(doPatDecl| $lhs:term $[: $_]? ← $rhs:doElem) =>
-      return (← parseTarget lhs, rhs)
+    | `(doPatDecl| $lhs:term $[: $ty:term]? ← $rhs:doElem) =>
+      return (← parseTarget lhs, ty, rhs)
     | _ => throwUnsupportedSyntax
   | _ => throwUnsupportedSyntax
 
@@ -224,14 +225,20 @@ private def checkRepeatedCapitals (target : Target)
 
 /-! ## Compiling assignments -/
 
-private def checkStateTypeAscription (component : StateComponent)
-    (type? : Option Term) : DoElabM Unit := do
+/-- Check a state-assignment annotation against the type at the complete target. -/
+private def checkStateTargetTypeAscription (component : StateComponent)
+    (target : Target) (type? : Option Term) : DoElabM Unit := do
   let some typeStx := type? | return
+  let domains := component.domainTerms
+  let codomain := component.codomainTerm
+  /- Let the generated application report an over-application; manufacturing
+  a target type after too many arguments would only hide that better error. -/
+  if domains.size < target.args.size then return
+  let targetTypeStx ← mkArrowStx (domains.drop target.args.size).toList (some codomain)
   let annotated ← Term.elabType typeStx
-  let declaredTypeStx ← component.typeStx
-  let declared ← Term.elabType declaredTypeStx
-  unless ← isDefEq annotated declared do
-    throwErrorAt typeStx m!"state assignment type `{typeStx}` does not match the declared type `{declaredTypeStx}` of component `{component.name}`"
+  let targetType ← Term.elabType targetTypeStx
+  unless ← isDefEq annotated targetType do
+    throwErrorAt typeStx m!"state assignment annotation `{typeStx}` does not match the target type `{targetTypeStx}` at this application of component `{component.name}`"
 
 /-- Elaborate each non-capitalized index once (at statement scope) and bind it
 to an implementation-detail `let`. This ensures that in `r N (f N) := v`, the
@@ -363,10 +370,19 @@ private def elabLocalAssignment (target : Target) (rhs : Term)
 private def elabPureAssignment (ctx : Context) (target : Target)
     (type? : Option Term) (rhs : Term)
     (stx : DoElem) (dec : DoElemCont) : DoElabM Expr := do
+  let rhs ← match type? with
+    | none => pure rhs
+    | some typeStx =>
+      /- Mirror Lean's `pushTypeIntoReassignment` from `Lean/Elab/BuiltinDo/Let.lean`,
+      which pushes a reassignment pattern's inferred type onto its RHS.
+      Veil handles application-shaped targets before Lean can do so,
+      hence `r x : τ := v` must explicitly elaborate the written
+      value as `(v : τ)`. -/
+      `(($rhs : $typeStx))
   match ← resolveAssignmentTarget ctx target with
   | .local => elabLocalAssignment target rhs stx dec
   | .state component =>
-    checkStateTypeAscription component type?
+    checkStateTargetTypeAscription component target type?
     elabStateAssignment ctx component target rhs stx dec
 
 /-! ## Assignment statement handlers -/
@@ -377,25 +393,30 @@ def elabStateReassign : DoElab := fun stx dec => do
   let (target, type?, rhs) ← parseReassign stx
   openStateAround ctx.mod <| elabPureAssignment ctx target type? rhs stx dec
 
-private def withArrowResult (target : Target) (rhs : DoElem) (ref : Syntax)
+private def withArrowResult (target : Target) (type? : Option Term)
+    (rhs : DoElem) (ref : Syntax)
     (k : Term → DoElabM Expr) : DoElabM Expr := do
   let name ← mkFreshUserName
     (mkVeilImplementationDetailName <| Name.mkSimple s!"arrow_{target.componentName}")
-  elabDoIdDecl (mkIdentFrom ref name) none rhs (k (mkIdent name))
+  /- `r x : τ ← action` becomes `let tmp : τ ← action; r x := tmp`:
+  the annotation constrains the action's result, which is the value written at
+  the complete target. -/
+  elabDoIdDecl (mkIdentFrom ref name) type? rhs (k (mkIdent name))
 
 @[doElem_elab Lean.Parser.Term.doReassignArrow]
 def elabStateReassignArrow : DoElab := fun stx dec => do
   let ctx ← requireVeilDoBlock
-  let (target, rhs) ← parseReassignArrow stx
+  let (target, type?, rhs) ← parseReassignArrow stx
   openStateAround ctx.mod do
     match ← resolveAssignmentTarget ctx target with
     | .local =>
       if target.args.isEmpty then
         return ← Lean.Elab.Do.elabDoReassignArrow stx dec
-      withArrowResult target rhs stx fun value =>
+      withArrowResult target type? rhs stx fun value =>
         elabLocalAssignment target value stx dec
     | .state component =>
-      withArrowResult target rhs stx fun value =>
+      checkStateTargetTypeAscription component target type?
+      withArrowResult target type? rhs stx fun value =>
         openStateAround ctx.mod <|
           elabStateAssignment ctx component target value stx dec
 

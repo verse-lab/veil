@@ -31,11 +31,46 @@ procedure reject_arrow_fallback {
 }
 
 /--
-error: Error in action reject_wrong_state_ascription: state assignment type `Int` does not match the declared type `Nat` of component `x`
+error: Error in action reject_wrong_state_ascription: state assignment annotation `Int` does not match the target type `Nat` at this application of component `x`
 -/
 #guard_msgs(error, drop warning) in
 procedure reject_wrong_state_ascription {
   x : Int := 0
+}
+
+/--
+error: Error in action reject_wrong_indexed_state_ascription: state assignment annotation `Bool → Bool` does not match the target type `Bool` at this application of component `r`
+-/
+#guard_msgs in
+procedure reject_wrong_indexed_state_ascription {
+  r true : Bool → Bool := true
+}
+
+/--
+error: Error in action reject_wrong_indexed_arrow_ascription: state assignment annotation `Bool → Bool` does not match the target type `Bool` at this application of component `r`
+-/
+#guard_msgs in
+procedure reject_wrong_indexed_arrow_ascription {
+  r true : Bool → Bool ← pure true
+}
+
+#guard_msgs in
+procedure accept_indexed_state_ascription {
+  if true then
+    r true : Bool := true
+  else
+    pure ()
+}
+
+#guard_msgs in
+procedure accept_indexed_arrow_ascription {
+  r true : Bool ← pure true
+}
+
+#guard_msgs in
+procedure accept_indexed_local_ascription {
+  let mut f := fun _ : Bool => 0
+  f true : Nat := 1
 }
 
 /--
