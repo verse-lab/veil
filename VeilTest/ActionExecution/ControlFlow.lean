@@ -95,6 +95,19 @@ procedure early_return (stop : Bool) {
   return x
 }
 
+/- An application-shaped arrow assignment is hidden behind Veil's wrapper.
+Control information from its RHS must still expose the early return: that path
+skips both the generated assignment and the rest of the action. -/
+procedure arrow_rhs_early_return (stop : Bool) {
+  let mut target := fun _ : Bool => false
+  target true ← do
+    if stop then
+      return false
+    pure true
+  x := 99
+  return target true
+}
+
 -- Exercise typed patterns, local mutation, and an immediate nested `do`.
 procedure locals_and_nested_do {
   let (a, b) : Nat × Nat := (2, 3)
@@ -197,6 +210,16 @@ def earlyStopResult := __veil_exec_action% {} background initial (early_return t
 def earlyContinueResult := __veil_exec_action% {} background initial (early_return false)
 #guard exactlyOneSuccess earlyContinueResult fun value state =>
   value == 12 && state.x == 12 && state.y == 2
+
+def arrowRhsEarlyStopResult :=
+  __veil_exec_action% {} background initial (arrow_rhs_early_return true)
+#guard exactlyOneSuccess arrowRhsEarlyStopResult fun value state =>
+  !value && state.x == 1 && state.y == 2 && !state.flag
+
+def arrowRhsEarlyContinueResult :=
+  __veil_exec_action% {} background initial (arrow_rhs_early_return false)
+#guard exactlyOneSuccess arrowRhsEarlyContinueResult fun value state =>
+  value && state.x == 99 && state.y == 2 && !state.flag
 
 def nestedResult := __veil_exec_action% {} background initial locals_and_nested_do
 #guard exactlyOneSuccess nestedResult fun value state =>

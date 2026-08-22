@@ -81,6 +81,17 @@ procedure reject_qualified_state_write {
   child.x := 1
 }
 
+/- A qualified arrow target is parsed as `doIdDecl`, rather than the
+`doPatDecl` used by application-shaped targets. Its wrapper must preserve
+enough control information to reach Veil's intended target diagnostic. -/
+/--
+error: Error in action reject_qualified_state_arrow_write: qualified state assignments are not supported; assign through an unqualified state component name
+-/
+#guard_msgs(error, drop warning) in
+procedure reject_qualified_state_arrow_write {
+  child.x ← pure 1
+}
+
 /--
 error: Error in action reject_effectful_target_index: effects are not supported in state-update target indices
 -/

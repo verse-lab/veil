@@ -77,6 +77,19 @@ procedure local_universal_havoc {
   return (m false, m true)
 }
 
+/- The outer indexed arrow assignment and the havoc in its RHS have separate
+control-info handlers. Both mutable locals must be threaded through the
+surrounding branch join. -/
+procedure havoc_inside_arrow_rhs {
+  let mut value := false
+  let mut target := fun _ : Bool => false
+  if true then
+    target true ← do
+      value := *
+      pure true
+  return (value, target true)
+}
+
 procedure assume_value (allowed : Bool) {
   assume allowed = true
   touched := true
@@ -149,6 +162,12 @@ def localUniversalHavocResult :=
 #guard hasSuccess localUniversalHavocResult fun value _ => value == (false, true)
 #guard hasSuccess localUniversalHavocResult fun value _ => value == (true, false)
 #guard hasSuccess localUniversalHavocResult fun value _ => value == (true, true)
+
+def rhsHavocResult := __veil_exec_action% {} {} initial havoc_inside_arrow_rhs
+#guard exactlyNSuccesses 2 rhsHavocResult fun value state =>
+  value.2 && !state.observed && !state.touched
+#guard hasSuccess rhsHavocResult fun value _ => value == (false, true)
+#guard hasSuccess rhsHavocResult fun value _ => value == (true, true)
 
 def assumeTrueResult := __veil_exec_action% {} {} initial (assume_value true)
 #guard exactlyOneSuccess assumeTrueResult fun _ state =>

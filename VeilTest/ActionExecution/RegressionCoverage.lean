@@ -98,6 +98,18 @@ procedure branch_local_indexed_arrow_update {
   return (m false, m true)
 }
 
+/- The arrow target and the mutation in its RHS are both application-shaped,
+so control-info inference recursively crosses two assignment wrappers. -/
+procedure nested_wrapped_mutation_inside_arrow_rhs {
+  let mut outer := fun _ : Bool => false
+  let mut inner := fun _ : Bool => false
+  if x then
+    outer true ← do
+      inner true := true
+      pure true
+  return (outer false, outer true, inner false, inner true)
+}
+
 /- Havoc of a local is a reassignment, so the havoc statement's ControlInfo
 must report it, or the branch's havoc is lost at the join (as above). -/
 procedure branch_local_havoc {
@@ -182,6 +194,11 @@ def branchLocalFunctionArrowResult :=
   __veil_exec_action% {} {} initial branch_local_indexed_arrow_update
 #guard exactlyOneSuccess branchLocalFunctionArrowResult fun value state =>
   value == (false, true) && state.x && state.y == 0
+
+def nestedWrappedMutationResult :=
+  __veil_exec_action% {} {} initial nested_wrapped_mutation_inside_arrow_rhs
+#guard exactlyOneSuccess nestedWrappedMutationResult fun value state =>
+  value == (false, true, false, true) && state.x && state.y == 0
 
 def branchLocalHavocResult :=
   __veil_exec_action% {} {} initial branch_local_havoc
