@@ -11,14 +11,6 @@ namespace Action.DoElab
 
 open Lean.Parser.Term
 
-/-- Search `stx` outermost-first for a node accepted by `match?`, skipping
-nodes inside syntax quotations. -/
-private partial def findOutsideQuotations? (stx : Syntax)
-    (match? : Syntax → Option α) (inQuotation := false) : Option α :=
-  (if inQuotation then none else match? stx) <|>
-    stx.getArgs.findSome? fun child =>
-      findOutsideQuotations? child match? (Action.childrenAreQuoted stx inQuotation)
-
 private def assignmentTarget? (stx : Syntax) : Option Term :=
   let elem : DoElem := ⟨stx⟩
   match elem with
@@ -67,6 +59,11 @@ def validateVeilDo (body : ActionSyntax) : TermElabM Unit := do
 
 /-! ## The `veil_do` entry point -/
 
+/-- The user-visible bindings in scope at the `veil_do` entry point: the
+action's declared parameters (e.g. `x` and `y` in
+`action foo (x : Nat) (y : Bool)`), plus any surrounding module-level
+binders. Only names that collide with a signature component matter — they
+trigger the shadow warning below and refine assignment diagnostics. -/
 private structure Parameters where
   ids : FVarIdSet := {}
   names : NameSet := {}

@@ -177,9 +177,6 @@ private def parseReassignArrow (stx : DoElem) :
     | _ => throwUnsupportedSyntax
   | _ => throwUnsupportedSyntax
 
-private def stateComponent? (mod : Module) (name : Name) : Option StateComponent :=
-  mod.signature.find? (·.name == name)
-
 /-- Fail because the assignment target is a local that is not `let mut`,
 pointing out shadowing when that is the likely cause. -/
 private def throwImmutableLocalTarget (target : Target) (mod : Module) : DoElabM α := do
@@ -192,7 +189,7 @@ private def throwImmutableLocalTarget (target : Target) (mod : Module) : DoElabM
 /-- Resolve `target` to a state component, or fail with `onMissing`. -/
 private def resolveStateComponent (mod : Module) (target : Target)
     (onMissing : MessageData) : DoElabM StateComponent := do
-  let some component := stateComponent? mod target.componentName
+  let some component := mod.signature.find? (·.name == target.componentName)
     | throwErrorAt target.head onMissing
   unless component.isMutable do mod.throwIfImmutable component.name
   return component
@@ -329,8 +326,8 @@ are built: `mkAssignmentPattern` (which entries change) and
 `(fieldRepresentation _).setSingle pattern replacement f_conc`, is computed
 from the statement's current concrete field view `f_conc` and bound once as an
 implementation-detail `let`, so the write itself stays a trivial structure
-update the WP simplifier can digest:
-`modifyGet fun st => (PUnit.unit, { st with f := __veil_bind_f })`.
+update the WP simplifier can digest (via `VeilM.wp_modify`/`wp_modify'`):
+`modify fun st => { st with f := __veil_bind_f }`.
 
 The statement produces no value (`ensureUnitAt`), and the returned expression
 is the entire remaining block: the continuation `dec` is elaborated after the
@@ -355,8 +352,8 @@ private def elabPinnedStateAssignment (mod : Module) (component : StateComponent
   mapLetDecl bindName setType setValue (kind := .implDetail) fun _ => do
     let st := mkIdent `st
     let updateTerm ← withRef ref
-      `($(mkIdent ``modifyGet) (fun $st:ident =>
-        ($(mkIdent ``PUnit.unit), {$st:ident with $(mkIdentFrom target.head component.name):ident := $(mkIdent bindName)})))
+      `($(mkIdent ``modify) (fun $st:ident =>
+        {$st:ident with $(mkIdentFrom target.head component.name):ident := $(mkIdent bindName)}))
     let updateElem ← `(doElem| $updateTerm:term)
     Lean.Elab.Do.elabDoExpr updateElem (← dec.ensureUnitAt ref)
 
@@ -487,8 +484,7 @@ private def localHavocPickType (decl : LocalDecl) (target : Target)
         m!"cannot havoc `{target.componentName}`: its type{indentExpr localType}\ndoes not accept this many index arguments"
     let capitalDomains ← xs.zipIdx.filterMapM fun (x, i) => do
       if caps[i]!.isSome then return some (← inferType x) else return none
-    let pickType ← capitalDomains.foldrM (init := body) fun domain rest =>
-      liftM (mkArrow domain rest)
+    let pickType ← liftM (mkArrowN capitalDomains body)
     if xs.any fun x => pickType.containsFVar x.fvarId! then
       throwErrorAt target.head
         m!"cannot havoc `{target.componentName}`: its type{indentExpr localType}\ndepends on the values of earlier indices"

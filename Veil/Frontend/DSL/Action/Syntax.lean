@@ -8,9 +8,33 @@ namespace Veil
 
 namespace Action
 
-/-- Whether children of `stx` are quoted, accounting for antiquotations. -/
+/-- Veil's pre-elaboration passes (`findOutsideQuotations?` below, and
+`rewriteAssignments` in `DoElab/Assign.lean`) walk raw action syntax *before*
+Lean's `do`-elaborator sees it, so they must make the same code-vs-data
+distinction Lean will later make: syntax inside a quotation is quoted *data*
+and must be left alone, while an antiquotation `$(...)` re-enters code
+territory. The `quoted_assignment_is_untouched` regression test pins the
+failure modes of getting this wrong.
+
+Quotedness is a two-state machine over the syntax tree, and this function is
+its transition: descending into a quotation (`stx.isQuot`) enters the quoted
+state; descending into an unescaped antiquotation leaves it (an escaped `$$x`
+stays quoted).
+
+The formula is a verbatim port of the quotation tracking in Lean core's
+nested-action lifter (`expandNestedActionsAux` in `Lean/Elab/Do/Basic.lean`,
+v4.32.0) and must stay in sync with it, since Veil's pre-passes rewrite the
+same tree Lean later traverses with these rules. -/
 def childrenAreQuoted (stx : Syntax) (currentlyQuoted : Bool) : Bool :=
   (currentlyQuoted && !(stx.isAntiquot && !stx.isEscapedAntiquot)) || stx.isQuot
+
+/-- Search `stx` outermost-first for a node accepted by `match?`, skipping
+nodes inside syntax quotations (see `childrenAreQuoted`). -/
+partial def findOutsideQuotations? (stx : Syntax)
+    (match? : Syntax → Option α) (inQuotation := false) : Option α :=
+  (if inQuotation then none else match? stx) <|>
+    stx.getArgs.findSome? fun child =>
+      findOutsideQuotations? child match? (childrenAreQuoted stx inQuotation)
 
 end Action
 
@@ -176,8 +200,10 @@ macro_rules
   | `(doElem| veil_var $x:ident : $ty:term) =>
     `(doElem| do let $x:ident ← pick ($ty:term); let mut $x:ident := $x:ident)
   | `(doElem| veil_let $decl:letDecl) => do
-    if decl.raw.find? (·.isOfKind ``Lean.Parser.Term.nestedAction) |>.isSome then
-      Macro.throwErrorAt decl "the right-hand side of `veil_let` must be pure; move the computation to a preceding bind"
+    let effect? := Action.findOutsideQuotations? decl.raw fun s =>
+      if s.isOfKind ``Lean.Parser.Term.nestedAction then some s else none
+    if let some effect := effect? then
+      Macro.throwErrorAt effect "the right-hand side of `veil_let` must be pure; move the computation to a preceding bind"
     let some (pattern, tyAsc, value) := parseVeilLet? decl
       | Macro.throwErrorAt decl "unsupported `veil_let` declaration"
     let value ← match tyAsc with

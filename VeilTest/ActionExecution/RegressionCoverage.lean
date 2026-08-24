@@ -132,6 +132,18 @@ procedure quoted_assignment_is_untouched {
   return true
 }
 
+/- A `(← e)` inside a syntax quotation is quoted data, not an effect, so the
+`veil_let` purity check must not reject it. -/
+procedure quoted_effect_in_veil_let_rhs_is_allowed {
+  veil_let quoted_ok : Bool := by
+    run_tac
+      let quoted ← `(doElem| r (← pure true) := true)
+      unless quoted.raw.getKind == ``Lean.Parser.Term.doReassign do
+        throwError "unexpected kind for quoted assignment in `veil_let`"
+    exact true
+  return quoted_ok
+}
+
 procedure assertion_allocation_probe (input : Option Bool) {
   match input with
   | some value => assert value = value
@@ -210,6 +222,11 @@ def branchLocalHavocResult :=
 def quotationResult :=
   __veil_exec_action% {} {} initial quoted_assignment_is_untouched
 #guard exactlyOneSuccess quotationResult fun value state =>
+  value && state.x && state.y == 0
+
+def quotedVeilLetResult :=
+  __veil_exec_action% {} {} initial quoted_effect_in_veil_let_rhs_is_allowed
+#guard exactlyOneSuccess quotedVeilLetResult fun value state =>
   value && state.x && state.y == 0
 
 /- Simulate a postponed action continuation resuming while an unrelated

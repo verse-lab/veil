@@ -11,7 +11,16 @@ open Lean.Elab.Do
 namespace Veil
 namespace Action.DoElab
 
-/-- Scoped information needed by Veil's extensible-`do` handlers. -/
+/-- Scoped information needed by Veil's extensible-`do` handlers.
+
+This cannot be threaded as a `ReaderT Context` layer: the handlers are
+invoked by Lean's `do`-elaborator through globally registered attributes
+(`@[doElem_elab]`, `@[doElem_control_info]`) whose signatures fix the monad,
+and Lean postpones parts of the body as synthetic metavariables that resume
+*after* the entry point has returned, outliving any reader scope. Hence the
+two mechanisms below: a rollback-safe environment extension for the dynamic
+scope, and a lexical local-context marker that survives inside captured
+continuations. -/
 structure Context where
   mod : Module
   proc : Name
@@ -48,7 +57,9 @@ def withVeilDoContext (ctx : Context) (x : TermElabM α) : TermElabM α := do
 def currentVeilDoContext [Monad m] [MonadEnv m] : m (Option Context) :=
   contextExt.get
 
-private def lexicalContext? [Monad m] [MonadLCtx m] : m (Option Name) := do
+/-- The procedure name recorded by the innermost action-body marker in the
+local context, if any. -/
+private def lexicalProcName? [Monad m] [MonadLCtx m] : m (Option Name) := do
   let marker? : Option (Option Name) := (← getLCtx).findDeclRev? fun decl =>
     let name := decl.userName
     if actionBodyMarkerPrefix.isPrefixOf name && name != actionBodyMarkerPrefix then
@@ -60,7 +71,7 @@ private def lexicalContext? [Monad m] [MonadLCtx m] : m (Option Name) := do
 private def recoverVeilContext? [Monad m] [MonadEnv m] [MonadLCtx m] [MonadError m]
     (fallbackMonad : m Expr) : m (Option Context) := do
   let dynamic? ← currentVeilDoContext
-  let some proc ← lexicalContext? | return dynamic?
+  let some proc ← lexicalProcName? | return dynamic?
   if let some ctx := dynamic? then if ctx.proc == proc then return some ctx
   let mod ← getCurrentModule
     (errMsg := "internal error: a Veil action continuation escaped its module")
@@ -85,10 +96,7 @@ private def monadIsVeilM (ctx : Context) : Lean.Elab.Do.DoElabM Bool := do
   let expectedMonad ← instantiateMVars ctx.monad
   if monad.hasMVar || expectedMonad.hasMVar then
     return false
-  unless monad.getAppFn.constName? == some ``VeilM &&
-      monad.getAppNumArgs == 3 &&
-      expectedMonad.getAppFn.constName? == some ``VeilM &&
-      expectedMonad.getAppNumArgs == 3 do
+  unless monad.isAppOfArity' ``VeilM 3 && expectedMonad.isAppOfArity' ``VeilM 3 do
     return false
   withNewMCtxDepth do isDefEq monad expectedMonad
 
@@ -151,6 +159,15 @@ def prependDoItem (item : TSyntax ``Lean.Parser.Term.doSeqItem)
   | `(doSeq| $items:doSeqItem*) => `(doSeq| $item $items*)
   | `(doSeq| { $items:doSeqItem* }) => `(doSeq| { $item $items* })
   | _ => throwErrorAt seq "unexpected Veil action body"
+
+/- In both binders below: when a user binding shadows a field name, later
+references to that name must keep resolving to the user's binding (a shadow
+warning was already issued at the entry point), so opening the field is
+skipped — emitting it would silently flip resolution back to the state
+component. The generated `let`s themselves are `.implDetail`, so they are
+invisible to `findUserLocal?`/`foldUserLocals`: openings emitted for one
+statement never count as user shadowing for the next, and never appear in
+user-facing warnings. -/
 
 private def bindTheoryFields (shadowed : NameSet) (theoryName : Name)
     (fields : Array StateComponent) (k : DoElabM Expr) : DoElabM Expr :=

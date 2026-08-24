@@ -181,6 +181,19 @@ lemma VeilM.wp_modifyGet' (f : σ → α × σ)
   rfl
 
 @[wpSimp ↓]
+lemma VeilM.wp_modify {_ : IsSubStateOf σₛ σ} (f : σₛ → σₛ)
+    (post : RProp PUnit ρ σ) (r : ρ) (s : σ) :
+    wp (modify f : VeilM m ρ σ PUnit) post r s =
+      post .unit r (setIn (f (getFrom s)) s) := by
+  rfl
+
+@[wpSimp ↓ high]
+lemma VeilM.wp_modify' (f : σ → σ)
+    (post : RProp PUnit ρ σ) (r : ρ) (s : σ) :
+    wp (modify f : VeilM m ρ σ PUnit) post r s = post .unit r (f s) := by
+  rfl
+
+@[wpSimp ↓]
 lemma VeilM.wp_read {_ : IsSubReaderOf ρₛ ρ}
     (post : RProp ρₛ ρ σ) (r : ρ) (s : σ) :
     wp (read : VeilM m ρ σ ρₛ) post r s = post (readFrom r) r s := by
