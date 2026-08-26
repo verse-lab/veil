@@ -115,10 +115,6 @@ private def activeVeilContext? : Lean.Elab.Do.DoElabM (Option Context) := do
   unless ← monadIsVeilM ctx do return none
   return some ctx
 
-/-- True exactly while elaborating a Veil action in a `VeilM` block. -/
-def isVeilDoBlock : Lean.Elab.Do.DoElabM Bool :=
-  return (← activeVeilContext?).isSome
-
 /-- Gate a Veil handler. Falling through uses Lean's ordinary handler and its
 saved elaborator state. -/
 def requireVeilDoBlock : Lean.Elab.Do.DoElabM Context := do
@@ -151,14 +147,6 @@ def foldUserLocals (init : α) (f : α → LocalDecl → α) : TermElabM α :=
 
 private def userLocalNames : TermElabM NameSet :=
   foldUserLocals {} fun names decl => names.insert decl.userName
-
-/-- Prepend `item` to a `do` sequence, preserving its braced/unbraced shape. -/
-def prependDoItem (item : TSyntax ``Lean.Parser.Term.doSeqItem)
-    (seq : DoSeq) : TermElabM DoSeq := do
-  match seq with
-  | `(doSeq| $items:doSeqItem*) => `(doSeq| $item $items*)
-  | `(doSeq| { $items:doSeqItem* }) => `(doSeq| { $item $items* })
-  | _ => throwErrorAt seq "unexpected Veil action body"
 
 /- In both binders below: when a user binding shadows a field name, later
 references to that name must keep resolving to the user's binding (a shadow

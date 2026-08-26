@@ -112,15 +112,18 @@ private def ifSomeBinderIdents? (pat : Term) : Option (Array Ident) :=
   | `(($_:hygieneInfo $x:ident, $xs:ident,*)) => some (#[x] ++ xs.getElems)
   | _ => none
 
-/-- Prepend `item` to a `do` sequence, preserving its braced/unbraced shape. -/
-private def prependDoSeqItem (item : TSyntax ``Lean.Parser.Term.doSeqItem)
-    (seq : TSyntax ``Lean.Parser.Term.doSeq) : MacroM (TSyntax ``Lean.Parser.Term.doSeq) := do
+/-- Prepend `item` to a `do` sequence, preserving its braced/unbraced shape;
+`none` for an unrecognized sequence shape. -/
+def prependDoSeqItem? [Monad m] [MonadQuotation m]
+    (item : TSyntax ``Lean.Parser.Term.doSeqItem)
+    (seq : TSyntax ``Lean.Parser.Term.doSeq) :
+    m (Option (TSyntax ``Lean.Parser.Term.doSeq)) := do
   match seq with
   | `(Lean.Parser.Term.doSeq| $items:doSeqItem*) =>
-    `(Lean.Parser.Term.doSeq| $item $items*)
+    return some (← `(Lean.Parser.Term.doSeq| $item $items*))
   | `(Lean.Parser.Term.doSeq| { $items:doSeqItem* }) =>
-    `(Lean.Parser.Term.doSeq| { $item $items* })
-  | _ => Macro.throwUnsupported
+    return some (← `(Lean.Parser.Term.doSeq| { $item $items* }))
+  | _ => return none
 
 macro_rules
   | `(doElem| if $witness:term $[: $type?:term]? :| $predicate:term then $thenSeq:doSeq $[else $elseSeq?:doSeq]?) => do
@@ -145,7 +148,7 @@ macro_rules
     let pickItem ← match type? with
       | none => `(Lean.Parser.Term.doSeqItem| let $witness:term :| $predicate)
       | some type => `(Lean.Parser.Term.doSeqItem| let $witness:term : $type :| $predicate)
-    let thenSeq ← prependDoSeqItem pickItem thenSeq
+    let some thenSeq ← prependDoSeqItem? pickItem thenSeq | Macro.throwUnsupported
     let elseSeq ← elseSeq?.getDM `(Lean.Parser.Term.doSeq| pure PUnit.unit)
     `(doElem| if $existsGuard then $thenSeq else $elseSeq)
 

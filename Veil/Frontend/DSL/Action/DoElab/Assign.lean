@@ -70,16 +70,21 @@ transform them into assignments Lean accepts. -/
 def prepareStateAssignments (stx : Syntax) : TermElabM Syntax :=
   rewriteAssignments stx false
 
+/-- The target (left-hand side) of an assignment-shaped statement: plain
+(`:=`), arrow (`←`), or havoc (`:= *`). The single source of truth for what
+counts as an assignment shape — pre-elaboration validation (`Entry.lean`) and
+control-info reporting below must never disagree about it. -/
+def assignmentLhs? (elem : DoElem) : Option Term :=
+  match elem with
+  | `(doReassign| $lhs:term $[: $_]? := $_) => some lhs
+  | `(doReassignArrow| $lhs:term $[: $_]? ← $_ $[| $_ $[$_]?]?) => some lhs
+  | `(doElem| $lhs:term := *) => some lhs
+  | _ => none
+
 /-- The head identifier of an assignment-shaped statement's target (wrapped
 assignments and havoc). -/
 private def assignmentTargetHead? (elem : DoElem) : Option Ident :=
-  let lhs? : Option Term :=
-    match elem with
-    | `(doReassign| $lhs:term $[: $_]? := $_) => some lhs
-    | `(doReassignArrow| $lhs:term $[: $_]? ← $_ $[| $_ $[$_]?]?) => some lhs
-    | `(doElem| $lhs:term := *) => some lhs
-    | _ => none
-  lhs?.bind fun lhs =>
+  assignmentLhs? elem |>.bind fun lhs =>
     if lhs.raw.isIdent then
       some ⟨lhs.raw⟩
     else

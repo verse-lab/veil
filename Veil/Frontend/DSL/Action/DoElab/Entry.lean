@@ -11,16 +11,8 @@ namespace Action.DoElab
 
 open Lean.Parser.Term
 
-private def assignmentTarget? (stx : Syntax) : Option Term :=
-  let elem : DoElem := ⟨stx⟩
-  match elem with
-  | `(doElem| $target:term $[: $_]? := $_) => some target
-  | `(doReassignArrow| $target:term $[: $_]? ← $_ $[| $_ $[$_]?]?) => some target
-  | `(doElem| $target:term := *) => some target
-  | _ => none
-
 private def nestedActionInAssignmentTarget? (stx : Syntax) : Option Syntax := do
-  let target ← assignmentTarget? stx
+  let target ← assignmentLhs? ⟨stx⟩
   findOutsideQuotations? target.raw fun targetPart =>
     if targetPart.isOfKind ``Lean.Parser.Term.nestedAction then
       some targetPart
@@ -97,7 +89,8 @@ def elabVeilDo (procName : Name) (readerType stateType : Term)
   let expectedType ← Term.elabType expectedTypeStx
   let .app monad _ := expectedType.consumeMData
     | throwErrorAt body "internal error: Veil action type is not a monad application"
-  let body ← prependDoItem (← `(Term.doSeqItem| veil_do_open_theory%)) body
+  let some body ← prependDoSeqItem? (← `(Term.doSeqItem| veil_do_open_theory%)) body
+    | throwErrorAt body "unexpected Veil action body"
   withVeilDoContext { mod := mod, proc := procName, monad, parameters := parameters.ids } do
     withOptions (fun opts => opts.setBool `backward.do.legacy false) do
       Lean.Elab.Do.elabDoWith .default body (some expectedType)
