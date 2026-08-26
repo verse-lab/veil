@@ -161,21 +161,28 @@ private def parseReassign (stx : DoElem) : TermElabM (Target × Option Term × T
   | _ => throwError m!"internal Veil assignment parser mismatch:{indentD stx} raw: {stx.raw}"
 
 private def parseReassignArrow (stx : DoElem) :
-    TermElabM (Target × Option Term × DoElem) := do
+    TermElabM (Target × Option Term × DoElem × Bool) := do
   match stx with
   | `(doReassignArrow| $decl:doIdDecl) =>
     match decl with
     | `(doIdDecl| $id:ident $[: $ty:term]? ← $rhs:doElem) =>
-      return (← parseTargetHead id, ty, rhs)
+      return (← parseTargetHead id, ty, rhs, false)
     | _ => throwUnsupportedSyntax
   | `(doReassignArrow| $decl:doPatDecl) =>
     match decl with
-    | `(doPatDecl| $_:term $[: $_]? ← $_ | $_ $[$_]? ) =>
-      throwErrorAt decl "fallback branches are not supported on Veil state arrow assignments"
+    | `(doPatDecl| $lhs:term $[: $ty:term]? ← $rhs:doElem | $_ $[$_]? ) =>
+      return (← parseTarget lhs, ty, rhs, true)
     | `(doPatDecl| $lhs:term $[: $ty:term]? ← $rhs:doElem) =>
-      return (← parseTarget lhs, ty, rhs)
+      return (← parseTarget lhs, ty, rhs, false)
     | _ => throwUnsupportedSyntax
   | _ => throwUnsupportedSyntax
+
+/-- Run `x`, mapping `throwUnsupportedSyntax` to `none`. Used by the
+assignment handlers to distinguish "not a Veil-managed target shape" (which
+must still elaborate through Lean's builtin *inside* a fresh state opening)
+from real errors. -/
+private def catchUnsupported? (x : DoElabM α) : DoElabM (Option α) :=
+  catchInternalId unsupportedSyntaxExceptionId (some <$> x) (fun _ => pure none)
 
 /-- Fail because the assignment target is a local that is not `let mut`,
 pointing out shadowing when that is the likely cause. -/
@@ -404,7 +411,11 @@ private def elabPureAssignment (ctx : Context) (target : Target)
 @[doElem_elab Lean.Parser.Term.doReassign]
 def elabStateReassign : DoElab := fun stx dec => do
   let ctx ← requireVeilDoBlock
-  let (target, type?, rhs) ← parseReassign stx
+  let some (target, type?, rhs) ← catchUnsupported? (parseReassign stx)
+    | -- Pattern-shaped targets (e.g. tuples of mutable locals) are Lean's
+      -- business, but their right-hand sides still read state, so the
+      -- builtin must elaborate inside this statement's fresh opening.
+      openStateAround ctx.mod <| Lean.Elab.Do.elabDoReassign stx dec
   openStateAround ctx.mod <| elabPureAssignment ctx target type? rhs stx dec
 
 private def withArrowResult (target : Target) (type? : Option Term)
@@ -420,15 +431,29 @@ private def withArrowResult (target : Target) (type? : Option Term)
 @[doElem_elab Lean.Parser.Term.doReassignArrow]
 def elabStateReassignArrow : DoElab := fun stx dec => do
   let ctx ← requireVeilDoBlock
-  let (target, type?, rhs) ← parseReassignArrow stx
+  let some (target, type?, rhs, hasFallback) ← catchUnsupported? (parseReassignArrow stx)
+    | -- Pattern-shaped targets are Lean's business, inside a fresh opening
+      -- (see `elabStateReassign`).
+      openStateAround ctx.mod <| Lean.Elab.Do.elabDoReassignArrow stx dec
   openStateAround ctx.mod do
     match ← resolveAssignmentTarget ctx target with
     | .local =>
+      if hasFallback then
+        if target.args.isEmpty then
+          -- An ordinary Lean reassignment of a mutable local; the fallback
+          -- machinery belongs to the builtin.
+          return ← Lean.Elab.Do.elabDoReassignArrow stx dec
+        throwErrorAt stx "fallback branches are not supported on indexed Veil assignments"
       if target.args.isEmpty then
         return ← Lean.Elab.Do.elabDoReassignArrow stx dec
       withArrowResult target type? rhs stx fun value =>
-        elabLocalAssignment target value stx dec
+        -- Re-open after the right-hand side ran: the index terms must read
+        -- post-call state, exactly as in the `.state` branch below.
+        openStateAround ctx.mod <|
+          elabLocalAssignment target value stx dec
     | .state component =>
+      if hasFallback then
+        throwErrorAt stx "fallback branches are not supported on Veil state arrow assignments"
       checkStateTargetTypeAscription component target type?
       withArrowResult target type? rhs stx fun value =>
         openStateAround ctx.mod <|

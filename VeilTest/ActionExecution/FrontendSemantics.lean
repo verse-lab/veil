@@ -219,6 +219,107 @@ def dependentIfResult :=
 #guard exactlyOneSuccess dependentIfResult fun value state =>
   value && state.flag
 
+/-! ### Regressions: stale state views in assignment paths -/
+
+procedure set_mirror_true_return_true {
+  mirror := true
+  return true
+}
+
+/- The index of an indexed local arrow-assignment must read post-call state:
+the callee flips `mirror` to `true`, so the write lands at index `true`. -/
+procedure indexed_local_arrow_post_call_index {
+  let mut m := fun _ : Bool => false
+  m mirror ← set_mirror_true_return_true
+  return (m false, m true)
+}
+
+def postCallIndexResult :=
+  __veil_exec_action% {} {} initial indexed_local_arrow_post_call_index
+#guard exactlyOneSuccess postCallIndexResult fun value state =>
+  value == (false, true) && state.mirror
+
+/- A tuple reassignment elaborates through Lean's builtin, but its right-hand
+side must still see this statement's fresh state views, not the previous
+statement's pre-call snapshot. -/
+procedure tuple_reassign_post_call_state {
+  let mut a := false
+  let mut b := false
+  let _ ← set_mirror_true_return_true
+  (a, b) := (mirror, mirror)
+  return (a, b)
+}
+
+def tupleReassignPostCallResult :=
+  __veil_exec_action% {} {} initial tuple_reassign_post_call_state
+#guard exactlyOneSuccess tupleReassignPostCallResult fun value state =>
+  value == (true, true) && state.mirror
+
+/-! ### Fallback arrow-binds on local reassignment defer to Lean's diagnostic
+(Lean itself rejects reassignment fallbacks; Veil must not mask that with a
+state-assignment error for targets that are plain mutable locals.) -/
+
+/--
+error: Error in action local_tuple_fallback_bind: reassignment with `|` (i.e., "else clause") is not supported
+-/
+#guard_msgs(error, drop warning) in
+procedure local_tuple_fallback_bind {
+  let mut a := false
+  let mut b := false
+  (a, b) ← pure (true, true) | pure ()
+  return (a, b)
+}
+
+/-! ### Dependent `if h :`: the hypothesis is a usable proof in both branches -/
+
+procedure dependent_if_proof_both (k : Nat) {
+  let n := k
+  if h : n = 0 then
+    let _ : n = 0 := h
+    flag := true
+  else
+    let _ : ¬ n = 0 := h
+    flag := false
+  return flag
+}
+
+def dependentIfProofTrueResult :=
+  __veil_exec_action% {} {} initial (dependent_if_proof_both 0)
+#guard exactlyOneSuccess dependentIfProofTrueResult fun value state =>
+  value && state.flag
+
+def dependentIfProofFalseResult :=
+  __veil_exec_action% {} {} initial (dependent_if_proof_both 1)
+#guard exactlyOneSuccess dependentIfProofFalseResult fun value state =>
+  !value && !state.flag
+
+/-! ### Dependent-`if` hypotheses get shadow warnings, `else` or not -/
+
+/--
+warning: local `flag` shadows mutable state component `flag`; references to this name resolve to the local
+-/
+#guard_msgs(warning) in
+procedure dependent_if_hypothesis_shadow_warns {
+  if flag : counter = 0 then
+    mirror := true
+}
+
+def dependentIfShadowResult :=
+  __veil_exec_action% {} {} initial dependent_if_hypothesis_shadow_warns
+#guard exactlyOneSuccess dependentIfShadowResult fun _ state =>
+  state.mirror && state.flag
+
+/-! ### The legacy existential-`if` spelling is linted, never silent -/
+
+/--
+warning: Veil's existential `if` is now spelled `if w :| p`; this `if w : p` parses as Lean's dependent `if`, so the condition tests the existing binding of `w` instead of introducing a witness — rename the hypothesis if the dependent `if` is intended
+-/
+#guard_msgs(warning, substring := true) in
+procedure legacy_existential_if_warns (w : Bool) {
+  if w : link w then
+    flag := true
+}
+
 end FrontendSemantics
 
 /-! ### Diagnostics: immutable writes and `for` loops -/
@@ -246,5 +347,20 @@ action reject_for {
   for _i in [true] do
     scratch := true
 }
+
+/--
+error: Error in action reject_indexed_local_fallback: fallback branches are not supported on indexed Veil assignments
+-/
+#guard_msgs(error, drop warning) in
+action reject_indexed_local_fallback {
+  let mut m := fun _ : Bool => false
+  m true ← pure true | pure ()
+}
+
+/--
+error: `useFieldRepTC := false` is no longer supported; the action elaborator always uses the field-representation typeclass
+-/
+#guard_msgs in
+veil_set_option useFieldRepTC false
 
 end FrontendSemanticsDiagnostics

@@ -47,8 +47,11 @@ private def warnComponentShadow (ctx : Context) (id : Ident) : DoElabM Unit := d
   logWarningAt id m!"local `{id.getId}` shadows {kind} component `{id.getId}`; references to this name resolve to the local"
 
 /-- The identifiers a binding statement introduces.  Statement shapes without
-binders (e.g. a non-dependent `if`) bind nothing; unrecognized shapes of the
-binding kinds make the Veil handler fall through to Lean's. -/
+binders (e.g. a non-dependent `if`) bind nothing.  Unrecognized shapes return
+no binders rather than throwing: an exception here would make the whole Veil
+handler fall through to Lean's builtin *without* the mandatory per-statement
+state opening, silently reintroducing stale field views. Degrading only the
+shadow warning is the safe failure mode. -/
 private def boundIdents (stx : DoElem) : DoElabM (Array Ident) := do
   match stx with
   | `(doElem| let%$_ $[mut%$_]? $_:letConfig $decl:letDecl)
@@ -60,16 +63,14 @@ private def boundIdents (stx : DoElem) : DoElabM (Array Ident) := do
     | `(doPatDecl| _%$_ $pattern:term $[: $_]? ← $_)
     | `(doPatDecl| $pattern:term $[: $_]? ← $_ $[| $_ $[$_]?]?) =>
       getPatternVarsEx pattern
-    | _ => throwUnsupportedSyntax
+    | _ => return #[]
   | `(doLetElse| let $[mut%$_]? $_:letConfig $pattern:term := $_ | $_ $(_)? ) =>
     getPatternVarsEx pattern
-  | `(doIf| if $h:ident : $_ then $_ else $_) => return #[h]
+  | `(doIf| if $h:ident : $_ then $_ $[else $_]?) => return #[h]
   | `(doMatch| match $[(dependent := $_)]? $[(generalizing := $_)]? $(_)?
       $_,* with $alts:matchAlt*) =>
     Lean.Elab.Do.getAltsPatternVars alts
-  | _ =>
-    if stx.raw.isOfKind ``Lean.Parser.Term.doIf then return #[]
-    throwUnsupportedSyntax
+  | _ => return #[]
 
 private def warnShadowingBinders (ctx : Context) (stx : DoElem) : DoElabM Unit := do
   (← boundIdents stx).forM (warnComponentShadow ctx)
@@ -119,9 +120,24 @@ def elabVeilLetArrow : DoElab :=
 def elabVeilLetElse : DoElab :=
   delegate Lean.Elab.Do.elabDoLetElse (before := warnShadowingBinders)
 
+/-- The pre-port existential `if` was spelled `if x : p`; that spelling now
+parses as Lean's dependent `if`, turning `∃ x, p x` into a point test at the
+existing binding of `x`. A genuine dependent `if` cannot mention its own
+hypothesis inside the condition, so such an occurrence reliably identifies
+the legacy spelling; lint it so the semantic change is never silent. -/
+private def warnLegacyExistentialIf (_ctx : Context) (stx : DoElem) : DoElabM Unit := do
+  let `(doIf| if $h:ident : $c then $_ $[else $_]?) := stx | return
+  let some occurrence := Action.findOutsideQuotations? c.raw fun s =>
+      if s.isIdent && s.getId == h.getId then some s else none
+    | return
+  logWarningAt occurrence
+    m!"Veil's existential `if` is now spelled `if {h.getId} :| p`; this `if {h.getId} : p` parses as Lean's dependent `if`, so the condition tests the existing binding of `{h.getId}` instead of introducing a witness — rename the hypothesis if the dependent `if` is intended"
+
 @[doElem_elab Lean.Parser.Term.doIf]
 def elabVeilIf : DoElab :=
-  delegate Lean.Elab.Do.elabDoIf (before := warnShadowingBinders)
+  delegate Lean.Elab.Do.elabDoIf (before := fun ctx stx => do
+    warnLegacyExistentialIf ctx stx
+    warnShadowingBinders ctx stx)
 
 @[doElem_elab Lean.Parser.Term.doMatch]
 def elabVeilMatch : DoElab := delegate Lean.Elab.Do.elabDoMatch
