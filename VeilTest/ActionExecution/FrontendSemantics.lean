@@ -357,10 +357,4 @@ action reject_indexed_local_fallback {
   m true ← pure true | pure ()
 }
 
-/--
-error: `useFieldRepTC := false` is no longer supported; the action elaborator always uses the field-representation typeclass
--/
-#guard_msgs in
-veil_set_option useFieldRepTC false
-
 end FrontendSemanticsDiagnostics

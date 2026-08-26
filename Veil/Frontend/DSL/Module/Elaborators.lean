@@ -221,13 +221,11 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
 private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
   if mod.isStateDefined then
     return mod
-  let (mod, stateStxs) ← do (if mod._useFieldRepTC then do
-      -- Resolve concrete representation configurations
-      let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
-      let (mod, fieldStxs) ← mod.declareStateFieldLabelTypeAndDispatchers repConfigs
-      let (mod, stateStxs) ← mod.declareFieldsAbstractedStateStructure repConfigs
-      return (mod, fieldStxs ++ stateStxs)
-    else mod.declareStateStructure)
+  -- Resolve concrete representation configurations
+  let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
+  let (mod, fieldStxs) ← mod.declareStateFieldLabelTypeAndDispatchers repConfigs
+  let (mod, stateStxs) ← mod.declareFieldsAbstractedStateStructure repConfigs
+  let stateStxs := fieldStxs ++ stateStxs
   let (mod, theoryStxs) ← mod.declareTheoryStructure
   let instantiationStxs ← mod.mkInstantiationStructure
   for stx in stateStxs ++ theoryStxs ++ instantiationStxs do
@@ -242,12 +240,11 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     for stx in stxs do
       elabVeilCommand stx.raw
     -- Generate the transition weakening lemma for this module
-    if mod._useFieldRepTC then
-      try
-        let cmd ← liftTermElabM mod.declareTransitionWeakeningLemma
-        elabVeilCommand cmd
-      catch ex =>
-        logWarning m!"unable to generate transition weakening lemma: {ex.toMessageData}"
+    try
+      let cmd ← liftTermElabM mod.declareTransitionWeakeningLemma
+      elabVeilCommand cmd
+    catch ex =>
+      logWarning m!"unable to generate transition weakening lemma: {ex.toMessageData}"
   pure mod
 
 private def warnIfNoInvariantsDefined (mod : Module) : CommandElabM Unit := do

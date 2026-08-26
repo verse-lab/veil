@@ -176,23 +176,8 @@ private def structureDefinitionStx [Monad m] [MonadQuotation m] [MonadExceptOf E
 
 /-! ## Structure Definitions (Private) -/
 
-/-- Syntax for *defining* the mutable state of a module as a `structure`. The
-syntax for the type is `mod.stateStx`. -/
-private def Module.stateDefinitionStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array Syntax) := do
-  let defCmds ← structureDefinitionStx stateName (← mod.uninterpretedParamBindersForTheoryOrState false) (deriveInstances := true)
-    (← mod.mutableComponents.mapM fun sc => sc.getSimpleBinder)
-  let isHOInst ← mkIsHigherOrderInstance
-  return defCmds ++ #[← `(command| veil_deriving $(mkIdent ``Repr) for $stateIdent), isHOInst]
-where
-  mkIsHigherOrderInstance : m (TSyntax `command) := do
-    let binders ← mod.uninterpretedParamBinders
-    let sorts ← mod.uninterpretedParamIdents
-    let hoTy ← `(term|$(mkIdent ``Veil.IsHigherOrder) ($stateIdent $sorts*))
-    `(scoped instance (priority := default) $(mkIdent $ Name.mkSimple s!"{stateName}_ho"):ident $[$binders]* : $hoTy := ⟨⟩)
-
-/-- Similar to `Module.stateDefinitionStx` but each field of `State` is
-abstracted by a function from its label to a certain type. Note that
-in this case, `deriveInstances` has to be `false`. -/
+/-- Define the mutable `State` structure with each field abstracted by a
+function from its label to a concrete representation type. -/
 private def Module.fieldsAbstractedStateDefinitionStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array Syntax) := do
   let stateLabelTypeName := structureFieldLabelTypeName stateName
   let fields ← mod.mutableComponents.mapM fun sc => do
@@ -276,13 +261,6 @@ where
 
 /-! ## Public Structure Declaration APIs -/
 
-def Module.declareStateStructure [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Module × Array Syntax) := do
-  mod.throwIfAlreadyDeclared environmentSubStateName
-  let stx ← mod.stateDefinitionStx
-  let stateStx ← mod.stateStx
-  let substate : Parameter := { kind := .moduleTypeclass .environmentState, name := environmentSubStateName, «type» := ← `($(mkIdent ``IsSubStateOf) $stateStx $environmentState), userSyntax := .missing }
-  return ({ mod with parameters := mod.parameters.push substate, _declarations := mod._declarations.insert environmentSubStateName .moduleParameter }, stx)
-
 def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Module × Array Syntax) := do
   mod.throwIfAlreadyDeclared environmentSubTheoryName
   let stxs ← mod.theoryDefinitionStx
@@ -290,8 +268,7 @@ def Module.declareTheoryStructure [Monad m] [MonadQuotation m] [MonadExceptOf Ex
   let subtheory : Parameter := { kind := .moduleTypeclass .backgroundTheory, name := environmentSubTheoryName, «type» := ← `($(mkIdent ``IsSubReaderOf) $theoryStx $environmentTheory), userSyntax := .missing }
   return ({ mod with parameters := mod.parameters.push subtheory, _declarations := mod._declarations.insert environmentSubTheoryName .moduleParameter }, stxs)
 
-/-- Similar to `Module.declareStateStructure` but here `FieldRepresentation`
-is involved. -/
+/-- Declare the mutable state using its configured field representations. -/
 def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
     [AddMessageContext m] [MonadOptions m] [MonadTrace m]
     (mod : Module) (repConfigs : ResolvedConcreteRepConfigs) : m (Module × (Array Syntax)) := do

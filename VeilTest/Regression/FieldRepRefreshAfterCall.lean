@@ -3,8 +3,7 @@ import Veil
 /-!
 # Regression: indexed updates use the current represented field after a call
 
-In field-representation mode (the DEFAULT, `Module._useFieldRepTC := true`) each
-field `f` is exposed through cached `let mut` binders `f_conc`/`f`. After a call
+Each field `f` is exposed through the represented views `f_conc`/`f`. After a call
 that may write field `r`, a subsequent partial update `r a := v` must apply to
 the CURRENT value of `r` (including the callee's writes), not a stale snapshot.
 So in
@@ -31,9 +30,6 @@ set_option veil.printCounterexamples false
 veil module FieldRepRefreshAfterCall
 
 type node
-
--- Force field-representation mode explicitly (it is also the default).
-veil_set_option useFieldRepTC true
 
 relation r : node → Bool
 individual w : Bool

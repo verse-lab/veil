@@ -8,19 +8,22 @@ namespace Veil
 
 inductive TheoryAndStateTermTemplateArgKind where
   | theory
-  /-- When the concrete field representation is not used,
-  `suffix` is the suffix to append to each field after
-  destructing a state.
+  /-- When destructing an abstract state, `suffix` is appended to each field.
 
-  When the concrete field representation is used,
-  `suffixConc` is the suffix to append to each field after
-  destructing a state, and `suffix` is the suffix appended to
-  each field's _original name_ (i.e., not the one after appending
-  `suffixConc`) after applying `FieldRepresentation.get` to
-  the concrete field.
+  When destructing a concrete state, `suffixConc` is appended to each concrete
+  field and `suffix` is appended to its abstract view after applying
+  `FieldRepresentation.get`.
 
   When either is `none`, no suffix is appended in the corresponding case. -/
   | state (suffix suffixConc : Option String)
+
+/-- How state fields exposed by `withTheoryAndStateTermTemplate` are represented. -/
+inductive StateFieldView where
+  /-- The state contains concrete representation fields, which must be converted
+  with `FieldRepresentation.get`. -/
+  | concrete
+  /-- The state fields are already abstract and can be exposed directly. -/
+  | abstract
 
 /-! ## Assertion Creation & Registration -/
 
@@ -75,40 +78,32 @@ def elabExactState : TacticM Unit := withMainContext do
   let comp := mod.mutableComponents.map (·.name)
   -- find all available state components in the local context
   let lctx ← getLCtx
-  let actualFields : Array Term ← if mod._useFieldRepTC
-    then
-      -- find the concrete field from the _values_ of `ldecls`, or from the `fieldname_conc` local declarations
-      -- CHECK We might actually consider always referring to the `fieldname_conc` local declarations?
-      -- here, only use some simple heuristics to do the matching
-      comp.mapM fun nm => do
-        try
-          let some ldecl := lctx.findFromUserName? nm
-            | throwError "state component {nm} is not available in the local context"
-          let some v := ldecl.value? true
-            | throwError "state component {nm} has no value in the local context"
-          let v := match_expr v with
-            | id _ vv => vv | _ => v
-          match_expr v with
-          | Veil.FieldRepresentation.get _ _ _ _ cf =>
-            if let .fvar fv := cf
-            then let nm ← fv.getUserName ; `(term| $(mkIdent nm) )
-            else delabVeilExpr cf
-          | _ => throwError "unable to extract concrete field from state component {ldecl.userName}"
-        catch _ =>
-          -- try to find a local declaration with the `_conc` suffix
-          let conc := nm.appendAfter "_conc"
-          let some ldecl := lctx.findFromUserName? conc
-            | throwError "state component {nm} is not available in the local context (neither {nm} nor {conc})"
-          `(term| $(mkIdent ldecl.userName) )
-    else
-      let some ldecls := comp.mapM (m := Option) lctx.findFromUserName?
-        | throwError "not all state components are available in the local context"
-      ldecls.mapM fun a => `(term| $(mkIdent a.userName) )
+  -- Find the concrete field from the values of `ldecls`, or from the
+  -- `fieldname_conc` local declarations.
+  let actualFields : Array Term ← comp.mapM fun nm => do
+    try
+      let some ldecl := lctx.findFromUserName? nm
+        | throwError "state component {nm} is not available in the local context"
+      let some v := ldecl.value? true
+        | throwError "state component {nm} has no value in the local context"
+      let v := match_expr v with
+        | id _ vv => vv | _ => v
+      match_expr v with
+      | Veil.FieldRepresentation.get _ _ _ _ cf =>
+        if let .fvar fv := cf
+        then let nm ← fv.getUserName ; `(term| $(mkIdent nm) )
+        else delabVeilExpr cf
+      | _ => throwError "unable to extract concrete field from state component {ldecl.userName}"
+    catch _ =>
+      let conc := nm.appendAfter "_conc"
+      let some ldecl := lctx.findFromUserName? conc
+        | throwError "state component {nm} is not available in the local context (neither {nm} nor {conc})"
+      `(term| $(mkIdent ldecl.userName) )
   -- NOTE: It is very weird that if not doing it using `exact`
   -- (e.g., instead constructing the state `Expr` and using
   -- `closeMainGoalUsing`), then some meta-variable (e.g.,
   -- `IsSubStateOf` arguments) synthesis will fail.
-  let constr ← `(term| (⟨$[$actualFields],*⟩ : $(← mod.stateStx mod._useFieldRepTC)))
+  let constr ← `(term| (⟨$[$actualFields],*⟩ : $(← mod.stateStx true)))
   trace[veil.debug] "state constr: {constr}"
   Tactic.evalTactic $ ← `(tactic| exact $constr)
 
@@ -125,8 +120,7 @@ and/or and state, thus making all their fields accessible in `t`.
 are generated according to `targets`.
 - `motiveType`: Optional type to use for the motive in the `casesOn` eliminators;
   if `none`, the motive type will be `_` (to be inferred).
-- `stateSortTerm`: Optional term to use as the sort argument for state casesOn.
-  If not provided, uses `mod.uninterpretedParamIdentsForTheoryOrState mod._useFieldRepTC`. -/
+- `stateSortTerm`: Optional term to use as the sort argument for state casesOn. -/
 def Module.withTheoryAndStateTermTemplate (mod : Module)
   -- The `Bool` below indicates whether to wrap the `Term` with `readFrom`/`getFrom`
   (targets : List (TheoryAndStateTermTemplateArgKind × Term × Bool))
@@ -136,7 +130,7 @@ def Module.withTheoryAndStateTermTemplate (mod : Module)
        MetaM (TSyntax `term))
   (fieldRepInstance : Term := fieldRepresentation)
   (stateSortTerm : Option Term := none)
-  (considerFieldRepTC : Bool := mod._useFieldRepTC)
+  (stateView : StateFieldView := .concrete)
   : MetaM (TSyntax `term) := do
   let motive := mkIdent `motive
   let motiveBody ← match motiveType with
@@ -161,19 +155,23 @@ def Module.withTheoryAndStateTermTemplate (mod : Module)
     | .state suffix suffixConc =>
       let sfs := suffix.elim stateFields stateFieldsWithSuffix
       let sfsConc := suffixConc.elim stateFields stateFieldsWithSuffix
-      let body' ← if !considerFieldRepTC then pure body else
-        -- annotate types here, otherwise there can be issues like: for `f a`
-        -- where `f` has a complicated type but definitionally equal to `node → Bool`,
-        -- coercions will not be inserted to make `f a` into `Prop`
-        -- (notice that `decide` expects a `Prop` argument here)
-        let fieldTypes ← mod.mutableComponents.mapM (·.typeStx)
-        let bundled := sfs.zip fieldTypes |>.zip sfsConc
-        bundled.foldrM (init := body) fun ((f, ty), fConc) b => do
-          `(let $f:ident : $ty := ($fieldRepInstance _).$(mkIdent `get) $fConc:ident ; $b)
-      let tmp ← mkFunSyntax (if !considerFieldRepTC then sfs else sfsConc) body'
+      let (binders, body') ← match stateView with
+        | .abstract => pure (sfs, body)
+        | .concrete => do
+          -- Annotate types here, otherwise there can be issues like `f a`,
+          -- where `f` has a complicated type definitionally equal to
+          -- `node → Bool`: coercions will not be inserted to make `f a` a Prop.
+          let fieldTypes ← mod.mutableComponents.mapM (·.typeStx)
+          let bundled := sfs.zip fieldTypes |>.zip sfsConc
+          let body' ← bundled.foldrM (init := body) fun ((f, ty), fConc) b => do
+            `(let $f:ident : $ty := ($fieldRepInstance _).$(mkIdent `get) $fConc:ident ; $b)
+          pure (sfsConc, body')
+      let tmp ← mkFunSyntax binders body'
       let sortTerms ← match stateSortTerm with
         | some sortTerm => pure #[sortTerm]
-        | none => pure (← mod.uninterpretedParamIdentsForTheoryOrState considerFieldRepTC)
+        | none => match stateView with
+          | .concrete => mod.uninterpretedParamIdentsForTheoryOrState true
+          | .abstract => mod.uninterpretedParamIdentsForTheoryOrState false
       let i ← if wrap? then `(term| $(mkIdent ``getFrom) $i) else pure i
       `(term|
         @$(mkIdent casesOnState) $sortTerms*
@@ -226,12 +224,10 @@ this to elaborate assertions in `sat trace` commands. -/
 def withTheoryAndStateFn (mod : Module) (t : Term) (motiveType : Option Term) (theoryT stateT : Term)
     (fieldRepInstance : Term) (stateSortTerm : Term) : MetaM Term := do
   let (th, st) := (mkIdent `th, mkIdent `st)
-  -- When using field representation TC, ghost relations' default `st`
-  -- parameter uses `by veil_exact_state` which constructs `@State χ`.
+  -- Ghost relations' default `st` parameter uses `by veil_exact_state`, which
+  -- constructs `@State χ`.
   -- We need `χ` in scope so the tactic can resolve it.
-  let t' ← if mod._useFieldRepTC then
-    `(let $(mkIdent fieldConcreteTypeName) := $stateSortTerm; $t)
-  else pure t
+  let t' ← `(let $(mkIdent fieldConcreteTypeName) := $stateSortTerm; $t)
   let tmp ← mod.withTheoryAndStateTermTemplate
     [(.theory, th, true), (.state .none "_conc", st, true)]
     motiveType

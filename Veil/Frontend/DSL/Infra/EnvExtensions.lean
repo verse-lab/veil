@@ -99,12 +99,6 @@ elab "veil_set_option " o:ident v:term : command => do
   let v ← liftTermElabM <| Term.elabTerm v (mkConst ``Bool)
   let b := if v == mkConst ``Bool.true then true else false
   match o.getId with
-  | `useFieldRepTC =>
-    -- The extensible-do state openings and assignments always go through the
-    -- field-representation typeclass; the non-TC mode no longer elaborates.
-    unless b do
-      throwError "`useFieldRepTC := false` is no longer supported; the action elaborator always uses the field-representation typeclass"
-    localEnv.modifyModule (fun _ => { mod with _useFieldRepTC := b })
   | `useLocalRPropTC => localEnv.modifyModule (fun _ => { mod with _useLocalRPropTC := b })
   | _ => throwError s!"Unsupported option {o}"
 

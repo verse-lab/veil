@@ -291,13 +291,10 @@ private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp : Expr) (w
 
       -- ===== Step 3 (eliminate field rep) =====
       let (curTarget, proof) ←
-        if mod._useFieldRepTC then
-          eliminateFieldRep curTarget proof nm
-            allParams theoryType stateType
-            uIdent thIdent stIdent localRPropTCArgIdent
-            readFromArg getFromArg handler wpDef_fqn vs extraFVars
-        else
-          pure (curTarget, proof)
+        eliminateFieldRep curTarget proof nm
+          allParams theoryType stateType
+          uIdent thIdent stIdent localRPropTCArgIdent
+          readFromArg getFromArg handler wpDef_fqn vs extraFVars
 
       -- Register theorem: ∀ (vs handler post inst r s), rawBody = curResult.expr
       let fvars := (vs ++ #[handler, post, inst, r, s])
@@ -374,7 +371,7 @@ where
       (fun theoryFields stateFields => do
         pure <| Syntax.mkApp (← `($localRPropTCArgIdent.$(mkIdent `core))) (theoryFields ++ stateFields))
       (stateSortTerm := some abstractStateSortTerm)
-      (considerFieldRepTC := false)
+      (stateView := .abstract)
     `(fun $uIdent $thIdent $stIdent => $step3PostBody)
   /-- Step 3: Construct the target at abstract field types using
   `withTheoryAndStateTermTemplate`, then prove equality by simplifying
@@ -559,19 +556,16 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
         let tmp : Simplifier := @id Simplifier (evalOpenClassical ∘ Simp.simp #[`wpSimp])
           |>.andThen (evalOpenClassical ∘ Simp.simp #[`forallQuantifierSimp])
           |>.andThen (evalOpenClassical ∘ Simp.simp #[`substateSimp])
-        if mod._useFieldRepTC
-        then
-          let ss ← simplifierGetSetForFieldRepTC
-          -- (1) do basic simplification using `LawfulFieldRepresentation`
-          pure <| (tmp |>.andThen (Simp.simp #[`fieldRepresentationSetSimpPre])
-            -- (2) simplify using `get_set_idempotent'`
-            |>.andThen ss
-            -- (3) simplify the resulting things
-            |>.andThen (evalOpenClassical ∘ Simp.simp
-              #[fieldLabelToDomainName stateName,
-                fieldLabelToCodomainName stateName,
-                `fieldRepresentationSetSimpPost]))
-        else pure <| tmp
+        let ss ← simplifierGetSetForFieldRepTC
+        -- (1) do basic simplification using `LawfulFieldRepresentation`
+        pure <| (tmp |>.andThen (Simp.simp #[`fieldRepresentationSetSimpPre])
+          -- (2) simplify using `get_set_idempotent'`
+          |>.andThen ss
+          -- (3) simplify the resulting things
+          |>.andThen (evalOpenClassical ∘ Simp.simp
+            #[fieldLabelToDomainName stateName,
+              fieldLabelToCodomainName stateName,
+              `fieldRepresentationSetSimpPost]))
       let simp := (Simp.unfold #[fqn]) |>.andThen mainSimp
       let resPoint ← withTraceNode (`veil.perf.extract.wpSimp ++ nm) (fun _ => return s!"wpSimp {nm}") do
         withBackwardsCompatibility <| simp pointBody
@@ -848,7 +842,7 @@ private def defineTransitionAbstract (mod : Module) (nm : Name) (dk : Declaratio
 
       let proof ←
         if notFromTransition? then
-          proveViaTransitionWeakeningLemma sourceImpTarget nm allParams vs allArgs abstractStateSortTerm rss
+          proveViaTransitionWeakeningLemma sourceImpTarget nm allParams vs allArgs rss
         else
           -- For "native transitions", the proof is much easier
           proveSourceImpliesTargetForNativeTransition sourceImpTarget trFqn nm
@@ -868,8 +862,7 @@ where
   /-- Prove `source → target` by applying the module's `_transitionWeakeningLemma`
   with the action's `derived_eq`, `wp_local_eq`, and `wp_eq` theorems. -/
   proveViaTransitionWeakeningLemma (goal : Expr) (nm : Name) (allParams : Array Parameter)
-    (allArgExprs : Array Expr) (allArgs : Array Term) (abstractStateSortTerm : Term)
-    (rss : Array Expr) : TermElabM Expr := do
+    (allArgExprs : Array Expr) (allArgs : Array Term) (rss : Array Expr) : TermElabM Expr := do
     let modParams := mod.parameters
     let modArgs ← modParams.mapM (·.arg)
     let polyParams := modParams.filter isAbstractStateLocalParam
@@ -891,15 +884,7 @@ where
       pure <| !(isAbstractStateLocalParam p) && !(← isDecidableDefParameter p v)
     let predArgs := predArgs.map (·.1)
     let predStx ← do
-      let sortIdents ← mod.uninterpretedParamIdents
-      let theoryTy ← `($theoryIdent $sortIdents*)
-      let abstractStateTypeTerm ← `($stateIdent $abstractStateSortTerm)
-      if mod._useFieldRepTC then
-        `(@$(mkIdent <| toWpLocalPredName nm) $predArgs*)
-      else
-        -- FIXME: Will this work?
-        let specializedArgsForAbstract := Module.declareTransitionWeakeningLemma.specializeArgsForStateAbstractStx allParams allArgs theoryTy abstractStateTypeTerm abstractStateSortTerm hole
-        `(@$(mkIdent <| toWpName nm) $specializedArgsForAbstract*)
+      `(@$(mkIdent <| toWpLocalPredName nm) $predArgs*)
     let derivedEqThm := toDerivedEqName nm
     let wpLocalEqThm := toWpLocalEqName nm
     let wpEqThm := toWpEqName nm
@@ -911,12 +896,9 @@ where
       let userName ← x.fvarId!.getUserName
       pure <| mkIdent userName
     let h := mkIdent `h
-    let wpEqProof ←
-      if mod._useFieldRepTC
-      -- `wp_eq` rewrites to the raw abstract-state `act.ext.wp`; connect that
-      -- pointwise result to the pre-simplified `.wp_local_eq.pred` as well.
-      then `(term| by intros ; rw [$(mkIdent wpEqThm):ident, $(mkIdent wpEqLocalThm):ident])
-      else `(term| by intros ; rw [$(mkIdent wpEqThm):ident])
+    -- `wp_eq` rewrites to the raw abstract-state `act.ext.wp`; connect that
+    -- pointwise result to the pre-simplified `.wp_local_eq.pred` as well.
+    let wpEqProof ← `(term| by intros ; rw [$(mkIdent wpEqThm):ident, $(mkIdent wpEqLocalThm):ident])
     -- NOTE: Below, `h` is not `applied` because `__veil_neutralize_decidable_inst` might
     -- unexpectedly simplify away certain things. Also, using `__veil_neutralize_decidable_inst !`
     -- since the instances might not be fully applied
@@ -1131,11 +1113,10 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
           AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
           if deriveTransition? then
             AuxiliaryDefinitions.defineTransition mod nmExt extKind
-          if mod._useFieldRepTC then
-            try
-              defineTransitionAbstract mod nmExt extKind deriveTransition?
-            catch ex =>
-              logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
+          try
+            defineTransitionAbstract mod nmExt extKind deriveTransition?
+          catch ex =>
+            logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
     return mod
 
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option ActionSyntax) (l : ActionSyntax) (stx : Syntax) : CommandElabM Module := do
