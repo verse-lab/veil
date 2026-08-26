@@ -65,7 +65,14 @@ theorem VeilM.wp_returnUnit {hd' : ExId → Prop} {act : VeilM m ρ σ α} {q : 
 
 `wpSimp` rewrites WPs only after they are fully applied to their reader and
 state. This keeps all intermediate equality endpoints proposition-valued and
-avoids eta junctions around large interpreter applications. -/
+avoids eta junctions around large interpreter applications.
+
+Deliberately, only these fully-applied `VeilM`-headed lemmas are in the
+`wpSimp` set: the generic (unapplied) `wp_pure`/`wp_map` rules were removed
+because `fun`-shaped equality endpoints re-trigger the kernel def-eq blowup
+of leanprover/lean4#14803. Downstream lemmas of the old shape
+`wp act post = fun r s => …` should be restated pointwise
+(`wp act post r s = …`) to keep simplifying under `wpSimp`. -/
 
 lemma VeilM.wp_bind (act : VeilM m ρ σ α) (f : α → VeilM m ρ σ β)
     (post : RProp β ρ σ) (r : ρ) (s : σ) :

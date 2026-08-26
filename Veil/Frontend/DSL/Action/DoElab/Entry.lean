@@ -28,6 +28,58 @@ private def findKindOutsideQuotations? (stx : Syntax) (kind : SyntaxNodeKind) : 
   findOutsideQuotations? stx fun candidate =>
     if candidate.isOfKind kind then some candidate else none
 
+/-- Every `doElem` kind the Veil action elaborator classifies: kinds with
+Veil `@[doElem_elab]` handlers (including the targeted rejections in
+`Statements.lean`), Veil's own statement syntax (whether elaborated or
+macro-expanded), and Lean kinds that re-dispatch into classified ones
+(`doUnless` elaborates through `doIf`). `validateStatementKinds` errors on
+anything else, so a new statement kind must be classified here before it can
+appear in an action. -/
+private def classifiedDoElemKinds : NameSet := .ofList [
+  -- Lean statements with Veil handlers
+  ``Lean.Parser.Term.doReassign, ``Lean.Parser.Term.doReassignArrow,
+  ``Lean.Parser.Term.doLet, ``Lean.Parser.Term.doHave,
+  ``Lean.Parser.Term.doLetArrow, ``Lean.Parser.Term.doLetElse,
+  ``Lean.Parser.Term.doIf, ``Lean.Parser.Term.doUnless,
+  ``Lean.Parser.Term.doMatch, ``Lean.Parser.Term.doExpr,
+  ``Lean.Parser.Term.doNested, ``Lean.Parser.Term.doReturn,
+  ``Lean.Parser.Term.doDbgTrace,
+  -- inserted by Lean's own doElem macro expansion (e.g. `if` without `else`)
+  ``Lean.Parser.Term.InternalSyntax.doSkip,
+  -- Veil's own statements
+  ``requireDo, ``assertDo, ``ifSomeDo, ``letPick, ``havocAssignment,
+  ``veilLetDo, ``veilVarDo, ``stateAssignWrapper, ``internalExpr,
+  ``theoryOpen,
+  -- rejected with targeted diagnostics
+  ``Lean.Parser.Term.doLetRec, ``Lean.Parser.Term.doFor,
+  ``Lean.Parser.Term.doWhile, ``Lean.Parser.Term.doRepeat,
+  ``Lean.Parser.Term.doTry, ``Lean.Parser.Term.doBreak,
+  ``Lean.Parser.Term.doContinue, ``Lean.Parser.Term.doMatchExpr,
+  ``Lean.Parser.Term.doAssert, ``Lean.Parser.Term.doDebugAssert,
+  ``Lean.Parser.Term.doIdbg, ``Lean.Parser.Term.doForward]
+
+/-- Completeness guard, run on the post-macro-expansion action body: every
+statement (including those in nested branch sequences) must be a `doElem`
+kind Veil classifies. An unclassified kind — new upstream syntax, or a
+library-registered `doElem` — would elaborate through Lean's builtin
+handlers *without* the per-statement state opening, a silent stale-state
+hazard; make it a loud error instead. Boundaries whose contents Lean
+elaborates in another monad (`by` blocks), or treats as data (quotations),
+are skipped; term-level `do` is rejected separately by `validateVeilDo`. -/
+private partial def validateStatementKinds (stx : Syntax)
+    (inQuotation := false) : TermElabM Unit := do
+  if stx.isOfKind ``Lean.Parser.Term.byTactic ||
+      stx.isOfKind ``Lean.Parser.Term.do then
+    return
+  if !inQuotation && stx.isOfKind ``Lean.Parser.Term.doSeqItem then
+    let elem := stx[0]
+    unless classifiedDoElemKinds.contains elem.getKind do
+      throwErrorAt elem
+        m!"statements of kind `{elem.getKind}` are not supported in Veil actions"
+  let childQuoted := Action.childrenAreQuoted stx inQuotation
+  for child in stx.getArgs do
+    validateStatementKinds child childQuoted
+
 /-- Structural checks which must run before Lean lifts nested actions. This is
 applied both to the user's surface syntax and to the syntax obtained after
 `prepareStateAssignments` expands `doElem` macros. -/
@@ -84,6 +136,7 @@ def elabVeilDo (procName : Name) (readerType stateType : Term)
   the original surface syntax above, so a macro cannot introduce a forbidden
   term-level `do`, `do←`, or effectful assignment target. -/
   validateVeilDo body
+  validateStatementKinds body.raw
   let expectedTypeStx ←
     `(term| $(mkIdent ``VeilM) $veilModeVar $readerType $stateType _)
   let expectedType ← Term.elabType expectedTypeStx

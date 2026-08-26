@@ -357,4 +357,19 @@ action reject_indexed_local_fallback {
   m true ← pure true | pure ()
 }
 
+/- The statement-kind completeness guard: a `doElem` kind Veil does not
+classify (new upstream syntax, or a library-registered statement) must be a
+loud error, not a silent elaboration through Lean's builtin handlers without
+Veil's per-statement state opening. -/
+syntax (name := exoticStatement) "exotic_statement%" : doElem
+
+/--
+error: Error in action reject_unclassified_statement_kind: statements of kind `FrontendSemanticsDiagnostics.exoticStatement` are not supported in Veil actions
+-/
+#guard_msgs(error, drop warning) in
+action reject_unclassified_statement_kind {
+  scratch := true
+  exotic_statement%
+}
+
 end FrontendSemanticsDiagnostics
