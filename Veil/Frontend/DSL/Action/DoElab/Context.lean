@@ -124,9 +124,6 @@ def requireVeilDoBlock : Lean.Elab.Do.DoElabM Context := do
 
 /-! ## State and theory openings -/
 
-/-- The generated views are rebuilt by name per statement, so the name must
-be one a user cannot spell in ordinary code — a plain `x_conc` would capture
-(and be captured by) user locals of that name. -/
 private def concreteFieldName (nm : Name) : Name :=
   mkVeilImplementationDetailName <| nm.appendAfter "_conc"
 

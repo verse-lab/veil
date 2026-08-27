@@ -412,7 +412,7 @@ def dependentIfShadowResult :=
 /-! ### The legacy existential-`if` spelling is linted, never silent -/
 
 /--
-warning: Veil's existential `if` is now spelled `if w :| p`; this `if w : p` parses as Lean's dependent `if`, so the condition tests the existing binding of `w` instead of introducing a witness — rename the hypothesis if the dependent `if` is intended
+warning: Veil's existential `if` is now spelled `if w :| p`; this `if w : p` parses as Lean's dependent `if`, so the condition tests the existing binding of `w` instead of introducing a witness; if the dependent `if` is intended, name the hypothesis differently from the variables in its condition
 -/
 #guard_msgs(warning, substring := true) in
 procedure legacy_existential_if_warns (w : Bool) {

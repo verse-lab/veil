@@ -46,12 +46,9 @@ private def warnComponentShadow (ctx : Context) (id : Ident) : DoElabM Unit := d
   let kind := if field.isMutable then "mutable state" else "immutable theory"
   logWarningAt id m!"local `{id.getId}` shadows {kind} component `{id.getId}`; references to this name resolve to the local"
 
-/-- The identifiers a binding statement introduces.  Statement shapes without
-binders (e.g. a non-dependent `if`) bind nothing.  Unrecognized shapes return
-no binders rather than throwing: an exception here would make the whole Veil
-handler fall through to Lean's builtin *without* the mandatory per-statement
-state opening, silently reintroducing stale field views. Degrading only the
-shadow warning is the safe failure mode. -/
+/-- The identifiers a binding statement introduces. Unrecognized shapes
+return `#[]` rather than throwing: an exception here would drop the whole
+Veil handler — including the state opening — not just the shadow warning. -/
 private def boundIdents (stx : DoElem) : DoElabM (Array Ident) := do
   match stx with
   | `(doElem| let%$_ $[mut%$_]? $_:letConfig $decl:letDecl)
@@ -120,18 +117,18 @@ def elabVeilLetArrow : DoElab :=
 def elabVeilLetElse : DoElab :=
   delegate Lean.Elab.Do.elabDoLetElse (before := warnShadowingBinders)
 
-/-- The pre-port existential `if` was spelled `if x : p`; that spelling now
-parses as Lean's dependent `if`, turning `∃ x, p x` into a point test at the
-existing binding of `x`. A genuine dependent `if` cannot mention its own
-hypothesis inside the condition, so such an occurrence reliably identifies
-the legacy spelling; lint it so the semantic change is never silent. -/
+/-- The pre-port existential `if` was spelled `if x : p`, which now parses
+as Lean's dependent `if`. The hypothesis binder is not in scope in its own
+condition, so when the same name occurs there it refers to an outer binding
+— either the legacy spelling (meaning changed silently) or a dependent `if`
+whose hypothesis shadows a variable it constrains. Lint both. -/
 private def warnLegacyExistentialIf (_ctx : Context) (stx : DoElem) : DoElabM Unit := do
   let `(doIf| if $h:ident : $c then $_ $[else $_]?) := stx | return
   let some occurrence := Action.findOutsideQuotations? c.raw fun s =>
       if s.isIdent && s.getId == h.getId then some s else none
     | return
   logWarningAt occurrence
-    m!"Veil's existential `if` is now spelled `if {h.getId} :| p`; this `if {h.getId} : p` parses as Lean's dependent `if`, so the condition tests the existing binding of `{h.getId}` instead of introducing a witness — rename the hypothesis if the dependent `if` is intended"
+    m!"Veil's existential `if` is now spelled `if {h.getId} :| p`; this `if {h.getId} : p` parses as Lean's dependent `if`, so the condition tests the existing binding of `{h.getId}` instead of introducing a witness; if the dependent `if` is intended, name the hypothesis differently from the variables in its condition"
 
 @[doElem_elab Lean.Parser.Term.doIf]
 def elabVeilIf : DoElab :=

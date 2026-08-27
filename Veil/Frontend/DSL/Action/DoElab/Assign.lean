@@ -165,27 +165,30 @@ private def parseReassign (stx : DoElem) : TermElabM (Target × Option Term × T
     return (← parseTarget lhs, ty, rhs)
   | _ => throwError m!"internal Veil assignment parser mismatch:{indentD stx} raw: {stx.raw}"
 
-private def parseReassignArrow (stx : DoElem) :
-    TermElabM (Target × Option Term × DoElem × Bool) := do
+private structure ParsedReassignArrow where
+  target : Target
+  type? : Option Term
+  rhs : DoElem
+  /-- Whether the statement carries a fallback branch (`pat ← e | fb`). -/
+  hasFallback : Bool
+
+private def parseReassignArrow (stx : DoElem) : TermElabM ParsedReassignArrow := do
   match stx with
   | `(doReassignArrow| $decl:doIdDecl) =>
     match decl with
     | `(doIdDecl| $id:ident $[: $ty:term]? ← $rhs:doElem) =>
-      return (← parseTargetHead id, ty, rhs, false)
+      return { target := ← parseTargetHead id, type? := ty, rhs, hasFallback := false }
     | _ => throwUnsupportedSyntax
   | `(doReassignArrow| $decl:doPatDecl) =>
     match decl with
     | `(doPatDecl| $lhs:term $[: $ty:term]? ← $rhs:doElem | $_ $[$_]? ) =>
-      return (← parseTarget lhs, ty, rhs, true)
+      return { target := ← parseTarget lhs, type? := ty, rhs, hasFallback := true }
     | `(doPatDecl| $lhs:term $[: $ty:term]? ← $rhs:doElem) =>
-      return (← parseTarget lhs, ty, rhs, false)
+      return { target := ← parseTarget lhs, type? := ty, rhs, hasFallback := false }
     | _ => throwUnsupportedSyntax
   | _ => throwUnsupportedSyntax
 
-/-- Run `x`, mapping `throwUnsupportedSyntax` to `none`. Used by the
-assignment handlers to distinguish "not a Veil-managed target shape" (which
-must still elaborate through Lean's builtin *inside* a fresh state opening)
-from real errors. -/
+/-- Run `x`, mapping `throwUnsupportedSyntax` to `none`. -/
 private def catchUnsupported? (x : DoElabM α) : DoElabM (Option α) :=
   catchInternalId unsupportedSyntaxExceptionId (some <$> x) (fun _ => pure none)
 
@@ -431,9 +434,8 @@ private def elabPureAssignment (ctx : Context) (target : Target)
 def elabStateReassign : DoElab := fun stx dec => do
   let ctx ← requireVeilDoBlock
   let some (target, type?, rhs) ← catchUnsupported? (parseReassign stx)
-    | -- Pattern-shaped targets (e.g. tuples of mutable locals) are Lean's
-      -- business, but their right-hand sides still read state, so the
-      -- builtin must elaborate inside this statement's fresh opening.
+    | -- Pattern-shaped targets are Lean's business, but their right-hand
+      -- sides still read state: keep this statement's fresh opening.
       openStateAround ctx.mod <| Lean.Elab.Do.elabDoReassign stx dec
   openStateAround ctx.mod <| elabPureAssignment ctx target type? rhs stx dec
 
@@ -450,7 +452,7 @@ private def withArrowResult (target : Target) (type? : Option Term)
 @[doElem_elab Lean.Parser.Term.doReassignArrow]
 def elabStateReassignArrow : DoElab := fun stx dec => do
   let ctx ← requireVeilDoBlock
-  let some (target, type?, rhs, hasFallback) ← catchUnsupported? (parseReassignArrow stx)
+  let some { target, type?, rhs, hasFallback } ← catchUnsupported? (parseReassignArrow stx)
     | -- Pattern-shaped targets are Lean's business, inside a fresh opening
       -- (see `elabStateReassign`).
       openStateAround ctx.mod <| Lean.Elab.Do.elabDoReassignArrow stx dec
@@ -459,15 +461,12 @@ def elabStateReassignArrow : DoElab := fun stx dec => do
     | .local =>
       if hasFallback then
         if target.args.isEmpty then
-          -- An ordinary Lean reassignment of a mutable local; the fallback
-          -- machinery belongs to the builtin.
           return ← Lean.Elab.Do.elabDoReassignArrow stx dec
         throwErrorAt stx "fallback branches are not supported on indexed Veil assignments"
       if target.args.isEmpty then
         return ← Lean.Elab.Do.elabDoReassignArrow stx dec
       withArrowResult target type? rhs stx fun value =>
-        -- Re-open after the right-hand side ran: the index terms must read
-        -- post-call state, exactly as in the `.state` branch below.
+        -- The index terms must read post-call state (as in `.state` below).
         openStateAround ctx.mod <|
           elabLocalAssignment ctx target value stx dec
     | .state component =>
@@ -500,64 +499,39 @@ private def withFreshPick (target : Target) (pickType : Term)
   elabDoIdDecl fresh none pickElem do
     k (Syntax.mkApp fresh appliedArgs)
 
-/-- Bind a fresh nondeterministic value for a state-component havoc. The
-picked type is narrowed to the universal (capitalized) dimensions plus any
-unsupplied trailing dimensions. -/
-private def withHavocPick (component : StateComponent) (target : Target)
-    (caps : Array (Option Name)) (k : Term → DoElabM Expr) : DoElabM Expr := do
-  let used := target.args.take component.domainTerms.size
-  let residue := target.args.drop component.domainTerms.size
-  let universal := (Array.range used.size).filter fun i => caps[i]!.isSome
-  let pickDomains := universal.map (fun i => component.domainTerms[i]!) ++
-    component.domainTerms.drop used.size
-  let capitalArgs := universal.map fun i => used[i]!
-  let pickType ←
-    if target.args.isEmpty then component.typeStx
-    else do
-      -- Narrow through supplied codomain-residue indices as well: for
-      -- `table k v := *` only the leaf is havocked, so picking a whole
-      -- function over the residue would enumerate irrelevant choices (and
-      -- duplicate executions during extraction).
-      let leaf ←
-        if residue.isEmpty then
-          pure component.codomainTerm
-        else do
-          let codomain ← Term.elabType component.codomainTerm
-          Meta.forallBoundedTelescope codomain (some residue.size) fun xs body => do
-            unless xs.size == residue.size do
-              throwErrorAt target.head
-                m!"cannot havoc `{target.componentName}`: too many index arguments for its type"
-            if xs.any fun x => body.containsFVar x.fvarId! then
-              throwErrorAt target.head
-                m!"cannot havoc `{target.componentName}`: its type depends on the values of earlier indices"
-            Term.exprToSyntax body
-      mkArrowStx pickDomains.toList (some leaf)
-  withFreshPick target pickType capitalArgs k
-
-/-- The type picked when havocking a `let mut` local: the capitals' index
-types, curried into the type of the updated entry. Locals carry no Veil
-signature, so the narrowing is computed from the local's Lean type. -/
-private def localHavocPickType (decl : LocalDecl) (target : Target)
+/-- The narrowed type a havoc picks: one binder of `type` is stripped per
+supplied index, and the universal capitals' domains are kept, curried onto
+what remains — so a point index never widens the pick, and unsupplied
+trailing dimensions stay part of it. Fails if `type` accepts fewer indices
+than supplied or depends on their values. -/
+private def havocPickType (target : Target) (ty : Expr)
     (caps : Array (Option Name)) : DoElabM Term := do
-  let localType ← instantiateMVars decl.type
-  Meta.forallBoundedTelescope localType (some target.args.size) fun xs body => do
-    unless xs.size == target.args.size do
+  Meta.forallBoundedTelescope ty (some caps.size) fun xs body => do
+    unless xs.size == caps.size do
       throwErrorAt target.head
-        m!"cannot havoc `{target.componentName}`: its type{indentExpr localType}\ndoes not accept this many index arguments"
+        m!"cannot havoc `{target.componentName}`: its type{indentExpr ty}\ndoes not accept this many index arguments"
     let capitalDomains ← xs.zipIdx.filterMapM fun (x, i) => do
       if caps[i]!.isSome then return some (← inferType x) else return none
     let pickType ← liftM (mkArrowN capitalDomains body)
     if xs.any fun x => pickType.containsFVar x.fvarId! then
       throwErrorAt target.head
-        m!"cannot havoc `{target.componentName}`: its type{indentExpr localType}\ndepends on the values of earlier indices"
+        m!"cannot havoc `{target.componentName}`: its type{indentExpr ty}\ndepends on the values of earlier indices"
     Term.exprToSyntax pickType
+
+private def withHavocPick (component : StateComponent) (target : Target)
+    (caps : Array (Option Name)) (k : Term → DoElabM Expr) : DoElabM Expr := do
+  let capitalArgs := target.args.zipIdx.filterMap fun (arg, i) =>
+    if caps[i]!.isSome then some arg else none
+  let componentType ← Term.elabType (← component.typeStx)
+  let pickType ← havocPickType target componentType caps
+  withFreshPick target pickType capitalArgs k
 
 /-- Havoc a `let mut` local: bind a fresh pick narrowed to the universal
 dimensions of the local's type, then reuse the ordinary local-assignment path
 (a capital in a local tuple update is a universal update). -/
 private def elabLocalHavoc (decl : LocalDecl) (target : Target)
     (caps : Array (Option Name)) (ref : Syntax) (dec : DoElemCont) : DoElabM Expr := do
-  let pickType ← localHavocPickType decl target caps
+  let pickType ← havocPickType target (← instantiateMVars decl.type) caps
   let capitalArgs := target.args.zipIdx.filterMap fun (arg, i) =>
     if caps[i]!.isSome then some arg else none
   withFreshPick target pickType capitalArgs fun rhs =>
