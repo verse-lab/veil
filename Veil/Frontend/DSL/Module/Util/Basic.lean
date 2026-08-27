@@ -543,8 +543,12 @@ where
 
 /-! ## Syntax Generation -/
 
-def Module.stateStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (withFieldConcreteType? : Bool := false) : m Term :=
-  return ← `(term| @$(mkIdent stateName) $(← mod.uninterpretedParamIdentsForTheoryOrState withFieldConcreteType?)*)
+/-- The `State` type applied to the concrete field-representation binder
+`χ`. (`State` is parameterized only by the field dispatcher, so there is no
+sort-applied form; for the abstract instantiation apply `State` to
+`FieldAbstractType <sorts>` explicitly.) -/
+def Module.stateStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m Term :=
+  return ← `(term| @$(mkIdent stateName) $(← mod.uninterpretedParamIdentsForTheoryOrState true)*)
 
 def Module.theoryStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m Term :=
   return ← `(term| @$(mkIdent theoryName) $(← mod.uninterpretedParamIdents)*)

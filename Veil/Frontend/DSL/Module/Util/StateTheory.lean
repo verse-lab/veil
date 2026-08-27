@@ -278,7 +278,7 @@ def Module.declareFieldsAbstractedStateStructure [Monad m] [MonadQuotation m] [M
   let abstractFieldRepInsts ← mkFieldRepresentationInstancesForAbstract mod
   let enumerationInst ← `(command| deriving instance $(mkIdent ``Enumeration):ident for $stateIdent)
   let stateIteEtaFields ← mod.stateIteEtaFieldsTheoremStx
-  let stateStx ← mod.stateStx (withFieldConcreteType? := true)
+  let stateStx ← mod.stateStx
   -- `State.mk.injEq` is only generated when the structure has fields, so skip it when there is no field
   let smtAttr : Array Syntax ← if mod.mutableComponents.isEmpty then pure #[] else
     let tmp : Syntax ← `(attribute [$(mkIdent `smtSimp):ident] $(mkIdent $ stateName ++ `mk ++ `injEq):ident)

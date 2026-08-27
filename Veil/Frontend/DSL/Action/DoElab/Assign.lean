@@ -232,9 +232,10 @@ private def implicitCapital? (ctx : Context) (arg : Term) : TermElabM (Option Na
     let category := if component.isMutable then "mutable state component" else "immutable theory component"
     logWarningAt id m!"capitalized index `{id.getId}` resolves to {category} `{id.getId}`; this is a point update, not a universal update"
     return none
+  -- Anything else is an Ivy universal, even a name matching a Lean global:
+  -- action semantics must not depend on imports. Warn about the shadowing.
   unless (← resolveGlobalName (enableLog := false) id.getId).isEmpty do
-    logWarningAt id m!"capitalized index `{id.getId}` resolves to Lean declaration `{id.getId}`; this is a point update, not a universal update"
-    return none
+    logWarningAt id m!"capitalized index `{id.getId}` is a universal index and shadows the Lean declaration `{id.getId}`; to use the declaration as a point index, bind it to a non-capitalized local first"
   return some id.getId
 
 private def implicitCapitals (ctx : Context) (args : Array Term) : TermElabM (Array (Option Name)) :=
@@ -383,15 +384,28 @@ private def elabStateAssignment (ctx : Context) (component : StateComponent)
   checkRepeatedCapitals target caps
   elabAnalyzedStateAssignment ctx.mod component target caps rhs ref dec
 
-private def elabLocalAssignment (target : Target) (rhs : Term)
-    (ref : Syntax) (dec : DoElemCont) : DoElabM Expr := do
+/-- Compile an indexed local update whose capital analysis (`caps`) already
+ran. The tuple-update macro classifies capitals by spelling alone, so every
+point index — including a capital that *resolves* to a point, such as a
+parameter — is pinned to a fresh non-capital implementation-detail local
+first; only resolution-checked universal capitals stay bare. -/
+private def elabAnalyzedLocalAssignment (target : Target)
+    (caps : Array (Option Name)) (rhs : Term) (ref : Syntax)
+    (dec : DoElemCont) : DoElabM Expr := do
   if target.args.isEmpty then
     let elem ← `(doElem| $(target.head):ident := $rhs:term)
     Lean.Elab.Do.elabDoReassign elem dec
   else
-    let updated ← `($(target.head):ident _[ $[$(target.args)],* ↦ $rhs:term ]_)
-    let elem ← withRef ref `(doElem| $(target.head):ident := $updated:term)
-    Lean.Elab.Do.elabDoReassign elem dec
+    withPinnedTargetArgs target caps 0 fun target => do
+      let updated ← `($(target.head):ident _[ $[$(target.args)],* ↦ $rhs:term ]_)
+      let elem ← withRef ref `(doElem| $(target.head):ident := $updated:term)
+      Lean.Elab.Do.elabDoReassign elem dec
+
+private def elabLocalAssignment (ctx : Context) (target : Target) (rhs : Term)
+    (ref : Syntax) (dec : DoElemCont) : DoElabM Expr := do
+  let caps ← implicitCapitals ctx target.args
+  checkRepeatedCapitals target caps
+  elabAnalyzedLocalAssignment target caps rhs ref dec
 
 private def elabPureAssignment (ctx : Context) (target : Target)
     (type? : Option Term) (rhs : Term)
@@ -406,7 +420,7 @@ private def elabPureAssignment (ctx : Context) (target : Target)
       value as `(v : τ)`. -/
       `(($rhs : $typeStx))
   match ← resolveAssignmentTarget ctx target with
-  | .local => elabLocalAssignment target rhs stx dec
+  | .local => elabLocalAssignment ctx target rhs stx dec
   | .state component =>
     checkStateTargetTypeAscription component target type?
     elabStateAssignment ctx component target rhs stx dec
@@ -455,7 +469,7 @@ def elabStateReassignArrow : DoElab := fun stx dec => do
         -- Re-open after the right-hand side ran: the index terms must read
         -- post-call state, exactly as in the `.state` branch below.
         openStateAround ctx.mod <|
-          elabLocalAssignment target value stx dec
+          elabLocalAssignment ctx target value stx dec
     | .state component =>
       if hasFallback then
         throwErrorAt stx "fallback branches are not supported on Veil state arrow assignments"
@@ -499,8 +513,26 @@ private def withHavocPick (component : StateComponent) (target : Target)
   let capitalArgs := universal.map fun i => used[i]!
   let pickType ←
     if target.args.isEmpty then component.typeStx
-    else mkArrowStx pickDomains.toList (some component.codomainTerm)
-  withFreshPick target pickType (capitalArgs ++ residue) k
+    else do
+      -- Narrow through supplied codomain-residue indices as well: for
+      -- `table k v := *` only the leaf is havocked, so picking a whole
+      -- function over the residue would enumerate irrelevant choices (and
+      -- duplicate executions during extraction).
+      let leaf ←
+        if residue.isEmpty then
+          pure component.codomainTerm
+        else do
+          let codomain ← Term.elabType component.codomainTerm
+          Meta.forallBoundedTelescope codomain (some residue.size) fun xs body => do
+            unless xs.size == residue.size do
+              throwErrorAt target.head
+                m!"cannot havoc `{target.componentName}`: too many index arguments for its type"
+            if xs.any fun x => body.containsFVar x.fvarId! then
+              throwErrorAt target.head
+                m!"cannot havoc `{target.componentName}`: its type depends on the values of earlier indices"
+            Term.exprToSyntax body
+      mkArrowStx pickDomains.toList (some leaf)
+  withFreshPick target pickType capitalArgs k
 
 /-- The type picked when havocking a `let mut` local: the capitals' index
 types, curried into the type of the updated entry. Locals carry no Veil
@@ -529,7 +561,8 @@ private def elabLocalHavoc (decl : LocalDecl) (target : Target)
   let capitalArgs := target.args.zipIdx.filterMap fun (arg, i) =>
     if caps[i]!.isSome then some arg else none
   withFreshPick target pickType capitalArgs fun rhs =>
-    elabLocalAssignment target rhs ref dec
+    -- The havoc entry point already ran the capital analysis once; reuse it.
+    elabAnalyzedLocalAssignment target caps rhs ref dec
 
 /-- Havoc is a narrowed pick followed by an ordinary assignment. Targets
 resolve under the same local-precedence rule as `:=`, and the capital

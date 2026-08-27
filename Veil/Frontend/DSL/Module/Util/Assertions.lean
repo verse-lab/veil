@@ -103,7 +103,7 @@ def elabExactState : TacticM Unit := withMainContext do
   -- (e.g., instead constructing the state `Expr` and using
   -- `closeMainGoalUsing`), then some meta-variable (e.g.,
   -- `IsSubStateOf` arguments) synthesis will fail.
-  let constr ← `(term| (⟨$[$actualFields],*⟩ : $(← mod.stateStx true)))
+  let constr ← `(term| (⟨$[$actualFields],*⟩ : $(← mod.stateStx)))
   trace[veil.debug] "state constr: {constr}"
   Tactic.evalTactic $ ← `(tactic| exact $constr)
 
@@ -167,11 +167,15 @@ def Module.withTheoryAndStateTermTemplate (mod : Module)
             `(let $f:ident : $ty := ($fieldRepInstance _).$(mkIdent `get) $fConc:ident ; $b)
           pure (sfsConc, body')
       let tmp ← mkFunSyntax binders body'
-      let sortTerms ← match stateSortTerm with
+      let sortTerms : Array Term ← match stateSortTerm with
         | some sortTerm => pure #[sortTerm]
         | none => match stateView with
-          | .concrete => mod.uninterpretedParamIdentsForTheoryOrState true
-          | .abstract => mod.uninterpretedParamIdentsForTheoryOrState false
+          | .concrete =>
+            pure ((← mod.uninterpretedParamIdentsForTheoryOrState true).map (fun i => (i : Term)))
+          | .abstract =>
+            -- `State` takes only the dispatcher; the abstract instantiation
+            -- is `FieldAbstractType` at the module's sorts.
+            pure #[← `($fieldAbstractDispatcher $(← mod.uninterpretedParamIdents)*)]
       let i ← if wrap? then `(term| $(mkIdent ``getFrom) $i) else pure i
       `(term|
         @$(mkIdent casesOnState) $sortTerms*

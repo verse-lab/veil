@@ -436,7 +436,7 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
   -- ... and put them at the beginning of `extraParams` instead
   let (baseParams, others) := baseParams.partition fun p => !(p.kind matches .environmentState | .backgroundTheory | .moduleTypeclass .environmentState | .moduleTypeclass .backgroundTheory)
   let theoryStx ← mod.theoryStx
-  let stateStx ← mod.stateStx true
+  let stateStx ← mod.stateStx
   let specializeToOther (p : Parameter) : Option Term :=
     match p.kind with
     | .environmentState => some stateStx

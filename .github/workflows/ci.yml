@@ -38,3 +38,5 @@ jobs:
       uses: leanprover/lean-action@v1
       with:
         use-github-cache: false # TODO: enable this
+    - name: Enforce performance test timeouts
+      run: lake script run perftest

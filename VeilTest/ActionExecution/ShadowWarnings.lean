@@ -7,8 +7,8 @@ open VeilTest.ActionExecution
 def ACK : Bool := true
 
 inductive CapitalIndex where
-  | ZERO
-  | ONE
+  | Zero
+  | One
 deriving DecidableEq
 
 open CapitalIndex
@@ -66,11 +66,13 @@ procedure capital_local_is_point_update {
   r N := true
 }
 
+/- A Lean global never captures a bare capital: semantics must not depend on
+imports. The shadowing is warned about. -/
 /--
-warning: capitalized index `ACK` resolves to Lean declaration `ACK`; this is a point update, not a universal update
+warning: capitalized index `ACK` is a universal index and shadows the Lean declaration `ACK`; to use the declaration as a point index, bind it to a non-capitalized local first
 -/
 #guard_msgs(warning) in
-procedure capital_global_is_point_update {
+procedure capital_global_is_universal {
   r ACK := true
 }
 
@@ -78,19 +80,11 @@ procedure capital_global_is_point_update {
 assignment it delegates to — duplicating this warning. The guard requires it
 exactly once. -/
 /--
-warning: capitalized index `ACK` resolves to Lean declaration `ACK`; this is a point update, not a universal update
+warning: capitalized index `N` resolves to parameter `N`; this is a point update, not a universal update
 -/
 #guard_msgs(warning) in
-procedure havoc_capital_warns_once {
-  r ACK := *
-}
-
-/--
-warning: capitalized index `ZERO` resolves to Lean declaration `ZERO`; this is a point update, not a universal update
--/
-#guard_msgs(warning) in
-procedure capital_constructor_is_point_update {
-  q ZERO := true
+procedure havoc_capital_warns_once (N : Bool) {
+  r N := *
 }
 
 /--
@@ -137,15 +131,9 @@ def localCapitalResult :=
   (state.r : Bool → Bool) false && !(state.r : Bool → Bool) true
 
 def globalResult :=
-  __veil_exec_action% {} background initial capital_global_is_point_update
+  __veil_exec_action% {} background initial capital_global_is_universal
 #guard exactlyOneSuccess globalResult fun _ state =>
-  !(state.r : Bool → Bool) false && (state.r : Bool → Bool) true
-
-def constructorResult :=
-  __veil_exec_action% {} background initial capital_constructor_is_point_update
-#guard exactlyOneSuccess constructorResult fun _ state =>
-  (state.q : CapitalIndex → Bool) ZERO &&
-    !(state.q : CapitalIndex → Bool) ONE
+  (state.r : Bool → Bool) false && (state.r : Bool → Bool) true
 
 def restoredTheoryResult :=
   __veil_exec_action% {} background initial theory_shadow_scope_restores

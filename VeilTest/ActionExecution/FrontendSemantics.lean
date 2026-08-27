@@ -19,8 +19,12 @@ individual counter : Nat
 individual flag : Bool
 individual mirror : Bool
 relation link : Bool → Bool
+-- The explicit binder keeps the second `Bool` out of the represented domain,
+-- exercising the codomain-residue paths.
+function grid (key : Bool) : Bool → Bool
 
 veil_set_field_representation relation Veil.CanonicalField
+veil_set_field_representation function Veil.CanonicalField
 
 #gen_state
 
@@ -148,6 +152,7 @@ def initial : State FieldConcreteType := {
   flag := true
   mirror := false
   link := fun _ => false
+  grid := fun _ _ => false
 }
 
 def incrementResult := __veil_exec_action% {} {} initial increment_twice
@@ -270,6 +275,101 @@ procedure local_tuple_fallback_bind {
   return (a, b)
 }
 
+/-! ### Capitalized point indices on local updates
+
+A capital that *resolves* (parameter, local, component, constructor) is a
+point index even when the target is a `let mut` local; the tuple-update
+macro's by-spelling rule must not reinterpret it as universal. -/
+
+/--
+warning: capitalized index `N` resolves to parameter `N`; this is a point update, not a universal update
+-/
+#guard_msgs(warning) in
+procedure local_capital_param_point_update (N : Bool) {
+  let mut m := fun _ : Bool => false
+  m N := true
+  return (m false, m true)
+}
+
+def localCapitalPointResult :=
+  __veil_exec_action% {} {} initial (local_capital_param_point_update false)
+#guard exactlyOneSuccess localCapitalPointResult fun value _ =>
+  value == (true, false)
+
+/--
+warning: capitalized index `N` resolves to parameter `N`; this is a point update, not a universal update
+-/
+#guard_msgs(warning) in
+procedure local_capital_param_point_arrow (N : Bool) {
+  let mut m := fun _ : Bool => false
+  m N ← pure true
+  return (m false, m true)
+}
+
+def localCapitalArrowResult :=
+  __veil_exec_action% {} {} initial (local_capital_param_point_arrow false)
+#guard exactlyOneSuccess localCapitalArrowResult fun value _ =>
+  value == (true, false)
+
+/--
+warning: capitalized index `N` resolves to parameter `N`; this is a point update, not a universal update
+-/
+#guard_msgs(warning) in
+procedure local_capital_param_point_havoc (N : Bool) {
+  let mut m := fun _ : Bool => false
+  m N := *
+  return (m false, m true)
+}
+
+def localCapitalHavocResult :=
+  __veil_exec_action% {} {} initial (local_capital_param_point_havoc true)
+#guard exactlyNSuccesses 2 localCapitalHavocResult fun value _ =>
+  value.1 == false
+#guard hasSuccess localCapitalHavocResult fun value _ => value == (false, true)
+#guard hasSuccess localCapitalHavocResult fun value _ => value == (false, false)
+
+/-! ### A user local spelled like a generated field view is not captured -/
+
+procedure conc_view_name_is_not_captured {
+  let flag_conc := false
+  flag := true
+  return flag_conc
+}
+
+def concViewResult :=
+  __veil_exec_action% {} {} initial conc_view_name_is_not_captured
+#guard exactlyOneSuccess concViewResult fun value state =>
+  value == false && state.flag
+
+/-! ### Leaf havoc through a codomain residue picks only the leaf -/
+
+procedure residue_leaf_havoc {
+  grid true false := *
+  return (grid true false, grid true true, grid false false)
+}
+
+def residueHavocResult := __veil_exec_action% {} {} initial residue_leaf_havoc
+#guard exactlyNSuccesses 2 residueHavocResult fun value _ =>
+  value.2 == (false, false)
+#guard hasSuccess residueHavocResult fun value _ => value.1
+#guard hasSuccess residueHavocResult fun value _ => !value.1
+
+/-! ### Dependent `if h :` false branch -/
+
+procedure dependent_if_false_branch {
+  counter := 1
+  if h : counter = 0 then
+    flag := true
+  else
+    flag := false
+  return flag
+}
+
+def dependentIfFalseResult :=
+  __veil_exec_action% {} {} initial dependent_if_false_branch
+#guard exactlyOneSuccess dependentIfFalseResult fun value state =>
+  !value && !state.flag && state.counter == 1
+
 /-! ### Dependent `if h :`: the hypothesis is a usable proof in both branches -/
 
 procedure dependent_if_proof_both (k : Nat) {
@@ -362,6 +462,13 @@ classify (new upstream syntax, or a library-registered statement) must be a
 loud error, not a silent elaboration through Lean's builtin handlers without
 Veil's per-statement state opening. -/
 syntax (name := exoticStatement) "exotic_statement%" : doElem
+
+/- Register a handler so this faithfully models a library-registered
+statement: even a kind that *would* elaborate must be rejected by the guard
+before dispatch, since it bypasses Veil's state handling. -/
+@[doElem_elab exoticStatement]
+def elabExoticStatement : Lean.Elab.Do.DoElab := fun _ _ =>
+  Lean.Elab.throwUnsupportedSyntax
 
 /--
 error: Error in action reject_unclassified_statement_kind: statements of kind `FrontendSemanticsDiagnostics.exoticStatement` are not supported in Veil actions
