@@ -10,6 +10,50 @@ import Veil.Frontend.DSL.State.SubState
 
 namespace Veil
 
+universe u
+
+/-! ### A universe-polymorphic assertion language
+
+Loom's base algebra is `MAlgOrdered DivM Prop`, and `Prop : Type 0` pins the
+whole monad stack to universe 0. Lifting the assertion language is what lets a
+Veil action range over a state in any universe. Every transformer algebra above
+`DivM` -- `StateT`, `ReaderT`, `ExceptT`, `NonDetT` -- is already
+universe-polymorphic, so these two instances are the whole of the change. -/
+
+/-- `Prop`, lifted so that it can serve as the assertion language at any
+universe. -/
+abbrev VProp := ULift.{u} Prop
+
+namespace PartialCorrectness
+
+noncomputable scoped instance divVProp : MAlgOrdered DivM.{u} VProp.{u} where
+  μ := fun x => match x with
+    | .res p => p
+    | .div   => ⊤
+  μ_ord_pure := by intro l; rfl
+  μ_ord_bind := by
+    intro α f g h x
+    cases x with
+    | div   => exact le_top
+    | res a => exact h a
+
+end PartialCorrectness
+
+namespace TotalCorrectness
+
+noncomputable scoped instance divVProp : MAlgOrdered DivM.{u} VProp.{u} where
+  μ := fun x => match x with
+    | .res p => p
+    | .div   => ⊥
+  μ_ord_pure := by intro l; rfl
+  μ_ord_bind := by
+    intro α f g h x
+    cases x with
+    | div   => exact le_refl _
+    | res a => exact h a
+
+end TotalCorrectness
+
 /-! ## Types  -/
 section Types
 /-- Actions in Veil can be elaborated in two ways:
@@ -32,27 +76,27 @@ deriving BEq
 
 -- abbrev ExId := Int
 -- workaround for [lean-smt#185](https://github.com/ufmg-smite/lean-smt/issues/185)
-macro "ExId" : term => `($(Lean.mkIdent ``Int))
+macro "ExId" : term => `(ULift $(Lean.mkIdent ``Int))
 
 /-- A predicate on the theory and the mutable state. -/
-abbrev SProp (ρ σ : Type) := ρ -> σ -> Prop
+abbrev SProp (ρ σ : Type u) := ρ -> σ -> VProp.{u}
 /-- A predicate on the theory, the post-state, and the result of an action.-/
-abbrev RProp (α ρ σ : Type) := α -> SProp ρ σ
+abbrev RProp (α ρ σ : Type u) := α -> SProp ρ σ
 
 /-! Our language is parametric over the mutable state, immutable state, and return type. -/
 set_option linter.unusedVariables false in
 /-- Executable semantics of _deterministic_ Veil actions. -/
-abbrev VeilExecM (m : Mode) (ρ σ α : Type) := ReaderT ρ (ExceptT ExId (StateT σ DivM)) α
+abbrev VeilExecM (m : Mode) (ρ σ α : Type u) := ReaderT ρ (ExceptT ExId (StateT σ DivM)) α
 /-- Denotation of _non-deterministic_ Veil actions. -/
-abbrev VeilM (m : Mode) (ρ σ α : Type) := NonDetT (VeilExecM m ρ σ) α
+abbrev VeilM (m : Mode) (ρ σ α : Type u) := NonDetT (VeilExecM m ρ σ) α
 /-- Executable semantics of _non-deterministic_ Veil actions, which works by
 returning a _list_ of all possible results (either exceptions or post-states &
 return values). -/
 abbrev VeilMultiExecM κ ε ρ σ α :=
   ReaderT ρ (ExceptT ε (StateT σ (TsilT (PeDivM (List κ))))) α
 
-abbrev VeilSpecM (ρ σ α : Type) := Cont (SProp ρ σ) α
-abbrev Transition (ρ σ : Type) := ρ -> σ -> σ -> Prop
+abbrev VeilSpecM (ρ σ α : Type u) := Cont (SProp ρ σ) α
+abbrev Transition (ρ σ : Type u) := ρ -> σ -> σ -> Prop
 
 end Types
 
@@ -145,7 +189,7 @@ macro "[AngelFail|" t:term "]" : term =>  `(open TotalCorrectness AngelicChoice 
 -/
 macro "[IgnoreEx" ex:term "|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoice in let _ : IsHandler (ε := ExId) $ex := ⟨⟩; $t)
 
-variable {m : Mode} {ρ σ α : Type}
+variable {m : Mode} {ρ σ α : Type u}
 
 section WeakestPreconditionsSemantics
 
