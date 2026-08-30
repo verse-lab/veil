@@ -318,7 +318,7 @@ theorem check_totality_doesNotThrow (ρ : Type) (σ : Type) (party : Type) [part
       delta%
         @OptiRBC.check_totality._veil_dec_type_5 χ party val opt_quorum maj_quorum classic_quorum amplification_quorum
           commit_quorum χ_rep] :
-    ∀ (p1 : party) (p2 : party) (v : val) (__veil_ex : Veil.ExId0),
+    ∀ (p1 : party) (p2 : party) (v : val) (__veil_ex : Int),
       Veil.VeilM.doesNotThrowAssuming_ex
         (@check_totality.ext ρ σ party party_dec_eq party_inhabited val val_dec_eq val_inhabited opt_quorum
           opt_quorum_dec_eq opt_quorum_inhabited maj_quorum maj_quorum_dec_eq maj_quorum_inhabited classic_quorum

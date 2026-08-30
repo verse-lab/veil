@@ -226,10 +226,15 @@ def VeilM.doesNotThrow (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
 
 /-- There is no code path that throws the exception `ex`. This is a version of
 `VeilM.doesNotThrow` that can be used to retrieve _which_ specific exception
-can be thrown. -/
+can be thrown.
+
+NOTE: `ex` is a plain `Int` rather than an `ExId`. The generated VCs quantify
+over this argument and are discharged by the SMT backend, which understands
+`Int` but not `ULift Int`; the `ULift` is peeled off inside the handler
+instead. See also `Veil.ExIdU.down_ofNat`. -/
 @[reducible]
-def VeilM.doesNotThrow_ex (act : VeilM m ρ σ α) (pre : SProp ρ σ) (ex : ExId) : Prop :=
-  [IgnoreEx (· ≠ ex)| triple pre act ⊤]
+def VeilM.doesNotThrow_ex (act : VeilM m ρ σ α) (pre : SProp ρ σ) (ex : Int) : Prop :=
+  [IgnoreEx (fun e => e.down ≠ ex)| triple pre act ⊤]
 
 /-- There is no code path that throws an exception, assuming the assumptions
 hold. If you need to know which specific exception can be thrown, use
@@ -240,10 +245,12 @@ def VeilM.doesNotThrowAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (pr
 
 /-- There is no code path that throws the exception `ex`. This is a version of
 `VeilM.doesNotThrowAssuming` that can be used to retrieve _which_ specific exception
-can be thrown. -/
+can be thrown.
+
+NOTE: see `VeilM.doesNotThrow_ex` for why `ex` is an `Int` and not an `ExId`. -/
 @[reducible]
-def VeilM.doesNotThrowAssuming_ex (act : VeilM m ρ σ α) (assu : ρ → Prop) (pre : SProp ρ σ) (ex : ExId) : Prop :=
-  [IgnoreEx (· ≠ ex)| triple (fun th st => assu th ∧ pre th st) act ⊤]
+def VeilM.doesNotThrowAssuming_ex (act : VeilM m ρ σ α) (assu : ρ → Prop) (pre : SProp ρ σ) (ex : Int) : Prop :=
+  [IgnoreEx (fun e => e.down ≠ ex)| triple (fun th st => assu th ∧ pre th st) act ⊤]
 
 @[reducible]
 def VeilM.succeedsAndPreservesInvariants (act : VeilM m ρ σ α) (inv : SProp ρ σ) : Prop :=
