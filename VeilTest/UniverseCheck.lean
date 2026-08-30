@@ -21,9 +21,9 @@ noncomputable example (act : SchedM PUnit) (post : Veil.RProp PUnit (ULift Unit)
   haveI : IsHandler (fun (_ : Veil.ExIdU.{1}) => True) := ⟨⟩
   wp act post
 
--- and so is the transition relation, via `toTransitionU`
+-- and so is the transition relation
 noncomputable example (act : SchedM PUnit) : Veil.Transition (ULift Unit) St :=
-  Veil.VeilM.toTransitionU act
+  Veil.VeilM.toTransition act
 
 -- universe 0 is untouched
 example : Monad (Veil.VeilM .external Unit Nat) := inferInstance

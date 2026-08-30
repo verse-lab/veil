@@ -1,6 +1,43 @@
 import Veil.Frontend.DSL.Action.Semantics.Definitions
 import Veil.Frontend.DSL.Action.Extract
 
+/-! ### Reconciling the two `MAlgOrdered (StateT σ DivM) (σ → Prop)` instances
+
+`Definitions.lean` declares universe-polymorphic `PartialCorrectness.stateDiv` /
+`TotalCorrectness.stateDiv` instances so that the transition semantics can be
+stated at any universe. At universe 0 Loom's derived `StateT` instance (built on
+`MAlgOrdered DivM Prop`) takes priority, so every lemma below is stated against
+*that* instance -- but a universe-polymorphic definition such as
+`VeilM.toTransition` necessarily elaborates against `stateDiv`. The two agree,
+and these lemmas let us move between them. -/
+
+private theorem MAlgOrdered.ext' {n : Type v → Type w} {l : Type v} [Monad n]
+    [CompleteLattice l] {i₁ i₂ : MAlgOrdered n l}
+    (h : @MAlgOrdered.μ n l _ _ i₁ = @MAlgOrdered.μ n l _ _ i₂) : i₁ = i₂ := by
+  cases i₁; cases i₂; cases h; rfl
+
+open TotalCorrectness in
+/-- At universe 0, `TotalCorrectness.stateDiv` *is* Loom's derived `StateT`
+algebra over `MAlgOrdered DivM Prop`. -/
+theorem TotalCorrectness.stateDiv_eq (σ : Type) :
+    TotalCorrectness.stateDiv σ = instMAlgOrderedStateTForallOfLawfulMonad σ Prop DivM := by
+  apply MAlgOrdered.ext'
+  funext x s
+  show (match x s with | .div => False | .res (f, s') => f s') = _
+  simp only [MAlgOrdered.μ, Functor.map]
+  cases x s <;> simp [LE.pure]
+
+open PartialCorrectness in
+/-- At universe 0, `PartialCorrectness.stateDiv` *is* Loom's derived `StateT`
+algebra over `MAlgOrdered DivM Prop`. -/
+theorem PartialCorrectness.stateDiv_eq (σ : Type) :
+    PartialCorrectness.stateDiv σ = instMAlgOrderedStateTForallOfLawfulMonad σ Prop DivM := by
+  apply MAlgOrdered.ext'
+  funext x s
+  show (match x s with | .div => True | .res (f, s') => f s') = _
+  simp only [MAlgOrdered.μ, Functor.map]
+  cases x s <;> simp
+
 namespace Veil
 
 /-! The lemmas in this file relate `wp` to `DivM`'s *own* monad algebra, which
@@ -212,6 +249,7 @@ section TransitionSemanticsTheorems
 lemma VeilM.toTransitionDerived_sound (act : VeilM m ρ σ α) :
   act.toTransition = act.toTransitionDerived := by
     unfold VeilM.toTransition VeilM.toTransitionDerived VeilSpecM.toTransitionDerived
+    rw [TotalCorrectness.stateDiv_eq]
     simp [←VeilM.raises_true_imp_wp_eq_angel_fail_iwp, triple, LE.le,]
 
 -- lemma VeilM.toTransitionDerived_complete (act : VeilM m ρ σ α) (chs : act.choices) :
@@ -331,6 +369,7 @@ lemma important1
   (∃ a log, (log, DivM.res (Except.ok a, s₁)) ∈ res) ↔
   act.toTransition r₀ s₀ s₁ := by
   unfold VeilM.toTransition triple
+  rw [TotalCorrectness.stateDiv_eq]
   -- TODO this is a mess. needs to be cleaned up
   rw [VeilM.extract_list_eq_wp act h]
   simp [LE.le]
