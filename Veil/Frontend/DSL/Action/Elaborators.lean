@@ -578,9 +578,9 @@ attribute [push] apply_ite
 
 /-- The template for proving `derive_eq` theorems for transitions. -/
 private theorem derive_eq_template {act : VeilM m ρ σ α}
-  {spec : (Int → Prop) → VeilSpecM ρ σ α}
+  {spec : (ExId → Prop) → VeilSpecM ρ σ α}
   {tr : Transition ρ σ}
-  (heq1 : ∀ (handler : Int → Prop) (post : RProp α ρ σ),
+  (heq1 : ∀ (handler : ExId → Prop) (post : RProp α ρ σ),
     [IgnoreEx handler| wp act post ] = spec handler post)
   (heq2 : VeilSpecM.toTransitionDerived (spec fun _ => True) = tr) :
   act.toTransitionDerived = tr :=
@@ -674,7 +674,7 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
     `(∀ $[$polyBinders]*, $a)
   let actFullyApplied ← `(@$act $polyArgs*)
   let predTy ← do
-    let intToProp ← `($(mkIdent ``Int) → Prop)
+    let intToProp ← `($(mkIdent ``ULift) $(mkIdent ``Int) → Prop)
     let veilSpecMUnit ← `($(mkIdent ``VeilSpecM) $theoryTy $abstractStateTypeTerm $(mkIdent ``Unit))
     `($intToProp → $veilSpecMUnit)
   let trDerivedEqTy ← do

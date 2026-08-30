@@ -8,51 +8,57 @@ import Veil.Frontend.DSL.State.SubState
   define initializers and actions.
 -/
 
-namespace Veil
-
 universe u
 
-/-! ### A universe-polymorphic assertion language
+/-! ### A universe-polymorphic base algebra
 
 Loom's base algebra is `MAlgOrdered DivM Prop`, and `Prop : Type 0` pins the
-whole monad stack to universe 0. Lifting the assertion language is what lets a
-Veil action range over a state in any universe. Every transformer algebra above
-`DivM` -- `StateT`, `ReaderT`, `ExceptT`, `NonDetT` -- is already
-universe-polymorphic, so these two instances are the whole of the change. -/
+whole monad stack to universe 0. Rather than lift `Prop` -- which would make
+every specification `ULift Prop`-valued -- we give the algebra one layer higher,
+directly for `StateT σ DivM` at `σ → Prop`, which *is* a `Type u` whenever
+`σ : Type u`. Every transformer above it (`ExceptT`, `ReaderT`, `NonDetT`) is
+already universe-polymorphic and takes its assertion language from below, so
+this single instance is the whole of the change and `SProp` stays `Prop`-valued.
 
-/-- `Prop`, lifted so that it can serve as the assertion language at any
-universe. -/
-abbrev VProp := ULift.{u} Prop
+They live in their own `Veil.Univ` namespace so that they never compete with
+Loom's derived instances at universe 0: Veil's own theory is unchanged, and a
+client whose state lives higher up opens `Veil.Univ` to get them. -/
 
-namespace PartialCorrectness
+namespace Veil.Univ
 
-noncomputable scoped instance divVProp : MAlgOrdered DivM.{u} VProp.{u} where
-  μ := fun x => match x with
-    | .res p => p
-    | .div   => ⊤
-  μ_ord_pure := by intro l; rfl
+noncomputable scoped instance partialStateDiv (σ : Type u) :
+    MAlgOrdered (StateT σ DivM.{u}) (σ → Prop) where
+  μ := fun m s => match m s with
+    | .div         => True
+    | .res (f, s') => f s'
+  μ_ord_pure := by intro l; funext s; rfl
   μ_ord_bind := by
-    intro α f g h x
-    cases x with
-    | div   => exact le_top
-    | res a => exact h a
+    intro α f g h x s
+    show (match (x >>= f) s with | .div => True | .res (p, s') => p s') →
+         (match (x >>= g) s with | .div => True | .res (p, s') => p s')
+    simp only [bind, StateT.bind]
+    cases hx : x s with
+    | div   => simp
+    | res w => simpa using h w.1 w.2
 
-end PartialCorrectness
-
-namespace TotalCorrectness
-
-noncomputable scoped instance divVProp : MAlgOrdered DivM.{u} VProp.{u} where
-  μ := fun x => match x with
-    | .res p => p
-    | .div   => ⊥
-  μ_ord_pure := by intro l; rfl
+noncomputable scoped instance totalStateDiv (σ : Type u) :
+    MAlgOrdered (StateT σ DivM.{u}) (σ → Prop) where
+  μ := fun m s => match m s with
+    | .div         => False
+    | .res (f, s') => f s'
+  μ_ord_pure := by intro l; funext s; rfl
   μ_ord_bind := by
-    intro α f g h x
-    cases x with
-    | div   => exact le_refl _
-    | res a => exact h a
+    intro α f g h x s
+    show (match (x >>= f) s with | .div => False | .res (p, s') => p s') →
+         (match (x >>= g) s with | .div => False | .res (p, s') => p s')
+    simp only [bind, StateT.bind]
+    cases hx : x s with
+    | div   => simp
+    | res w => simpa using h w.1 w.2
 
-end TotalCorrectness
+end Veil.Univ
+
+namespace Veil
 
 /-! ## Types  -/
 section Types
@@ -79,7 +85,7 @@ deriving BEq
 macro "ExId" : term => `(ULift $(Lean.mkIdent ``Int))
 
 /-- A predicate on the theory and the mutable state. -/
-abbrev SProp (ρ σ : Type u) := ρ -> σ -> VProp.{u}
+abbrev SProp (ρ σ : Type u) := ρ -> σ -> Prop
 /-- A predicate on the theory, the post-state, and the result of an action.-/
 abbrev RProp (α ρ σ : Type u) := α -> SProp ρ σ
 
@@ -189,7 +195,7 @@ macro "[AngelFail|" t:term "]" : term =>  `(open TotalCorrectness AngelicChoice 
 -/
 macro "[IgnoreEx" ex:term "|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoice in let _ : IsHandler (ε := ExId) $ex := ⟨⟩; $t)
 
-variable {m : Mode} {ρ σ α : Type u}
+variable {m : Mode} {ρ σ α : Type}
 
 section WeakestPreconditionsSemantics
 
@@ -348,7 +354,7 @@ Eventually, we will need to come up with a better execution strategy, similar
 to what TLC does: it "recovers" imperative assignments from two-state
 transitions.
 -/
-def Transition.toVeilM [x :IsSubStateOf σ σ'] (tr : Transition ρ σ') : VeilM m ρ σ' Unit := do
+def Transition.toVeilM [x :IsSubStateOf σ σ'] (tr : Transition ρ σ') : VeilM m ρ σ' PUnit := do
   let st : σ' ← MonadStateOf.get
   let newSt ← pick σ
   let st' := setIn newSt st
