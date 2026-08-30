@@ -13,7 +13,7 @@ variable {ρ σ κ σₕ asm : Type}
   [fp : StateFingerprint σ σₕ]
   [ActionStatUpdate κ asm]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th)
   (params : SearchParameters ρ σ)
 
 /-- A sequential search context is stable closed if for any state `u` that
@@ -71,7 +71,7 @@ variable {ρ σ κ σₕ asm : Type}
   [ActionStatUpdate κ asm]
   [Ord σₕ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th)
   (params : SearchParameters ρ σ)
 
 /-- A map-reduce main context is stable closed if for any state `u` that

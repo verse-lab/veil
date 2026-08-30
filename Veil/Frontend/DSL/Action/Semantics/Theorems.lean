@@ -1,7 +1,50 @@
 import Veil.Frontend.DSL.Action.Semantics.Definitions
 import Veil.Frontend.DSL.Action.Extract
 
+/-! ### Reconciling the two `MAlgOrdered (StateT σ DivM) (σ → Prop)` instances
+
+`Definitions.lean` declares universe-polymorphic `PartialCorrectness.stateDiv` /
+`TotalCorrectness.stateDiv` instances so that the transition semantics can be
+stated at any universe. At universe 0 Loom's derived `StateT` instance (built on
+`MAlgOrdered DivM Prop`) takes priority, so every lemma below is stated against
+*that* instance -- but a universe-polymorphic definition such as
+`VeilM.toTransition` necessarily elaborates against `stateDiv`. The two agree,
+and these lemmas let us move between them. -/
+
+private theorem MAlgOrdered.ext' {n : Type v → Type w} {l : Type v} [Monad n]
+    [CompleteLattice l] {i₁ i₂ : MAlgOrdered n l}
+    (h : @MAlgOrdered.μ n l _ _ i₁ = @MAlgOrdered.μ n l _ _ i₂) : i₁ = i₂ := by
+  cases i₁; cases i₂; cases h; rfl
+
+open TotalCorrectness in
+/-- At universe 0, `TotalCorrectness.stateDiv` *is* Loom's derived `StateT`
+algebra over `MAlgOrdered DivM Prop`. -/
+theorem TotalCorrectness.stateDiv_eq (σ : Type) :
+    TotalCorrectness.stateDiv σ = instMAlgOrderedStateTForallOfLawfulMonad σ Prop DivM := by
+  apply MAlgOrdered.ext'
+  funext x s
+  show (match x s with | .div => False | .res (f, s') => f s') = _
+  simp only [MAlgOrdered.μ, Functor.map]
+  cases x s <;> simp [LE.pure]
+
+open PartialCorrectness in
+/-- At universe 0, `PartialCorrectness.stateDiv` *is* Loom's derived `StateT`
+algebra over `MAlgOrdered DivM Prop`. -/
+theorem PartialCorrectness.stateDiv_eq (σ : Type) :
+    PartialCorrectness.stateDiv σ = instMAlgOrderedStateTForallOfLawfulMonad σ Prop DivM := by
+  apply MAlgOrdered.ext'
+  funext x s
+  show (match x s with | .div => True | .res (f, s') => f s') = _
+  simp only [MAlgOrdered.μ, Functor.map]
+  cases x s <;> simp
+
 namespace Veil
+
+/-! The lemmas in this file relate `wp` to `DivM`'s *own* monad algebra, which
+Loom provides only at `Prop`. They are therefore stated at universe 0 -- which
+is where every Veil module's state lives. The types in `Definitions.lean` are
+universe-polymorphic; only this lemma library is pinned. -/
+variable {m : Mode} {ρ σ α : Type}
 
 lemma VeilExecM.wp_eq (act : VeilExecM m ρ σ α) (post : RProp α ρ σ) :
   [DemonFail| wp act post = fun r s => wp (m := DivM) (act r s) (fun | (.ok a, s) => post a r s | (.error _, _) => False)] ∧
@@ -98,23 +141,23 @@ lemma VeilExecM.not_raises_imp_terminates_wp (act : VeilExecM m ρ σ α)
   (invEx : ExId -> RProp α ρ σ) :
   ⨅ ex, [IgnoreEx (· ≠ ex)| wp act (invEx ex)] <= [DemonFail| wp act (iInf invEx)] := by
   intro r s; simp [VeilExecM.wp_eq, DivM.wp_eq]
-  cases (act r s) <;> aesop (add safe simp loomLogicSimp)
+  cases (act r s) <;> aesop (add safe simp loomLogicSimp) (add safe cases ULift)
 
 lemma VeilM.not_raises_imp_terminates_wp (act : VeilM m ρ σ α)
   (invEx : ExId -> RProp α ρ σ) :
   ⨅ ex, [IgnoreEx (· ≠ ex)| wp act (invEx ex)] <= [DemonFail| wp act (iInf invEx)] := by
-  dsimp; unhygienic induction act <;> simp [-le_iInf_iff]
+  dsimp; unhygienic induction act <;> simp [-le_iInf_iff, -iInf_ulift]
   { apply le_trans; apply VeilExecM.not_raises_imp_terminates_wp;
     open ExceptionAsFailure in apply wp_cons; intro y
-    simp; apply f_ih }
+    simp [-iInf_ulift]; apply f_ih }
   rw [iInf_comm]; apply iInf_mono; intro i
-  by_cases h : p i <;> simp [h,f_ih]
+  by_cases h : p i <;> simp [h, f_ih, -iInf_ulift]
 
 lemma VeilM.not_raises_imp_terminates (act : VeilM m ρ σ α) (pre : SProp ρ σ) :
   (∀ ex, act.succeedsWhenIgnoring (· ≠ ex) pre) ->
   act.doesNotThrow pre := by
   unfold VeilM.succeedsWhenIgnoring VeilM.doesNotThrow triple
-  simp; rw [←le_iInf_iff (ι := ExId)]; intro h;
+  simp [-ULift.forall]; rw [←le_iInf_iff (ι := ExId)]; intro h;
   have : (⊤ : RProp α ρ σ) = iInf (fun (_ : ExId) => ⊤) := by simp
   rw [this]
   solve_by_elim [VeilM.not_raises_imp_terminates_wp, le_trans']
@@ -206,6 +249,7 @@ section TransitionSemanticsTheorems
 lemma VeilM.toTransitionDerived_sound (act : VeilM m ρ σ α) :
   act.toTransition = act.toTransitionDerived := by
     unfold VeilM.toTransition VeilM.toTransitionDerived VeilSpecM.toTransitionDerived
+    rw [TotalCorrectness.stateDiv_eq]
     simp [←VeilM.raises_true_imp_wp_eq_angel_fail_iwp, triple, LE.le,]
 
 -- lemma VeilM.toTransitionDerived_complete (act : VeilM m ρ σ α) (chs : act.choices) :
@@ -311,7 +355,7 @@ theorem VeilM.extract_list_eq_wp (s : VeilM m ρ σ α)
   (h : ExtractConstraint κ
     (VeilExecM m ρ σ)
     (VeilMultiExecM κ ExId ρ σ) (fun p (ec : ExtCandidates Candidates κ p) => ec.core.find) s s')
-  (hd : ℤ → Prop) [IsHandler hd] :
+  (hd : ExId → Prop) [IsHandler hd] :
   wp s post = wp s' post := by
   apply MultiExtractor.AngelicChoice.extract_list_eq_wp κ ; assumption
 
@@ -325,6 +369,7 @@ lemma important1
   (∃ a log, (log, DivM.res (Except.ok a, s₁)) ∈ res) ↔
   act.toTransition r₀ s₀ s₁ := by
   unfold VeilM.toTransition triple
+  rw [TotalCorrectness.stateDiv_eq]
   -- TODO this is a mess. needs to be cleaned up
   rw [VeilM.extract_list_eq_wp act h]
   simp [LE.le]

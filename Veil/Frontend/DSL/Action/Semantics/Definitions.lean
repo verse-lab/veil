@@ -8,6 +8,63 @@ import Veil.Frontend.DSL.State.SubState
   define initializers and actions.
 -/
 
+universe u
+
+/-! ### A universe-polymorphic base algebra
+
+Loom's base algebra is `MAlgOrdered DivM Prop`, and `Prop : Type 0` pins the
+whole monad stack to universe 0. Rather than lift `Prop` -- which would make
+every specification `ULift Prop`-valued -- we give the algebra one layer higher,
+directly for `StateT σ DivM` at `σ → Prop`, which *is* a `Type u` whenever
+`σ : Type u`. Every transformer above it (`ExceptT`, `ReaderT`, `NonDetT`) is
+already universe-polymorphic and takes its assertion language from below, so
+this single instance is the whole of the change and `SProp` stays `Prop`-valued.
+
+They are scoped into the same `PartialCorrectness` / `TotalCorrectness`
+namespaces Loom uses, so the existing `[DemonFail| ]` / `[DemonSucc| ]` /
+`[AngelFail| ]` / `[IgnoreEx | ]` macros select the right one -- putting both in
+one namespace would make them ambiguous, since they share a type and differ only
+in `μ .div`. They are low priority, so at universe 0 Loom's derived instance
+still wins and Veil's own theory is unchanged. -/
+
+namespace PartialCorrectness
+
+noncomputable scoped instance (priority := low) stateDiv (σ : Type u) :
+    MAlgOrdered (StateT σ DivM.{u}) (σ → Prop) where
+  μ := fun m s => match m s with
+    | .div         => True
+    | .res (f, s') => f s'
+  μ_ord_pure := by intro l; funext s; rfl
+  μ_ord_bind := by
+    intro α f g h x s
+    show (match (x >>= f) s with | .div => True | .res (p, s') => p s') →
+         (match (x >>= g) s with | .div => True | .res (p, s') => p s')
+    simp only [bind, StateT.bind]
+    cases hx : x s with
+    | div   => simp
+    | res w => simpa using h w.1 w.2
+
+end PartialCorrectness
+
+namespace TotalCorrectness
+
+noncomputable scoped instance (priority := low) stateDiv (σ : Type u) :
+    MAlgOrdered (StateT σ DivM.{u}) (σ → Prop) where
+  μ := fun m s => match m s with
+    | .div         => False
+    | .res (f, s') => f s'
+  μ_ord_pure := by intro l; funext s; rfl
+  μ_ord_bind := by
+    intro α f g h x s
+    show (match (x >>= f) s with | .div => False | .res (p, s') => p s') →
+         (match (x >>= g) s with | .div => False | .res (p, s') => p s')
+    simp only [bind, StateT.bind]
+    cases hx : x s with
+    | div   => simp
+    | res w => simpa using h w.1 w.2
+
+end TotalCorrectness
+
 namespace Veil
 
 /-! ## Types  -/
@@ -30,29 +87,41 @@ inductive Mode where
   | external : Mode
 deriving BEq
 
--- abbrev ExId := Int
+/-- Exception identifiers. Universe-polymorphic because `ExceptT`'s error type
+must live in the same universe as the monad's values, and `Int : Type 0` would
+otherwise pin the whole action monad to universe 0. -/
+abbrev ExIdU := ULift.{u} Int
+
+/-- Exception identifiers at universe 0, where the whole DSL elaborates. -/
+abbrev ExId0 := ExIdU.{0}
+
+/-- Numeric literals for exception identifiers. The DSL elaborators emit raw
+numeric literals for assertion IDs (see `Veil.Frontend.DSL.Action.DoNotation`), so
+`ExIdU` needs an `OfNat` instance now that it is a `ULift` rather than `Int`. -/
+instance instOfNatExIdU (n : Nat) : OfNat (ExIdU.{u}) n := ⟨ULift.up (OfNat.ofNat n)⟩
+
 -- workaround for [lean-smt#185](https://github.com/ufmg-smite/lean-smt/issues/185)
-macro "ExId" : term => `($(Lean.mkIdent ``Int))
+macro "ExId" : term => `($(Lean.mkIdent ``Veil.ExId0))
 
 /-- A predicate on the theory and the mutable state. -/
-abbrev SProp (ρ σ : Type) := ρ -> σ -> Prop
+abbrev SProp (ρ σ : Type u) := ρ -> σ -> Prop
 /-- A predicate on the theory, the post-state, and the result of an action.-/
-abbrev RProp (α ρ σ : Type) := α -> SProp ρ σ
+abbrev RProp (α ρ σ : Type u) := α -> SProp ρ σ
 
 /-! Our language is parametric over the mutable state, immutable state, and return type. -/
 set_option linter.unusedVariables false in
 /-- Executable semantics of _deterministic_ Veil actions. -/
-abbrev VeilExecM (m : Mode) (ρ σ α : Type) := ReaderT ρ (ExceptT ExId (StateT σ DivM)) α
+abbrev VeilExecM (m : Mode) (ρ σ α : Type u) := ReaderT ρ (ExceptT ExIdU.{u} (StateT σ DivM)) α
 /-- Denotation of _non-deterministic_ Veil actions. -/
-abbrev VeilM (m : Mode) (ρ σ α : Type) := NonDetT (VeilExecM m ρ σ) α
+abbrev VeilM (m : Mode) (ρ σ α : Type u) := NonDetT (VeilExecM m ρ σ) α
 /-- Executable semantics of _non-deterministic_ Veil actions, which works by
 returning a _list_ of all possible results (either exceptions or post-states &
 return values). -/
 abbrev VeilMultiExecM κ ε ρ σ α :=
   ReaderT ρ (ExceptT ε (StateT σ (TsilT (PeDivM (List κ))))) α
 
-abbrev VeilSpecM (ρ σ α : Type) := Cont (SProp ρ σ) α
-abbrev Transition (ρ σ : Type) := ρ -> σ -> σ -> Prop
+abbrev VeilSpecM (ρ σ α : Type u) := Cont (SProp ρ σ) α
+abbrev Transition (ρ σ : Type u) := ρ -> σ -> σ -> Prop
 
 end Types
 
@@ -164,10 +233,15 @@ def VeilM.doesNotThrow (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
 
 /-- There is no code path that throws the exception `ex`. This is a version of
 `VeilM.doesNotThrow` that can be used to retrieve _which_ specific exception
-can be thrown. -/
+can be thrown.
+
+NOTE: `ex` is a plain `Int` rather than an `ExId`. The generated VCs quantify
+over this argument and are discharged by the SMT backend, which understands
+`Int` but not `ULift Int`; the `ULift` is peeled off inside the handler
+instead. See also `Veil.ExIdU.down_ofNat`. -/
 @[reducible]
-def VeilM.doesNotThrow_ex (act : VeilM m ρ σ α) (pre : SProp ρ σ) (ex : ExId) : Prop :=
-  [IgnoreEx (· ≠ ex)| triple pre act ⊤]
+def VeilM.doesNotThrow_ex (act : VeilM m ρ σ α) (pre : SProp ρ σ) (ex : Int) : Prop :=
+  [IgnoreEx (fun e => e.down ≠ ex)| triple pre act ⊤]
 
 /-- There is no code path that throws an exception, assuming the assumptions
 hold. If you need to know which specific exception can be thrown, use
@@ -178,10 +252,12 @@ def VeilM.doesNotThrowAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (pr
 
 /-- There is no code path that throws the exception `ex`. This is a version of
 `VeilM.doesNotThrowAssuming` that can be used to retrieve _which_ specific exception
-can be thrown. -/
+can be thrown.
+
+NOTE: see `VeilM.doesNotThrow_ex` for why `ex` is an `Int` and not an `ExId`. -/
 @[reducible]
-def VeilM.doesNotThrowAssuming_ex (act : VeilM m ρ σ α) (assu : ρ → Prop) (pre : SProp ρ σ) (ex : ExId) : Prop :=
-  [IgnoreEx (· ≠ ex)| triple (fun th st => assu th ∧ pre th st) act ⊤]
+def VeilM.doesNotThrowAssuming_ex (act : VeilM m ρ σ α) (assu : ρ → Prop) (pre : SProp ρ σ) (ex : Int) : Prop :=
+  [IgnoreEx (fun e => e.down ≠ ex)| triple (fun th st => assu th ∧ pre th st) act ⊤]
 
 @[reducible]
 def VeilM.succeedsAndPreservesInvariants (act : VeilM m ρ σ α) (inv : SProp ρ σ) : Prop :=
@@ -217,6 +293,11 @@ def VeilM.preservesInvariantsIfSuccessfulAssuming (act : VeilM m ρ σ α) (assu
 end WeakestPreconditionsSemantics
 
 section TransitionSemantics
+
+/-! The transition semantics needs no `DivM`-level lemmas -- only the monad
+algebra, which the `stateDiv` instances supply at any universe -- so it is
+universe-polymorphic. -/
+variable {m : Mode} {ρ σ α : Type u}
 
 def VeilSpecM.toTransition (spec : VeilSpecM ρ σ α) : Transition ρ σ :=
   fun r₀ s₀ s₁ => spec (fun _ r s => r = r₀ ∧ s = s₁) r₀ s₀
@@ -304,7 +385,7 @@ Eventually, we will need to come up with a better execution strategy, similar
 to what TLC does: it "recovers" imperative assignments from two-state
 transitions.
 -/
-def Transition.toVeilM [x :IsSubStateOf σ σ'] (tr : Transition ρ σ') : VeilM m ρ σ' Unit := do
+def Transition.toVeilM [x :IsSubStateOf σ σ'] (tr : Transition ρ σ') : VeilM m ρ σ' PUnit := do
   let st : σ' ← MonadStateOf.get
   let newSt ← pick σ
   let st' := setIn newSt st

@@ -391,16 +391,16 @@ def getAllPostStates (c : List (DivM ((Except ε α) × σ))) : List (Option σ)
   c.map getPostState
 
 /-- Extract all valid states from a VeilMultiExecM computation -/
-def extractValidStates (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
+def extractValidStates (exec : Veil.VeilMultiExecM κᵣ Veil.ExId0 ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
   exec rd st |>.map Prod.snd |> getAllPostStates
 
 /-- Extract all execution outcomes (including assertion failures) from a VeilMultiExecM computation -/
-def extractAllOutcomes (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Veil.ExecutionOutcome ℤ σ) :=
+def extractAllOutcomes (exec : Veil.VeilMultiExecM κᵣ Veil.ExId0 ρ σ Unit) (rd : ρ) (st : σ) : List (Veil.ExecutionOutcome Veil.ExId0 σ) :=
   exec rd st |>.map fun (_, st) => getExecutionOutcome st
 
 /-- Extract only assertion failures from a VeilMultiExecM computation.
 Returns a list of (exception ID, state at failure) pairs. -/
-def extractAssertionFailures (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (ℤ × σ) :=
+def extractAssertionFailures (exec : Veil.VeilMultiExecM κᵣ Veil.ExId0 ρ σ Unit) (rd : ρ) (st : σ) : List (Veil.ExId0 × σ) :=
   extractAllOutcomes exec rd st |>.filterMap fun
     | .assertionFailure e s => some (e, s)
     | _ => none
@@ -457,8 +457,8 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
       : $(mkIdent ``Veil.EnumerableTransitionSystem)
         $theoryStx ($(mkIdent ``List) $theoryStx)
         $stateStx ($(mkIdent ``List) $stateStx)
-        $(mkIdent ``Int)
-        $labelStx ($(mkIdent ``List) ($labelStx × $(mkIdent ``Veil.ExecutionOutcome) $(mkIdent ``Int) $stateStx))
+        $(mkIdent ``Veil.ExId0)
+        $labelStx ($(mkIdent ``List) ($labelStx × $(mkIdent ``Veil.ExecutionOutcome) $(mkIdent ``Veil.ExId0) $stateStx))
         $theoryId
      })
 

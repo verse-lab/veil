@@ -53,7 +53,7 @@ def MapReduceSearchContextLocal.processSuccessors
 def MapReduceSearchContextLocal.processState
   (params : SearchParameters ρ σ) (th : ρ)
   (fpSt : σₕ) (curr : σ)
-  (outcomes : List (κ × ExecutionOutcome ℤ σ))
+  (outcomes : List (κ × ExecutionOutcome Veil.ExId0 σ))
   (lctx : MapReduceSearchContextLocal σ κ σₕ asm) : MapReduceSearchContextLocal σ κ σₕ asm :=
   let (ctx, q) := lctx
   let (ctx', outcomesOpt) := ctx.processState params th fpSt curr outcomes
@@ -71,7 +71,7 @@ section
 -- FIXME: The proofs are also very similar to the sequential one
 
 variable {params : SearchParameters ρ σ} {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th}
   {lctx : MapReduceSearchContextLocal σ κ σₕ asm}
   {globalSeen : ShardedTreeSetUSize σₕ}
 
@@ -202,7 +202,7 @@ private theorem processWorkQueue.subproof6 {α : Type u} {l : List α} :
 
 def processWorkQueue
   {params : SearchParameters ρ σ} {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th}
   {globalSeen : ShardedTreeSetUSize σₕ}
   (queue : List (MapReduceQueueItem σₕ σ))
   {p q : MapReduceQueueItem σₕ σ → Prop} (h : ∀ x, q x ↔ p x ∨ x ∈ queue)
@@ -231,7 +231,7 @@ def processWorkQueue
 def bfsBigStep
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   (params : SearchParameters ρ σ) {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th)
   (globalSeen : ShardedTreeSetUSize σₕ)
   (completedDepth : Nat)
   (queue : List (MapReduceQueueItem σₕ σ))
@@ -364,7 +364,7 @@ theorem BaseSearchContext.mergeWithoutDepthChangeNoLog_foldl_description
 
 def MapReduceSearchContextMain.mergeWithLocalOnes
   {params : SearchParameters ρ σ} {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th}
   (mctx : MapReduceSearchContextMain σ κ σₕ asm)
   {splitLists : List (List (MapReduceQueueItem σₕ σ))}
   {globalSeen : ShardedTreeSetUSize σₕ}
@@ -400,7 +400,7 @@ attribute [local simp] ShardedTreeSetUSize.mem_insertManyFastSHS in
 theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ]
   {params : SearchParameters ρ σ} {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th}
   {mctx : MapReduceSearchContextMain σ κ σₕ asm}
   (h_not_finished : mctx.base.hasFinished = false)
   (h_mctx : MapReduceSearchContextMainInvariants sys params mctx)
@@ -522,7 +522,7 @@ omit [ActionStatUpdate κ asm] in
 private theorem breadthFirstSearchParallel.subproof1 {ρ σₕ σ : Type}
   [fp : StateFingerprint σ σₕ]
   {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th}
   {seen : σₕ → Prop}
   {tovisit : List (MapReduceQueueItem σₕ σ)}
   (h : ∀ x st, ⟨x, st⟩ ∈ tovisit → sys.reachable st ∧ seen x ∧ x = fp.view st)
@@ -546,7 +546,7 @@ def breadthFirstSearchParallel {m : Type → Type}
   [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ]
   (params : SearchParameters ρ σ)
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th)
   (parallelCfg : ParallelConfig)
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken) :

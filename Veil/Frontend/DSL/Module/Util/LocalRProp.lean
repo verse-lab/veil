@@ -602,7 +602,7 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
     coreArgs := stateCoreArgs
   } := stateView
   let predTy ← do
-    let intToProp ← `($(mkIdent ``Int) → Prop)
+    let intToProp ← `($(mkIdent ``Veil.ExId0) → Prop)
     let veilSpecMUnit ← `($(mkIdent ``VeilSpecM) $theoryTy $abstractStateTypeTerm $(mkIdent ``Unit))
     `($intToProp → $veilSpecMUnit)
   -- This is the post term used by `wp_local_eq`: the concrete `post` is
@@ -646,12 +646,12 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
         {$post : $(mkIdent ``SProp) $environmentTheory $environmentState}
         [$postLocal : @$localRPropTC $paramArgs* $post]
         {$pred : $predTy}
-        ($handler : $(mkIdent ``Int) → Prop)
+        ($handler : $(mkIdent ``Veil.ExId0) → Prop)
         ($assuCore : $assuCoreType)
         ($preCore : $stateCoreType)
         ($hAssu : ∀ ($th : $environmentTheory), $assu $th = $assuRhs)
         ($hPre : ∀ ($th : $environmentTheory) ($st : $environmentState), $pre $th $st = $preRhs)
-        ($hWp : ∀ ($handler : $(mkIdent ``Int) → Prop) ($th : $environmentTheory) ($st : $environmentState),
+        ($hWp : ∀ ($handler : $(mkIdent ``Veil.ExId0) → Prop) ($th : $environmentTheory) ($st : $environmentState),
           [IgnoreEx $handler| $(mkIdent ``wp) $act (fun _ => $post) $th $st] =
             $pred $handler $postLocalTerm ($(mkIdent ``readFrom) $th) $absSt)
         ($hLocal : $hLocalType) :

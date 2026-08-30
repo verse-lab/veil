@@ -197,7 +197,9 @@ private def mkDoesNotThrowVC [Monad m] [MonadQuotation m] [MonadMacroAdapter m] 
     : m (VCData VCMetadata) := do
   mkVCForSpecTheorem mod actName actKind (propertyName := `doesNotThrow)
     ``VeilM.doesNotThrowAssuming_ex (Name.mkSimple s!"{actName}_doesNotThrow") vcKind
-    (extraBinders := #[← `(bracketedBinder| ($exception:ident : ExId))])
+    -- NOTE: the quantified exception id is a plain `Int` (not an `ExId`), so
+    -- that the SMT backend can translate it; see `VeilM.doesNotThrow_ex`.
+    (extraBinders := #[← `(bracketedBinder| ($exception:ident : Int))])
     (extraTerms := #[← `(term| $exception:ident)])
 
 private def mkMeetsSpecificationIfSuccessfulClauseVC [Monad m] [MonadQuotation m]

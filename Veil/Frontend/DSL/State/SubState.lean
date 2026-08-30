@@ -1,6 +1,8 @@
 import Veil.Frontend.DSL.Infra.Simp
 
-class IsSubReaderOf (ρ : outParam Type) (ρ' : Type) where
+universe u
+
+class IsSubReaderOf (ρ : outParam (Type u)) (ρ' : Type u) where
   /-- Get the small state `ρ` from the big one `ρ'` -/
   readFrom : ρ' -> ρ
 
@@ -30,7 +32,7 @@ state
 - proofs that these methods are related to each other in the natural
 way
 -/
-class IsSubStateOf (σ : outParam Type) (σ' : Type) where
+class IsSubStateOf (σ : outParam (Type u)) (σ' : Type u) where
   /-- Set the small state `σ` in the big one `σ'`, returning the new `σ'` -/
   setIn : σ -> σ' -> σ'
   /-- Get the small state `σ` from the big one `σ'` -/
@@ -53,7 +55,7 @@ instance instIsSubStateOfRefl : IsSubStateOf σ σ where
   setIn_setIn_last         := by simp
   getFrom_setIn_idempotent := by simp
 
-def IsSubStateOf.trans {σₛ σₘ σ : Type} (S₁ : IsSubStateOf σₛ σₘ) (S₂ : IsSubStateOf σₘ σ) : IsSubStateOf σₛ σ :=
+def IsSubStateOf.trans {σₛ σₘ σ : Type u} (S₁ : IsSubStateOf σₛ σₘ) (S₂ : IsSubStateOf σₘ σ) : IsSubStateOf σₛ σ :=
 {
   setIn := fun σₛ σ => let σₘ := (S₂.getFrom σ); S₂.setIn (S₁.setIn σₛ σₘ) σ
   getFrom := fun σ => S₁.getFrom (S₂.getFrom σ)
@@ -69,15 +71,15 @@ instance (priority := high + 1) [IsSubStateOf σₛ σ] [Monad m] : MonadStateOf
 
 /-- Used in transition-style goals to ensure the post-state is an
 explicit hypothesis, so it gets included in models returned by SMT. -/
-theorem IsSubStateOf.setIn_makeExplicit {σₛ σ : Type} {S : IsSubStateOf σₛ σ} {x : σₛ} {pre : σ} (post : σ) :
+theorem IsSubStateOf.setIn_makeExplicit {σₛ σ : Type u} {S : IsSubStateOf σₛ σ} {x : σₛ} {pre : σ} (post : σ) :
   setIn x pre = post ↔ (∃ st', st' = x ∧ setIn st' pre = post) := by
     constructor
     { intro h; exists x }
     { rintro ⟨s₁, ⟨heq, h⟩⟩; rw [← heq]; apply h}
 
-theorem instIsSubReaderOfRefl.readFrom_id {ρ : Type} (x : ρ) : instIsSubReaderOfRefl.readFrom x = x := rfl
-theorem instIsSubStateOfRefl.setIn_overwrite {σ : Type} (x y : σ) : instIsSubStateOfRefl.setIn x y = x := rfl
-theorem instIsSubStateOfRefl.getFrom_id {σ : Type} (x : σ) : instIsSubStateOfRefl.getFrom x = x := rfl
+theorem instIsSubReaderOfRefl.readFrom_id {ρ : Type u} (x : ρ) : instIsSubReaderOfRefl.readFrom x = x := rfl
+theorem instIsSubStateOfRefl.setIn_overwrite {σ : Type u} (x y : σ) : instIsSubStateOfRefl.setIn x y = x := rfl
+theorem instIsSubStateOfRefl.getFrom_id {σ : Type u} (x : σ) : instIsSubStateOfRefl.getFrom x = x := rfl
 
 open Lean Meta Elab Term in
 def Veil.dsimpSubReaderSubStateRefl (e : Expr) : TermElabM Expr := do

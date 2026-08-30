@@ -80,4 +80,14 @@ attribute [smtSimp] Bool.ite_eq_true_distrib Bool.ite_eq_false_distrib
 
 attribute [smtSimp] and_true true_and
 
+/-- Exception identifiers are `ULift Int` (see `Veil.ExIdU`), but the SMT
+backend only knows about `Int`. The `doesNotThrow` VCs quantify over a plain
+`Int` and compare it against `ExId.down`, so all that is left to do here is to
+push `ULift.down` through the numeric literals emitted for assertion ids.
+
+NOTE: the `no_index` is required, otherwise the `OfNat` literal in the LHS is
+indexed as a raw natural number and the lemma never fires. -/
+@[simp, smtSimp] theorem ExIdU.down_ofNat (n : Nat) :
+    (no_index (@OfNat.ofNat ExIdU.{u} n (instOfNatExIdU n))).down = (OfNat.ofNat n : Int) := rfl
+
 end Veil
