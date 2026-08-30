@@ -20,13 +20,16 @@ directly for `StateT σ DivM` at `σ → Prop`, which *is* a `Type u` whenever
 already universe-polymorphic and takes its assertion language from below, so
 this single instance is the whole of the change and `SProp` stays `Prop`-valued.
 
-They live in their own `Veil.Univ` namespace so that they never compete with
-Loom's derived instances at universe 0: Veil's own theory is unchanged, and a
-client whose state lives higher up opens `Veil.Univ` to get them. -/
+They are scoped into the same `PartialCorrectness` / `TotalCorrectness`
+namespaces Loom uses, so the existing `[DemonFail| ]` / `[DemonSucc| ]` /
+`[AngelFail| ]` / `[IgnoreEx | ]` macros select the right one -- putting both in
+one namespace would make them ambiguous, since they share a type and differ only
+in `μ .div`. They are low priority, so at universe 0 Loom's derived instance
+still wins and Veil's own theory is unchanged. -/
 
-namespace Veil.Univ
+namespace PartialCorrectness
 
-noncomputable scoped instance partialStateDiv (σ : Type u) :
+noncomputable scoped instance (priority := low) stateDiv (σ : Type u) :
     MAlgOrdered (StateT σ DivM.{u}) (σ → Prop) where
   μ := fun m s => match m s with
     | .div         => True
@@ -41,7 +44,11 @@ noncomputable scoped instance partialStateDiv (σ : Type u) :
     | div   => simp
     | res w => simpa using h w.1 w.2
 
-noncomputable scoped instance totalStateDiv (σ : Type u) :
+end PartialCorrectness
+
+namespace TotalCorrectness
+
+noncomputable scoped instance (priority := low) stateDiv (σ : Type u) :
     MAlgOrdered (StateT σ DivM.{u}) (σ → Prop) where
   μ := fun m s => match m s with
     | .div         => False
@@ -56,7 +63,7 @@ noncomputable scoped instance totalStateDiv (σ : Type u) :
     | div   => simp
     | res w => simpa using h w.1 w.2
 
-end Veil.Univ
+end TotalCorrectness
 
 namespace Veil
 
