@@ -47,7 +47,7 @@ def SequentialSearchContext.processState
   (fpSt : σₕ)
   (depth : Nat)  -- depth of the current state
   (curr : σ)
-  (outcomes : List (κ × ExecutionOutcome ℤ σ))
+  (outcomes : List (κ × ExecutionOutcome Veil.ExId0 σ))
   (sctx : SequentialSearchContext σ κ σₕ asm)
   -- Depth tracking information computed by caller
   (newCompletedDepth : Nat)
@@ -76,7 +76,7 @@ def SequentialSearchContext.processState
 /-- Perform one step of BFS. -/
 -- @[inline, specialize]
 def SequentialSearchContext.bfsStep
-  (outcomesComputer : ρ → σ → List (κ × ExecutionOutcome ℤ σ))
+  (outcomesComputer : ρ → σ → List (κ × ExecutionOutcome Veil.ExId0 σ))
   (sctx : SequentialSearchContext σ κ σₕ asm) : SequentialSearchContext σ κ σₕ asm :=
   let (ctx, sq) := sctx
   match sq.dequeue? with
@@ -96,7 +96,7 @@ def SequentialSearchContext.bfsStep
       (ctx, q_tail) newCompletedDepth newFrontierDepth
 
 theorem SequentialSearchContext.processSuccessors_preserves_invs
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th}
   {sctx : SequentialSearchContext σ κ σₕ asm}
   (h_not_finished : sctx.1.finished = .none)
   {fpSt depth} (curr : σ) {succs}
@@ -146,7 +146,7 @@ theorem SequentialSearchContext.processSuccessors_add_to_seen
       split_ifs with h <;> dsimp <;> grind
 
 theorem SequentialSearchContext.bfsStep_preserves_invs
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th}
   {sctx : SequentialSearchContext σ κ σₕ asm}
   (h_not_finished : sctx.1.hasFinished = false)
   (sctx_invs : SequentialSearchContextInvariants sys params .none sctx) :
@@ -201,7 +201,7 @@ omit th in
 def breadthFirstSearchSequential {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th)
   (updateTimeInterval : Nat)
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken) :

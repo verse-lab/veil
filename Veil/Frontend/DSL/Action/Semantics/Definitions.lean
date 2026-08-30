@@ -88,6 +88,11 @@ abbrev ExIdU := ULift.{u} Int
 /-- Exception identifiers at universe 0, where the whole DSL elaborates. -/
 abbrev ExId0 := ExIdU.{0}
 
+/-- Numeric literals for exception identifiers. The DSL elaborators emit raw
+numeric literals for assertion IDs (see `Veil.Frontend.DSL.Action.DoNotation`), so
+`ExIdU` needs an `OfNat` instance now that it is a `ULift` rather than `Int`. -/
+instance instOfNatExIdU (n : Nat) : OfNat (ExIdU.{u}) n := ⟨ULift.up (OfNat.ofNat n)⟩
+
 -- workaround for [lean-smt#185](https://github.com/ufmg-smite/lean-smt/issues/185)
 macro "ExId" : term => `($(Lean.mkIdent ``Veil.ExId0))
 

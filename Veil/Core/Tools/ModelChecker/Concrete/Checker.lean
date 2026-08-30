@@ -36,11 +36,11 @@ def recoverTrace {ρ σ κ σₕ asm : Type} {m : Type → Type}
   [Inhabited σ] [Repr σₕ]
   [ActionStatUpdate κ asm]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th)
   -- (params : SearchParameters ρ σ)
   (ctx : BaseSearchContext σ κ σₕ asm)
   (targetFingerprint : σₕ)
-  (assertionFailureExId : Option Int := none)
+  (assertionFailureExId : Option Veil.ExId0 := none)
   : m (Trace ρ σ κ) := do
   -- Retrace steps from the target fingerprint back to an initial state
   let (initFp, stepsFp) := retraceSteps ctx.log targetFingerprint
@@ -62,9 +62,9 @@ def recoverTrace {ρ σ κ σₕ asm : Type} {m : Type → Type}
     steps := steps.push { transitionLabel := transitionLabel, nextState := nextSt }
   return { theory := th, initialState := initialState, steps := steps, failingStep := findFailingStep curSt assertionFailureExId }
 where
-  findFailingStep (st : σ) : Option Int → Option (Step σ κ)
+  findFailingStep (st : σ) : Option Veil.ExId0 → Option (Step σ κ)
     | some exId =>
-      match (sys.tr th st).find? (·.2.exceptionId? == some exId) with
+      match (sys.tr th st).find? (·.2.exceptionId?.map ULift.down == some exId.down) with
       | some (label, .assertionFailure _ failState) => some { transitionLabel := label, nextState := failState }
       | _ => none
     | none => none
@@ -79,7 +79,7 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
   [inhabσ : Inhabited σ] [Repr κ]
   [ActionStatUpdate κ asm]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th)
   [fp : StateFingerprint σ UInt64]
   (params : SearchParameters ρ σ)
   (parallelCfg : Option ParallelConfig)
@@ -111,7 +111,7 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
   | some (.earlyTermination (.deadlockOccurred fingerprint)) => do
     return ModelCheckingResult.foundViolation fingerprint .deadlock (some (← recoverTrace sys ctx fingerprint))
   | some (.earlyTermination (.assertionFailed fingerprint exId)) => do
-    return ModelCheckingResult.foundViolation fingerprint (.assertionFailure exId) (some (← recoverTrace sys ctx fingerprint (some exId)))
+    return ModelCheckingResult.foundViolation fingerprint (.assertionFailure exId) (some (← recoverTrace sys ctx fingerprint (some (ULift.up exId))))
   | some (.earlyTermination (.reachedDepthBound _)) =>
     -- No violation found within depth bound; report number of states explored
     return ModelCheckingResult.noViolationFound distinctCount (.earlyTermination (.reachedDepthBound ctx.completedDepth))
@@ -123,7 +123,7 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
       let (fingerprint, violation) := ctx.violatingStates.head!
       -- For assertion failures, pass the exception ID to recover the failing step
       let assertionExId := match violation with
-        | .assertionFailure exId => some exId
+        | .assertionFailure exId => some (ULift.up exId)
         | _ => none
       return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverTrace sys ctx fingerprint assertionExId))
     else

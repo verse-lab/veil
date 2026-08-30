@@ -59,7 +59,7 @@ action compact_act (n : Nat) {
     a := 0
 }
 
-example (n : Nat) (handler : Int → Prop)
+example (n : Nat) (handler : Veil.ExId0 → Prop)
     (post : Unit → Theory → State FieldAbstractType → Prop)
     (th : Theory) (st : State FieldAbstractType) :
     compact_act.ext.wp_local_eq.pred n handler post th st =
@@ -130,7 +130,7 @@ action compact_verify (n m : node) {
 }
 
 example {node : Type} [DecidableEq node] [Inhabited node]
-    (n m : node) (handler : Int → Prop)
+    (n m : node) (handler : Veil.ExId0 → Prop)
     (post : Unit → Theory node → State (FieldAbstractType node) → Prop)
     (th : Theory node) (st : State (FieldAbstractType node)) :
     compact_verify.ext.wp_local_eq.pred node n m handler post th st =
@@ -206,7 +206,7 @@ action compact_disabled (n m : node) {
 
 set_option linter.unusedVariables false in
 example {node : Type} [DecidableEq node] [Inhabited node]
-    (n m : node) (handler : Int → Prop)
+    (n m : node) (handler : Veil.ExId0 → Prop)
     (post : Unit → Theory node → State (FieldAbstractType node) → Prop)
     (th : Theory node) (st : State (FieldAbstractType node)) : True := by
   fail_if_success

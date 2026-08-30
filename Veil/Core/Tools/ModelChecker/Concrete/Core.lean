@@ -1,5 +1,6 @@
 import Veil.Core.Tools.ModelChecker.TransitionSystem
 import Veil.Core.Tools.ModelChecker.Interface
+import Veil.Frontend.DSL.Action.Semantics.Definitions
 import Veil.Core.Tools.ModelChecker.Trace
 import Veil.Frontend.DSL.State.Types
 import Veil.Util.ShardedSetUInt
@@ -158,7 +159,7 @@ where
 structure SearchContextInvariants {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Veil.ExId0 κ (List (κ × ExecutionOutcome Veil.ExId0 σ)) th)
   -- NOTE: Although `params` is not used in the invariants below yet,
   -- we should better keep it here for future extensions.
   (params : SearchParameters ρ σ)
@@ -194,8 +195,8 @@ def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ �
 /-- Partition a list of `(label × ExecutionOutcome)` pairs into two components:
 a list of successful transitions, and a list of transitions where exceptions
 were raised. The divergence part is discarded. -/
-def partitionExecutionOutcome (outcomes : List (κ × ExecutionOutcome Int σ)) :
-  List (κ × σ) × List (Int × σ) :=
+def partitionExecutionOutcome (outcomes : List (κ × ExecutionOutcome Veil.ExId0 σ)) :
+  List (κ × σ) × List (Veil.ExId0 × σ) :=
   outcomes.foldr
     (init := ([], []))
     (fun (label, outcome) (succs, exns) =>
@@ -204,7 +205,7 @@ def partitionExecutionOutcome (outcomes : List (κ × ExecutionOutcome Int σ)) 
       | .assertionFailure exId st => (succs, (exId, st) :: exns)
       | .divergence => (succs, exns))
 
-theorem partitionExecutionOutcome.fst_spec {κ σ : Type} (outcomes : List (κ × ExecutionOutcome Int σ)) :
+theorem partitionExecutionOutcome.fst_spec {κ σ : Type} (outcomes : List (κ × ExecutionOutcome Veil.ExId0 σ)) :
   ∀ (label : κ) (st : σ),
     (label, st) ∈ (partitionExecutionOutcome outcomes).fst ↔
     (label, ExecutionOutcome.success st) ∈ outcomes := by
@@ -218,7 +219,7 @@ theorem partitionExecutionOutcome.fst_spec {κ σ : Type} (outcomes : List (κ �
 def checkViolationsAndMaybeTerminate
   (completedDepth : Nat)
   (hasSuccessfulTransition : Bool)
-  (assertionFailures : List (Int × σ)) :
+  (assertionFailures : List (Veil.ExId0 × σ)) :
   List (σₕ × ViolationKind) × Option (EarlyTerminationReason σₕ) :=
   -- Compute all violation conditions once
   let safetyViolations := params.invariants.filterMap fun p =>
@@ -231,20 +232,20 @@ def checkViolationsAndMaybeTerminate
     (if safetyViolation then [(fpSt, .safetyFailure safetyViolations)] else []) ++
     (if deadlock then [(fpSt, .deadlock)] else []) ++
     -- NOTE: This should be further optimized to avoid extra memory allocation
-    (assertionFailures.map fun (exId, _) => (fpSt, .assertionFailure exId))
+    (assertionFailures.map fun (exId, _) => (fpSt, .assertionFailure exId.down))
 
   let earlyTermination := params.earlyTerminationConditions.findSome? fun
     | .foundViolatingState => if safetyViolation then some (.foundViolatingState fpSt safetyViolations) else none
     | .reachedDepthBound bound => if completedDepth >= bound then some (.reachedDepthBound bound) else none
     | .deadlockOccurred => if deadlock then some (.deadlockOccurred fpSt) else none
-    | .assertionFailed => assertionFailures.head?.map fun (exId, _) => .assertionFailed fpSt exId
+    | .assertionFailed => assertionFailures.head?.map fun (exId, _) => .assertionFailed fpSt exId.down
     | .cancelled => none  -- Cancellation is handled externally via cancel token, not through early termination conditions
   (newViolations, earlyTermination)
 
 /-- Process the current state, queuing its successors. -/
 -- @[inline, specialize]
 def BaseSearchContext.processState
-  (outcomes : List (κ × ExecutionOutcome ℤ σ))
+  (outcomes : List (κ × ExecutionOutcome Veil.ExId0 σ))
   (ctx : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm × Option (List (κ × σ)) :=
   let (successfulTransitions, assertionFailures) := partitionExecutionOutcome outcomes
   let hasSuccessfulTransition := !successfulTransitions.isEmpty
