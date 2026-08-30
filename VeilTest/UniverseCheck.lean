@@ -15,11 +15,15 @@ abbrev SchedM := Veil.VeilM .external (ULift Unit) St
 example : Monad SchedM := inferInstance
 
 -- Loom's `wp` is available over it, and `SProp` is still `Prop`-valued
-open Veil.Univ PartialCorrectness DemonicChoice in
+open PartialCorrectness DemonicChoice in
 noncomputable example (act : SchedM PUnit) (post : Veil.RProp PUnit (ULift Unit) St) :
     Veil.SProp (ULift Unit) St :=
   haveI : IsHandler (fun (_ : Veil.ExIdU.{1}) => True) := ⟨⟩
   wp act post
+
+-- and so is the transition relation, via `toTransitionU`
+noncomputable example (act : SchedM PUnit) : Veil.Transition (ULift Unit) St :=
+  Veil.VeilM.toTransitionU act
 
 -- universe 0 is untouched
 example : Monad (Veil.VeilM .external Unit Nat) := inferInstance

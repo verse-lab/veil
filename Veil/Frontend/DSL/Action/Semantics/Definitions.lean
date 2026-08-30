@@ -301,6 +301,20 @@ def VeilM.toTransition (act : VeilM m ρ σ α) : Transition ρ σ :=
   fun r₀ s₀ s₁ =>
     [AngelFail| triple (fun r s => r = r₀ ∧ s = s₀) act (fun _ r s => r = r₀ ∧ s = s₁)]
 
+/-- `VeilM.toTransition` at an arbitrary universe, for a client whose state does
+not fit in `Type` -- a scheduler holding suspended `NonDetT` continuations, say.
+
+It is a separate definition rather than a generalisation of `toTransition`
+because the two are not the *same term*: at universe 0 `toTransition` elaborates
+against Loom's derived `MAlgOrdered` instance, which is what the lemmas relating
+it to `DivM`'s own algebra (`Semantics/Theorems.lean`) are stated against, while
+a universe-polymorphic body must use `stateDiv` instead. They agree
+extensionally; only the `u = 0` one carries that lemma library. -/
+def VeilM.toTransitionU {m : Mode} {ρ σ α : Type u} (act : VeilM m ρ σ α) :
+    Transition ρ σ :=
+  fun r₀ s₀ s₁ =>
+    [AngelFail| triple (fun r s => r = r₀ ∧ s = s₀) act (fun _ r s => r = r₀ ∧ s = s₁)]
+
 def Transition.triple (act : Transition ρ σ) (pre : SProp ρ σ) (post : SProp ρ σ) : Prop :=
   ∀ r₀ s₀ s₁,
     pre r₀ s₀ ->
