@@ -80,9 +80,16 @@ inductive Mode where
   | external : Mode
 deriving BEq
 
--- abbrev ExId := Int
+/-- Exception identifiers. Universe-polymorphic because `ExceptT`'s error type
+must live in the same universe as the monad's values, and `Int : Type 0` would
+otherwise pin the whole action monad to universe 0. -/
+abbrev ExIdU := ULift.{u} Int
+
+/-- Exception identifiers at universe 0, where the whole DSL elaborates. -/
+abbrev ExId0 := ExIdU.{0}
+
 -- workaround for [lean-smt#185](https://github.com/ufmg-smite/lean-smt/issues/185)
-macro "ExId" : term => `(ULift $(Lean.mkIdent ``Int))
+macro "ExId" : term => `($(Lean.mkIdent ``Veil.ExId0))
 
 /-- A predicate on the theory and the mutable state. -/
 abbrev SProp (ρ σ : Type u) := ρ -> σ -> Prop
@@ -92,7 +99,7 @@ abbrev RProp (α ρ σ : Type u) := α -> SProp ρ σ
 /-! Our language is parametric over the mutable state, immutable state, and return type. -/
 set_option linter.unusedVariables false in
 /-- Executable semantics of _deterministic_ Veil actions. -/
-abbrev VeilExecM (m : Mode) (ρ σ α : Type u) := ReaderT ρ (ExceptT ExId (StateT σ DivM)) α
+abbrev VeilExecM (m : Mode) (ρ σ α : Type u) := ReaderT ρ (ExceptT ExIdU.{u} (StateT σ DivM)) α
 /-- Denotation of _non-deterministic_ Veil actions. -/
 abbrev VeilM (m : Mode) (ρ σ α : Type u) := NonDetT (VeilExecM m ρ σ) α
 /-- Executable semantics of _non-deterministic_ Veil actions, which works by

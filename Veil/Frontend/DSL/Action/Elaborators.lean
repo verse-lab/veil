@@ -674,7 +674,7 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
     `(∀ $[$polyBinders]*, $a)
   let actFullyApplied ← `(@$act $polyArgs*)
   let predTy ← do
-    let intToProp ← `($(mkIdent ``ULift) $(mkIdent ``Int) → Prop)
+    let intToProp ← `($(mkIdent ``Veil.ExId0) → Prop)
     let veilSpecMUnit ← `($(mkIdent ``VeilSpecM) $theoryTy $abstractStateTypeTerm $(mkIdent ``Unit))
     `($intToProp → $veilSpecMUnit)
   let trDerivedEqTy ← do
