@@ -65,10 +65,26 @@ section AssertionElab
 syntax (name := veil_exact_theory) "veil_exact_theory" : tactic
 syntax (name := veil_exact_state) "veil_exact_state" : tactic
 
+/-- Find the newest implementation-detail binding with `userName`. Generated
+field views reuse their descriptive names at successive state openings, so
+reverse lookup selects the view derived from the most recent `get`. -/
+private def findImplementationDetail? (lctx : LocalContext)
+    (userName : Name) : Option LocalDecl :=
+  lctx.findDeclRev? fun decl =>
+    if decl.kind == .implDetail && decl.userName == userName then
+      some decl
+    else
+      none
+
 /-- Reconstruct a `Theory` term from the hypotheses in the context. -/
 def elabExactTheory : TacticM Unit := do
   let mod ← getCurrentModule
-  let comp := mod.immutableComponents.map (Lean.mkIdent ·.name)
+  let lctx ← getLCtx
+  let comp := mod.immutableComponents.map fun field =>
+    let implementationDetailName := mkVeilImplementationDetailName field.name
+    match findImplementationDetail? lctx implementationDetailName with
+    | some decl => Lean.mkIdent decl.userName
+    | none => Lean.mkIdent field.name
   let constr <- `(term| (⟨$[$comp],*⟩ : $(← mod.theoryStx)))
   trace[veil.debug] "theory constr: {constr}"
   Tactic.evalTactic $ ← `(tactic| exact $constr)
@@ -81,7 +97,11 @@ def elabExactState : TacticM Unit := withMainContext do
   -- Find the concrete field from the values of `ldecls`, or from the
   -- `fieldname_conc` local declarations.
   let actualFields : Array Term ← comp.mapM fun nm => do
-    try
+    let implementationDetailConc :=
+      (mkVeilImplementationDetailName nm).appendAfter "_conc"
+    if let some ldecl := findImplementationDetail? lctx implementationDetailConc then
+      `(term| $(mkIdent ldecl.userName) )
+    else try
       let some ldecl := lctx.findFromUserName? nm
         | throwError "state component {nm} is not available in the local context"
       let some v := ldecl.value? true

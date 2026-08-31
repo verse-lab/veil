@@ -148,39 +148,78 @@ def foldUserLocals (init : α) (f : α → LocalDecl → α) : TermElabM α :=
 private def userLocalNames : TermElabM NameSet :=
   foldUserLocals {} fun names decl => names.insert decl.userName
 
-/- In both binders below: when a user binding shadows a field name, later
-references to that name must keep resolving to the user's binding (a shadow
-warning was already issued at the entry point), so opening the field is
-skipped — emitting it would silently flip resolution back to the state
-component. The generated `let`s themselves are `.implDetail`, so they are
-invisible to `findUserLocal?`/`foldUserLocals`: openings emitted for one
-statement never count as user shadowing for the next, and never appear in
-user-facing warnings. -/
+/-- Bind the logical value of a component under its implementation-detail
+name, such as `__veil_X`, then elaborate `k` with that value in scope. -/
+private def bindImplementationDetailField (fieldName : Name) (ty value : Expr)
+    (k : Expr → DoElabM Expr) : DoElabM Expr :=
+  mapLetDecl (mkVeilImplementationDetailName fieldName) ty value (kind := .implDetail) k
+
+/-- Elaborate `k`, the remainder of the action, with the value also available
+under the plain component name, unless that name is shadowed by a user
+declaration. -/
+private def bindUserFacingField (shadowed : NameSet) (fieldName : Name)
+    (ty value : Expr) (k : DoElabM Expr) : DoElabM Expr :=
+  if shadowed.contains fieldName then
+    k
+  else
+    mapLetDecl fieldName ty value (kind := .implDetail) fun _ => k
+
+/-- Elaborate the concrete value stored for `field` in the current state.
+Returns its implementation-detail `_conc` name, inferred type, and value. -/
+private def elabConcreteField (stateName : Name) (field : StateComponent) :
+    DoElabM (Name × Expr × Expr) := do
+  let concreteName := concreteFieldName field.name
+  let concreteStx ← `($(mkIdent stateName).$(mkIdent field.name))
+  let concrete ← Term.elabTerm concreteStx none
+  return (concreteName, ← inferType concrete, concrete)
+
+/-- Elaborate the logical value exposed for `field` by applying its
+`FieldRepresentation.get` operation to the concrete `_conc` binding. -/
+private def elabAbstractField (field : StateComponent) (concreteName : Name) :
+    DoElabM (Expr × Expr) := do
+  let declaredTy ← Term.elabType (← field.typeStx)
+  let abstractStx ←
+    `(($fieldRepresentation _).$(mkIdent `get) $(mkIdent concreteName))
+  let abstract ← Term.elabTermEnsuringType abstractStx declaredTy
+  return (declaredTy, abstract)
+
+/- Field openings always bind a component's logical value under an
+implementation-detail name and then, if unshadowed, alias the plain field name
+to it. Mutable fields have one additional binding for their concrete stored
+representation. For example, opening mutable `X` around `k` produces:
+
+    let __veil_X_conc := currentState.X
+    let __veil_X := fieldRepresentation.get __veil_X_conc
+    let X := __veil_X  -- omitted when a user declaration shadows `X`
+    k
+
+An immutable theory field has the same two logical bindings but no `_conc`
+binding. Theory fields are opened once because the reader is immutable. State
+fields are rebuilt from a fresh monadic `get` around every statement, so a
+newer `__veil_X_conc` shadows the previous snapshot before the next statement
+is elaborated.
+
+All generated bindings are `.implDetail`. They are therefore ignored by
+`findUserLocal?`/`foldUserLocals`, do not trigger shadow warnings, and never
+count as user shadowing when the next state opening is built. -/
 
 private def bindTheoryFields (shadowed : NameSet) (theoryName : Name)
     (fields : Array StateComponent) (k : DoElabM Expr) : DoElabM Expr :=
-  fields.foldr (init := k) fun field k =>
-    if shadowed.contains field.name then k else do
-      let ty ← Term.elabType (← field.typeStx)
-      let valueStx ← `($(mkIdent theoryName).$(mkIdent field.name))
-      let value ← Term.elabTermEnsuringType valueStx ty
-      mapLetDecl field.name ty value (kind := .implDetail) fun _ => k
+  fields.foldr (init := k) fun field rest => do
+    let ty ← Term.elabType (← field.typeStx)
+    let valueStx ← `($(mkIdent theoryName).$(mkIdent field.name))
+    let value ← Term.elabTermEnsuringType valueStx ty
+    bindImplementationDetailField field.name ty value fun implementationValue =>
+      bindUserFacingField shadowed field.name ty implementationValue rest
 
 private def bindStateFields (shadowed : NameSet) (stateName : Name)
     (fields : Array StateComponent) (k : DoElabM Expr) : DoElabM Expr :=
-  fields.foldr (init := k) fun field k =>
-    if shadowed.contains field.name then k else do
-      let concreteName := concreteFieldName field.name
-      let concreteStx ← `($(mkIdent stateName).$(mkIdent field.name))
-      let concrete ← Term.elabTerm concreteStx none
-      let concreteTy ← inferType concrete
-      mapLetDecl concreteName concreteTy concrete (kind := .implDetail) fun _ => do
-        let declaredTy ← Term.elabType (← field.typeStx)
-        let abstractStx ←
-          `(($fieldRepresentation _).$(mkIdent `get) $(mkIdent concreteName))
-        let abstract ← Term.elabTermEnsuringType abstractStx declaredTy
-        mapLetDecl field.name declaredTy abstract (kind := .implDetail) fun _ =>
-          k
+  fields.foldr (init := k) fun field rest => do
+    let (concreteName, concreteTy, concrete) ← elabConcreteField stateName field
+    mapLetDecl concreteName concreteTy concrete (kind := .implDetail) fun _ => do
+      let (declaredTy, abstract) ← elabAbstractField field concreteName
+      bindImplementationDetailField field.name declaredTy abstract fun implementationValue =>
+        bindUserFacingField shadowed field.name declaredTy implementationValue rest
 
 /-- Internal element used by openings so the generated `read`/`get` does not
 redispatch through the user-statement wrapper. -/
@@ -227,7 +266,9 @@ when an expression's outer shape must be visible to a later consumer. -/
 def zetaFieldDerivedLets (mod : Module) (e : Expr) : DoElabM Expr := do
   let isGeneratedFieldView (decl : LocalDecl) : Bool :=
     decl.kind == .implDetail && mod.signature.any fun field =>
-      decl.userName == field.name || decl.userName == concreteFieldName field.name
+      decl.userName == field.name ||
+      decl.userName == mkVeilImplementationDetailName field.name ||
+      decl.userName == concreteFieldName field.name
   let derived := (← getLCtx).foldl (init := #[]) fun (derived : Array FVarId) decl =>
     let dependsOnFieldView (value : Expr) : Bool :=
       (Lean.collectFVars {} value).fvarIds.any derived.contains
