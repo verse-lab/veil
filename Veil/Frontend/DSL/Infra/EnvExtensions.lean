@@ -99,7 +99,6 @@ elab "veil_set_option " o:ident v:term : command => do
   let v ← liftTermElabM <| Term.elabTerm v (mkConst ``Bool)
   let b := if v == mkConst ``Bool.true then true else false
   match o.getId with
-  | `useFieldRepTC => localEnv.modifyModule (fun _ => { mod with _useFieldRepTC := b })
   | `useLocalRPropTC => localEnv.modifyModule (fun _ => { mod with _useLocalRPropTC := b })
   | _ => throwError s!"Unsupported option {o}"
 

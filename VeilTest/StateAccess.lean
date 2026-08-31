@@ -23,7 +23,10 @@ after_init {
   b := b'
 }
 
-#guard_msgs in
+/--
+warning: parameter `b` shadows immutable theory component `b`; references to this name resolve to the parameter
+-/
+#guard_msgs(warning) in
 action with_block (b : block) {
   let b' ← pick block
   return (b, b')
@@ -51,8 +54,7 @@ transition try_assign_immutable' (x : block) {
     b' = x
 }
 
-#guard_msgs in
-action double_bind (r : Int) {
+action double_bind (rr : Int) {
     let (bb, b') ← with_block b
  }
 

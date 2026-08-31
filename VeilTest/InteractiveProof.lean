@@ -296,28 +296,28 @@ theorem check_totality_doesNotThrow (ρ : Type) (σ : Type) (party : Type) [part
       IsSubReaderOf (@Theory party val opt_quorum maj_quorum classic_quorum amplification_quorum commit_quorum) ρ]
     [check_totality_dec_0 :
       delta%
-        @OptiRBC.check_totality._veil_dec_type_0 χ party val opt_quorum maj_quorum classic_quorum amplification_quorum
-          commit_quorum χ_rep]
+        @OptiRBC.check_totality._veil_dec_type_0 party val opt_quorum maj_quorum classic_quorum amplification_quorum
+          commit_quorum χ χ_rep]
     [check_totality_dec_1 :
       delta%
-        @OptiRBC.check_totality._veil_dec_type_1 χ party val opt_quorum maj_quorum classic_quorum amplification_quorum
-          commit_quorum χ_rep]
+        @OptiRBC.check_totality._veil_dec_type_1 party val opt_quorum maj_quorum classic_quorum amplification_quorum
+          commit_quorum χ χ_rep]
     [check_totality_dec_2 :
       delta%
-        @OptiRBC.check_totality._veil_dec_type_2 χ party val opt_quorum maj_quorum classic_quorum amplification_quorum
-          commit_quorum χ_rep]
+        @OptiRBC.check_totality._veil_dec_type_2 party val opt_quorum maj_quorum classic_quorum amplification_quorum
+          commit_quorum χ χ_rep]
     [check_totality_dec_3 :
       delta%
-        @OptiRBC.check_totality._veil_dec_type_3 χ party val opt_quorum maj_quorum classic_quorum amplification_quorum
-          commit_quorum χ_rep]
+        @OptiRBC.check_totality._veil_dec_type_3 party val opt_quorum maj_quorum classic_quorum amplification_quorum
+          commit_quorum χ χ_rep]
     [check_totality_dec_4 :
       delta%
-        @OptiRBC.check_totality._veil_dec_type_4 χ party val opt_quorum maj_quorum classic_quorum amplification_quorum
-          commit_quorum χ_rep]
+        @OptiRBC.check_totality._veil_dec_type_4 party val opt_quorum maj_quorum classic_quorum amplification_quorum
+          commit_quorum χ χ_rep]
     [check_totality_dec_5 :
       delta%
-        @OptiRBC.check_totality._veil_dec_type_5 χ party val opt_quorum maj_quorum classic_quorum amplification_quorum
-          commit_quorum χ_rep] :
+        @OptiRBC.check_totality._veil_dec_type_5 party val opt_quorum maj_quorum classic_quorum amplification_quorum
+          commit_quorum χ χ_rep] :
     ∀ (p1 : party) (p2 : party) (v : val) (__veil_ex : Int),
       Veil.VeilM.doesNotThrowAssuming_ex
         (@check_totality.ext ρ σ party party_dec_eq party_inhabited val val_dec_eq val_inhabited opt_quorum

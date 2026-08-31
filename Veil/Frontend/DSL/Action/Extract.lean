@@ -159,7 +159,8 @@ short Veil-facing diagnostic. In particular, this avoids Lean's noisy
 type that cannot be enumerated.
 -/
 scoped elab "veil_extract_list_tactic" : tactic => do
-  evalTactic (← `(tactic| extract_list_tactic))
+  evalTactic (← `(tactic|
+    repeat' (intros; first | extract_list_step | (split <;> try dsimp))))
   unless (← getUnsolvedGoals).isEmpty do
     throwError
       "could not extract executable choices for a nondeterministic pick.\n\n\
@@ -175,8 +176,7 @@ variable [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessa
   (κ : TSyntax `term) (useWeak intoMonadicActions : Bool)
 
 def specializeAndExtractCore
-  (actName : Name) (allParams : Array Parameter)
-  (useFieldRepTC : Bool) : m Term := do
+  (actName : Name) (allParams : Array Parameter) : m Term := do
   -- Fully applied such that this term should have type `VeilM ..`
   let fullyAppliedAction ← buildFullyAppliedAction actName allParams
   let actionBody ← simplifyActionAfterSpecialization fullyAppliedAction
@@ -197,15 +197,13 @@ where
   let allArgs ← allParams.mapM (·.arg)
   `(@$(mkIdent actName) $allArgs*)
  simplifyActionAfterSpecialization (fullyAppliedAction : Term) : m Term := do
-  if useFieldRepTC then
-    let extraDsimpsForSpecialize := extraDsimpsForSpecialize.push <| Lean.mkIdent ``id
-    `(veil_dsimp% -$(mkIdent `zeta) -$(mkIdent `failIfUnchanged)
-      [$(mkIdent ``Preprocessing.simpFieldRepresentationSetSingle),
-      $(mkIdent ``Preprocessing.simpFieldRepresentationGet),
-      $(mkIdent `Veil.VeilM.returnUnit),
-      $[$extraDsimpsForSpecialize:ident],*]
-      (delta% $fullyAppliedAction))
-  else pure fullyAppliedAction
+  let extraDsimpsForSpecialize := extraDsimpsForSpecialize.push <| Lean.mkIdent ``id
+  `(veil_dsimp% -$(mkIdent `zeta) -$(mkIdent `failIfUnchanged)
+    [$(mkIdent ``Preprocessing.simpFieldRepresentationSetSingle),
+    $(mkIdent ``Preprocessing.simpFieldRepresentationGet),
+    $(mkIdent `Veil.VeilM.returnUnit),
+    $[$extraDsimpsForSpecialize:ident],*]
+    (delta% $fullyAppliedAction))
  buildExtractBody (body bodyBeforeSimp : Term) : m Term := do
   let multiExecMonadType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState)
   let extractor := mkIdent <| (if useWeak then ``MultiExtractor.NonDetT.extractPartialList else ``MultiExtractor.NonDetT.extractList)
@@ -231,7 +229,7 @@ where
 def specializeAndExtractSingle (mod : Module) (pi : ProcedureInfo) (extractedName : Name := toExtractedName pi.name)
   (attrs : Array (TSyntax ``Lean.Parser.Term.attrInstance) := #[]) : CommandElabM Unit := do
   let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams pi.name (.procedure pi)
-  let extractBody ← specializeAndExtractCore extraDsimpsForSpecialize κ useWeak intoMonadicActions pi.name (baseParams ++ extraParams ++ actualParams) mod._useFieldRepTC
+  let extractBody ← specializeAndExtractCore extraDsimpsForSpecialize κ useWeak intoMonadicActions pi.name (baseParams ++ extraParams ++ actualParams)
   let extractBody ← `(by veil_dsimp_decidable_instances_before_extraction; exact $extractBody)
   let defBody ← buildingTermWithDefaultχSpecialized baseParams (extraParams ++ actualParams) injectedBinders extractBody mod
   let cmd ← if attrs.isEmpty
@@ -260,7 +258,7 @@ def specializeAndExtractActions (mod : Module) : CommandElabM Unit := do
   let alts ← mod.actions.mapM fun a => do
     let pi := a.info
     let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams pi.name (.procedure pi)
-    let extractBody ← specializeAndExtractCore extraDsimpsForSpecialize κ useWeak true (toExtName pi.name) (baseParams ++ extraParams ++ actualParams) mod._useFieldRepTC
+    let extractBody ← specializeAndExtractCore extraDsimpsForSpecialize κ useWeak true (toExtName pi.name) (baseParams ++ extraParams ++ actualParams)
     let args ← actualParams.mapM (·.arg)
     mkFunSyntax args extractBody
   let finalBody ← do
@@ -391,6 +389,23 @@ def getPostState (c : DivM ((Except ε α) × σ)) : Option σ :=
 def getAllPostStates (c : List (DivM ((Except ε α) × σ))) : List (Option σ) :=
   c.map getPostState
 
+/-- Full result of executing an extracted Veil computation, preserving the
+return value for successful executions. FIXME: remove duplication with
+`ExecutionOutcome` in model checker. -/
+inductive ExecutionResult (ε σ α : Type) where
+  | success (returnValue : α) (state : σ)
+  | assertionFailure (error : ε) (state : σ)
+  | divergence
+deriving Repr, BEq, Inhabited
+
+/-- Extract the full execution result from a DivM-wrapped result. -/
+@[inline]
+def getExecutionResult (c : DivM ((Except ε α) × σ)) : ExecutionResult ε σ α :=
+  match c with
+  | .res ((.ok a, st)) => .success a st
+  | .res ((.error e, st)) => .assertionFailure e st
+  | .div => .divergence
+
 /-- Extract all valid states from a VeilMultiExecM computation -/
 def extractValidStates (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
   exec rd st |>.map Prod.snd |> getAllPostStates
@@ -398,6 +413,10 @@ def extractValidStates (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : �
 /-- Extract all execution outcomes (including assertion failures) from a VeilMultiExecM computation -/
 def extractAllOutcomes (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Veil.ExecutionOutcome ℤ σ) :=
   exec rd st |>.map fun (_, st) => getExecutionOutcome st
+
+/-- Extract all execution results, preserving successful return values. -/
+def extractAllResults (exec : Veil.VeilMultiExecM κᵣ ε ρ σ α) (rd : ρ) (st : σ) : List (ExecutionResult ε σ α) :=
+  exec rd st |>.map fun (_, st) => getExecutionResult st
 
 /-- Extract only assertion failures from a VeilMultiExecM computation.
 Returns a list of (exception ID, state at failure) pairs. -/
@@ -417,7 +436,7 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
   -- ... and put them at the beginning of `extraParams` instead
   let (baseParams, others) := baseParams.partition fun p => !(p.kind matches .environmentState | .backgroundTheory | .moduleTypeclass .environmentState | .moduleTypeclass .backgroundTheory)
   let theoryStx ← mod.theoryStx
-  let stateStx ← mod.stateStx mod._useFieldRepTC
+  let stateStx ← mod.stateStx
   let specializeToOther (p : Parameter) : Option Term :=
     match p.kind with
     | .environmentState => some stateStx
@@ -437,7 +456,7 @@ def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [Mona
   -- Step 3: Build finalBody as struct literal
   let finalBody ← do
     let fieldConcrete ← `($fieldConcreteDispatcher $(← mod.uninterpretedParamIdents)*)
-    let stateStx ← if mod._useFieldRepTC then `($stateIdent $fieldConcrete) else mod.stateStx
+    let stateStx ← `($stateIdent $fieldConcrete)
     let labelStx ← mod.labelTypeStx
     let (CInit, CNext) := (mkVeilImplementationDetailIdent `CInit, mkVeilImplementationDetailIdent `CNext)
     let (th, st) := (mkVeilImplementationDetailIdent `th, mkVeilImplementationDetailIdent `st)

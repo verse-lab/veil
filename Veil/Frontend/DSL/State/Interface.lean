@@ -1,4 +1,5 @@
 import Veil.Frontend.DSL.State.Types
+import Veil.Frontend.DSL.Infra.Simp
 
 /-!
 
@@ -311,5 +312,15 @@ def foldFieldRepresentationGet (e : Expr) : TermElabM Expr := do
     return .done sube')
 
 end MetaTools
+
+/- Normalization sets for field-representation `set`/`get` patterns, used both
+by the assignment elaborator's generated `veil_dsimp%` calls and by `wp`
+extraction. -/
+attribute [fieldRepresentationPatSimp] FieldUpdatePat.pad IteratedArrow.curry IteratedProd.default HAppend.hAppend IteratedProd.append Eq.mp
+attribute [fieldRepresentationPatSimp] List.take List.drop List.map
+attribute [fieldRepresentationSetSimpPre] FieldRepresentation.setSingle LawfulFieldRepresentationSet.set_append List.singleton_append
+attribute [fieldRepresentationSetSimpPost] CanonicalField.set FieldUpdateDescr.fieldUpdate FieldUpdatePat.match IteratedProd.patCmp IteratedArrow.curry IteratedArrow.uncurry
+attribute [fieldRepresentationSetSimpPost] List.foldr Option.elim Bool.and_true Bool.and_eq_true decide_eq_true_eq ite_eq_left_iff Bool.false_eq_true false_and and_self
+attribute [fieldRepresentationSetSimpPost ↓] reduceIte ite_true ite_false and_true true_and
 
 end Veil

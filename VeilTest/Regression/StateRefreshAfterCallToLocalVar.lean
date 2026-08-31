@@ -1,11 +1,10 @@
 import Veil
 
 /-!
-# Regression: state binders are refreshed after `v ← someProc` (local-var target)
+# Regression: current-state coherence after `v ← someProc`
 
 When a procedure that writes a state field is called and its result is bound to
-a **local** variable (`let mut v := …; v ← proc`, which the preprocessor
-normalizes to `v := ← proc`), every subsequent read of that field in the caller
+a **local** variable (`let mut v := …; v ← proc`), every subsequent read of that field in the caller
 must observe the callee's write. So in
 
 ```
@@ -16,18 +15,8 @@ y := x         -- must read x = true, hence y := true
 
 the post-state must be `x = true, y = true`, and `x → y` is an invariant.
 
-**History:** previously the local-variable branch of `assignState`
-(DoNotation.lean) emitted the assignment with no `getState` refresh, so the
-cached `let mut x` binder stayed at its pre-call value and `y := x` read the
-STALE `false`. Fixed 2026-06-11 by refreshing the field binders after any
-assignment whose RHS runs a sub-computation (`stmtRunsComputation`).
-
-**Reference:** audit/02-action-dsl.md issue B1; audit/fix-plan-stale-binders.md.
-**Source:** Veil/Frontend/DSL/Action/DoNotation.lean (`assignState`,
-local/struct-target branch, conditional `getState` refresh).
-
-This file pins the CORRECT (post-fix) behavior, so it FAILS if the stale-binder
-bug ever regresses.
+The extensible-`do` reassignment handler executes the RHS once and opens the
+current state again in its continuation. This file pins that coherence law.
 -/
 
 set_option linter.unusedVariables false
@@ -52,18 +41,15 @@ procedure set_x {
   return true
 }
 
--- The previously-buggy form: the call's result is bound to a LOCAL mutable
--- variable. `v ← set_x` is normalized to `v := ← set_x`; the RHS runs a
--- computation, so the field binders are now refreshed afterward and `y := x`
--- reads the up-to-date `x = true`.
+-- The call's result is bound to a local mutable variable. Its global effects
+-- remain visible to the following statement.
 action call_then_read_via_local {
   let mut v := false
   v ← set_x
   y := x
 }
 
--- Control: the same logic via `let v ← set_x` (the generic-doElem path, which
--- always refreshed). Both actions must behave identically.
+-- Control: the same logic via a monadic `let`; both forms behave identically.
 action control_fresh_read {
   let v ← set_x
   y := x

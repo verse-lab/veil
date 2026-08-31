@@ -358,6 +358,15 @@ syntax assumptionsHoldBy := "assumptions_hold_by " tacticSeq
 
 scoped syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
 
+/-- Execute a concrete Veil action/procedure term using the same nondeterministic
+extraction machinery as `#model_check`, and print every possible return value
+and final state. Intended for internal regression tests. -/
+scoped syntax (name := veilExecAction) "#__veil_exec_action " term:max term:max term:max term:max : command
+
+/-- Term form of `#__veil_exec_action`, intended for assertions in regression
+tests. -/
+scoped syntax (name := veilExecActionTerm) "__veil_exec_action% " term:max term:max term:max term:max : term
+
 /-- Configure the concrete runtime representation for `relation` or `function` fields.
 This command must be used before `#gen_state`.
 

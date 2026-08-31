@@ -18,7 +18,8 @@ import Veil.Frontend.DSL.Module.Util.Enumeration
 import Veil.Util.Multiprocessing
 import Veil.Frontend.DSL.Module.AssertionInfo
 
-open Lean Parser Elab Command
+open Lean Parser Elab Command Term
+open scoped Veil.Extract
 
 namespace Veil
 
@@ -220,13 +221,11 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
 private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
   if mod.isStateDefined then
     return mod
-  let (mod, stateStxs) ← do (if mod._useFieldRepTC then do
-      -- Resolve concrete representation configurations
-      let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
-      let (mod, fieldStxs) ← mod.declareStateFieldLabelTypeAndDispatchers repConfigs
-      let (mod, stateStxs) ← mod.declareFieldsAbstractedStateStructure repConfigs
-      return (mod, fieldStxs ++ stateStxs)
-    else mod.declareStateStructure)
+  -- Resolve concrete representation configurations
+  let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
+  let (mod, fieldStxs) ← mod.declareStateFieldLabelTypeAndDispatchers repConfigs
+  let (mod, stateStxs) ← mod.declareFieldsAbstractedStateStructure repConfigs
+  let stateStxs := fieldStxs ++ stateStxs
   let (mod, theoryStxs) ← mod.declareTheoryStructure
   let instantiationStxs ← mod.mkInstantiationStructure
   for stx in stateStxs ++ theoryStxs ++ instantiationStxs do
@@ -241,12 +240,11 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     for stx in stxs do
       elabVeilCommand stx.raw
     -- Generate the transition weakening lemma for this module
-    if mod._useFieldRepTC then
-      try
-        let cmd ← liftTermElabM mod.declareTransitionWeakeningLemma
-        elabVeilCommand cmd
-      catch ex =>
-        logWarning m!"unable to generate transition weakening lemma: {ex.toMessageData}"
+    try
+      let cmd ← liftTermElabM mod.declareTransitionWeakeningLemma
+      elabVeilCommand cmd
+    catch ex =>
+      logWarning m!"unable to generate transition weakening lemma: {ex.toMessageData}"
   pure mod
 
 private def warnIfNoInvariantsDefined (mod : Module) : CommandElabM Unit := do
@@ -669,6 +667,41 @@ def getModelCheckingMode (modeStx : Syntax) : ModelCheckingMode :=
     | `(modelCheckMode| interpreted) => .interpreted
     | `(modelCheckMode| compiled) => .compiled
     | _ => .default
+
+def mkVeilExecActionResultTerm [Monad m] [MonadQuotation m]
+    [MonadExceptOf Exception m] [AddErrorMessageContext m]
+    (mod : Module) (instTerm theoryTerm stateTerm actionTerm : Term) : m Term := do
+  let inst := mkVeilImplementationDetailIdent `inst
+  let th := mkVeilImplementationDetailIdent `th
+  let st := mkVeilImplementationDetailIdent `st
+  let act := mkVeilImplementationDetailIdent `act
+  let exec := mkVeilImplementationDetailIdent `exec
+  let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
+  let theoryTy ← `(@$theoryIdent $instSortArgs*)
+  let fieldConcrete ← `($fieldConcreteDispatcher $instSortArgs*)
+  let stateTy ← `(@$stateIdent $fieldConcrete)
+  let actionTy ← `($(mkIdent ``VeilM) _ $theoryTy $stateTy _)
+  let execTy ← `($(mkIdent ``VeilMultiExecM) $(mkIdent ``Std.Format) $(mkIdent ``Int) $theoryTy $stateTy _)
+  `(term|
+    let $inst : $instantiationType := $instTerm
+    let $th : $theoryTy := $theoryTerm
+    let $st : $stateTy := $stateTerm
+    let $act : $actionTy := $actionTerm
+    let $exec : $execTy :=
+      ($(mkIdent ``MultiExtractor.NonDetT.extractList) $(mkIdent ``Std.Format) _ _ $act
+        (h := by veil_extract_list_tactic) : $execTy)
+    $(mkIdent ``Veil.Extract.extractAllResults) $exec $th $st)
+
+elab_rules : term
+  | `(__veil_exec_action% $instTerm:term $theoryTerm:term $stateTerm:term $actionTerm:term) => do
+    let mod ← getCurrentModule (errMsg := "You cannot use __veil_exec_action% outside of a Veil module!")
+    elabTerm (← mkVeilExecActionResultTerm mod instTerm theoryTerm stateTerm actionTerm) none
+
+elab_rules : command
+  | `(#__veil_exec_action $instTerm:term $theoryTerm:term $stateTerm:term $actionTerm:term) => do
+    let mod ← getCurrentModule (errMsg := "You cannot #__veil_exec_action outside of a Veil module!")
+    let resultTerm ← mkVeilExecActionResultTerm mod instTerm theoryTerm stateTerm actionTerm
+    elabVeilCommand <| ← `(command| #eval $resultTerm)
 
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab := fun stx => do

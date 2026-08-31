@@ -1,7 +1,7 @@
 import Veil
 
 /-!
-# Regression: state binders are refreshed at branch entry of `if (← someProc) …`
+# Regression: current-state coherence at `if (← someProc) …` branch entry
 
 When the condition of an `if` is a procedure call that writes a state field,
 Lean lifts the call out and runs it BEFORE the `if`, so the branches must
@@ -14,20 +14,8 @@ if (← set_x) then    -- callee performs `x := true` and returns true
 
 the post-state must be `x = true, y = true`, and `x → y` is an invariant.
 
-**History:** previously the `if`-statement case of `expandDoElemVeil`
-(DoNotation.lean) passed the condition through and emitted no `getState`
-refresh, so the `let mut x` binder stayed stale inside the branches and
-`y := x` read the pre-call `false` (the self-acknowledged FIXME at
-DoNotation.lean:104-109). Fixed 2026-06-11 by prepending a `getState` refresh to
-each branch body when the condition runs a sub-computation
-(`stmtRunsComputation`).
-
-**Reference:** audit/02-action-dsl.md issue B2; audit/fix-plan-stale-binders.md.
-**Source:** Veil/Frontend/DSL/Action/DoNotation.lean (`if`-statement case,
-branch-entry `getState` refresh).
-
-This file pins the CORRECT (post-fix) behavior, so it FAILS if the stale-branch
-bug ever regresses.
+Lean lifts the call before the statement-level `if`; Veil opens current state
+for the lifted bind and on branch entry. This file pins that coherence law.
 -/
 
 set_option linter.unusedVariables false
@@ -58,16 +46,15 @@ procedure set_x_then_false {
   return false
 }
 
--- The previously-buggy form: the state-modifying call sits in the `if`
--- condition. The branch body now refreshes the binders, so `y := x` reads the
--- up-to-date `x = true`.
+-- The state-modifying call sits in the `if` condition. The branch body reads
+-- the post-call `x`.
 action call_in_if_condition {
   if (← set_x) then
     y := x
 }
 
 -- Mixed with `else if`: the state-modifying call sits in the nested condition,
--- and the nested branch body must read the refreshed `x`.
+-- and the nested branch body must read the current post-call `x`.
 action call_in_else_if_condition {
   if false then
     y := false
@@ -76,7 +63,7 @@ action call_in_else_if_condition {
 }
 
 -- Mixed the other way around: the outer condition mutates `x` before control
--- enters the `else if`, whose condition must read refreshed state.
+-- enters the `else if`, whose condition must read the current state.
 action call_before_else_if_condition {
   if (← set_x_then_false) then
     y := false
@@ -84,9 +71,7 @@ action call_before_else_if_condition {
     y := x
 }
 
--- Control: the call is first bound to a local via `let c ← set_x` (the
--- generic-doElem path, which always refreshed). Both actions must behave
--- identically.
+-- Control: the call is first bound explicitly; both forms behave identically.
 action control_if_condition {
   let c ← set_x
   if c then

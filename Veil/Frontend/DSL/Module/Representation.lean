@@ -398,8 +398,6 @@ structure Module where
   assertions are added to the same set. -/
   protected _assertionSets : Std.HashMap Name (Std.HashSet Name) := Std.HashMap.emptyWithCapacity
 
-  protected _useFieldRepTC : Bool := true
-
   protected _useLocalRPropTC : Bool := true
 
   /-- Per-module configuration of which concrete types to use for fields.

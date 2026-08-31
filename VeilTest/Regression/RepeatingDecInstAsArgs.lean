@@ -77,7 +77,7 @@ action handle_slot_lookup (r : replica) (m_sender : replica) (m_sess_msg_num : s
   let smn :| r_sess_msg_num r smn
   let slot := m_sess_msg_num
   if seq.le slot len then
-    if v : r_log r slot v then
+    if v :| r_log r slot v then
       m_marked_client_request m_sender v m_sess_msg_num := true
     else
       pure ()

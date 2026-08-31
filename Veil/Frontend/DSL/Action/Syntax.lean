@@ -6,6 +6,38 @@ open Lean Lean.Parser
 
 namespace Veil
 
+namespace Action
+
+/-- Veil's pre-elaboration passes (`findOutsideQuotations?` below, and
+`rewriteAssignments` in `DoElab/Assign.lean`) walk raw action syntax *before*
+Lean's `do`-elaborator sees it, so they must make the same code-vs-data
+distinction Lean will later make: syntax inside a quotation is quoted *data*
+and must be left alone, while an antiquotation `$(...)` re-enters code
+territory. The `quoted_assignment_is_untouched` regression test pins the
+failure modes of getting this wrong.
+
+Quotedness is a two-state machine over the syntax tree, and this function is
+its transition: descending into a quotation (`stx.isQuot`) enters the quoted
+state; descending into an unescaped antiquotation leaves it (an escaped `$$x`
+stays quoted).
+
+The formula is a verbatim port of the quotation tracking in Lean core's
+nested-action lifter (`expandNestedActionsAux` in `Lean/Elab/Do/Basic.lean`,
+v4.32.0) and must stay in sync with it, since Veil's pre-passes rewrite the
+same tree Lean later traverses with these rules. -/
+def childrenAreQuoted (stx : Syntax) (currentlyQuoted : Bool) : Bool :=
+  (currentlyQuoted && !(stx.isAntiquot && !stx.isEscapedAntiquot)) || stx.isQuot
+
+/-- Search `stx` outermost-first for a node accepted by `match?`, skipping
+nodes inside syntax quotations (see `childrenAreQuoted`). -/
+partial def findOutsideQuotations? (stx : Syntax)
+    (match? : Syntax → Option α) (inQuotation := false) : Option α :=
+  (if inQuotation then none else match? stx) <|>
+    stx.getArgs.findSome? fun child =>
+      findOutsideQuotations? child match? (childrenAreQuoted stx inQuotation)
+
+end Action
+
 section VeilActionKeywords
 
 declare_syntax_cat veilActionKeyword
@@ -15,6 +47,8 @@ scoped syntax (name := kw_assume) "assume" : veilActionKeyword
 scoped syntax (name := kw_assert) "assert" : veilActionKeyword
 scoped syntax (name := kw_pick) "pick" : veilActionKeyword
 scoped syntax (name := kw_veil_var) "veil_var" : veilActionKeyword
+scoped syntax (name := kw_veil_let) "veil_let" : veilActionKeyword
+
 
 /-- Precondition -/
 scoped syntax (name := kw_requires) "requires" : veilActionKeyword
@@ -27,21 +61,6 @@ scoped syntax (name := kw_unchanged) "unchanged" : veilActionKeyword
 scoped syntax (name := kw_unchanged_fields) "unchanged_fields" : veilActionKeyword
 
 end VeilActionKeywords
-
-/-- `require P` means that execution can only proceed if `P` holds. It
-is used to express pre-conditions.
-
-When an action including `require` is called by the environment, this
-behaves like an `assume`. When it is called by another action, this
-behaves like an `assert`: the caller must ensure that `P` holds.
-
-If you have inconsistent `require` statements, your action will not
-admit any executions. -/
-syntax (name := requireStatement) kw_require term : term
-
-/-- `assert P` means that `P` must hold on every execution that reaches
-this statement. If `P` does not hold, this execution fails. -/
-syntax (name := assertStatement) (priority := high) kw_assert term : term
 
 /-- `assume P` ignores executions that do not satisfy `P`. BE CAREFUL
 when making assumptions, as inconsistent assumptions will eliminate ALL
@@ -56,7 +75,115 @@ as type inference failures might lead to confusing error messages. -/
 syntax (name := pickExpression) kw_pick (lineEq term) ? : term
 
 /-- Binds a variable to a value that satisfies a predicate. -/
-scoped syntax (name := letPick) "let" term ":|" term : doElem
+scoped syntax (name := letPick) "let" term (":" term)? ":|" term : doElem
+
+/-- `require P` means that execution can only proceed if `P` holds. It
+is used to express pre-conditions.
+
+When an action including `require` is called by the environment, this
+behaves like an `assume`. When it is called by another action, this
+behaves like an `assert`: the caller must ensure that `P` holds.
+
+If you have inconsistent `require` statements, your action will not
+admit any executions. -/
+scoped syntax (name := requireDo) kw_require term : doElem
+
+/-- `assert P` means that `P` must hold on every execution that reaches
+this statement. If `P` does not hold, this execution fails. -/
+scoped syntax (name := assertDo) (priority := high) kw_assert term : doElem
+
+/--
+`if x :| p then … else …` is the conditional twin of `let x :| p`: if a
+witness satisfying `p` exists, bind it and run the then-branch; otherwise run
+the else-branch (defaulting to `pure ()`). Like `let x : τ :| p`, an explicit
+witness type is optional. The witness may be an identifier or a flat tuple of
+identifiers, e.g. `if (x, y) : α × β :| r x y then …`.
+-/
+scoped syntax (name := ifSomeDo)
+  withPosition(ppRealGroup(
+    ppRealFill(ppIndent("if " term:max (" : " term)? " :| " term " then") ppSpace doSeq)
+    (colGe ppDedent(ppSpace "else " doSeq))?
+  )) : doElem
+
+/-- Witness identifiers of an existential `if`. -/
+private def ifSomeBinderIdents? (pat : Term) : Option (Array Ident) :=
+  match pat with
+  | `(term| $x:ident) => some #[x]
+  | `(($_:hygieneInfo $x:ident, $xs:ident,*)) => some (#[x] ++ xs.getElems)
+  | _ => none
+
+/-- Prepend `item` to a `do` sequence, preserving its braced/unbraced shape;
+`none` for an unrecognized sequence shape. -/
+def prependDoSeqItem? [Monad m] [MonadQuotation m]
+    (item : TSyntax ``Lean.Parser.Term.doSeqItem)
+    (seq : TSyntax ``Lean.Parser.Term.doSeq) :
+    m (Option (TSyntax ``Lean.Parser.Term.doSeq)) := do
+  match seq with
+  | `(Lean.Parser.Term.doSeq| $items:doSeqItem*) =>
+    return some (← `(Lean.Parser.Term.doSeq| $item $items*))
+  | `(Lean.Parser.Term.doSeq| { $items:doSeqItem* }) =>
+    return some (← `(Lean.Parser.Term.doSeq| { $item $items* }))
+  | _ => return none
+
+macro_rules
+  | `(doElem| if $witness:term $[: $type?:term]? :| $predicate:term then $thenSeq:doSeq $[else $elseSeq?:doSeq]?) => do
+    let some ids := ifSomeBinderIdents? witness
+      | Macro.throwErrorAt witness
+          "unsupported witness pattern for Veil existential `if`; expected an identifier or flat tuple of identifiers"
+    let existsGuard ← match type? with
+      | none => `(term| ∃ $[$ids:ident]*, $predicate)
+      | some type =>
+        if h : ids.size = 1 then
+          `(term| ∃ $(ids[0]):ident : $type, $predicate)
+        else
+          /- NOTE: `let (x, y) : α × β :| p` expands to a `do` pattern bind,
+          which Lean supports and internally destructures. Existential binders
+          do not accept tuple patterns (`∃ (x, y) : α × β, p`), so the
+          typed tuple guard must instead quantify a fresh packed value and
+          destructure it with an ordinary `let`. -/
+          let packedName ← withFreshMacroScope
+            (MonadQuotation.addMacroScope `__veil_if_some_witness)
+          let packed := mkIdent packedName
+          `(term| ∃ $packed:ident : $type, let $witness:term := $packed; $predicate)
+    let pickItem ← match type? with
+      | none => `(Lean.Parser.Term.doSeqItem| let $witness:term :| $predicate)
+      | some type => `(Lean.Parser.Term.doSeqItem| let $witness:term : $type :| $predicate)
+    let some thenSeq ← prependDoSeqItem? pickItem thenSeq | Macro.throwUnsupported
+    let elseSeq ← elseSeq?.getDM `(Lean.Parser.Term.doSeq| pure PUnit.unit)
+    `(doElem| if $existsGuard then $thenSeq else $elseSeq)
+
+/-- `veil_let` is a `let` that the verification pipeline will not eagerly
+inline. The right-hand side must be a pure computation. -/
+scoped syntax (name := veilLetDo) (priority := high)
+  kw_veil_let Lean.Parser.Term.letDecl : doElem
+
+/-- `veil_let` is a `let` that the verification pipeline will not eagerly
+inline. The right-hand side must be a pure computation. -/
+scoped syntax:lead (name := veilLetTerm)
+  withPosition(kw_veil_let Lean.Parser.Term.letDecl) "; " term : term
+
+def parseVeilLet? (decl : TSyntax ``Lean.Parser.Term.letDecl) :
+    Option (Term × Option Term × Term) :=
+  let this : Term := ⟨mkIdent `this⟩
+  match decl with
+  | `(letDecl| $x:ident $[: $ty:term]? := $value:term) => some (⟨x.raw⟩, ty, value)
+  | `(letDecl| $pattern:term $[: $ty:term]? := $value:term) => some (pattern, ty, value)
+  | `(letDecl| := $value:term) => some (this, none, value)
+  | `(letDecl| : $ty:term := $value:term) => some (this, some ty, value)
+  | _ => none
+
+macro_rules
+  | `(veil_let $decl:letDecl; $body:term) => do
+    let some (pattern, type?, value) := parseVeilLet? decl | Macro.throwUnsupported
+    let ty ← type?.getDM `(_)
+    `($(mkIdent `Veil.letEq) ($value : $ty) (fun ($pattern : $ty) => $body))
+
+macro_rules
+  | `(assume $t) => `($(mkIdent `VeilM.assume) $t)
+  | `(pick $(t)?) => do
+    `($(mkIdent `MonadNonDet.pick) $(← t.getDM `(_)))
+  | `(doElem| let $x:term $[: $ty:term]? :| $p) => do
+    `(doElem| let $x:term ← $(mkIdent `VeilM.pickSuchThat):ident $(← ty.getDM `(_)) (fun $x => $p))
 
 private def veilVarType := withForbidden "veil_var" termParser
 
@@ -72,7 +199,28 @@ let mut x := x
 -/
 scoped syntax (name := veilVarDo) kw_veil_var ident " : " veilVarType : doElem
 
-scoped syntax (name := havocAssignment) (priority := high) atomic(term ":=" "*") : doElem
+macro_rules
+  | `(doElem| veil_var $x:ident : $ty:term) =>
+    `(doElem| do let $x:ident ← pick ($ty:term); let mut $x:ident := $x:ident)
+  | `(doElem| veil_let $decl:letDecl) => do
+    let effect? := Action.findOutsideQuotations? decl.raw fun s =>
+      if s.isOfKind ``Lean.Parser.Term.nestedAction then some s else none
+    if let some effect := effect? then
+      Macro.throwErrorAt effect "the right-hand side of `veil_let` must be pure; move the computation to a preceding bind"
+    let some (pattern, tyAsc, value) := parseVeilLet? decl
+      | Macro.throwErrorAt decl "unsupported `veil_let` declaration"
+    let value ← match tyAsc with
+      | some ty => `(($value : $ty))
+      | none => pure value
+    `(doElem| let $pattern $[: $tyAsc]? :| $(mkIdent `Veil.eqWithoutSubst):ident $pattern $value)
+
+/-- Nondeterministic assignment. The leading-token guard mirrors Lean's own
+term-leading `do` elements (`doReassign`): without it, this parser's `term`
+swallows a preceding statement-keyword statement (e.g. a plain `let`, whose
+term form spans lines) and wins the longest-match against `doLet`. -/
+@[scoped doElem_parser high] def havocAssignment := leading_parser
+  Lean.Parser.Term.notFollowedByRedefinedTermToken >>
+  atomic (termParser >> " := " >> " * ")
 
 declare_syntax_cat unchanged_decl
 declare_syntax_cat spec
