@@ -592,7 +592,8 @@ macro_rules
 represent implicit universal quantification, i.e. `rel N` means `∀ n,
 rel n`. -/
 def isCapital (i : Name) : Bool :=
-  i.isStr && i.toString.all (fun c => c.isUpper || c.isDigit)
+  let nm := i.eraseMacroScopes
+  nm.isStr && nm.toString.all (fun c => c.isUpper || c.isDigit)
 
 /-- You _can_ use these as `funBinder`s, but they won't have a type, so might fail strangely. -/
 def getFieldIdentsForStruct [Monad m] [MonadEnv m] [MonadError m] (n : Name) : m (Array Ident) := do

@@ -25,6 +25,12 @@ veil_set_field_representation relation Veil.CanonicalField
 
 macro "set_r_true" : doElem => `(doElem| r true := true)
 
+/- The capital is introduced by the macro rather than antiquoted from its
+caller, so its identifier carries a macro scope. It must still denote an Ivy
+universal index, including where the same scoped identifier is used by the
+replacement expression. -/
+macro "set_r_from_index" : doElem => `(doElem| r N := N)
+
 macro "update_hygienic_tmp" : doElem =>
   `(doElem| do
     let mut tmp := 1
@@ -54,6 +60,11 @@ procedure macro_generated_write {
 procedure macro_generated_write_straight {
   set_r_true
   return r true
+}
+
+procedure macro_generated_capital_write {
+  set_r_from_index
+  return (r false, r true)
 }
 
 procedure macro_local_reassignment_is_hygienic {
@@ -176,6 +187,13 @@ def straightMacroResult :=
   __veil_exec_action% {} {} initial macro_generated_write_straight
 #guard exactlyOneSuccess straightMacroResult fun value state =>
   value && (state.r : Bool → Bool) true && state.x && state.y == 0
+
+def capitalMacroResult :=
+  __veil_exec_action% {} {} initial macro_generated_capital_write
+#guard exactlyOneSuccess capitalMacroResult fun value state =>
+  value == (false, true) &&
+    !(state.r : Bool → Bool) false && (state.r : Bool → Bool) true &&
+    state.x && state.y == 0
 
 def macroLocalResult :=
   __veil_exec_action% {} {} initial macro_local_reassignment_is_hygienic
