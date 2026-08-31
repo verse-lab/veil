@@ -28,6 +28,22 @@ private def findKindOutsideQuotations? (stx : Syntax) (kind : SyntaxNodeKind) : 
   findOutsideQuotations? stx fun candidate =>
     if candidate.isOfKind kind then some candidate else none
 
+/-- Find the immediate-expression form `(← do ...)`.  This is not a deferred
+term-level `do`: Lean lifts it into preceding statements.  However, Lean 4.32
+infers branch control information before performing that lift, so mutations of
+`let mut` locals inside the block can be silently omitted from join points.
+Reject this particular spelling until its control information can be propagated
+soundly; ordinary `(← action)`, `let x ← do ...`, and `x ← do ...` remain
+supported. -/
+private def findNestedDoAction? (stx : Syntax) : Option Syntax :=
+  findOutsideQuotations? stx fun candidate =>
+    if candidate.isOfKind ``Lean.Parser.Term.nestedAction &&
+        candidate.getNumArgs > 1 &&
+        candidate[1].isOfKind ``Lean.Parser.Term.doNested then
+      some candidate
+    else
+      none
+
 /-- Every `doElem` kind the Veil action elaborator classifies: kinds with
 Veil `@[doElem_elab]` handlers (including the targeted rejections in
 `Statements.lean`), Veil's own statement syntax (whether elaborated or
@@ -87,6 +103,10 @@ def validateVeilDo (body : ActionSyntax) : TermElabM Unit := do
   if let some termDo := findKindOutsideQuotations? body.raw ``Lean.Parser.Term.do then
     throwErrorAt termDo
       "term-level `do` blocks cannot be stored, passed, or otherwise deferred inside Veil actions; execute the block directly as a statement or bind its result"
+
+  if let some nestedDo := findNestedDoAction? body.raw then
+    throwErrorAt nestedDo
+      "immediate `(← do ...)` blocks inside expressions are not supported because their local-mutation control flow cannot be inferred soundly; bind the block with `let value ← do ...` first, or use `target ← do ...` assignment syntax"
 
   /- `while` macro-expands to `repeat` before the statement handlers run, so
   the `rejectUnsupported` handler would report a misleading `repeat`

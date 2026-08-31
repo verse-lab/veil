@@ -181,6 +181,33 @@ action reject_deferred_other_monad {
   pure program
 }
 
+/- Unlike the deferred cases above, `(← do ...)` executes immediately.  Lean
+4.32 nevertheless lifts it only after branch control information is inferred,
+which can silently discard mutations of local `let mut` variables. -/
+/--
+error: Error in action reject_nested_do_assignment_rhs: immediate `(← do ...)` blocks inside expressions are not supported because their local-mutation control flow cannot be inferred soundly; bind the block with `let value ← do ...` first, or use `target ← do ...` assignment syntax
+-/
+#guard_msgs(error, drop warning) in
+action reject_nested_do_assignment_rhs {
+  let mut tmp := false
+  if true then
+    x := (← do
+      tmp := true
+      pure true)
+}
+
+/--
+error: Error in action reject_nested_do_pure_let: immediate `(← do ...)` blocks inside expressions are not supported because their local-mutation control flow cannot be inferred soundly; bind the block with `let value ← do ...` first, or use `target ← do ...` assignment syntax
+-/
+#guard_msgs(error, drop warning) in
+action reject_nested_do_pure_let {
+  let mut tmp := false
+  if true then
+    let _ := (← do
+      tmp := true
+      pure true)
+}
+
 /--
 error: Error in action reject_immutable_shadow: this immutable local shadows a mutable state component with the same name; rename the local to assign to the state component
 -/
