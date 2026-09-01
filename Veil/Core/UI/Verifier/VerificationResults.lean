@@ -343,6 +343,62 @@ private def formatFailureDiagnostics (status : Option VCStatus)
       (collectDiagnostics dischargerUnknownReasons vc allVCs)
   | some .proven | some .disproven | none => none
 
+private def formatMs (ms : Nat) : String :=
+  s!"{ms / 1000}.{ms % 1000 / 100} s"
+
+/-- If this cell (primary VC or an active alternative) was proven by a retry
+attempt, the attempt index. Retried successes are reported distinctly (see
+`veil.smt.retries`) so seed-flakiness stays visible instead of being hidden
+by the retry. -/
+private def provenOnRetry? (vc : VCResult VCMetadata SmtResult)
+    (allVCs : Array (VCResult VCMetadata SmtResult)) : Option Nat := Id.run do
+  for relatedVC in activeRelatedVCs vc allVCs do
+    if let some successId := relatedVC.timing.successfulDischargerId then
+      if let some d := relatedVC.timing.dischargers.find? (·.id == successId) then
+        if d.attempt > 0 then
+          return some d.attempt
+  return none
+
+private def retryNote (vc : VCResult VCMetadata SmtResult)
+    (allVCs : Array (VCResult VCMetadata SmtResult)) : String :=
+  match provenOnRetry? vc allVCs with
+  | some k => s!" (retry {k}, seed {k})"
+  | none => ""
+
+/-- The slowest discharge attempts across all non-dormant induction VCs
+(`veil.report.slowVCs` entries, 0 disables). Failed attempts are included:
+they burn the full timeout and are exactly the tail that dominates sweep wall
+time. Only attempts taking at least `veil.report.slowVCsMinMs` are reported
+(none qualifying ⇒ no report), keeping the output deterministic for fast
+specifications. Attempts above `veil.report.nearTimeoutPercent` of
+`veil.smt.timeout` are flagged as near-timeout (the flag compares against
+the timeout option as set at reporting time). -/
+private def formatSlowVCsReport [Monad m] [MonadOptions m]
+    (results : VerificationResults VCMetadata SmtResult) : m (Option MessageData) := do
+  let opts ← getOptions
+  let topN := veil.report.slowVCs.get opts
+  if topN == 0 then return none
+  let minMs := veil.report.slowVCsMinMs.get opts
+  let timeoutMs := veil.smt.timeout.get opts * 1000
+  let nearTimeoutMs := timeoutMs * veil.report.nearTimeoutPercent.get opts / 100
+  let mut attempts : Array (Name × Nat) := #[]
+  for vc in results.vcs do
+    unless vc.metadata.isInduction && !vc.isDormant do continue
+    for d in vc.timing.dischargers do
+      if let .finished res := d.status then
+        if res.time ≥ minMs then
+          attempts := attempts.push (d.name, res.time)
+  if attempts.isEmpty then return none
+  let slowest := attempts.qsort (fun a b => a.2 > b.2) |>.take topN
+  let mut msg := m!"Slowest discharge attempts \
+    (≥ {formatMs minMs}; top {slowest.size} of {attempts.size}):\n"
+  for (name, time) in slowest do
+    let flag := if timeoutMs > 0 && time ≥ nearTimeoutMs then
+      s!" ⚠️ near timeout ({time * 100 / timeoutMs}% of {formatMs timeoutMs})"
+    else ""
+    msg := msg ++ m!"  {formatMs time}  {name}{flag}\n"
+  return some msg
+
 /-- Format verification results as text output for logging. -/
 def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationResults VCMetadata SmtResult) : m MessageData := do
   let includeCounterexamples := veil.printCounterexamples.get (← getOptions)
@@ -361,7 +417,7 @@ def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationR
     for vc in initVCs do
       let .induction m := vc.metadata | continue
       let status := effectiveStatus vc results.vcs
-      msg := msg ++ m!"  {m.property} ... {statusEmoji status}\n"
+      msg := msg ++ m!"  {m.property} ... {statusEmoji status}{retryNote vc results.vcs}\n"
       if includeCounterexamples && status == some .disproven then
         if let some ceMsg := formatCounterexamples vc results.vcs then
           msg := msg ++ ceMsg
@@ -374,12 +430,14 @@ def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationR
       for vc in vcs do
         let .induction m := vc.metadata | continue
         let status := effectiveStatus vc results.vcs
-        msg := msg ++ m!"    {m.property} ... {statusEmoji status}\n"
+        msg := msg ++ m!"    {m.property} ... {statusEmoji status}{retryNote vc results.vcs}\n"
         if includeCounterexamples && status == some .disproven then
           if let some ceMsg := formatCounterexamples vc results.vcs then
             msg := msg ++ ceMsg
         if let some diagnosticMsg := formatFailureDiagnostics status vc results.vcs then
           msg := msg ++ diagnosticMsg
+  if let some slowMsg ← formatSlowVCsReport results then
+    msg := msg ++ slowMsg
   return msg
 
 /-- Check if any VCs have non-proven status. -/
