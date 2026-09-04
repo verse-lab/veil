@@ -21,11 +21,13 @@ def assertionControlInfo : ControlInfoHandler := fun _ =>
 private def elabAssertionStatement (operation : Name) (stx : DoElem)
     (proposition : Term) (dec : DoElemCont) : DoElabM Expr := do
   let ctx ← requireVeilDoBlock
-  openStateAround ctx.mod do
-    let assertionId ← mkNewAssertion ctx.proc stx
-    let term ← `($(mkIdent operation) $proposition $(Syntax.mkNatLit assertionId.toNat))
-    let elem ← `(doElem| $term:term)
-    Lean.Elab.Do.elabDoExpr elem (← dec.ensureUnitAt stx)
+  /- `VeilM.require`/`VeilM.assert` are `assume`/`assert`: they never write the
+  state, so the continuation is passed through and the next statement reuses the
+  opening already in scope. -/
+  let assertionId ← mkNewAssertion ctx.proc stx
+  let term ← `($(mkIdent operation) $proposition $(Syntax.mkNatLit assertionId.toNat))
+  let elem ← `(doElem| $term:term)
+  Lean.Elab.Do.elabDoExpr elem (← dec.ensureUnitAt stx)
 
 @[doElem_elab requireDo, doElem_elab assertDo]
 def elabAssertion : DoElab := fun stx dec => do
@@ -72,12 +74,20 @@ private def boundIdents (stx : DoElem) : DoElabM (Array Ident) := do
 private def warnShadowingBinders (ctx : Context) (stx : DoElem) : DoElabM Unit := do
   (← boundIdents stx).forM (warnComponentShadow ctx)
 
+/-- Delegate to Lean's builtin handler.
+
+`preservesState := true` marks a statement whose monadic operation cannot write
+the state; it passes the continuation through unchanged and the following
+statements reuse the opening already in scope. Everything else re-opens the
+state *after* itself via `openStateAfter`. -/
 private def delegate (builtin : DoElab)
     (before : Context → DoElem → DoElabM Unit := fun _ _ => pure ())
-    (after : Context → Expr → DoElabM Expr := fun _ e => pure e) : DoElab := fun stx dec => do
+    (after : Context → Expr → DoElabM Expr := fun _ e => pure e)
+    (preservesState : Bool := false) : DoElab := fun stx dec => do
   let ctx ← requireVeilDoBlock
   before ctx stx
-  openStateAround ctx.mod do after ctx (← builtin stx dec)
+  let dec := if preservesState then dec else openStateAfter ctx.mod dec
+  after ctx (← builtin stx dec)
 
 private def doExprHeadName? (stx : DoElem) : Option Name :=
   match stx with
@@ -104,10 +114,12 @@ def elabVeilNested : DoElab := delegate Lean.Elab.Do.elabDoNested
 @[doElem_elab Lean.Parser.Term.doLet]
 def elabVeilLet : DoElab :=
   delegate Lean.Elab.Do.elabDoLet (before := warnShadowingBinders)
+    (preservesState := true)
 
 @[doElem_elab Lean.Parser.Term.doHave]
 def elabVeilHave : DoElab :=
   delegate Lean.Elab.Do.elabDoHave (before := warnShadowingBinders)
+    (preservesState := true)
 
 @[doElem_elab Lean.Parser.Term.doLetArrow]
 def elabVeilLetArrow : DoElab :=
@@ -142,10 +154,10 @@ def elabVeilMatch : DoElab := delegate Lean.Elab.Do.elabDoMatch
     (after := fun ctx result => zetaFieldDerivedLets ctx.mod result)
 
 @[doElem_elab Lean.Parser.Term.doReturn]
-def elabVeilReturn : DoElab := delegate Lean.Elab.Do.elabDoReturn
+def elabVeilReturn : DoElab := delegate Lean.Elab.Do.elabDoReturn (preservesState := true)
 
 @[doElem_elab Lean.Parser.Term.doDbgTrace]
-def elabVeilDbgTrace : DoElab := delegate Lean.Elab.Do.elabDoDbgTrace
+def elabVeilDbgTrace : DoElab := delegate Lean.Elab.Do.elabDoDbgTrace (preservesState := true)
 
 private def unsupportedMessage : SyntaxNodeKind → MessageData
   | ``Lean.Parser.Term.doLetRec => "recursive local declarations are not supported in Veil actions"

@@ -42,6 +42,44 @@ dsimproc_decl simpFieldRepresentationSetSingle (Veil.FieldRepresentation.setSing
   let res ← Veil.Simp.dsimp (#[`dsimpFieldRepresentationSet] ++ getLocalDSimpTargets a b) {} e'
   return .done res.expr
 
+/-- Names under which the extracted code spells "read the state". Used only as
+a cheap filter before the definitional check below. -/
+private def isStateRead (e : Expr) : Bool :=
+  let e :=
+    let (n, args) := e.consumeMData.getAppFnArgs
+    if n == ``MonadFlatMapGo.go then (args.back?.getD e) else e
+  match e.consumeMData.getAppFn.constName? with
+  | some n => n == ``MonadStateOf.get || n == ``MonadState.get || n == ``getThe
+  | none => false
+
+/-- Drop a state read whose result is discarded by a `pure` continuation.
+
+The frontend opens the state after every statement that may write it; when the
+last such statement is the last statement of the body, the opening it emits has
+nothing left to read. In `VeilMultiExecM` the `get` is state threading and the
+`pure` continuation is a literal singleton, so `get >>= fun _ => pure e` reduces
+to `pure e`, but rather than rely on that, the rewrite is only performed after
+`isDefEq` confirms it. The name test above is a fast filter, not the
+justification: if the two sides are not definitionally equal nothing happens,
+whatever monad or `MonadStateOf` instance the `get` came from. -/
+dsimproc_decl dropDiscardedStateRead (Bind.bind _ _) := fun e => do
+  /- NOTE: every non-firing path must `continue`, not `done`: this fires on
+  `Bind.bind`, which is everywhere, and `done` would stop dsimp from
+  normalising the rest of the extracted term. -/
+  let_expr Bind.bind _m _inst _a _b act k := e | return .continue
+
+  let .lam _ _ body _ := k | return .continue
+  unless isStateRead act do return .continue
+  if body.hasLooseBVar 0 then return .continue
+  let rhs := body.lowerLooseBVars 1 1
+  unless rhs.consumeMData.getAppFn.isConstOf ``Pure.pure do return .continue
+  /- `dsimp` matches at reducible transparency, but the monad stack only unfolds
+  at default; without this the check always fails. -/
+  if ← withDefault (isDefEq e rhs) then
+    trace[veil.debug] m!"[{decl_name%}]: dropped discarded state read"
+    return .visit rhs
+  return .continue
+
 end Preprocessing
 
 /-
@@ -355,6 +393,11 @@ attribute [multiextracted] ConstrainedExtractResult.pure
   ConstrainedExtractResult.pickSuchThat_VeilM
   ConstrainedExtractResult.assume_VeilM
   ConstrainedExtractResult.require_VeilM
+
+/- Registered as a *post* procedure (no `↓`): it must see the fully normalised
+`Bind.bind (go get) (fun _ => pure e)` shape, which only exists after the
+`ConstrainedExtractResult` layer above has been simplified away. -/
+attribute [multiExtractSimp] Preprocessing.dropDiscardedStateRead
 
 open MultiExtractor in
 attribute [multiExtractSimp ↓] ConstrainedExtractResult.pure
