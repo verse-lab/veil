@@ -38,3 +38,6 @@ jobs:
       uses: leanprover/lean-action@v1
       with:
         use-github-cache: false # TODO: enable this
+    - name: Build examples
+      run: lake build Examples
+      timeout-minutes: 10
