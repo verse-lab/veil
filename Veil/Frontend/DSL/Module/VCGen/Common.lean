@@ -115,10 +115,13 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
             (fun _ => return s!"{traceLabel} {dischargerId.name}") do
           liftTermElabM $ do
             let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
-            let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
-              withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
+            let vcType ← Veil.withPerfNode `veil.perf.discharger "elabStatement" vcStatement.type
+            let witness ← Veil.withPerfNode `veil.perf.discharger "elabProof" do
+              instantiateMVars $ ← withSynthesize (postpone := .no) $
+                withoutErrToSorry $ elabTermEnsuringType term vcType
             let endTime ← IO.monoMsNow
-            mkResult smtCh (.inl witness) (endTime - startTime)
+            Veil.withPerfNode `veil.perf.discharger "mkResult" <|
+              mkResult smtCh (.inl witness) (endTime - startTime)
       catch ex =>
         --`mkResult` can throw, but a result must be published on every path.
         let endTime ← IO.monoMsNow

@@ -38,6 +38,44 @@ initialize
   registerTraceClass `veil.perf.smt
   registerTraceClass `veil.perf.definition
   registerTraceClass `veil.perf.discharger
+  registerTraceClass `veil.perf.state
+  registerTraceClass `veil.perf.spec
+  registerTraceClass `veil.perf.vcgen
+  registerTraceClass `veil.perf.verifier
+  registerTraceClass `veil.perf.modelChecker
+  registerTraceClass `veil.perf.trace
+
+/-! ## Profiling helpers
+
+Veil's stages are wrapped in `withTraceNode` calls under the `veil.perf.*`
+classes. When Lean's `trace.profiler` is on, every node that runs longer than
+`trace.profiler.threshold` is recorded (regardless of whether its class is
+enabled), so these nodes show up in the Firefox Profiler output produced by
+`trace.profiler.output` and can be summarised with `scripts/parse-profile.py`.
+
+The profiler names a frame by the node's trace class plus its `tag` (the
+message is only included when `trace.profiler.output.pp` is set), so a stage
+that should be distinguishable in the profile must either carry a distinct
+`tag` (`withPerfNode`) or use a dynamic sub-class (`withPerfNodeFor`).
+-/
+
+namespace Veil
+
+variable {m : Type → Type} {ε : Type} {α : Type}
+  [Monad m] [MonadTrace m] [MonadOptions m] [MonadRef m] [AddMessageContext m]
+  [MonadAlwaysExcept ε m] [MonadLiftT BaseIO m] [ExceptToTraceResult ε α]
+
+/-- Run `k` in a profiler node of class `cls`, tagged with `label`. The frame
+appears as `cls: label` in the profile, e.g. `veil.perf.tactic: veil_smt`. -/
+@[inline] def withPerfNode (cls : Name) (label : String) (k : m α) : m α :=
+  withTraceNode cls (fun _ => return label) k (tag := label)
+
+/-- Run `k` in a profiler node of class `cls ++ nm`, so that each `nm` (an
+action, definition, VC, ...) appears as its own frame in the profile. -/
+@[inline] def withPerfNodeFor (cls : Name) (nm : Name) (label : String) (k : m α) : m α :=
+  withTraceNode (cls ++ nm) (fun _ => return label) k
+
+end Veil
 
 /-! ## Options -/
 

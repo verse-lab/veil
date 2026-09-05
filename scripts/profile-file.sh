@@ -71,20 +71,23 @@ echo "Profiling: $FILE"
 echo "Output: $OUTPUT"
 echo ""
 
-CMD="lake lean \"$FILE\" -- -Dtrace.profiler=true -Dtrace.profiler.output=\"$OUTPUT\" -Dtrace.veil.perf=true -Dtrace.smt.perf=true"
+CMD="lake lean \"$FILE\" -- -Dtrace.profiler=true -Dtrace.profiler.output=\"$OUTPUT\" -Dtrace.veil.perf=true"
 echo "Running: $CMD"
 echo ""
 
 START_TIME=$(date +%s.%N)
 
+# NOTE: with `trace.profiler` on, Lean records every `withTraceNode` above
+# `trace.profiler.threshold` (default 10ms) regardless of its trace class, so
+# Veil's `veil.perf.*` nodes, lean-smt's `smt.*` nodes and Lean's own
+# elaboration nodes all appear without enabling their classes individually.
 lake lean "$FILE" -- \
     -Dtrace.profiler=true \
     -Dtrace.profiler.output="$OUTPUT" \
-    -Dtrace.veil.perf=true \
-    -Dtrace.smt.perf=true
+    -Dtrace.veil.perf=true
 
 END_TIME=$(date +%s.%N)
-REAL_TIME=$(echo "scale=2; ($END_TIME - $START_TIME) / 1" | bc)
+REAL_TIME=$(awk -v a="$END_TIME" -v b="$START_TIME" 'BEGIN { printf "%.2f", a - b }')
 
 SCRIPT_DIR="$(dirname "$0")"
 
@@ -93,7 +96,7 @@ CPU_TIME_MS=0
 if [[ -f "$SCRIPT_DIR/parse-profile.py" && -f "$OUTPUT" ]]; then
     CPU_TIME_MS=$("$SCRIPT_DIR/parse-profile.py" "$OUTPUT" --total-only --all 2>/dev/null || echo "0")
 fi
-CPU_TIME=$(echo "scale=2; $CPU_TIME_MS / 1000" | bc)
+CPU_TIME=$(awk -v ms="$CPU_TIME_MS" 'BEGIN { printf "%.2f", ms / 1000 }')
 
 echo ""
 echo "Completed: real ${REAL_TIME}s / cpu ${CPU_TIME}s"

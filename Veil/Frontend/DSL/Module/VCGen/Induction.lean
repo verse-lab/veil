@@ -224,6 +224,7 @@ private def Module.actsToCheck (mod : Module) : Array ProcedureSpecification :=
 /-- Generate doesNotThrow VCs for all actions.
     These VCs check that actions don't throw exceptions assuming the invariants hold. -/
 def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
+  Veil.withPerfNode `veil.perf.vcgen "doesNotThrow" do
   let actsToCheck := mod.actsToCheck
   let wpTactic ← `(by veil_solve_wp_doesnotthrow)
   -- Prepare VC data outside the lock
@@ -240,6 +241,7 @@ def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
 /-- Generate invariant preservation VCs for all actions × invariant clauses.
     These VCs check that each action preserves each invariant clause. -/
 def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
+  Veil.withPerfNode `veil.perf.vcgen "invariants" do
   let actsToCheck := mod.actsToCheck
   let wpTactic ← if mod._useLocalRPropTC then `(by veil_solve_wp) else `(by veil_solve_wp)
   let trTactic ← `(by veil_solve_tr)

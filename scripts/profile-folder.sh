@@ -137,13 +137,13 @@ for FILE in $LEAN_FILES; do
     # Use profile-file.sh with --quiet to skip individual parse output
     if "$SCRIPT_DIR/profile-file.sh" --quiet "$FILE" "$PROFILE_PATH" > "$LOG_PATH" 2>&1; then
         END_TIME=$(date +%s.%N)
-        REAL_TIME=$(echo "scale=2; ($END_TIME - $START_TIME) / 1" | bc)
-        TOTAL_REAL_TIME=$(echo "$TOTAL_REAL_TIME + $REAL_TIME" | bc)
+        REAL_TIME=$(awk -v a="$END_TIME" -v b="$START_TIME" 'BEGIN { printf "%.2f", a - b }')
+        TOTAL_REAL_TIME=$(awk -v a="$TOTAL_REAL_TIME" -v b="$REAL_TIME" 'BEGIN { printf "%.2f", a + b }')
 
         # Get CPU time from profile
         CPU_TIME_MS=$("$SCRIPT_DIR/parse-profile.py" "$PROFILE_PATH" --total-only --all 2>/dev/null || echo "0")
-        CPU_TIME=$(echo "scale=2; $CPU_TIME_MS / 1000" | bc)
-        TOTAL_CPU_TIME=$(echo "$TOTAL_CPU_TIME + $CPU_TIME" | bc)
+        CPU_TIME=$(awk -v ms="$CPU_TIME_MS" 'BEGIN { printf "%.2f", ms / 1000 }')
+        TOTAL_CPU_TIME=$(awk -v a="$TOTAL_CPU_TIME" -v b="$CPU_TIME" 'BEGIN { printf "%.2f", a + b }')
 
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         PROFILE_FILES+=("$PROFILE_PATH")
@@ -154,7 +154,7 @@ for FILE in $LEAN_FILES; do
         echo "$RELATIVE_PATH,ok,$REAL_TIME,$CPU_TIME,$PROFILE_NAME" >> "$CSV_FILE"
     else
         END_TIME=$(date +%s.%N)
-        REAL_TIME=$(echo "scale=2; ($END_TIME - $START_TIME) / 1" | bc)
+        REAL_TIME=$(awk -v a="$END_TIME" -v b="$START_TIME" 'BEGIN { printf "%.2f", a - b }')
         FAIL_COUNT=$((FAIL_COUNT + 1))
 
         echo -e "${RED}FAILED${NC} (real ${REAL_TIME}s)"

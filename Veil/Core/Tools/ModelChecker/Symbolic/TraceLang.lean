@@ -353,6 +353,16 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
   if shouldHaveTrace isExpectedSat vcResult.status && traceJson?.isNone then
     logViolation "Could not extract trace JSON"; logDischargerErrors vcResult.timing.dischargers
 
+/-- A readable, position-based name for a trace query that has no user-provided
+name, e.g. `trace_L42`. Previously anonymous traces used `mkFreshUserName`,
+whose hygienic macro scopes made VC names (and the profiler frames derived from
+them) unreadable, and changed on every elaboration. -/
+private def anonymousTraceName [Monad m] [MonadFileMap m] (stx : Syntax) : m Name := do
+  let some pos := stx.getPos? | return `trace
+  let p := (← getFileMap).toPosition pos
+  let base := s!"trace_L{p.line}"
+  return Name.mkSimple (if p.column == 0 then base else s!"{base}_C{p.column}")
+
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident))
     (spec : TSyntax `traceSpec) (pf : Option (TSyntax `term)) : CommandElabM Unit := do
   -- Skip trace verification in compilation mode (not needed for model checking binary)
@@ -360,12 +370,13 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   let stx ← getRef
   let mod ← getCurrentModule (errMsg := "trace commands can only be used inside a Veil module")
   mod.throwIfSpecNotFinalized
+  Veil.withPerfNode `veil.perf.trace "elabTraceSpec" do
 
   -- Determine if this is a sat or unsat trace query
   let isExpectedSat := r.raw.isOfKind ``expected_sat
 
   -- Build the trace specification
-  let (assertion, numTransitions, vcName) ← Command.runTermElabM fun _ => do
+  let (assertion, numTransitions, vcName) ← Veil.withPerfNode `veil.perf.trace "buildQuery" <| Command.runTermElabM fun _ => do
     let expandedSpec := (← parseTraceSpec spec).flatMap expandTraceLine
     let numTransitions := expandedSpec.filter (!· matches .assertion _) |>.length
     let stateIds := (List.range (numTransitions + 1)).map fun i => mkIdent (Name.mkSimple s!"st{i}")
@@ -383,7 +394,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     let initState : TraceElabState := { states := stateIds, assertions := #[initAssertion] }
     let finalState ← expandedSpec.foldlM (processLine ctx) initState
 
-    let vcName ← match name with | some n => pure n.getId | none => mkFreshUserName `trace
+    let vcName ← match name with | some n => pure n.getId | none => anonymousTraceName stx
     let conjunction ← repeatedAnd finalState.assertions
     let actionTagBinders ← if mod.actions.isEmpty then pure #[] else mkActionTagBinders
     let allBinders := (← collectModuleBinders mod) ++ actionTagBinders ++ finalState.binders.all
@@ -403,7 +414,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   | some proofTerm =>
     -- Generate a theorem for manual debugging
     let thmName := mkIdent vcName
-    elabCommand (← `(theorem $thmName : $assertion := $proofTerm))
+    elabVeilCommand (← `(theorem $thmName : $assertion := $proofTerm))
   | none =>
     -- Use VCManager with automatic discharger
     let vcStatement ← mkTraceVCStatement mod vcName assertion
@@ -411,7 +422,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     -- Filter for matching trace VCs
     let vcFilter := (· == metadata)
     -- Check if a VC with this name already exists (avoid duplicate work)
-    let _ ← Verifier.withVCManager fun ref => do
+    let _ ← Veil.withPerfNode `veil.perf.trace "registerVC" <| Verifier.withVCManager fun ref => do
       let mgr ← ref.get
       if let some existingId := mgr.findVCByFilter vcFilter then
         return existingId
@@ -422,10 +433,12 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
       return vcId
 
     -- Start async verification with logging callback
-    Verifier.runFilteredAsync vcFilter (logTraceResults stx isExpectedSat vcName vcFilter)
+    Veil.withPerfNode `veil.perf.trace "start" <|
+      Verifier.runFilteredAsync vcFilter (logTraceResults stx isExpectedSat vcName vcFilter)
 
     -- Display streaming widget (shows progress then trace widget)
-    displayTraceStreamingResults stx isExpectedSat vcName vcFilter
+    Veil.withPerfNode `veil.perf.trace "display" <|
+      displayTraceStreamingResults stx isExpectedSat vcName vcFilter
 
 
 elab_rules : command

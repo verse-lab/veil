@@ -1399,20 +1399,20 @@ def elabVeilTactics : Tactic := fun stx => do
   match stx with
   -- Implementation-detail tactics
   | `(tactic| __veil_concretize_state_wp) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "__veil_concretize_state_wp") elabVeilConcretizeStateWp
+    withPerfNode `veil.perf.tactic "__veil_concretize_state_wp" elabVeilConcretizeStateWp
   | `(tactic| __veil_concretize_state_tr) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "__veil_concretize_state_tr") elabVeilConcretizeStateTr
+    withPerfNode `veil.perf.tactic "__veil_concretize_state_tr" elabVeilConcretizeStateTr
   | `(tactic| __veil_concretize_fields_wp $[!%$agg]?) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "__veil_concretize_fields_wp") (elabVeilConcretizeFieldsWp (agg.isSome))
+    withPerfNode `veil.perf.tactic "__veil_concretize_fields_wp" (elabVeilConcretizeFieldsWp (agg.isSome))
   | `(tactic| __veil_concretize_fields_tr) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "__veil_concretize_fields_tr") elabVeilConcretizeFieldsTr
+    withPerfNode `veil.perf.tactic "__veil_concretize_fields_tr" elabVeilConcretizeFieldsTr
   | `(tactic| __veil_neutralize_decidable_inst $[!%$agg]? $[$loc]?) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "__veil_neutralize_decidable_inst") (elabVeilNeutralizeDecidableInst (agg.isSome) loc)
+    withPerfNode `veil.perf.tactic "__veil_neutralize_decidable_inst" (elabVeilNeutralizeDecidableInst (agg.isSome) loc)
   | `(tactic| __veil_ghost_relation_ssa $[at $hyp:ident]?) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "__veil_ghost_relation_ssa") (elabGhostRelationSSA hyp)
+    withPerfNode `veil.perf.tactic "__veil_ghost_relation_ssa" (elabGhostRelationSSA hyp)
   -- User-facing tactics
   | `(tactic| veil_rename_hyp $[$xs:term => $ys:ident],*) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_rename_hyp") $ elabVeilRenameHyp xs ys
+    withPerfNode `veil.perf.tactic "veil_rename_hyp" $ elabVeilRenameHyp xs ys
   | `(tactic| veil_destruct $ids:ident* $[only [$onlyIds:ident,*]]? $[without [$excludedIds:ident,*]]?) => do
     let onlyStructs := match onlyIds with
       | some ids => ids.getElems.toList.map (fun id => id.getId)
@@ -1420,69 +1420,69 @@ def elabVeilTactics : Tactic := fun stx => do
     let excludedStructs := match excludedIds with
       | some ids => ids.getElems.toList.map (fun id => id.getId)
       | none => []
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_destruct") $ elabVeilDestructSpecificHyp ids onlyStructs excludedStructs
+    withPerfNode `veil.perf.tactic "veil_destruct" $ elabVeilDestructSpecificHyp ids onlyStructs excludedStructs
   | `(tactic| veil_destruct' ) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_destruct'") $ elabVeilDestruct'
+    withPerfNode `veil.perf.tactic "veil_destruct'" $ elabVeilDestruct'
   | `(tactic| veil_cases_type $[*%$recursive?]? $heads:ident* $[without [$skipIds:ident,*]]?) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_cases_type") $
+    withPerfNode `veil.perf.tactic "veil_cases_type" $
       Veil.Util.elabCasesType heads (recursive := recursive?.isSome) (allowSplit := true)
         (skipNames := skipIds.elim #[] (fun ids => ids.getElems.map (·.getId)))
   | `(tactic| veil_clear $ids:ident*) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_clear") $ elabVeilClearHyps ids
+    withPerfNode `veil.perf.tactic "veil_clear" $ elabVeilClearHyps ids
   | `(tactic| veil_destruct_goal) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_destruct_goal") elabVeilDestructGoal
+    withPerfNode `veil.perf.tactic "veil_destruct_goal" elabVeilDestructGoal
   | `(tactic| veil_solve) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_solve") elabVeilSolve
+    withPerfNode `veil.perf.tactic "veil_solve" elabVeilSolve
   | `(tactic| veil_infer_nonempty) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_infer_nonempty") elabVeilInferNonempty
+    withPerfNode `veil.perf.tactic "veil_infer_nonempty" elabVeilInferNonempty
   | `(tactic| veil_smt%$tk) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_smt") $ elabVeilSmt tk
+    withPerfNode `veil.perf.tactic "veil_smt" $ elabVeilSmt tk
   | `(tactic| veil_smt?%$tk) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_smt?") $ elabVeilSmt tk true
+    withPerfNode `veil.perf.tactic "veil_smt?" $ elabVeilSmt tk true
   | `(tactic| veil_simp $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_simp") $ elabVeilSimp (trace? := false) cfg o params loc
+    withPerfNode `veil.perf.tactic "veil_simp" $ elabVeilSimp (trace? := false) cfg o params loc
   | `(tactic| veil_simp? $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_simp?") $ elabVeilSimp (trace? := true) cfg o params loc
+    withPerfNode `veil.perf.tactic "veil_simp?" $ elabVeilSimp (trace? := true) cfg o params loc
   | `(tactic| veil_dsimp $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_dsimp") $ elabVeilDSimp (trace? := false) cfg o params loc
+    withPerfNode `veil.perf.tactic "veil_dsimp" $ elabVeilDSimp (trace? := false) cfg o params loc
   | `(tactic| veil_dsimp? $cfg:optConfig $[only%$o]? $[[$[$params],*]]? $[$loc]?) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_dsimp?") $ elabVeilDSimp (trace? := true) cfg o params loc
+    withPerfNode `veil.perf.tactic "veil_dsimp?" $ elabVeilDSimp (trace? := true) cfg o params loc
   | `(tactic| veil_wp) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_wp") elabVeilWp
+    withPerfNode `veil.perf.tactic "veil_wp" elabVeilWp
   | `(tactic| veil_apply_local_wp) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_apply_local_wp") elabVeilApplyLocalWp
+    withPerfNode `veil.perf.tactic "veil_apply_local_wp" elabVeilApplyLocalWp
   | `(tactic| veil_apply_local_tr) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_apply_local_tr") elabVeilApplyLocalTr
+    withPerfNode `veil.perf.tactic "veil_apply_local_tr" elabVeilApplyLocalTr
   | `(tactic| veil_intros) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_intros") elabVeilIntros
+    withPerfNode `veil.perf.tactic "veil_intros" elabVeilIntros
   | `(tactic| veil_intro_ho) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_intro_ho") elabVeilIntroHO
+    withPerfNode `veil.perf.tactic "veil_intro_ho" elabVeilIntroHO
   | `(tactic| veil_concretize_wp $[!%$agg]?) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_concretize_wp") (elabVeilConcretizeWp (agg.isSome))
+    withPerfNode `veil.perf.tactic "veil_concretize_wp" (elabVeilConcretizeWp (agg.isSome))
   | `(tactic| veil_concretize_tr) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_concretize_tr") elabVeilConcretizeTr
+    withPerfNode `veil.perf.tactic "veil_concretize_tr" elabVeilConcretizeTr
   | `(tactic| veil_fol $[!%$agg]?) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_fol") (elabVeilFol (agg.isSome))
+    withPerfNode `veil.perf.tactic "veil_fol" (elabVeilFol (agg.isSome))
   | `(tactic| veil_solve_wp) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_solve_wp") elabVeilSolveWp
+    withPerfNode `veil.perf.tactic "veil_solve_wp" elabVeilSolveWp
   | `(tactic| __veil_solve_wplo) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "__veil_solve_wplo") elabVeilSolveWplo
+    withPerfNode `veil.perf.tactic "__veil_solve_wplo" elabVeilSolveWplo
   | `(tactic| __veil_solve_trlo) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "__veil_solve_trlo") elabVeilSolveTrlo
+    withPerfNode `veil.perf.tactic "__veil_solve_trlo" elabVeilSolveTrlo
   | `(tactic| __veil_solve_wp_conservative) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "__veil_solve_wp_conservative") elabVeilSolveWpConservative
+    withPerfNode `veil.perf.tactic "__veil_solve_wp_conservative" elabVeilSolveWpConservative
   | `(tactic| __veil_solve_tr_conservative) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "__veil_solve_tr_conservative") elabVeilSolveTrConservative
+    withPerfNode `veil.perf.tactic "__veil_solve_tr_conservative" elabVeilSolveTrConservative
   | `(tactic| veil_solve_wp_doesnotthrow) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_solve_wp_doesnotthrow") elabVeilSolveWpDoesNotThrow
+    withPerfNode `veil.perf.tactic "veil_solve_wp_doesnotthrow" elabVeilSolveWpDoesNotThrow
   | `(tactic| veil_solve_tr) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_solve_tr") elabVeilSolveTr
+    withPerfNode `veil.perf.tactic "veil_solve_tr" elabVeilSolveTr
   | `(tactic| veil_bmc) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_bmc") elabVeilBmc
+    withPerfNode `veil.perf.tactic "veil_bmc" elabVeilBmc
   | `(tactic| veil_split_ifs) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "veil_split_ifs") elabVeilSplitIfs
+    withPerfNode `veil.perf.tactic "veil_split_ifs" elabVeilSplitIfs
   | `(tactic| unveil) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "unveil") elabVeilHuman
+    withPerfNode `veil.perf.tactic "unveil" elabVeilHuman
   | `(tactic| veil_fail) => elabVeilFail
   | _ => throwUnsupportedSyntax
   res.runByOption stx

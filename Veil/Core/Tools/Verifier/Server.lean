@@ -169,6 +169,7 @@ private partial def logPendingDischargerTasks : CommandElabM Unit := do
     This enables profiler trace propagation by registering tasks on the calling thread. -/
 private def awaitFilteredWithLogging (filter : VCMetadata → Bool)
     : CommandElabM (VerificationResults VCMetadata SmtResult) := do
+  Veil.withPerfNode `veil.perf.verifier "awaitResults" do
   while true do
     logPendingDischargerTasks
     -- Surface manager-loop errors where the user is looking; the loop itself
@@ -178,7 +179,7 @@ private def awaitFilteredWithLogging (filter : VCMetadata → Bool)
     -- Snapshot under the lock, render outside it (`toResults` pretty-prints).
     let mgr ← vcManager.atomically fun ref => ref.get
     if mgr.isDoneFiltered filter then
-      return ← liftCoreM (mgr.toResults filter)
+      return ← Veil.withPerfNode `veil.perf.verifier "collectResults" <| liftCoreM (mgr.toResults filter)
     IO.sleep 10
   panic! "unreachable"
 
@@ -232,6 +233,7 @@ are the witnesses returned by successful dischargers. Declarations are added in
 the manager DAG's dependency order so downstream proof terms can refer to
 upstream VC theorem constants. -/
 def addProvenTheoremsInDependencyOrder (filter : VCMetadata → Bool) : CommandElabM Unit := do
+  Veil.withPerfNode `veil.perf.verifier "addProvenTheorems" do
   let mgr ← vcManager.atomically fun ref => ref.get
   for vcId in mgr.vcIdsInDependencyOrder filter do
     if let some (vc, witness) := mgr.provenWitness? vcId then

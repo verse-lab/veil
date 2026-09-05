@@ -590,14 +590,16 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
       -- (*) it's easier to construct the proof here with the body
       let #[handler, post] := xs | throwError "defineWp: expected 2 arguments, got {xs.size}"
       let wpSimpAttrHigh ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ high)
-      proveEqAboutBody pointBody wpDef_fqn (vs ++ xs ++ rs) (← resPoint.getProof) (toWpEqName nm) #[wpSimpAttrHigh]
-        (extraFVars := extraFVars)
+      Veil.withPerfNodeFor `veil.perf.extract.wpEq nm s!"wpEq {nm}" <|
+        proveEqAboutBody pointBody wpDef_fqn (vs ++ xs ++ rs) (← resPoint.getProof) (toWpEqName nm) #[wpSimpAttrHigh]
+          (extraFVars := extraFVars)
 
       if mod._useLocalRPropTC then
       if dk matches .derivedDefinition .actionLike _ then
       if mode matches .external then
         try
-          defineWpLocalEq mod nm body resBody vs extraFVars handler post dk wpDef_fqn notFromTransition?
+          Veil.withPerfNodeFor `veil.perf.extract.wpLocalEq nm s!"wpLocalEq {nm}" <|
+            defineWpLocalEq mod nm body resBody vs extraFVars handler post dk wpDef_fqn notFromTransition?
         catch ex =>
           -- For non-transition wps, warn if any step fails (all 3 steps expected)
           logWarning m!"unable to generate wp_local_eq for {nm}: {ex.toMessageData}"
@@ -645,8 +647,9 @@ private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) :
         let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => do elabAttr $ ← `(Parser.Term.attrInstance| $(Lean.mkIdent attr):ident))
         let trDef_fqn ← addVeilDefinition (toTransitionName nm) trExpr (attr := #[{name := `reducible}] ++ attrs)
         -- (4) Prove the equality theorem
-        proveEqAboutBody body trDef_fqn (vs ++ xs) (← resBody.getProof) (toTransitionEqName nm) #[]
-          (extraFVars := extraFVars)
+        Veil.withPerfNodeFor `veil.perf.extract.trEq nm s!"trEq {nm}" <|
+          proveEqAboutBody body trDef_fqn (vs ++ xs) (← resBody.getProof) (toTransitionEqName nm) #[]
+            (extraFVars := extraFVars)
         -- (5) Prove the derived_eq theorem: VeilM.toTransitionDerived act.ext = act.ext.tr
         -- by connecting `toWpEq` and `toTransitionEq` theorems
         -- Use the action's fully qualified name (nm is already the external mode name)
@@ -663,8 +666,9 @@ private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) :
           let res ← Meta.mkAppM ``derive_eq_template #[heq1, heq2]
           pure res
         let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => do elabAttr $ ← `(Parser.Term.attrInstance| $(Lean.mkIdent attr):ident))
-        proveEqAboutBody derivedExpr trDef_fqn vs proof (toDerivedEqName nm) attrs
-          (extraFVars := extraFVars)
+        Veil.withPerfNodeFor `veil.perf.extract.derivedEq nm s!"derivedEq {nm}" <|
+          proveEqAboutBody derivedExpr trDef_fqn vs proof (toDerivedEqName nm) attrs
+            (extraFVars := extraFVars)
 
 end AuxiliaryDefinitions
 
@@ -1100,21 +1104,24 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
     liftTermElabM $ do
       let nmDo := pi.nameInMode .none
       let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}]) (compile := !(← isModelCheckCompileMode))
-      let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
+      let (nmInt, eInt) ← Veil.withPerfNodeFor `veil.perf.extract.elabMode (pi.nameInMode Mode.internal)
+        s!"elabMode {pi.nameInMode Mode.internal}" <| elabProcedureInMode pi Mode.internal
       let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}]) (compile := !(← isModelCheckCompileMode))
       AuxiliaryDefinitions.defineWp mod nmInt .internal intKind deriveTransition?
 
       -- Procedures are never considered in their external view, so save some
       -- time by not elaborating those definitions.
       if pi matches .initializer | .action _ _ then do
-        let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
+        let (nmExt, eExt) ← Veil.withPerfNodeFor `veil.perf.extract.elabMode (pi.nameInMode Mode.external)
+          s!"elabMode {pi.nameInMode Mode.external}" <| elabProcedureInMode pi Mode.external
         let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}]) (compile := !(← isModelCheckCompileMode))
         unless (← isModelCheckCompileMode) do
           AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
           if deriveTransition? then
             AuxiliaryDefinitions.defineTransition mod nmExt extKind
           try
-            defineTransitionAbstract mod nmExt extKind deriveTransition?
+            Veil.withPerfNodeFor `veil.perf.extract.defineTransitionAbstract nmExt s!"defineTransitionAbstract {nmExt}" <|
+              defineTransitionAbstract mod nmExt extKind deriveTransition?
           catch ex =>
             logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
     return mod
@@ -1122,7 +1129,8 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option ActionSyntax) (l : ActionSyntax) (stx : Syntax) : CommandElabM Module := do
   -- Obtain `extraParams` so we can register the action
   let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
-  let (extraParams, eDo) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureBody vs pi br l
+  let (extraParams, eDo) ← Veil.withPerfNodeFor `veil.perf.extract.elabBody pi.name s!"elabBody {pi.name}" <|
+    liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureBody vs pi br l
   let (mod, extraParams) ← liftTermElabM $ mod.canonicalizeExtraParams extraParams
   let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams spec l stx
   mod.defineProcedureCore pi eDo ps true
@@ -1133,9 +1141,10 @@ using `Transition.toVeilM`. -/
 def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax `Lean.explicitBinders)) (t : Term) (stx : Syntax) : CommandElabM Module := do
   -- Obtain `extraParams` so we can register the action
   let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
-  let (extraParams, eTr) ← liftTermElabMWithBinders actionBinders $ fun vs => elabTransitionTerm vs pi br t
+  let (extraParams, eTr) ← Veil.withPerfNodeFor `veil.perf.extract.elabBody pi.name s!"elabBody {pi.name}" <|
+    liftTermElabMWithBinders actionBinders $ fun vs => elabTransitionTerm vs pi br t
   let (mod, extraParams) ← liftTermElabM $ mod.canonicalizeExtraParams extraParams
-  let eDo ← liftTermElabM do
+  let eDo ← Veil.withPerfNodeFor `veil.perf.extract.transitionToVeilM pi.name s!"transitionToVeilM {pi.name}" <| liftTermElabM do
     let tmp ← withVeilModeVar BinderInfo.implicit fun mode => do
       Meta.lambdaTelescope eTr fun xs eTrBody => do
         -- get rid of the `id` wrapper; we can do this via `dsimp`-like

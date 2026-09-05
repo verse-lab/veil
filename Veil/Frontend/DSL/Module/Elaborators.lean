@@ -221,6 +221,7 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
 private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
   if mod.isStateDefined then
     return mod
+  Veil.withPerfNode `veil.perf.state "defineState" do
   -- Resolve concrete representation configurations
   let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
   let (mod, fieldStxs) ← mod.declareStateFieldLabelTypeAndDispatchers repConfigs
@@ -230,18 +231,18 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
   let instantiationStxs ← mod.mkInstantiationStructure
   for stx in stateStxs ++ theoryStxs ++ instantiationStxs do
     elabVeilCommand stx
-  generateIgnoreFn mod
+  Veil.withPerfNode `veil.perf.state "generateIgnoreFn" (generateIgnoreFn mod)
   let mod := { mod with _stateDefined := true }
   if mod._useLocalRPropTC && !(← isModelCheckCompileMode) then
-    let stxs ← liftTermElabM mod.declareLocalTheoryPropTC
+    let stxs ← Veil.withPerfNode `veil.perf.state "declareLocalTheoryPropTC" (liftTermElabM mod.declareLocalTheoryPropTC)
     for stx in stxs do
       elabVeilCommand stx.raw
-    let stxs ← liftTermElabM mod.declareLocalRPropTC
+    let stxs ← Veil.withPerfNode `veil.perf.state "declareLocalRPropTC" (liftTermElabM mod.declareLocalRPropTC)
     for stx in stxs do
       elabVeilCommand stx.raw
     -- Generate the transition weakening lemma for this module
     try
-      let cmd ← liftTermElabM mod.declareTransitionWeakeningLemma
+      let cmd ← Veil.withPerfNode `veil.perf.state "declareTransitionWeakeningLemma" (liftTermElabM mod.declareTransitionWeakeningLemma)
       elabVeilCommand cmd
     catch ex =>
       logWarning m!"unable to generate transition weakening lemma: {ex.toMessageData}"
@@ -266,6 +267,7 @@ generating compiled model source. -/
 def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Module := do
   if mod.isSpecFinalized then
     return mod
+  Veil.withPerfNode `veil.perf.spec "finalize" do
   let mod ← mod.ensureStateIsDefined
   throwIfNoInitializerDefined mod
   warnIfNoInvariantsDefined mod
@@ -275,10 +277,10 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
       let (assumptionCmd, mod) ← mod.assembleAssumptions
       elabVeilCommand assumptionCmd
       if !mod.assumptions.isEmpty then
-        liftTermElabM do
+        Veil.withPerfNode `veil.perf.spec "localAbstractEqForAssumptions" <| liftTermElabM do
           mod.tryDefineLocalAbstractEqForTheoryPredicate assembledAssumptionsName assumptionCmd
       try
-        liftTermElabM $ mod.simplifyLocalTheoryPropCore assembledAssumptionsName
+        Veil.withPerfNode `veil.perf.spec "simplifyLocalTheoryPropCore" <| liftTermElabM $ mod.simplifyLocalTheoryPropCore assembledAssumptionsName
       catch ex =>
         logWarningAt assumptionCmd m!"unable to synthesize LocalTheoryProp simplified core for {assembledAssumptionsName}: {ex.toMessageData}"
       return mod
@@ -288,17 +290,17 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
       elabVeilCommand invariantCmd
       if !mod.invariants.isEmpty then
         try
-          liftTermElabM $ mod.simplifyLocalRPropCore assembledInvariantsName
+          Veil.withPerfNode `veil.perf.spec "simplifyLocalRPropCore" <| liftTermElabM $ mod.simplifyLocalRPropCore assembledInvariantsName
         catch ex =>
           logWarningAt invariantCmd m!"unable to synthesize LocalRProp instance for {assembledInvariantsName}: {ex.toMessageData}"
       if !mod.invariants.isEmpty then
         try
-          let localMeetsCmd ← liftTermElabM mod.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem
+          let localMeetsCmd ← Veil.withPerfNode `veil.perf.spec "localMeetsSpecification" <| liftTermElabM mod.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem
           elabVeilCommand localMeetsCmd
         catch ex =>
           logWarningAt invariantCmd m!"unable to define {localMeetsSpecificationIfSuccessfulAssumingName}: {ex.toMessageData}"
         try
-          let localTrMeetsCmd ← liftTermElabM mod.defineTransitionMeetsSpecificationIfSuccessfulAssumingLocalTheorem
+          let localTrMeetsCmd ← Veil.withPerfNode `veil.perf.spec "localTransitionMeetsSpecification" <| liftTermElabM mod.defineTransitionMeetsSpecificationIfSuccessfulAssumingLocalTheorem
           elabVeilCommand localTrMeetsCmd
         catch ex =>
           logWarningAt invariantCmd m!"unable to define {localTransitionMeetsSpecificationIfSuccessfulAssumingName}: {ex.toMessageData}"
@@ -309,23 +311,27 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
       elabVeilCommand safetyCmd
       return mod
     pure mod
-  let (labelCmds, mod) ← mod.assembleLabel
-  for cmd in labelCmds do
-    elabVeilCommand cmd
+  let mod ← Veil.withPerfNode `veil.perf.spec "label" do
+    let (labelCmds, mod) ← mod.assembleLabel
+    for cmd in labelCmds do
+      elabVeilCommand cmd
+    pure mod
 
   -- Generate ActionTag type for symbolic model checking
   -- NOTE: ActionTag is query-local (not a module sort), but we generate the
   -- axiomatisation class and concrete type here for convenience
   let actionNames := mod.actions.map (fun (a : ProcedureSpecification) => Lean.mkIdent a.name)
   if !actionNames.isEmpty && !(← isModelCheckCompileMode) then
-    let (className, classDecl) ← mkEnumAxiomatisation actionTagType actionNames
-    elabVeilCommand classDecl
-    for cmd in (← mkEnumConcreteType actionTagType actionNames) do
-      elabVeilCommand cmd
-    elabVeilCommand $ ← `(open $className:ident)
+    Veil.withPerfNode `veil.perf.spec "actionTag" do
+      let (className, classDecl) ← mkEnumAxiomatisation actionTagType actionNames
+      elabVeilCommand classDecl
+      for cmd in (← mkEnumConcreteType actionTagType actionNames) do
+        elabVeilCommand cmd
+      elabVeilCommand $ ← `(open $className:ident)
     -- TODO: Generate equivalence lemma (ActionTag.label_equiv) here
 
-  let mod ← if (← isModelCheckCompileMode) then pure mod else do
+  let mod ← if (← isModelCheckCompileMode) then pure mod else
+    Veil.withPerfNode `veil.perf.spec "transitionSystem" do
     let (nextCmd, mod) ← mod.assembleNext
     elabVeilCommand nextCmd
     let (nextTrCmd, mod) ← mod.assembleNextTransition
@@ -333,7 +339,7 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     let nextTr'Cmd ← mod.assembleNextTransition'
     elabVeilCommand nextTr'Cmd
     try
-      if let some abstractNextCmd ← liftTermElabM mod.defineTransitionAbstractForNext then
+      if let some abstractNextCmd ← Veil.withPerfNode `veil.perf.spec "transitionAbstractForNext" (liftTermElabM mod.defineTransitionAbstractForNext) then
         elabVeilCommand abstractNextCmd
     catch ex =>
       logWarningAt stx m!"unable to prove {toTransitionAbstractName assembledNextName}: {ex.toMessageData}"
@@ -343,10 +349,11 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     elabVeilCommand rtsCmd
     pure mod
   unless (← isModelCheckCompileMode) do
-    Verifier.runManager
+    Veil.withPerfNode `veil.perf.verifier "runManager" Verifier.runManager
     mod.generateDoesNotThrowVCs
     -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
-    Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
+    Veil.withPerfNode `veil.perf.verifier "startDoesNotThrow" <|
+      Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
     mod.generateInvariantVCs
   -- Invariant VCs are generated here; verifier commands decide when to start them.
   return { mod with _specFinalizedAt := some stx }
@@ -360,8 +367,10 @@ private def Module.ensureExecutableModelCheckerDefinitions (mod : Module) : Comm
     if (← get).messages.hasErrors then
       modify fun s => { savedState with messages := s.messages, traceState := s.traceState }
       throwAbortCommand
-  stepOrAbort <| Extract.runGenExtractCommand mod
-  stepOrAbort <| elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
+  Veil.withPerfNode `veil.perf.modelChecker "extract" <|
+    stepOrAbort <| Extract.runGenExtractCommand mod
+  Veil.withPerfNode `veil.perf.modelChecker "assembleEnumerableTransitionSystem" <|
+    stepOrAbort <| elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
 
 private def proofHasSorryGoalCount (results : VerificationResults VCMetadata SmtResult) : Nat :=
   results.vcs.foldl (init := 0) fun count vc =>
@@ -390,6 +399,7 @@ private def addUndischargedTheoremSuggestion
 
 /-- Log verification results asynchronously after all VCs complete. -/
 def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
+  Veil.withPerfNode `veil.perf.verifier "logResults" do
   let msg ← Verifier.formatVerificationResults results
   let violationIsError := veil.violationIsError.get (← getOptions)
   if Verifier.hasFailedVCs results && violationIsError then
@@ -408,8 +418,10 @@ private def runFilteredInvariantCheck
     (mod : Module)
     (filter : VCMetadata → Bool)
     : CommandElabM Unit := do
-  Verifier.runFilteredAsync filter (logVerificationResults stx)
-  Verifier.displayStreamingResults stx
+  Veil.withPerfNode `veil.perf.verifier "startFiltered" <|
+    Verifier.runFilteredAsync filter (logVerificationResults stx)
+  Veil.withPerfNode `veil.perf.verifier "displayStreamingResults" <|
+    Verifier.displayStreamingResults stx
     (do
       -- CAREFUL: do not hold the lock to print
       let mgr ← Verifier.vcManager.atomically fun ref => ref.get
@@ -931,10 +943,13 @@ where
       let some refs ← Veil.ModelChecker.Concrete.getProgressRefs $(quote instanceId) | pure Lean.Json.null
       Lean.toJson <$> $callExpr ($(quote parallelCfg)) ($(quote instanceId)) refs.cancelToken)
     trace[veil.desugar] "{resultExpr}"
-    liftTermElabM do
-      let expr ← Term.elabTerm resultExpr none
-      Term.synthesizeSyntheticMVarsNoPostponing
-      unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
+    Veil.withPerfNode `veil.perf.modelChecker "elabInterpreted" <| liftTermElabM do
+      let expr ← Veil.withPerfNode `veil.perf.modelChecker "elabInterpreted.elabTerm" do
+        let expr ← Term.elabTerm resultExpr none
+        Term.synthesizeSyntheticMVarsNoPostponing
+        instantiateMVars expr
+      Veil.withPerfNode `veil.perf.modelChecker "elabInterpreted.evalExpr" <|
+        unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) expr
 
   /-- Get all action label names for never-enabled action warnings. -/
   getActionLabelNames (mod : Module) : CommandElabM (List String) := do
@@ -1007,8 +1022,9 @@ where
     -- Optionally prove assumptions statically; the concrete model checker also
     -- evaluates them at runtime before BFS.
     if assumptionsHoldBy.isSome && !(← isModelCheckCompileMode) && !mod.assumptions.isEmpty then
-      checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
-    mod.ensureExecutableModelCheckerDefinitions
+      Veil.withPerfNode `veil.perf.modelChecker "checkAssumptions" <|
+        checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
+    Veil.withPerfNode `veil.perf.modelChecker "executableDefinitions" mod.ensureExecutableModelCheckerDefinitions
     -- Resolve parallelCfg: sequential flag takes precedence, otherwise default to parallel
     let parallelCfg ← match config.sequential, config.parallelCfg with
       | true, _ => pure none
@@ -1038,7 +1054,8 @@ where
     let computation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
         if ← checkCancelled ctx.cancelToken ctx.instanceId then return
-        let json ← IO.ofExcept (← ioComputation.toIO')
+        let json ← Veil.withPerfNode `veil.perf.modelChecker "runInterpreted" do
+          IO.ofExcept (← ioComputation.toIO')
         finishWithResult ctx json
       catch e : Exception =>
         handleModelCheckError ctx e
@@ -1057,9 +1074,12 @@ where
 
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let some buildFolder ← compileModel mod sourceFile modelSource ctx.instanceId | return
+        let some buildFolder ← Veil.withPerfNode `veil.perf.modelChecker "compile" do
+          compileModel mod sourceFile modelSource ctx.instanceId
+          | return
         if ← checkCancelled ctx.cancelToken ctx.instanceId then return
-        runBinaryAndLogResult ctx buildFolder sourceFile
+        Veil.withPerfNode `veil.perf.modelChecker "runCompiled" <|
+          runBinaryAndLogResult ctx buildFolder sourceFile
       catch e : Exception =>
         handleModelCheckError ctx e
     ) ctx.cancelToken
@@ -1080,7 +1100,8 @@ where
     -- Interpreted mode task (wrapped for async logging)
     let interpretedComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let json ← IO.ofExcept (← ioComputation.toIO')
+        let json ← Veil.withPerfNode `veil.perf.modelChecker "runInterpreted" do
+          IO.ofExcept (← ioComputation.toIO')
         match (← ctx.cancelToken.isSet, ← ModelChecker.Concrete.checkHandoffRequested ctx.instanceId) with
         | (true, false) => ModelChecker.Concrete.cancelProgress ctx.instanceId  -- User clicked Stop
         | (false, _) => finishWithResult ctx json
@@ -1095,7 +1116,9 @@ where
     let compilationCancelTk ← IO.CancelToken.new
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let some buildFolder ← compileModel mod sourceFile modelSource ctx.instanceId | return
+        let some buildFolder ← Veil.withPerfNode `veil.perf.modelChecker "compile" do
+          compileModel mod sourceFile modelSource ctx.instanceId
+          | return
         -- Skip handoff if violation found or interpreted finished
         if (← ModelChecker.Concrete.isViolationFound ctx.instanceId) || (← IO.hasFinished interpretedTask) then
           ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder
@@ -1106,7 +1129,8 @@ where
         let _ ← IO.wait interpretedTask
         let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | return
         let ctxWithNewToken := { ctx with cancelToken := newCancelToken }
-        runBinaryAndLogResult ctxWithNewToken buildFolder sourceFile
+        Veil.withPerfNode `veil.perf.modelChecker "runCompiled" <|
+          runBinaryAndLogResult ctxWithNewToken buildFolder sourceFile
       catch e : Exception =>
         ModelChecker.Concrete.updateCompilationStatus ctx.instanceId (.failed s!"{← e.toMessageData.toString}")
     ) compilationCancelTk
