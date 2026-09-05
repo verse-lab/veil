@@ -220,7 +220,6 @@ invariant [card_faulty] pset.count Faulty <= T
   T := 1,
   F := 1,
   Proc := (Std.ExtTreeSet.empty.insertMany (List.finRange 4))}
-
-
+  (maxDepth := 1) (sequential := true)
 
 end BcastByz

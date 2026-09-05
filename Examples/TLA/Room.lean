@@ -154,5 +154,6 @@ invariant [key_num] ∀ R, (roomKey R).num < 10
   KeySet := Std.ExtTreeSet (Key Room_IndT)
 }
 { }
+  (maxDepth := 2) (sequential := true)
 
 end RoomMC

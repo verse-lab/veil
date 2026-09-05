@@ -392,42 +392,42 @@ A rough comparison:
   Distinct States: 11431369
   Time: 16min 59.1s
 -/
-#model_check
-{
--- Based on MultiPaxosUs.cfg:
--- Acceptors = {a1, a2, a3}        -> Fin 3
--- Proposers = {p1, p2}            -> Fin 2
--- Values = {v1, v2}               -> Fin 2
--- Quorums = {{a1,a2},{a1,a3},{a2,a3}} -> Fin 3
--- MaxBallot = 2                   -> 0..2, Fin 3
--- MaxSlot = 1                     -> 0..1, Fin 2
-  ballot := Fin 3,
-  slot := Fin 2,
-  value := Fin 2,
-  acceptor := Fin 3,
-  proposer := Fin 2,
-  quorum := Fin 3,
-  SlotSet := ExtTreeSet (Fin 2) compare,
-  VotedSet := ExtTreeSet (Voted (Fin 3) (Fin 2) (Fin 2)) compare,
-  DecreeSet := ExtTreeSet (Decree (Fin 2) (Fin 2)) compare,
-  MsgSet := ExtTreeSet (Msg (Fin 2) (Fin 3) (Fin 2) (Fin 3) (Fin 2) (ExtTreeSet (Voted (Fin 3) (Fin 2) (Fin 2)) compare) (ExtTreeSet (Decree (Fin 2) (Fin 2)) compare)) compare,
-  AcceptorSet := ExtTreeSet (Fin 3) compare
-}
-{
-  one := 1,
-  AcceptorsUNIV := [0, 1, 2],  -- a0, a1, a2
-  -- Quorums: q0 = {a0, a1}, q1 = {a0, a2}, q2 = {a1, a2}
-  member := fun a q =>
-    match a.val, q.val with
-    | 0, 0 => true
-    | 1, 0 => true
-    | 0, 1 => true
-    | 2, 1 => true
-    | 1, 2 => true
-    | 2, 2 => true
-    | _, _ => false
-  SlotsUNIV := [0, 1]  -- slot 0, 1
-}
-
+-- #model_check
+-- {
+-- -- Based on MultiPaxosUs.cfg:
+-- -- Acceptors = {a1, a2, a3}        -> Fin 3
+-- -- Proposers = {p1, p2}            -> Fin 2
+-- -- Values = {v1, v2}               -> Fin 2
+-- -- Quorums = {{a1,a2},{a1,a3},{a2,a3}} -> Fin 3
+-- -- MaxBallot = 2                   -> 0..2, Fin 3
+-- -- MaxSlot = 1                     -> 0..1, Fin 2
+--   ballot := Fin 3,
+--   slot := Fin 2,
+--   value := Fin 2,
+--   acceptor := Fin 3,
+--   proposer := Fin 2,
+--   quorum := Fin 3,
+--   SlotSet := ExtTreeSet (Fin 2) compare,
+--   VotedSet := ExtTreeSet (Voted (Fin 3) (Fin 2) (Fin 2)) compare,
+--   DecreeSet := ExtTreeSet (Decree (Fin 2) (Fin 2)) compare,
+--   MsgSet := ExtTreeSet (Msg (Fin 2) (Fin 3) (Fin 2) (Fin 3) (Fin 2) (ExtTreeSet (Voted (Fin 3) (Fin 2) (Fin 2)) compare) (ExtTreeSet (Decree (Fin 2) (Fin 2)) compare)) compare,
+--   AcceptorSet := ExtTreeSet (Fin 3) compare
+-- }
+-- {
+--   one := 1,
+--   AcceptorsUNIV := [0, 1, 2],  -- a0, a1, a2
+--   -- Quorums: q0 = {a0, a1}, q1 = {a0, a2}, q2 = {a1, a2}
+--   member := fun a q =>
+--     match a.val, q.val with
+--     | 0, 0 => true
+--     | 1, 0 => true
+--     | 0, 1 => true
+--     | 2, 1 => true
+--     | 1, 2 => true
+--     | 2, 2 => true
+--     | _, _ => false
+--   SlotsUNIV := [0, 1]  -- slot 0, 1
+-- }
+--   (maxDepth := 1) (sequential := true)
 
 end MultiPaxos

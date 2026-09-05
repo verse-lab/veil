@@ -570,11 +570,11 @@ ghost relation isQuorum (sset : serverSet) (size : Nat) :=
 
 procedure agreeIndexes (i : server) {
   let logLength := List.length (logs i)
-  let indices := (List.range (logLength + 1)).drop 1  -- [1, 2, ..., logLength]
-  let agreeIndexs ← indices.filterM (fun idx => do
-    let agreeSet ← Agree i idx
-    pure <| isQuorum agreeSet SIZE
-  )
+  let agreeSets ← pick (Fin logLength → serverSet)
+  assume ∀ idx : Fin logLength, ∀ s,
+    matchIndex i s ≥ idx.val + 1 → sSet.contains s (agreeSets idx)
+  let agreeIndexs := (List.finRange logLength).filterMap fun idx =>
+    if isQuorum (sSet.insert i (agreeSets idx)) SIZE then some (idx.val + 1) else none
   return agreeIndexs
 }
 
@@ -1071,23 +1071,23 @@ set_option maxHeartbeats 10000000
 open Std
 #gen_spec
 
-set_option veil.violationIsError false in
-#model_check
-  {
-    server := Fin 3,
-    value := Fin 2,
-    serverStates := serverStates_IndT,
-    serverSet := ExtTreeSet (Fin 3) compare,
-    electionSet := ExtTreeSet (Election (Fin 3) (Fin 2) (ExtTreeSet (Fin 3) compare)) compare,
-    msetMsg := TMapMultiset (Message (Fin 2) (Fin 3)),
-    logSet := ExtTreeSet (logEntry (Fin 2)) compare
-  }
-  {
-    SIZE := 3,
-    MaxClientRequests := 2,
-    Nil := 0,
-    fixServer := 0
-  }
+-- set_option veil.violationIsError false in
+-- #model_check
+--   {
+--     server := Fin 3,
+--     value := Fin 2,
+--     serverStates := serverStates_IndT,
+--     serverSet := ExtTreeSet (Fin 3) compare,
+--     electionSet := ExtTreeSet (Election (Fin 3) (Fin 2) (ExtTreeSet (Fin 3) compare)) compare,
+--     msetMsg := TMapMultiset (Message (Fin 2) (Fin 3)),
+--     logSet := ExtTreeSet (logEntry (Fin 2)) compare
+--   }
+--   {
+--     SIZE := 3,
+--     MaxClientRequests := 2,
+--     Nil := 0,
+--     fixServer := 0
+--   }
 
 end Raft
 

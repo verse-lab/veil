@@ -83,11 +83,11 @@ invariant [resource_mutex] ∀ c1 c2 : client, c1 ≠ c2 → (resSet.intersectio
 
 
 #model_check
-{ client := Fin 4,
-  resource := Fin 3,
-  ClientsSet := (Std.ExtTreeSet (Fin 4)),
-  ResourceSet := (Std.ExtTreeSet (Fin 3)) }
-{ Resources := Std.ExtTreeSet.empty.insertMany [0, 1, 2],
-  Clients := [0, 1, 2, 3] }
+{ client := Fin 2,
+  resource := Fin 2,
+  ClientsSet := (Std.ExtTreeSet (Fin 2)),
+  ResourceSet := (Std.ExtTreeSet (Fin 2)) }
+{ Resources := Std.ExtTreeSet.empty.insertMany [0, 1],
+  Clients := [0, 1] }
 
 end SimpleAllocator

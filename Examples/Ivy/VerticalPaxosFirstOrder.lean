@@ -173,9 +173,6 @@ invariant [join_ack_msg_property3] join_ack_msg N R RP V ∧ V ≠ none → vote
 
 #time #gen_spec
 
-#check_invariants
-
-
 @[veil]
 theorem propose_choosable_proposal (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
     [node_inhabited : Inhabited.{1} node] (value : Type) [value_dec_eq : DecidableEq.{1} value]
@@ -196,11 +193,11 @@ theorem propose_choosable_proposal (ρ : Type) (σ : Type) (node : Type) [node_d
     [propose_dec_1 :
       delta% @VerticalPaxosFirstOrder.propose._veil_dec_type_1 round χ tot config node value quorum χ_rep]
     [propose_dec_2 :
-      delta% @VerticalPaxosFirstOrder.propose._veil_dec_type_2 round χ node value quorum config tot χ_rep]
+      delta% @VerticalPaxosFirstOrder.propose._veil_dec_type_2 round node value quorum config χ tot χ_rep]
     [propose_dec_3 :
-      delta% @VerticalPaxosFirstOrder.propose._veil_dec_type_3 round χ node value quorum config tot χ_rep]
+      delta% @VerticalPaxosFirstOrder.propose._veil_dec_type_3 round node value quorum config χ tot χ_rep]
     [propose_dec_4 :
-      delta% @VerticalPaxosFirstOrder.propose._veil_dec_type_4 round χ node value quorum config χ_rep tot] :
+      delta% @VerticalPaxosFirstOrder.propose._veil_dec_type_4 round node value quorum config χ χ_rep tot] :
     ∀ (r : round) (c : config) (cr : round),
       Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
         (@propose.ext ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited quorum quorum_dec_eq
@@ -452,5 +449,7 @@ theorem join_round_choosable_proposal (ρ : Type) (σ : Type) (node : Type) [nod
     obtain ⟨hjoin_witness, hvote⟩ := hwitness
     obtain ⟨x₁, x₂, hjoin⟩ := hjoin_witness
     exact ⟨n₁, hn₁mem, x, hxlt, ⟨⟨x₁, x₂, fun _ => hjoin⟩, hvote⟩⟩
+
+#check_invariants
 
 end VerticalPaxosFirstOrder

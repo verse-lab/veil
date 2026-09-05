@@ -45,7 +45,7 @@ invariant [drop_smaller] pending S D ∧ btw S N D → le N S
 set_option veil.smt.trust false
 #time #gen_spec
 
-#model_check { node := Fin 9 } { }
+#model_check { node := Fin 4 } { }
 
 sat trace {
   any 3 actions

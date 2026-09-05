@@ -73,6 +73,7 @@ structure Instance (r s : Type) where
   leader : r
   idx : s
 deriving instance Veil.Enumeration for Instance
+deriving instance Veil.FinEncodableInjOnly for Instance
 
 -- Ballot is a pair (ballot_num, replica)
 @[veil_decl]
@@ -80,6 +81,7 @@ structure Ballot (n r : Type) where
   num : n
   owner : r
 deriving instance Veil.Enumeration for Ballot
+deriving instance Veil.FinEncodableInjOnly for Ballot
 
 -- Status enumeration
 enum Status = { NotSeen, PreAccepted, Accepted, Committed }
@@ -1381,7 +1383,6 @@ ghost relation isProposedOrNone (c : command) :=
 invariant [Nontriviality]
   ∀ i : Instance replica seqNum,
     commitSet.toList (committedMap i) |>.all (fun ct => isProposedOrNone ct.cmd)
-#exit
 #gen_spec
 
 -- =============================================================================
@@ -1389,31 +1390,29 @@ invariant [Nontriviality]
 -- \* Last modified Sat Aug 24 12:25:28 EDT 2013 by iulian
 -- \* Created Tue Apr 30 11:49:57 EDT 2013 by iulian
 
--- Model checking configuration
-set_option synthInstance.maxHeartbeats 1000000
-set_option synthInstance.maxSize 2000
-
-#model_check
-{
-  command := Fin 1,
-  replica := Fin 2,
-  seqNum := Fin 2,
-  ballot_num := Fin 2,
-  InstanceSet := Std.ExtTreeSet (Instance (Fin 2) (Fin 2)) compare,
-  CommandSet := Std.ExtTreeSet (Fin 1) compare,
-  ReplicaSet := Std.ExtTreeSet (Fin 2) compare,
-  SeqNumSet := Std.ExtTreeSet (Fin 2) compare,
-  LogEntrySet := Std.ExtTreeSet (LogEntry (Instance (Fin 2) (Fin 2)) (Fin 1) (Std.ExtTreeSet (Instance (Fin 2) (Fin 2)) compare) (Ballot (Fin 2) (Fin 2)) (Fin 2)) compare,
-  CommittedTupleSet := Std.ExtTreeSet (CommittedTuple (Fin 1) (Std.ExtTreeSet (Instance (Fin 2) (Fin 2)) compare) (Fin 2)) compare,
-  MsgSet := Std.ExtTreeSet (Msg (Fin 2) (Instance (Fin 2) (Fin 2)) (Ballot (Fin 2) (Fin 2)) (Fin 1) (Std.ExtTreeSet (Instance (Fin 2) (Fin 2)) compare) (Fin 2) ExtStatus) compare
-}
-{
-  none := 0,
-  maxBallot := 1,
-  one := 1,
-  oneSeq := 1,
-  inFastQuorum := fun q leader => true,
-  inSlowQuorum := fun q leader => true
-}
+-- set_option synthInstance.maxHeartbeats 1000000 in
+-- set_option synthInstance.maxSize 2000 in
+-- #model_check
+-- {
+--   command := Fin 1,
+--   replica := Fin 2,
+--   seqNum := Fin 2,
+--   ballot_num := Fin 2,
+--   InstanceSet := Std.ExtTreeSet (Instance (Fin 2) (Fin 2)) compare,
+--   CommandSet := Std.ExtTreeSet (Fin 1) compare,
+--   ReplicaSet := Std.ExtTreeSet (Fin 2) compare,
+--   SeqNumSet := Std.ExtTreeSet (Fin 2) compare,
+--   LogEntrySet := Std.ExtTreeSet (LogEntry (Instance (Fin 2) (Fin 2)) (Fin 1) (Std.ExtTreeSet (Instance (Fin 2) (Fin 2)) compare) (Ballot (Fin 2) (Fin 2)) (Fin 2)) compare,
+--   CommittedTupleSet := Std.ExtTreeSet (CommittedTuple (Fin 1) (Std.ExtTreeSet (Instance (Fin 2) (Fin 2)) compare) (Fin 2)) compare,
+--   MsgSet := Std.ExtTreeSet (Msg (Fin 2) (Instance (Fin 2) (Fin 2)) (Ballot (Fin 2) (Fin 2)) (Fin 1) (Std.ExtTreeSet (Instance (Fin 2) (Fin 2)) compare) (Fin 2) ExtStatus) compare
+-- }
+-- {
+--   none := 0,
+--   maxBallot := 1,
+--   one := 1,
+--   oneSeq := 1,
+--   inFastQuorum := fun q leader => true,
+--   inSlowQuorum := fun q leader => true
+-- }
 
 end EPaxos

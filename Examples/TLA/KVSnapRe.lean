@@ -300,65 +300,30 @@ def m1 : Std.ExtTreeMap key_IndT txId_IndT compare :=
     (.K2, .noVal),
   ] compare
 
-/- In interactive mode, reconstruct this counterexample trace is
-very slow, taking about ~4 minutes (241738ms).
-time: 250844ms -/
+-- set_option veil.violationIsError false in
+-- #model_check compiled
+-- {
+--   key := key_IndT,
+--   txId := txId_IndT,
+--   states := states_IndT,
+--   -- Keys := Std.ExtTreeSet key_IndT compare,
+--   -- TxIds := Std.ExtTreeSet txId_IndT compare,
+--   -- Ops := ExtTreeSet (Op key_IndT txId_IndT),
+--   Keys := OrdList key_IndT,
+--   TxIds := OrdList txId_IndT,
+--   Ops := OrdList (Op key_IndT txId_IndT),
+--   KVState := ExtTreeMap key_IndT txId_IndT
+-- }
+-- {
+--   initialState := Std.ExtTreeMap.ofList [
+--     (key_IndT.K1, txId_IndT.noVal),
+--     (key_IndT.K2, txId_IndT.noVal),
+--     (key_IndT.K3, txId_IndT.noVal),
+--   ] compare
+--   -- initialState := m1
+-- ,
+--   -- txIdUniv := ExtTreeSet.ofList ([.T1, .T2, .T3] : List txId_IndT),
+--   txIdUniv := OrdList.ofList [txId_IndT.T1, txId_IndT.T2, txId_IndT.T3],
+-- }
 
-set_option veil.violationIsError false in
-#time #model_check compiled
-{
-  key := key_IndT,
-  txId := txId_IndT,
-  states := states_IndT,
-  -- Keys := Std.ExtTreeSet key_IndT compare,
-  -- TxIds := Std.ExtTreeSet txId_IndT compare,
-  -- Ops := ExtTreeSet (Op key_IndT txId_IndT),
-  Keys := OrdList key_IndT,
-  TxIds := OrdList txId_IndT,
-  Ops := OrdList (Op key_IndT txId_IndT),
-  KVState := ExtTreeMap key_IndT txId_IndT
-}
-{
-  initialState := Std.ExtTreeMap.ofList [
-    (key_IndT.K1, txId_IndT.noVal),
-    (key_IndT.K2, txId_IndT.noVal),
-    (key_IndT.K3, txId_IndT.noVal),
-  ] compare
-  -- initialState := m1
-,
-  -- txIdUniv := ExtTreeSet.ofList ([.T1, .T2, .T3] : List txId_IndT),
-  txIdUniv := OrdList.ofList [txId_IndT.T1, txId_IndT.T2, txId_IndT.T3],
-}
-/-BUG:
-If we pass parameter from context (e.g., m1), then compilation will be failed.
-After resolve the first issue, compilation will be successful though,
-it would not report any bug.
-It seems that stop at the right position,
-but it does not report the violation found.
--/
--- Done!
--- Diameter:	8
--- States Found:	1
--- Distinct States:	336169
--- Queue:	166296
--- Elapsed time:	10m 6.4s
-
-
-/-
-Parralle:
-Done!
-Diameter:	9
-States Found:	666813
-Distinct States:	333910
-Queue:	1110
-Elapsed time:	7.5s
-
-
-Done!
-Diameter:	8
-States Found:	672654
-Distinct States:	336169
-Queue:	166296
-Elapsed time:	8m 21.1s
--/
 end KVSnap

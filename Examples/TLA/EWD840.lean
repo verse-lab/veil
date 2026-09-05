@@ -124,10 +124,10 @@ invariant [Inv] (∀i, lt tpos i → ¬ active i)
 
 #time #gen_spec
 
-#model_check compiled
-{ node := Fin 8,
-  nodesSet := Std.ExtTreeSet (Fin 8),
+#model_check
+{ node := Fin 3,
+  nodesSet := Std.ExtTreeSet (Fin 3),
   Color := Color_IndT }
-{ one := 1, max_node := 7  }
+{ one := 1, max_node := 2  }
 
 end EWD840

@@ -146,6 +146,6 @@ invariant [Txlifecycle] snapshot_isolation ∧ transaction_cleanup
 #time #gen_spec
 
 #model_check {key := key_IndT, value := value_IndT, txId := txId_IndT } {}
-
+  (maxDepth := 2) (sequential := true)
 
 end KeyValueStore

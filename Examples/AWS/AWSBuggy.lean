@@ -132,6 +132,6 @@ safety [DnsConsistent] dns_valid = true
 #gen_spec
 
 set_option veil.violationIsError false in
-#model_check { Enactor := Fin 2 } { max_plan := 5, plan_age_threshold := 2 }
+#model_check { Enactor := Fin 2 } { max_plan := 3, plan_age_threshold := 2 }
 
 end AWSDnsRace

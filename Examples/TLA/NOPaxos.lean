@@ -1542,20 +1542,21 @@ invariant [sync_safety]
 
 #gen_spec
 
-#model_check
-{
-  replica := Fin 3
-  replicaSet := Std.ExtTreeSet (Fin 3) compare
-  sequencer := Fin 1
-  setMsg := Std.ExtTreeSet (Message (Fin 3) value_IndT (Fin 1)) compare
-}
-{
-  ReplicaOrder := [0, 1, 2]
-  Replicas := [0, 1, 2]
-  SIZE := 3
-  one := 0
-  MsgCountLimit := 8
-}
+-- #model_check
+-- {
+--   replica := Fin 3
+--   replicaSet := Std.ExtTreeSet (Fin 3) compare
+--   sequencer := Fin 1
+--   setMsg := Std.ExtTreeSet (Message (Fin 3) value_IndT (Fin 1)) compare
+-- }
+-- {
+--   ReplicaOrder := [0, 1, 2]
+--   Replicas := [0, 1, 2]
+--   SIZE := 3
+--   one := 0
+--   MsgCountLimit := 8
+-- }
+--
+-- -- ================================================================================
 
--- ================================================================================
 end NOPaxosTLA

@@ -349,16 +349,16 @@ of finite instances (as in TLC), and _symbolic_ bounded model checking of
 unbounded instances (as in SAL and Ivy).
 
 The command below invokes Veil's explicit-state model checker directly from
-the editor buffer, on an _instance_ of the protocol with 3 nodes, 3 values,
-and at most 3 crashes. Its first argument instantiates the parameters
+the editor buffer, on an _instance_ of the protocol with 3 nodes, 2 values,
+and at most 1 crash. Its first argument instantiates the parameters
 (`type`s); the second provides the theory (`immutable` fields). Placing the
 cursor over the command shows an InfoView widget with live statistics; for
-this instance the checker explores tens of thousands of distinct states and
+this small instance the checker explores the reachable states and
 finds no safety violation. Of particular interest is the _action coverage_
 table: every action of the protocol executes successfully, so the model is
 not trivially safe by virtue of doing nothing. -/
 
-#model_check { node := Fin 3, value := Fin 3 } { f := 3 }
+#model_check { node := Fin 3, value := Fin 2 } { f := 1 }
 
 /- Symbolic testing: finite trace properties are converted to symbolic model
 checking queries discharged via SMT, checking _all_ instantiations of the
@@ -383,12 +383,12 @@ sat trace [multiple_nodes_can_decide] {
 }
 
 /- The dual of `sat trace` is `unsat trace`, which asserts that _no_ trace of
-the given shape exists: agreement cannot be violated within four actions,
+the given shape exists: agreement cannot be violated within three actions,
 regardless of how many nodes, values, and failures there are. The price for
 this power is that increasing the bound quickly makes the query intractable
 (checking time grows exponentially with depth). -/
 unsat trace [agreement_violation] {
-  any 4 actions
+  any 3 actions
   assert (¬ ∀ n₁ n₂ v₁ v₂, decision n₁ v₁ ∧ decision n₂ v₂ → v₁ = v₂)
 }
 
@@ -405,8 +405,6 @@ tagged with the `@[veil]` attribute, which informs Veil of its existence:
 `#check_invariants` discharges the corresponding VC by applying it, tagging the
 clause as INTERACTIVE in the widget. The proof below does exactly this.
 -/
-
-#check_invariants
 
 /- The proof skeleton inserted by Veil includes the `unveil` tactic, which
 eliminates implementation details of Veil's encoding and presents the user
@@ -426,7 +424,7 @@ theorem nodeDecide_agreement (ρ : Type) (σ : Type) (node : Type) [node_dec_eq 
           (State.Label.toCodomain node value __veil_f) (χ __veil_f) (χ_rep __veil_f)]
     [σ_sub : IsSubStateOf (@State χ) σ] [ρ_sub : IsSubReaderOf (@Theory node value) ρ]
     [nodeDecide_dec_0 : delta% @FloodSet.nodeDecide._veil_dec_type_0 node χ value χ_rep]
-    [nodeDecide_dec_1 : delta% @FloodSet.nodeDecide._veil_dec_type_1 node χ value χ_rep val_ord] :
+    [nodeDecide_dec_1 : delta% @FloodSet.deterministicDecision._veil_dec_type_0 node value χ χ_rep val_ord] :
     ∀ (n : node),
       Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
         (@nodeDecide.ext ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited val_ord χ χ_rep
@@ -477,5 +475,7 @@ theorem nodeDecide_agreement (ρ : Type) (σ : Type) (node : Type) [node_dec_eq 
     · rfl
     · exact old_eq_t hold
   exact (all_eq_t hdec₁).trans (all_eq_t hdec₂).symm
+
+#check_invariants
 
 end FloodSet

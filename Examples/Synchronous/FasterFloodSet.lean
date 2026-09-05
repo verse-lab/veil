@@ -239,12 +239,12 @@ abbrev nodeSize := 3 -- Anything larger will cause OOM error (sorry, working on 
 abbrev valueSize := 2
 abbrev numFailures := 1
 
--- The check finds a bug in this version, hence it's commented out
-
-#model_check { node := Fin nodeSize,
-               nodeSet := (Std.ExtTreeSet (Fin nodeSize) compare),
-               value := Fin valueSize }
-             { t := numFailures,
-               allnodes := (Std.ExtTreeSet.empty.insertMany (List.finRange nodeSize)) }
+set_option veil.violationIsError false in
+#model_check
+  { node := Fin nodeSize,
+    nodeSet := (Std.ExtTreeSet (Fin nodeSize) compare),
+    value := Fin valueSize }
+  { t := numFailures,
+    allnodes := (Std.ExtTreeSet.empty.insertMany (List.finRange nodeSize)) }
 
 end FloodSet
