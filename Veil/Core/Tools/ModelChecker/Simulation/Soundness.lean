@@ -87,6 +87,7 @@ def ReportedViolationSound {ρ σ κ : Type} {th₀ : ρ}
   | some .cancelled => True
   | none => True
 
+set_option backward.isDefEq.respectTransparency false in
 theorem simulateOnceLoop_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ] [Inhabited (κ × σ)]
   (th : ρ)
@@ -192,7 +193,7 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
                     simpa [nexts', p, idx, selected] using hViolNil
                   have hLoop : ((simulateOnceLoop sys params th steps selected.2 trace').run gen').1 = some result := by
                     rw [simulateOnceLoop] at h
-                    simp only [hPartition, hFailures, hNexts, StateT.run_bind, Id.instMonad] at h
+                    simp only [hPartition, hFailures, hNexts, StateT.run_bind] at h
                     simpa [nexts', p, idx, gen', hlt, selected, trace', hViolNilRaw] using h
                   exact ih selected.2 trace' hTheory' hValid' hLast' hNoFail' gen' result hLoop
               | false =>
@@ -206,14 +207,16 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
                       (ViolationKind.safetyFailure (violatedInvariantNames params th selected.2)) trace') :
                       Option (SimulationResult ρ σ κ)) = some result := by
                     rw [simulateOnceLoop] at h
-                    simp only [hPartition, hFailures, hNexts, StateT.run_bind, Id.instMonad] at h
-                    simpa [nexts', p, idx, gen', hlt, selected, trace', hNonemptyRaw] using h
+                    simp only [hPartition, hFailures, hNexts, StateT.run_bind] at h
+                    simp [nexts', p, idx, hNonemptyRaw] at h
+                    exact h
                   cases hFound
                   have hViolEq : violatedInvariantNames params trace'.theory trace'.lastState =
                       violatedInvariantNames params th selected.2 := by
                     simp [hTheory', hLast']
                   exact ⟨hValid', hNoFail', hViolEq, hNonempty⟩
 
+set_option backward.isDefEq.respectTransparency false in
 theorem simulateOnce_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ] [Inhabited σ] [Inhabited (κ × σ)]
   (th : ρ)
@@ -257,7 +260,7 @@ theorem simulateOnce_sound {ρ σ κ : Type}
             simpa [initStates, p, idx, selectedInit] using hViolNil
           have hLoop : ((simulateOnceLoop sys params th maxSteps selectedInit initTrace).run gen').1 = some result := by
             rw [hStates] at h
-            simp only [StateT.run_bind, Id.instMonad] at h
+            simp only [StateT.run_bind] at h
             simpa [initStates, p, idx, gen', hlt, selectedInit, initTrace, hViolNilRaw] using h
           exact simulateOnceLoop_sound th sys params selectedInit initTrace rfl hValid hLast hNoFail maxSteps gen' result hLoop
       | false =>
@@ -271,8 +274,9 @@ theorem simulateOnce_sound {ρ σ κ : Type}
               (ViolationKind.safetyFailure (violatedInvariantNames params th selectedInit)) initTrace) :
               Option (SimulationResult ρ σ κ)) = some result := by
             rw [hStates] at h
-            simp only [StateT.run_bind, Id.instMonad] at h
-            simpa [initStates, p, idx, gen', hlt, selectedInit, initTrace, hNonemptyRaw] using h
+            simp only [StateT.run_bind] at h
+            simp [initStates, p, idx, hNonemptyRaw] at h
+            exact h
           cases hFound
           exact ⟨hValid, hNoFail, rfl, hNonempty⟩
 
@@ -291,7 +295,8 @@ theorem simulateTraceAtIndex_sound {ρ σ κ : Type}
   unfold simulateTraceAtIndex at h
   set traceSeed := cfg.seed + traceIndex
   have hSimSome : ((simulateOnce sys params th cfg.maxSteps).run (mkStdGen traceSeed)).1 = some result := by
-    simpa [traceSeed] using h
+    cases hRun : (simulateOnce sys params th cfg.maxSteps).run (mkStdGen traceSeed)
+    simpa only [hRun] using h
   exact simulateOnce_sound th sys params (mkStdGen traceSeed) cfg.maxSteps result hSimSome
 
 end Veil.ModelChecker.Simulation

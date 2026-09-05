@@ -53,7 +53,7 @@ info: {"depth":0,"elapsed_ms":12,"max_traces":10,"result":"cancelled","seed":7,"
 } : SimulateResult Unit Unit Unit)).compress
 
 /--
-info: {"depth":2,"elapsed_ms":0,"max_traces":3,"result":"found_violation","seed":1,"state_fingerprint":null,"trace":{"states":[{"fields":"()","index":0,"transition":"after_init"},{"fields":"()","index":1,"transition":"()"},{"failing":true,"fields":"()","index":2,"transition":"()"}],"theory":"()"},"traces_run":1,"violation":{"exception_id":5,"kind":"assertion_failure"}}
+info: {"depth":2,"elapsed_ms":0,"max_traces":3,"result":"found_violation","seed":1,"state_fingerprint":null,"trace":{"states":[{"fields":null,"index":0,"transition":"after_init"},{"fields":null,"index":1,"transition":null},{"failing":true,"fields":null,"index":2,"transition":null}],"theory":null},"traces_run":1,"violation":{"exception_id":5,"kind":"assertion_failure"}}
 -/
 #guard_msgs in
 #eval IO.println <| (Lean.toJson ({

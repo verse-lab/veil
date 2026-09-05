@@ -1004,7 +1004,7 @@ def Module.defineTransitionAbstractForNext (mod : Module) : TermElabM (Option Co
           let casesPat ← do
             let tmp := args.push h
             `(Lean.Parser.Tactic.rcasesPatMed| ⟨$tmp,*⟩)
-          `(tactic| (rcases $h:ident with $casesPat ; exists $args,*) )
+          `(tactic| (rcases $h:ident with $casesPat ; refine ⟨$args,*, ?_⟩) )
         let revertAndApplyTac ← do
           -- NOTE: As somewhere mentioned, directly `apply` can sometimes fail due to
           -- failing to synthesize instance of instance does not match, so need to

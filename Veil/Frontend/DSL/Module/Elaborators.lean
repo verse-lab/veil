@@ -1378,7 +1378,7 @@ def elabSimulate : CommandElab := fun stx => do
     if assumptionsHoldBy.isSome && !(← isModelCheckCompileMode) && !mod.assumptions.isEmpty then
       elabModelCheck.checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
     mod.ensureExecutableModelCheckerDefinitions
-    let sp ← buildSearchParameters mod mcCfg
+    let sp ← mkSearchParameters mod mcCfg
     let runtimeCallExpr ← mkSimulatorRuntimeCall mod instTerm theoryTerm sp cfg
     if ← isModelCheckCompileMode then
       elabSimulateInternalMode mod runtimeCallExpr

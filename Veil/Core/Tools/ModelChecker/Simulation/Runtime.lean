@@ -164,19 +164,19 @@ private theorem simulateLoopM_id_sound {ρ σ κ : Type}
   | zero =>
       intro traceIndex
       cases hStop : shouldStop traceIndex <;>
-        simp [simulateLoopM, hStop, ReportedViolationSound, Id.instMonad]
+        simp [simulateLoopM, hStop, ReportedViolationSound, bind, pure]
   | succ remaining ih =>
       intro traceIndex
       cases hStop : shouldStop traceIndex with
       | true =>
-          simp [simulateLoopM, hStop, ReportedViolationSound, Id.instMonad]
+          simp [simulateLoopM, hStop, ReportedViolationSound, bind, pure]
       | false =>
           by_cases hTrace : simulateTraceAtIndex sys params th cfg traceIndex = none
-          · simpa [simulateLoopM, hStop, hTrace, Id.instMonad] using ih (traceIndex + 1)
+          · simpa [simulateLoopM, hStop, hTrace, bind, pure] using ih (traceIndex + 1)
           · cases hRun : simulateTraceAtIndex sys params th cfg traceIndex with
             | none => contradiction
             | some result =>
-                simpa [simulateLoopM, hStop, hRun, Id.instMonad] using
+                simpa [simulateLoopM, hStop, hRun, bind, pure] using
                   simulateTraceAtIndex_sound th sys params cfg traceIndex result hRun
 
 theorem simulateCommandSemantics_sound {ρ σ κ : Type}
