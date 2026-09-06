@@ -430,14 +430,15 @@ private def VCManager.mkDischargerIdentifier (mgr : VCManager VCMetaT ResultT)
 
 /-- Add a discharger to an existing VC. If the VC had previously exhausted its
 dischargers without success, re-open it so the new discharger can affect the
-reported status. -/
+reported status. A conclusive counterexample remains terminal: the scheduler
+will not run subsequent automatic dischargers past it. -/
 def VCManager.addDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId)
     (discharger : Discharger ResultT) : VCManager VCMetaT ResultT := Id.run do
   let some vc := mgr.nodes[vcId]? | return mgr
   let mut mgr := mgr
   let vc := { vc with dischargers := vc.dischargers.push discharger }
   mgr := { mgr with nodes := mgr.nodes.insert vcId vc }
-  if vc.successful.isNone then
+  if vc.successful.isNone && (discharger.isInteractive || mgr._doneWith[vcId]? != some .disproven) then
     mgr := { mgr with _doneWith := mgr._doneWith.erase vcId }
   return mgr.refreshDependencies
 
