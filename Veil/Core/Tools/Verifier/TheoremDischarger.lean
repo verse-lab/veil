@@ -53,6 +53,7 @@ private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
     dischargerId := dischargerId
     name := interactiveDischargerName theoremName
     managerId := mgr._managerId
+    revision := existingId?.bind (vc.dischargers[·]?) |>.map (·.id.revision + 1) |>.getD 0
   }
   let cancelTk ← IO.CancelToken.new
   let task ← BaseIO.asTask (pure (default : Lean.Language.SnapshotTree)) (prio := .dedicated)
@@ -92,7 +93,9 @@ private def registerFinishedTheoremDischarger
             successful := if vc.successful == some existingId && !result.isSuccessful then none else vc.successful }
         | none =>
           { vc with dischargers := vc.dischargers.push discharger }
-      let mut mgr := { mgr with nodes := mgr.nodes.insert vcId vc }
+      let mut mgr := { mgr with
+        nodes := mgr.nodes.insert vcId vc
+        _dischargerResults := mgr._dischargerResults.erase (vcId, discharger.id.dischargerId) }
       if vc.successful.isNone then
         mgr := { mgr with _doneWith := mgr._doneWith.erase vcId }
       mgr ← mgr.recordDischargerResult discharger.id result

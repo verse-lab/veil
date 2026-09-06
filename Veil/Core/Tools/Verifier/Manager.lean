@@ -28,6 +28,8 @@ structure DischargerIdentifier where
   vcId : VCId
   /-- This is the index of within the `vcId`'s `dischargers` array. -/
   dischargerId : DischargerId
+  /-- Revision of a replaced discharger at the same array index. -/
+  revision : Nat := 0
   /-- The name of the discharger. -/
   name : Name
 deriving Inhabited, BEq, Hashable
@@ -607,9 +609,13 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
   let mut mgr := mgr
   let vcId := id.vcId
   let mut .some vc := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} not found"; return mgr
-  let incomingIsInteractive := match vc.dischargers[id.dischargerId]? with
-    | some discharger => discharger.isInteractive
-    | none => false
+  -- Validate the complete identity at the state-machine boundary as well as
+  -- in the server: callers may deliver results directly, or replace a slot
+  -- while its previous task's completion notification is still queued.
+  let some current := vc.dischargers[id.dischargerId]? | return mgr
+  if id.managerId != mgr._managerId || current.id != id then return mgr
+  if mgr._dischargerResults.contains (vcId, id.dischargerId) then return mgr
+  let incomingIsInteractive := current.isInteractive
   if vc.hasInteractiveDischarger && !incomingIsInteractive then
     return mgr
   let wasAlreadySuccessful := vc.successful.isSome
@@ -664,13 +670,11 @@ status bookkeeping together. -/
 def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
     (id : DischargerIdentifier) (res : DischargerResult ResultT) :
     BaseIO (VCManager VCMetaT ResultT) := do
-  let alreadySolved := match mgr.nodes[id.vcId]? with
-    | some vc => vc.successful.isSome
-    | none => false
-  let mut mgr := { mgr with _totalDischarged := mgr._totalDischarged + 1 }
-  if res.isSuccessful && !alreadySolved then
-    mgr := { mgr with _totalSolved := mgr._totalSolved + 1 }
-  mgr.markDischarger id res
+  let updated ← mgr.markDischarger id res
+  if updated._dischargerResults.size == mgr._dischargerResults.size then return updated
+  return { updated with
+    _totalDischarged := updated._totalDischarged + 1
+    _totalSolved := updated.nodes.fold (fun count _ vc => count + if vc.successful.isSome then 1 else 0) 0 }
 
 def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : String := Id.run do
   match mgr._doneWith[vcId]? with
