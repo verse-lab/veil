@@ -347,7 +347,8 @@ def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dep
   let mut mgr' := { mgr with
     nodes := (mgr.nodes.insert uid vc),
     upstream := (mgr.upstream.insert uid dependsOn),
-    inDegree := (mgr.inDegree.insert uid dependsOn.size),
+    inDegree := (mgr.inDegree.insert uid (dependsOn.fold
+      (fun count parent => count + if mgr._doneWith[parent]? == some .proven then 0 else 1) 0)),
     downstream := downstream,
     _nextVcId := mgr._nextVcId + 1
   }
