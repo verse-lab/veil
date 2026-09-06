@@ -529,6 +529,21 @@ def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT Re
       | .finished (.error _ _) => continue
     return none
 
+/-- Registration is append-only: prerequisites must already exist when a VC
+is added. This rejects missing/forward/self edges (and therefore cycles), as
+well as dischargers whose identity does not belong to their registered slot. -/
+def VCManager.validateRegistrations (mgr : VCManager VCMetaT ResultT) : Except String Unit := do
+  for (vcId, vc) in mgr.nodes do
+    for parent in mgr.upstream[vcId]?.getD {} do
+      unless mgr.nodes.contains parent do
+        throw s!"VC {vc.name} depends on missing VC {parent}"
+      unless parent < vcId do
+        throw s!"VC {vc.name} has a forward or cyclic dependency on VC {parent}; register prerequisites first"
+    for i in [:vc.dischargers.size] do
+      let some d := vc.dischargers[i]? | continue
+      unless d.id.managerId == mgr._managerId && d.id.vcId == vcId && d.id.dischargerId == i do
+        throw s!"Discharger {d.id.name} has an identity that does not belong to VC {vc.name}, slot {i}"
+
 /-- Enable every VC currently in the manager (dormant ones included: they
 stay dormant until woken, but need no separate enabling then). -/
 def VCManager.enableAll (mgr : VCManager VCMetaT ResultT) : VCManager VCMetaT ResultT :=

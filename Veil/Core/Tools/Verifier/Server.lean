@@ -15,6 +15,7 @@ private structure SessionState where
   driver : Option (Task Unit) := none
   cancelled : Bool := false
   superseded : Bool := false
+  failure? : Option String := none
   cancelTk? : Option IO.CancelToken := none
   nextRequest : Nat := 0
   requests : HashMap Nat (VCMetadata → Bool) := {}
@@ -38,6 +39,7 @@ successful result by observing a replacement module's manager. -/
 def Session.snapshot (session : Session) : IO (VCManager VCMetadata SmtResult) :=
   session.state.atomically fun ref => do
     let state ← ref.get
+    if let some failure := state.failure? then throw (IO.userError failure)
     if state.cancelled then throw (IO.userError "Verification session was cancelled")
     return state.manager
 
@@ -110,6 +112,10 @@ private partial def Session.drive (session : Session) : BaseIO Unit := do
   let continueDriving ← session.state.atomically fun ref => do
     let mut state ← ref.get
     let mut mgr := state.manager
+    if let .error message := mgr.validateRegistrations then
+      mgr.cancelAllDischargers
+      ref.set {state with failure? := some message, driving := false, driver := none}
+      return false
     if state.cancelled || (← state.cancelTk?.mapM IO.CancelToken.isSet).getD false then
       mgr.cancelAllDischargers
       ref.set {state with cancelled := true, driving := false, driver := none}
@@ -138,10 +144,11 @@ private partial def Session.drive (session : Session) : BaseIO Unit := do
     IO.sleep 10
     session.drive
 
-private def Session.start (session : Session) (filter : VCMetadata → Bool) : BaseIO Unit :=
+private def Session.start (session : Session) (filter : VCMetadata → Bool) : IO Unit :=
   session.state.atomically fun ref => do
     let state ← ref.get
     if state.cancelled then return
+    if let .error message := state.manager.validateRegistrations then throw (IO.userError message)
     let mut state := {state with manager := state.manager.enableMatching filter}
     let pending := state.manager.nodes.toArray.any fun (id, _) =>
       state.manager.enabledVCs.contains id && !state.manager._doneWith.contains id && !state.manager.dormantVCs.contains id
@@ -150,7 +157,7 @@ private def Session.start (session : Session) (filter : VCMetadata → Bool) : B
       state := {state with driving := true, driver := some task}
     ref.set state
 
-def Session.withManager [Monad m] [MonadLiftT BaseIO m] [MonadLiftT (ST IO.RealWorld) m] [MonadFinally m] [MonadError m]
+def Session.withManager [Monad m] [MonadLiftT IO m] [MonadLiftT BaseIO m] [MonadLiftT (ST IO.RealWorld) m] [MonadFinally m] [MonadError m]
     (session : Session) (f : IO.Ref (VCManager VCMetadata SmtResult) → m α) : m α := do
   let result ← session.state.atomically fun ref => do
     let state ← ref.get
