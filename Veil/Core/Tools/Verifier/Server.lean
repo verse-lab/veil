@@ -211,7 +211,8 @@ private def Session.release (session : Session) (request : Nat) (cancel : Bool) 
     if cancel then
       for (_, vc) in state.manager.nodes do
         if filter vc.metadata && !(requests.valuesArray.any (· vc.metadata)) then
-          for d in vc.dischargers do d.cancelTk.set
+          for d in vc.dischargers do
+            if d.task.isSome then d.cancelTk.set
     ref.set {state with requests}
 
 private def awaitFilteredWithLogging (session : Session) (filter : VCMetadata → Bool)
@@ -235,24 +236,30 @@ def runFilteredAsync (filter : VCMetadata → Bool)
     (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) : CommandElabM Unit := do
   let session ← getSession
   let request ← session.acquire filter
-  session.start filter
-  let cancelTk ← IO.CancelToken.new
-  let completed ← IO.mkRef false
-  let wrapped ← Command.wrapAsyncAsSnapshot (fun () => do
-    let result ← awaitFilteredWithLogging session filter
-    completed.set true
-    callback result) cancelTk
-  let task ← (do
-    let snapshot ← wrapped ()
-    session.release request (!(← completed.get))
-    return snapshot).asTask (prio := .dedicated)
-  Command.logSnapshotTask {stx? := none, cancelTk? := cancelTk, task}
+  let handedOff ← IO.mkRef false
+  try
+    session.start filter
+    let cancelTk ← IO.CancelToken.new
+    let completed ← IO.mkRef false
+    let wrapped ← Command.wrapAsyncAsSnapshot (fun () => do
+      let result ← awaitFilteredWithLogging session filter
+      completed.set true
+      callback result) cancelTk
+    let task ← (do
+      let snapshot ← wrapped ()
+      session.release request (!(← completed.get))
+      return snapshot).asTask (prio := .dedicated)
+    -- The BaseIO task now owns release, even if snapshot logging is interrupted.
+    handedOff.set true
+    Command.logSnapshotTask {stx? := none, cancelTk? := cancelTk, task}
+  finally
+    unless ← handedOff.get do session.release request true
 
 def waitFilteredSync (filter : VCMetadata → Bool) : CommandElabM (VerificationResults VCMetadata SmtResult) := do
   let session ← getSession
   let request ← session.acquire filter
-  session.start filter
   try
+    session.start filter
     let results ← awaitFilteredWithLogging session filter
     session.release request false
     return results
