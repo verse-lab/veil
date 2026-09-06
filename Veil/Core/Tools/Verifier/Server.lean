@@ -134,6 +134,7 @@ private partial def Session.drive (session : Session) : BaseIO Unit := do
       mgr.cancelAllDischargers
       ref.set {state with manager := mgr, driving := false, driver := none}
       return false
+    mgr ← mgr.reconcileFinished
     mgr ← fillAvailableSlotsLocked mgr
     let pending := mgr.nodes.toArray.any fun (id, _) =>
       mgr.enabledVCs.contains id && !mgr._doneWith.contains id && !mgr.dormantVCs.contains id

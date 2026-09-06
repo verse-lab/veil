@@ -476,7 +476,8 @@ def Discharger.status (discharger : Discharger ResultT) : BaseIO (DischargeStatu
     | none => return .notStarted
     | some task =>
       if ← IO.hasFinished task then
-        return .finished (.error #[] 0)
+        let message := "Verification discharger task finished without publishing a result"
+        return .finished (.error #[(Exception.error Syntax.missing message, toJson message)] 0)
       return .running
 
 def Discharger.isSuccessful (discharger : Discharger ResultT) : BaseIO Bool := do
@@ -710,6 +711,18 @@ def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
   return { updated with
     _totalDischarged := updated._totalDischarged + 1
     _totalSolved := updated.nodes.fold (fun count _ vc => count + if vc.successful.isSome then 1 else 0) 0 }
+
+/-- Reconcile task/promise completion independently of channel delivery.
+A custom discharger may abort without notifying, and a result promise may be
+resolved before its notification is processed. Recording is idempotent. -/
+def VCManager.reconcileFinished (mgr : VCManager VCMetaT ResultT) : BaseIO (VCManager VCMetaT ResultT) := do
+  let mut mgr := mgr
+  for (_, vc) in mgr.nodes do
+    for d in vc.effectiveDischargers do
+      unless mgr._dischargerResults.contains (vc.uid, d.id.dischargerId) do
+        if let .finished result ← d.status then
+          mgr ← mgr.recordDischargerResult d.id result
+  return mgr
 
 def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : String := Id.run do
   match mgr._doneWith[vcId]? with
