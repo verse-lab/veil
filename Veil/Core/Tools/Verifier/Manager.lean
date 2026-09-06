@@ -413,6 +413,12 @@ def VCManager.addAlternativeVC (mgr : VCManager VCMetaT ResultT)
   let mgr'' := { mgr' with
     alternativeVCs := mgr'.alternativeVCs.insert primaryVCId (alts.push altId)
   }
+  -- Registration may race with (or follow) the primary's final result. Apply
+  -- the same wake-up rule here as result delivery; that event will not recur.
+  let mgr'' := if (mgr._doneWith[primaryVCId]?.any (· != .proven)) &&
+      (mgr.nodes[primaryVCId]?.any fun vc => !vc.dischargers.any (·.isInteractive)) then
+    {mgr'' with dormantVCs := mgr''.dormantVCs.erase altId, enabledVCs := mgr''.enabledVCs.insert altId}
+    else mgr''
   (mgr'', altId)
 
 private def VCManager.mkDischargerIdentifier (mgr : VCManager VCMetaT ResultT)
