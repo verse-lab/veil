@@ -132,7 +132,18 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
   ) cancelTk
   -- Dedicated thread: the task blocks in in-process solver FFI for its whole
   -- duration, which would starve the bounded elaboration thread pool
-  let mkTask := (mk vcStatement).asTask (prio := .dedicated)
+  -- CommandElabM deliberately rethrows interrupts, which wrapAsyncAsSnapshot
+  -- turns into an empty snapshot. Finalize outside that cancellable monad so
+  -- even pre-start cancellation publishes a terminal result and wakes the pool.
+  -- This is the sole producer, so the finished check also prevents duplicate
+  -- notifications when the normal result path already published.
+  let mkTask := (do
+    let snapshot ← mk vcStatement
+    unless ← IO.hasFinished resultPromise.result? do
+      let message := "Verification discharger cancelled or aborted before publishing a result"
+      let ex := Exception.error Syntax.missing message
+      publishDischargerResult resultPromise ch dischargerId (.error #[(ex, toJson message)] 0)
+    pure snapshot).asTask (prio := .dedicated)
   return {
     id := dischargerId,
     term := term,

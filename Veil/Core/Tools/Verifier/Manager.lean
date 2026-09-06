@@ -458,7 +458,10 @@ def Discharger.status (discharger : Discharger ResultT) : BaseIO (DischargeStatu
   | false =>
     match discharger.task with
     | none => return .notStarted
-    | some _ => return .running
+    | some task =>
+      if ← IO.hasFinished task then
+        return .finished (.error #[] 0)
+      return .running
 
 def Discharger.isSuccessful (discharger : Discharger ResultT) : BaseIO Bool := do
   match (← discharger.status) with
@@ -548,7 +551,7 @@ def VCManager.inFlightCount (mgr : VCManager VCMetaT ResultT) : BaseIO Nat := do
   let mut count := 0
   for (_, vc) in mgr.nodes do
     for d in vc.dischargers do
-      if d.task.isSome && !(← IO.hasFinished d.resultPromise.result?) then
+      if let .running ← d.status then
         count := count + 1
   return count
 
