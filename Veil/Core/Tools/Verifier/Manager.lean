@@ -316,6 +316,10 @@ structure VCManager (VCMetaT ResultT: Type) where
   the number of VCs that have been proven. -/
   protected _totalSolved : Nat := 0
 
+  /-- Terminal diagnostics for VCs blocked by failed prerequisites. These are
+  cleared when the prerequisite is reopened, so blocked work can recover. -/
+  dependencyErrors : HashMap VCId String := {}
+
   protected _doneWith : HashMap VCId VCStatus := HashMap.emptyWithCapacity
 
   /-- Store discharger results for each VC, indexed by (VCId, DischargerId). -/
@@ -344,17 +348,38 @@ def VCManager.new (ch : Std.Channel (ManagerNotification VCMetaT ResultT)) (curr
     ch := ch,
   }
 
+/-- Keep outstanding counts and blocked states consistent after registration
+or result changes. Prerequisites precede dependents, so one pass propagates
+failure or recovery through an entire dependency chain. -/
+private def VCManager.refreshDependencies (mgr : VCManager VCMetaT ResultT) : VCManager VCMetaT ResultT := Id.run do
+  if mgr.downstream.isEmpty then return mgr
+  let mut mgr := mgr
+  for vcId in List.range mgr._nextVcId do
+    let deps := mgr.upstream[vcId]?.getD {}
+    let outstanding := deps.fold (fun count parent => count + if mgr._doneWith[parent]? == some .proven then 0 else 1) 0
+    mgr := {mgr with inDegree := mgr.inDegree.insert vcId outstanding}
+    let failed := deps.toArray.find? fun parent =>
+      mgr._doneWith[parent]?.any (· != .proven)
+    if let some parent := failed then
+      if !mgr._doneWith.contains vcId || mgr.dependencyErrors.contains vcId then
+        mgr := {mgr with
+          _doneWith := mgr._doneWith.insert vcId .error
+          dependencyErrors := mgr.dependencyErrors.insert vcId s!"Verification blocked: prerequisite VC {parent} did not prove its condition"}
+    else if mgr.dependencyErrors.contains vcId then
+      mgr := {mgr with _doneWith := mgr._doneWith.erase vcId, dependencyErrors := mgr.dependencyErrors.erase vcId}
+  return mgr
+
 /-- Adds a new verification condition (VC) to the VCManager, along with its
 upstream dependencies. Returns the updated VCManager and the new VC.
 If `isDormant` is true, the VC will not be started automatically by `readyTasks`. -/
 def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger ResultT) := #[]) (isDormant : Bool := false) : (VCManager VCMetaT ResultT × VCId) := Id.run do
   let uid := mgr._nextVcId
-  let vc := {vc with uid := uid, dischargers := initialDischargers, successful := none}
+  let vc : VerificationCondition VCMetaT ResultT := {vc with uid := uid, dischargers := initialDischargers, successful := none}
   -- Add ourselves downstream of all our dependencies
   let mut downstream := mgr.downstream
   for parent in dependsOn do
     downstream := downstream.insert parent ((downstream[parent]? |>.getD {}).insert uid)
-  let mut mgr' := { mgr with
+  let mut mgr' : VCManager VCMetaT ResultT := { mgr with
     nodes := (mgr.nodes.insert uid vc),
     upstream := (mgr.upstream.insert uid dependsOn),
     inDegree := (mgr.inDegree.insert uid (dependsOn.fold
@@ -365,7 +390,7 @@ def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dep
   -- Mark as dormant if requested (e.g., for alternative VCs)
   if isDormant then
     mgr' := { mgr' with dormantVCs := mgr'.dormantVCs.insert uid }
-  (mgr', uid)
+  (mgr'.refreshDependencies, uid)
 
 /-- Add an alternative VC associated with a primary VC. The alternative
 starts dormant and will only be triggered when the primary VC fails
@@ -403,7 +428,7 @@ def VCManager.addDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId)
   mgr := { mgr with nodes := mgr.nodes.insert vcId vc }
   if vc.successful.isNone then
     mgr := { mgr with _doneWith := mgr._doneWith.erase vcId }
-  return mgr
+  return mgr.refreshDependencies
 
 open Lean.Elab.Command in
 def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VCMetaT ResultT) → CommandElabM (Discharger ResultT)) : CommandElabM (VCManager VCMetaT ResultT) := do
@@ -644,6 +669,7 @@ private def VCManager.exhaustedVCStatus (mgr : VCManager VCMetaT ResultT)
 def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerIdentifier) (res : DischargerResult ResultT): BaseIO (VCManager VCMetaT ResultT) := do
   let mut mgr := mgr
   let vcId := id.vcId
+  if mgr.dependencyErrors.contains vcId then return mgr
   let mut .some vc := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} not found"; return mgr
   -- Validate the complete identity at the state-machine boundary as well as
   -- in the server: callers may deliver results directly, or replace a slot
@@ -706,7 +732,7 @@ status bookkeeping together. -/
 def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
     (id : DischargerIdentifier) (res : DischargerResult ResultT) :
     BaseIO (VCManager VCMetaT ResultT) := do
-  let updated ← mgr.markDischarger id res
+  let updated := (← mgr.markDischarger id res).refreshDependencies
   if updated._dischargerResults.size == mgr._dischargerResults.size then return updated
   return { updated with
     _totalDischarged := updated._totalDischarged + 1
