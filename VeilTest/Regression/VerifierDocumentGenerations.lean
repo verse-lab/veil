@@ -64,3 +64,22 @@ run_cmd do
     let _ ← (lateRegistration ()).toBaseIO
     unless (← fresh.snapshot)._doneWith[0]? == some .error do
       throwError "old attribute callback overwrote the new document's result"
+
+run_cmd do
+  -- A cached earlier command must not inherit registrations made by a later
+  -- command which was deleted. This models dynamic symbolic-trace VCs.
+  runManager
+  addGenerationVC `retained (← `(term| by trivial))
+  let cachedEnv ← getEnv
+  addGenerationVC `deletedLaterTrace (← `(term| by trivial))
+  let old ← getSession
+  unless (← old.snapshot).nodes.size == 2 do throwError "missing later registration"
+  setEnv cachedEnv
+  withReader (fun ctx => {ctx with fileMap := FileMap.ofString (ctx.fileMap.source ++ "\n-- later trace deleted")}) do
+    let fresh ← getSession
+    let mgr ← fresh.snapshot
+    unless mgr.nodes.size == 1 && mgr.nodes[0]!.name == `retained do
+      throwError "deleted later VC survived a cached registration checkpoint"
+    let result ← waitFilteredSync (fun _ => true)
+    unless result.totalVCs == 1 && result.totalSolved == 1 do
+      throwError "cached registration checkpoint did not restart its own VC"

@@ -25,6 +25,10 @@ commands, result callbacks and widgets retain their own session handle. -/
 structure Session where
   private state : Mutex SessionState
   source : String
+  /-- Immutable registrations visible at the command snapshot holding this
+  handle. Later commands may mutate the live manager, but cannot extend a
+  cached earlier snapshot's registration set. -/
+  private registrations : VCManager VCMetadata SmtResult
 
 initialize sessionEnv : SimpleScopedEnvExtension (Option Session) (Option Session) ←
   registerSimpleScopedEnvExtension { initial := none, addEntry := fun _ s => s }
@@ -53,7 +57,7 @@ private def Session.fork (session : Session) (source : String) (env : Environmen
     let state ← ref.get
     state.manager.cancelAllDischargers
     ref.set {state with cancelled := true, superseded := true}
-    return state.manager
+    return session.registrations
   let fresh ← newManager
   let some ch := fresh.ch | throw (Exception.error Syntax.missing "Missing session result channel")
   let mut mgr := {old with
@@ -79,7 +83,7 @@ private def Session.fork (session : Session) (source : String) (env : Environmen
     for d in ds do
       if d.isInteractive then
         if let .finished result ← d.status then mgr ← mgr.recordDischargerResult d.id result
-  return {state := ← Mutex.new {manager := mgr}, source}
+  return {state := ← Mutex.new {manager := mgr}, source, registrations := mgr}
 
 /-- The environment binding is immutable even when a cached #gen_spec handle
 contains completed work. Async callbacks capture this handle before spawning;
@@ -164,15 +168,21 @@ private def Session.start (session : Session) (filter : VCMetadata → Bool) : I
       state := {state with driving := true, driver := some task}
     ref.set state
 
-def Session.withManager [Monad m] [MonadLiftT IO m] [MonadLiftT BaseIO m] [MonadLiftT (ST IO.RealWorld) m] [MonadFinally m] [MonadError m]
+def Session.withManager [Monad m] [MonadEnv m] [MonadResolveName m] [MonadLiftT IO m] [MonadLiftT BaseIO m] [MonadLiftT (ST IO.RealWorld) m] [MonadFinally m] [MonadError m]
     (session : Session) (f : IO.Ref (VCManager VCMetadata SmtResult) → m α) : m α := do
-  let result ← session.state.atomically fun ref => do
+  let (result, registrations) ← session.state.atomically fun ref => do
     let state ← ref.get
     if state.cancelled then throwError "Verification session was cancelled"
     let managerRef ← IO.mkRef state.manager
     let result ← f managerRef
-    ref.set {state with manager := ← managerRef.get}
-    return result
+    let manager ← managerRef.get
+    ref.set {state with manager}
+    return (result, manager)
+  -- Updating an explicitly captured older module must not rebind the current
+  -- module. Old command environments still receive their own checkpoint.
+  if let some current ← sessionEnv.get then
+    if current.registrations._managerId == session.registrations._managerId then
+      sessionEnv.add (some {session with registrations}) .local
   session.start (fun _ => false)
   return result
 
@@ -195,7 +205,10 @@ def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := do (← 
 
 /-- Create a new module session without abandoning other modules' requests. -/
 def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
-  let session : Session := {state := ← Mutex.new {manager := ← newManager, cancelTk?}, source := (← getFileMap).source}
+  let manager ← newManager
+  let session : Session := {
+    state := ← Mutex.new {manager, cancelTk?}
+    source := (← getFileMap).source, registrations := manager}
   sessionEnv.add (some session) .local
 
 private def Session.acquire (session : Session) (filter : VCMetadata → Bool) : BaseIO Nat :=
