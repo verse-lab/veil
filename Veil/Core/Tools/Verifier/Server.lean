@@ -58,7 +58,7 @@ private def Session.fork (session : Session) (source : String) (env : Environmen
   let mut mgr := {old with
     _managerId := fresh._managerId, ch := fresh.ch, _doneWith := {}
     _dischargerResults := {}, _totalDischarged := 0, _totalSolved := 0
-    enabledVCs := {}, factories := {}, dependencyErrors := {}
+    enabledVCs := {}, factories := {}, dependencyErrors := {}, retiredDischargers := #[]
     inDegree := old.upstream.map (fun _ deps => deps.size)
     dormantVCs := old.alternativeVCs.valuesArray.foldl (fun ids alts => alts.foldl (·.insert ·) ids) {} }
   for (vcId, vc) in old.nodes do

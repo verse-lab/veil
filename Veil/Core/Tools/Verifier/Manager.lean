@@ -2,6 +2,7 @@ import Lean
 import Std.Sync.Channel
 import Veil.Backend.SMT.Result
 import Veil.Util.TopologicalSort
+import Veil.Util.Meta
 open Lean Std
 
 namespace Veil
@@ -308,6 +309,10 @@ structure VCManager (VCMetaT ResultT: Type) where
   factories : HashMap (VCId × DischargerId)
     (DischargerIdentifier → Std.Channel (ManagerNotification VCMetaT ResultT) →
       EIO Exception (Discharger ResultT)) := {}
+
+  /-- Cancelled attempts displaced by dependency invalidation. Retain them
+  until they finish so cooperative cancellation does not oversubscribe slots. -/
+  retiredDischargers : Array (Discharger ResultT) := #[]
 
   protected _nextVcId : VCId := 0
   /-- Number of dischargers that have finished executing. -/
@@ -616,6 +621,8 @@ def VCManager.inFlightCount (mgr : VCManager VCMetaT ResultT) : BaseIO Nat := do
     for d in vc.dischargers do
       if let .running ← d.status then
         count := count + 1
+  for d in mgr.retiredDischargers do
+    if let .running ← d.status then count := count + 1
   return count
 
 /-- Set the cancellation token of every discharger in the manager. Used on
@@ -623,6 +630,7 @@ reset, so abandoned dischargers stop (cooperatively, see `Discharger.cancelTk`)
 instead of running to timeout for a manager generation whose results will be
 ignored. Setting the token of a finished or interactive discharger is a no-op. -/
 def VCManager.cancelAllDischargers (mgr : VCManager VCMetaT ResultT) : BaseIO Unit := do
+  for d in mgr.retiredDischargers do d.cancelTk.set
   for (_, vc) in mgr.nodes do
     for discharger in vc.dischargers do
       discharger.cancelTk.set
@@ -666,6 +674,53 @@ private def VCManager.exhaustedVCStatus (mgr : VCManager VCMetaT ResultT)
     else
       .unknown
 
+private def Discharger.invalidated (d : Discharger ResultT) (id : DischargerIdentifier)
+    (error : Exception) : BaseIO (Discharger ResultT) := do
+  let promise ← IO.Promise.new
+  promise.resolve (.error #[← safeExceptionEntry error] 0)
+  let start ← IO.Promise.new
+  start.resolve (← IO.monoMsNow)
+  return {d with
+    id, theoremValue? := none, cancelTk := ← IO.CancelToken.new
+    task := some (Task.pure default), startTimePromise := start
+    resultPromise := promise, mkTask := pure (Task.pure default)}
+
+/-- Discard all attempts downstream of a proof that was withdrawn. Started
+attempts get fresh identities/resources; their late results cannot restore an
+invalidated proof. Custom attempts without a factory fail explicitly until the
+caller re-registers them, rather than reusing an old witness. -/
+private def VCManager.invalidateDependents (mgr : VCManager VCMetaT ResultT)
+    (root : VCId) : BaseIO (VCManager VCMetaT ResultT) := do
+  let mut mgr := mgr
+  let mut affected := (HashSet.emptyWithCapacity).insert root
+  for vcId in List.range mgr._nextVcId do
+    if vcId == root || !(mgr.upstream[vcId]?.getD {}).toArray.any affected.contains then continue
+    affected := affected.insert vcId
+    let some vc := mgr.nodes[vcId]? | continue
+    let mut ds := #[]
+    for d in vc.dischargers do
+      let status ← d.status
+      if let .notStarted := status then
+        ds := ds.push d
+      else
+        d.cancelTk.set
+        if let .running := status then
+          mgr := {mgr with retiredDischargers := mgr.retiredDischargers.push d}
+        let id := {d.id with revision := d.id.revision + 1}
+        let error := Exception.error Syntax.missing m!"Verification invalidated: prerequisite VC {root} changed; re-register this discharger or regenerate the specification"
+        let replacement ← match mgr.factories[(vcId, d.id.dischargerId)]?, mgr.ch with
+          | some factory, some ch => do
+            match ← (factory id ch).toBaseIO with
+            | .ok fresh => pure fresh
+            | .error ex => d.invalidated id ex
+          | _, _ => d.invalidated id error
+        ds := ds.push replacement
+      mgr := {mgr with _dischargerResults := mgr._dischargerResults.erase (vcId, d.id.dischargerId)}
+    mgr := {mgr with
+      nodes := mgr.nodes.insert vcId {vc with dischargers := ds, successful := none}
+      _doneWith := mgr._doneWith.erase vcId, dependencyErrors := mgr.dependencyErrors.erase vcId}
+  return mgr
+
 def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerIdentifier) (res : DischargerResult ResultT): BaseIO (VCManager VCMetaT ResultT) := do
   let mut mgr := mgr
   let vcId := id.vcId
@@ -681,6 +736,8 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
   if vc.hasInteractiveDischarger && !incomingIsInteractive then
     return mgr
   let wasAlreadySuccessful := vc.successful.isSome
+  if wasAlreadySuccessful && incomingIsInteractive && !res.isSuccessful then
+    mgr ← mgr.invalidateDependents vcId
   if incomingIsInteractive then
     vc.cancelNonInteractiveDischargers
     if wasAlreadySuccessful then
@@ -733,7 +790,8 @@ def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
     (id : DischargerIdentifier) (res : DischargerResult ResultT) :
     BaseIO (VCManager VCMetaT ResultT) := do
   let updated := (← mgr.markDischarger id res).refreshDependencies
-  if updated._dischargerResults.size == mgr._dischargerResults.size then return updated
+  if mgr._dischargerResults.contains (id.vcId, id.dischargerId) ||
+      !updated._dischargerResults.contains (id.vcId, id.dischargerId) then return updated
   return { updated with
     _totalDischarged := updated._totalDischarged + 1
     _totalSolved := updated.nodes.fold (fun count _ vc => count + if vc.successful.isSome then 1 else 0) 0 }
@@ -748,7 +806,9 @@ def VCManager.reconcileFinished (mgr : VCManager VCMetaT ResultT) : BaseIO (VCMa
       unless mgr._dischargerResults.contains (vc.uid, d.id.dischargerId) do
         if let .finished result ← d.status then
           mgr ← mgr.recordDischargerResult d.id result
-  return mgr
+  let retired ← mgr.retiredDischargers.filterM fun d => do
+    return (← d.status) matches .running
+  return {mgr with retiredDischargers := retired}
 
 def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : String := Id.run do
   match mgr._doneWith[vcId]? with

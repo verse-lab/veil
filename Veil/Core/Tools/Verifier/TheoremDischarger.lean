@@ -90,9 +90,9 @@ private def registerFinishedTheoremDischarger
       let (discharger, result) ← mkFinishedTheoremDischarger mgr vc declName info.value existingId? result
       let vc := match existingId? with
         | some existingId =>
-          { vc with
-            dischargers := vc.dischargers.set! existingId discharger
-            successful := if vc.successful == some existingId && !result.isSuccessful then none else vc.successful }
+          -- Keep the old success until recordDischargerResult observes the
+          -- transition and invalidates downstream attempts if necessary.
+          {vc with dischargers := vc.dischargers.set! existingId discharger}
         | none =>
           { vc with dischargers := vc.dischargers.push discharger }
       let mut mgr := { mgr with
