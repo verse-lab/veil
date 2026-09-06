@@ -582,6 +582,14 @@ def VCManager.validateRegistrations (mgr : VCManager VCMetaT ResultT) : Except S
       unless d.id.managerId == mgr._managerId && d.id.vcId == vcId && d.id.dischargerId == i do
         throw s!"Discharger {d.id.name} has an identity that does not belong to VC {vc.name}, slot {i}"
 
+/-- A requested VC must have a discharger before execution begins. Partial
+registration remains valid while a VC is disabled or its fallback is dormant. -/
+def VCManager.validateEnabled (mgr : VCManager VCMetaT ResultT) : Except String Unit := do
+  for (id, vc) in mgr.nodes do
+    if mgr.enabledVCs.contains id && !mgr.dormantVCs.contains id &&
+        !mgr._doneWith.contains id && vc.effectiveDischargers.isEmpty then
+      throw s!"VC {vc.name} has no discharger; register a discharger before starting verification"
+
 /-- Enable every VC currently in the manager (dormant ones included: they
 stay dormant until woken, but need no separate enabling then). -/
 def VCManager.enableAll (mgr : VCManager VCMetaT ResultT) : VCManager VCMetaT ResultT :=

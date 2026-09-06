@@ -135,6 +135,10 @@ private partial def Session.drive (session : Session) : BaseIO Unit := do
       ref.set {state with manager := mgr, driving := false, driver := none}
       return false
     mgr ← mgr.reconcileFinished
+    if let .error message := mgr.validateEnabled then
+      mgr.cancelAllDischargers
+      ref.set {state with manager := mgr, failure? := some message, driving := false, driver := none}
+      return false
     mgr ← fillAvailableSlotsLocked mgr
     let pending := mgr.nodes.toArray.any fun (id, _) =>
       mgr.enabledVCs.contains id && !mgr._doneWith.contains id && !mgr.dormantVCs.contains id
@@ -151,6 +155,7 @@ private def Session.start (session : Session) (filter : VCMetadata → Bool) : I
     if state.cancelled then return
     if let .error message := state.manager.validateRegistrations then throw (IO.userError message)
     let mut state := {state with manager := state.manager.enableMatching filter}
+    if let .error message := state.manager.validateEnabled then throw (IO.userError message)
     let pending := state.manager.nodes.toArray.any fun (id, _) =>
       state.manager.enabledVCs.contains id && !state.manager._doneWith.contains id && !state.manager.dormantVCs.contains id
     unless state.driving || !pending do
