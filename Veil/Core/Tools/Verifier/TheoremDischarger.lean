@@ -43,7 +43,7 @@ private def validateTheoremWitness (declName : Name) (vcStatement : VCStatement)
     pure (.error ex)
 
 private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
-    (vc : VerificationCondition VCMetadata SmtResult) (theoremName : Name)
+    (vc : VerificationCondition VCMetadata SmtResult) (theoremName : Name) (theoremValue : Expr)
     (existingId? : Option DischargerId := none)
     (result : DischargerResult SmtResult) :
     BaseIO (Discharger SmtResult × DischargerResult SmtResult) := do
@@ -64,6 +64,7 @@ private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
   let discharger : Discharger SmtResult := {
     id := id
     isInteractive := true
+    theoremValue? := some (theoremName, theoremValue)
     term := mkIdent theoremName
     cancelTk := cancelTk
     task := some task
@@ -74,7 +75,8 @@ private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
   pure (discharger, result)
 
 private def registerFinishedTheoremDischarger
-    (session : Session) (declName : Name) (result : DischargerResult SmtResult) : AttrM (Except String Unit) :=
+    (session : Session) (declName : Name) (result : DischargerResult SmtResult) : AttrM (Except String Unit) := do
+  let .thmInfo info ← getConstInfo declName | throwError "Expected an interactive theorem"
   session.withManager (fun ref => do
     let mgr ← ref.get
     let vcIds := findMatchingVCs mgr declName
@@ -85,7 +87,7 @@ private def registerFinishedTheoremDischarger
       let some vc := mgr.nodes[vcId]?
         | pure <| Except.error s!"`@[veil]` found verification condition {vcId}, but it is no longer registered"
       let existingId? := findInteractiveDischargerId? vc declName
-      let (discharger, result) ← mkFinishedTheoremDischarger mgr vc declName existingId? result
+      let (discharger, result) ← mkFinishedTheoremDischarger mgr vc declName info.value existingId? result
       let vc := match existingId? with
         | some existingId =>
           { vc with

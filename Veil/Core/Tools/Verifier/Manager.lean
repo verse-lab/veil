@@ -136,6 +136,9 @@ structure Discharger (ResultT : Type) where
   /-- Whether this discharger comes from an explicitly tagged interactive proof
   theorem rather than automatic tooling. -/
   isInteractive : Bool := false
+  /-- Declaration identity retained by an interactive result. Used to reject
+  a cached proof when the editor removes or changes its theorem. -/
+  theoremValue? : Option (Name × Expr) := none
   /-- Optionally, a VC discharger can provide term (e.g. a proof script) that
   can be shown to the user, e.g. when a VC's corresponding `theorem` is
   pretty-printed. -/
@@ -299,6 +302,13 @@ structure VCManager (VCMetaT ResultT: Type) where
   If a primary VC fails, its alternative VCs become enabled. -/
   enabledVCs : HashSet VCId := HashSet.emptyWithCapacity
 
+  /-- Recreate automatic dischargers for a new document generation. Captures
+  the elaboration environment in which the VC was generated, but allocates new
+  cancellation tokens, promises and tasks for each generation. -/
+  factories : HashMap (VCId × DischargerId)
+    (DischargerIdentifier → Std.Channel (ManagerNotification VCMetaT ResultT) →
+      EIO Exception (Discharger ResultT)) := {}
+
   protected _nextVcId : VCId := 0
   /-- Number of dischargers that have finished executing. -/
   protected _totalDischarged : Nat := 0
@@ -401,7 +411,10 @@ def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (m
   match mgr.nodes[vcId]? with
   | some vc => do
     let id := mgr.mkDischargerIdentifier vc
-    pure <| mgr.addDischarger vcId (← mk vc.toVCStatement id ch)
+    let factory ← Lean.Elab.Command.wrapAsync
+      (fun (id, ch) => mk vc.toVCStatement id ch) none
+    let mgr := mgr.addDischarger vcId (← mk vc.toVCStatement id ch)
+    pure { mgr with factories := mgr.factories.insert (vcId, id.dischargerId) (fun id ch => factory (id, ch)) }
   | none => pure mgr
 
 def VCManager.theorems [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mgr : VCManager VCMetaT ResultT) : m (Array Command) :=

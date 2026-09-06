@@ -14,6 +14,7 @@ private structure SessionState where
   driving : Bool := false
   driver : Option (Task Unit) := none
   cancelled : Bool := false
+  superseded : Bool := false
   cancelTk? : Option IO.CancelToken := none
   nextRequest : Nat := 0
   requests : HashMap Nat (VCMetadata → Bool) := {}
@@ -22,6 +23,7 @@ private structure SessionState where
 commands, result callbacks and widgets retain their own session handle. -/
 structure Session where
   private state : Mutex SessionState
+  source : String
 
 initialize sessionEnv : SimpleScopedEnvExtension (Option Session) (Option Session) ←
   registerSimpleScopedEnvExtension { initial := none, addEntry := fun _ s => s }
@@ -39,11 +41,55 @@ def Session.snapshot (session : Session) : IO (VCManager VCMetadata SmtResult) :
     if state.cancelled then throw (IO.userError "Verification session was cancelled")
     return state.manager
 
-/-- Resolve the session from the current module's Lean environment.
-Async readers capture this handle before spawning. -/
-def getSession [Monad m] [MonadEnv m] [MonadError m] : m Session := do
+/-- Fork cached command state after an edit below an unchanged #gen_spec.
+Factory replay allocates fresh tasks, tokens and promises. Interactive results
+survive only if their exact theorem declaration remains in this environment. -/
+private def Session.fork (session : Session) (source : String) (env : Environment) :
+    EIO Exception Session := do
+  let old ← session.state.atomically fun ref => do
+    let state ← ref.get
+    state.manager.cancelAllDischargers
+    ref.set {state with cancelled := true, superseded := true}
+    return state.manager
+  let fresh ← newManager
+  let some ch := fresh.ch | throw (Exception.error Syntax.missing "Missing session result channel")
+  let mut mgr := {old with
+    _managerId := fresh._managerId, ch := fresh.ch, _doneWith := {}
+    _dischargerResults := {}, _totalDischarged := 0, _totalSolved := 0
+    enabledVCs := {}, factories := {}
+    inDegree := old.upstream.map (fun _ deps => deps.size)
+    dormantVCs := old.alternativeVCs.valuesArray.foldl (fun ids alts => alts.foldl (·.insert ·) ids) {} }
+  for (vcId, vc) in old.nodes do
+    let mut ds := #[]
+    for d in vc.dischargers do
+      let id := {d.id with managerId := mgr._managerId, dischargerId := ds.size}
+      if let some factory := old.factories[(vcId, d.id.dischargerId)]? then
+        ds := ds.push (← factory id ch)
+        mgr := {mgr with factories := mgr.factories.insert (vcId, id.dischargerId) factory}
+      else if d.isInteractive then
+        if let some (name, value) := d.theoremValue? then
+          if let some (.thmInfo info) := env.find? name then
+            if info.value == value then ds := ds.push {d with id}
+      else
+        throw (Exception.error Syntax.missing m!"Cannot restart VC {vc.name}: its discharger has no factory")
+    mgr := {mgr with nodes := mgr.nodes.insert vcId {vc with dischargers := ds, successful := none}}
+    for d in ds do
+      if d.isInteractive then
+        if let .finished result ← d.status then mgr ← mgr.recordDischargerResult d.id result
+  return {state := ← Mutex.new {manager := mgr}, source}
+
+/-- The environment binding is immutable even when a cached #gen_spec handle
+contains completed work. Async callbacks capture this handle before spawning;
+an old callback never resolves against a newer document's session. -/
+def getSession [Monad m] [MonadEnv m] [MonadFileMap m] [MonadError m] [MonadResolveName m]
+    [MonadLiftT IO m] [MonadLiftT (EIO Exception) m] : m Session := do
   let some session ← sessionEnv.get | throwError "VC manager has not been initialized; use #gen_spec first"
-  return session
+  let source := (← getFileMap).source
+  let superseded ← (session.state.atomically fun ref => return (← ref.get).superseded : IO Bool)
+  if source == session.source && !superseded then return session
+  let fresh ← session.fork source (← getEnv)
+  sessionEnv.add (some fresh) .local
+  return fresh
 
 def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
 
@@ -135,7 +181,7 @@ def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := do (← 
 
 /-- Create a new module session without abandoning other modules' requests. -/
 def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
-  let session : Session := {state := ← Mutex.new {manager := ← newManager, cancelTk?}}
+  let session : Session := {state := ← Mutex.new {manager := ← newManager, cancelTk?}, source := (← getFileMap).source}
   sessionEnv.add (some session) .local
 
 private def Session.acquire (session : Session) (filter : VCMetadata → Bool) : BaseIO Nat :=
