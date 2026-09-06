@@ -693,7 +693,8 @@ def VCManager.findVCByFilter (mgr : VCManager VCMetaT ResultT) (filter : VCMetaT
 - In `dormantVCs` (is dormant and won't be processed because its primary succeeded)
 This correctly handles alternative VCs that remain dormant when their primary succeeds. -/
 def VCManager.isDone (mgr : VCManager VCMetaT ResultT) : Bool :=
-  mgr._doneWith.size + mgr.dormantVCs.size == mgr.nodes.size
+  mgr.nodes.toArray.all fun (vcId, _) =>
+    mgr._doneWith.contains vcId || mgr.dormantVCs.contains vcId
 
 /-- Check if all VCs matching the filter are done. -/
 def VCManager.isDoneFiltered (mgr : VCManager VCMetaT ResultT) (filter : VCMetaT → Bool) : Bool :=
