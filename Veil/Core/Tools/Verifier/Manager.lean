@@ -550,12 +550,18 @@ def VCManager.enableAll (mgr : VCManager VCMetaT ResultT) : VCManager VCMetaT Re
   let enabled := mgr.nodes.fold (fun s vcId _ => s.insert vcId) mgr.enabledVCs
   { mgr with enabledVCs := enabled }
 
-/-- Enable every VC whose metadata matches `filter`. -/
+/-- Enable matching VCs and all their prerequisites. Registration order is
+validated before scheduling, so a reverse pass closes the enabled set over
+transitive dependencies without enabling unrelated conditions. -/
 def VCManager.enableMatching (mgr : VCManager VCMetaT ResultT)
-    (filter : VCMetaT → Bool) : VCManager VCMetaT ResultT :=
-  let enabled := mgr.nodes.fold (init := mgr.enabledVCs)
+    (filter : VCMetaT → Bool) : VCManager VCMetaT ResultT := Id.run do
+  let mut enabled := mgr.nodes.fold (init := mgr.enabledVCs)
     (fun s vcId vc => if filter vc.metadata then s.insert vcId else s)
-  { mgr with enabledVCs := enabled }
+  for vcId in (List.range mgr._nextVcId).reverse do
+    if enabled.contains vcId then
+      for parent in mgr.upstream[vcId]?.getD {} do
+        enabled := enabled.insert parent
+  return {mgr with enabledVCs := enabled}
 
 /-- The enabled, not-yet-done, non-dormant VCs with no outstanding
 dependencies whose next discharger can be started. -/
