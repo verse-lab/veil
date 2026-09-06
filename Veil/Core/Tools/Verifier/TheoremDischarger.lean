@@ -74,8 +74,8 @@ private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
   pure (discharger, result)
 
 private def registerFinishedTheoremDischarger
-    (declName : Name) (result : DischargerResult SmtResult) : AttrM (Except String Unit) :=
-  liftM <| vcManager.atomically (fun ref => do
+    (session : Session) (declName : Name) (result : DischargerResult SmtResult) : AttrM (Except String Unit) :=
+  session.withManager (fun ref => do
     let mgr ← ref.get
     let vcIds := findMatchingVCs mgr declName
     if vcIds.isEmpty then
@@ -100,10 +100,6 @@ private def registerFinishedTheoremDischarger
         mgr := { mgr with _doneWith := mgr._doneWith.erase vcId }
       mgr ← mgr.recordDischargerResult discharger.id result
       ref.set mgr
-      -- This bypasses the notification channel, so schedule a fill: the
-      -- result may have completed a VC (unlocking dependents) or re-opened
-      -- one whose remaining automatic dischargers should now run.
-      let _ ← vcManagerCh.send .fill
       pure (Except.ok ())
     else
       pure <| Except.error s!"`@[veil]` is ambiguous for `{declName}`; matched {vcIds.size} verification conditions")
@@ -120,8 +116,9 @@ private def currentErrorEntries (fallback : MessageData) : AttrM (Array (Excepti
       pure (Exception.error Syntax.missing msg.data, Json.str text)
 
 private def registerTheoremDischarger (declName : Name) : AttrM Unit := do
+  let session ← getSession
   let res ← do
-    let mgr ← vcManager.atomically fun ref => ref.get
+    let mgr ← session.snapshot
     let vcIds := findMatchingVCs mgr declName
     if vcIds.isEmpty then
       pure <| Except.error s!"`@[veil]` could not find a verification condition named `{declName}`"
@@ -135,11 +132,11 @@ private def registerTheoremDischarger (declName : Name) : AttrM Unit := do
         let message ← ex.toMessageData.toString
         let result : DischargerResult SmtResult :=
           .error #[(ex, Json.str message)] 0
-        registerFinishedTheoremDischarger declName result
+        registerFinishedTheoremDischarger session declName result
       | .ok witness => do
         let result : DischargerResult SmtResult :=
           .proven (some witness) none 0
-        registerFinishedTheoremDischarger declName result
+        registerFinishedTheoremDischarger session declName result
     else
       pure <| Except.error s!"`@[veil]` is ambiguous for `{declName}`; matched {vcIds.size} verification conditions"
   match res with
@@ -167,7 +164,8 @@ initialize
       if info.value.hasSorry then
         let fallback := theoremSorryMessage declName info.value
         let result : DischargerResult SmtResult := .error (← currentErrorEntries fallback) 0
-        let res ← registerFinishedTheoremDischarger declName result
+        let session ← getSession
+        let res ← registerFinishedTheoremDischarger session declName result
         match res with
         | .ok () => liftM frontendNotification.notifyAll
         | .error err => throwError err

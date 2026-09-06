@@ -409,10 +409,11 @@ private def runFilteredInvariantCheck
     (filter : VCMetadata → Bool)
     : CommandElabM Unit := do
   Verifier.runFilteredAsync filter (logVerificationResults stx)
+  let session ← Verifier.getSession
   Verifier.displayStreamingResults stx
     (do
       -- CAREFUL: do not hold the lock to print
-      let mgr ← Verifier.vcManager.atomically fun ref => ref.get
+      let mgr ← session.snapshot
       let done := mgr.isDoneFiltered filter
       let results ← mgr.toResults filter (includeTheoremText := done)
       pure (results, if done then .done else .running))

@@ -9,202 +9,201 @@ namespace Veil.Verifier
 
 open Lean Elab Command Std
 
--- FIXME: this should be in `EnvExtensions.lean`, but putting it there triggers
--- the bug fixed in [#10217](https://github.com/leanprover/lean4/pull/10217).
--- Placing it here as a workaround until the fix ships in a stable Lean.
-/-- Holds the state of the VCManager for the current file. -/
-initialize vcManager : Std.Mutex (VCManager VCMetadata SmtResult) ← Std.Mutex.new (← VCManager.new vcManagerCh)
+private structure SessionState where
+  manager : VCManager VCMetadata SmtResult
+  driving : Bool := false
+  driver : Option (Task Unit) := none
+  cancelled : Bool := false
+  cancelTk? : Option IO.CancelToken := none
+  nextRequest : Nat := 0
+  requests : HashMap Nat (VCMetadata → Bool) := {}
 
-/-- Errors thrown inside the manager loop. The loop runs detached from any
-command snapshot (registering its infinite task would hang the build), so
-exceptions it catches are invisible to the editor; they are recorded here and
-surfaced as warnings by `awaitFilteredWithLogging` on its next poll. -/
-initialize managerLoopErrors : IO.Ref (Array String) ← IO.mkRef #[]
+/-- One module in one document generation. No process-global current manager:
+commands, result callbacks and widgets retain their own session handle. -/
+structure Session where
+  private state : Mutex SessionState
 
-def sendNotification (notification : ManagerNotification VCMetadata SmtResult) : CommandElabM Unit := do
-  let _ ← vcManagerCh.send notification
+initialize sessionEnv : SimpleScopedEnvExtension (Option Session) (Option Session) ←
+  registerSimpleScopedEnvExtension { initial := none, addEntry := fun _ s => s }
+initialize nextSessionId : IO.Ref Nat ← IO.mkRef 0
 
-/-- Run a computation with exclusive access to the VCManager.
-    Use this for batching multiple VC operations atomically. -/
-def withVCManager (f : IO.Ref (VCManager VCMetadata SmtResult) → CommandElabM α) : CommandElabM α :=
-  vcManager.atomically f
+private def newManager : BaseIO (VCManager VCMetadata SmtResult) := do
+  let id ← nextSessionId.modifyGet fun id => (id, id + 1)
+  VCManager.new (← Std.Channel.new) id
 
-def reset (managerId : ManagerId) : CommandElabM Unit := sendNotification (.reset managerId)
-def startAll : CommandElabM Unit := sendNotification .startAll
-def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := sendNotification (.startFiltered filter)
+/-- Snapshot only this session. A cancelled request must never become an empty
+successful result by observing a replacement module's manager. -/
+def Session.snapshot (session : Session) : IO (VCManager VCMetadata SmtResult) :=
+  session.state.atomically fun ref => do
+    let state ← ref.get
+    if state.cancelled then throw (IO.userError "Verification session was cancelled")
+    return state.manager
+
+/-- Resolve the session from the current module's Lean environment.
+Async readers capture this handle before spawning. -/
+def getSession [Monad m] [MonadEnv m] [MonadError m] : m Session := do
+  let some session ← sessionEnv.get | throwError "VC manager has not been initialized; use #gen_spec first"
+  return session
 
 def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
 
-/-- Start ready dischargers from the enabled set until the number in flight
-reaches the core count: spawn each task (`Discharger.run` only *spawns* — the
-elaboration/solving runs on the thread pool), send it to the task
-registration channel for the frontend to register via `logSnapshotTask`, and
-write the started discharger back into its node.
-
-Must be called with the `vcManager` lock held, as part of a handler's single
-critical section: holding the lock, the `(vc, discharger)` pairs returned by
-`readyTasks` are *current*, so the write-back cannot clobber concurrent
-frontend updates (interactive `@[veil]` registrations, added dischargers, a
-reset). `BaseIO`, so the handler cannot fail or be interrupted between
-spawning tasks and the caller's single `ref.set` — spawned work and recorded
-state stay consistent. -/
 private def fillAvailableSlotsLocked (mgr : VCManager VCMetadata SmtResult)
     : BaseIO (VCManager VCMetadata SmtResult) := do
   let mut mgr := mgr
-  let numCores ← getNumCores
-  let inFlight ← mgr.inFlightCount
-  let ready := (← mgr.readyTasks).take (numCores - inFlight)
+  let ready := (← mgr.readyTasks).take ((← getNumCores) - (← mgr.inFlightCount))
   for (vc, discharger) in ready do
-    let discharger' ← discharger.run
-    if let some task := discharger'.task then
-      -- Send to channel for frontend to register (instead of registering directly here)
-      let _ ← Veil.taskRegistrationCh.send { task, cancelTk := discharger'.cancelTk }
-    let vc' := { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }
-    mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc' }
+    let discharger ← discharger.run
+    let vc := {vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger}
+    mgr := {mgr with nodes := mgr.nodes.insert vc.uid vc}
   return mgr
 
-/-- Cancel every discharger of `mgr` and drain queued-but-not-yet-registered
-task registrations, cancelling each. Called by both reset paths so replacing
-the manager state never leaks running work: tasks already registered with the
-language server are cancelled by it on re-elaboration, but entries still queued
-in `taskRegistrationCh` would otherwise never be registered *nor* cancelled,
-and running dischargers would keep computing for a manager generation whose
-results are ignored (see `Discharger.cancelTk` for the cancellation latency
-contract). Public so reset behavior can be regression-tested deterministically
-(`VeilTest/Regression/VerifierServerRaces.lean`). -/
-def cancelAbandonedWork (mgr : VCManager VCMetadata SmtResult) : IO Unit := do
-  mgr.cancelAllDischargers
-  while true do
-    match ← Veil.taskRegistrationCh.tryRecv with
-    | some info => info.cancelTk.set
-    | none => break
-
-/-- Starts a separate task (on a dedicated thread) that runs the VCManager.
-If this is called multiple times, each call will reset the VC manager. -/
-def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
-  let cancelTk := cancelTk?.getD (← IO.CancelToken.new)
-  let managerLoop ← Command.wrapAsyncAsSnapshot (fun () => do
-    -- dbg_trace "({← IO.monoMsNow}) [Manager] Starting manager loop"
+/-- One bounded-lifetime driver per active session. It exits when enabled work
+finishes and is restarted by a later start request. All transitions and task
+spawns are BaseIO under the session mutex, so interruption cannot tear them. -/
+private partial def Session.drive (session : Session) : BaseIO Unit := do
+  let continueDriving ← session.state.atomically fun ref => do
+    let mut state ← ref.get
+    let mut mgr := state.manager
+    if state.cancelled || (← state.cancelTk?.mapM IO.CancelToken.isSet).getD false then
+      mgr.cancelAllDischargers
+      ref.set {state with cancelled := true, driving := false, driver := none}
+      return false
+    let some ch := mgr.ch | return false
     while true do
-      try
-        -- blocks until we get a notification
-        -- NOTE: this `get` is really problematic, as it increases the threadpool size
-        let notification := (← vcManagerCh.recv).get
-        -- Each notification is processed in ONE `vcManager.atomically` section:
-        -- decisions (`readyTasks`) and write-backs see the same state, frontend
-        -- writers (`withVCManager`, `@[veil]` registration, the frontend-side
-        -- reset in `runManager`) are serialized against the whole handler, and
-        -- the single `ref.set` at the end makes a failed handler roll back
-        -- wholesale instead of leaving torn state. Holding the lock here is
-        -- cheap: `Discharger.run` only spawns a task, channel sends are
-        -- non-blocking, and discharger task bodies never take this mutex.
-        match notification with
-        | .dischargerResult dischargerId res => do
-          vcManager.atomically (fun ref => do
-            let mut mgr ← ref.get
-            if dischargerId.managerId != mgr._managerId then
-              return
-            mgr ← mgr.recordDischargerResult dischargerId res
-            -- Refill AFTER recordDischargerResult so freshly woken
-            -- alternatives and unlocked dependents can all be scheduled.
-            mgr ← fillAvailableSlotsLocked mgr
-            ref.set mgr)
-          Frontend.notify
-        | .startAll => do
-          vcManager.atomically (fun ref => do
-            ref.set (← fillAvailableSlotsLocked (← ref.get).enableAll))
-          Frontend.notify
-        | .startFiltered filter => do
-          vcManager.atomically (fun ref => do
-            ref.set (← fillAvailableSlotsLocked ((← ref.get).enableMatching filter)))
-          -- Wake pollers (they re-check `isDoneFiltered` under their own lock)
-          Frontend.notify
-        | .fill => do
-          vcManager.atomically (fun ref => do
-            ref.set (← fillAvailableSlotsLocked (← ref.get)))
-          Frontend.notify
-        | .reset managerId => vcManager.atomically (fun ref => do
-          let mut mgr ← ref.get
-          if mgr._managerId != managerId then
-            return
-          -- Reap abandoned work before dropping the only references to it
-          cancelAbandonedWork mgr
-          mgr ← VCManager.new vcManagerCh (currentManagerId := mgr._managerId)
-          ref.set mgr)
-      catch ex =>
-        -- Log errors but continue processing to prevent the manager loop from
-        -- dying. The single-`ref.set` discipline above means a failed handler
-        -- left the manager unchanged. Nothing logged here reaches the editor
-        -- (the loop is not registered with `logSnapshotTask`), so also record
-        -- the error for `awaitFilteredWithLogging` to surface as a warning.
-        let msg ← ex.toMessageData.toString
-        dbg_trace "[VCManager] Error in manager loop: {msg}"
-        managerLoopErrors.modify (·.push msg)
-  ) cancelTk
-  vcServerStarted.atomically (fun ref => do
-    if !(← ref.get) then
-      -- Start the manager task but DON'T register with logSnapshotTask.
-      -- The manager loop is infinite, so registering it would hang the build.
-      -- Discharger tasks are registered by runFilteredAsync/waitFilteredSync instead.
-      -- dbg_trace "({← IO.monoMsNow}) [Manager] Starting manager loop"
-      let _ ← (managerLoop ()).asTask
-    else
-      vcManager.atomically (fun managerRef => do
-        let mgr ← managerRef.get
-        -- Reap abandoned work before dropping the only references to it
-        cancelAbandonedWork mgr
-        let mgr ← VCManager.new vcManagerCh (currentManagerId := mgr._managerId)
-        managerRef.set mgr)
-    ref.set true
-  )
+      let some notification ← ch.tryRecv | break
+      match notification with
+      | .dischargerResult id result => mgr ← mgr.recordDischargerResult id result
+      | .startAll => mgr := mgr.enableAll
+      | .startFiltered filter => mgr := mgr.enableMatching filter
+      | .fill => pure ()
+      | .reset id =>
+        if id == mgr._managerId then state := {state with cancelled := true}
+    if state.cancelled then
+      mgr.cancelAllDischargers
+      ref.set {state with manager := mgr, driving := false, driver := none}
+      return false
+    mgr ← fillAvailableSlotsLocked mgr
+    let pending := mgr.nodes.toArray.any fun (id, _) =>
+      mgr.enabledVCs.contains id && !mgr._doneWith.contains id && !mgr.dormantVCs.contains id
+    let active := pending || (← mgr.inFlightCount) > 0
+    ref.set {state with manager := mgr, driving := active, driver := if active then state.driver else none}
+    return active
+  if continueDriving then
+    IO.sleep 10
+    session.drive
 
-/-- Log any pending discharger tasks from the channel via `logSnapshotTask` (non-blocking). -/
-private partial def logPendingDischargerTasks : CommandElabM Unit := do
-  if let some info ← Veil.taskRegistrationCh.tryRecv then
-    Command.logSnapshotTask { stx? := none, cancelTk? := info.cancelTk, task := info.task }
-    logPendingDischargerTasks
+private def Session.start (session : Session) (filter : VCMetadata → Bool) : BaseIO Unit :=
+  session.state.atomically fun ref => do
+    let state ← ref.get
+    if state.cancelled then return
+    let mut state := {state with manager := state.manager.enableMatching filter}
+    let pending := state.manager.nodes.toArray.any fun (id, _) =>
+      state.manager.enabledVCs.contains id && !state.manager._doneWith.contains id && !state.manager.dormantVCs.contains id
+    unless state.driving || !pending do
+      let task ← session.drive.asTask (prio := .dedicated)
+      state := {state with driving := true, driver := some task}
+    ref.set state
 
-/-- Poll for discharger tasks from the manager and register them with `logSnapshotTask`.
-    Waits until all VCs matching the filter are done, then returns the results.
-    This enables profiler trace propagation by registering tasks on the calling thread. -/
-private def awaitFilteredWithLogging (filter : VCMetadata → Bool)
+def Session.withManager [Monad m] [MonadLiftT BaseIO m] [MonadLiftT (ST IO.RealWorld) m] [MonadFinally m] [MonadError m]
+    (session : Session) (f : IO.Ref (VCManager VCMetadata SmtResult) → m α) : m α := do
+  let result ← session.state.atomically fun ref => do
+    let state ← ref.get
+    if state.cancelled then throwError "Verification session was cancelled"
+    let managerRef ← IO.mkRef state.manager
+    let result ← f managerRef
+    ref.set {state with manager := ← managerRef.get}
+    return result
+  session.start (fun _ => false)
+  return result
+
+def withVCManager (f : IO.Ref (VCManager VCMetadata SmtResult) → CommandElabM α) : CommandElabM α := do
+  (← getSession).withManager f
+
+def sendNotification (notification : ManagerNotification VCMetadata SmtResult) : CommandElabM Unit := do
+  let session ← getSession
+  session.state.atomically fun ref => do
+    let state ← ref.get
+    let some ch := state.manager.ch | throwError "Missing session result channel"
+    let _ ← ch.send notification
+    unless state.driving || state.cancelled do
+      let task ← session.drive.asTask (prio := .dedicated)
+      ref.set {state with driving := true, driver := some task}
+
+def reset (managerId : ManagerId) : CommandElabM Unit := sendNotification (.reset managerId)
+def startAll : CommandElabM Unit := do (← getSession).start (fun _ => true)
+def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := do (← getSession).start filter
+
+/-- Create a new module session without abandoning other modules' requests. -/
+def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
+  let session : Session := {state := ← Mutex.new {manager := ← newManager, cancelTk?}}
+  sessionEnv.add (some session) .local
+
+private def Session.acquire (session : Session) (filter : VCMetadata → Bool) : BaseIO Nat :=
+  session.state.atomically fun ref => do
+    let state ← ref.get
+    ref.set {state with
+      nextRequest := state.nextRequest + 1
+      requests := state.requests.insert state.nextRequest filter}
+    return state.nextRequest
+
+/-- Cancelling one request cancels only work no other live request needs.
+Snapshot leaf tasks carry no cancellation token: duplicate registrations by
+concurrent waiters therefore cannot cancel one another's solver work. -/
+private def Session.release (session : Session) (request : Nat) (cancel : Bool) : BaseIO Unit :=
+  session.state.atomically fun ref => do
+    let state ← ref.get
+    let some filter := state.requests[request]? | return
+    let requests := state.requests.erase request
+    if cancel then
+      for (_, vc) in state.manager.nodes do
+        if filter vc.metadata && !(requests.valuesArray.any (· vc.metadata)) then
+          for d in vc.dischargers do d.cancelTk.set
+    ref.set {state with requests}
+
+private def awaitFilteredWithLogging (session : Session) (filter : VCMetadata → Bool)
     : CommandElabM (VerificationResults VCMetadata SmtResult) := do
+  let mut registered : HashSet DischargerIdentifier := {}
   while true do
-    logPendingDischargerTasks
-    -- Surface manager-loop errors where the user is looking; the loop itself
-    -- cannot log to the editor (it is not registered with `logSnapshotTask`).
-    for err in ← managerLoopErrors.modifyGet fun errs => (errs, #[]) do
-      logWarning m!"VC manager loop error: {err}"
-    -- Snapshot under the lock, render outside it (`toResults` pretty-prints).
-    let mgr ← vcManager.atomically fun ref => ref.get
-    if mgr.isDoneFiltered filter then
-      return ← liftCoreM (mgr.toResults filter)
+    Core.checkInterrupted |> liftCoreM
+    let mgr ← session.snapshot
+    for (_, vc) in mgr.nodes do
+      if filter vc.metadata then
+        for d in vc.dischargers do
+          if let some task := d.task then
+            unless registered.contains d.id do
+              Command.logSnapshotTask {stx? := none, cancelTk? := none, task}
+              registered := registered.insert d.id
+    if mgr.isDoneFiltered filter then return ← liftCoreM (mgr.toResults filter)
     IO.sleep 10
   panic! "unreachable"
 
-/-- Start VCs matching the filter and run the callback asynchronously when done.
-Uses `wrapAsyncAsSnapshot` so that errors from the callback are reported to the user.
-This task also polls for discharger tasks from the manager and registers them with
-`logSnapshotTask`, enabling profiler trace propagation.
-Note: Widget display does not work in the callback since it runs in an async context. -/
 def runFilteredAsync (filter : VCMetadata → Bool)
     (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) : CommandElabM Unit := do
-  startFiltered filter
+  let session ← getSession
+  let request ← session.acquire filter
+  session.start filter
   let cancelTk ← IO.CancelToken.new
-  let wrappedTask ← Command.wrapAsyncAsSnapshot (fun () => do
-    let results ← awaitFilteredWithLogging filter
-    callback results) cancelTk
-  let task ← (wrappedTask ()).asTask (prio := .dedicated)
-  Command.logSnapshotTask { stx? := none, cancelTk? := cancelTk, task := task }
+  let completed ← IO.mkRef false
+  let wrapped ← Command.wrapAsyncAsSnapshot (fun () => do
+    let result ← awaitFilteredWithLogging session filter
+    completed.set true
+    callback result) cancelTk
+  let task ← (do
+    let snapshot ← wrapped ()
+    session.release request (!(← completed.get))
+    return snapshot).asTask (prio := .dedicated)
+  Command.logSnapshotTask {stx? := none, cancelTk? := cancelTk, task}
 
-/-- Start VCs matching the filter and wait synchronously for completion.
-Returns the results on the main thread, allowing widget display.
-This also polls for discharger tasks from the manager and registers them with
-`logSnapshotTask`, enabling profiler trace propagation.
-Warning: This blocks the elaborator until all matching VCs complete. -/
 def waitFilteredSync (filter : VCMetadata → Bool) : CommandElabM (VerificationResults VCMetadata SmtResult) := do
-  startFiltered filter
-  awaitFilteredWithLogging filter
+  let session ← getSession
+  let request ← session.acquire filter
+  session.start filter
+  try
+    let results ← awaitFilteredWithLogging session filter
+    session.release request false
+    return results
+  finally
+    session.release request true
 
 private def ensureExistingTheoremMatches (fullName : Name) (statement : Expr) : TermElabM Unit := do
   let some info := (← getEnv).find? fullName
@@ -232,7 +231,7 @@ are the witnesses returned by successful dischargers. Declarations are added in
 the manager DAG's dependency order so downstream proof terms can refer to
 upstream VC theorem constants. -/
 def addProvenTheoremsInDependencyOrder (filter : VCMetadata → Bool) : CommandElabM Unit := do
-  let mgr ← vcManager.atomically fun ref => ref.get
+  let mgr ← (← getSession).snapshot
   for vcId in mgr.vcIdsInDependencyOrder filter do
     if let some (vc, witness) := mgr.provenWitness? vcId then
       addProvenVCTheorem vc witness
