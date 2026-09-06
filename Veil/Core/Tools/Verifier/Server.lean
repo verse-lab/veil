@@ -40,7 +40,8 @@ def Session.snapshot (session : Session) : IO (VCManager VCMetadata SmtResult) :
   session.state.atomically fun ref => do
     let state ← ref.get
     if let some failure := state.failure? then throw (IO.userError failure)
-    if state.cancelled then throw (IO.userError "Verification session was cancelled")
+    if state.cancelled || (← state.cancelTk?.mapM (fun tk => (tk.isSet : IO Bool))).getD false then
+      throw (IO.userError "Verification session was cancelled")
     return state.manager
 
 /-- Fork cached command state after an edit below an unchanged #gen_spec.
