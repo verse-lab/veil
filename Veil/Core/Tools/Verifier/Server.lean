@@ -200,6 +200,23 @@ private def Session.acquire (session : Session) (filter : VCMetadata → Bool) :
       requests := state.requests.insert state.nextRequest filter}
     return state.nextRequest
 
+/-- Include prerequisites and fallback alternatives in request ownership.
+Compute against current registrations when releasing, so VCs added while a
+request waits are covered as well. This does not enable dormant alternatives. -/
+private def requestScope (mgr : VCManager VCMetadata SmtResult)
+    (filter : VCMetadata → Bool) : HashSet VCId := Id.run do
+  let mut selected := mgr.nodes.fold (fun ids id vc => if filter vc.metadata then ids.insert id else ids) {}
+  let mut pending := selected.toList
+  for _ in [:mgr.nodes.size] do
+    let id :: rest := pending | break
+    pending := rest
+    let related := (mgr.upstream[id]?.getD {}).toArray ++ mgr.alternativeVCs[id]?.getD #[]
+    for other in related do
+      if mgr.nodes.contains other && !selected.contains other then
+        selected := selected.insert other
+        pending := other :: pending
+  return selected
+
 /-- Cancelling one request cancels only work no other live request needs.
 Snapshot leaf tasks carry no cancellation token: duplicate registrations by
 concurrent waiters therefore cannot cancel one another's solver work. -/
@@ -209,8 +226,11 @@ private def Session.release (session : Session) (request : Nat) (cancel : Bool) 
     let some filter := state.requests[request]? | return
     let requests := state.requests.erase request
     if cancel then
-      for (_, vc) in state.manager.nodes do
-        if filter vc.metadata && !(requests.valuesArray.any (· vc.metadata)) then
+      let selected := requestScope state.manager filter
+      let retained := requests.valuesArray.foldl (fun ids f =>
+        (requestScope state.manager f).fold (·.insert ·) ids) ({} : HashSet VCId)
+      for (vcId, vc) in state.manager.nodes do
+        if selected.contains vcId && !retained.contains vcId then
           for d in vc.dischargers do
             if d.task.isSome then d.cancelTk.set
     ref.set {state with requests}
