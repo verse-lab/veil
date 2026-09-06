@@ -249,9 +249,10 @@ private def Session.release (session : Session) (request : Nat) (cancel : Bool) 
       let retained := requests.valuesArray.foldl (fun ids f =>
         (requestScope state.manager f).fold (·.insert ·) ids) ({} : HashSet VCId)
       for (vcId, vc) in state.manager.nodes do
-        if selected.contains vcId && !retained.contains vcId then
-          for d in vc.dischargers do
-            if d.task.isSome then d.cancelTk.set
+        if selected.contains vcId && !retained.contains vcId && state.manager.enabledVCs.contains vcId then
+          -- Also cancel queued attempts: otherwise releasing a full pool can
+          -- start expensive work after its last waiter has disappeared.
+          for d in vc.dischargers do d.cancelTk.set
     ref.set {state with requests}
 
 private def awaitFilteredWithLogging (session : Session) (filter : VCMetadata → Bool)
