@@ -1,15 +1,19 @@
 FROM ubuntu:24.04
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 WORKDIR /root
 
-ARG DEBIAN_FRONTEND=noninteractive
-RUN apt-get update -y && \
-    apt-get install -y software-properties-common build-essential curl unzip git && \
-    apt-get clean
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates curl git unzip clang lld libc++-dev libc++abi-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN bash -c 'curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y --default-toolchain leanprover/lean4:stable'
+RUN curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.7/install.sh | bash
+RUN . "$HOME/.nvm/nvm.sh" && nvm install 24
+RUN curl -fsSL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | \
+    sh -s -- -y --default-toolchain none
+ENV PATH="/root/.elan/bin:${PATH}"
 
-RUN mkdir veil
-COPY veil.zip /root
-RUN unzip veil.zip  && mv .veil.tmp/* veil && rm veil.zip
-
-
+WORKDIR /root/veil
+COPY . .
+RUN . "$HOME/.nvm/nvm.sh" && lake exe cache get && lake build
+CMD ["bash"]

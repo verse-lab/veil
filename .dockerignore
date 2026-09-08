@@ -1,0 +1,9 @@
+.git
+.lake
+.agents
+.claude
+.codex
+widget/node_modules
+widget/dist
+veil.zip
+.veil.tmp

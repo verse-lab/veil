@@ -52,16 +52,20 @@ An explanation of the constructs of the Veil DSL can be found at
 ## Build
 
 Veil requires [Lean 4](https://github.com/leanprover/lean4) and
-[NodeJS](https://nodejs.org/en/download/). To install those on Linux or MacOS:
+[NodeJS](https://nodejs.org/en/download/), and Lean CVC5 requires
+[Clang](https://releases.llvm.org/download.html). To install those on Linux or
+MacOS:
 
 ```bash
-# Install Lean
-curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y --default-toolchain leanprover/lean4:stable
-
-# Install NodeJS
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-\. "$HOME/.nvm/nvm.sh"
-nvm install 24
+set -o pipefail &&
+sudo apt-get update &&
+sudo apt-get install -y --no-install-recommends \
+  ca-certificates curl git unzip clang lld libc++-dev libc++abi-dev &&
+(curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.7/install.sh | bash) &&
+. "$HOME/.nvm/nvm.sh" &&
+nvm install 24 &&
+(curl -fsSL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none) &&
+. "$HOME/.elan/env"
 ```
 
 Then, clone Veil:
