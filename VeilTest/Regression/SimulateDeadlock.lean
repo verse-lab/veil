@@ -29,3 +29,41 @@ Seed: 1
 #simulate interpreted {} {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
 
 end SimulateDeadlock
+
+
+/-!
+The module above deadlocks in the initial state. This one only deadlocks after a
+step: `arm` is the single enabled action initially and nothing is enabled once it
+has run, so the reported trace is independent of the seed.
+-/
+
+veil module SimulateDeadlockAfterStep
+
+individual armed : Bool
+
+#gen_state
+
+after_init { armed := false }
+
+action arm {
+  require !armed
+  armed := true
+}
+
+invariant [safe] true
+termination armed = false
+
+#gen_spec
+
+/--
+error: ❌ Violation: deadlock
+  State 0 (via init):
+    armed = false
+  State 1 (via arm):
+    armed = true
+Seed: 1
+-/
+#guard_msgs in
+#simulate interpreted {} {} (seed := 1) (maxTraces := 1) (maxSteps := 3)
+
+end SimulateDeadlockAfterStep
