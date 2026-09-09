@@ -159,8 +159,12 @@ short Veil-facing diagnostic. In particular, this avoids Lean's noisy
 type that cannot be enumerated.
 -/
 scoped elab "veil_extract_list_tactic" : tactic => do
+  let tac ←
+    if veil.extract.shareValueLets.get (← getOptions)
+    then `(tactic| extract_list_step +$(mkIdent `shareValueLets))
+    else `(tactic| extract_list_step -$(mkIdent `shareValueLets))
   evalTactic (← `(tactic|
-    repeat' (intros; first | extract_list_step | (split <;> try dsimp))))
+    repeat' (intros; first | $tac:tactic | (split <;> try dsimp))))
   unless (← getUnsolvedGoals).isEmpty do
     throwError
       "could not extract executable choices for a nondeterministic pick.\n\n\
@@ -357,6 +361,12 @@ attribute [multiextracted] ConstrainedExtractResult.pure
   ConstrainedExtractResult.require_VeilM
 
 open MultiExtractor in
+attribute [multiExtractSimp]
+  /- Run after the operand has been simplified, and only in extraction's simpset.
+     `dsimproc_decl` itself does not register this with ordinary `dsimp`. -/
+  simpExtractedValueLet
+
+open MultiExtractor in
 attribute [multiExtractSimp ↓] ConstrainedExtractResult.pure
   ConstrainedExtractResult.bind ConstrainedExtractResult.assume
   ConstrainedExtractResult.filterAuxM
@@ -368,6 +378,9 @@ attribute [multiExtractSimp ↓] ConstrainedExtractResult.pure
   ConstrainedExtractResult.pickSuchThat_VeilM
   ConstrainedExtractResult.assume_VeilM
   ConstrainedExtractResult.require_VeilM
+  /- `change` wraps the new extraction goal in `id` as a type checkpoint. Expose
+     its let-bound result so the projection simproc can remove the certificate. -/
+  id
 
 /-- Extract the execution result from a DivM-wrapped result. Unlike `getPostState`
 which only returns `Option σ`, this preserves the return value of a successful

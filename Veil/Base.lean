@@ -81,6 +81,16 @@ register_option veil.violationIsError : Bool := {
   logged as errors. If false, they are logged as info messages."
 }
 
+register_option veil.extract.shareValueLets : Bool := {
+  defValue := true
+  descr := "If true (the default), extraction keeps ordinary value `let`s shared \
+  in the extracted term instead of zeta-reducing them. Sharing makes the extracted \
+  term smaller but costs extraction time, and the compiler's `pullInstances` and \
+  `cse` passes run before its first `simp` and recover the sharing anyway. Join \
+  points are shared either way; inlining those is exponential in the number of \
+  sequential branches and no later pass can undo it."
+}
+
 register_option veil.__modelCheckCompileMode : Bool := {
   defValue := false
   descr := "(INTERNAL ONLY. DO NOT USE.) When true, skip verification-only operations for model checking compilation."
