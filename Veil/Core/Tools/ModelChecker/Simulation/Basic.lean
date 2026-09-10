@@ -1,4 +1,5 @@
 import Veil.Core.Tools.ModelChecker.Interface
+import Veil.Util.Histogram
 
 namespace Veil.ModelChecker.Simulation
 open Lean
@@ -14,10 +15,6 @@ inductive SimulationResult (ρ σ κ : Type) where
   | foundViolation (violation : ViolationKind) (viaTrace : Trace ρ σ κ)
 deriving Inhabited, Repr
 
-def SimulationResult.depth {ρ σ κ : Type} : SimulationResult ρ σ κ → Nat
-  | .foundViolation _ trace => trace.steps.size + if trace.failingStep.isSome then 1 else 0
-  | .cancelled => 0
-
 inductive SimulationTerminationReason where
   | noInitialStates
 deriving Inhabited, Hashable, BEq, Repr
@@ -25,6 +22,10 @@ deriving Inhabited, Hashable, BEq, Repr
 instance : ToJson SimulationTerminationReason where
   toJson
     | .noInitialStates => Json.mkObj [("kind", "no_initial_states")]
+
+/-- An empty depth histogram for a run with the given per-trace step budget.
+Depths range over `0 … maxSteps + 1`; the `+1` covers a failing assertion step. -/
+def depthHistogramFor (maxSteps : Nat) : Histogram := Histogram.forRange (maxSteps + 2)
 
 /--
 The outcome of a `#simulate` run, together with the metadata reported to the user.
@@ -52,10 +53,8 @@ structure SimulateResult (ρ σ κ : Type) where
   elapsedMs : Nat
   seed : Nat
   terminationReason : Option SimulationTerminationReason := none
-
-def SimulateResult.depth {ρ σ κ : Type} (result : SimulateResult ρ σ κ) : Nat :=
-  match result.result with
-  | some result => result.depth
-  | none => 0
+  /-- Depths reached by the traces that ran. Empty for the pure entry points, which
+  do not collect it. -/
+  depthHistogram : Histogram := {}
 
 end Veil.ModelChecker.Simulation

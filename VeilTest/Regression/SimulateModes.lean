@@ -34,6 +34,7 @@ set_option veil.simulate.maxTraces 3 in
 set_option veil.simulate.maxSteps 1 in
 /--
 info: ✅ No violation in 3 traces
+Trace depths: 1x3
 Seed: 1
 -/
 #guard_msgs in

@@ -20,6 +20,8 @@ private def hasNoInitialStates {ρ σ κ : Type} {th₀ : ρ}
 private structure SimulationHooks (m : Type → Type) where
   shouldStop : Nat → m Bool
   onTraceProgress : Nat → m PUnit
+  /-- Called with the depth each completed trace reached, violation or not. -/
+  onTraceComplete : Nat → m PUnit
   onViolation : m PUnit
 
 private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀ : ρ}
@@ -50,7 +52,9 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
       }
   | remaining + 1 =>
       hooks.onTraceProgress traceIndex
-      match simulateTraceAtIndex sys params th cfg traceIndex with
+      let (violation?, depth) := simulateTraceAtIndex sys params th cfg traceIndex
+      hooks.onTraceComplete depth
+      match violation? with
       | some result =>
           hooks.onViolation
           return {
@@ -79,6 +83,7 @@ def simulateCommandSemantics {ρ σ κ : Type} {th₀ : ρ}
     simulateLoopM
       ({ shouldStop := fun traceIndex => shouldStop traceIndex
          onTraceProgress := fun _ => ()
+         onTraceComplete := fun _ => ()
          onViolation := () } : SimulationHooks Id)
       sys params th cfg cfg.maxTraces 0
 
@@ -108,9 +113,10 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
     let simResult := { noInitialStatesResult cfg with elapsedMs := (← IO.monoMsNow) - startMs }
     Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
       "Complete"
-      simResult.tracesRun simResult.maxTraces simResult.depth
+      simResult.tracesRun simResult.maxTraces simResult.depthHistogram
     return simResult
   let lastStatusUpdateRef ← IO.mkRef startMs
+  let histogramRef ← IO.mkRef (depthHistogramFor cfg.maxSteps)
   let simResult ← simulateLoopM
     { shouldStop := fun _ => Veil.ModelChecker.Concrete.shouldStop cancelToken progressInstanceId
       onTraceProgress := fun tracesRun => do
@@ -119,18 +125,21 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
         if now - lastStatusUpdate ≥ 100 then
           Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
             s!"Running random traces ({tracesRun}/{cfg.maxTraces})"
-            tracesRun cfg.maxTraces 0
+            tracesRun cfg.maxTraces (← histogramRef.get)
           lastStatusUpdateRef.set now
+      onTraceComplete := fun depth => histogramRef.modify (·.record depth)
       onViolation := do
         Veil.ModelChecker.Concrete.setViolationFound progressInstanceId }
     sys params th cfg cfg.maxTraces 0
-  let simResult := { simResult with elapsedMs := (← IO.monoMsNow) - startMs }
+  let simResult := { simResult with
+    elapsedMs := (← IO.monoMsNow) - startMs
+    depthHistogram := ← histogramRef.get }
   match simResult.result with
   | some .cancelled => pure ()
   | _ =>
       Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
         "Complete"
-        simResult.tracesRun simResult.maxTraces simResult.depth
+        simResult.tracesRun simResult.maxTraces simResult.depthHistogram
   return simResult
 
 @[inline, specialize]
@@ -157,6 +166,7 @@ private theorem simulateLoopM_id_sound {ρ σ κ : Type}
         (simulateLoopM
           ({ shouldStop := fun traceIndex => shouldStop traceIndex
              onTraceProgress := fun _ => ()
+             onTraceComplete := fun _ => ()
              onViolation := () } : SimulationHooks Id)
           sys params th cfg remaining traceIndex)) := by
   intro remaining
@@ -171,9 +181,9 @@ private theorem simulateLoopM_id_sound {ρ σ κ : Type}
       | true =>
           simp [simulateLoopM, hStop, ReportedViolationSound, bind, pure]
       | false =>
-          by_cases hTrace : simulateTraceAtIndex sys params th cfg traceIndex = none
+          by_cases hTrace : (simulateTraceAtIndex sys params th cfg traceIndex).1 = none
           · simpa [simulateLoopM, hStop, hTrace, bind, pure] using ih (traceIndex + 1)
-          · cases hRun : simulateTraceAtIndex sys params th cfg traceIndex with
+          · cases hRun : (simulateTraceAtIndex sys params th cfg traceIndex).1 with
             | none => contradiction
             | some result =>
                 simpa [simulateLoopM, hStop, hRun, bind, pure] using

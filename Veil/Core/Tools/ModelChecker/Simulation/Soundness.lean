@@ -100,7 +100,7 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
   (hLast : trace.lastState = currSt)
   (hNoFail : trace.failingStep = none) :
   ∀ stepsLeft gen result,
-    ((simulateOnceLoop sys params th stepsLeft currSt trace).run gen).1 = some result ->
+    (((simulateOnceLoop sys params th stepsLeft currSt trace).run gen).1).1 = some result ->
       ReportedViolationSound sys params (some result) := by
   intro stepsLeft
   induction stepsLeft generalizing currSt trace with
@@ -191,7 +191,7 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
                   have hViolNilRaw :
                       violatedInvariantNames params th (hd :: tl)[(randNat gen 0 tl.length).1].2 = [] := by
                     simpa [nexts', p, idx, selected] using hViolNil
-                  have hLoop : ((simulateOnceLoop sys params th steps selected.2 trace').run gen').1 = some result := by
+                  have hLoop : (((simulateOnceLoop sys params th steps selected.2 trace').run gen').1).1 = some result := by
                     rw [simulateOnceLoop] at h
                     simp only [hPartition, hFailures, hNexts, StateT.run_bind] at h
                     simpa [nexts', p, idx, gen', hlt, selected, trace', hViolNilRaw] using h
@@ -222,7 +222,7 @@ theorem simulateOnce_sound {ρ σ κ : Type}
   (th : ρ)
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ) (gen : StdGen) (maxSteps : Nat) (result : SimulationResult ρ σ κ) :
-  ((simulateOnce sys params th maxSteps).run gen).1 = some result ->
+  (((simulateOnce sys params th maxSteps).run gen).1).1 = some result ->
     ReportedViolationSound sys params (some result) := by
   intro h
   unfold simulateOnce at h
@@ -258,7 +258,7 @@ theorem simulateOnce_sound {ρ σ κ : Type}
           have hViolNilRaw :
               violatedInvariantNames params th (initSt :: rest)[(randNat gen 0 rest.length).1] = [] := by
             simpa [initStates, p, idx, selectedInit] using hViolNil
-          have hLoop : ((simulateOnceLoop sys params th maxSteps selectedInit initTrace).run gen').1 = some result := by
+          have hLoop : (((simulateOnceLoop sys params th maxSteps selectedInit initTrace).run gen').1).1 = some result := by
             rw [hStates] at h
             simp only [StateT.run_bind] at h
             simpa [initStates, p, idx, gen', hlt, selectedInit, initTrace, hViolNilRaw] using h
@@ -289,12 +289,12 @@ theorem simulateTraceAtIndex_sound {ρ σ κ : Type}
   (cfg : SimulateConfig)
   (traceIndex : Nat)
   (result : SimulationResult ρ σ κ) :
-  simulateTraceAtIndex sys params th cfg traceIndex = some result ->
+  (simulateTraceAtIndex sys params th cfg traceIndex).1 = some result ->
     ReportedViolationSound sys params (some result) := by
   intro h
   unfold simulateTraceAtIndex at h
   set traceSeed := cfg.seed + traceIndex
-  have hSimSome : ((simulateOnce sys params th cfg.maxSteps).run (mkStdGen traceSeed)).1 = some result := by
+  have hSimSome : (((simulateOnce sys params th cfg.maxSteps).run (mkStdGen traceSeed)).1).1 = some result := by
     cases hRun : (simulateOnce sys params th cfg.maxSteps).run (mkStdGen traceSeed)
     simpa only [hRun] using h
   exact simulateOnce_sound th sys params (mkStdGen traceSeed) cfg.maxSteps result hSimSome

@@ -24,17 +24,17 @@ private def expect (message : String) (cond : Bool) : IO Unit :=
 -- while the per-run counters restart with the compiled binary.
 #eval do
   let (id, _) ← allocProgressInstance (.simulation {})
-  updateSimulationProgress id "Running random traces (7/50)" 7 50 3
+  updateSimulationProgress id "Running random traces (7/50)" 7 50 {}
   let before ← getProgress id
   expect "a simulation instance must report simulation metrics" <|
     match before.details with
-    | .simulation m => m.tracesRun == 7 && m.maxTraces == 50 && m.depth == 3
+    | .simulation m => m.tracesRun == 7 && m.maxTraces == 50
     | .modelCheck .. => false
   let _ ← resetProgressForHandoff id
   let after ← getProgress id
   expect "handoff must not turn a simulation into a model check" <|
     match after.details with
-    | .simulation m => m.maxTraces == 50 && m.tracesRun == 0 && m.depth == 0
+    | .simulation m => m.maxTraces == 50 && m.tracesRun == 0
     | .modelCheck .. => false
 
 -- A model check instance stays a model check, keeping the action labels it needs

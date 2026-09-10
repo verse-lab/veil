@@ -6,6 +6,7 @@ Authors: George Pîrlea
 import Lean.Data.Json
 import Std.Data.HashMap
 import Veil.Core.Tools.ModelChecker.Concrete.Core
+import Veil.Util.Histogram
 
 namespace Veil.ModelChecker.Concrete
 open Lean
@@ -65,8 +66,8 @@ structure SimulationProgress where
   tracesRun : Nat := 0
   /-- Configured trace budget -/
   maxTraces : Nat := 0
-  /-- Depth reached in the current or last trace -/
-  depth : Nat := 0
+  /-- Depths reached by the traces completed so far. -/
+  depthHistogram : Histogram := {}
   deriving ToJson, FromJson, Inhabited, Repr
 
 /-- Metrics reported only by `#model_check`, using TLC-style terminology. -/
@@ -205,12 +206,12 @@ def updateStatus (instanceId : Nat) (status : String) : IO Unit := withRefs inst
 
 /-- Update progress for a simulation run. -/
 def updateSimulationProgress (instanceId : Nat) (status : String)
-    (tracesRun maxTraces depth : Nat) : IO Unit := do
+    (tracesRun maxTraces : Nat) (depthHistogram : Histogram) : IO Unit := do
   let now ← IO.monoMsNow
   if let some refs ← getProgressRefs instanceId then
     refs.progressRef.modify fun p =>
       { p with status, elapsedMs := now - p.startTimeMs
-               details := .simulation { tracesRun, maxTraces, depth } }
+               details := .simulation { tracesRun, maxTraces, depthHistogram } }
   if ← compiledModeEnabled.get then
     let startTime ← compiledModeStartTime.get
     let p : Progress := {
@@ -218,7 +219,7 @@ def updateSimulationProgress (instanceId : Nat) (status : String)
       isRunning := true
       startTimeMs := startTime
       elapsedMs := now - startTime
-      details := .simulation { tracesRun, maxTraces, depth }
+      details := .simulation { tracesRun, maxTraces, depthHistogram }
     }
     IO.eprintln (toJson p).compress
 

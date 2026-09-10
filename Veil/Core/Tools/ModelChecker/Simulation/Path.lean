@@ -19,23 +19,23 @@ def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   (stepsLeft : Nat)
   (currSt : σ)
   (trace : Trace ρ σ κ)
-  : StateM StdGen (Option (SimulationResult ρ σ κ)) := do
+  : StateM StdGen (Option (SimulationResult ρ σ κ) × Nat) := do
   match stepsLeft with
-  | 0 => return none
+  | 0 => return (none, trace.steps.size)
   | stepsLeft + 1 =>
     let outcomes := sys.tr th currSt
     let (nexts, assertionFailures) := Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes
     match assertionFailures with
     | (label, exId, st) :: _ =>
         let failedTrace := { trace with failingStep := some { transitionLabel := label, nextState := st } }
-        return some (.foundViolation (.assertionFailure exId) failedTrace)
+        return (some (.foundViolation (.assertionFailure exId) failedTrace), failedTrace.steps.size + 1)
     | [] =>
       match nexts with
       | [] =>
           if !params.terminating.holdsOn th currSt then
-            return some (.foundViolation .deadlock trace)
+            return (some (.foundViolation .deadlock trace), trace.steps.size)
           else
-            return none
+            return (none, trace.steps.size)
       | hd :: tl =>
         let nexts := hd :: tl
         have hNonempty : nexts ≠ [] := by simp
@@ -51,7 +51,7 @@ def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
         let trace := trace.push { transitionLabel := label, nextState := nextSt }
         let violations := violatedInvariantNames params th nextSt
         if !violations.isEmpty then
-          return some (.foundViolation (.safetyFailure violations) trace)
+          return (some (.foundViolation (.safetyFailure violations) trace), trace.steps.size)
         else
           simulateOnceLoop sys params th stepsLeft nextSt trace
 termination_by stepsLeft
@@ -62,10 +62,10 @@ def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
   (params : SearchParameters ρ σ)
   (th : ρ)
   (maxSteps : Nat)
-  : StateM StdGen (Option (SimulationResult ρ σ κ)) := do
+  : StateM StdGen (Option (SimulationResult ρ σ κ) × Nat) := do
   let initStates := sys.initStates
   match initStates with
-  | [] => return none
+  | [] => return (none, 0)
   | hd :: tl =>
       let initStates := hd :: tl
       have hNonempty : initStates ≠ [] := by simp
@@ -81,13 +81,15 @@ def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
       let initTrace : Trace ρ σ κ := { theory := th, initialState := initSt, steps := #[] }
       let initViolations := violatedInvariantNames params th initSt
       if !initViolations.isEmpty then
-        return some (.foundViolation (.safetyFailure initViolations) initTrace)
+        return (some (.foundViolation (.safetyFailure initViolations) initTrace), 0)
       else
         simulateOnceLoop sys params th maxSteps initSt initTrace
 
 /--
 Simulates the trace identified by `traceIndex` using seed `cfg.seed + traceIndex`.
-Returns the first violation found by that trace.
+Returns the first violation found by that trace, if any, together with the depth
+the trace reached. The depth is reported even when no violation is found, which is
+what lets the caller summarise how far the traces actually got.
 -/
 def simulateTraceAtIndex {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -95,9 +97,9 @@ def simulateTraceAtIndex {ρ σ κ : Type} {th₀ : ρ}
   (th : ρ)
   (cfg : SimulateConfig)
   (traceIndex : Nat)
-  : Option (SimulationResult ρ σ κ) :=
+  : Option (SimulationResult ρ σ κ) × Nat :=
   let traceSeed := cfg.seed + traceIndex
-  let (maybeResult, _) := (simulateOnce sys params th cfg.maxSteps).run (mkStdGen traceSeed)
-  maybeResult
+  let (outcome, _) := (simulateOnce sys params th cfg.maxSteps).run (mkStdGen traceSeed)
+  outcome
 
 end Veil.ModelChecker.Simulation

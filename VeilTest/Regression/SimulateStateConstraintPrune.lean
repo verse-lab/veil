@@ -27,6 +27,7 @@ state_constraint [keep_b_false] ¬ b
 
 /--
 info: ✅ No violation in 4 traces
+Trace depths: 0x4
 Seed: 1
 -/
 #guard_msgs in

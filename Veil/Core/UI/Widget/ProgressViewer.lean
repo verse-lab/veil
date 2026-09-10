@@ -497,6 +497,39 @@ private def metricsHistoryHtml (history : Array ProgressHistoryPoint) : Html := 
     </div>
   </details>
 
+/-- Render the depth histogram of the traces run so far, collapsible like the
+model checker's metrics history.
+
+Nothing is drawn until at least two traces are in, since a "distribution" over one
+sample says nothing that the single trace does not. -/
+private def depthHistogramHtml (h : Veil.Histogram) : Html := Id.run do
+  let total := h.total
+  if total ≤ 1 then return .text ""
+  let buckets := h.buckets
+  let peak := buckets.foldl (fun acc b => max acc b.2.2) 1
+  let rows := buckets.map fun b => Id.run do
+    let label := if h.bucketWidth == 1 then toString b.1 else s!"{b.1}-{b.2.1}"
+    let pct := b.2.2 * 100 / peak
+    return <tr>
+      <td style={json% {"paddingRight": "8px", "textAlign": "right"}}>{.text label}</td>
+      <td>
+        <div style={json% {"background": "var(--vscode-panel-border)", "borderRadius": "2px",
+                           "height": "8px", "width": "160px"}}>
+          <div style={json% {"background": "var(--vscode-charts-blue, var(--vscode-textLink-foreground))",
+                             "borderRadius": "2px", "height": "8px", "width": $(s!"{pct}%")}} />
+        </div>
+      </td>
+      <td style={json% {"paddingLeft": "8px"}}>{.text (toString b.2.2)}</td>
+    </tr>
+  return <details style={json% {"marginTop": "8px"}}>
+    <summary style={json% {"cursor": "pointer", "fontSize": "12px", "color": "var(--vscode-descriptionForeground)"}}>
+      Trace Depths ({.text (toString total)} traces)
+    </summary>
+    <table style={json% {"marginTop": "4px", "fontSize": "11px", "borderCollapse": "collapse"}}>
+      {.element "tbody" #[] rows}
+    </table>
+  </details>
+
 /-- Convert Progress to Html for display, with optional Stop button. Uses TLC-style terminology. -/
 def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html := Id.run do
   let (progressRows, metricsHistory, actionCoverage) : Array Html × Html × Html :=
@@ -505,8 +538,7 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html := I
         (#[
           statRow "Traces Run:" (toString sim.tracesRun),
           statRow "Max Traces:" (toString sim.maxTraces),
-          statRow "Depth:" (toString sim.depth),
-        ], .text "", .text "")
+        ], depthHistogramHtml sim.depthHistogram, .text "")
     | .modelCheck m =>
         (#[
           statRow "Diameter:" (toString m.diameter),

@@ -39,6 +39,7 @@ invariant [safe] ¬ b
 
 /--
 info: ✅ No violation in 4 traces
+Trace depths: 1x4
 Seed: 1
 -/
 #guard_msgs in

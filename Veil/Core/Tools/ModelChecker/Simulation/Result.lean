@@ -25,13 +25,18 @@ private def resultToJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
 
 private def metadataToJsonFields {ρ σ κ : Type} (r : SimulateResult ρ σ κ) : List (String × Json) :=
   let reasonField := r.terminationReason.map fun reason => ("termination_reason", Lean.toJson reason)
+  -- Absent for the pure entry points, which do not collect depths.
+  let histogramField :=
+    if r.depthHistogram.counts.isEmpty then none
+    else some ("depth_histogram", Json.mkObj [
+      ("bucket_width", Lean.toJson r.depthHistogram.bucketWidth),
+      ("counts", Lean.toJson r.depthHistogram.counts)])
   [
     ("traces_run", Lean.toJson r.tracesRun),
     ("max_traces", Lean.toJson r.maxTraces),
     ("elapsed_ms", Lean.toJson r.elapsedMs),
-    ("seed", Lean.toJson r.seed),
-    ("depth", Lean.toJson r.depth)
-  ] ++ reasonField.toList
+    ("seed", Lean.toJson r.seed)
+  ] ++ reasonField.toList ++ histogramField.toList
 
 /-- Flatten the result object while keeping simulation metadata at the top level. -/
 def SimulateResult.toDisplayJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]

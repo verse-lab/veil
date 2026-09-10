@@ -143,17 +143,39 @@ private def formatModelCheckResult (j : Json) : MessageData :=
   | "cancelled" => m!"⚠️ Cancelled"
   | r => fmtUnexpected r j
 
+/-- Render the non-empty buckets of a `#simulate` depth histogram, e.g.
+`Trace depths: 0x1, 1x3, 4x1`. -/
+private def fmtDepthHistogram (j : Json) : String :=
+  let h := j.getObjValD "depth_histogram"
+  let width := max 1 ((h.getObjValAs? Nat "bucket_width").toOption.getD 1)
+  match h.getObjValD "counts" with
+  | .arr counts =>
+    let entries := (List.finRange counts.size).filterMap fun i =>
+      match (Lean.fromJson? (α := Nat) counts[i]).toOption with
+      | some n =>
+        if n == 0 then none
+        else
+          let lo := i.val * width
+          let label := if width == 1 then s!"{lo}" else s!"{lo}-{lo + width - 1}"
+          some s!"{label}x{n}"
+      | none => none
+    -- A "distribution" over a single trace says nothing the trace itself does not.
+    let total := counts.foldl (fun acc c => acc + (Lean.fromJson? (α := Nat) c).toOption.getD 0) 0
+    if entries.isEmpty || total ≤ 1 then ""
+    else s!"\nTrace depths: {", ".intercalate entries}"
+  | _ => ""
+
 /-- See the table on `SimulateResult` for the cases `#simulate` can produce. -/
 private def formatSimulateResult (j : Json) : MessageData :=
-  let seed := fmtSeedSuffix j
+  let suffix := fmtDepthHistogram j ++ fmtSeedSuffix j
   match fmtJson (j.getObjValD "result") with
-  | "found_violation" => fmtViolation j seed
+  | "found_violation" => fmtViolation j suffix
   | "no_violation_found" =>
       if isNoInitialStatesTermination j then
-        m!"✅ No initial states available after applying state constraints{seed}"
+        m!"✅ No initial states available after applying state constraints{suffix}"
       else
-        m!"✅ No violation in {fmtJson (j.getObjValD "traces_run")} traces{seed}"
-  | "cancelled" => m!"⚠️ Cancelled{seed}"
+        m!"✅ No violation in {fmtJson (j.getObjValD "traces_run")} traces{suffix}"
+  | "cancelled" => m!"⚠️ Cancelled{suffix}"
   | r => fmtUnexpected r j
 
 private def formatSymbolicTraceResult (j : Json) : MessageData :=
