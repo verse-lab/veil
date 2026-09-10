@@ -994,11 +994,12 @@ where
   allocModelCheckContext (mod : Module) (stx : Syntax)
       (parallelCfg : Option ModelChecker.ParallelConfig)
       (resultKind : TraceDisplay.ResultKind) : CommandElabM ModelCheckContext := do
-    let actionLabels ← getActionLabelNames mod
-    let details : ModelChecker.Concrete.ProgressDetails :=
+    let details : ModelChecker.Concrete.ProgressDetails ← do
       match resultKind with
-      | .simulate => .simulation {}
-      | _ => .modelCheck { allActionLabels := actionLabels }
+      | .simulate => pure <| .simulation {}
+      | _ =>
+        let actionLabels ← getActionLabelNames mod
+        pure <|.modelCheck { allActionLabels := actionLabels }
     let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance details
     let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
     return { mod, stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind }
@@ -1018,10 +1019,6 @@ where
   modelCheckerCommandSpec : ModelChecker.Compilation.CompiledCommandSpec := {
     exportedName := "modelCheckerResult"
     supportsParallelConfig := true
-  }
-
-  simulateCommandSpec : ModelChecker.Compilation.CompiledCommandSpec := {
-    exportedName := "simulateResult"
   }
 
   /-- Run the compiled binary and log the result. -/
@@ -1198,6 +1195,10 @@ where
 
     ModelChecker.displayStreamingProgress stx ctx.instanceId
 
+private def simulateCommandSpec : ModelChecker.Compilation.CompiledCommandSpec := {
+  exportedName := "simulateResult"
+}
+
 /-- Build the progress-aware simulator runtime call syntax. -/
 private def mkSimulatorRuntimeCall (mod : Module) (instTerm theoryTerm : Term)
     (sp : Term) (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Term := do
@@ -1273,7 +1274,7 @@ private def runSimulateBinaryAndLogResult (ctx : ModelCheckContext) (buildFolder
     (sourceFile : String) (commandId : String) : CommandElabM Unit := do
   let some binPath ← elabModelCheck.verifyBinaryExists buildFolder ctx.instanceId | return
   let some combinedJson ← elabModelCheck.runBinaryForJson binPath #[] ctx.instanceId ctx.cancelToken | return
-  ModelChecker.Compilation.markRegistryFinished sourceFile elabModelCheck.simulateCommandSpec commandId buildFolder
+  ModelChecker.Compilation.markRegistryFinished sourceFile simulateCommandSpec commandId buildFolder
   finishWithSimulationResult ctx combinedJson
 
 private def elabSimulateInternalMode (mod : Module) (callExpr : Term) : CommandElabM Unit := do
@@ -1310,7 +1311,7 @@ private def elabSimulateCompiledMode (mod : Module) (stx : Syntax)
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
       let some buildFolder ← elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId ctx.cancelToken
-        elabModelCheck.simulateCommandSpec | return
+        simulateCommandSpec | return
       if ← elabModelCheck.checkCancelled ctx.cancelToken ctx.instanceId then return
       runSimulateBinaryAndLogResult ctx buildFolder sourceFile commandId
     catch e : Exception =>
@@ -1330,7 +1331,7 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
   let compilationCancelTk ← IO.CancelToken.new
   liftIO <| ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId (some compilationCancelTk)
   let finishCompilation (buildFolder : System.FilePath) : IO Unit := do
-    ModelChecker.Compilation.markRegistryFinished sourceFile elabModelCheck.simulateCommandSpec commandId buildFolder
+    ModelChecker.Compilation.markRegistryFinished sourceFile simulateCommandSpec commandId buildFolder
     ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
   let interpretedComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
@@ -1351,7 +1352,7 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
       let some buildFolder ← elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
-        elabModelCheck.simulateCommandSpec | do
+        simulateCommandSpec | do
           ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
           return
       if (← ModelChecker.Concrete.isViolationFound ctx.instanceId) || (← IO.hasFinished interpretedTask) ||
