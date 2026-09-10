@@ -3,9 +3,20 @@ import Veil.Core.Tools.ModelChecker.Simulation.Basic
 namespace Veil.ModelChecker.Simulation
 open Lean
 
+/--
+Render the verdict using the `ModelCheckingResult` encoding, so that both commands
+produce the same shape for the cases they share.
+
+The `none` case is deliberately built by hand rather than going through
+`ModelCheckingResult.noViolationFound`: that constructor demands an explored-state
+count and a `TerminationReason`, and simulation has neither. Simulation reports the
+absence of a violation through `SimulateResult.terminationReason` and `tracesRun`
+instead -- see the table on `SimulateResult`.
+-/
 private def resultToJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
   (result : Option (SimulationResult ρ σ κ)) : Json :=
   match result with
+  -- `Json.null` stands in for the state fingerprint, which simulation does not have.
   | some (.foundViolation violation trace) =>
       toJson (ModelCheckingResult.foundViolation Json.null violation (some trace) : ModelCheckingResult ρ σ κ Json)
   | some .cancelled =>

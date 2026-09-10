@@ -109,6 +109,9 @@ def formatModelCheckingResult (j : Json) : MessageData :=
     m!"❌ Violation: {fmtJson (v.getObjValD "kind")}{violates}{traceMsg}{fmtSeedSuffix j}"
   | "no_violation_found" =>
     let trace := j.getObjValD "trace"
+    -- NOTE: The `no_initial_states` test must stay ahead of the `traces_run` one.
+    -- `#simulate` reports that case with `traces_run = 0`, which is not `.null`, so
+    -- swapping the two branches silently degrades it to "No violation in 0 traces".
     if trace != .null then m!"✅ Satisfying trace found\n{formatTrace trace}{fmtSeedSuffix j}"
     else if isNoInitialStatesTermination j then
       m!"✅ No initial states available after applying state constraints{fmtSeedSuffix j}"
