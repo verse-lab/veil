@@ -1040,7 +1040,7 @@ where
   compileModel (mod : Module) (sourceFile : String) (modelSource : String)
       (commandId : String) (instanceId : Nat) (cancelToken : IO.CancelToken)
       (command : ModelChecker.Compilation.CompiledCommandSpec) : IO (Option System.FilePath) := do
-    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString command commandId
+    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString command
     ModelChecker.Compilation.markRegistryInProgress sourceFile command commandId instanceId buildFolder
     let result ← ModelChecker.Compilation.runProcessWithStatusCallback
       sourceFile

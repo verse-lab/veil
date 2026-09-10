@@ -81,8 +81,17 @@ def getBuildBaseDir : IO System.FilePath := do
   let pwd ← IO.currentDir
   return pwd / ".lake" / "model_checker_builds"
 
-/-- Generate a build folder name based on the source file and exported command. -/
-def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec) (_commandId : String) : IO System.FilePath := do
+/-- Generate the build folder for one compiled command in one source file.
+
+Keyed by command *kind*, not by invocation: two `#simulate` commands in the same
+file share a folder, so the second reuses the first one's Lake build cache instead
+of paying for a full rebuild. `CompilationKey` is keyed per invocation instead, so
+neither supersedes the other -- which does mean two invocations of the same command
+in one file can be building into this folder at the same time.
+
+The hash disambiguates same-named files in different directories, which would
+otherwise map to the same folder. -/
+def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec) : IO System.FilePath := do
   let stem := System.FilePath.mk sourceFile |>.fileStem.getD "unrecognized_model"
   let suffix := toString (hash (sourceFile ++ ":" ++ command.exportedName))
   let baseDir ← getBuildBaseDir
@@ -171,9 +180,9 @@ def main (args : List String) : IO Unit := do
 Returns the absolute path to the build folder. Generated inputs are overwritten
 on each call while preserving the Lake build cache in the folder. -/
 def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String)
-    (command : CompiledCommandSpec) (commandId : String) : IO System.FilePath := do
+    (command : CompiledCommandSpec) : IO System.FilePath := do
   let veilPath ← IO.currentDir
-  let buildFolder ← generateBuildFolderName sourceFile command commandId
+  let buildFolder ← generateBuildFolderName sourceFile command
   IO.FS.createDirAll buildFolder
   -- Write the lakefile
   IO.FS.writeFile (buildFolder / "lakefile.lean") lakefileTemplate
@@ -236,25 +245,5 @@ def runProcessWithStatusCallback (sourceFile : String) (command : CompiledComman
   match ← IO.wait waitTask with
   | .ok exitCode => return { exitCode, stdout := ← stdoutAccum.get, stderr := ← stderrAccum.get, interrupted }
   | .error err => return { exitCode := 1, stdout := ← stdoutAccum.get, stderr := s!"{← stderrAccum.get}\nIO error: {err}", interrupted }
-
--- /-- Clean up all build folders older than the specified age (in milliseconds). -/
--- def cleanupOldBuildFolders (maxAgeMs : Nat := 24 * 60 * 60 * 1000) : IO Nat := do
---   let now ← IO.monoMsNow
---   let mut count := 0
---   if !(← getBuildBaseDir.pathExists) then return 0
-
---   for entry in ← getBuildBaseDir.readDir do
---     -- Check if it's a directory
---     let isDir ← entry.path.isDir
---     if isDir then
---       -- Try to parse the timestamp from the folder name (format: stem_timestamp_random)
---       let parts := entry.fileName.splitOn "_"
---       if parts.length >= 2 then
---         let timestampStr := parts[parts.length - 2]!
---         if let some timestamp := timestampStr.toNat? then
---           if now - timestamp > maxAgeMs then
---             IO.FS.removeDirAll entry.path
---             count := count + 1
---   return count
 
 end Veil.ModelChecker.Compilation

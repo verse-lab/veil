@@ -34,15 +34,23 @@ private def simulateCommand : CompiledCommandSpec := {
 
 private def registryKeySourceFile := "compilation-registry-key.lean"
 
--- The build folder depends on the command, but not on the individual invocation.
+-- The build folder depends on the command but not on the individual invocation;
+-- the latter is now enforced by the signature of `generateBuildFolderName`, which
+-- cannot see the command id at all.
 #eval do
-  let modelCheckFolderA ← generateBuildFolderName registryKeySourceFile modelCheckCommand "model-check-a"
-  let modelCheckFolderB ← generateBuildFolderName registryKeySourceFile modelCheckCommand "model-check-b"
-  let simulateFolderA ← generateBuildFolderName registryKeySourceFile simulateCommand "simulate-a"
-  expect "two invocations of the same command must share a build folder"
-    (toString modelCheckFolderA == toString modelCheckFolderB)
+  let modelCheckFolder ← generateBuildFolderName registryKeySourceFile modelCheckCommand
+  let simulateFolder ← generateBuildFolderName registryKeySourceFile simulateCommand
   expect "#model_check and #simulate must not share a build folder"
-    (toString modelCheckFolderA != toString simulateFolderA)
+    (toString modelCheckFolder != toString simulateFolder)
+
+-- Two files with the same name in different directories must not collide. Keying
+-- the folder on the file stem alone used to let them clobber each other's
+-- generated sources while both were registered as current.
+#eval do
+  let inOneDir ← generateBuildFolderName (System.mkFilePath ["one", "Shared.lean"]).toString simulateCommand
+  let inAnother ← generateBuildFolderName (System.mkFilePath ["two", "Shared.lean"]).toString simulateCommand
+  expect "same-named files in different directories must not share a build folder"
+    (toString inOneDir != toString inAnother)
 
 -- Distinct invocations in one file each stay current, so none of them is killed.
 #eval do
@@ -68,13 +76,13 @@ private def registryKeySourceFile := "compilation-registry-key.lean"
   let sourceFile := "compilation-build-folder-cache.lean"
   let firstSource := "namespace CacheFirst\nend CacheFirst\n"
   let secondSource := "namespace CacheSecond\nend CacheSecond\n"
-  let firstFolder ← createBuildFolder sourceFile firstSource "CacheFirst" simulateCommand "simulate-cache"
+  let firstFolder ← createBuildFolder sourceFile firstSource "CacheFirst" simulateCommand
   try
     let cacheDir := firstFolder / ".lake" / "build"
     let cacheSentinel := cacheDir / "cache-sentinel"
     IO.FS.createDirAll cacheDir
     IO.FS.writeFile cacheSentinel "cached"
-    let secondFolder ← createBuildFolder sourceFile secondSource "CacheSecond" simulateCommand "simulate-cache"
+    let secondFolder ← createBuildFolder sourceFile secondSource "CacheSecond" simulateCommand
     expect "recompiling must reuse the same build folder"
       (toString firstFolder == toString secondFolder)
     expect "recompiling must not discard the Lake build cache"
