@@ -1,7 +1,7 @@
 import Veil
 
 /-!
-# A progress instance keeps its command across handoff
+# Progress-instance behaviour around handoff
 
 `resetProgressForHandoff` rebuilds the progress record when the default mode hands
 over to the compiled binary. While `Progress` was a flat structure with an optional
@@ -48,3 +48,29 @@ private def expect (message : String) (cond : Bool) : IO Unit :=
     match after.details with
     | .modelCheck m => m.allActionLabels == ["Label.a", "Label.b"] && m.diameter == 0
     | .simulation .. => false
+
+-- The Stop button must kill the background compilation too, not just the
+-- interpreted search. Before `compilationCancelTokenRef` existed, the compilation
+-- token was a local in the elaborator and `requestCancellation` could not reach it,
+-- so a cancelled run left its `lake build` running to completion.
+#eval do
+  let (id, interpretedToken) ← allocProgressInstance (.simulation {})
+  let compilationToken ← IO.CancelToken.new
+  setCompilationCancelToken id (some compilationToken)
+  let interpretedSet ← interpretedToken.isSet
+  let compilationSet ← compilationToken.isSet
+  expect "no token should be set before cancellation" (!interpretedSet && !compilationSet)
+  requestCancellation id
+  expect "cancelling must stop the interpreted run" (← interpretedToken.isSet)
+  expect "cancelling must stop the background compilation" (← compilationToken.isSet)
+
+-- Once compilation is over its token is cleared, and a later cancellation must not
+-- reach back to it.
+#eval do
+  let (id, _) ← allocProgressInstance (.modelCheck {})
+  let compilationToken ← IO.CancelToken.new
+  setCompilationCancelToken id (some compilationToken)
+  setCompilationCancelToken id none
+  requestCancellation id
+  let compilationSet ← compilationToken.isSet
+  expect "a cleared compilation token must not be cancelled" (!compilationSet)

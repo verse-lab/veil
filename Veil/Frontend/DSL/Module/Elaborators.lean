@@ -1160,24 +1160,37 @@ where
     let interpretedTask ← BaseIO.asTask (interpretedComputation ()) (prio := .dedicated)
     Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := interpretedTask }
 
-    -- Background compilation with handoff
+    -- Background compilation with handoff. The token is registered on the progress
+    -- instance so that `requestCancellation` (the Stop button) also kills the
+    -- background `lake build`, not just the interpreted search.
     let compilationCancelTk ← IO.CancelToken.new
+    liftIO <| ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId (some compilationCancelTk)
+    let finishCompilation (buildFolder : System.FilePath) : IO Unit := do
+      ModelChecker.Compilation.markRegistryFinished sourceFile modelCheckerCommandSpec commandId buildFolder
+      ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
         let some buildFolder ← compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
-          modelCheckerCommandSpec | return
+          modelCheckerCommandSpec | do
+            ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
+            return
         -- Skip handoff if violation found or interpreted finished
         if (← ModelChecker.Concrete.isViolationFound ctx.instanceId) || (← IO.hasFinished interpretedTask) then
-          ModelChecker.Compilation.markRegistryFinished sourceFile modelCheckerCommandSpec commandId buildFolder
+          finishCompilation buildFolder
           return
         -- Handoff to compiled binary
         ModelChecker.Concrete.requestHandoff ctx.instanceId
         ctx.cancelToken.set
         let _ ← IO.wait interpretedTask
-        let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | return
+        let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | do
+          ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
+          return
+        -- Compilation is done; the binary run is guarded by the fresh token instead.
+        ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
         let ctxWithNewToken := { ctx with cancelToken := newCancelToken }
         runBinaryAndLogResult ctxWithNewToken buildFolder sourceFile modelCheckerCommandSpec commandId
       catch e : Exception =>
+        ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
         ModelChecker.Concrete.updateCompilationStatus ctx.instanceId (.failed s!"{← e.toMessageData.toString}")
     ) compilationCancelTk
     let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
@@ -1355,7 +1368,10 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
       if (← ModelChecker.Concrete.getResultJson ctx.instanceId).isSome || (← ModelChecker.Concrete.isCancelled ctx.instanceId) then
         finishCompilation buildFolder
         return
-      let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | return
+      let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | do
+          ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
+          return
+      -- Compilation is done; the binary run is guarded by the fresh token instead.
       ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
       let ctxWithNewToken := { ctx with cancelToken := newCancelToken }
       runSimulateBinaryAndLogResult ctxWithNewToken buildFolder sourceFile commandId
