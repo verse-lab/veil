@@ -936,18 +936,24 @@ where
         match Json.parse line >>= FromJson.fromJson? (α := ModelChecker.Concrete.Progress) with
         | .ok p => if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then
             refs.progressRef.modify fun old =>
-              let history := match p.simulation with
-                | some _ => old.history
-                | none =>
-                  let historyPoint : ModelChecker.Concrete.ProgressHistoryPoint := {
-                    timestamp := p.elapsedMs
-                    diameter := p.diameter
-                    statesFound := p.statesFound
-                    distinctStates := p.distinctStates
-                    queue := p.queue
-                  }
-                  old.history.push historyPoint
-              { p with allActionLabels := old.allActionLabels, history }
+              match p.details with
+              -- Simulation reports no time series, so the incoming value stands as is.
+              | .simulation .. => p
+              | .modelCheck m =>
+                let oldMetrics : ModelChecker.Concrete.ModelCheckProgress :=
+                  match old.details with
+                  | .modelCheck om => om
+                  | .simulation .. => default
+                let historyPoint : ModelChecker.Concrete.ProgressHistoryPoint := {
+                  timestamp := p.elapsedMs
+                  diameter := m.diameter
+                  statesFound := m.statesFound
+                  distinctStates := m.distinctStates
+                  queue := m.queue
+                }
+                { p with details := .modelCheck { m with
+                    allActionLabels := oldMetrics.allActionLabels
+                    history := oldMetrics.history.push historyPoint } }
         | .error _ => stderrAccum.modify (· ++ line)
     let stdoutTask ← IO.asTask (prio := .dedicated) child.stdout.readToEnd
     let waitTask ← IO.asTask (prio := .dedicated) child.wait
@@ -988,7 +994,12 @@ where
   allocModelCheckContext (mod : Module) (stx : Syntax)
       (parallelCfg : Option ModelChecker.ParallelConfig)
       (resultKind : TraceDisplay.ResultKind) : CommandElabM ModelCheckContext := do
-    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (← getActionLabelNames mod)
+    let actionLabels ← getActionLabelNames mod
+    let details : ModelChecker.Concrete.ProgressDetails :=
+      match resultKind with
+      | .simulate => .simulation {}
+      | _ => .modelCheck { allActionLabels := actionLabels }
+    let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance details
     let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
     return { mod, stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind }
 

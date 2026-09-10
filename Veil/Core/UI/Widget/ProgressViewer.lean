@@ -500,20 +500,20 @@ private def metricsHistoryHtml (history : Array ProgressHistoryPoint) : Html := 
 /-- Convert Progress to Html for display, with optional Stop button. Uses TLC-style terminology. -/
 def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html := Id.run do
   let (progressRows, metricsHistory, actionCoverage) : Array Html × Html × Html :=
-    match p.simulation with
-    | some sim =>
+    match p.details with
+    | .simulation sim =>
         (#[
           statRow "Traces Run:" (toString sim.tracesRun),
           statRow "Max Traces:" (toString sim.maxTraces),
           statRow "Depth:" (toString sim.depth),
         ], .text "", .text "")
-    | none =>
+    | .modelCheck m =>
         (#[
-          statRow "Diameter:" (toString p.diameter),
-          statRow "States Found:" (toString p.statesFound),
-          statRow "Distinct States:" (toString p.distinctStates),
-          statRow "Queue:" (toString p.queue),
-        ], metricsHistoryHtml p.history, actionCoverageHtml p.actionStats p.allActionLabels)
+          statRow "Diameter:" (toString m.diameter),
+          statRow "States Found:" (toString m.statesFound),
+          statRow "Distinct States:" (toString m.distinctStates),
+          statRow "Queue:" (toString m.queue),
+        ], metricsHistoryHtml m.history, actionCoverageHtml m.actionStats m.allActionLabels)
   return <div className="model-checker-progress" style={json% {"fontFamily": "monospace", "padding": "8px"}}>
     {if p.isRunning then
       <div style={json% {"marginTop": "8px", "display": "flex", "alignItems": "center", "gap": "12px"}}>
@@ -570,10 +570,12 @@ private def errorBox (errorMsg : String) : Html :=
     </pre>
   </div>
 
-/- `Progress.simulation` is the typed discriminator, so the widget does not have to
-guess the command from whichever keys the result JSON happens to carry. -/
+/- The progress instance already knows which command it belongs to, so the widget
+does not have to guess it from whichever keys the result JSON happens to carry. -/
 private def resultKindOf (p : Progress) : Veil.TraceDisplay.ResultKind :=
-  if p.simulation.isSome then .simulate else .modelCheck
+  match p.details with
+  | .modelCheck .. => .modelCheck
+  | .simulation .. => .simulate
 
 private def noResultData : Html :=
   <div style={json% {"color": "#cc6600"}}><i>No result data available</i></div>
