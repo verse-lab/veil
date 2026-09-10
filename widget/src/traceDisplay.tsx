@@ -45,17 +45,13 @@ interface Violation {
 }
 
 interface EarlyTerminationCondition {
-  kind: "found_violating_state" | "deadlock_occurred" | "reached_depth_bound" | "reached_trace_limit";
+  kind: "found_violating_state" | "deadlock_occurred" | "reached_depth_bound";
   depth?: number;
-  traces_run?: number;
-  max_traces?: number;
 }
 
 interface TerminationReason {
-  kind: "explored_all_reachable_states" | "early_termination" | "reached_trace_limit" | "no_initial_states";
+  kind: "explored_all_reachable_states" | "early_termination" | "no_initial_states";
   condition?: EarlyTerminationCondition;
-  traces_run?: number;
-  max_traces?: number;
 }
 
 interface TraceData {
@@ -392,17 +388,6 @@ const ResultHeader: React.FC<{
     if (reason.kind === "explored_all_reachable_states") {
       return count !== undefined ? `Explored all reachable states (${count})` : `Explored all reachable states`;
     }
-    if (reason.kind === "reached_trace_limit") {
-      const tracesRun = reason.traces_run;
-      const maxTraces = reason.max_traces;
-      if (tracesRun !== undefined && maxTraces !== undefined) {
-        return `Checked ${tracesRun}/${maxTraces} traces`;
-      }
-      if (tracesRun !== undefined) {
-        return `Checked ${tracesRun} traces`;
-      }
-      return `Checked configured trace budget`;
-    }
     if (reason.kind === "no_initial_states") {
       return `No initial states available after applying state constraints`;
     }
@@ -414,17 +399,6 @@ const ResultHeader: React.FC<{
           return `Stopped: deadlock occurred${countSuffix}`;
         case "reached_depth_bound":
           return `Reached depth bound ${reason.condition.depth}${countSuffix}`;
-        case "reached_trace_limit":
-          if (tracesRun !== undefined && maxTraces !== undefined) {
-            return `Checked ${tracesRun}/${maxTraces} traces`;
-          }
-          if (reason.condition.traces_run !== undefined && reason.condition.max_traces !== undefined) {
-            return `Checked ${reason.condition.traces_run}/${reason.condition.max_traces} traces`;
-          }
-          if (reason.condition.traces_run !== undefined) {
-            return `Checked ${reason.condition.traces_run} traces`;
-          }
-          return `Checked configured trace budget`;
         default:
           return `Early termination${countSuffix}`;
       }

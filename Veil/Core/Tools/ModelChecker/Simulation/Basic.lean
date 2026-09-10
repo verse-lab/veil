@@ -26,6 +26,25 @@ instance : ToJson SimulationTerminationReason where
   toJson
     | .noInitialStates => Json.mkObj [("kind", "no_initial_states")]
 
+/--
+The outcome of a `#simulate` run, together with the metadata reported to the user.
+
+`SimulationResult` has no `noViolationFound` constructor: the absence of a
+violation is encoded by the pair `(result, terminationReason)`.
+
+| Situation              | `result`                    | `terminationReason`     |
+| ---------------------- | --------------------------- | ----------------------- |
+| Violation found        | `some (.foundViolation ..)` | `none`                  |
+| Cancelled              | `some .cancelled`           | `none`                  |
+| Trace budget exhausted | `none`                      | `none`                  |
+| No initial states      | `none`                      | `some .noInitialStates` |
+
+The third row is the only way to reach `result = none` with no reason, and it
+always comes with `tracesRun = maxTraces`. It is the simulation counterpart of
+the model checker terminating early on a bound, but it needs no payload beyond
+`tracesRun`, so it is left implicit rather than named in
+`SimulationTerminationReason`.
+-/
 structure SimulateResult (ρ σ κ : Type) where
   result : Option (SimulationResult ρ σ κ)
   tracesRun : Nat
