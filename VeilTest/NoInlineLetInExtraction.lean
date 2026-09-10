@@ -97,9 +97,9 @@ safety [nonneg] counter ≥ 0
 #model_check interpreted { node := Unit } { flag := false }
 
 #assert_join_points_shared JoinPointSharingSequential.step.ext
-  in JoinPointSharingSequential.NextAct.extracted
-#assert_occurs_once 90001 in JoinPointSharingSequential.NextAct.extracted
-#assert_tree_size_below 40000 in JoinPointSharingSequential.NextAct.extracted
+  in JoinPointSharingSequential.step.ext.extracted
+#assert_occurs_once 90001 in JoinPointSharingSequential.step.ext.extracted
+#assert_tree_size_below 40000 in JoinPointSharingSequential.step.ext.extracted
 
 end JoinPointSharingSequential
 
@@ -142,9 +142,9 @@ safety [nonneg] counter ≥ 0
 #model_check interpreted { node := Unit } { flag := false }
 
 #assert_join_points_shared JoinPointSharingBehindStateReads.step.ext
-  in JoinPointSharingBehindStateReads.NextAct.extracted
-#assert_occurs_once 90002 in JoinPointSharingBehindStateReads.NextAct.extracted
-#assert_tree_size_below 20000 in JoinPointSharingBehindStateReads.NextAct.extracted
+  in JoinPointSharingBehindStateReads.step.ext.extracted
+#assert_occurs_once 90002 in JoinPointSharingBehindStateReads.step.ext.extracted
+#assert_tree_size_below 20000 in JoinPointSharingBehindStateReads.step.ext.extracted
 
 end JoinPointSharingBehindStateReads
 
@@ -179,9 +179,9 @@ safety [nonneg] counter ≥ 0
 #model_check interpreted { } { flag := false }
 
 #assert_join_points_shared JoinPointSharingOneMutableLocal.step.ext
-  in JoinPointSharingOneMutableLocal.NextAct.extracted
-#assert_occurs_once 90003 in JoinPointSharingOneMutableLocal.NextAct.extracted
-#assert_tree_size_below 10000 in JoinPointSharingOneMutableLocal.NextAct.extracted
+  in JoinPointSharingOneMutableLocal.step.ext.extracted
+#assert_occurs_once 90003 in JoinPointSharingOneMutableLocal.step.ext.extracted
+#assert_tree_size_below 10000 in JoinPointSharingOneMutableLocal.step.ext.extracted
 
 #guard exactlyOneSuccess (__veil_exec_action% {} { flag := true } { counter := 0 } step)
   fun _ state => state.counter == 90009
@@ -230,9 +230,9 @@ safety [nonneg] counter ≥ 0
 #model_check interpreted { } { flag := false }
 
 #assert_join_points_shared JoinPointSharingMultipleMutableLocals.step.ext
-  in JoinPointSharingMultipleMutableLocals.NextAct.extracted
-#assert_occurs_once 90004 in JoinPointSharingMultipleMutableLocals.NextAct.extracted
-#assert_tree_size_below 15000 in JoinPointSharingMultipleMutableLocals.NextAct.extracted
+  in JoinPointSharingMultipleMutableLocals.step.ext.extracted
+#assert_occurs_once 90004 in JoinPointSharingMultipleMutableLocals.step.ext.extracted
+#assert_tree_size_below 15000 in JoinPointSharingMultipleMutableLocals.step.ext.extracted
 
 #guard exactlyOneSuccess (__veil_exec_action% {} { flag := true } { counter := 0 } step)
   fun _ state => state.counter == 90030
@@ -289,9 +289,9 @@ safety [nonneg] counter ≥ 0
 #model_check interpreted {} { flag := false }
 
 #assert_join_points_shared JoinPointSharingZeroArity.step.ext
-  in JoinPointSharingZeroArity.NextAct.extracted
-#assert_occurs_once 90013 in JoinPointSharingZeroArity.NextAct.extracted
-#assert_tree_size_below 20000 in JoinPointSharingZeroArity.NextAct.extracted
+  in JoinPointSharingZeroArity.step.ext.extracted
+#assert_occurs_once 90013 in JoinPointSharingZeroArity.step.ext.extracted
+#assert_tree_size_below 20000 in JoinPointSharingZeroArity.step.ext.extracted
 
 #guard exactlyOneSuccess (__veil_exec_action% {} { flag := true } { counter := 0, last := 0 } step)
   fun _ state => state.counter == 7 && state.last == 90013
@@ -346,9 +346,9 @@ safety [nonneg] counter ≥ 0
 #model_check interpreted {} { flag := false }
 
 #assert_join_points_shared JoinPointSharingParameterizedProgram.step.ext
-  in JoinPointSharingParameterizedProgram.NextAct.extracted
-#assert_occurs_once 90014 in JoinPointSharingParameterizedProgram.NextAct.extracted
-#assert_tree_size_below 20000 in JoinPointSharingParameterizedProgram.NextAct.extracted
+  in JoinPointSharingParameterizedProgram.step.ext.extracted
+#assert_occurs_once 90014 in JoinPointSharingParameterizedProgram.step.ext.extracted
+#assert_tree_size_below 20000 in JoinPointSharingParameterizedProgram.step.ext.extracted
 
 #guard exactlyOneSuccess (__veil_exec_action% {} { flag := true } { counter := 0, last := 0 } step)
   fun _ state => state.counter == 10 && state.last == 90014
@@ -405,10 +405,10 @@ safety [paired] left = right
 #guard_msgs (drop info) in
 #model_check interpreted {} { flag := false }
 
-#assert_occurs_once 90011 in LetSharingAdditionalCases.NextAct.extracted
-#assert_occurs_once 90012 in LetSharingAdditionalCases.NextAct.extracted
+#assert_occurs_once 90011 in LetSharingAdditionalCases.value.ext.extracted
+#assert_occurs_once 90012 in LetSharingAdditionalCases.nested_value.ext.extracted
 #assert_join_points_shared LetSharingAdditionalCases.nested_value.ext
-  in LetSharingAdditionalCases.NextAct.extracted
+  in LetSharingAdditionalCases.nested_value.ext.extracted
 
 def initial : State FieldConcreteType := { left := 0, right := 0, bit := true }
 
