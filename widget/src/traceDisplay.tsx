@@ -93,10 +93,16 @@ type ModelCheckingResult =
       trace: TraceData;
     };
 
+/** Which command produced the result. Mirrors `Veil.TraceDisplay.ResultKind`;
+ *  the renderer branches on this instead of guessing from which keys are present. */
+// Constructor names of the Lean inductive, as produced by its derived `ToJson`.
+type ResultKindTag = "modelCheck" | "simulate" | "symbolicTrace";
+
 interface ModelCheckerViewProps {
   result: ModelCheckingResult;
   layout?: "vertical" | "horizontal";
   rawHtml?: Html;
+  kind?: ResultKindTag;
 }
 
 /* ===================== Render ===================== */
@@ -307,7 +313,8 @@ const ResultHeader: React.FC<{
   tracesRun?: number;
   maxTraces?: number;
   seed?: number;
-}> = ({ resultType, violation, exploredStates, terminationReason, tracesRun, maxTraces, seed }) => {
+  kind: ResultKindTag;
+}> = ({ resultType, violation, exploredStates, terminationReason, tracesRun, maxTraces, seed, kind }) => {
   const seedDetails = seed !== undefined ? (
     <div className="result-details">
       <strong>Seed:</strong> {seed}
@@ -315,11 +322,13 @@ const ResultHeader: React.FC<{
   ) : null;
 
   if (resultType === "cancelled") {
-    const details = tracesRun !== undefined && maxTraces !== undefined
-      ? `Checked ${tracesRun}/${maxTraces} traces before cancellation`
-      : tracesRun !== undefined
-        ? `Checked ${tracesRun} traces before cancellation`
-        : 'Run was cancelled before completion';
+    const details = kind !== "simulate"
+      ? 'Model checking was cancelled before completion'
+      : tracesRun !== undefined && maxTraces !== undefined
+        ? `Checked ${tracesRun}/${maxTraces} traces before cancellation`
+        : tracesRun !== undefined
+          ? `Checked ${tracesRun} traces before cancellation`
+          : 'Simulation was cancelled before completion';
     return (
       <div className="result-header result-cancelled">
         <span className="result-icon">⊘</span>
@@ -373,23 +382,26 @@ const ResultHeader: React.FC<{
 
   // no_violation_found
   const getTerminationText = (reason: TerminationReason | undefined, count: number | undefined): string | null => {
-    const countSuffix = count !== undefined ? ` (explored ${count} states)` : '';
-    const countText = count !== undefined ? `Explored ${count} states` : null;
-
-    if (!reason) {
+    // `#simulate`: see the table on `SimulateResult` for the cases it can produce.
+    if (kind === "simulate") {
+      if (reason?.kind === "no_initial_states") {
+        return `No initial states available after applying state constraints`;
+      }
       if (tracesRun !== undefined && maxTraces !== undefined) {
         return `Checked ${tracesRun}/${maxTraces} traces`;
       }
       if (tracesRun !== undefined) {
         return `Checked ${tracesRun} traces`;
       }
-      return countText;
+      return null;
     }
+
+    const countSuffix = count !== undefined ? ` (explored ${count} states)` : '';
+    const countText = count !== undefined ? `Explored ${count} states` : null;
+
+    if (!reason) return countText;
     if (reason.kind === "explored_all_reachable_states") {
       return count !== undefined ? `Explored all reachable states (${count})` : `Explored all reachable states`;
-    }
-    if (reason.kind === "no_initial_states") {
-      return `No initial states available after applying state constraints`;
     }
     if (reason.kind === "early_termination" && reason.condition) {
       switch (reason.condition.kind) {
@@ -436,6 +448,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   result,
   layout = "vertical",
   rawHtml,
+  kind = "modelCheck",
 }) => {
   const isVertical = layout === "vertical";
   const [showRawJson, setShowRawJson] = React.useState(false);
@@ -821,6 +834,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                 {result.result === "cancelled" ? (
                   <ResultHeader
                     resultType="cancelled"
+                    kind={kind}
                     tracesRun={result.traces_run}
                     maxTraces={result.max_traces}
                     seed={result.seed}
@@ -828,6 +842,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                 ) : result.result === "no_violation_found" ? (
                   <ResultHeader
                     resultType="no_violation_found"
+                    kind={kind}
                     exploredStates={result.explored_states}
                     terminationReason={result.termination_reason}
                     tracesRun={result.traces_run}
@@ -837,6 +852,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                 ) : (
                   <ResultHeader
                     resultType="found_violation"
+                    kind={kind}
                     violation={result.violation}
                     seed={result.seed}
                   />

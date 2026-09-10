@@ -5,6 +5,24 @@ import Veil.Core.Tools.ModelChecker.Interface
 import ProofWidgets.Component.Basic
 import ProofWidgets.Component.HtmlDisplay
 
+namespace Veil.TraceDisplay
+open Lean
+
+/-- Which command produced the result being rendered.
+
+Each producer emits a different JSON shape, so each gets its own renderer rather
+than one renderer guessing from whichever keys happen to be present. -/
+inductive ResultKind where
+  /-- `#model_check`, i.e. a `ModelCheckingResult`. -/
+  | modelCheck
+  /-- `#simulate`, i.e. `SimulateResult.toDisplayJson`. -/
+  | simulate
+  /-- `sat trace` / `unsat trace`, i.e. a trace extracted from a VC. -/
+  | symbolicTrace
+deriving Inhabited, BEq, ToJson, FromJson
+
+end Veil.TraceDisplay
+
 section
 namespace ProofWidgets
 open Lean Server
@@ -17,6 +35,9 @@ structure TraceDisplayProps where
   layout : String := "vertical"
   /-- Optional raw HTML representation of the SMT model, for displaying the unprocessed model. -/
   rawHtml : Option Html := none
+  /-- Which command produced `result`. The widget picks its renderer from this
+  rather than from which keys happen to be present. -/
+  kind : Veil.TraceDisplay.ResultKind := .modelCheck
 deriving RpcEncodable
 
 @[widget_module]
@@ -25,8 +46,10 @@ def TraceDisplayViewer : Component TraceDisplayProps where
 
 /-- Display a TraceDisplayViewer widget with the given result JSON.
     This can be called with a runtime Json value. -/
-def displayTraceWidget (stx : Syntax) (resultJson : Json) : Elab.Command.CommandElabM Unit := do
-  let props : TraceDisplayProps := { result := resultJson, layout := "vertical" }
+def displayTraceWidget (stx : Syntax) (kind : Veil.TraceDisplay.ResultKind)
+    (resultJson : Json) : Elab.Command.CommandElabM Unit := do
+  let props : TraceDisplayProps :=
+    { result := resultJson, layout := "vertical", kind }
   let html := Html.ofComponent TraceDisplayViewer props #[]
   Elab.Command.liftCoreM <| Widget.savePanelWidgetInfo
     (hash HtmlDisplayPanel.javascript)
@@ -97,29 +120,57 @@ private def isNoInitialStatesTermination (j : Json) : Bool :=
   | .obj reason => fmtJson ((Json.obj reason).getObjValD "kind") == "no_initial_states"
   | _ => false
 
-def formatModelCheckingResult (j : Json) : MessageData :=
+private def fmtViolation (j : Json) (suffix : String := "") : MessageData :=
+  let v := j.getObjValD "violation"
+  let violates := match v.getObjValD "violates" with
+    | .arr arr => if arr.isEmpty then "" else s!" (violates: {", ".intercalate (arr.map fmtJson).toList})"
+    | _ => ""
+  let trace := j.getObjValD "trace"
+  let traceMsg := if trace == .null then "" else s!"\n{formatTrace trace}"
+  m!"❌ Violation: {fmtJson (v.getObjValD "kind")}{violates}{traceMsg}{suffix}"
+
+/-- Fallback for an unrecognised `result`, and for error payloads. Shared by all
+renderers, since an error is not specific to any one command. -/
+private def fmtUnexpected (result : String) (j : Json) : MessageData :=
+  if j.getObjValD "error" != .null then m!"💥 Error: {fmtJson (j.getObjValD "error")}"
+  else m!"Unknown: {result}"
+
+private def formatModelCheckResult (j : Json) : MessageData :=
   match fmtJson (j.getObjValD "result") with
-  | "found_violation" =>
-    let v := j.getObjValD "violation"
-    let violates := match v.getObjValD "violates" with
-      | .arr arr => if arr.isEmpty then "" else s!" (violates: {", ".intercalate (arr.map fmtJson).toList})"
-      | _ => ""
-    let trace := j.getObjValD "trace"
-    let traceMsg := if trace == .null then "" else s!"\n{formatTrace trace}"
-    m!"❌ Violation: {fmtJson (v.getObjValD "kind")}{violates}{traceMsg}{fmtSeedSuffix j}"
+  | "found_violation" => fmtViolation j
   | "no_violation_found" =>
-    let trace := j.getObjValD "trace"
-    -- NOTE: The `no_initial_states` test must stay ahead of the `traces_run` one.
-    -- `#simulate` reports that case with `traces_run = 0`, which is not `.null`, so
-    -- swapping the two branches silently degrades it to "No violation in 0 traces".
-    if trace != .null then m!"✅ Satisfying trace found\n{formatTrace trace}{fmtSeedSuffix j}"
-    else if isNoInitialStatesTermination j then
-      m!"✅ No initial states available after applying state constraints{fmtSeedSuffix j}"
-    else if j.getObjValD "traces_run" != .null then
-      m!"✅ No violation in {fmtJson (j.getObjValD "traces_run")} traces{fmtSeedSuffix j}"
-    else
-      m!"✅ No violation (explored {fmtJson (j.getObjValD "explored_states")} states){fmtSeedSuffix j}"
-  | "cancelled" => m!"⚠️ Cancelled{fmtSeedSuffix j}"
-  | r => if j.getObjValD "error" != .null then m!"💥 Error: {fmtJson (j.getObjValD "error")}" else m!"Unknown: {r}"
+      m!"✅ No violation (explored {fmtJson (j.getObjValD "explored_states")} states)"
+  | "cancelled" => m!"⚠️ Cancelled"
+  | r => fmtUnexpected r j
+
+/-- See the table on `SimulateResult` for the cases `#simulate` can produce. -/
+private def formatSimulateResult (j : Json) : MessageData :=
+  let seed := fmtSeedSuffix j
+  match fmtJson (j.getObjValD "result") with
+  | "found_violation" => fmtViolation j seed
+  | "no_violation_found" =>
+      if isNoInitialStatesTermination j then
+        m!"✅ No initial states available after applying state constraints{seed}"
+      else
+        m!"✅ No violation in {fmtJson (j.getObjValD "traces_run")} traces{seed}"
+  | "cancelled" => m!"⚠️ Cancelled{seed}"
+  | r => fmtUnexpected r j
+
+private def formatSymbolicTraceResult (j : Json) : MessageData :=
+  match fmtJson (j.getObjValD "result") with
+  | "found_violation" => fmtViolation j
+  | "no_violation_found" =>
+      let trace := j.getObjValD "trace"
+      if trace != .null then m!"✅ Satisfying trace found\n{formatTrace trace}"
+      else m!"✅ No violation (explored {fmtJson (j.getObjValD "explored_states")} states)"
+  | "cancelled" => m!"⚠️ Cancelled"
+  | r => fmtUnexpected r j
+
+/-- Render a result for the infoview, using the renderer for the command that
+produced it. -/
+def formatResult : ResultKind → Json → MessageData
+  | .modelCheck, j => formatModelCheckResult j
+  | .simulate, j => formatSimulateResult j
+  | .symbolicTrace, j => formatSymbolicTraceResult j
 
 end Veil.TraceDisplay

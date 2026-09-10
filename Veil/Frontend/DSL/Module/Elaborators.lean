@@ -689,6 +689,8 @@ structure ModelCheckContext where
   cancelToken : IO.CancelToken
   assertionSources : Std.HashMap AssertionId AssertionSourceInfo
   parallelCfg : Option ModelChecker.ParallelConfig
+  /-- Which command owns this context; selects the infoview renderer. -/
+  resultKind : TraceDisplay.ResultKind
 
 /-- Extract the model checking mode from the optional mode syntax. -/
 def getModelCheckingMode (modeStx : Syntax) : ModelCheckingMode :=
@@ -974,8 +976,9 @@ where
       unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
 
   /-- Log model checking result. -/
-  logModelCheckResult (stx : Syntax) (resultJson : Json) : CommandElabM Unit := do
-    let msg := TraceDisplay.formatModelCheckingResult resultJson
+  logModelCheckResult (kind : TraceDisplay.ResultKind) (stx : Syntax)
+      (resultJson : Json) : CommandElabM Unit := do
+    let msg := TraceDisplay.formatResult kind resultJson
     let isViolation := resultJson.getObjValD "result" == Json.str "found_violation" ||
                        resultJson.getObjValD "error" != .null
     let violationIsError := veil.violationIsError.get (← getOptions)
@@ -983,21 +986,22 @@ where
 
   /-- Allocate a model check context with progress tracking. -/
   allocModelCheckContext (mod : Module) (stx : Syntax)
-      (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM ModelCheckContext := do
+      (parallelCfg : Option ModelChecker.ParallelConfig)
+      (resultKind : TraceDisplay.ResultKind) : CommandElabM ModelCheckContext := do
     let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (← getActionLabelNames mod)
     let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
-    return { mod, stx, instanceId, cancelToken, assertionSources, parallelCfg }
+    return { mod, stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind }
 
   /-- Handle errors in model checking computations. -/
   handleModelCheckError (ctx : ModelCheckContext) (e : Exception) : CommandElabM Unit := do
     let json := errorJson s!"{← e.toMessageData.toString}"
-    logModelCheckResult ctx.stx json
+    logModelCheckResult ctx.resultKind ctx.stx json
     ModelChecker.Concrete.finishProgress ctx.instanceId json
 
   /-- Finish model checking with a successful result. -/
   finishWithResult (ctx : ModelCheckContext) (json : Json) : CommandElabM Unit := do
     let json := enrichJsonWithAssertions json ctx.assertionSources
-    logModelCheckResult ctx.stx json
+    logModelCheckResult ctx.resultKind ctx.stx json
     ModelChecker.Concrete.finishProgress ctx.instanceId json
 
   modelCheckerCommandSpec : ModelChecker.Compilation.CompiledCommandSpec := {
@@ -1019,7 +1023,7 @@ where
     ModelChecker.Concrete.finishProgress ctx.instanceId (enrichJsonWithAssertions json ctx.assertionSources)
     ModelChecker.Compilation.markRegistryFinished sourceFile command commandId buildFolder
     let some resultJson ← ModelChecker.Concrete.getResultJson ctx.instanceId | return
-    logModelCheckResult ctx.stx resultJson
+    logModelCheckResult ctx.resultKind ctx.stx resultJson
 
   /-- Compile the model. Returns the build folder path if compilation succeeded, none otherwise. -/
   compileModel (mod : Module) (sourceFile : String) (modelSource : String)
@@ -1084,7 +1088,7 @@ where
   elabModelCheckInterpretedMode (mod : Module) (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
     -- dbg_trace "elabModelCheckInterpretedMode"
-    let ctx ← allocModelCheckContext mod stx parallelCfg
+    let ctx ← allocModelCheckContext mod stx parallelCfg .modelCheck
     let ioComputation ← elaborateInterpretedComputation ctx.instanceId callExpr parallelCfg
     let computation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
@@ -1102,7 +1106,7 @@ where
   elabModelCheckCompiledMode (mod : Module) (stx : Syntax)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
     -- dbg_trace "elabModelCheckCompiledMode"
-    let ctx ← allocModelCheckContext mod stx parallelCfg
+    let ctx ← allocModelCheckContext mod stx parallelCfg .modelCheck
     let sourceFile ← getFileName
     let commandId ← getCompiledCommandId "#model_check" stx
     let modelSource ← generateModelSource mod stx
@@ -1125,7 +1129,7 @@ where
   elabModelCheckWithHandoff (mod : Module) (stx : Syntax) (callExpr : Term)
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
     -- dbg_trace "elabModelCheckWithHandoff"
-    let ctx ← allocModelCheckContext mod stx parallelCfg
+    let ctx ← allocModelCheckContext mod stx parallelCfg .modelCheck
     let sourceFile ← getFileName
     let commandId ← getCompiledCommandId "#model_check" stx
     let modelSource ← generateModelSource mod stx
@@ -1259,7 +1263,7 @@ private def elabSimulateInternalMode (mod : Module) (callExpr : Term) : CommandE
   elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `simulateResult))))
 
 private def elabSimulateInterpretedMode (mod : Module) (stx : Syntax) (callExpr : Term) : CommandElabM Unit := do
-  let ctx ← elabModelCheck.allocModelCheckContext mod stx none
+  let ctx ← elabModelCheck.allocModelCheckContext mod stx none .simulate
   let ioComputation ← elaborateSimulateComputation ctx.instanceId callExpr
   let computation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
@@ -1275,7 +1279,7 @@ private def elabSimulateInterpretedMode (mod : Module) (stx : Syntax) (callExpr 
 
 private def elabSimulateCompiledMode (mod : Module) (stx : Syntax)
     (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Unit := do
-  let ctx ← elabModelCheck.allocModelCheckContext mod stx none
+  let ctx ← elabModelCheck.allocModelCheckContext mod stx none .simulate
   let sourceFile ← getFileName
   let commandId ← getCompiledCommandId "#simulate" stx
   let modelSource ← generateSimulateModelSource mod stx cfg
@@ -1294,7 +1298,7 @@ private def elabSimulateCompiledMode (mod : Module) (stx : Syntax)
 
 private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Term)
     (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Unit := do
-  let ctx ← elabModelCheck.allocModelCheckContext mod stx none
+  let ctx ← elabModelCheck.allocModelCheckContext mod stx none .simulate
   let sourceFile ← getFileName
   let commandId ← getCompiledCommandId "#simulate" stx
   let modelSource ← generateSimulateModelSource mod stx cfg

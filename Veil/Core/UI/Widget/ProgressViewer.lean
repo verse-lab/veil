@@ -570,6 +570,11 @@ private def errorBox (errorMsg : String) : Html :=
     </pre>
   </div>
 
+/- `Progress.simulation` is the typed discriminator, so the widget does not have to
+guess the command from whichever keys the result JSON happens to carry. -/
+private def resultKindOf (p : Progress) : Veil.TraceDisplay.ResultKind :=
+  if p.simulation.isSome then .simulate else .modelCheck
+
 private def noResultData : Html :=
   <div style={json% {"color": "#cc6600"}}><i>No result data available</i></div>
 
@@ -581,7 +586,12 @@ def mkFinalResultHtml (p : Progress) (resultJson : Option Json) : Html :=
      | some json =>
        match extractError json with
        | some errorMsg => errorBox errorMsg
-       | none => if hasTraceData json then Html.ofComponent TraceDisplayViewer ⟨json, "vertical", none⟩ #[] else noResultData
+       | none =>
+         if hasTraceData json then
+           Html.ofComponent TraceDisplayViewer
+             { result := json, layout := "vertical", rawHtml := none,
+               kind := resultKindOf p } #[]
+         else noResultData
      | none => noResultData}
   </div>
 
