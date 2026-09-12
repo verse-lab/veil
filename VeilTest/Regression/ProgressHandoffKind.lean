@@ -64,6 +64,22 @@ private def expect (message : String) (cond : Bool) : IO Unit :=
   expect "cancelling must stop the interpreted run" (← interpretedToken.isSet)
   expect "cancelling must stop the background compilation" (← compilationToken.isSet)
 
+-- A handoff stops the interpreted run by setting the instance's own cancel token,
+-- so after a handoff that token can no longer tell "the user pressed Stop" from
+-- "we are handing over". The background compilation token is what separates them:
+-- `requestCancellation` sets it, a handoff does not. Guarding the handover on
+-- `isCancelled` instead made every `#simulate` handoff abort, leaving the run with
+-- no result at all.
+#eval do
+  let (id, interpretedToken) ← allocProgressInstance (.simulation {})
+  let compilationToken ← IO.CancelToken.new
+  setCompilationCancelToken id (some compilationToken)
+  requestHandoff id
+  interpretedToken.set
+  expect "a handoff must be recorded as requested" (← checkHandoffRequested id)
+  expect "a handoff must leave the instance token looking cancelled" (← isCancelled id)
+  expect "a handoff must not cancel the background compilation" (!(← compilationToken.isSet))
+
 -- Once compilation is over its token is cleared, and a later cancellation must not
 -- reach back to it.
 #eval do

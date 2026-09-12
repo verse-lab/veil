@@ -686,6 +686,14 @@ structure ModelCheckContext where
   mod : Module
   stx : Syntax
   instanceId : Nat
+  /-- Stop signal for the run this context owns. Currently, three parties can set it:
+
+  * the Stop button, through `requestCancellation`, which also sets the background
+    compilation token registered on the progress instance;
+  * the handoff in default mode, which sets it to wind the interpreted run down
+    before the compiled binary takes over, having first set `handoffRequested`;
+  * the editor, which owns it as the `cancelTk?` of the interpreted task's
+    snapshot and sets it when the command is elaborated again. -/
   cancelToken : IO.CancelToken
   assertionSources : Std.HashMap AssertionId AssertionSourceInfo
   parallelCfg : Option ModelChecker.ParallelConfig
@@ -889,6 +897,13 @@ where
 
   /-- Create an error JSON object. -/
   errorJson (msg : String) : Json := Json.mkObj [("error", msg)]
+
+  /-- Whether a result JSON is the placeholder produced by a run that was stopped
+  before it finished, as opposed to a real verdict. -/
+  resultWasCancelled (json : Json) : Bool :=
+    match json.getObjValAs? String "result" |>.toOption with
+    | some "cancelled" => true
+    | _ => false
 
   /-- Check if cancelled (ignoring handoff-triggered cancellations). -/
   checkCancelled (cancelToken : IO.CancelToken) (instanceId : Nat) : IO Bool := do
@@ -1150,7 +1165,12 @@ where
         match (← ctx.cancelToken.isSet, ← ModelChecker.Concrete.checkHandoffRequested ctx.instanceId) with
         | (true, false) => ModelChecker.Concrete.cancelProgress ctx.instanceId  -- User clicked Stop
         | (false, _) => finishWithResult ctx json
-        | (true, true) => pure ()  -- Handoff requested, let compiled binary take over
+        | (true, true) =>
+            -- Handoff requested, let the compiled binary take over -- unless this run
+            -- had already finished in the window before the handoff landed, in which
+            -- case its verdict stands and the binary would only redo the work.
+            unless resultWasCancelled json do
+              finishWithResult ctx json
       catch e : Exception =>
         handleModelCheckError ctx e
     ) ctx.cancelToken
@@ -1179,6 +1199,16 @@ where
         ModelChecker.Concrete.requestHandoff ctx.instanceId
         ctx.cancelToken.set
         let _ ← IO.wait interpretedTask
+        -- The interpreted run can finish in the window between the check above and the
+        -- handoff request. In that case, it then reports its own result.
+        if (← ModelChecker.Concrete.getResultJson ctx.instanceId).isSome then
+          finishCompilation buildFolder
+          return
+        -- If the user cancels the run, then early returns.
+        if ← compilationCancelTk.isSet then
+          ModelChecker.Concrete.cancelProgress ctx.instanceId
+          finishCompilation buildFolder
+          return
         let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | do
           ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
           return
@@ -1260,9 +1290,7 @@ private def elaborateSimulateComputation (instanceId : Nat) (callExpr : Term) : 
     unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
 
 private def simulationResultWasCancelled (combinedJson : Json) : Bool :=
-  match combinedJson.getObjValAs? String "result" |>.toOption with
-  | some "cancelled" => true
-  | _ => false
+  elabModelCheck.resultWasCancelled combinedJson
 
 private def finishWithSimulationResult (ctx : ModelCheckContext) (combinedJson : Json) : CommandElabM Unit := do
   if simulationResultWasCancelled combinedJson then
@@ -1343,7 +1371,9 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
           else
             ModelChecker.Concrete.cancelProgress ctx.instanceId
       | (false, _) => finishWithSimulationResult ctx combinedJson
-      | (true, true) => pure ()
+      | (true, true) =>
+          unless simulationResultWasCancelled combinedJson do
+            finishWithSimulationResult ctx combinedJson
     catch e : Exception =>
       elabModelCheck.handleModelCheckError ctx e
   ) ctx.cancelToken
@@ -1362,11 +1392,11 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
       ModelChecker.Concrete.requestHandoff ctx.instanceId
       ctx.cancelToken.set
       let _ ← IO.wait interpretedTask
-      if (← ctx.cancelToken.isSet) && !(← ModelChecker.Concrete.checkHandoffRequested ctx.instanceId) then
-        ModelChecker.Concrete.cancelProgress ctx.instanceId
+      if (← ModelChecker.Concrete.getResultJson ctx.instanceId).isSome then
         finishCompilation buildFolder
         return
-      if (← ModelChecker.Concrete.getResultJson ctx.instanceId).isSome || (← ModelChecker.Concrete.isCancelled ctx.instanceId) then
+      if ← compilationCancelTk.isSet then
+        ModelChecker.Concrete.cancelProgress ctx.instanceId
         finishCompilation buildFolder
         return
       let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | do
