@@ -112,8 +112,6 @@ structure ProgressRefs where
   resultRef : IO.Ref (Option Lean.Json)
   /-- Cancellation token for this instance. -/
   cancelToken : IO.CancelToken
-  /-- Cancellation token for background compilation, when default handoff is active. -/
-  compilationCancelTokenRef : IO.Ref (Option IO.CancelToken)
   /-- Set by compilation task to signal interpreted mode to stop for handoff. -/
   handoffRequested : IO.Ref Bool
   /-- Set by interpreted mode when a violation is found (prevents handoff). -/
@@ -150,7 +148,6 @@ def allocProgressInstance (details : ProgressDetails) : IO (Nat × IO.CancelToke
       { startTimeMs := ← IO.monoMsNow, status := "Running...", isRunning := true, details }
     resultRef := ← IO.mkRef none
     cancelToken := cancelTk
-    compilationCancelTokenRef := ← IO.mkRef none
     handoffRequested := ← IO.mkRef false
     violationFound := ← IO.mkRef false
   }
@@ -225,10 +222,11 @@ def updateSimulationProgress (instanceId : Nat) (status : String)
 
 /-- Mark progress as complete for a given instance ID. -/
 def finishProgress (instanceId : Nat) (resultJson : Lean.Json) : IO Unit := withRefs instanceId fun refs => do
+  -- Publish the payload before the widget observes isRunning = false.
+  refs.resultRef.set (some resultJson)
   let now ← IO.monoMsNow
   refs.progressRef.modify fun p =>
     { p with status := "Complete", isRunning := false, elapsedMs := now - p.startTimeMs }
-  refs.resultRef.set (some resultJson)
 
 /-- Get current progress for an instance ID. -/
 def getProgress (instanceId : Nat) : IO Progress := do
@@ -249,23 +247,16 @@ def isCancelled (instanceId : Nat) : IO Bool := do
   | none => return false
 
 /-- Request cancellation for an instance. -/
-def requestCancellation (instanceId : Nat) : IO Unit := withRefs instanceId fun refs => do
-  refs.cancelToken.set
-  let compilationCancelToken? ← refs.compilationCancelTokenRef.get
-  if let some compilationCancelToken := compilationCancelToken? then
-    compilationCancelToken.set
-
-/-- Register or clear the background compilation cancellation token for an instance. -/
-def setCompilationCancelToken (instanceId : Nat) (cancelToken? : Option IO.CancelToken) : IO Unit :=
-  withRefs instanceId fun refs => refs.compilationCancelTokenRef.set cancelToken?
+def requestCancellation (instanceId : Nat) : IO Unit := withRefs instanceId (·.cancelToken.set)
 
 /-- Mark progress as cancelled for a given instance ID. -/
 def cancelProgress (instanceId : Nat) (resultJson : Lean.Json := Json.mkObj [("result", "cancelled")]) : IO Unit := withRefs instanceId fun refs => do
+  -- Publish the payload before the widget observes isRunning = false.
+  refs.resultRef.set (some resultJson)
   let now ← IO.monoMsNow
   refs.progressRef.modify fun p =>
     { p with status := "Cancelled", isRunning := false, isCancelled := true,
              elapsedMs := now - p.startTimeMs }
-  refs.resultRef.set (some resultJson)
 
 /-- Wait for model check to complete and return the result JSON. -/
 partial def waitForResult (instanceId : Nat) (pollIntervalMs : Nat := 100) : IO (Option Lean.Json) := do
@@ -316,13 +307,12 @@ def isViolationFound (instanceId : Nat) : IO Bool := do
   | some refs => refs.violationFound.get
   | none => return false
 
-/-- Reset progress for handoff to compiled mode. Returns new cancel token. -/
-def resetProgressForHandoff (instanceId : Nat) : IO (Option IO.CancelToken) := do
-  let some refs ← getProgressRefs instanceId | return none
+/-- Reset metrics for handoff after the interpreted task has stopped.
+The cancellation token stays valid throughout the command, including handoff. -/
+def resetProgressForHandoff (instanceId : Nat) : IO Unit := do
+  let some refs ← getProgressRefs instanceId | return
   let oldProgress ← refs.progressRef.get
   refs.handoffRequested.set false
-  let newCancelToken ← IO.CancelToken.new
-  progressRegistry.modify fun m => m.insert instanceId { refs with cancelToken := newCancelToken }
   let now ← IO.monoMsNow
   let details : ProgressDetails := match oldProgress.details with
     | .modelCheck m => .modelCheck { allActionLabels := m.allActionLabels }
@@ -331,7 +321,6 @@ def resetProgressForHandoff (instanceId : Nat) : IO (Option IO.CancelToken) := d
     status := "Restarting with compiled binary...", startTimeMs := now,
     compilationStatus := .succeeded, details
   }
-  return some newCancelToken
 
 section Utilities
 

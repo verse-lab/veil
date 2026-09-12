@@ -23,8 +23,6 @@ inductive Status
 structure CompiledCommandSpec where
   /-- Name of the generated definition that the compiled executable calls. -/
   exportedName : String
-  /-- Whether the generated definition accepts an optional parallel configuration. -/
-  supportsParallelConfig : Bool := false
 
 /-- Registry key for one compiled command invocation. -/
 structure CompilationKey where
@@ -168,9 +166,7 @@ def main (args : List String) : IO Unit := do
   -- Cancel token is created locally; cancellation is handled by killing the process from outside
   let cancelTk ← IO.CancelToken.new
   let res ← " ++
-    (if command.supportsParallelConfig
-      then command.exportedName ++ " pcfg 0 cancelTk"
-      else command.exportedName ++ " 0 cancelTk") ++ "
+    command.exportedName ++ " pcfg 0 cancelTk
   IO.println s!\"{res}\"
   flushStdoutAndStderr
   IO.Process.forceExit 0
@@ -245,5 +241,105 @@ def runProcessWithStatusCallback (sourceFile : String) (command : CompiledComman
   match ← IO.wait waitTask with
   | .ok exitCode => return { exitCode, stdout := ← stdoutAccum.get, stderr := ← stderrAccum.get, interrupted }
   | .error err => return { exitCode := 1, stdout := ← stdoutAccum.get, stderr := s!"{← stderrAccum.get}\nIO error: {err}", interrupted }
+
+/-- Source-dependent inputs, prepared only for compiled/default execution. -/
+structure Input where
+  sourceFile : String
+  commandId : String
+  modelSource : String
+  specNamespace : String
+  command : CompiledCommandSpec
+
+inductive BuildResult where
+  | built (folder : System.FilePath)
+  | interrupted
+  | failed (message : String)
+
+/-- Build compilation error message from process result. -/
+private def mkCompilationErrorMsg (result : ModelChecker.Compilation.ProcessResult) : String :=
+  s!"Compilation failed (exit code {result.exitCode}):\n" ++
+    (if result.stderr.isEmpty then "" else s!"[stderr]\n{result.stderr}") ++
+    (if result.stdout.isEmpty then "" else s!"[stdout]\n{result.stdout}\n")
+
+/-- Compile a prepared command. Interruption and failure are distinct from success. -/
+def compile (input : Input) (instanceId : Nat) (cancelToken : IO.CancelToken) : IO BuildResult := do
+  if ← cancelToken.isSet then return .interrupted
+  let buildFolder ← createBuildFolder input.sourceFile input.modelSource input.specNamespace input.command
+  markRegistryInProgress input.sourceFile input.command input.commandId instanceId buildFolder
+  let result ← runProcessWithStatusCallback input.sourceFile input.command input.commandId
+    { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
+    instanceId cancelToken
+    (fun ms => ModelChecker.Concrete.updateCompilationElapsed instanceId ms)
+    (fun line isError ms => ModelChecker.Concrete.updateCompilationLog instanceId ms line isError)
+  if result.interrupted then return .interrupted
+  if result.exitCode != 0 then return .failed (mkCompilationErrorMsg result)
+  markRegistryFinished input.sourceFile input.command input.commandId buildFolder
+  return .built buildFolder
+
+private def errorJson (message : String) : Json := Json.mkObj [("error", message)]
+
+/-- Cancellation is a result, but handoff itself never cancels the run token. -/
+def cancelledJson : Json := Json.mkObj [("result", "cancelled")]
+
+/-- Run the compiled binary and return its JSON result if completed. -/
+def runBinary (buildFolder : System.FilePath) (args : Array String)
+    (instanceId : Nat) (cancelToken : IO.CancelToken) : IO Json := do
+  if ← cancelToken.isSet then return cancelledJson
+  let binPath := buildFolder / ".lake" / "build" / "bin"
+  unless ← (binPath / "ModelCheckerMain").pathExists do
+    return errorJson s!"Binary not found at {binPath}"
+  ModelChecker.Concrete.updateStatus instanceId "Running compiled binary..."
+  let child ← IO.Process.spawn {
+    cmd := toString (binPath / "ModelCheckerMain"), args,
+    stdin := .piped, stdout := .piped, stderr := .piped }
+  -- Read stderr for progress updates
+  let stderrAccum ← IO.mkRef ""
+  let stderrTask ← IO.asTask (prio := .dedicated) do
+    while true do
+      let line ← child.stderr.getLine
+      if line.isEmpty then break
+      match Json.parse line >>= FromJson.fromJson? (α := ModelChecker.Concrete.Progress) with
+      | .ok p => if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then
+          refs.progressRef.modify fun old =>
+            match p.details with
+            -- Simulation reports no time series, so the incoming value stands as is.
+            | .simulation .. => p
+            | .modelCheck m =>
+              let oldMetrics : ModelChecker.Concrete.ModelCheckProgress :=
+                match old.details with
+                | .modelCheck om => om
+                | .simulation .. => default
+              let historyPoint : ModelChecker.Concrete.ProgressHistoryPoint := {
+                timestamp := p.elapsedMs
+                diameter := m.diameter
+                statesFound := m.statesFound
+                distinctStates := m.distinctStates
+                queue := m.queue
+              }
+              { p with details := .modelCheck { m with
+                  allActionLabels := oldMetrics.allActionLabels
+                  history := oldMetrics.history.push historyPoint } }
+      | .error _ => stderrAccum.modify (· ++ line)
+  let stdoutTask ← IO.asTask (prio := .dedicated) child.stdout.readToEnd
+  let waitTask ← IO.asTask (prio := .dedicated) child.wait
+  -- Monitor for cancellation
+  while !(← IO.hasFinished waitTask) do
+    if ← cancelToken.isSet then
+      child.kill
+      break
+    IO.sleep 100
+  let stdoutResult ← IO.wait stdoutTask
+  let exitResult ← IO.wait waitTask
+  -- Drain progress before publishing any result or propagating a reader error;
+  -- late lines must not overwrite completed progress with a running snapshot.
+  let stderrResult ← IO.wait stderrTask
+  if ← cancelToken.isSet then return cancelledJson
+  let stdout ← IO.ofExcept stdoutResult
+  let exitCode ← IO.ofExcept exitResult
+  IO.ofExcept stderrResult
+  let stderr ← stderrAccum.get
+  if exitCode != 0 then
+    return errorJson s!"Binary exited with code {exitCode}{if stderr.isEmpty then "" else s!"\n{stderr}"}"
+  return Json.parse stdout |>.toOption.getD (errorJson s!"Failed to parse output: {stdout.take 500}")
 
 end Veil.ModelChecker.Compilation

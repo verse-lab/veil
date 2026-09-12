@@ -10,8 +10,7 @@ the model checker's rows (Diameter / States Found / ...) for a `#simulate` run u
 the compiled binary's first progress line arrived. `Progress` is now an inductive,
 so the rebuild has to restate the kind and cannot fall back by accident.
 
-Handoff itself needs a real compilation and so is not covered by the test suite;
-this pins the part of it that can be exercised directly.
+The shared driver is exercised separately in CommandRunner.lean.
 -/
 
 open Veil.ModelChecker.Concrete
@@ -49,44 +48,33 @@ private def expect (message : String) (cond : Bool) : IO Unit :=
     | .modelCheck m => m.allActionLabels == ["Label.a", "Label.b"] && m.diameter == 0
     | .simulation .. => false
 
--- The Stop button must kill the background compilation too, not just the
--- interpreted search. Before `compilationCancelTokenRef` existed, the compilation
--- token was a local in the elaborator and `requestCancellation` could not reach it,
--- so a cancelled run left its `lake build` running to completion.
+-- Handoff stops both engines through shouldStop, without cancelling the command.
 #eval do
-  let (id, interpretedToken) ← allocProgressInstance (.simulation {})
-  let compilationToken ← IO.CancelToken.new
-  setCompilationCancelToken id (some compilationToken)
-  let interpretedSet ← interpretedToken.isSet
-  let compilationSet ← compilationToken.isSet
-  expect "no token should be set before cancellation" (!interpretedSet && !compilationSet)
-  requestCancellation id
-  expect "cancelling must stop the interpreted run" (← interpretedToken.isSet)
-  expect "cancelling must stop the background compilation" (← compilationToken.isSet)
-
--- A handoff stops the interpreted run by setting the instance's own cancel token,
--- so after a handoff that token can no longer tell "the user pressed Stop" from
--- "we are handing over". The background compilation token is what separates them:
--- `requestCancellation` sets it, a handoff does not. Guarding the handover on
--- `isCancelled` instead made every `#simulate` handoff abort, leaving the run with
--- no result at all.
-#eval do
-  let (id, interpretedToken) ← allocProgressInstance (.simulation {})
-  let compilationToken ← IO.CancelToken.new
-  setCompilationCancelToken id (some compilationToken)
+  let (id, token) ← allocProgressInstance (.simulation {})
   requestHandoff id
-  interpretedToken.set
-  expect "a handoff must be recorded as requested" (← checkHandoffRequested id)
-  expect "a handoff must leave the instance token looking cancelled" (← isCancelled id)
-  expect "a handoff must not cancel the background compilation" (!(← compilationToken.isSet))
-
--- Once compilation is over its token is cleared, and a later cancellation must not
--- reach back to it.
-#eval do
-  let (id, _) ← allocProgressInstance (.modelCheck {})
-  let compilationToken ← IO.CancelToken.new
-  setCompilationCancelToken id (some compilationToken)
-  setCompilationCancelToken id none
+  expect "handoff must stop interpreted exploration" (← shouldStop token id)
+  expect "handoff must not cancel the compiler or binary" (!(← token.isSet))
+  resetProgressForHandoff id
+  expect "reset must clear the handoff request" (!(← checkHandoffRequested id))
+  expect "the original token must remain usable after handoff" (!(← shouldStop token id))
   requestCancellation id
-  let compilationSet ← compilationToken.isSet
-  expect "a cleared compilation token must not be cancelled" (!compilationSet)
+  expect "Stop after handoff must set the original token" (← token.isSet)
+
+-- A Stop request during handoff survives the reset; tokens are never replaced.
+#eval do
+  let (id, token) ← allocProgressInstance (.modelCheck {})
+  requestHandoff id
+  requestCancellation id
+  resetProgressForHandoff id
+  expect "handoff must not erase cancellation" (← shouldStop token id)
+  expect "all workers keep the same cancellation token" (← token.isSet)
+
+-- Cancellation retains the full simulation payload in the final result.
+#eval do
+  let (id, _) ← allocProgressInstance (.simulation {})
+  let json := Lean.Json.mkObj [("result", "cancelled"), ("seed", Lean.toJson (7 : Nat)),
+    ("traces_run", Lean.toJson (3 : Nat))]
+  cancelProgress id json
+  let p ← getProgress id
+  expect "cancelled progress must be terminal" (p.isCancelled && !p.isRunning)
+  expect "final cancellation metadata must be retained" ((← getResultJson id) == some json)

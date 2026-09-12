@@ -5,7 +5,7 @@ import Veil
 
 `#model_check` and `#simulate` can both appear in the same file, and either can
 appear several times. These tests pin down two properties of
-`Veil/Frontend/DSL/Module/Util/ForModelChecker.lean` that this relies on:
+`Veil/Frontend/DSL/Module/Util/Compilation.lean` that this relies on:
 
 * the registry is keyed per command *invocation*, so concurrent compilations in
   one file do not supersede — and therefore kill — each other;
@@ -25,7 +25,6 @@ private def expect (message : String) (cond : Bool) : IO Unit :=
 
 private def modelCheckCommand : CompiledCommandSpec := {
   exportedName := "modelCheckerResult"
-  supportsParallelConfig := true
 }
 
 private def simulateCommand : CompiledCommandSpec := {
