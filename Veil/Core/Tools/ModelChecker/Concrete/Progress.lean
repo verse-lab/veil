@@ -65,7 +65,7 @@ structure SimulationProgress where
   /-- Number of traces completed so far -/
   tracesRun : Nat := 0
   /-- Configured trace budget -/
-  maxTraces : Nat := 0
+  numTraces : Nat := 0
   /-- Depths reached by the traces completed so far. -/
   depthHistogram : Histogram := {}
   deriving ToJson, FromJson, Inhabited, Repr
@@ -206,12 +206,12 @@ def updateStatus (instanceId : Nat) (status : String) : IO Unit := withRefs inst
 
 /-- Update progress for a simulation run. -/
 def updateSimulationProgress (instanceId : Nat) (status : String)
-    (tracesRun maxTraces : Nat) (depthHistogram : Histogram) : IO Unit := do
+    (tracesRun numTraces : Nat) (depthHistogram : Histogram) : IO Unit := do
   let now ← IO.monoMsNow
   if let some refs ← getProgressRefs instanceId then
     refs.progressRef.modify fun p =>
       { p with status, elapsedMs := now - p.startTimeMs
-               details := .simulation { tracesRun, maxTraces, depthHistogram } }
+               details := .simulation { tracesRun, numTraces, depthHistogram } }
   if ← compiledModeEnabled.get then
     let startTime ← compiledModeStartTime.get
     let p : Progress := {
@@ -219,7 +219,7 @@ def updateSimulationProgress (instanceId : Nat) (status : String)
       isRunning := true
       startTimeMs := startTime
       elapsedMs := now - startTime
-      details := .simulation { tracesRun, maxTraces, depthHistogram }
+      details := .simulation { tracesRun, numTraces, depthHistogram }
     }
     IO.eprintln (toJson p).compress
 
@@ -326,7 +326,7 @@ def resetProgressForHandoff (instanceId : Nat) : IO (Option IO.CancelToken) := d
   let now ← IO.monoMsNow
   let details : ProgressDetails := match oldProgress.details with
     | .modelCheck m => .modelCheck { allActionLabels := m.allActionLabels }
-    | .simulation m => .simulation { maxTraces := m.maxTraces }
+    | .simulation m => .simulation { numTraces := m.numTraces }
   refs.progressRef.set {
     status := "Restarting with compiled binary...", startTimeMs := now,
     compilationStatus := .succeeded, details

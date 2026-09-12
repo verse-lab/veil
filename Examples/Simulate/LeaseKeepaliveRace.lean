@@ -80,6 +80,6 @@ safety [renewal_keeps_keys_live]
 -- simulate usually hits the keepalive-after-revoke race in a short trace.
 set_option veil.violationIsError false in
 #simulate { client := Fin 8, key := Fin 8 } {}
-  (seed := 11) (maxTraces := 300) (maxSteps := 12)
+  (seed := 11) (numTraces := 300) (maxSteps := 12)
 
 end LeaseKeepaliveRace

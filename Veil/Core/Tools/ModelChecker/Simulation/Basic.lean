@@ -5,13 +5,18 @@ namespace Veil.ModelChecker.Simulation
 open Lean
 
 structure SimulateConfig where
-  maxTraces : Nat := 10000
+  /-- Number of traces to attempt, stopping early on a violation or cancellation. -/
+  numTraces : Nat := 10000
+  /-- Maximum number of action transitions per trace; the initial state has depth 0. -/
   maxSteps : Nat := 100
+  /-- `#simulate` generates a fresh seed when this is 0; a nonzero seed enables replay. -/
   seed : Nat := 0
 deriving Inhabited, Repr
 
 inductive SimulationResult (ρ σ κ : Type) where
   | cancelled
+  /-- The concrete theory is invalid, before any trace is attempted. -/
+  | assumptionFailure (violates : List Name)
   | foundViolation (violation : ViolationKind) (viaTrace : Trace ρ σ κ)
 deriving Inhabited, Repr
 
@@ -35,13 +40,14 @@ violation is encoded by the pair `(result, terminationReason)`.
 
 | Situation              | `result`                    | `terminationReason`     |
 | ---------------------- | --------------------------- | ----------------------- |
+| Invalid theory         | `some (.assumptionFailure ..)` | `none`               |
 | Violation found        | `some (.foundViolation ..)` | `none`                  |
 | Cancelled              | `some .cancelled`           | `none`                  |
 | Trace budget exhausted | `none`                      | `none`                  |
 | No initial states      | `none`                      | `some .noInitialStates` |
 
-The third row is the only way to reach `result = none` with no reason, and it
-always comes with `tracesRun = maxTraces`. It is the simulation counterpart of
+The trace-budget-exhausted row is the only way to reach `result = none` with no reason, and it
+always comes with `tracesRun = numTraces`. It is the simulation counterpart of
 the model checker terminating early on a bound, but it needs no payload beyond
 `tracesRun`, so it is left implicit rather than named in
 `SimulationTerminationReason`.
@@ -49,7 +55,7 @@ the model checker terminating early on a bound, but it needs no payload beyond
 structure SimulateResult (ρ σ κ : Type) where
   result : Option (SimulationResult ρ σ κ)
   tracesRun : Nat
-  maxTraces : Nat
+  numTraces : Nat
   elapsedMs : Nat
   seed : Nat
   terminationReason : Option SimulationTerminationReason := none

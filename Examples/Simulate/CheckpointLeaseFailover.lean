@@ -88,6 +88,6 @@ safety [checkpointed_expiry_respected]
 set_option veil.violationIsError false in
 #simulate { node := Fin 12, epoch := Fin 8, lease := Fin 8 }
   { initial_leader := (0 : Fin 12), initial_epoch := (0 : Fin 8) }
-  (seed := 23) (maxTraces := 2000) (maxSteps := 10)
+  (seed := 23) (numTraces := 2000) (maxSteps := 10)
 
 end CheckpointLeaseFailover

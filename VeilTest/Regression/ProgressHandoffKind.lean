@@ -28,13 +28,13 @@ private def expect (message : String) (cond : Bool) : IO Unit :=
   let before ← getProgress id
   expect "a simulation instance must report simulation metrics" <|
     match before.details with
-    | .simulation m => m.tracesRun == 7 && m.maxTraces == 50
+    | .simulation m => m.tracesRun == 7 && m.numTraces == 50
     | .modelCheck .. => false
   let _ ← resetProgressForHandoff id
   let after ← getProgress id
   expect "handoff must not turn a simulation into a model check" <|
     match after.details with
-    | .simulation m => m.maxTraces == 50 && m.tracesRun == 0
+    | .simulation m => m.numTraces == 50 && m.tracesRun == 0
     | .modelCheck .. => false
 
 -- A model check instance stays a model check, keeping the action labels it needs

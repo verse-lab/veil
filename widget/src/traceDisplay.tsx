@@ -78,14 +78,14 @@ type ModelCheckingResult =
       explored_states?: number;
       termination_reason?: TerminationReason;
       traces_run?: number;
-      max_traces?: number;
+      num_traces?: number;
       trace?: TraceData | null;
       seed?: number;
     }
   | {
       result: "cancelled";
       traces_run?: number;
-      max_traces?: number;
+      num_traces?: number;
       seed?: number;
     }
   | {
@@ -311,10 +311,10 @@ const ResultHeader: React.FC<{
   exploredStates?: number;
   terminationReason?: TerminationReason;
   tracesRun?: number;
-  maxTraces?: number;
+  numTraces?: number;
   seed?: number;
   kind: ResultKindTag;
-}> = ({ resultType, violation, exploredStates, terminationReason, tracesRun, maxTraces, seed, kind }) => {
+}> = ({ resultType, violation, exploredStates, terminationReason, tracesRun, numTraces, seed, kind }) => {
   const seedDetails = seed !== undefined ? (
     <div className="result-details">
       <strong>Seed:</strong> {seed}
@@ -324,8 +324,8 @@ const ResultHeader: React.FC<{
   if (resultType === "cancelled") {
     const details = kind !== "simulate"
       ? 'Model checking was cancelled before completion'
-      : tracesRun !== undefined && maxTraces !== undefined
-        ? `Checked ${tracesRun}/${maxTraces} traces before cancellation`
+      : tracesRun !== undefined && numTraces !== undefined
+        ? `Checked ${tracesRun}/${numTraces} traces before cancellation`
         : tracesRun !== undefined
           ? `Checked ${tracesRun} traces before cancellation`
           : 'Simulation was cancelled before completion';
@@ -387,8 +387,8 @@ const ResultHeader: React.FC<{
       if (reason?.kind === "no_initial_states") {
         return `No initial states available after applying state constraints`;
       }
-      if (tracesRun !== undefined && maxTraces !== undefined) {
-        return `Checked ${tracesRun}/${maxTraces} traces`;
+      if (tracesRun !== undefined && numTraces !== undefined) {
+        return `Checked ${tracesRun}/${numTraces} traces`;
       }
       if (tracesRun !== undefined) {
         return `Checked ${tracesRun} traces`;
@@ -836,7 +836,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                     resultType="cancelled"
                     kind={kind}
                     tracesRun={result.traces_run}
-                    maxTraces={result.max_traces}
+                    numTraces={result.num_traces}
                     seed={result.seed}
                   />
                 ) : result.result === "no_violation_found" ? (
@@ -846,7 +846,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                     exploredStates={result.explored_states}
                     terminationReason={result.termination_reason}
                     tracesRun={result.traces_run}
-                    maxTraces={result.max_traces}
+                    numTraces={result.num_traces}
                     seed={result.seed}
                   />
                 ) : (

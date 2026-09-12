@@ -665,14 +665,14 @@ def simulateConfigHasField (cfgStx : Syntax) (fieldName : Name) : Bool :=
 
 /-- Return which `#simulate` trace-bound fields were supplied by command syntax. -/
 private def simulateTraceBoundFieldsExplicit (cfgStx : Syntax) : Bool × Bool :=
-  (simulateConfigHasField cfgStx `maxTraces, simulateConfigHasField cfgStx `maxSteps)
+  (simulateConfigHasField cfgStx `numTraces, simulateConfigHasField cfgStx `maxSteps)
 
 /-- Resolve `#simulate` trace-bound fields, preserving explicit default literals. -/
 def resolveSimulateTraceBounds (cfg0 : ModelChecker.Simulation.SimulateConfig)
-    (commandHasMaxTraces commandHasMaxSteps : Bool) (optionMaxTraces optionMaxSteps : Nat) : Nat × Nat :=
-  let maxTraces := if commandHasMaxTraces then cfg0.maxTraces else optionMaxTraces
+    (commandHasNumTraces commandHasMaxSteps : Bool) (optionNumTraces optionMaxSteps : Nat) : Nat × Nat :=
+  let numTraces := if commandHasNumTraces then cfg0.numTraces else optionNumTraces
   let maxSteps := if commandHasMaxSteps then cfg0.maxSteps else optionMaxSteps
-  (maxTraces, maxSteps)
+  (numTraces, maxSteps)
 
 /-- Model checking mode: interpreted only, compiled only, or default (both with handoff). -/
 inductive ModelCheckingMode where
@@ -1236,7 +1236,7 @@ private def mkSimulatorRuntimeCall (mod : Module) (instTerm theoryTerm : Term)
   let th := mkVeilImplementationDetailIdent `th
   let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
   let cfgTerm ← `($(mkIdent ``Veil.ModelChecker.Simulation.SimulateConfig.mk)
-      $(quote cfg.maxTraces) $(quote cfg.maxSteps) $(quote cfg.seed))
+      $(quote cfg.numTraces) $(quote cfg.maxSteps) $(quote cfg.seed))
   `((let $inst : $instantiationType := $instTerm
       let $th : $theoryIdent $instSortArgs* := $theoryTerm
       $(mkIdent ``Veil.ModelChecker.Simulation.simulateWithProgress)
@@ -1274,7 +1274,7 @@ private def generateSimulateModelSource (mod : Module) (stx : Syntax)
   let theorySrc ← if stx[3].isNone then pure " {}" else do
     let raw ← getSourceSlice stx[3][0]
     pure s!" {raw}"
-  let cmd := s!"#simulate {instSrc}{theorySrc} (maxTraces := {cfg.maxTraces}) (maxSteps := {cfg.maxSteps}) (seed := {cfg.seed})"
+  let cmd := s!"#simulate {instSrc}{theorySrc} (numTraces := {cfg.numTraces}) (maxSteps := {cfg.maxSteps}) (seed := {cfg.seed})"
   return srcPrefix ++ cmd ++ "\n"
 
 private def elaborateSimulateComputation (instanceId : Nat) (callExpr : Term) : CommandElabM (IO Lean.Json) := do
@@ -1429,13 +1429,13 @@ def elabSimulate : CommandElab := fun stx => do
     let simulateCfgStx := stx[4]
     let cfg0 ← elabSimulateConfig simulateCfgStx
     let opts ← getOptions
-    let (hasMaxTraces, hasMaxSteps) := simulateTraceBoundFieldsExplicit simulateCfgStx
-    let optionMaxTraces := veil.simulate.maxTraces.get opts
+    let (hasNumTraces, hasMaxSteps) := simulateTraceBoundFieldsExplicit simulateCfgStx
+    let optionNumTraces := veil.simulate.numTraces.get opts
     let optionMaxSteps := veil.simulate.maxSteps.get opts
-    let (maxTraces, maxSteps) := resolveSimulateTraceBounds cfg0 hasMaxTraces hasMaxSteps
-      optionMaxTraces optionMaxSteps
+    let (numTraces, maxSteps) := resolveSimulateTraceBounds cfg0 hasNumTraces hasMaxSteps
+      optionNumTraces optionMaxSteps
     let seed ← liftIO <| if cfg0.seed == 0 then IO.rand 0 0xFFFFFFFFFFFFFFFF else pure cfg0.seed
-    let cfg : ModelChecker.Simulation.SimulateConfig := { cfg0 with maxTraces, maxSteps, seed }
+    let cfg : ModelChecker.Simulation.SimulateConfig := { cfg0 with numTraces, maxSteps, seed }
     let mcCfg : ModelCheckerConfig := { maxDepth := 0, sequential := false, parallelCfg := none }
     if assumptionsHoldBy.isSome && !(← isModelCheckCompileMode) && !mod.assumptions.isEmpty then
       elabModelCheck.checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy

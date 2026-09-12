@@ -4,22 +4,22 @@ open Veil.ModelChecker.Simulation
 
 example :
   Veil.resolveSimulateTraceBounds
-    { maxTraces := 10000, maxSteps := 100, seed := 0 }
+    { numTraces := 10000, maxSteps := 100, seed := 0 }
     true true 7 3 = (10000, 100) := rfl
 
 example :
   Veil.resolveSimulateTraceBounds
-    { maxTraces := 10000, maxSteps := 100, seed := 0 }
+    { numTraces := 10000, maxSteps := 100, seed := 0 }
     false false 7 3 = (7, 3) := rfl
 
 example :
   Veil.resolveSimulateTraceBounds
-    { maxTraces := 10000, maxSteps := 100, seed := 0 }
+    { numTraces := 10000, maxSteps := 100, seed := 0 }
     true false 7 3 = (10000, 3) := rfl
 
 example :
   Veil.resolveSimulateTraceBounds
-    { maxTraces := 10000, maxSteps := 100, seed := 0 }
+    { numTraces := 10000, maxSteps := 100, seed := 0 }
     false true 7 3 = (7, 100) := rfl
 
 veil module SimulateConfigDefaults
@@ -63,7 +63,7 @@ error: ❌ Violation: safety_failure (violates: still_safe)
 Seed: 1
 -/
 #guard_msgs in
-#simulate interpreted {} {} (seed := 1) (maxTraces := 1) (maxSteps := 100)
+#simulate interpreted {} {} (seed := 1) (numTraces := 1) (maxSteps := 100)
 
 set_option veil.simulate.maxSteps 1 in
 /--
@@ -80,6 +80,6 @@ error: ❌ Violation: safety_failure (violates: still_safe)
 Seed: 1
 -/
 #guard_msgs in
-#simulate interpreted {} {} (config := { maxTraces := 1, maxSteps := 100, seed := 1 })
+#simulate interpreted {} {} (config := { numTraces := 1, maxSteps := 100, seed := 1 })
 
 end SimulateConfigDefaults

@@ -20,9 +20,9 @@ invariant [bounded] ∀ n, flag n -> flag n
 #gen_spec
 
 #guard_msgs(drop info) in
-#simulate interpreted { node := Fin 2 } {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
+#simulate interpreted { node := Fin 2 } {} (seed := 1) (numTraces := 1) (maxSteps := 1)
 
 #guard_msgs(drop info) in
-#simulate interpreted { node := Fin 2 } {} (seed := 2) (maxTraces := 1) (maxSteps := 1)
+#simulate interpreted { node := Fin 2 } {} (seed := 2) (numTraces := 1) (maxSteps := 1)
 
 end MultipleSimulate

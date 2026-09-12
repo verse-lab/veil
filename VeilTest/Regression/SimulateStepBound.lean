@@ -7,7 +7,7 @@ Exactly one action is enabled in each reachable state, so the random walk is
 forced and the result does not depend on the seed: the violation needs two steps,
 so `maxSteps := 1` can never reach it and `maxSteps := 2` always does.
 
-The `maxSteps := 1` case also pins down the trace loop: all `maxTraces` traces are
+The `maxSteps := 1` case also pins down the trace loop: all `numTraces` traces are
 run and `tracesRun` is reported as the configured budget.
 -/
 
@@ -43,7 +43,7 @@ Trace depths: 1x4
 Seed: 1
 -/
 #guard_msgs in
-#simulate interpreted {} {} (seed := 1) (maxTraces := 4) (maxSteps := 1)
+#simulate interpreted {} {} (seed := 1) (numTraces := 4) (maxSteps := 1)
 
 /--
 error: ❌ Violation: safety_failure (violates: safe)
@@ -59,6 +59,6 @@ error: ❌ Violation: safety_failure (violates: safe)
 Seed: 1
 -/
 #guard_msgs in
-#simulate interpreted {} {} (seed := 1) (maxTraces := 4) (maxSteps := 2)
+#simulate interpreted {} {} (seed := 1) (numTraces := 4) (maxSteps := 2)
 
 end SimulateStepBound

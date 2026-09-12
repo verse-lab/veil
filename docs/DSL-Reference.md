@@ -390,6 +390,16 @@ tool). Progress and action-coverage statistics are displayed live in an
 InfoView widget; if a violation is found, Veil shows a concrete counterexample
 trace.
 
+##### Random Simulation
+
+If you do not want exhaustive testing, you can use the `#simulate` command to
+perform random walks on the state graph. Provide the type instantiation and
+theory, optionally followed by the settings:
+
+```lean
+#simulate { node := Fin 3 } {} (numTraces := 2000) (maxSteps := 500) (seed := 42)
+```
+
 #### Symbolic Bounded Model Checking
 
 Explore system behaviors with trace queries, discharged via SMT. Unlike

@@ -19,6 +19,6 @@ invariant [safe_flag] true
 #gen_spec
 
 #guard_msgs(drop info, drop warning) in
-#simulate compiled {} {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
+#simulate compiled {} {} (seed := 1) (numTraces := 1) (maxSteps := 1)
 
 end SimulateCompiledSmoke
