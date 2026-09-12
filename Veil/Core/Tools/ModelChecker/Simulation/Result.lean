@@ -37,7 +37,8 @@ private def metadataToJsonFields {ρ σ κ : Type} (r : SimulateResult ρ σ κ)
     ("traces_run", Lean.toJson r.tracesRun),
     ("max_traces", Lean.toJson r.maxTraces),
     ("elapsed_ms", Lean.toJson r.elapsedMs),
-    ("seed", Lean.toJson r.seed)
+    -- JavaScript numbers cannot represent all simulation seeds exactly.
+    ("seed", Lean.toJson (toString r.seed))
   ] ++ reasonField.toList ++ histogramField.toList
 
 /-- Flatten the result object while keeping simulation metadata at the top level. -/

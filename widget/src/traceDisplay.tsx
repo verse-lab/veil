@@ -71,7 +71,7 @@ type ModelCheckingResult =
       result: "found_violation";
       violation: Violation;
       trace: TraceData | null;
-      seed?: number;
+      seed?: string;
     }
   | {
       result: "no_violation_found";
@@ -80,13 +80,13 @@ type ModelCheckingResult =
       traces_run?: number;
       max_traces?: number;
       trace?: TraceData | null;
-      seed?: number;
+      seed?: string;
     }
   | {
       result: "cancelled";
       traces_run?: number;
       max_traces?: number;
-      seed?: number;
+      seed?: string;
     }
   | {
       // Trace-only data without a result (for displaying execution traces)
@@ -312,7 +312,7 @@ const ResultHeader: React.FC<{
   terminationReason?: TerminationReason;
   tracesRun?: number;
   maxTraces?: number;
-  seed?: number;
+  seed?: string;
   kind: ResultKindTag;
 }> = ({ resultType, violation, exploredStates, terminationReason, tracesRun, maxTraces, seed, kind }) => {
   const seedDetails = seed !== undefined ? (
