@@ -19,6 +19,8 @@ private def resultToJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
   -- `Json.null` stands in for the state fingerprint, which simulation does not have.
   | some (.foundViolation violation trace) =>
       toJson (ModelCheckingResult.foundViolation Json.null violation (some trace) : ModelCheckingResult ρ σ κ Json)
+  | some (.assumptionFailure violates) =>
+      toJson (ModelCheckingResult.foundViolation Json.null (.assumptionFailure violates) none : ModelCheckingResult ρ σ κ Json)
   | some .cancelled =>
       toJson (ModelCheckingResult.cancelled : ModelCheckingResult ρ σ κ Json)
   | none => Json.mkObj [("result", "no_violation_found")]

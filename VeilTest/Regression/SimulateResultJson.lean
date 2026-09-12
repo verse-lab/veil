@@ -68,3 +68,15 @@ info: {"elapsed_ms":0,"max_traces":3,"result":"found_violation","seed":1,"state_
   elapsedMs := 0
   seed := 1
 } : SimulateResult Unit Unit Unit)).compress
+
+/--
+info: {"elapsed_ms":0,"max_traces":3,"result":"found_violation","seed":1,"state_fingerprint":null,"trace":null,"traces_run":0,"violation":{"kind":"assumption_failure","violates":["first","second"]}}
+-/
+#guard_msgs in
+#eval IO.println <| (Lean.toJson ({
+  result := some (.assumptionFailure [`first, `second])
+  tracesRun := 0
+  maxTraces := 3
+  elapsedMs := 0
+  seed := 1
+} : SimulateResult Unit Unit Unit)).compress

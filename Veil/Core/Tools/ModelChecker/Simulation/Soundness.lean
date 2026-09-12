@@ -84,6 +84,8 @@ def ReportedViolationSound {ρ σ κ : Type} {th₀ : ρ}
   (params : SearchParameters ρ σ) (result : Option (SimulationResult ρ σ κ)) : Prop :=
   match result with
   | some (.foundViolation violation trace) => Trace.witnessesSimulationViolation sys params trace violation
+  | some (.assumptionFailure violates) =>
+      params.violatedAssumptions th₀ = violates ∧ violates ≠ []
   | some .cancelled => True
   | none => True
 

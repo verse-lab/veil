@@ -35,12 +35,21 @@ Seed: 1
   (seed := 1) (maxTraces := 1) (maxSteps := 1)
   assumptions_hold_by native_decide
 
+-- Runtime validation also accepts a valid theory without a proof clause.
+/--
+info: ✅ No violation in 1 traces
+Seed: 1
+-/
+#guard_msgs in
+#simulate interpreted { node := Fin 3 } { leader := fun n => n == (0 : Fin 3) }
+  (seed := 1) (maxTraces := 1) (maxSteps := 1)
+
 /--
 error: Tactic `native_decide` evaluated that the proposition
   assumption_0 { leader := fun n => n == 0 || n == 1 }
 is false
 ---
-info: ✅ No violation in 1 traces
+error: ❌ Violation: assumption_failure (violates: assumption_0)
 Seed: 1
 -/
 #guard_msgs in
@@ -49,7 +58,7 @@ Seed: 1
   assumptions_hold_by native_decide
 
 /--
-info: ✅ No violation in 1 traces
+error: ❌ Violation: assumption_failure (violates: assumption_0)
 Seed: 1
 -/
 #guard_msgs in

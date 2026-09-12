@@ -17,12 +17,14 @@ private def hasNoInitialStates {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀) : Bool :=
   sys.initStates.isEmpty
 
-private structure SimulationHooks (m : Type → Type) where
+private structure SimulationHooks (m : Type → Type) [Monad m] where
   shouldStop : Nat → m Bool
-  onTraceProgress : Nat → m PUnit
+  /-- Initialize trace collection only after the theory and initial states are checked. -/
+  onStart : m PUnit := pure ()
+  onTraceProgress : Nat → m PUnit := fun _ => pure ()
   /-- Called with the depth each completed trace reached, violation or not. -/
-  onTraceComplete : Nat → m PUnit
-  onViolation : m PUnit
+  onTraceComplete : Nat → m PUnit := fun _ => pure ()
+  onViolation : m PUnit := pure ()
 
 private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀ : ρ}
   (hooks : SimulationHooks m)
@@ -68,6 +70,31 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
           simulateLoopM hooks sys params th cfg remaining (traceIndex + 1)
 termination_by remaining
 
+/-- Shared setup for pure and IO simulation. Validate the theory with the model
+checker's evaluator before checking initial states, budgets, or cancellation. -/
+private def simulateRunM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀ : ρ}
+  (hooks : SimulationHooks m)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ)
+  (th : ρ)
+  (cfg : SimulateConfig)
+  : m (SimulateResult ρ σ κ) := do
+  match params.violatedAssumptions th with
+  | violates@(_ :: _) =>
+      hooks.onViolation
+      return {
+        result := some (.assumptionFailure violates)
+        tracesRun := 0
+        maxTraces := cfg.maxTraces
+        elapsedMs := 0
+        seed := cfg.seed
+      }
+  | [] =>
+      let sys := restrictSystemByStateConstraints sys params th
+      if hasNoInitialStates sys then return noInitialStatesResult cfg
+      hooks.onStart
+      simulateLoopM hooks sys params th cfg cfg.maxTraces 0
+
 @[inline, specialize]
 def simulateCommandSemantics {ρ σ κ : Type} {th₀ : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
@@ -76,16 +103,9 @@ def simulateCommandSemantics {ρ σ κ : Type} {th₀ : ρ}
   (shouldStop : Nat → Bool)
   (cfg : SimulateConfig)
   : SimulateResult ρ σ κ :=
-  let sys := restrictSystemByStateConstraints sys params th
-  if hasNoInitialStates sys then
-    noInitialStatesResult cfg
-  else
-    simulateLoopM
-      ({ shouldStop := fun traceIndex => shouldStop traceIndex
-         onTraceProgress := fun _ => ()
-         onTraceComplete := fun _ => ()
-         onViolation := () } : SimulationHooks Id)
-      sys params th cfg cfg.maxTraces 0
+  simulateRunM
+    ({ shouldStop } : SimulationHooks Id)
+    sys params th cfg
 
 @[inline, specialize]
 def simulateCore {ρ σ κ : Type} {th₀ : ρ}
@@ -108,17 +128,11 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
   let actualSeed ← if cfg.seed == 0 then IO.rand 0 0xFFFFFFFFFFFFFFFF else pure cfg.seed
   let cfg := { cfg with seed := actualSeed }
   let startMs ← IO.monoMsNow
-  let sys := restrictSystemByStateConstraints sys params th
-  if hasNoInitialStates sys then
-    let simResult := { noInitialStatesResult cfg with elapsedMs := (← IO.monoMsNow) - startMs }
-    Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
-      "Complete"
-      simResult.tracesRun simResult.maxTraces simResult.depthHistogram
-    return simResult
   let lastStatusUpdateRef ← IO.mkRef startMs
-  let histogramRef ← IO.mkRef (depthHistogramFor cfg.maxSteps)
-  let simResult ← simulateLoopM
+  let histogramRef ← IO.mkRef ({} : Histogram)
+  let simResult ← simulateRunM
     { shouldStop := fun _ => Veil.ModelChecker.Concrete.shouldStop cancelToken progressInstanceId
+      onStart := histogramRef.set (depthHistogramFor cfg.maxSteps)
       onTraceProgress := fun tracesRun => do
         let now ← IO.monoMsNow
         let lastStatusUpdate ← lastStatusUpdateRef.get
@@ -130,7 +144,7 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
       onTraceComplete := fun depth => histogramRef.modify (·.record depth)
       onViolation := do
         Veil.ModelChecker.Concrete.setViolationFound progressInstanceId }
-    sys params th cfg cfg.maxTraces 0
+    sys params th cfg
   let simResult := { simResult with
     elapsedMs := (← IO.monoMsNow) - startMs
     depthHistogram := ← histogramRef.get }
@@ -138,7 +152,7 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
   | some .cancelled => pure ()
   | _ =>
       Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
-        "Complete"
+        (match simResult.result with | some (.assumptionFailure _) => "Assumptions violated" | _ => "Complete")
         simResult.tracesRun simResult.maxTraces simResult.depthHistogram
   return simResult
 
@@ -164,10 +178,7 @@ private theorem simulateLoopM_id_sound {ρ σ κ : Type}
     ReportedViolationSound sys params
       (SimulateResult.result
         (simulateLoopM
-          ({ shouldStop := fun traceIndex => shouldStop traceIndex
-             onTraceProgress := fun _ => ()
-             onTraceComplete := fun _ => ()
-             onViolation := () } : SimulationHooks Id)
+          ({ shouldStop } : SimulationHooks Id)
           sys params th cfg remaining traceIndex)) := by
   intro remaining
   induction remaining with
@@ -199,13 +210,18 @@ theorem simulateCommandSemantics_sound {ρ σ κ : Type}
   (cfg : SimulateConfig) :
   ReportedViolationSound (restrictSystemByStateConstraints sys params th) params
     (SimulateResult.result (simulateCommandSemantics sys params th shouldStop cfg)) := by
-  let restrictedSys := restrictSystemByStateConstraints sys params th
-  cases hNoInit : hasNoInitialStates restrictedSys with
-  | true =>
-      simp [simulateCommandSemantics, restrictedSys, hNoInit, noInitialStatesResult, ReportedViolationSound]
-  | false =>
-      simpa [simulateCommandSemantics, restrictedSys, hNoInit] using
-        simulateLoopM_id_sound th restrictedSys params cfg shouldStop cfg.maxTraces 0
+  cases hAssumptions : params.violatedAssumptions th with
+  | cons name names =>
+      simp [simulateCommandSemantics, simulateRunM, bind, pure, hAssumptions, ReportedViolationSound]
+  | nil =>
+      let restrictedSys := restrictSystemByStateConstraints sys params th
+      cases hNoInit : hasNoInitialStates restrictedSys with
+      | true =>
+          simp [simulateCommandSemantics, simulateRunM, pure, hAssumptions, restrictedSys,
+            hNoInit, noInitialStatesResult, ReportedViolationSound]
+      | false =>
+          simpa [simulateCommandSemantics, simulateRunM, bind, pure, hAssumptions, restrictedSys, hNoInit] using
+            simulateLoopM_id_sound th restrictedSys params cfg shouldStop cfg.maxTraces 0
 
 theorem simulateCore_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ]
