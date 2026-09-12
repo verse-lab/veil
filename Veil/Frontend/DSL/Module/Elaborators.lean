@@ -700,6 +700,22 @@ structure ModelCheckContext where
   /-- Which command owns this context; selects the infoview renderer. -/
   resultKind : TraceDisplay.ResultKind
 
+/-- Report compilation failures without stopping an interpreted run during handoff.
+An interrupted compilation returns `none` normally and produces no diagnostic. -/
+def withCompilationDiagnostics (stx : Syntax) (instanceId : Nat) (handoff : Bool)
+    (compile : IO (Option System.FilePath)) : CommandElabM (Option System.FilePath) := do
+  match ← compile.toBaseIO with
+  | .ok result => return result
+  | .error e =>
+    let message := e.toString
+    ModelChecker.Concrete.updateCompilationStatus instanceId (.failed message)
+    if handoff then
+      logWarningAt stx message
+    else
+      ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [("error", toJson message)])
+      logErrorAt stx message
+    return none
+
 /-- Extract the model checking mode from the optional mode syntax. -/
 def getModelCheckingMode (modeStx : Syntax) : ModelCheckingMode :=
   if modeStx.isNone then .default
@@ -1048,7 +1064,7 @@ where
     let some resultJson ← ModelChecker.Concrete.getResultJson ctx.instanceId | return
     logModelCheckResult ctx.resultKind ctx.stx resultJson
 
-  /-- Compile the model. Returns the build folder path if compilation succeeded, none otherwise. -/
+  /-- Compile the model. Return `none` on interruption; throw on compilation failure. -/
   compileModel (mod : Module) (sourceFile : String) (modelSource : String)
       (commandId : String) (instanceId : Nat) (cancelToken : IO.CancelToken)
       (command : ModelChecker.Compilation.CompiledCommandSpec) : IO (Option System.FilePath) := do
@@ -1065,8 +1081,7 @@ where
     if result.interrupted then
       return none
     if result.exitCode != 0 then
-      ModelChecker.Concrete.updateCompilationStatus instanceId (.failed (mkCompilationErrorMsg result))
-      return none
+      throw <| IO.userError (mkCompilationErrorMsg result)
     ModelChecker.Concrete.updateCompilationStatus instanceId .succeeded
     return some buildFolder
 
@@ -1136,7 +1151,8 @@ where
 
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let some buildFolder ← compileModel mod sourceFile modelSource commandId ctx.instanceId ctx.cancelToken
+        let some buildFolder ← withCompilationDiagnostics stx ctx.instanceId false <|
+          compileModel mod sourceFile modelSource commandId ctx.instanceId ctx.cancelToken
           modelCheckerCommandSpec | return
         if ← checkCancelled ctx.cancelToken ctx.instanceId then return
         runBinaryAndLogResult ctx buildFolder sourceFile modelCheckerCommandSpec commandId
@@ -1187,7 +1203,8 @@ where
       ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let some buildFolder ← compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
+        let some buildFolder ← withCompilationDiagnostics stx ctx.instanceId true <|
+          compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
           modelCheckerCommandSpec | do
             ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
             return
@@ -1338,7 +1355,8 @@ private def elabSimulateCompiledMode (mod : Module) (stx : Syntax)
   let modelSource ← generateSimulateModelSource mod stx cfg
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
-      let some buildFolder ← elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId ctx.cancelToken
+      let some buildFolder ← withCompilationDiagnostics stx ctx.instanceId false <|
+        elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId ctx.cancelToken
         simulateCommandSpec | return
       if ← elabModelCheck.checkCancelled ctx.cancelToken ctx.instanceId then return
       runSimulateBinaryAndLogResult ctx buildFolder sourceFile commandId
@@ -1381,7 +1399,8 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := interpretedTask }
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
-      let some buildFolder ← elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
+      let some buildFolder ← withCompilationDiagnostics stx ctx.instanceId true <|
+        elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
         simulateCommandSpec | do
           ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
           return

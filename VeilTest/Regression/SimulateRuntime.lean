@@ -167,3 +167,54 @@ private def registryKeySourceFile := "compilation-registry-key.lean"
     -- Do not leave the scratch project behind in the repository's `.lake`.
     if ← firstFolder.pathExists then
       IO.FS.removeDirAll firstFolder
+
+-- Exercise the shared compilation boundary with a failing compiler, independent
+-- of the installed linker. Errors must not depend on veil.violationIsError, and
+-- handoff failures must leave interpreted execution running.
+open Lean.Elab.Command in
+private def checkCompilationFailure (handoff : Bool) : Lean.Elab.Command.CommandElabM Unit := do
+  for details in [ProgressDetails.simulation {}, .modelCheck {}] do
+    let (id, _) ← allocProgressInstance details
+    let result ← withCompilationDiagnostics (← Lean.getRef) id handoff
+      (throw <| IO.userError "Compilation failed (test compiler)")
+    liftIO <| expect "failed compilation must not return a build folder" result.isNone
+    let progress ← getProgress id
+    liftIO <| expect "compilation failure must be visible in progress" <|
+      match progress.compilationStatus with
+      | .failed _ => true
+      | _ => false
+    liftIO <| expect "only compiled-only failure should finish the run"
+      (progress.isRunning == handoff)
+    let verdict ← getResultJson id
+    liftIO <| expect "handoff failure must not replace the interpreted result"
+      (verdict.isNone == handoff)
+
+set_option veil.violationIsError false in
+/--
+error: Compilation failed (test compiler)
+---
+error: Compilation failed (test compiler)
+-/
+#guard_msgs in
+run_cmd checkCompilationFailure false
+
+/--
+warning: Compilation failed (test compiler)
+---
+warning: Compilation failed (test compiler)
+-/
+#guard_msgs in
+run_cmd checkCompilationFailure true
+
+-- Successful and interrupted compilations must remain quiet in both modes.
+open Lean.Elab.Command in
+#guard_msgs in
+run_cmd do
+  for handoff in [false, true] do
+    let (id, _) ← allocProgressInstance (.simulation {})
+    let interrupted ← withCompilationDiagnostics (← Lean.getRef) id handoff (pure none)
+    liftIO <| expect "interruption must return no folder" interrupted.isNone
+    let folder := System.FilePath.mk "compiled-model"
+    let succeeded ← withCompilationDiagnostics (← Lean.getRef) id handoff (pure (some folder))
+    liftIO <| expect "success must return the build folder" (succeeded == some folder)
+    liftIO <| expect "interruption must not finish the run" (← getProgress id).isRunning
