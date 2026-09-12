@@ -132,8 +132,12 @@ end EfficientIteratedProd
 
 section IteratedArrow
 
-abbrev IteratedArrow (codomain : Type) (ts : List Type) : Type :=
-  ts.foldr (· → ·) codomain
+/-- An iterated function type. This is explicitly recursive and reducible so
+low-transparency elaboration can expose its arrow structure without unfolding
+`List.foldr`. -/
+@[reducible] def IteratedArrow (codomain : Type) : List Type → Type
+  | [] => codomain
+  | t :: ts => t → IteratedArrow codomain ts
 
 def IteratedArrow.curry {codomain : Type} {ts : List Type}
   (k : (IteratedProd ts) → codomain) : IteratedArrow codomain ts :=
