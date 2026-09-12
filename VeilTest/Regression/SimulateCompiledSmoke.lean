@@ -29,7 +29,7 @@ info: ✅ No violation in 1 traces
 Seed: 1
 -/
 #guard_msgs in
-#simulate compiled {} { enabled := true } (seed := 1) (maxTraces := 1) (maxSteps := 1)
+#simulate compiled {} { enabled := true } (seed := 1) (numTraces := 1) (maxSteps := 1)
 
 /-- info: ✅ No violation (explored 2 states) -/
 #guard_msgs in
@@ -40,7 +40,7 @@ error: ❌ Violation: assumption_failure (violates: enabled_theory)
 Seed: 1
 -/
 #guard_msgs in
-#simulate compiled {} { enabled := false } (seed := 1) (maxTraces := 1) (maxSteps := 1)
+#simulate compiled {} { enabled := false } (seed := 1) (numTraces := 1) (maxSteps := 1)
 
 /-- error: ❌ Violation: assumption_failure (violates: enabled_theory) -/
 #guard_msgs in

@@ -19,6 +19,6 @@ info: ✅ No violation in 1 traces
 Seed: 1
 -/
 #guard_msgs in
-#simulate interpreted { } {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
+#simulate interpreted { } {} (seed := 1) (numTraces := 1) (maxSteps := 1)
 
 end SimulateEmptySpec

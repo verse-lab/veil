@@ -34,6 +34,6 @@ error: ❌ Violation: assertion_failure
 Seed: 1
 -/
 #guard_msgs in
-#simulate interpreted { node := Fin 2 } {} (seed := 1) (maxTraces := 1) (maxSteps := 1)
+#simulate interpreted { node := Fin 2 } {} (seed := 1) (numTraces := 1) (maxSteps := 1)
 
 end SimulateAssertionFailure

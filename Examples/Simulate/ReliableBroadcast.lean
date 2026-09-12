@@ -68,6 +68,6 @@ safety [agreement]
 -- simulate quickly finds an equivocation trace with the weak quorum rules above.
 set_option veil.violationIsError false in
 #simulate { node := Fin 10, value := Fin 2 } { originator := (0 : Fin 10) }
-  (seed := 41) (maxTraces := 2000) (maxSteps := 24)
+  (seed := 41) (numTraces := 2000) (maxSteps := 24)
 
 end ReliableBroadcastSim

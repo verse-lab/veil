@@ -7,7 +7,7 @@ namespace Veil.ModelChecker.Simulation
 private def noInitialStatesResult {ρ σ κ : Type} (cfg : SimulateConfig) : SimulateResult ρ σ κ := {
   result := none
   tracesRun := 0
-  maxTraces := cfg.maxTraces
+  numTraces := cfg.numTraces
   elapsedMs := 0
   seed := cfg.seed
   terminationReason := some .noInitialStates
@@ -39,7 +39,7 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
     return {
       result := some .cancelled
       tracesRun := traceIndex
-      maxTraces := cfg.maxTraces
+      numTraces := cfg.numTraces
       elapsedMs := 0
       seed := cfg.seed
     }
@@ -47,8 +47,8 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
   | 0 =>
       return {
         result := none
-        tracesRun := cfg.maxTraces
-        maxTraces := cfg.maxTraces
+        tracesRun := cfg.numTraces
+        numTraces := cfg.numTraces
         elapsedMs := 0
         seed := cfg.seed
       }
@@ -62,7 +62,7 @@ private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀
           return {
             result := some result
             tracesRun := traceIndex + 1
-            maxTraces := cfg.maxTraces
+            numTraces := cfg.numTraces
             elapsedMs := 0
             seed := cfg.seed
           }
@@ -85,7 +85,7 @@ private def simulateRunM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀ 
       return {
         result := some (.assumptionFailure violates)
         tracesRun := 0
-        maxTraces := cfg.maxTraces
+        numTraces := cfg.numTraces
         elapsedMs := 0
         seed := cfg.seed
       }
@@ -93,7 +93,7 @@ private def simulateRunM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀ 
       let sys := restrictSystemByStateConstraints sys params th
       if hasNoInitialStates sys then return noInitialStatesResult cfg
       hooks.onStart
-      simulateLoopM hooks sys params th cfg cfg.maxTraces 0
+      simulateLoopM hooks sys params th cfg cfg.numTraces 0
 
 @[inline, specialize]
 def simulateCommandSemantics {ρ σ κ : Type} {th₀ : ρ}
@@ -138,8 +138,8 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
         let lastStatusUpdate ← lastStatusUpdateRef.get
         if now - lastStatusUpdate ≥ 100 then
           Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
-            s!"Running random traces ({tracesRun}/{cfg.maxTraces})"
-            tracesRun cfg.maxTraces (← histogramRef.get)
+            s!"Running random traces ({tracesRun}/{cfg.numTraces})"
+            tracesRun cfg.numTraces (← histogramRef.get)
           lastStatusUpdateRef.set now
       onTraceComplete := fun depth => histogramRef.modify (·.record depth)
       onViolation := do
@@ -153,7 +153,7 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
   | _ =>
       Veil.ModelChecker.Concrete.updateSimulationProgress progressInstanceId
         (match simResult.result with | some (.assumptionFailure _) => "Assumptions violated" | _ => "Complete")
-        simResult.tracesRun simResult.maxTraces simResult.depthHistogram
+        simResult.tracesRun simResult.numTraces simResult.depthHistogram
   return simResult
 
 @[inline, specialize]
@@ -221,7 +221,7 @@ theorem simulateCommandSemantics_sound {ρ σ κ : Type}
             hNoInit, noInitialStatesResult, ReportedViolationSound]
       | false =>
           simpa [simulateCommandSemantics, simulateRunM, bind, pure, hAssumptions, restrictedSys, hNoInit] using
-            simulateLoopM_id_sound th restrictedSys params cfg shouldStop cfg.maxTraces 0
+            simulateLoopM_id_sound th restrictedSys params cfg shouldStop cfg.numTraces 0
 
 theorem simulateCore_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ]

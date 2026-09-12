@@ -32,7 +32,7 @@ private def expectFailure (cfg : SimulateConfig) (result : SimulateResult Bool U
   expect "invalid theory must not attempt any traces" (result.tracesRun == 0)
   expect "invalid theory must not record any trace depths" (result.depthHistogram.total == 0)
   expect "assumption failure must take precedence over no initial states" result.terminationReason.isNone
-  expect "failure must preserve seed and budget" (result.seed == cfg.seed && result.maxTraces == cfg.maxTraces)
+  expect "failure must preserve seed and budget" (result.seed == cfg.seed && result.numTraces == cfg.numTraces)
   let json := toJson result
   expect "assumption failure must use the shared violation encoding"
     (json.getObjValD "violation" == toJson (ViolationKind.assumptionFailure [`first, `second]))
@@ -45,9 +45,9 @@ private def expectFailure (cfg : SimulateConfig) (result : SimulateResult Bool U
     for prune in [false, true] do
       let params := { testParams with stateConstraints :=
         if prune == true then [{ property := fun _ _ => False }] else [] }
-      for maxTraces in [0, 3] do
+      for numTraces in [0, 3] do
         for maxSteps in [0, 2] do
-          let cfg : SimulateConfig := { seed := 7, maxTraces, maxSteps }
+          let cfg : SimulateConfig := { seed := 7, numTraces, maxSteps }
           let sys := testSystem false states
           expectFailure cfg (simulateCore sys params false cfg)
           expectFailure cfg (← simulate sys params false cfg)
@@ -57,12 +57,12 @@ private def expectFailure (cfg : SimulateConfig) (result : SimulateResult Bool U
           match (← getProgress id).details with
           | .simulation progress =>
               expect "live progress must retain the budget with zero traces"
-                (progress.tracesRun == 0 && progress.maxTraces == maxTraces)
+                (progress.tracesRun == 0 && progress.numTraces == numTraces)
           | _ => throw (IO.userError "runtime rejection changed the progress kind")
 
 -- Valid theories still run the requested traces through both APIs.
 #eval do
-  let cfg : SimulateConfig := { seed := 7, maxTraces := 3, maxSteps := 2 }
+  let cfg : SimulateConfig := { seed := 7, numTraces := 3, maxSteps := 2 }
   let params := { testParams with invariants := [] }
   let sys := testSystem true [()]
   for result in [simulateCore sys params true cfg, ← simulate sys params true cfg] do
@@ -93,7 +93,7 @@ elab "test_simulate_assumption_handoff" : command => do
       if (← IO.monoMsNow) - start > 10000 then throw (IO.userError "handoff was never requested")
       IO.sleep 1
     return toJson (← simulateWithProgress (testSystem false [()]) testParams false
-      { seed := 7, maxTraces := 3, maxSteps := 2 } id token)
+      { seed := 7, numTraces := 3, maxSteps := 2 } id token)
   let (interpreted, compiled) ← Veil.CommandRunner.runWithHandoff ctx interpret
     (do let _ ← awaitTask started.result!; return .built "unused")
     (fun _ => do binaryCalls.modify (· + 1); return .null)

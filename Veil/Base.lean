@@ -147,14 +147,14 @@ register_option veil.experimental.wpCompact : Bool := {
   descr := "Experimental. If true, compact generated `wp_local_eq.pred` definitions by sharing duplicated postcondition branches with `letEq` and exposing abstract-state conditionals field-wise."
 }
 
-register_option veil.simulate.maxTraces : Nat := {
+register_option veil.simulate.numTraces : Nat := {
   defValue := 10000
-  descr := "Maximum number of traces to generate during simulation. Default is 10000."
+  descr := "Number of simulation traces to attempt, stopping early on a violation or cancellation. Default is 10000."
 }
 
 register_option veil.simulate.maxSteps : Nat := {
   defValue := 100
-  descr := "Maximum number of steps per trace during simulation. Default is 100 (same as TLC)."
+  descr := "Maximum number of action transitions per simulation trace, excluding the initial state. Default is 100."
 }
 
 end Veil

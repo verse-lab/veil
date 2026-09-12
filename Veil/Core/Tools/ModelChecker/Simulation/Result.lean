@@ -35,7 +35,7 @@ private def metadataToJsonFields {ρ σ κ : Type} (r : SimulateResult ρ σ κ)
       ("counts", Lean.toJson r.depthHistogram.counts)])
   [
     ("traces_run", Lean.toJson r.tracesRun),
-    ("max_traces", Lean.toJson r.maxTraces),
+    ("num_traces", Lean.toJson r.numTraces),
     ("elapsed_ms", Lean.toJson r.elapsedMs),
     -- JavaScript numbers cannot represent all simulation seeds exactly.
     ("seed", Lean.toJson (toString r.seed))

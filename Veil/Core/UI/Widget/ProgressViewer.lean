@@ -537,7 +537,7 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html := I
     | .simulation sim =>
         (#[
           statRow "Traces Run:" (toString sim.tracesRun),
-          statRow "Max Traces:" (toString sim.maxTraces),
+          statRow "Requested Traces:" (toString sim.numTraces),
         ], depthHistogramHtml sim.depthHistogram, .text "")
     | .modelCheck m =>
         (#[

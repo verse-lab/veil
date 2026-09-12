@@ -31,7 +31,7 @@ Trace depths: 0x4
 Seed: 1
 -/
 #guard_msgs in
-#simulate interpreted {} {} (seed := 1) (maxTraces := 4) (maxSteps := 2)
+#simulate interpreted {} {} (seed := 1) (numTraces := 4) (maxSteps := 2)
 
 end SimulateStateConstraintPrune
 
@@ -59,6 +59,6 @@ error: ❌ Violation: safety_failure (violates: safe)
 Seed: 1
 -/
 #guard_msgs in
-#simulate interpreted {} {} (seed := 1) (maxTraces := 4) (maxSteps := 2)
+#simulate interpreted {} {} (seed := 1) (numTraces := 4) (maxSteps := 2)
 
 end SimulateStateConstraintPruneOff
