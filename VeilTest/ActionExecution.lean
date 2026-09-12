@@ -13,7 +13,7 @@ set_option linter.unusedVariables false
 
 namespace VeilTest.ActionExecution
 
-open Veil.Extract
+open Veil Veil.Extract
 
 /-- Check that an extracted action has one successful execution satisfying
 `p`, with no discarded, failing, or divergent alternatives. -/

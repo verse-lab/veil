@@ -369,13 +369,14 @@ attribute [multiExtractSimp ↓] ConstrainedExtractResult.pure
   ConstrainedExtractResult.assume_VeilM
   ConstrainedExtractResult.require_VeilM
 
-/-- Extract the execution outcome from a DivM-wrapped result. Unlike `getPostState`
-which only returns `Option σ`, this preserves information about assertion failures
-that can be used as counter-examples by the model checker. -/
+/-- Extract the execution result from a DivM-wrapped result. Unlike `getPostState`
+which only returns `Option σ`, this preserves the return value of a successful
+execution as well as information about assertion failures, both of which can be
+used as counter-examples by the model checker. -/
 @[inline]
-def getExecutionOutcome (c : DivM ((Except ε α) × σ)) : Veil.ExecutionOutcome ε σ :=
+def getExecutionResult (c : DivM ((Except ε α) × σ)) : Veil.ExecutionResult ε σ α :=
   match c with
-  | .res ((.ok _, st)) => .success st
+  | .res ((.ok a, st)) => .success a st
   | .res ((.error e, st)) => .assertionFailure e st
   | .div => .divergence
 
@@ -384,27 +385,10 @@ semantics of exceptions in Veil is that the whole computation is reverted, so
 there is no post-state in the `error` case. -/
 @[inline]
 def getPostState (c : DivM ((Except ε α) × σ)) : Option σ :=
-  getExecutionOutcome c |>.toPostState
+  getExecutionResult c |>.toPostState
 
 def getAllPostStates (c : List (DivM ((Except ε α) × σ))) : List (Option σ) :=
   c.map getPostState
-
-/-- Full result of executing an extracted Veil computation, preserving the
-return value for successful executions. FIXME: remove duplication with
-`ExecutionOutcome` in model checker. -/
-inductive ExecutionResult (ε σ α : Type) where
-  | success (returnValue : α) (state : σ)
-  | assertionFailure (error : ε) (state : σ)
-  | divergence
-deriving Repr, BEq, Inhabited
-
-/-- Extract the full execution result from a DivM-wrapped result. -/
-@[inline]
-def getExecutionResult (c : DivM ((Except ε α) × σ)) : ExecutionResult ε σ α :=
-  match c with
-  | .res ((.ok a, st)) => .success a st
-  | .res ((.error e, st)) => .assertionFailure e st
-  | .div => .divergence
 
 /-- Extract all valid states from a VeilMultiExecM computation -/
 def extractValidStates (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
@@ -412,7 +396,7 @@ def extractValidStates (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : �
 
 /-- Extract all execution outcomes (including assertion failures) from a VeilMultiExecM computation -/
 def extractAllOutcomes (exec : Veil.VeilMultiExecM κᵣ ℤ ρ σ Unit) (rd : ρ) (st : σ) : List (Veil.ExecutionOutcome ℤ σ) :=
-  exec rd st |>.map fun (_, st) => getExecutionOutcome st
+  exec rd st |>.map fun (_, st) => getExecutionResult st
 
 /-- Extract all execution results, preserving successful return values. -/
 def extractAllResults (exec : Veil.VeilMultiExecM κᵣ ε ρ σ α) (rd : ρ) (st : σ) : List (ExecutionResult ε σ α) :=
