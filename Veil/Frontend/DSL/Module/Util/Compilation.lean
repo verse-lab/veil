@@ -210,7 +210,7 @@ def runProcessWithStatusCallback (sourceFile : String) (command : CompiledComman
     (lineCallback : String → Bool → Nat → IO Unit := fun _ _ _ => pure ())
     : IO ProcessResult := do
   let startTime ← IO.monoMsNow
-  let proc ← IO.Process.spawn { cfg with stdin := .piped, stdout := .piped, stderr := .piped }
+  let proc ← IO.Process.spawn { cfg with stdin := .piped, stdout := .piped, stderr := .piped, setsid := true }
   let stdoutAccum ← IO.mkRef ""
   let stderrAccum ← IO.mkRef ""
   -- Helper to read lines from a handle
@@ -291,7 +291,7 @@ def runBinary (buildFolder : System.FilePath) (args : Array String)
   ModelChecker.Concrete.updateStatus instanceId "Running compiled binary..."
   let child ← IO.Process.spawn {
     cmd := toString (binPath / "ModelCheckerMain"), args,
-    stdin := .piped, stdout := .piped, stderr := .piped }
+    stdin := .piped, stdout := .piped, stderr := .piped, setsid := true }
   -- Read stderr for progress updates
   let stderrAccum ← IO.mkRef ""
   let stderrTask ← IO.asTask (prio := .dedicated) do
