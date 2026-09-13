@@ -382,4 +382,53 @@ scoped syntax (name := crFunction) kw_function : concreteRepField
 
 scoped syntax (name := concreteRepresentationDecl) "veil_set_field_representation " concreteRepField ident : command
 
+/-- Run random-walk simulation on the current module. Provide the type
+instantiation and theory, optionally followed by the settings:
+
+```lean
+#simulate { node := Fin 3 } {} (numTraces := 2000) (maxSteps := 500) (seed := 42)
+```
+
+Each trace starts from a randomly selected initial state and follows random
+successor outcomes. Simulation reports invariant violations, assertion failures,
+and deadlocks, stopping at the first violation. Finding no violation in the
+sampled traces does not prove correctness.
+
+The progress display includes a histogram of the depths reached.
+
+## Settings
+
+- `numTraces` (default `10000`): number of random traces to attempt.
+- `maxSteps` (default `100`): maximum number of action transitions per trace.
+  Traces can end before reaching the bound.
+- `seed` (default `0`): a nonzero seed controls the random choices for replay.
+  If omitted or 0, a random seed is generated. The seed is shown in the output;
+  reuse it with the same specification, instantiation, and settings to replay.
+
+Defaults can be changed with `set_option veil.simulate.numTraces ...` and
+`set_option veil.simulate.maxSteps ...`; explicit command settings override
+them.
+
+## Execution Modes
+
+**Default behavior** (`#simulate`):
+- Runs interpreted mode immediately and shows streaming progress
+- Starts compilation in background
+- When compilation finishes before interpreted mode does, restarts with the
+  compiled binary using the same chosen seed
+
+**Interpreted-only mode** (`#simulate interpreted`):
+- Runs only interpreted mode without background compilation
+
+**Compiled-only mode** (`#simulate compiled`):
+- Builds and runs the compiled binary directly
+
+For a module without abstract types or immutable fields:
+```lean
+#simulate {} {} (numTraces := 2000) (maxSteps := 500) (seed := 42)
+#simulate compiled {} {} (numTraces := 100) (maxSteps := 1000) (seed := 42)
+```
+-/
+scoped syntax (name := simulate) "#simulate " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
+
 end Veil

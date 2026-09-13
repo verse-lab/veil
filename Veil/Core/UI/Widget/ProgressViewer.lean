@@ -497,9 +497,56 @@ private def metricsHistoryHtml (history : Array ProgressHistoryPoint) : Html := 
     </div>
   </details>
 
+/-- Render the depth histogram of the traces run so far, collapsible like the
+model checker's metrics history.
+
+Nothing is drawn until at least two traces are in, since a "distribution" over one
+sample says nothing that the single trace does not. -/
+private def depthHistogramHtml (h : Veil.Histogram) : Html := Id.run do
+  let total := h.total
+  if total ≤ 1 then return .text ""
+  let buckets := h.buckets
+  let peak := buckets.foldl (fun acc b => max acc b.2.2) 1
+  let rows := buckets.map fun b => Id.run do
+    let label := if h.bucketWidth == 1 then toString b.1 else s!"{b.1}-{b.2.1}"
+    let pct := b.2.2 * 100 / peak
+    return <tr>
+      <td style={json% {"paddingRight": "8px", "textAlign": "right"}}>{.text label}</td>
+      <td>
+        <div style={json% {"background": "var(--vscode-panel-border)", "borderRadius": "2px",
+                           "height": "8px", "width": "160px"}}>
+          <div style={json% {"background": "var(--vscode-charts-blue, var(--vscode-textLink-foreground))",
+                             "borderRadius": "2px", "height": "8px", "width": $(s!"{pct}%")}} />
+        </div>
+      </td>
+      <td style={json% {"paddingLeft": "8px"}}>{.text (toString b.2.2)}</td>
+    </tr>
+  return <details style={json% {"marginTop": "8px"}}>
+    <summary style={json% {"cursor": "pointer", "fontSize": "12px", "color": "var(--vscode-descriptionForeground)"}}>
+      Trace Depths ({.text (toString total)} traces)
+    </summary>
+    <table style={json% {"marginTop": "4px", "fontSize": "11px", "borderCollapse": "collapse"}}>
+      {.element "tbody" #[] rows}
+    </table>
+  </details>
+
 /-- Convert Progress to Html for display, with optional Stop button. Uses TLC-style terminology. -/
-def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
-  <div className="model-checker-progress" style={json% {"fontFamily": "monospace", "padding": "8px"}}>
+def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html := Id.run do
+  let (progressRows, metricsHistory, actionCoverage) : Array Html × Html × Html :=
+    match p.details with
+    | .simulation sim =>
+        (#[
+          statRow "Traces Run:" (toString sim.tracesRun),
+          statRow "Requested Traces:" (toString sim.numTraces),
+        ], depthHistogramHtml sim.depthHistogram, .text "")
+    | .modelCheck m =>
+        (#[
+          statRow "Diameter:" (toString m.diameter),
+          statRow "States Found:" (toString m.statesFound),
+          statRow "Distinct States:" (toString m.distinctStates),
+          statRow "Queue:" (toString m.queue),
+        ], metricsHistoryHtml m.history, actionCoverageHtml m.actionStats m.allActionLabels)
+  return <div className="model-checker-progress" style={json% {"fontFamily": "monospace", "padding": "8px"}}>
     {if p.isRunning then
       <div style={json% {"marginTop": "8px", "display": "flex", "alignItems": "center", "gap": "12px"}}>
         <div style={json% {"color": "#0066cc"}}>
@@ -518,16 +565,10 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html :=
         <div style={json% {"color": "#00aa00", "fontWeight": "bold"}}>Done!</div>
       </div>}
     <table style={json% {"borderCollapse": "collapse"}}>
-      <tbody>
-        {statRow "Diameter:" (toString p.diameter)}
-        {statRow "States Found:" (toString p.statesFound)}
-        {statRow "Distinct States:" (toString p.distinctStates)}
-        {statRow "Queue:" (toString p.queue)}
-        {statRow "Elapsed time:" (formatElapsedTime p.elapsedMs)}
-      </tbody>
+      {.element "tbody" #[] (progressRows.push (statRow "Elapsed time:" (formatElapsedTime p.elapsedMs)))}
     </table>
-    {metricsHistoryHtml p.history}
-    {actionCoverageHtml p.actionStats p.allActionLabels}
+    {metricsHistory}
+    {actionCoverage}
     {match p.compilationStatus with
      | .inProgress ms lines => if lines.isEmpty then .text "" else compilationLogHtml ms lines
      | .failed err => compilationFailureHtml err
@@ -561,6 +602,13 @@ private def errorBox (errorMsg : String) : Html :=
     </pre>
   </div>
 
+/- The progress instance already knows which command it belongs to, so the widget
+does not have to guess it from whichever keys the result JSON happens to carry. -/
+private def resultKindOf (p : Progress) : Veil.TraceDisplay.ResultKind :=
+  match p.details with
+  | .modelCheck .. => .modelCheck
+  | .simulation .. => .simulate
+
 private def noResultData : Html :=
   <div style={json% {"color": "#cc6600"}}><i>No result data available</i></div>
 
@@ -572,7 +620,12 @@ def mkFinalResultHtml (p : Progress) (resultJson : Option Json) : Html :=
      | some json =>
        match extractError json with
        | some errorMsg => errorBox errorMsg
-       | none => if hasTraceData json then Html.ofComponent TraceDisplayViewer ⟨json, "vertical", none⟩ #[] else noResultData
+       | none =>
+         if hasTraceData json then
+           Html.ofComponent TraceDisplayViewer
+             { result := json, layout := "vertical", rawHtml := none,
+               kind := resultKindOf p } #[]
+         else noResultData
      | none => noResultData}
   </div>
 

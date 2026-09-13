@@ -311,7 +311,10 @@ private partial def runTraceRefreshStep (isExpectedSat : Bool) (_vcName : Name)
   | some vcResult =>
     -- Show trace widget if we have JSON, otherwise show status message
     if let some (traceJson, rawHtml?) := extractTraceDataFromVC vcResult then
-      token.update (Html.ofComponent TraceDisplayViewer { result := traceJson, layout := "vertical", rawHtml := rawHtml? } #[])
+      let props : TraceDisplayProps :=
+        { result := traceJson, layout := "vertical", rawHtml := rawHtml?,
+          kind := .symbolicTrace }
+      token.update (Html.ofComponent TraceDisplayViewer props #[])
     else
       token.update (.text s!"{formatTraceStatus isExpectedSat vcResult.status}")
 
@@ -338,12 +341,12 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
   match vcResult.status with
   | some .proven =>
     if isExpectedSat then
-      if let some traceJson := traceJson? then logInfoAt stx m!"{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
+      if let some traceJson := traceJson? then logInfoAt stx m!"{Veil.TraceDisplay.formatResult .symbolicTrace traceJson}"
       else logInfoAt stx "Found satisfying trace"
   | some .disproven =>
     if isExpectedSat then logViolation "No satisfying trace exists"
     else if let some traceJson := traceJson? then
-      logViolation m!"Counterexample found\n{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
+      logViolation m!"Counterexample found\n{Veil.TraceDisplay.formatResult .symbolicTrace traceJson}"
     else logViolation "Counterexample found"
   | some .unknown => logViolation "Solver returned unknown"
   | some .error => logViolation "Verification error"; logDischargerErrors vcResult.timing.dischargers

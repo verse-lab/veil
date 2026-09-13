@@ -373,7 +373,7 @@ unsafe def VeilTrace.toJson (vt : VeilTrace) : MetaM Json := do
   ]
 
 /-- Convert VeilTrace to a ModelCheckingResult-like JSON format for TraceDisplayViewer.
-    - For `sat trace` (isExpectedSat = true): returns `result: "found_trace"` with the trace
+    - For `sat trace` (isExpectedSat = true): returns `result: "no_violation_found"` with the trace
     - For `unsat trace` (isExpectedSat = false): returns `result: "found_violation"` with safety_failure -/
 unsafe def VeilTrace.toModelCheckingResultJson (vt : VeilTrace) (isExpectedSat : Bool) : MetaM Json := do
   let traceJson ← vt.toJson

@@ -23,7 +23,7 @@ inductive ExecutionResult (ε σ α : Type) where
   | assertionFailure (error : ε) (state : σ)
   /-- The action diverged (did not terminate). -/
   | divergence
-deriving Repr, BEq, Inhabited
+deriving Repr, BEq, DecidableEq, Inhabited
 
 /-- The result of an execution whose return value carries no information, typically
 used by the model checker. -/
@@ -34,6 +34,10 @@ abbrev ExecutionOutcome (ε σ : Type) := ExecutionResult ε σ Unit
 @[match_pattern]
 abbrev ExecutionOutcome.success {ε σ : Type} (state : σ) : ExecutionOutcome ε σ :=
   ExecutionResult.success () state
+
+@[match_pattern]
+abbrev ExecutionOutcome.assertionFailure {ε σ : Type} (error : ε) (state : σ) : ExecutionOutcome ε σ :=
+  ExecutionResult.assertionFailure error state
 
 namespace ExecutionResult
 

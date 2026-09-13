@@ -50,7 +50,7 @@ interface EarlyTerminationCondition {
 }
 
 interface TerminationReason {
-  kind: "explored_all_reachable_states" | "early_termination";
+  kind: "explored_all_reachable_states" | "early_termination" | "no_initial_states";
   condition?: EarlyTerminationCondition;
 }
 
@@ -71,25 +71,38 @@ type ModelCheckingResult =
       result: "found_violation";
       violation: Violation;
       trace: TraceData | null;
+      seed?: number;
     }
   | {
       result: "no_violation_found";
-      explored_states: number;
-      termination_reason: TerminationReason;
+      explored_states?: number;
+      termination_reason?: TerminationReason;
+      traces_run?: number;
+      num_traces?: number;
       trace?: TraceData | null;
+      seed?: number;
     }
   | {
       result: "cancelled";
+      traces_run?: number;
+      num_traces?: number;
+      seed?: number;
     }
   | {
       // Trace-only data without a result (for displaying execution traces)
       trace: TraceData;
     };
 
+/** Which command produced the result. Mirrors `Veil.TraceDisplay.ResultKind`;
+ *  the renderer branches on this instead of guessing from which keys are present. */
+// Constructor names of the Lean inductive, as produced by its derived `ToJson`.
+type ResultKindTag = "modelCheck" | "simulate" | "symbolicTrace";
+
 interface ModelCheckerViewProps {
   result: ModelCheckingResult;
   layout?: "vertical" | "horizontal";
   rawHtml?: Html;
+  kind?: ResultKindTag;
 }
 
 /* ===================== Render ===================== */
@@ -297,15 +310,33 @@ const ResultHeader: React.FC<{
   violation?: Violation;
   exploredStates?: number;
   terminationReason?: TerminationReason;
-}> = ({ resultType, violation, exploredStates, terminationReason }) => {
+  tracesRun?: number;
+  numTraces?: number;
+  seed?: number;
+  kind: ResultKindTag;
+}> = ({ resultType, violation, exploredStates, terminationReason, tracesRun, numTraces, seed, kind }) => {
+  const seedDetails = seed !== undefined ? (
+    <div className="result-details">
+      <strong>Seed:</strong> {seed}
+    </div>
+  ) : null;
+
   if (resultType === "cancelled") {
+    const details = kind !== "simulate"
+      ? 'Model checking was cancelled before completion'
+      : tracesRun !== undefined && numTraces !== undefined
+        ? `Checked ${tracesRun}/${numTraces} traces before cancellation`
+        : tracesRun !== undefined
+          ? `Checked ${tracesRun} traces before cancellation`
+          : 'Simulation was cancelled before completion';
     return (
       <div className="result-header result-cancelled">
         <span className="result-icon">⊘</span>
         <span className="result-label">Cancelled</span>
         <div className="result-details">
-          Model checking was cancelled before completion
+          {details}
         </div>
+        {seedDetails}
       </div>
     );
   }
@@ -344,12 +375,27 @@ const ResultHeader: React.FC<{
             <strong>Location:</strong> {violation.assertion_info.moduleName}.{violation.assertion_info.procedureName} (line {violation.assertion_info.line}, column {violation.assertion_info.column})
           </div>
         )}
+        {seedDetails}
       </div>
     );
   }
 
   // no_violation_found
   const getTerminationText = (reason: TerminationReason | undefined, count: number | undefined): string | null => {
+    // `#simulate`: see the table on `SimulateResult` for the cases it can produce.
+    if (kind === "simulate") {
+      if (reason?.kind === "no_initial_states") {
+        return `No initial states available after applying state constraints`;
+      }
+      if (tracesRun !== undefined && numTraces !== undefined) {
+        return `Checked ${tracesRun}/${numTraces} traces`;
+      }
+      if (tracesRun !== undefined) {
+        return `Checked ${tracesRun} traces`;
+      }
+      return null;
+    }
+
     const countSuffix = count !== undefined ? ` (explored ${count} states)` : '';
     const countText = count !== undefined ? `Explored ${count} states` : null;
 
@@ -383,6 +429,7 @@ const ResultHeader: React.FC<{
           <span>{terminationText}</span>
         </div>
       )}
+      {seedDetails}
     </div>
   );
 };
@@ -401,6 +448,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   result,
   layout = "vertical",
   rawHtml,
+  kind = "modelCheck",
 }) => {
   const isVertical = layout === "vertical";
   const [showRawJson, setShowRawJson] = React.useState(false);
@@ -784,17 +832,29 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
             {'result' in result && (
               <>
                 {result.result === "cancelled" ? (
-                  <ResultHeader resultType="cancelled" />
+                  <ResultHeader
+                    resultType="cancelled"
+                    kind={kind}
+                    tracesRun={result.traces_run}
+                    numTraces={result.num_traces}
+                    seed={result.seed}
+                  />
                 ) : result.result === "no_violation_found" ? (
                   <ResultHeader
                     resultType="no_violation_found"
+                    kind={kind}
                     exploredStates={result.explored_states}
                     terminationReason={result.termination_reason}
+                    tracesRun={result.traces_run}
+                    numTraces={result.num_traces}
+                    seed={result.seed}
                   />
                 ) : (
                   <ResultHeader
                     resultType="found_violation"
+                    kind={kind}
                     violation={result.violation}
+                    seed={result.seed}
                   />
                 )}
               </>

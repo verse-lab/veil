@@ -6,6 +6,7 @@ Authors: George Pîrlea
 import Lean.Data.Json
 import Std.Data.HashMap
 import Veil.Core.Tools.ModelChecker.Concrete.Core
+import Veil.Util.Histogram
 
 namespace Veil.ModelChecker.Concrete
 open Lean
@@ -59,9 +60,18 @@ structure ProgressHistoryPoint where
   queue : Nat
   deriving ToJson, FromJson, Inhabited, Repr
 
-/-- Progress information for model checking, using TLC-style terminology. -/
-structure Progress where
-  status : String := "Initializing..."
+/-- Progress information for a simulation run. -/
+structure SimulationProgress where
+  /-- Number of traces completed so far -/
+  tracesRun : Nat := 0
+  /-- Configured trace budget -/
+  numTraces : Nat := 0
+  /-- Depths reached by the traces completed so far. -/
+  depthHistogram : Histogram := {}
+  deriving ToJson, FromJson, Inhabited, Repr
+
+/-- Metrics reported only by `#model_check`, using TLC-style terminology. -/
+structure ModelCheckProgress where
   /-- Length of the longest behavior found so far (BFS depth) -/
   diameter : Nat := 0
   /-- Total number of post-states generated (before deduplication) -/
@@ -70,12 +80,6 @@ structure Progress where
   distinctStates : Nat := 0
   /-- States found but not yet explored (frontier size) -/
   queue : Nat := 0
-  isRunning : Bool := true
-  isCancelled : Bool := false
-  startTimeMs : Nat := 0
-  elapsedMs : Nat := 0
-  /-- Status of background compilation (for handoff mode). -/
-  compilationStatus : CompilationStatus := .none
   /-- Per-action statistics -/
   actionStats : List ActionStatDisplay := []
   /-- All possible action labels (for detecting never-enabled actions) -/
@@ -84,12 +88,32 @@ structure Progress where
   history : Array ProgressHistoryPoint := #[]
   deriving ToJson, FromJson, Inhabited, Repr
 
+inductive ProgressDetails where
+  | modelCheck (metrics : ModelCheckProgress)
+  | simulation (metrics : SimulationProgress)
+  deriving ToJson, FromJson, Inhabited, Repr
+
+/-- Progress of a running `#model_check` or `#simulate`. -/
+structure Progress where
+  status : String := "Initializing..."
+  isRunning : Bool := true
+  isCancelled : Bool := false
+  startTimeMs : Nat := 0
+  elapsedMs : Nat := 0
+  /-- Status of background compilation (for handoff mode). -/
+  compilationStatus : CompilationStatus := .none
+  /-- The metrics specific to the command being run. -/
+  details : ProgressDetails
+  deriving ToJson, FromJson, Inhabited, Repr
+
 /-- Refs for tracking progress of a single model checker instance. -/
 structure ProgressRefs where
   progressRef : IO.Ref Progress
   resultRef : IO.Ref (Option Lean.Json)
   /-- Cancellation token for this instance. -/
   cancelToken : IO.CancelToken
+  /-- Cancellation token for background compilation, when default handoff is active. -/
+  compilationCancelTokenRef : IO.Ref (Option IO.CancelToken)
   /-- Set by compilation task to signal interpreted mode to stop for handoff. -/
   handoffRequested : IO.Ref Bool
   /-- Set by interpreted mode when a violation is found (prevents handoff). -/
@@ -118,13 +142,15 @@ def enableCompiledModeProgress : IO Unit := do
 
 /-- Allocate a new progress instance and return its ID along with the cancel token.
     Takes all action labels for detecting never-enabled actions. -/
-def allocProgressInstance (allActionLabels : List String := []) : IO (Nat × IO.CancelToken) := do
+def allocProgressInstance (details : ProgressDetails) : IO (Nat × IO.CancelToken) := do
   let id ← nextInstanceId.modifyGet fun n => (n, n + 1)
   let cancelTk ← IO.CancelToken.new
   let refs : ProgressRefs := {
-    progressRef := ← IO.mkRef { startTimeMs := ← IO.monoMsNow, status := "Running...", isRunning := true, allActionLabels }
+    progressRef := ← IO.mkRef
+      { startTimeMs := ← IO.monoMsNow, status := "Running...", isRunning := true, details }
     resultRef := ← IO.mkRef none
     cancelToken := cancelTk
+    compilationCancelTokenRef := ← IO.mkRef none
     handoffRequested := ← IO.mkRef false
     violationFound := ← IO.mkRef false
   }
@@ -139,33 +165,37 @@ def getProgressRefs (instanceId : Nat) : IO (Option ProgressRefs) := do
 private def withRefs (instanceId : Nat) (f : ProgressRefs → IO Unit) : IO Unit := do
   if let some refs ← getProgressRefs instanceId then f refs
 
-/-- Update progress for a given instance ID.
+/-- Update progress for a `#model_check` instance.
     In compiled mode, also outputs progress to stderr as JSON.
     Also accumulates history for time-series charting. -/
-def updateProgress (instanceId : Nat)
+def updateModelCheckProgress (instanceId : Nat)
     (diameter statesFound distinctStates queue : Nat)
     (actionStats : List ActionStatDisplay := []) : IO Unit := do
   let now ← IO.monoMsNow
   -- Update refs if they exist (interpreted mode)
   if let some refs ← getProgressRefs instanceId then
     refs.progressRef.modify fun p =>
-      let elapsed := now - p.startTimeMs
-      let historyPoint : ProgressHistoryPoint := {
-        timestamp := elapsed, diameter, statesFound, distinctStates, queue
-      }
-      { p with
-        diameter, statesFound, distinctStates, queue, actionStats
-        elapsedMs := elapsed
-        history := p.history.push historyPoint }
+      match p.details with
+      | .simulation .. => p
+      | .modelCheck m =>
+        let elapsed := now - p.startTimeMs
+        let historyPoint : ProgressHistoryPoint := {
+          timestamp := elapsed, diameter, statesFound, distinctStates, queue
+        }
+        { p with
+          elapsedMs := elapsed
+          details := .modelCheck { m with
+            diameter, statesFound, distinctStates, queue, actionStats
+            history := m.history.push historyPoint } }
   -- Output to stderr if in compiled mode
   if ← compiledModeEnabled.get then
     let startTime ← compiledModeStartTime.get
     let p : Progress := {
       status := "Running..."
-      diameter, statesFound, distinctStates, queue, actionStats
       isRunning := true
       startTimeMs := startTime
       elapsedMs := now - startTime
+      details := .modelCheck { diameter, statesFound, distinctStates, queue, actionStats }
     }
     IO.eprintln (toJson p).compress
 
@@ -174,17 +204,37 @@ def updateStatus (instanceId : Nat) (status : String) : IO Unit := withRefs inst
   let now ← IO.monoMsNow
   refs.progressRef.modify fun p => { p with status, elapsedMs := now - p.startTimeMs }
 
+/-- Update progress for a simulation run. -/
+def updateSimulationProgress (instanceId : Nat) (status : String)
+    (tracesRun numTraces : Nat) (depthHistogram : Histogram) : IO Unit := do
+  let now ← IO.monoMsNow
+  if let some refs ← getProgressRefs instanceId then
+    refs.progressRef.modify fun p =>
+      { p with status, elapsedMs := now - p.startTimeMs
+               details := .simulation { tracesRun, numTraces, depthHistogram } }
+  if ← compiledModeEnabled.get then
+    let startTime ← compiledModeStartTime.get
+    let p : Progress := {
+      status := status
+      isRunning := true
+      startTimeMs := startTime
+      elapsedMs := now - startTime
+      details := .simulation { tracesRun, numTraces, depthHistogram }
+    }
+    IO.eprintln (toJson p).compress
+
 /-- Mark progress as complete for a given instance ID. -/
 def finishProgress (instanceId : Nat) (resultJson : Lean.Json) : IO Unit := withRefs instanceId fun refs => do
   let now ← IO.monoMsNow
-  refs.progressRef.modify fun p => { p with status := "Complete", isRunning := false, elapsedMs := now - p.startTimeMs }
+  refs.progressRef.modify fun p =>
+    { p with status := "Complete", isRunning := false, elapsedMs := now - p.startTimeMs }
   refs.resultRef.set (some resultJson)
 
 /-- Get current progress for an instance ID. -/
 def getProgress (instanceId : Nat) : IO Progress := do
   match ← getProgressRefs instanceId with
   | some refs => refs.progressRef.get
-  | none => return {}
+  | none => return default
 
 /-- Get result JSON for an instance ID. -/
 def getResultJson (instanceId : Nat) : IO (Option Lean.Json) := do
@@ -199,14 +249,23 @@ def isCancelled (instanceId : Nat) : IO Bool := do
   | none => return false
 
 /-- Request cancellation for an instance. -/
-def requestCancellation (instanceId : Nat) : IO Unit := withRefs instanceId (·.cancelToken.set)
+def requestCancellation (instanceId : Nat) : IO Unit := withRefs instanceId fun refs => do
+  refs.cancelToken.set
+  let compilationCancelToken? ← refs.compilationCancelTokenRef.get
+  if let some compilationCancelToken := compilationCancelToken? then
+    compilationCancelToken.set
+
+/-- Register or clear the background compilation cancellation token for an instance. -/
+def setCompilationCancelToken (instanceId : Nat) (cancelToken? : Option IO.CancelToken) : IO Unit :=
+  withRefs instanceId fun refs => refs.compilationCancelTokenRef.set cancelToken?
 
 /-- Mark progress as cancelled for a given instance ID. -/
-def cancelProgress (instanceId : Nat) : IO Unit := withRefs instanceId fun refs => do
+def cancelProgress (instanceId : Nat) (resultJson : Lean.Json := Json.mkObj [("result", "cancelled")]) : IO Unit := withRefs instanceId fun refs => do
   let now ← IO.monoMsNow
-  refs.progressRef.modify fun p => { p with
-    status := "Cancelled", isRunning := false, isCancelled := true, elapsedMs := now - p.startTimeMs }
-  refs.resultRef.set (some (Json.mkObj [("result", "cancelled")]))
+  refs.progressRef.modify fun p =>
+    { p with status := "Cancelled", isRunning := false, isCancelled := true,
+             elapsedMs := now - p.startTimeMs }
+  refs.resultRef.set (some resultJson)
 
 /-- Wait for model check to complete and return the result JSON. -/
 partial def waitForResult (instanceId : Nat) (pollIntervalMs : Nat := 100) : IO (Option Lean.Json) := do
@@ -223,7 +282,8 @@ where
 /-! ## Handoff Coordination -/
 
 def updateCompilationStatus (instanceId : Nat) (status : CompilationStatus) : IO Unit :=
-  withRefs instanceId fun refs => refs.progressRef.modify fun p => { p with compilationStatus := status }
+  withRefs instanceId fun refs =>
+    refs.progressRef.modify fun p => { p with compilationStatus := status }
 
 /-- Update compilation log with a new line. -/
 def updateCompilationLog (instanceId : Nat) (elapsedMs : Nat) (line : String) (isError : Bool) : IO Unit :=
@@ -264,9 +324,12 @@ def resetProgressForHandoff (instanceId : Nat) : IO (Option IO.CancelToken) := d
   let newCancelToken ← IO.CancelToken.new
   progressRegistry.modify fun m => m.insert instanceId { refs with cancelToken := newCancelToken }
   let now ← IO.monoMsNow
+  let details : ProgressDetails := match oldProgress.details with
+    | .modelCheck m => .modelCheck { allActionLabels := m.allActionLabels }
+    | .simulation m => .simulation { numTraces := m.numTraces }
   refs.progressRef.set {
     status := "Restarting with compiled binary...", startTimeMs := now,
-    compilationStatus := .succeeded, allActionLabels := oldProgress.allActionLabels
+    compilationStatus := .succeeded, details
   }
   return some newCancelToken
 
@@ -279,7 +342,7 @@ variable {σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [inst : Actio
 @[inline]
 def updateProgressDuringBFS (ctx : BaseSearchContext σ κ σₕ asm) (qSize : Nat)
     (distinctNumState : Nat := ctx.log.size) : m Unit := do
-  updateProgress progressInstanceId
+  updateModelCheckProgress progressInstanceId
     ctx.currentFrontierDepth ctx.statesFound distinctNumState qSize
     (inst.dump ctx.actionStatsMap)
 
