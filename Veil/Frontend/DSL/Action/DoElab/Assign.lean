@@ -434,10 +434,9 @@ private def elabPureAssignment (ctx : Context) (target : Target)
 def elabStateReassign : DoElab := fun stx dec => do
   let ctx ← requireVeilDoBlock
   let some (target, type?, rhs) ← catchUnsupported? (parseReassign stx)
-    | -- Pattern-shaped targets are Lean's business, but their right-hand
-      -- sides still read state: keep this statement's fresh opening.
-      openStateAround ctx.mod <| Lean.Elab.Do.elabDoReassign stx dec
-  openStateAround ctx.mod <| elabPureAssignment ctx target type? rhs stx dec
+    | -- Pattern-shaped targets are Lean's business, but they may write state.
+      Lean.Elab.Do.elabDoReassign stx (openStateAfter ctx.mod dec)
+  elabPureAssignment ctx target type? rhs stx (openStateAfter ctx.mod dec)
 
 private def withArrowResult (target : Target) (type? : Option Term)
     (rhs : DoElem) (ref : Syntax)
@@ -453,10 +452,10 @@ private def withArrowResult (target : Target) (type? : Option Term)
 def elabStateReassignArrow : DoElab := fun stx dec => do
   let ctx ← requireVeilDoBlock
   let some { target, type?, rhs, hasFallback } ← catchUnsupported? (parseReassignArrow stx)
-    | -- Pattern-shaped targets are Lean's business, inside a fresh opening
-      -- (see `elabStateReassign`).
-      openStateAround ctx.mod <| Lean.Elab.Do.elabDoReassignArrow stx dec
-  openStateAround ctx.mod do
+    | -- Pattern-shaped targets are Lean's business (see `elabStateReassign`).
+      Lean.Elab.Do.elabDoReassignArrow stx (openStateAfter ctx.mod dec)
+  let dec := openStateAfter ctx.mod dec
+  do
     match ← resolveAssignmentTarget ctx target with
     | .local =>
       if hasFallback then
@@ -546,7 +545,8 @@ def elabHavoc : DoElab := fun stx dec => do
   let ctx ← requireVeilDoBlock
   let `(doElem| $lhs:term := *) := stx | throwUnsupportedSyntax
   let target ← parseTarget lhs
-  openStateAround ctx.mod do
+  let dec := openStateAfter ctx.mod dec
+  do
     let caps ← implicitCapitals ctx target.args
     checkRepeatedCapitals target caps
     match ← resolveAssignmentTarget ctx target with
