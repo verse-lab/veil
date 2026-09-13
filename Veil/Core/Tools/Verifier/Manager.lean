@@ -96,6 +96,19 @@ def DischargerResult.kindString (res : DischargerResult ResultT) : String :=
   | .unknown _ _ => "unknown"
   | .error _ _ => "error"
 
+/-- Whether this result represents a solver timeout. Timeouts surface as
+exceptions whose message carries the solver's TIMEOUT marker; this is the same
+classification `exhaustedVCStatus` uses to report `VCStatus.timeout` (⏱), and
+`nextDischarger?` uses it to decide whether retry attempts should fire. -/
+def DischargerResult.isTimeout (res : DischargerResult ResultT) : Bool :=
+  match res with
+  | .error exs _ =>
+    exs.any fun (_, json) =>
+      match json with
+      | .str s => unknownExplanation? s == some .timeout
+      | _ => false
+  | _ => false
+
 instance [ToString ResultT] : ToString (DischargerResult ResultT) where
   toString res :=
     match res with
@@ -134,6 +147,11 @@ structure Discharger (ResultT : Type) where
   /-- Whether this discharger comes from an explicitly tagged interactive proof
   theorem rather than automatic tooling. -/
   isInteractive : Bool := false
+  /-- Attempt index for automatic retry (`veil.smt.retries`). 0 is the primary
+  attempt; attempts > 0 are seed-perturbed retries, which `nextDischarger?`
+  only schedules after an earlier attempt of the same VC *timed out* (they are
+  skipped after `sat`, genuine `unknown`, or non-timeout errors). -/
+  attempt : Nat := 0
   /-- Optionally, a VC discharger can provide term (e.g. a proof script) that
   can be shown to the user, e.g. when a VC's corresponding `theorem` is
   pretty-printed. -/
@@ -492,22 +510,35 @@ def Discharger.startTime (discharger : Discharger ResultT) : BaseIO (Option Nat)
     return none
 
 /-- Find the next discharger to try. Once this function returns `none`, it will
-not return `some` again unless new dischargers are added. -/
+not return `some` again unless new dischargers are added.
+
+Retry attempts (`Discharger.attempt > 0`) are only scheduled when an earlier
+attempt of this VC timed out; after `sat`, genuine `unknown`, or non-timeout
+errors they are skipped permanently (they stay `notStarted`, contributing
+nothing to the VC's aggregate status). -/
 def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT ResultT) : BaseIO (Option (Discharger ResultT)) := do
   match vc.successful with
   | some _ => return .none
   | none =>
     if vc.hasInteractiveDischarger then
       return none
+    let mut sawTimeout := false
     for discharger in vc.dischargers do
       match ← discharger.status with
-      | .notStarted => return some discharger
+      | .notStarted =>
+        if discharger.attempt > 0 && !sawTimeout then
+          continue
+        return some discharger
       -- if the discharger is still running, wait for it to finish
       | .running => return none
       -- if the discharger is finished the VC is proven or disproven, we're done
       | .finished (.proven _ _ _)  | .finished (.disproven _ _) => return none
-      | .finished (.unknown _ _) => continue
-      | .finished (.error _ _) => continue
+      | .finished res@(.unknown _ _) =>
+        sawTimeout := sawTimeout || res.isTimeout
+        continue
+      | .finished res@(.error _ _) =>
+        sawTimeout := sawTimeout || res.isTimeout
+        continue
     return none
 
 /-- Enable every VC currently in the manager (dormant ones included: they
@@ -561,15 +592,6 @@ def VCManager.cancelAllDischargers (mgr : VCManager VCMetaT ResultT) : BaseIO Un
     for discharger in vc.dischargers do
       discharger.cancelTk.set
 
-private def dischargerErrorIsTimeout (res : DischargerResult ResultT) : Bool :=
-  match res with
-  | .error exs _ =>
-    exs.any fun (_, json) =>
-      match json with
-      | .str s => unknownExplanation? s == some .timeout
-      | _ => false
-  | _ => false
-
 /-- Compute the final status for a VC whose dischargers have been exhausted.
 Concrete outcomes take priority, and among failures a non-timeout `error`
 outranks `unknown`; we only report `timeout` when every recorded error was a
@@ -589,7 +611,7 @@ private def VCManager.exhaustedVCStatus (mgr : VCManager VCMetaT ResultT)
           | .disproven _ _ => (true, hasUnknown, hasError, allErrorsAreTimeout)
           | .unknown _ _ => (hasDisproven, true, hasError, allErrorsAreTimeout)
           | .error _ _ =>
-            (hasDisproven, hasUnknown, true, allErrorsAreTimeout && dischargerErrorIsTimeout result)
+            (hasDisproven, hasUnknown, true, allErrorsAreTimeout && result.isTimeout)
           | .proven _ _ _ => (hasDisproven, hasUnknown, hasError, allErrorsAreTimeout)
     if hasDisproven then
       .disproven

@@ -67,17 +67,24 @@ private def mkDischargerResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT
 
 /-! ## VC Discharger -/
 
-/-- Create a discharger for inductive verification conditions. -/
+/-- Create a discharger for inductive verification conditions.
+
+`attempt > 0` marks a retry discharger (see `veil.smt.retries`): the manager
+only schedules it after an earlier attempt of the same VC timed out
+(`VerificationCondition.nextDischarger?`). The perturbed solver configuration
+is expected to be baked into `term` itself (via `set_option ... in`), so
+witness regeneration replays it unchanged. -/
 def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatement)
     (dischargerId : DischargerIdentifier)
     (nameSuffix : String := "")
+    (attempt : Nat := 0)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
     (_cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
   let dischargerId :=
     if nameSuffix.isEmpty then dischargerId
     else { dischargerId with name := Name.mkSimple s!"{dischargerId.name.getString!}{nameSuffix}" }
   let env0 ← getEnv
-  Discharger.fromTermWith term vcStatement dischargerId ch fun smtCh data time => do
+  let discharger ← Discharger.fromTermWith term vcStatement dischargerId ch fun smtCh data time => do
     let data : Witness ⊕ Exception ← match data with
       | .inl witness => do
         let witness ← inlineFreshProofs env0 witness
@@ -90,6 +97,7 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
         pure (.inl witness)
       | .inr ex => pure (.inr ex)
     mkDischargerResult dischargerId.name actName smtCh data time
+  return { discharger with attempt := attempt }
 
 /-! ## VC Statement Building -/
 
@@ -221,11 +229,40 @@ private def Module.actsToCheck (mod : Module) : Array ProcedureSpecification :=
     | .action _ _ | .initializer => true
     | .procedure _ => false)
 
+/-- Retry variants of a discharge tactic, per `veil.smt.retries`: attempt `k`
+re-runs `tac` with the solver seed set to `k` and the short
+`veil.smt.retryTimeout` budget. The perturbed options are baked into the
+returned `by` term via `set_option ... in`, so lazy witness regeneration
+(`#gen_theorems`) replays exactly the configuration that succeeded. -/
+private def mkRetryTerms [Monad m] [MonadQuotation m] [MonadOptions m]
+    (tac : TSyntax `tactic) : m (Array (Nat × Term)) := do
+  let opts ← getOptions
+  let retryTimeout := Syntax.mkNatLit (veil.smt.retryTimeout.get opts)
+  (Array.range (veil.smt.retries.get opts)).mapM fun i => do
+    let k := i + 1
+    let seed := Syntax.mkNatLit k
+    let term ← `(term| by
+      set_option veil.smt.seed $seed:num in
+      set_option veil.smt.timeout $retryTimeout:num in
+      $tac:tactic)
+    return (k, term)
+
+/-- Add `retryTerms` (from `mkRetryTerms`) as retry dischargers of `vcId`. -/
+private def VCManager.addRetryDischargers
+    (mgr : VCManager VCMetadata SmtResult) (vcId : VCId) (actName : Name)
+    (nameSuffix : String) (retryTerms : Array (Nat × Term))
+    : CommandElabM (VCManager VCMetadata SmtResult) :=
+  retryTerms.foldlM (init := mgr) fun mgr (k, term) =>
+    mgr.mkAddDischarger vcId (VCDischarger.fromTerm term actName
+      (nameSuffix := s!"{nameSuffix}_retry{k}") (attempt := k))
+
 /-- Generate doesNotThrow VCs for all actions.
     These VCs check that actions don't throw exceptions assuming the invariants hold. -/
 def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
   let actsToCheck := mod.actsToCheck
-  let wpTactic ← `(by veil_solve_wp_doesnotthrow)
+  let wpSolve ← `(tactic| veil_solve_wp_doesnotthrow)
+  let wpTactic ← `(by $wpSolve:tactic)
+  let wpRetries ← mkRetryTerms wpSolve
   -- Prepare VC data outside the lock
   let vcData ← actsToCheck.mapM fun act =>
     return (act, ← mkDoesNotThrowVC mod act.name act.declarationKind InductionVCKind.primary)
@@ -235,14 +272,19 @@ def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
       let mgr ← ref.get
       let (mgr, vcId) := mgr.addVC vc {} #[]
       let mgr ← mgr.mkAddDischarger vcId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
+      let mgr ← mgr.addRetryDischargers vcId act.name "_WP" wpRetries
       ref.set mgr
 
 /-- Generate invariant preservation VCs for all actions × invariant clauses.
     These VCs check that each action preserves each invariant clause. -/
 def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
   let actsToCheck := mod.actsToCheck
-  let wpTactic ← if mod._useLocalRPropTC then `(by veil_solve_wp) else `(by veil_solve_wp)
-  let trTactic ← `(by veil_solve_tr)
+  let wpSolve ← `(tactic| veil_solve_wp)
+  let trSolve ← `(tactic| veil_solve_tr)
+  let wpTactic ← `(by $wpSolve:tactic)
+  let trTactic ← `(by $trSolve:tactic)
+  let wpRetries ← mkRetryTerms wpSolve
+  let trRetries ← mkRetryTerms trSolve
   -- Prepare all VC data outside the lock
   let vcData ← actsToCheck.foldlM (init := #[]) fun acc act => do
     let clauseVCs ← mod.checkableInvariants.foldlM (init := #[]) fun acc' invClause => do
@@ -266,15 +308,19 @@ def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
           -- fallback, but it no longer drives the normal path for these actions.
           let (mgr, trVCId) := mgr.addVC trVC {} #[]
           let mgr ← mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
+          let mgr ← mgr.addRetryDischargers trVCId act.name "_TR" trRetries
           let (mgr, wpVCId) := mgr.addAlternativeVC wpVC trVCId #[]
-          mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
+          let mgr ← mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
+          mgr.addRetryDischargers wpVCId act.name "_WP" wpRetries
         else do
           -- Ordinary actions keep the existing WP-first behavior.  TR remains a
           -- fallback counterexample/proof route if the WP VC fails.
           let (mgr, wpVCId) := mgr.addVC wpVC {} #[]
           let mgr ← mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
+          let mgr ← mgr.addRetryDischargers wpVCId act.name "_WP" wpRetries
           let (mgr, trVCId) := mgr.addAlternativeVC trVC wpVCId #[]
-          mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
+          let mgr ← mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
+          mgr.addRetryDischargers trVCId act.name "_TR" trRetries
       ref.set mgr
 
 /-- Generate all VCs (both doesNotThrow and invariant preservation). -/
