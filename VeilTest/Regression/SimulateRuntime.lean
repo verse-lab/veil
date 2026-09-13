@@ -95,11 +95,11 @@ private def expect (message : String) (cond : Bool) : IO Unit :=
   expect "a cleared compilation token must not be cancelled" (!compilationSet)
 
 private def modelCheckCommand : CompiledCommandSpec := {
-  exportedName := "modelCheckerResult"
+  name := "model_check"
 }
 
 private def simulateCommand : CompiledCommandSpec := {
-  exportedName := "simulateResult"
+  name := "simulate"
 }
 
 private def registryKeySourceFile := "compilation-registry-key.lean"

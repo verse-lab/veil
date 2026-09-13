@@ -12,21 +12,21 @@ inductive Status
 
 /-- Description of a command that can be compiled into a generated executable. -/
 structure CompiledCommandSpec where
-  /-- Name of the generated definition that the compiled executable calls. -/
-  exportedName : String
+  /-- Short identifier of the command, used in registry keys and build folder names. -/
+  name : String
 
 /-- Registry key for one compiled command invocation. -/
 structure CompilationKey where
   /-- Source file containing the compiled command invocation. -/
   sourceFile : String
-  /-- Generated definition called by the compiled executable. -/
-  exportedName : String
+  /-- Identifier of the compiled command, from `CompiledCommandSpec.name`. -/
+  commandName : String
   /-- Identity of the specific command invocation within `sourceFile`. -/
   commandId : String
   deriving BEq, Hashable, Inhabited
 
 /-- Global state tracking compilation status for multiple compiled commands.
-    Keyed by source file path, exported command name, and command identity so
+    Keyed by source file path, command name, and command identity so
     different command invocations in the same file do not supersede each other.
     Uses `Std.Mutex` to prevent race conditions when multiple tasks access the registry. -/
 initialize compilationRegistry : Std.Mutex (Std.HashMap CompilationKey Status) ←
@@ -35,7 +35,7 @@ initialize compilationRegistry : Std.Mutex (Std.HashMap CompilationKey Status) �
 @[inline]
 def mkCompilationKey (sourceFile : String) (command : CompiledCommandSpec) (commandId : String) : CompilationKey := {
   sourceFile,
-  exportedName := command.exportedName,
+  commandName := command.name,
   commandId,
 }
 
@@ -82,7 +82,7 @@ def getLakeExecutable : IO System.FilePath := do
 def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec) (instanceId : Nat) : IO System.FilePath := do
   let stem := System.FilePath.mk sourceFile |>.fileStem.getD "unrecognized_model"
   let baseDir ← getBuildBaseDir
-  return baseDir / s!"{stem}_{command.exportedName}_{hash sourceFile}_{← IO.Process.getPID}_{instanceId}"
+  return baseDir / s!"{stem}_{command.name}_{hash sourceFile}_{← IO.Process.getPID}_{instanceId}"
 
 /-- Entry point shared by the generated model checker executables. -/
 def runMain (check : Option ModelChecker.ParallelConfig → Nat → IO.CancelToken → IO Json) (args : List String) : IO Unit := do

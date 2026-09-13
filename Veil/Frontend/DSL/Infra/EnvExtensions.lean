@@ -104,35 +104,4 @@ elab "veil_set_option " o:ident v:term : command => do
 
 end DevelopingTools
 
-section ModelCheckCompilationMode
-
-/-! ## Model Check Compilation Mode
-
-This legacy option supports explicitly re-elaborating a source file to export
-`modelCheckerResult`. Native `#model_check` now emits C directly from the current
-environment and does not enable this option. When enabled, it is used to:
-1. Skip verification-only operations (like `doesNotThrow` error reporting)
-2. Skip verification commands (`#check_invariants`, `sat trace`, etc.)
-3. Prevent `logError` calls from failing the build
--/
-
-/-- Check if we're in model checking compilation mode. -/
-def isModelCheckCompileMode [Monad m] [MonadOptions m] : m Bool := do
-  return veil.__modelCheckCompileMode.get (← getOptions)
-
-/-- Log an error, but only if not in model check compilation mode.
-    In compilation mode, errors would cause lake build to fail. -/
-def veilLogError [Monad m] [MonadOptions m] [AddMessageContext m] [MonadLog m]
-    (msg : MessageData) : m Unit := do
-  unless ← isModelCheckCompileMode do
-    logError msg
-
-/-- Log an error at a specific syntax location, but only if not in compilation mode. -/
-def veilLogErrorAt [Monad m] [MonadOptions m] [AddMessageContext m] [MonadLog m]
-    (stx : Syntax) (msg : MessageData) : m Unit := do
-  unless ← isModelCheckCompileMode do
-    logErrorAt stx msg
-
-end ModelCheckCompilationMode
-
 end Veil

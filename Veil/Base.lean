@@ -91,11 +91,6 @@ register_option veil.extract.shareValueLets : Bool := {
   sequential branches and no later pass can undo it."
 }
 
-register_option veil.__modelCheckCompileMode : Bool := {
-  defValue := false
-  descr := "(INTERNAL ONLY. DO NOT USE.) When true, skip verification-only operations for model checking compilation."
-}
-
 inductive VeilSolver : Type where
   | smt
   | grind
