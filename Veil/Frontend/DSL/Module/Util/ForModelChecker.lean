@@ -78,11 +78,15 @@ def getLakeExecutable : IO System.FilePath := do
     unless lake.isEmpty do return lake
   return (← Lean.findSysroot) / "bin" / System.FilePath.addExtension "lake" System.FilePath.exeExtension
 
-/-- Each invocation owns its files, including concurrent checks in the same source. -/
-def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec) (instanceId : Nat) : IO System.FilePath := do
+/-- Build folder for one generated program, named after its C and the modules it links against.
+Checks that emit the same program share a folder, so re-running an unchanged check lets Lake skip
+the C compilation and the link instead of producing another binary. Write to a folder only inside
+`withBuildFolderLock`. -/
+def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec)
+    (cCode : String) (imports : Array Name) : IO System.FilePath := do
   let stem := System.FilePath.mk sourceFile |>.fileStem.getD "unrecognized_model"
   let baseDir ← getBuildBaseDir
-  return baseDir / s!"{stem}_{command.name}_{hash sourceFile}_{← IO.Process.getPID}_{instanceId}"
+  return baseDir / s!"{stem}_{command.name}_{mixHash (hash cCode) (hash imports)}"
 
 /-- Entry point shared by the generated model checker executables. -/
 def runMain (check : Option ModelChecker.ParallelConfig → Nat → IO.CancelToken → IO Json) (args : List String) : IO Unit := do
@@ -116,15 +120,26 @@ where
     flushStdoutAndStderr
     IO.Process.forceExit 2
 
-/-- Write the current environment's C output and its native dependency names. -/
-def createBuildFolder (sourceFile : String) (command : CompiledCommandSpec) (instanceId : Nat)
-    (cCode : String) (imports : Array Name) : IO System.FilePath := do
-  let buildFolder ← generateBuildFolderName sourceFile command instanceId
+-- NOTE: Using a lock avoids having two processes simultaneously writing to the same build folder
+-- (e.g., when `lake build` and the editor are both processing a file)
+/-- Run `act` while holding the lock of `buildFolder`, which checks emitting the same program
+share. Returns `none` without running `act` if `cancelToken` is set while waiting for the lock. -/
+def withBuildFolderLock (buildFolder : System.FilePath) (cancelToken : IO.CancelToken)
+    (act : IO α) : IO (Option α) := do
   IO.FS.createDirAll buildFolder
-  -- Write the C IR
+  let lock ← IO.FS.Handle.mk (buildFolder / "build.lock") .write
+  while !(← lock.tryLock) do
+    if ← cancelToken.isSet then return none
+    IO.sleep 100
+  try
+    return some (← act)
+  finally
+    lock.unlock
+
+/-- Write the generated C and the names of the modules it links against. -/
+def writeBuildInputs (buildFolder : System.FilePath) (cCode : String) (imports : Array Name) : IO Unit := do
   IO.FS.writeFile (buildFolder / "ModelCheckerMain.c") cCode
   IO.FS.writeFile (buildFolder / "imports.json") (toJson imports).compress
-  return buildFolder
 
 /-- Result of running a compilation process. -/
 structure ProcessResult where

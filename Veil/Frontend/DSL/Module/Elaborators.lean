@@ -1054,19 +1054,22 @@ where
     if ← cancelToken.isSet then return none
     let cCode ← generateCCode callExpr
     if ← cancelToken.isSet then return none
-    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile command instanceId cCode
-      (← getEnv).allImportedModuleNames
+    let imports := (← getEnv).allImportedModuleNames
+    let buildFolder ← ModelChecker.Compilation.generateBuildFolderName sourceFile command cCode imports
     let lake ← ModelChecker.Compilation.getLakeExecutable
     let sourcePath := (← IO.currentDir) / sourceFile
     ModelChecker.Compilation.markRegistryInProgress sourceFile command commandId instanceId buildFolder
-    let result ← ModelChecker.Compilation.runProcessWithStatusCallback
-      sourceFile
-      command
-      commandId
-      { cmd := lake.toString, args := #["script", "run", "veilModelCheckBuild", sourcePath.toString, buildFolder.toString] }
-      instanceId cancelToken
-      (fun elapsedMs => ModelChecker.Concrete.updateCompilationElapsed instanceId elapsedMs)
-      (fun line isError elapsedMs => ModelChecker.Concrete.updateCompilationLog instanceId elapsedMs line isError)
+    let result? ← ModelChecker.Compilation.withBuildFolderLock buildFolder cancelToken do
+      ModelChecker.Compilation.writeBuildInputs buildFolder cCode imports
+      ModelChecker.Compilation.runProcessWithStatusCallback
+        sourceFile
+        command
+        commandId
+        { cmd := lake.toString, args := #["script", "run", "veilModelCheckBuild", sourcePath.toString, buildFolder.toString] }
+        instanceId cancelToken
+        (fun elapsedMs => ModelChecker.Concrete.updateCompilationElapsed instanceId elapsedMs)
+        (fun line isError elapsedMs => ModelChecker.Concrete.updateCompilationLog instanceId elapsedMs line isError)
+    let some result := result? | return none
     if result.interrupted then
       return none
     if result.exitCode != 0 then

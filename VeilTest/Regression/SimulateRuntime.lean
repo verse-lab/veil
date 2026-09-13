@@ -2,9 +2,10 @@ import Veil
 
 /-!
 Runtime regressions shared by simulation and model checking: progress survives
-handoff, cancellation reaches compilation, and command invocations do not collide
-in the compilation registry or overwrite each other's generated C. These direct checks avoid
-relying on compilation timing to trigger a handoff.
+handoff, cancellation reaches compilation, command invocations do not collide in the
+compilation registry, and checks that emit the same program share a build folder without
+building in it at once. These direct checks avoid relying on compilation timing to trigger a
+handoff.
 -/
 
 open Veil Veil.ModelChecker.Simulation Veil.ModelChecker.Concrete
@@ -104,21 +105,23 @@ private def simulateCommand : CompiledCommandSpec := {
 
 private def registryKeySourceFile := "compilation-registry-key.lean"
 
--- Build folders distinguish command kinds and individual invocations.
+-- Build folders distinguish command kinds, even for identical generated inputs.
 #eval do
-  let modelCheckFolder ← generateBuildFolderName registryKeySourceFile modelCheckCommand 0
-  let simulateFolder ← generateBuildFolderName registryKeySourceFile simulateCommand 0
+  let modelCheckFolder ← generateBuildFolderName registryKeySourceFile modelCheckCommand "/* C */" #[`Veil]
+  let simulateFolder ← generateBuildFolderName registryKeySourceFile simulateCommand "/* C */" #[`Veil]
   expect "#model_check and #simulate must not share a build folder"
     (toString modelCheckFolder != toString simulateFolder)
 
--- Two files with the same name in different directories must not collide. Keying
--- the folder on the file stem alone used to let them clobber each other's
--- generated sources while both were registered as current.
+-- Build folders are keyed by the generated program: an unchanged check reuses its folder so Lake
+-- can skip the build, while a change to the C or to the linked modules gets a folder of its own.
 #eval do
-  let inOneDir ← generateBuildFolderName (System.mkFilePath ["one", "Shared.lean"]).toString simulateCommand 0
-  let inAnother ← generateBuildFolderName (System.mkFilePath ["two", "Shared.lean"]).toString simulateCommand 0
-  expect "same-named files in different directories must not share a build folder"
-    (toString inOneDir != toString inAnother)
+  let folder ← generateBuildFolderName registryKeySourceFile simulateCommand "/* C */" #[`Veil]
+  let again ← generateBuildFolderName registryKeySourceFile simulateCommand "/* C */" #[`Veil]
+  let otherC ← generateBuildFolderName registryKeySourceFile simulateCommand "/* other C */" #[`Veil]
+  let otherImports ← generateBuildFolderName registryKeySourceFile simulateCommand "/* C */" #[`Veil, `Lean]
+  expect "an unchanged program must reuse its build folder" (folder == again)
+  expect "programs with different C must not share a build folder" (folder != otherC)
+  expect "programs linking different modules must not share a build folder" (folder != otherImports)
 
 -- Distinct invocations in one file each stay current, so none of them is killed.
 #eval do
@@ -139,25 +142,49 @@ private def registryKeySourceFile := "compilation-registry-key.lean"
     markRegistryFinished registryKeySourceFile command commandId
       (System.FilePath.mk "build" / commandId)
 
--- Concurrent invocations write independent C and dependency manifests.
+-- Different programs keep independent C and dependency manifests.
 #eval do
   let sourceFile := "compilation-build-folder-inputs.lean"
-  let firstC := "/* first invocation */"
-  let secondC := "/* second invocation */"
+  let firstC := "/* first program */"
+  let secondC := "/* second program */"
   let firstImports := #[`Veil]
   let secondImports := #[`Veil, `Lean.Compiler.LCNF.EmitC]
-  let firstFolder ← createBuildFolder sourceFile simulateCommand 0 firstC firstImports
-  let secondFolder ← createBuildFolder sourceFile simulateCommand 1 secondC secondImports
-  expect "distinct invocations must not share generated files" (firstFolder != secondFolder)
-  expect "the first invocation's C must survive the second invocation"
+  let firstFolder ← generateBuildFolderName sourceFile simulateCommand firstC firstImports
+  let secondFolder ← generateBuildFolderName sourceFile simulateCommand secondC secondImports
+  let token ← IO.CancelToken.new
+  for (folder, cCode, imports) in [(firstFolder, firstC, firstImports), (secondFolder, secondC, secondImports)] do
+    let _ ← withBuildFolderLock folder token (writeBuildInputs folder cCode imports)
+  expect "distinct programs must not share generated files" (firstFolder != secondFolder)
+  expect "the first program's C must survive the second program's"
     ((← IO.FS.readFile (firstFolder / "ModelCheckerMain.c")) == firstC)
-  expect "the second invocation must receive its own C"
+  expect "the second program must receive its own C"
     ((← IO.FS.readFile (secondFolder / "ModelCheckerMain.c")) == secondC)
   for (folder, imports) in [(firstFolder, firstImports), (secondFolder, secondImports)] do
-    expect "each invocation must keep its own dependency manifest"
+    expect "each program must keep its own dependency manifest"
       ((← IO.FS.readFile (folder / "imports.json")) == (Lean.toJson imports).compress)
     for name in ["lakefile.lean", "Model.lean", "ModelCheckerMain.lean", "lean-toolchain"] do
       expect s!"native compilation must not generate {name}" (!(← (folder / name).pathExists))
+
+-- Checks that emit the same program share a folder, so only one may build in it at a time, and a
+-- check waiting for the folder must still respond to cancellation.
+#eval do
+  let folder ← generateBuildFolderName "compilation-build-folder-lock.lean" simulateCommand "/* shared */" #[]
+  let acquired ← IO.mkRef false
+  let release ← IO.mkRef false
+  let holder ← IO.asTask <| withBuildFolderLock folder (← IO.CancelToken.new) do
+    acquired.set true
+    while !(← release.get) do IO.sleep 10
+  while !(← acquired.get) do IO.sleep 10
+  let waiterToken ← IO.CancelToken.new
+  let waiter ← IO.asTask <| withBuildFolderLock folder waiterToken (pure ())
+  IO.sleep 300
+  expect "a second build must wait while the folder is locked" (!(← IO.hasFinished waiter))
+  waiterToken.set
+  expect "a cancelled wait for the folder must give up" ((← IO.ofExcept (← IO.wait waiter)).isNone)
+  release.set true
+  expect "the holder must finish once released" ((← IO.ofExcept (← IO.wait holder)).isSome)
+  expect "the folder must be free again"
+    ((← withBuildFolderLock folder (← IO.CancelToken.new) (pure ())).isSome)
 
 -- Exercise the shared compilation boundary with a failing compiler, independent
 -- of the installed linker. Errors must not depend on veil.violationIsError, and
