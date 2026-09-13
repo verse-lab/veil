@@ -11,7 +11,7 @@ open scoped Veil.Extract
 namespace Veil
 
 private def finalizeVerificationSpec (mod : Module) (stx : Syntax) : CommandElabM Module := do
-  let mod ← if (← isModelCheckCompileMode) then pure mod else do
+  let mod ← do
     let mod ← withTraceNode `veil.perf.elaborator.decl.Assumptions (fun _ => return "Assumptions") do
       let (assumptionCmd, mod) ← mod.elaborateAssumptions
       if !mod.assumptions.isEmpty then
@@ -55,7 +55,7 @@ private def finalizeVerificationSpec (mod : Module) (stx : Syntax) : CommandElab
   -- NOTE: ActionTag is query-local (not a module sort), but we generate the
   -- axiomatisation class and concrete type here for convenience
   let actionNames := mod.actions.map (fun (a : ProcedureSpecification) => Lean.mkIdent a.name)
-  if !actionNames.isEmpty && !(← isModelCheckCompileMode) then
+  if !actionNames.isEmpty then
     let (className, classDecl) ← mkEnumAxiomatisation actionTagType actionNames
     elabVeilCommand classDecl
     for cmd in (← mkEnumConcreteType actionTagType actionNames) do
@@ -63,7 +63,7 @@ private def finalizeVerificationSpec (mod : Module) (stx : Syntax) : CommandElab
     elabVeilCommand $ ← `(open $className:ident)
     -- TODO: Generate equivalence theorem (ActionTag.label_equiv) here
 
-  let mod ← if (← isModelCheckCompileMode) then pure mod else do
+  let mod ← do
     let (nextCmd, mod) ← mod.assembleNext
     elabVeilCommand nextCmd
     let (nextTrCmd, mod) ← mod.assembleNextTransition
@@ -80,12 +80,11 @@ private def finalizeVerificationSpec (mod : Module) (stx : Syntax) : CommandElab
     let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
     elabVeilCommand rtsCmd
     pure mod
-  unless (← isModelCheckCompileMode) do
-    Verifier.runManager
-    mod.generateDoesNotThrowVCs
-    -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
-    Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
-    mod.generateInvariantVCs
+  Verifier.runManager
+  mod.generateDoesNotThrowVCs
+  -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
+  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
+  mod.generateInvariantVCs
   -- Invariant VCs are generated here; verifier commands decide when to start them.
   return mod
 
@@ -119,15 +118,13 @@ def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetad
   let msg ← Verifier.formatVerificationResults results
   let violationIsError := veil.violationIsError.get (← getOptions)
   if Verifier.hasFailedVCs results && violationIsError then
-    veilLogErrorAt stx msg
+    logErrorAt stx msg
   else
-    unless ← isModelCheckCompileMode do
-      logInfoAt stx msg
-  unless ← isModelCheckCompileMode do
-    let trustedCount := proofHasSorryGoalCount results
-    if trustedCount > 0 then
-      logWarningAt stx (trustedSmtWarning trustedCount)
-    addUndischargedTheoremSuggestion stx results
+    logInfoAt stx msg
+  let trustedCount := proofHasSorryGoalCount results
+  if trustedCount > 0 then
+    logWarningAt stx (trustedSmtWarning trustedCount)
+  addUndischargedTheoremSuggestion stx results
 
 private def runFilteredInvariantCheck
     (stx : Syntax)
@@ -172,7 +169,6 @@ def elabCheckInvariants : CommandElab := fun stx => do
   -- Use dynamic trace class name for detailed profiling
   withTraceNode `veil.perf.elaborator.checkInvariants (fun _ => return "#check_invariants") do
     -- Skip in compilation mode (no verification feedback needed)
-    if ← isModelCheckCompileMode then return
     let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
     mod.throwIfSpecNotFinalized
     runFilteredInvariantCheck stx mod VCMetadata.isInduction
@@ -180,7 +176,6 @@ def elabCheckInvariants : CommandElab := fun stx => do
 @[command_elab Veil.checkAction]
 def elabCheckAction : CommandElab := fun stx => do
   withTraceNode `veil.perf.elaborator.checkAction (fun _ => return "#check_action") do
-    if ← isModelCheckCompileMode then return
     let mod ← getCurrentModule (errMsg := "You cannot #check_action outside of a Veil module!")
     mod.throwIfSpecNotFinalized
     unless stx.getKind == `Veil.checkAction do
@@ -194,7 +189,6 @@ def elabCheckAction : CommandElab := fun stx => do
 @[command_elab Veil.genTheorems]
 def elabGenTheorems : CommandElab := fun _stx => do
   withTraceNode `veil.perf.elaborator.genTheorems (fun _ => return "#gen_theorems") do
-    if ← isModelCheckCompileMode then return
     let mod ← getCurrentModule (errMsg := "You cannot #gen_theorems outside of a Veil module!")
     mod.throwIfSpecNotFinalized
     let _ ← Verifier.waitFilteredSync (fun _ => true)

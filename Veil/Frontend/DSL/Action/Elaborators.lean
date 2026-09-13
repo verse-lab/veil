@@ -1105,17 +1105,17 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
     -- Elaborate the definitions in the Lean environment
     liftTermElabM $ do
       let nmDo := pi.nameInMode .none
-      let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}]) (compile := !(← isModelCheckCompileMode))
+      let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}])
       let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
-      let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}]) (compile := !(← isModelCheckCompileMode))
+      let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}])
       AuxiliaryDefinitions.defineWp mod nmInt .internal intKind deriveTransition?
 
       -- Procedures are never considered in their external view, so save some
       -- time by not elaborating those definitions.
       if pi matches .initializer | .action _ _ then do
         let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
-        let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}]) (compile := !(← isModelCheckCompileMode))
-        if !(← isModelCheckCompileMode) && (← hasVerificationSupport) then
+        let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
+        if ← hasVerificationSupport then
           AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
           if deriveTransition? then
             AuxiliaryDefinitions.defineTransition mod nmExt extKind
@@ -1155,7 +1155,7 @@ def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TS
     instantiateMVars tmp
   -- FIXME: How to define the `l` in `ps`? Might need to change the definition of `ProcedureSpecification`
   let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams .none /- this is not correct -/ ⟨t.raw⟩ stx
-  let _nmTr_fullyQualified ← liftTermElabM $ addVeilDefinition (toTransitionName <| toActName pi.name .external) eTr (compile := !(← isModelCheckCompileMode))
+  let _nmTr_fullyQualified ← liftTermElabM $ addVeilDefinition (toTransitionName <| toActName pi.name .external) eTr
   mod.defineProcedureCore pi eDo ps false
 
 end Veil

@@ -14,8 +14,6 @@ inductive Status
 structure CompiledCommandSpec where
   /-- Short identifier of the command, used in registry keys and build folder names. -/
   name : String
-  /-- Export called by the legacy internal compilation mode. -/
-  exportedName : String := ""
 
 /-- Registry key for one compiled command invocation. -/
 structure CompilationKey where
