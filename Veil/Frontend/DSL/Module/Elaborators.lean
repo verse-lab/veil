@@ -690,7 +690,8 @@ structure ModelCheckContext where
   resultKind : TraceDisplay.ResultKind
 
 /-- Report compilation failures without stopping an interpreted run during handoff.
-An interrupted compilation returns `none` normally and produces no diagnostic. -/
+Interruptions produce no diagnostic: a killed build returns `none`, and an interrupt raised
+while generating C propagates, since `catch` rethrows interrupts. -/
 def withCompilationDiagnostics (stx : Syntax) (instanceId : Nat) (handoff : Bool)
     (compile : CommandElabM (Option System.FilePath)) : CommandElabM (Option System.FilePath) := do
   try
@@ -922,6 +923,11 @@ where
         return true
     return false
 
+  /-- End a compiled-only run that was cancelled before reaching a verdict. -/
+  endRunIfCancelled (cancelToken : IO.CancelToken) (instanceId : Nat) : IO Unit := do
+    if (← ModelChecker.Concrete.getProgress instanceId).isRunning then
+      discard <| checkCancelled cancelToken instanceId
+
   /-- Build compilation error message from process result. -/
   mkCompilationErrorMsg (result : ModelChecker.Compilation.ProcessResult) : String :=
     s!"Compilation failed (exit code {result.exitCode}):\n" ++
@@ -1144,6 +1150,8 @@ where
         runBinaryAndLogResult ctx buildFolder sourceFile modelCheckerCommandSpec commandId
       catch e : Exception =>
         handleModelCheckError ctx e
+      finally
+        endRunIfCancelled ctx.cancelToken ctx.instanceId
     ) ctx.cancelToken
 
     let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
@@ -1314,6 +1322,8 @@ private def elabSimulateCompiledMode (mod : Module) (stx : Syntax) (callExpr : T
       runSimulateBinaryAndLogResult ctx buildFolder sourceFile commandId
     catch e : Exception =>
       elabModelCheck.handleModelCheckError ctx e
+    finally
+      elabModelCheck.endRunIfCancelled ctx.cancelToken ctx.instanceId
   ) ctx.cancelToken
   let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := compilationTask }

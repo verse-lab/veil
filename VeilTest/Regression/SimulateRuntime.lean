@@ -186,6 +186,26 @@ private def registryKeySourceFile := "compilation-registry-key.lean"
   expect "the folder must be free again"
     ((← withBuildFolderLock folder (← IO.CancelToken.new) (pure ())).isSome)
 
+-- Stopping a compiled-only run during compilation leaves no verdict behind, whether the build was
+-- killed or elaboration was interrupted, so the run must still end as cancelled. A run that
+-- already has a verdict must keep it.
+#eval do
+  let (stopped, stoppedToken) ← allocProgressInstance (.modelCheck {})
+  stoppedToken.set
+  elabModelCheck.endRunIfCancelled stoppedToken stopped
+  let progress ← getProgress stopped
+  expect "a run stopped during compilation must end as cancelled"
+    (!progress.isRunning && progress.isCancelled)
+  let (running, runningToken) ← allocProgressInstance (.modelCheck {})
+  elabModelCheck.endRunIfCancelled runningToken running
+  expect "a run that was not stopped must keep running" (← getProgress running).isRunning
+  let (finished, finishedToken) ← allocProgressInstance (.modelCheck {})
+  let verdict := Lean.Json.mkObj [("result", "no_violation")]
+  finishProgress finished verdict
+  finishedToken.set
+  elabModelCheck.endRunIfCancelled finishedToken finished
+  expect "a late Stop must not replace a verdict" ((← getResultJson finished) == some verdict)
+
 -- Exercise the shared compilation boundary with a failing compiler, independent
 -- of the installed linker. Errors must not depend on veil.violationIsError, and
 -- handoff failures must leave interpreted execution running.
@@ -224,6 +244,15 @@ warning: Compilation failed (test compiler)
 #guard_msgs in
 run_cmd checkCompilationFailure true
 
+open Lean.Elab.Command in
+/-- `Command.tryCatch` rethrows interrupts, so observe one at the underlying `EIO` layer. -/
+private def throwsInterrupt (x : CommandElabM Unit) : CommandElabM Bool := fun ctx s => do
+  try
+    x ctx s
+    pure false
+  catch e =>
+    if e.isInterrupt then pure true else throw e
+
 -- Successful and interrupted compilations must remain quiet in both modes.
 open Lean.Elab.Command in
 #guard_msgs in
@@ -232,6 +261,16 @@ run_cmd do
     let (id, _) ← allocProgressInstance (.simulation {})
     let interrupted ← withCompilationDiagnostics (← Lean.getRef) id handoff (pure none)
     liftIO <| expect "interruption must return no folder" interrupted.isNone
+    -- Generating C elaborates under the command's cancellation token, so Stop can also arrive
+    -- as an interrupt. `catch` rethrows it instead of reporting a failure, which is why compiled
+    -- runs are ended in a `finally` (see `endRunIfCancelled`).
+    let escaped ← throwsInterrupt do
+      discard <| withCompilationDiagnostics (← Lean.getRef) id handoff Lean.throwInterruptException
+    liftIO <| expect "an interrupt must escape compilation diagnostics" escaped
+    liftIO <| expect "an interrupt must not be reported as a compilation failure" <|
+      match (← getProgress id).compilationStatus with
+      | .failed _ => false
+      | _ => true
     let folder := System.FilePath.mk "compiled-model"
     let succeeded ← withCompilationDiagnostics (← Lean.getRef) id handoff (pure (some folder))
     liftIO <| expect "success must return the build folder" (succeeded == some folder)
