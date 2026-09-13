@@ -4,15 +4,6 @@ namespace Veil.ModelChecker.Compilation
 
 open Lean Meta Elab Command
 
-/-- Find the byte position right after all `import` statements in a source string.
-    Used to insert `set_option` commands after imports during model compilation. -/
-def findPosAfterImports (src : String) : String.Pos.Raw :=
-  let lines := src.splitOn "\n"
-  let (_, lastImportEnd) := lines.foldl (init := ((0 : Nat), (0 : Nat))) fun (pos, lastImportEnd) line =>
-    let nextPos := pos + line.utf8ByteSize + 1  -- +1 for newline
-    (nextPos, if line.trimAsciiStart.startsWith "import " then nextPos else lastImportEnd)
-  ⟨lastImportEnd⟩
-
 /-- Status of the model checker compilation process for a single model. -/
 inductive Status
   | inProgress (instanceId : Nat) (buildDir : System.FilePath)
@@ -23,9 +14,8 @@ inductive Status
 structure CompiledCommandSpec where
   /-- Short identifier of the command, used in registry keys and build folder names. -/
   name : String
-  /-- Export called by the temporary-project compiler; removed with direct C emission. -/
+  /-- Export called by the legacy internal compilation mode. -/
   exportedName : String := ""
-  supportsParallelConfig : Bool := false
 
 /-- Registry key for one compiled command invocation. -/
 structure CompilationKey where
@@ -94,10 +84,42 @@ folder, so it cannot overwrite a binary an older invocation is about to run. The
 is rebuilt after edits; dependency artifacts are reused from the parent workspace. Touch a folder only inside
 `withBuildLock`, after marking it as in use with `useBuildFolder`. -/
 def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec)
-    (program : String) (imports : Array Name) : IO System.FilePath := do
+    (cCode : String) (imports : Array Name) : IO System.FilePath := do
   let stem := System.FilePath.mk sourceFile |>.fileStem.getD "unrecognized_model"
   let baseDir ← getBuildBaseDir
-  return baseDir / s!"{stem}_{command.name}_{mixHash (hash program) (hash imports)}"
+  return baseDir / s!"{stem}_{command.name}_{mixHash (hash cCode) (hash imports)}"
+
+/-- Entry point shared by the generated model checker executables. -/
+def runMain (check : Option ModelChecker.ParallelConfig → Nat → IO.CancelToken → IO Json) (args : List String) : IO Unit := do
+  let _ ← IO.asTask (prio := .dedicated) exitWhenParentDies
+  -- Enable progress reporting to stderr for the IDE to read
+  Veil.ModelChecker.Concrete.enableCompiledModeProgress
+  let pcfg : Option Veil.ModelChecker.ParallelConfig :=
+    match args with
+    | a :: b :: args' =>
+      let numSubSteps := args'.head?.bind String.toNat? |>.getD 1
+      match a.toNat?, b.toNat? with
+      | some numSubTasks, some thresholdToParallel => some { numSubTasks, thresholdToParallel, numSubSteps : Veil.ModelChecker.ParallelConfig }
+      | _, _ => none
+    | _ => none
+  -- Instance ID is not used in compiled mode, pass 0
+  -- Cancel token is created locally; cancellation is handled by killing the process from outside
+  let cancelTk ← IO.CancelToken.new
+  let res ← check pcfg 0 cancelTk
+  IO.println s!"{res}"
+  flushStdoutAndStderr
+  IO.Process.forceExit 0
+where
+  flushStdoutAndStderr : IO Unit := do
+    let stdout ← IO.getStdout
+    let stderr ← IO.getStderr
+    stdout.flush
+    stderr.flush
+  exitWhenParentDies : IO Unit := do
+    let stdin ← IO.getStdin
+    let _ ← stdin.readToEnd
+    flushStdoutAndStderr
+    IO.Process.forceExit 2
 
 /-
 NOTE: Locks on build folders.
@@ -156,6 +178,12 @@ private def openUseLock (buildFolder : System.FilePath) : IO IO.FS.Handle :=
 private def lastUsedFile (buildFolder : System.FilePath) : System.FilePath :=
   buildFolder / "last-used"
 
+/-- Write the generated C and the names of the modules it links against, creating the folder. -/
+def writeBuildInputs (buildFolder : System.FilePath) (cCode : String) (imports : Array Name) : IO Unit := do
+  IO.FS.createDirAll buildFolder
+  IO.FS.writeFile (buildFolder / "ModelCheckerMain.c") cCode
+  IO.FS.writeFile (buildFolder / "imports.json") (toJson imports).compress
+
 /-- Build folders that checks in this process are using, by progress instance, each with the
 shared lock held on the folder's `use.lock`. -/
 initialize buildFolderUses : IO.Ref (Std.HashMap Nat IO.FS.Handle) ← IO.mkRef {}
@@ -208,99 +236,6 @@ def pruneBuildFolders (baseDir : System.FilePath) (keep : Nat) : IO Unit := do
     return ()
   finally
     lock.unlock
-
-/-- Template for the `lakefile.lean` in the temp project. Note that it does
-not only require the parent Veil project, but also *all the dependencies*;
-otherwise the temp project will clone and build all of them. -/
-def lakefileTemplate : String :=
-s!"import Lake
-open Lake DSL System
-
-require Veil from \"../../..\"
-require cvc5 from \"../../../.lake/packages/cvc5\"
-require smt from \"../../../.lake/packages/smt\"
-require Loom from \"../../../.lake/packages/Loom\"
-require auto from \"../../../.lake/packages/auto\"
-require proofwidgets from \"../../../.lake/packages/proofwidgets\"
-require aesop from \"../../../.lake/packages/aesop\"
-require Qq from \"../../../.lake/packages/Qq\"
-require batteries from \"../../../.lake/packages/batteries\"
-
-package veilmodel
-
-lean_lib Model where
-  globs := #[Glob.one `Model]
-
-lean_exe ModelCheckerMain where
-  root := `ModelCheckerMain
-  buildType := .relWithDebInfo
-"
-
-/-- Template for the ModelCheckerMain.lean in the temp project.
-    Takes the namespace of the specification to open scoped instances. -/
-def modelCheckerMainTemplate (specNamespace : String) (command : CompiledCommandSpec) : String :=
-"import Model
-
-set_option maxHeartbeats 6400000
-set_option synthInstance.maxHeartbeats 200000
-set_option synthInstance.maxSize 10000
-
-open " ++ specNamespace ++ "
-
-def flushStdoutAndStderr : IO Unit := do
-  let stdout ← IO.getStdout
-  let stderr ← IO.getStderr
-  stdout.flush
-  stderr.flush
-
-def exitWhenParentDies : IO Unit := do
-  let stdin ← IO.getStdin
-  let _ ← stdin.readToEnd
-  flushStdoutAndStderr
-  IO.Process.forceExit 2
-
-def main (args : List String) : IO Unit := do
-  let _ ← IO.asTask (prio := .dedicated) exitWhenParentDies
-  -- Enable progress reporting to stderr for the IDE to read
-  Veil.ModelChecker.Concrete.enableCompiledModeProgress
-  let pcfg : Option Veil.ModelChecker.ParallelConfig :=
-    match args with
-    | a :: b :: args' =>
-      let numSubSteps := args'.head?.bind String.toNat? |>.getD 1
-      match a.toNat?, b.toNat? with
-      | some numSubTasks, some thresholdToParallel => some { numSubTasks, thresholdToParallel, numSubSteps : Veil.ModelChecker.ParallelConfig }
-      | _, _ => none
-    | _ => none
-  -- Instance ID is not used in compiled mode, pass 0
-  -- Cancel token is created locally; cancellation is handled by killing the process from outside
-  let cancelTk ← IO.CancelToken.new
-  let res ← " ++
-    (if command.supportsParallelConfig
-      then command.exportedName ++ " pcfg 0 cancelTk"
-      else command.exportedName ++ " 0 cancelTk") ++ "
-  IO.println s!\"{res}\"
-  flushStdoutAndStderr
-  IO.Process.forceExit 0
-"
-
-/-- Create the temp build folder with all necessary files.
-The caller computes and locks the folder once, then passes it here. Generated inputs are
-overwritten on each call while preserving the Lake build cache for unchanged programs. -/
-def createBuildFolder (buildFolder : System.FilePath) (modelSource : String) (specNamespace : String)
-    (command : CompiledCommandSpec) : IO Unit := do
-  let veilPath ← IO.currentDir
-  IO.FS.createDirAll buildFolder
-  -- Write the lakefile
-  IO.FS.writeFile (buildFolder / "lakefile.lean") lakefileTemplate
-  -- Write the model source (renamed to Model.lean)
-  IO.FS.writeFile (buildFolder / "Model.lean") modelSource
-  -- Write the ModelCheckerMain.lean
-  IO.FS.writeFile (buildFolder / "ModelCheckerMain.lean") (modelCheckerMainTemplate specNamespace command)
-  -- Create a minimal lean-toolchain file (copy from parent)
-  let toolchainPath := veilPath / "lean-toolchain"
-  if ← toolchainPath.pathExists then
-    let toolchain ← IO.FS.readFile toolchainPath
-    IO.FS.writeFile (buildFolder / "lean-toolchain") toolchain
 
 /-- Result of running a compilation process. -/
 structure ProcessResult where

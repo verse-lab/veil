@@ -69,9 +69,9 @@ section ModelCheckCompilationMode
 
 /-! ## Model Check Compilation Mode
 
-When building a model checker binary (triggered by default `#model_check` behavior
-or by background compilation), the source file is re-elaborated. This option is set
-to `true` during that compilation to:
+This legacy option supports explicitly re-elaborating a source file to export
+`modelCheckerResult`. Native `#model_check` now emits C directly from the current
+environment and does not enable this option. When enabled, it is used to:
 1. Skip verification-only operations (like `doesNotThrow` error reporting)
 2. Skip verification commands (`#check_invariants`, `sat trace`, etc.)
 3. Prevent `logError` calls from failing the build
