@@ -4,15 +4,6 @@ namespace Veil.ModelChecker.Compilation
 
 open Lean Meta Elab Command
 
-/-- Find the byte position right after all `import` statements in a source string.
-    Used to insert `set_option` commands after imports during model compilation. -/
-def findPosAfterImports (src : String) : String.Pos.Raw :=
-  let lines := src.splitOn "\n"
-  let (_, lastImportEnd) := lines.foldl (init := ((0 : Nat), (0 : Nat))) fun (pos, lastImportEnd) line =>
-    let nextPos := pos + line.utf8ByteSize + 1  -- +1 for newline
-    (nextPos, if line.trimAsciiStart.startsWith "import " then nextPos else lastImportEnd)
-  ⟨lastImportEnd⟩
-
 /-- Status of the model checker compilation process for a single model. -/
 inductive Status
   | inProgress (instanceId : Nat) (buildDir : System.FilePath)
@@ -23,8 +14,6 @@ inductive Status
 structure CompiledCommandSpec where
   /-- Name of the generated definition that the compiled executable calls. -/
   exportedName : String
-  /-- Whether the generated definition accepts an optional parallel configuration. -/
-  supportsParallelConfig : Bool := false
 
 /-- Registry key for one compiled command invocation. -/
 structure CompilationKey where
@@ -81,78 +70,22 @@ def getBuildBaseDir : IO System.FilePath := do
   let pwd ← IO.currentDir
   return pwd / ".lake" / "model_checker_builds"
 
-/-- Generate the build folder for one compiled command in one source file.
+/-- The `lake` executable that builds model checker binaries. Lake exports its own path as
+`LAKE` to the processes it starts, including the language server, so this is the `lake` that
+launched the current process; without it, fall back to the one in the running toolchain. -/
+def getLakeExecutable : IO System.FilePath := do
+  if let some lake ← IO.getEnv "LAKE" then
+    unless lake.isEmpty do return lake
+  return (← Lean.findSysroot) / "bin" / System.FilePath.addExtension "lake" System.FilePath.exeExtension
 
-Keyed by command *kind*, not by invocation: two `#simulate` commands in the same
-file share a folder, so the second reuses the first one's Lake build cache instead
-of paying for a full rebuild. `CompilationKey` is keyed per invocation instead, so
-neither supersedes the other -- which does mean two invocations of the same command
-in one file can be building into this folder at the same time.
-
-The hash disambiguates same-named files in different directories, which would
-otherwise map to the same folder. -/
-def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec) : IO System.FilePath := do
+/-- Each invocation owns its files, including concurrent checks in the same source. -/
+def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec) (instanceId : Nat) : IO System.FilePath := do
   let stem := System.FilePath.mk sourceFile |>.fileStem.getD "unrecognized_model"
-  let suffix := toString (hash (sourceFile ++ ":" ++ command.exportedName))
   let baseDir ← getBuildBaseDir
-  return baseDir / s!"{stem}_{command.exportedName}_{suffix}"
+  return baseDir / s!"{stem}_{command.exportedName}_{hash sourceFile}_{← IO.Process.getPID}_{instanceId}"
 
-/-- Template for the `lakefile.lean` in the temp project. Note that it does
-not only require the parent Veil project, but also *all the dependencies*;
-otherwise the temp project will clone and build all of them. -/
-def lakefileTemplate : String :=
-s!"import Lake
-open Lake DSL System
-
-require Veil from \"../../..\"
-require Cli from \"../../../.lake/packages/Cli\"
-require cvc5 from \"../../../.lake/packages/cvc5\"
-require smt from \"../../../.lake/packages/smt\"
-require Loom from \"../../../.lake/packages/Loom\"
-require mathlib from \"../../../.lake/packages/mathlib\"
-require auto from \"../../../.lake/packages/auto\"
-require plausible from \"../../../.lake/packages/plausible\"
-require LeanSearchClient from \"../../../.lake/packages/LeanSearchClient\"
-require importGraph from \"../../../.lake/packages/importGraph\"
-require proofwidgets from \"../../../.lake/packages/proofwidgets\"
-require aesop from \"../../../.lake/packages/aesop\"
-require Qq from \"../../../.lake/packages/Qq\"
-require batteries from \"../../../.lake/packages/batteries\"
-
-package veilmodel
-
-lean_lib Model where
-  globs := #[Glob.one `Model]
-
-lean_exe ModelCheckerMain where
-  root := `ModelCheckerMain
-  buildType := .relWithDebInfo
-"
-
-/-- Template for the ModelCheckerMain.lean in the temp project.
-    Takes the namespace of the specification to open scoped instances. -/
-def modelCheckerMainTemplate (specNamespace : String) (command : CompiledCommandSpec) : String :=
-"import Model
-
-set_option maxHeartbeats 6400000
-set_option synthInstance.maxHeartbeats 200000
-set_option synthInstance.maxSize 10000
-
-open " ++ specNamespace ++ "
-
-def flushStdoutAndStderr : IO Unit := do
-  let stdout ← IO.getStdout
-  let stderr ← IO.getStderr
-  stdout.flush
-  stderr.flush
-
-def exitWhenParentDies : IO Unit := do
-  let stdin ← IO.getStdin
-  let _ ← stdin.readToEnd
-  flushStdoutAndStderr
-  IO.Process.forceExit 2
-
-def main (args : List String) : IO Unit := do
+/-- Entry point shared by the generated model checker executables. -/
+def runMain (check : Option ModelChecker.ParallelConfig → Nat → IO.CancelToken → IO Json) (args : List String) : IO Unit := do
   let _ ← IO.asTask (prio := .dedicated) exitWhenParentDies
   -- Enable progress reporting to stderr for the IDE to read
   Veil.ModelChecker.Concrete.enableCompiledModeProgress
@@ -167,34 +100,30 @@ def main (args : List String) : IO Unit := do
   -- Instance ID is not used in compiled mode, pass 0
   -- Cancel token is created locally; cancellation is handled by killing the process from outside
   let cancelTk ← IO.CancelToken.new
-  let res ← " ++
-    (if command.supportsParallelConfig
-      then command.exportedName ++ " pcfg 0 cancelTk"
-      else command.exportedName ++ " 0 cancelTk") ++ "
-  IO.println s!\"{res}\"
+  let res ← check pcfg 0 cancelTk
+  IO.println s!"{res}"
   flushStdoutAndStderr
   IO.Process.forceExit 0
-"
+where
+  flushStdoutAndStderr : IO Unit := do
+    let stdout ← IO.getStdout
+    let stderr ← IO.getStderr
+    stdout.flush
+    stderr.flush
+  exitWhenParentDies : IO Unit := do
+    let stdin ← IO.getStdin
+    let _ ← stdin.readToEnd
+    flushStdoutAndStderr
+    IO.Process.forceExit 2
 
-/-- Create the temp build folder with all necessary files.
-Returns the absolute path to the build folder. Generated inputs are overwritten
-on each call while preserving the Lake build cache in the folder. -/
-def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String)
-    (command : CompiledCommandSpec) : IO System.FilePath := do
-  let veilPath ← IO.currentDir
-  let buildFolder ← generateBuildFolderName sourceFile command
+/-- Write the current environment's C output and its native dependency names. -/
+def createBuildFolder (sourceFile : String) (command : CompiledCommandSpec) (instanceId : Nat)
+    (cCode : String) (imports : Array Name) : IO System.FilePath := do
+  let buildFolder ← generateBuildFolderName sourceFile command instanceId
   IO.FS.createDirAll buildFolder
-  -- Write the lakefile
-  IO.FS.writeFile (buildFolder / "lakefile.lean") lakefileTemplate
-  -- Write the model source (renamed to Model.lean)
-  IO.FS.writeFile (buildFolder / "Model.lean") modelSource
-  -- Write the ModelCheckerMain.lean
-  IO.FS.writeFile (buildFolder / "ModelCheckerMain.lean") (modelCheckerMainTemplate specNamespace command)
-  -- Create a minimal lean-toolchain file (copy from parent)
-  let toolchainPath := veilPath / "lean-toolchain"
-  if ← toolchainPath.pathExists then
-    let toolchain ← IO.FS.readFile toolchainPath
-    IO.FS.writeFile (buildFolder / "lean-toolchain") toolchain
+  -- Write the C IR
+  IO.FS.writeFile (buildFolder / "ModelCheckerMain.c") cCode
+  IO.FS.writeFile (buildFolder / "imports.json") (toJson imports).compress
   return buildFolder
 
 /-- Result of running a compilation process. -/

@@ -3,7 +3,7 @@ import Veil
 /-!
 Runtime regressions shared by simulation and model checking: progress survives
 handoff, cancellation reaches compilation, and command invocations do not collide
-in the compilation registry or discard cached builds. These direct checks avoid
+in the compilation registry or overwrite each other's generated C. These direct checks avoid
 relying on compilation timing to trigger a handoff.
 -/
 
@@ -96,7 +96,6 @@ private def expect (message : String) (cond : Bool) : IO Unit :=
 
 private def modelCheckCommand : CompiledCommandSpec := {
   exportedName := "modelCheckerResult"
-  supportsParallelConfig := true
 }
 
 private def simulateCommand : CompiledCommandSpec := {
@@ -105,12 +104,10 @@ private def simulateCommand : CompiledCommandSpec := {
 
 private def registryKeySourceFile := "compilation-registry-key.lean"
 
--- The build folder depends on the command but not on the individual invocation;
--- the latter is now enforced by the signature of `generateBuildFolderName`, which
--- cannot see the command id at all.
+-- Build folders distinguish command kinds and individual invocations.
 #eval do
-  let modelCheckFolder ← generateBuildFolderName registryKeySourceFile modelCheckCommand
-  let simulateFolder ← generateBuildFolderName registryKeySourceFile simulateCommand
+  let modelCheckFolder ← generateBuildFolderName registryKeySourceFile modelCheckCommand 0
+  let simulateFolder ← generateBuildFolderName registryKeySourceFile simulateCommand 0
   expect "#model_check and #simulate must not share a build folder"
     (toString modelCheckFolder != toString simulateFolder)
 
@@ -118,8 +115,8 @@ private def registryKeySourceFile := "compilation-registry-key.lean"
 -- the folder on the file stem alone used to let them clobber each other's
 -- generated sources while both were registered as current.
 #eval do
-  let inOneDir ← generateBuildFolderName (System.mkFilePath ["one", "Shared.lean"]).toString simulateCommand
-  let inAnother ← generateBuildFolderName (System.mkFilePath ["two", "Shared.lean"]).toString simulateCommand
+  let inOneDir ← generateBuildFolderName (System.mkFilePath ["one", "Shared.lean"]).toString simulateCommand 0
+  let inAnother ← generateBuildFolderName (System.mkFilePath ["two", "Shared.lean"]).toString simulateCommand 0
   expect "same-named files in different directories must not share a build folder"
     (toString inOneDir != toString inAnother)
 
@@ -142,31 +139,25 @@ private def registryKeySourceFile := "compilation-registry-key.lean"
     markRegistryFinished registryKeySourceFile command commandId
       (System.FilePath.mk "build" / commandId)
 
--- Recompiling reuses the folder, keeping the Lake cache but refreshing the inputs.
+-- Concurrent invocations write independent C and dependency manifests.
 #eval do
-  let sourceFile := "compilation-build-folder-cache.lean"
-  let firstSource := "namespace CacheFirst\nend CacheFirst\n"
-  let secondSource := "namespace CacheSecond\nend CacheSecond\n"
-  let firstFolder ← createBuildFolder sourceFile firstSource "CacheFirst" simulateCommand
-  try
-    let cacheDir := firstFolder / ".lake" / "build"
-    let cacheSentinel := cacheDir / "cache-sentinel"
-    IO.FS.createDirAll cacheDir
-    IO.FS.writeFile cacheSentinel "cached"
-    let secondFolder ← createBuildFolder sourceFile secondSource "CacheSecond" simulateCommand
-    expect "recompiling must reuse the same build folder"
-      (toString firstFolder == toString secondFolder)
-    expect "recompiling must not discard the Lake build cache"
-      (← cacheSentinel.pathExists)
-    expect "Model.lean must be rewritten with the current model source"
-      ((← IO.FS.readFile (secondFolder / "Model.lean")) == secondSource)
-    expect "ModelCheckerMain.lean must be rewritten for the current specification"
-      ((← IO.FS.readFile (secondFolder / "ModelCheckerMain.lean"))
-        == modelCheckerMainTemplate "CacheSecond" simulateCommand)
-  finally
-    -- Do not leave the scratch project behind in the repository's `.lake`.
-    if ← firstFolder.pathExists then
-      IO.FS.removeDirAll firstFolder
+  let sourceFile := "compilation-build-folder-inputs.lean"
+  let firstC := "/* first invocation */"
+  let secondC := "/* second invocation */"
+  let firstImports := #[`Veil]
+  let secondImports := #[`Veil, `Lean.Compiler.LCNF.EmitC]
+  let firstFolder ← createBuildFolder sourceFile simulateCommand 0 firstC firstImports
+  let secondFolder ← createBuildFolder sourceFile simulateCommand 1 secondC secondImports
+  expect "distinct invocations must not share generated files" (firstFolder != secondFolder)
+  expect "the first invocation's C must survive the second invocation"
+    ((← IO.FS.readFile (firstFolder / "ModelCheckerMain.c")) == firstC)
+  expect "the second invocation must receive its own C"
+    ((← IO.FS.readFile (secondFolder / "ModelCheckerMain.c")) == secondC)
+  for (folder, imports) in [(firstFolder, firstImports), (secondFolder, secondImports)] do
+    expect "each invocation must keep its own dependency manifest"
+      ((← IO.FS.readFile (folder / "imports.json")) == (Lean.toJson imports).compress)
+    for name in ["lakefile.lean", "Model.lean", "ModelCheckerMain.lean", "lean-toolchain"] do
+      expect s!"native compilation must not generate {name}" (!(← (folder / name).pathExists))
 
 -- Exercise the shared compilation boundary with a failing compiler, independent
 -- of the installed linker. Errors must not depend on veil.violationIsError, and
@@ -176,7 +167,7 @@ private def checkCompilationFailure (handoff : Bool) : Lean.Elab.Command.Command
   for details in [ProgressDetails.simulation {}, .modelCheck {}] do
     let (id, _) ← allocProgressInstance details
     let result ← withCompilationDiagnostics (← Lean.getRef) id handoff
-      (throw <| IO.userError "Compilation failed (test compiler)")
+      (liftIO <| throw <| IO.userError "Compilation failed (test compiler)")
     liftIO <| expect "failed compilation must not return a build folder" result.isNone
     let progress ← getProgress id
     liftIO <| expect "compilation failure must be visible in progress" <|
