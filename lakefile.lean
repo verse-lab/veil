@@ -121,6 +121,12 @@ script veilModelCheckBuild args do
     toLeanConfig := { leanConfig with buildType := .relWithDebInfo }
   }
   let exe : LeanExe := ⟨pkg, `ModelCheckerMain, exeConfig⟩
+  -- Compiled checks run alongside their toolchain. Windows keeps static linking until
+  -- the runner supplies the toolchain's DLL search path.
+  let sharedLean := !Platform.isWindows
+  let linkArgs := exe.linkArgs ++
+    (if sharedLean then #["-Wl,-rpath," ++ lean.leanLibDir.toString] else #["-Wl,-s"]) ++
+    #["-L", lean.leanLibDir.toString] ++ lean.ccLinkFlags sharedLean
   let mut mods := #[]
   for name in imports do
     if let some mod := ws.findModule? name then
@@ -155,8 +161,33 @@ script veilModelCheckBuild args do
     for dep in deps do
       for lib in dep.externLibs do
         objs := objs.push (← lib.static.fetch)
-    buildLeanExe (buildDir / exe.fileName) objs dynlibs
-      exe.weakLinkArgs exe.linkArgs exe.sharedLean
+    -- Follow `buildLeanExe`, but strip before Lake hashes and caches the executable.
+    -- Stripping its returned path could mutate an artifact shared with Lake's cache.
+    (Job.collectArray objs "linkObjs").bindM (sync := true) fun objs => do
+      (Job.collectArray dynlibs "linkLibs").mapM fun dynlibs => do
+        addLeanTrace
+        addPureTrace linkArgs "traceArgs"
+        addPureTrace "strip" "postLink"
+        addPlatformTrace
+        let exeFile := buildDir / exe.fileName
+        let art ← buildArtifactUnlessUpToDate exeFile (ext := FilePath.exeExtension)
+            (exe := true) (restore := true) do
+          let mut objArgs := objs.map FilePath.toString
+          let mut pending := dynlibs.toList
+          let mut visited : Std.TreeSet String compare := {}
+          -- Like Lake's private `mkLinkOrder`, put libraries before their dependencies.
+          while let lib :: rest := pending do
+            pending := rest
+            if let some dir := lib.dir? then
+              objArgs := objArgs.push s!"-L{dir}"
+            objArgs := objArgs.push s!"-l{lib.name}"
+            unless visited.contains lib.name do
+              visited := visited.insert lib.name
+              pending := lib.deps.toList ++ pending
+          compileExe exeFile (objArgs ++ exe.weakLinkArgs ++ linkArgs) lean.cc
+          unless Platform.isWindows do
+            proc { cmd := "strip", args := #[exeFile.toString] }
+        return art.path
   return 0
 
 /--
