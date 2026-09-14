@@ -945,7 +945,9 @@ where
   mkCompilationErrorMsg (result : ModelChecker.Compilation.ProcessResult) : String :=
     s!"Compilation failed (exit code {result.exitCode}):\n" ++
       (if result.stderr.isEmpty then "" else s!"[stderr]\n{result.stderr}") ++
-      (if result.stdout.isEmpty then "" else s!"[stdout]\n{result.stdout}\n")
+      (if result.stdout.isEmpty then "" else s!"[stdout]\n{result.stdout}\n") ++
+      (result.stderrLog?.map (fun path => s!"\nFull stderr: {path}") |>.getD "") ++
+      (result.stdoutLog?.map (fun path => s!"\nFull stdout: {path}") |>.getD "")
 
   /-- Check if the compiled binary exists. Returns `some binPath` if found. -/
   verifyBinaryExists (buildFolder : System.FilePath) (instanceId : Nat) : IO (Option System.FilePath) := do

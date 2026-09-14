@@ -124,9 +124,13 @@ script veilModelCheckBuild args do
   -- Compiled checks run alongside their toolchain. Windows keeps static linking until
   -- the runner supplies the toolchain's DLL search path.
   let sharedLean := !Platform.isWindows
+  let linux := Platform.target.contains "linux"
   let linkArgs := exe.linkArgs ++
     (if sharedLean then #["-Wl,-rpath," ++ lean.leanLibDir.toString] else #["-Wl,-s"]) ++
-    #["-L", lean.leanLibDir.toString] ++ lean.ccLinkFlags sharedLean
+    #["-L", lean.leanLibDir.toString] ++
+    -- `ccLinkFlags true` supplies shared-library dependencies, but on Linux it does
+    -- not include Lean itself. Put Lean before those dependencies (including GMP).
+    (if linux then #["-lleanshared"] else #[]) ++ lean.ccLinkFlags sharedLean
   let mut mods := #[]
   for name in imports do
     if let some mod := ws.findModule? name then
@@ -136,7 +140,8 @@ script veilModelCheckBuild args do
   let mut libs := mods.foldl (fun acc mod => acc.insert mod.lib) OrdHashSet.empty
   if let some mod := sourceMod? then
     libs := libs.insert mod.lib
-  let _ ← ws.runBuild <| withRegisterJob s!"model-check:{buildDir.fileName.getD "ModelCheckerMain"}" do
+  -- Artifact caching needs the package context, just as in `LeanExe.recBuildExe`.
+  let _ ← ws.runBuild <| withRegisterJob s!"model-check:{buildDir.fileName.getD "ModelCheckerMain"}" <| withCurrPackage pkg do
     let c ← inputTextFile (buildDir / "ModelCheckerMain.c")
     let obj ← buildLeanO (buildDir / "ModelCheckerMain.o") c
       exe.root.weakLeancArgs exe.root.leancArgs exe.root.leanIncludeDir?
@@ -167,6 +172,7 @@ script veilModelCheckBuild args do
       (Job.collectArray dynlibs "linkLibs").mapM fun dynlibs => do
         addLeanTrace
         addPureTrace linkArgs "traceArgs"
+        addPureTrace linux "groupArchives"
         addPureTrace "strip" "postLink"
         addPlatformTrace
         let exeFile := buildDir / exe.fileName
@@ -184,6 +190,10 @@ script veilModelCheckBuild args do
             unless visited.contains lib.name do
               visited := visited.insert lib.name
               pending := lib.deps.toList ++ pending
+          -- Native dependencies can contain archives in dependency-first order
+          -- (e.g. CaDiCaL before cvc5). GNU ld must rescan them to resolve back references.
+          if linux then
+            objArgs := #["-Wl,--start-group"] ++ objArgs ++ #["-Wl,--end-group"]
           compileExe exeFile (objArgs ++ exe.weakLinkArgs ++ linkArgs) lean.cc
           unless Platform.isWindows do
             proc { cmd := "strip", args := #[exeFile.toString] }

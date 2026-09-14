@@ -30,8 +30,15 @@ jobs:
     - name: Install dependencies for cvc5
       if: runner.os == 'Linux'
       run: |
-        sudo apt-get install -y clang-15 lld-15 libc++-15-dev libc++abi-15-dev
-        sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-15 100
+        sudo apt-get install -y clang lld libc++-dev libc++abi-dev
+        # Use system libc for #61, but prefer Lean's matching C++ runtime libraries.
+        cat > "$RUNNER_TEMP/lean-cc" <<'EOF'
+        #!/usr/bin/env bash
+        set -euo pipefail
+        exec /usr/bin/cc -L"$(lean --print-prefix)/lib" "$@"
+        EOF
+        chmod +x "$RUNNER_TEMP/lean-cc"
+        echo "LEAN_CC=$RUNNER_TEMP/lean-cc" >> "$GITHUB_ENV"
     - name: Checkout repository
       uses: actions/checkout@v4
     - name: Build and test Veil

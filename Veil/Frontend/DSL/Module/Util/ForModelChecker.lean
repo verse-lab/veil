@@ -222,10 +222,66 @@ structure ProcessResult where
   stdout : String
   stderr : String
   interrupted : Bool := false
+  /-- Full output is retained outside prunable build folders on failure. -/
+  stdoutLog? : Option System.FilePath := none
+  stderrLog? : Option System.FilePath := none
   deriving Inhabited
 
+/-- A bounded summary of one compiler output stream (stdout or stderr).
+
+Keep the first 4,096 characters and the last 4,096 characters after that prefix.
+The two parts never overlap: up to 8,192 characters, `head ++ tail` is the complete
+output. Beyond that, discard the middle and count its characters in `omitted`.
+For example, 10,000 characters become 4,096 head + 1,808 omitted + 4,096 tail.
+All limits and counts are Unicode characters, not UTF-8 bytes or lines.
+
+This bounds the text that Lean (including `#guard_msgs`) has to format. The process
+reader separately writes the full stream to a log file before updating this summary. -/
+structure CompilationOutput where
+  /-- The initial prefix; once it reaches 4,096 characters, it never changes. -/
+  head : String := ""
+  /-- The most recent characters after `head`; older ones are evicted as output arrives. -/
+  tail : String := ""
+  /-- Total number of characters discarded between `head` and `tail` so far. -/
+  omitted : Nat := 0
+  deriving Inhabited
+
+/-- Consume another chunk (normally a line): fill any remaining head capacity,
+append the rest to the rolling tail, and count whatever falls out of the tail. -/
+def CompilationOutput.append (output : CompilationOutput) (text : String) : CompilationOutput := Id.run do
+  -- Once the head is full, its remaining capacity is zero and all new text goes
+  -- to the tail. Only the portion used to fill the head is excluded from `rest`.
+  let headPart := (text.take (4096 - output.head.length)).toString
+  let rest := text.drop (4096 - output.head.length)
+  let restLength := text.length - headPart.length
+  let tail := if restLength > 4096 then
+      -- This chunk alone fills the tail: discard the old tail and keep only the
+      -- chunk's final 4,096 characters, without copying its potentially huge prefix.
+      (rest.takeEnd 4096).toString
+    else
+      let tail := output.tail ++ rest.toString
+      -- Drop only the overflow, rather than scanning back over the whole retained
+      -- tail for every short line in a large linker log.
+      (tail.drop (tail.length - 4096)).toString
+  return {
+    head := output.head ++ headPart
+    tail
+    -- Count newly discarded characters from the old tail plus incoming remainder.
+    -- Nat subtraction saturates at zero, so a tail that still fits omits nothing.
+    omitted := output.omitted + (output.tail.length + restLength - 4096)
+  }
+
+/-- Reassemble the diagnostic, inserting an explicit omission notice between the
+retained ends. If nothing was discarded, return the original output unchanged. -/
+def CompilationOutput.render (output : CompilationOutput) : String :=
+  output.head ++
+    (if output.omitted == 0 then "" else s!"\n... {output.omitted} characters omitted ...\n") ++
+    output.tail
+
 /-- Run a process with callbacks for status updates and line-by-line output capture,
-checking both explicit cancellation and whether this compilation is still current. -/
+checking both explicit cancellation and whether this compilation is still current.
+Only bounded summaries stay in memory; failed builds retain full stdout/stderr in
+temporary files so pruning a build folder cannot delete the diagnostic logs. -/
 def runProcessWithStatusCallback (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
     (cfg : IO.Process.SpawnArgs)
     (instanceId : Nat) (cancelToken : IO.CancelToken)
@@ -233,34 +289,55 @@ def runProcessWithStatusCallback (sourceFile : String) (command : CompiledComman
     (lineCallback : String → Bool → Nat → IO Unit := fun _ _ _ => pure ())
     : IO ProcessResult := do
   let startTime ← IO.monoMsNow
-  let proc ← IO.Process.spawn { cfg with stdin := .piped, stdout := .piped, stderr := .piped }
-  let stdoutAccum ← IO.mkRef ""
-  let stderrAccum ← IO.mkRef ""
-  -- Helper to read lines from a handle
-  let readLines (handle : IO.FS.Handle) (accum : IO.Ref String) (isError : Bool) : IO Unit := do
-    while true do
-      let line ← handle.getLine
-      if line.isEmpty then break
-      accum.modify (· ++ line)
-      lineCallback line.trimAsciiEnd.toString isError ((← IO.monoMsNow) - startTime)
-  let stdoutTask ← IO.asTask (prio := .dedicated) (readLines proc.stdout stdoutAccum false)
-  let stderrTask ← IO.asTask (prio := .dedicated) (readLines proc.stderr stderrAccum true)
-  let waitTask ← IO.asTask (prio := .dedicated) proc.wait
-  let mut interrupted := false
-  while !(← IO.hasFinished waitTask) do
-    -- Stop once cancelled, or once a newer invocation of the same command supersedes this one.
-    let wanted ← if ← cancelToken.isSet then pure false else
-      stillCurrentCont sourceFile command commandId instanceId do
-        statusCallback ((← IO.monoMsNow) - startTime)
-    unless wanted do
-      proc.kill
-      interrupted := true
-      break
-    IO.sleep 500
-  let _ ← IO.wait stdoutTask
-  let _ ← IO.wait stderrTask
-  match ← IO.wait waitTask with
-  | .ok exitCode => return { exitCode, stdout := ← stdoutAccum.get, stderr := ← stderrAccum.get, interrupted }
-  | .error err => return { exitCode := 1, stdout := ← stdoutAccum.get, stderr := s!"{← stderrAccum.get}\nIO error: {err}", interrupted }
+  let (stdoutLog, stdoutPath) ← IO.FS.createTempFile
+  let (stderrLog, stderrPath) ← IO.FS.createTempFile
+  -- `finally` sees the values from entry to `try`, so share the retention decision
+  -- through a reference rather than a mutable local variable.
+  let keepLogs ← IO.mkRef false
+  try
+    let proc ← IO.Process.spawn { cfg with stdin := .piped, stdout := .piped, stderr := .piped }
+    -- Helper to read lines from a handle
+    let readLines (handle log : IO.FS.Handle) (isError : Bool) : IO CompilationOutput := do
+      let mut output : CompilationOutput := {}
+      while true do
+        let line ← handle.getLine
+        if line.isEmpty then break
+        -- The file gets every character; only the in-memory diagnostic is shortened.
+        log.putStr line
+        output := output.append line
+        -- The live progress widget has a separate, smaller per-line preview limit.
+        let preview := (line.take 2048).toString
+        let preview := if line.length > 2048 then preview ++ " ... (truncated)" else preview
+        lineCallback preview.trimAsciiEnd.toString isError ((← IO.monoMsNow) - startTime)
+      log.flush
+      return output
+    let stdoutTask ← IO.asTask (prio := .dedicated) (readLines proc.stdout stdoutLog false)
+    let stderrTask ← IO.asTask (prio := .dedicated) (readLines proc.stderr stderrLog true)
+    let waitTask ← IO.asTask (prio := .dedicated) proc.wait
+    let mut interrupted := false
+    while !(← IO.hasFinished waitTask) do
+      -- Stop once cancelled, or once a newer invocation of the same command supersedes this one.
+      let wanted ← if ← cancelToken.isSet then pure false else
+        stillCurrentCont sourceFile command commandId instanceId do
+          statusCallback ((← IO.monoMsNow) - startTime)
+      unless wanted do
+        proc.kill
+        interrupted := true
+        break
+      IO.sleep 500
+    let stdout ← IO.ofExcept (← IO.wait stdoutTask)
+    let stderr ← IO.ofExcept (← IO.wait stderrTask)
+    let (exitCode, stderr) ← match ← IO.wait waitTask with
+      | .ok exitCode => pure (exitCode, stderr)
+      | .error err => pure (1, stderr.append s!"\nIO error: {err}")
+    let retain := exitCode != 0 && !interrupted
+    keepLogs.set retain
+    return { exitCode, stdout := stdout.render, stderr := stderr.render, interrupted
+             stdoutLog? := if retain then some stdoutPath else none
+             stderrLog? := if retain then some stderrPath else none }
+  finally
+    unless ← keepLogs.get do
+      IO.FS.removeFile stdoutPath
+      IO.FS.removeFile stderrPath
 
 end Veil.ModelChecker.Compilation
