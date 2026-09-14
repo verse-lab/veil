@@ -9,7 +9,7 @@ namespace Veil
 private theorem pi_compl_def {α β : Type} [Loom.Order.BooleanAlgebra β] (f : α → β) :
     compl f = fun a => compl (f a) := rfl
 private theorem pi_inf_def {α β : Type} [Loom.Order.Lattice β] (f g : α → β) :
-    (f ⊓ₗ g) = fun a => f a ⊓ₗ g a := rfl
+    (f ⊓ g) = fun a => f a ⊓ g a := rfl
 
 theorem VeilExecM.wp_eq (act : VeilExecM m ρ σ α) (post : RProp α ρ σ) :
   [DemonFail| wp act post = fun r s => wp (m := DivM) (act r s) (fun | (.ok a, s) => post a r s | (.error _, _) => False)] ∧
@@ -26,7 +26,7 @@ theorem VeilExecM.wlp_eq (act : VeilExecM m ρ σ α) (post : RProp α ρ σ) :
   ext r s; simp; cases (act r s) <;> simp [loomLogicSimp]
 
 theorem VeilExecM.total_imp_partial (act : VeilExecM m ρ σ α) :
-  [AngelFail| wp act post] ⊑ₗ [DemonFail| wp act post] := by
+  [AngelFail| wp act post] ≤ [DemonFail| wp act post] := by
   simp [VeilExecM.wp_eq, PartialCorrectness.DivM.wp_eq, TotalCorrectness.DivM.wp_eq]
   intro r s; cases (act r s) <;> aesop (add safe simp loomLogicSimp)
 
@@ -70,7 +70,7 @@ section PartialCorrectnessTheorems
 open PartialCorrectness
 
 theorem VeilExecM.terminates_preservesInvariants_wp (act : VeilExecM m ρ σ α) :
-  [DemonFail| wp act inv'] ⊓ₗ [DemonSucc| wp act inv] = [DemonFail| wp act (inv' ⊓ₗ inv)] := by
+  [DemonFail| wp act inv'] ⊓ [DemonSucc| wp act inv] = [DemonFail| wp act (inv' ⊓ inv)] := by
     funext r s
     simp only [VeilExecM.wp_eq, pi_inf_apply, ←wp_and]
     congr 1
@@ -78,14 +78,14 @@ theorem VeilExecM.terminates_preservesInvariants_wp (act : VeilExecM m ρ σ α)
     rcases x with ⟨(_ | a), s'⟩ <;> simp
 
 theorem VeilM.terminates_preservesInvariants_wp (act : VeilM m ρ σ α) :
-  [DemonFail| wp act inv₁] ⊓ₗ [DemonSucc| wp act inv₂] = [DemonFail| wp act (inv₁ ⊓ₗ inv₂)] := by
+  [DemonFail| wp act inv₁] ⊓ [DemonSucc| wp act inv₂] = [DemonFail| wp act (inv₁ ⊓ inv₂)] := by
     unhygienic induction act <;> simp [-le_iInf_iff]
     { simp [x.terminates_preservesInvariants_wp, pi_inf_def, *] }
     funext r s
     simp only [pi_inf_apply, prop_inf, pi_iInf_apply, prop_iInf,
       pi_himp_apply, prop_himp, pureE, purePropE]
     have ih : ∀ a, ([DemonFail| wp (f a) inv₁ r s] ∧ [DemonSucc| wp (f a) inv₂ r s]) ↔
-        [DemonFail| wp (f a) (inv₁ ⊓ₗ inv₂) r s] := by
+        [DemonFail| wp (f a) (inv₁ ⊓ inv₂) r s] := by
       intro a; exact Iff.of_eq (congrFun (congrFun (f_ih a) r) s)
     apply propext
     constructor
@@ -122,13 +122,13 @@ theorem VeilM.terminates_preservesInvariants (act : VeilM m ρ σ α) (inv : SPr
 
 theorem VeilExecM.not_raises_imp_terminates_wp (act : VeilExecM m ρ σ α)
   (invEx : ExId -> RProp α ρ σ) :
-  ⨅ₗ ex, [IgnoreEx (· ≠ ex)| wp act (invEx ex)] ⊑ₗ [DemonFail| wp act (iInf invEx)] := by
+  ⨅ ex, [IgnoreEx (· ≠ ex)| wp act (invEx ex)] ≤ [DemonFail| wp act (iInf invEx)] := by
   intro r s; simp [VeilExecM.wp_eq, DivM.wp_eq]
   cases (act r s) <;> aesop (add safe simp loomLogicSimp)
 
 theorem VeilM.not_raises_imp_terminates_wp (act : VeilM m ρ σ α)
   (invEx : ExId -> RProp α ρ σ) :
-  ⨅ₗ ex, [IgnoreEx (· ≠ ex)| wp act (invEx ex)] ⊑ₗ [DemonFail| wp act (iInf invEx)] := by
+  ⨅ ex, [IgnoreEx (· ≠ ex)| wp act (invEx ex)] ≤ [DemonFail| wp act (iInf invEx)] := by
   dsimp; unhygienic induction act <;> simp [-le_iInf_iff]
   { apply le_trans; apply VeilExecM.not_raises_imp_terminates_wp;
     open ExceptionAsFailure in apply wp_cons; intro y
@@ -141,7 +141,7 @@ theorem VeilM.not_raises_imp_terminates (act : VeilM m ρ σ α) (pre : SProp ρ
   act.doesNotThrow pre := by
   unfold VeilM.succeedsWhenIgnoring VeilM.doesNotThrow triple
   simp; rw [←le_iInf_iff (ι := ExId)]; intro h;
-  have : (⊤ₗ : RProp α ρ σ) = iInf (fun (_ : ExId) => ⊤ₗ) := by simp
+  have : (⊤ : RProp α ρ σ) = iInf (fun (_ : ExId) => ⊤) := by simp
   rw [this]
   solve_by_elim [VeilM.not_raises_imp_terminates_wp, le_trans']
 
@@ -150,18 +150,18 @@ end PartialCorrectnessTheorems
 section DerivingSemanticsTheorems
 variable (act : VeilM m ρ σ α)
   (genWp : (ExId -> Prop) -> VeilSpecM ρ σ α)
-  (genWp_sound : ∀ hd, genWp hd ⊑ₗ [IgnoreEx hd| wp act])
+  (genWp_sound : ∀ hd, genWp hd ≤ [IgnoreEx hd| wp act])
 
 include genWp_sound
 
 theorem VeilM.succesfullyTerminates_derived (pre : SProp ρ σ) :
-  (∀ ex, pre ⊑ₗ genWp (· ≠ ex) (fun _ => ⊤ₗ)) ->
+  (∀ ex, pre ≤ genWp (· ≠ ex) (fun _ => ⊤)) ->
   act.doesNotThrow pre := by
     intro h; apply VeilM.not_raises_imp_terminates
     solve_by_elim [le_trans]
 
 theorem VeilM.preservesInvariantsOnSuccesful_derived (inv : SProp ρ σ) :
-  (inv ⊑ₗ genWp (fun _ => True) (fun _ => inv)) ->
+  (inv ≤ genWp (fun _ => True) (fun _ => inv)) ->
   act.preservesInvariantsIfSuccesful inv := by
     intro h; solve_by_elim [le_trans]
 
@@ -181,7 +181,7 @@ section TransitionSemanticsTheorems
 
 -- open Classical in
 -- theorem VeilM.angel_fail_imp_assumptions (act : VeilM m ρ σ α) :
---   [AngelFail| wp act post r s] ⊑ₗ ∃ chs, (act.run chs).axiomatic r s post := by
+--   [AngelFail| wp act post r s] ≤ ∃ chs, (act.run chs).axiomatic r s post := by
 --   unhygienic induction act generalizing r s <;> simp [-top_le_iff]
 --   { intro; exists (ExtractNonDet.pure _); }
 --   { open TotalCorrectness ExceptionAsFailure in
@@ -232,7 +232,7 @@ section TransitionSemanticsTheorems
 theorem VeilM.toTransitionDerived_sound (act : VeilM m ρ σ α) :
   act.toTransition = act.toTransitionDerived := by
     unfold VeilM.toTransition VeilM.toTransitionDerived VeilSpecM.toTransitionDerived
-    simp [←VeilM.raises_true_imp_wp_eq_angel_fail_iwp, triple, Loom.Order.LE.le,]
+    simp [←VeilM.raises_true_imp_wp_eq_angel_fail_iwp, triple, pi_le_iff, prop_le,]
 
 -- theorem VeilM.toTransitionDerived_complete (act : VeilM m ρ σ α) (chs : act.choices) :
 --   (act.run chs).operational r₀ s₀ s₁ (Except.ok a) ->
@@ -245,10 +245,10 @@ theorem Transition.meetsSpecificationIfSuccessful_eq [Inhabited α] (act : VeilM
   act.toTransition.meetsSpecificationIfSuccessful pre post = act.meetsSpecificationIfSuccessful pre (fun _ => post) := by
   simp [Transition.meetsSpecificationIfSuccessful, VeilM.meetsSpecificationIfSuccessful,
     VeilM.toTransitionDerived_sound, VeilM.toTransitionDerived, VeilSpecM.toTransitionDerived,
-    triple, _root_.triple, Loom.Order.LE.le, _root_.triple]
+    triple, _root_.triple, pi_le_iff, prop_le, _root_.triple]
   constructor
   { intro hwp r s hinv; rw [← VeilM.wp_r_eq]
-    have : post r = ⨅ₗ x : { s // ¬ post r s }, (· ≠ x.val) := by {
+    have : post r = ⨅ x : { s // ¬ post r s }, (· ≠ x.val) := by {
       ext s; simp; constructor; aesop
       intro; false_or_by_contra; aesop }
     rw [this]
@@ -261,7 +261,7 @@ theorem Transition.meetsSpecificationIfSuccessful_eq [Inhabited α] (act : VeilM
     rw [← VeilM.wp_r_eq] at hwp; simp at hwp
     open PartialCorrectness DemonicChoice ExceptionAsSuccess in
     apply wp_cons act; rotate_left; apply hwp;
-    intro; simp [Loom.Order.LE.le] }
+    intro; simp [pi_le_iff] }
   introv hwp hpre hwp'
   false_or_by_contra; apply hwp';
   open PartialCorrectness DemonicChoice ExceptionAsSuccess in
@@ -312,7 +312,7 @@ theorem VeilM.succeeds_decompose' (act : VeilM m ρ σ α)
 open PartialCorrectness DemonicChoice ExceptionAsSuccess in
 theorem triple_weaken_postcondition (act : VeilM m ρ σ α) (pre post post' : SProp ρ σ) :
   triple pre act (fun _ => post) →
-  post ⊑ₗ post' →
+  post ≤ post' →
   triple pre act (fun _ => post') := by
   intro htriple hpost
   apply triple_cons act (le_refl pre) (fun _ => hpost) htriple
@@ -357,7 +357,7 @@ theorem important1
   unfold VeilM.toTransition triple
   -- TODO this is a mess. needs to be cleaned up
   rw [VeilM.extract_list_eq_wp act h]
-  simp [Loom.Order.LE.le]
+  simp [pi_le_iff, prop_le]
   simp [ReaderT.wp_eq, StateT.wp_eq, AngelicChoice.TsilT.wp_eq, wp_except_handler_eq, PeDivM.wp_eq_DivM, TotalCorrectness.DivM.wp_eq]
   simp [pointwiseSup]
   constructor
@@ -377,7 +377,7 @@ theorem important2
   let _ : IsHandler (· = e) := ⟨⟩
   letI res := s' r₀ s₀
   letI tmp := (open AngelicChoice TotalCorrectness in
-    wp act ⊥ₗ r₀ s₀)
+    wp act ⊥ r₀ s₀)
   (∃ log ps, (log, DivM.res (Except.error e, ps)) ∈ res) ↔ tmp := by
   intro hd
   rw [VeilM.extract_list_eq_wp act h]

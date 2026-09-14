@@ -35,7 +35,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "8e2db2a634f0c7ff810853516d0ad8c538c1bf94",
+   "rev": "294dc76ef35aea33af4fd25cde9f3a5d5dd73931",
    "name": "Loom",
    "manifestFile": "lake-manifest.json",
    "inputRev": "george/v4.32.0-for-veil-no-mathlib",

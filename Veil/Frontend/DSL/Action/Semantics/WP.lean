@@ -282,7 +282,7 @@ private def wpPostIdx? (e : Expr) : MetaM (Option Nat) := do
   unless e.getAppFn'.isConstOf ``wp do return none
   let n := e.getAppNumArgs
   if n < 2 then return none
-  let applied := (← whnf (← inferType e)).isProp && n ≥ 4
+  let applied := (← whnf (← inferType e)).isProp && Nat.ble 4 n
   return some (if applied then n - 3 else n - 1)
 
 simproc_decl wpChoicePreserveBinder (_) := fun e => do

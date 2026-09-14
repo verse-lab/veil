@@ -790,7 +790,7 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
         try (simp +zetaDelta [$(mkIdent <| localRPropTCName ++ `core):ident] ; (try rw [$(mkIdent $ stateName ++ `ext_iff):ident]) ; try simp [$(mkIdent ``funext_iff):ident, $(mkIdent ``Classical.not_forall):ident])
       · dsimp only
         apply [IgnoreEx (fun _ => $(mkIdent ``True))| $(mkIdent ``wp_cons) ($(mkIdent `m) := $veilMStx)]
-        simp only [$(mkIdent ``Loom.Order.LE.le):ident]
+        simp only [$(mkIdent ``Loom.Order.pi_le_iff):ident, $(mkIdent ``Loom.Order.prop_le):ident]
         try grind
       )
   return cmd

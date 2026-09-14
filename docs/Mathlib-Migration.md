@@ -24,8 +24,8 @@ Lean code may need changes:
   `open scoped Veil` for `≃`. Constructor enumeration and proxy deriving are
   implemented locally and no longer generate a mathlib `Fintype` instance.
 - Assertion order belongs to `Loom.Order`. Use `open scoped Loom.Order` and
-  `⊑ₗ`, `⊤ₗ`, `⊥ₗ`, `⊓ₗ`, and `⨅ₗ` for assertions. Numeric comparisons use
-  Lean's normal notation. Continuations belong to `Loom.Cont`.
+  `≤`, `⊤`, `⊥`, `⊓`, and `⨅` for assertions. Numeric comparisons in that scope
+  fall back to Lean's ordinary relation. Continuations belong to `Loom.Cont`.
 - Write `theorem`, `Nat`, and `Int` instead of relying on mathlib's command
   settings and numeric notation. Bundled proofs use core tactics or explicitly
   imported standalone tactics.
@@ -58,7 +58,11 @@ empty domains, finite functions, constructor derivation, and quorum counts.
 
 `lake build Veil VeilTest` passes, including the standalone finite-type and
 permutation regressions. The dependency audit checks eight resolved packages;
-the compiled import/proof audit checks 9,810 Veil declarations.
+the compiled import/proof audit checks 9,813 Veil declarations.
+These checks also pass after updating Loom to `294dc76ef35aea33af4fd25cde9f3a5d5dd73931`.
+The update restores conventional scoped assertion notation and reuses Lean's
+standard order laws. Veil's semantic and generated proofs now use Loom's public
+pointwise-order lemmas, and the WP helper uses `Nat.ble` for its Boolean test.
 
 The generated native model-checker package also has no mathlib dependency.
 A compiled Boolean-toggle model runs successfully and explores two states.
@@ -75,7 +79,8 @@ the action elaborator rejects, and VerticalPaxosFirstOrder uses stale generated
 proof signatures. These examples retain those existing limitations.
 
 The NOPaxos and Suzuki–Kasami performance checks pass their 25-second and
-15-second limits (20 and 7 seconds in this workspace). `PickPerf` completes
+15-second limits (13 and 6 seconds in this workspace). `PickPerf` completes
 with the expected state counts but exceeds its 10-second limit on this machine:
-17.7 seconds on this branch, versus 24.1 seconds on the original branch.
+13.55 seconds after the Loom update, versus 17.7 seconds before the update
+and 24.1 seconds on the original branch.
 The timeout is unchanged.
