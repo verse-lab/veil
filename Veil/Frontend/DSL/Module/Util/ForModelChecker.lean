@@ -4,15 +4,6 @@ namespace Veil.ModelChecker.Compilation
 
 open Lean Meta Elab Command
 
-/-- Find the byte position right after all `import` statements in a source string.
-    Used to insert `set_option` commands after imports during model compilation. -/
-def findPosAfterImports (src : String) : String.Pos.Raw :=
-  let lines := src.splitOn "\n"
-  let (_, lastImportEnd) := lines.foldl (init := ((0 : Nat), (0 : Nat))) fun (pos, lastImportEnd) line =>
-    let nextPos := pos + line.utf8ByteSize + 1  -- +1 for newline
-    (nextPos, if line.trimAsciiStart.startsWith "import " then nextPos else lastImportEnd)
-  ⟨lastImportEnd⟩
-
 /-- Status of the model checker compilation process for a single model. -/
 inductive Status
   | inProgress (instanceId : Nat) (buildDir : System.FilePath)
@@ -21,23 +12,21 @@ inductive Status
 
 /-- Description of a command that can be compiled into a generated executable. -/
 structure CompiledCommandSpec where
-  /-- Name of the generated definition that the compiled executable calls. -/
-  exportedName : String
-  /-- Whether the generated definition accepts an optional parallel configuration. -/
-  supportsParallelConfig : Bool := false
+  /-- Short identifier of the command, used in registry keys and build folder names. -/
+  name : String
 
 /-- Registry key for one compiled command invocation. -/
 structure CompilationKey where
   /-- Source file containing the compiled command invocation. -/
   sourceFile : String
-  /-- Generated definition called by the compiled executable. -/
-  exportedName : String
+  /-- Identifier of the compiled command, from `CompiledCommandSpec.name`. -/
+  commandName : String
   /-- Identity of the specific command invocation within `sourceFile`. -/
   commandId : String
   deriving BEq, Hashable, Inhabited
 
 /-- Global state tracking compilation status for multiple compiled commands.
-    Keyed by source file path, exported command name, and command identity so
+    Keyed by source file path, command name, and command identity so
     different command invocations in the same file do not supersede each other.
     Uses `Std.Mutex` to prevent race conditions when multiple tasks access the registry. -/
 initialize compilationRegistry : Std.Mutex (Std.HashMap CompilationKey Status) ←
@@ -46,7 +35,7 @@ initialize compilationRegistry : Std.Mutex (Std.HashMap CompilationKey Status) �
 @[inline]
 def mkCompilationKey (sourceFile : String) (command : CompiledCommandSpec) (commandId : String) : CompilationKey := {
   sourceFile,
-  exportedName := command.exportedName,
+  commandName := command.name,
   commandId,
 }
 
@@ -56,103 +45,49 @@ def stillCurrentCont (sourceFile : String) (command : CompiledCommandSpec) (comm
   compilationRegistry.atomically fun ref => do
     let registry ← ref.get
     match registry[mkCompilationKey sourceFile command commandId]? with
-    | some info =>
-      match info with
-      | .inProgress id _ => if id == instanceId then k ref ; pure true else pure false
-      | _ => pure false
-    | none => pure false
+    | some (.inProgress id _) => if id == instanceId then k ref; pure true else pure false
+    | _ => pure false
+
+private def setRegistryStatus (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
+    (status : Status) : IO Unit :=
+  compilationRegistry.atomically fun ref =>
+    ref.modify (·.insert (mkCompilationKey sourceFile command commandId) status)
 
 /-- Mark compilation as finished in the registry. -/
 def markRegistryFinished (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
     (buildFolder : System.FilePath) : IO Unit :=
-  compilationRegistry.atomically fun ref =>
-    ref.modify fun registry =>
-      registry.insert (mkCompilationKey sourceFile command commandId) (.finished buildFolder)
+  setRegistryStatus sourceFile command commandId (.finished buildFolder)
 
 /-- Mark compilation as in progress in the registry. -/
 def markRegistryInProgress (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
     (instanceId : Nat) (buildFolder : System.FilePath) : IO Unit :=
-  compilationRegistry.atomically fun ref =>
-    ref.modify fun registry =>
-      registry.insert (mkCompilationKey sourceFile command commandId) (.inProgress instanceId buildFolder)
+  setRegistryStatus sourceFile command commandId (.inProgress instanceId buildFolder)
 
 /-- Base directory for model checker build folders. This is an absolute path. -/
 def getBuildBaseDir : IO System.FilePath := do
   let pwd ← IO.currentDir
   return pwd / ".lake" / "model_checker_builds"
 
-/-- Generate the build folder for one compiled command in one source file.
+/-- The `lake` executable that builds model checker binaries. Lake exports its own path as
+`LAKE` to the processes it starts, including the language server, so this is the `lake` that
+launched the current process; without it, fall back to the one in the running toolchain. -/
+def getLakeExecutable : IO System.FilePath := do
+  if let some lake ← IO.getEnv "LAKE" then
+    unless lake.isEmpty do return lake
+  return (← Lean.findSysroot) / "bin" / System.FilePath.addExtension "lake" System.FilePath.exeExtension
 
-Keyed by command *kind*, not by invocation: two `#simulate` commands in the same
-file share a folder, so the second reuses the first one's Lake build cache instead
-of paying for a full rebuild. `CompilationKey` is keyed per invocation instead, so
-neither supersedes the other -- which does mean two invocations of the same command
-in one file can be building into this folder at the same time.
-
-The hash disambiguates same-named files in different directories, which would
-otherwise map to the same folder. -/
-def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec) : IO System.FilePath := do
+/-- Build folder for one generated program, named after its C and the modules it links against.
+Checks that emit the same program share a folder, so re-running an unchanged check lets Lake skip
+the C compilation and the link instead of producing another binary. Touch a folder only inside
+`withBuildLock`, after marking it as in use with `useBuildFolder`. -/
+def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec)
+    (cCode : String) (imports : Array Name) : IO System.FilePath := do
   let stem := System.FilePath.mk sourceFile |>.fileStem.getD "unrecognized_model"
-  let suffix := toString (hash (sourceFile ++ ":" ++ command.exportedName))
   let baseDir ← getBuildBaseDir
-  return baseDir / s!"{stem}_{command.exportedName}_{suffix}"
+  return baseDir / s!"{stem}_{command.name}_{mixHash (hash cCode) (hash imports)}"
 
-/-- Template for the `lakefile.lean` in the temp project. Note that it does
-not only require the parent Veil project, but also *all the dependencies*;
-otherwise the temp project will clone and build all of them. -/
-def lakefileTemplate : String :=
-s!"import Lake
-open Lake DSL System
-
-require Veil from \"../../..\"
-require Cli from \"../../../.lake/packages/Cli\"
-require cvc5 from \"../../../.lake/packages/cvc5\"
-require smt from \"../../../.lake/packages/smt\"
-require Loom from \"../../../.lake/packages/Loom\"
-require mathlib from \"../../../.lake/packages/mathlib\"
-require auto from \"../../../.lake/packages/auto\"
-require plausible from \"../../../.lake/packages/plausible\"
-require LeanSearchClient from \"../../../.lake/packages/LeanSearchClient\"
-require importGraph from \"../../../.lake/packages/importGraph\"
-require proofwidgets from \"../../../.lake/packages/proofwidgets\"
-require aesop from \"../../../.lake/packages/aesop\"
-require Qq from \"../../../.lake/packages/Qq\"
-require batteries from \"../../../.lake/packages/batteries\"
-
-package veilmodel
-
-lean_lib Model where
-  globs := #[Glob.one `Model]
-
-lean_exe ModelCheckerMain where
-  root := `ModelCheckerMain
-  buildType := .relWithDebInfo
-"
-
-/-- Template for the ModelCheckerMain.lean in the temp project.
-    Takes the namespace of the specification to open scoped instances. -/
-def modelCheckerMainTemplate (specNamespace : String) (command : CompiledCommandSpec) : String :=
-"import Model
-
-set_option maxHeartbeats 6400000
-set_option synthInstance.maxHeartbeats 200000
-set_option synthInstance.maxSize 10000
-
-open " ++ specNamespace ++ "
-
-def flushStdoutAndStderr : IO Unit := do
-  let stdout ← IO.getStdout
-  let stderr ← IO.getStderr
-  stdout.flush
-  stderr.flush
-
-def exitWhenParentDies : IO Unit := do
-  let stdin ← IO.getStdin
-  let _ ← stdin.readToEnd
-  flushStdoutAndStderr
-  IO.Process.forceExit 2
-
-def main (args : List String) : IO Unit := do
+/-- Entry point shared by the generated model checker executables. -/
+def runMain (check : Option ModelChecker.ParallelConfig → Nat → IO.CancelToken → IO Json) (args : List String) : IO Unit := do
   let _ ← IO.asTask (prio := .dedicated) exitWhenParentDies
   -- Enable progress reporting to stderr for the IDE to read
   Veil.ModelChecker.Concrete.enableCompiledModeProgress
@@ -167,35 +102,119 @@ def main (args : List String) : IO Unit := do
   -- Instance ID is not used in compiled mode, pass 0
   -- Cancel token is created locally; cancellation is handled by killing the process from outside
   let cancelTk ← IO.CancelToken.new
-  let res ← " ++
-    (if command.supportsParallelConfig
-      then command.exportedName ++ " pcfg 0 cancelTk"
-      else command.exportedName ++ " 0 cancelTk") ++ "
-  IO.println s!\"{res}\"
+  let res ← check pcfg 0 cancelTk
+  IO.println s!"{res}"
   flushStdoutAndStderr
   IO.Process.forceExit 0
-"
+where
+  flushStdoutAndStderr : IO Unit := do
+    let stdout ← IO.getStdout
+    let stderr ← IO.getStderr
+    stdout.flush
+    stderr.flush
+  exitWhenParentDies : IO Unit := do
+    let stdin ← IO.getStdin
+    let _ ← stdin.readToEnd
+    flushStdoutAndStderr
+    IO.Process.forceExit 2
 
-/-- Create the temp build folder with all necessary files.
-Returns the absolute path to the build folder. Generated inputs are overwritten
-on each call while preserving the Lake build cache in the folder. -/
-def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String)
-    (command : CompiledCommandSpec) : IO System.FilePath := do
-  let veilPath ← IO.currentDir
-  let buildFolder ← generateBuildFolderName sourceFile command
+/-
+NOTE: Locks on build folders.
+
+A build folder is named after the program it builds, so checks that emit the same program share it,
+possibly from different processes (e.g., when `lake build` and the editor both process a file).
+Two file locks keep compilations and cleanups from interfering:
+
+1. `build.lock` next to the folders, exclusive, held by `withBuildLock`. A check holds it while
+   marking its folder as in use, writing the folder's inputs and building; `pruneBuildFolders` holds
+   it for a whole prune.
+   - Only *one* model checker build runs in a workspace at a time: builds of different programs still
+     share the object files of the modules they import, and Lake deletes an object file before
+     rebuilding it, so two `lake` processes building the same missing object make each other fail
+     with "no such file or directory". Those objects are missing on a fresh checkout or in CI, where
+     several compiled checks start building at once.
+   - A check never starts using a folder while a prune deletes it. `use.lock` cannot ensure this
+     itself: it is deleted along with its folder, so a check waiting for it during a deletion would
+     end up locking a deleted file, whereas `build.lock` is never deleted.
+2. `<folder>/use.lock`, shared, held from `useBuildFolder` until `releaseBuildFolder`, that is, from
+   before the build until the run ends. A prune deletes a folder only if it can lock this
+   exclusively, so it never deletes a folder a check still needs. A folder deleted before a check
+   takes this lock is simply rebuilt by that check's own build.
+
+Waiting for `build.lock` polls `tryLock` so that cancellation stays responsive, while `use.lock` is
+only ever tried, never waited for. A lock is released as soon as its handle is no longer referenced,
+since Lean then frees the handle and closes the file, so keep the handle alive while the lock is
+needed.
+-/
+
+/-- Run `act` while holding the build lock of the build folders in `baseDir` (see the note on
+build-folder locks). Returns `none` without running `act` if `cancelToken` is set while waiting. -/
+def withBuildLock (baseDir : System.FilePath) (cancelToken : IO.CancelToken)
+    (act : IO α) : IO (Option α) := do
+  IO.FS.createDirAll baseDir
+  let lock ← IO.FS.Handle.mk (baseDir / "build.lock") .write
+  while !(← lock.tryLock) do
+    if ← cancelToken.isSet then return none
+    IO.sleep 100
+  try
+    return some (← act)
+  finally
+    -- NOTE: Besides unlocking, this keeps `lock` referenced while `act` runs. Once nothing refers
+    -- to a handle, Lean frees it and closes the file, which releases its lock, so without this
+    -- line the lock would be gone right after `tryLock` succeeds.
+    lock.unlock
+
+private def openUseLock (buildFolder : System.FilePath) : IO IO.FS.Handle :=
+  IO.FS.Handle.mk (buildFolder / "use.lock") .write
+
+/-- Rewritten by every compilation, so its modification time is when the folder was last used. -/
+private def importsFile (buildFolder : System.FilePath) : System.FilePath :=
+  buildFolder / "imports.json"
+
+/-- Write the generated C and the names of the modules it links against, creating the folder. -/
+def writeBuildInputs (buildFolder : System.FilePath) (cCode : String) (imports : Array Name) : IO Unit := do
   IO.FS.createDirAll buildFolder
-  -- Write the lakefile
-  IO.FS.writeFile (buildFolder / "lakefile.lean") lakefileTemplate
-  -- Write the model source (renamed to Model.lean)
-  IO.FS.writeFile (buildFolder / "Model.lean") modelSource
-  -- Write the ModelCheckerMain.lean
-  IO.FS.writeFile (buildFolder / "ModelCheckerMain.lean") (modelCheckerMainTemplate specNamespace command)
-  -- Create a minimal lean-toolchain file (copy from parent)
-  let toolchainPath := veilPath / "lean-toolchain"
-  if ← toolchainPath.pathExists then
-    let toolchain ← IO.FS.readFile toolchainPath
-    IO.FS.writeFile (buildFolder / "lean-toolchain") toolchain
-  return buildFolder
+  IO.FS.writeFile (buildFolder / "ModelCheckerMain.c") cCode
+  IO.FS.writeFile (importsFile buildFolder) (toJson imports).compress
+
+/-- Build folders that checks in this process are using, by progress instance, each with the
+shared lock held on the folder's `use.lock`. -/
+initialize buildFolderUses : IO.Ref (Std.HashMap Nat IO.FS.Handle) ← IO.mkRef {}
+
+/-- Mark `buildFolder` as in use by `instanceId` until `releaseBuildFolder`, so that
+`pruneBuildFolders` leaves it alone. Call it while holding `withBuildLock`. -/
+def useBuildFolder (instanceId : Nat) (buildFolder : System.FilePath) : IO Unit := do
+  IO.FS.createDirAll buildFolder
+  let lock ← openUseLock buildFolder
+  -- Cannot fail: a prune locks `use.lock` exclusively only while holding the build lock.
+  discard <| lock.tryLock (exclusive := false)
+  -- NOTE: Storing the handle is what keeps the folder marked as in use. Once nothing refers to a
+  -- handle, Lean frees it and closes the file, which releases its lock, so the shared lock lasts
+  -- exactly as long as this entry, until `releaseBuildFolder` removes it.
+  buildFolderUses.modify (·.insert instanceId lock)
+
+/-- Stop marking the build folder used by `instanceId` as in use. -/
+def releaseBuildFolder (instanceId : Nat) : IO Unit := do
+  if let some lock ← buildFolderUses.modifyGet fun uses => (uses[instanceId]?, uses.erase instanceId) then
+    lock.unlock
+
+/-- Delete the build folders in `baseDir` beyond the `keep` most recently compiled ones, skipping
+any that a check is using. -/
+def pruneBuildFolders (baseDir : System.FilePath) (keep : Nat) : IO Unit := do
+  unless ← baseDir.isDir do return
+  discard <| withBuildLock baseDir (← IO.CancelToken.new) do
+    let mut folders : Array (System.FilePath × IO.FS.SystemTime) := #[]
+    for entry in ← baseDir.readDir do
+      unless ← entry.path.isDir do continue
+      let lastUsed ← try (·.modified) <$> (importsFile entry.path).metadata catch _ => pure default
+      folders := folders.push (entry.path, lastUsed)
+    let newestFirst := folders.qsort fun a b => compare a.2 b.2 == .gt
+    for (folder, _) in newestFirst.extract keep do
+      try
+        let use ← openUseLock folder
+        if ← use.tryLock then
+          try IO.FS.removeDirAll folder finally use.unlock
+      catch _ => pure ()
 
 /-- Result of running a compilation process. -/
 structure ProcessResult where
@@ -203,10 +222,66 @@ structure ProcessResult where
   stdout : String
   stderr : String
   interrupted : Bool := false
+  /-- Full output is retained outside prunable build folders on failure. -/
+  stdoutLog? : Option System.FilePath := none
+  stderrLog? : Option System.FilePath := none
   deriving Inhabited
 
+/-- A bounded summary of one compiler output stream (stdout or stderr).
+
+Keep the first 4,096 characters and the last 4,096 characters after that prefix.
+The two parts never overlap: up to 8,192 characters, `head ++ tail` is the complete
+output. Beyond that, discard the middle and count its characters in `omitted`.
+For example, 10,000 characters become 4,096 head + 1,808 omitted + 4,096 tail.
+All limits and counts are Unicode characters, not UTF-8 bytes or lines.
+
+This bounds the text that Lean (including `#guard_msgs`) has to format. The process
+reader separately writes the full stream to a log file before updating this summary. -/
+structure CompilationOutput where
+  /-- The initial prefix; once it reaches 4,096 characters, it never changes. -/
+  head : String := ""
+  /-- The most recent characters after `head`; older ones are evicted as output arrives. -/
+  tail : String := ""
+  /-- Total number of characters discarded between `head` and `tail` so far. -/
+  omitted : Nat := 0
+  deriving Inhabited
+
+/-- Consume another chunk (normally a line): fill any remaining head capacity,
+append the rest to the rolling tail, and count whatever falls out of the tail. -/
+def CompilationOutput.append (output : CompilationOutput) (text : String) : CompilationOutput := Id.run do
+  -- Once the head is full, its remaining capacity is zero and all new text goes
+  -- to the tail. Only the portion used to fill the head is excluded from `rest`.
+  let headPart := (text.take (4096 - output.head.length)).toString
+  let rest := text.drop (4096 - output.head.length)
+  let restLength := text.length - headPart.length
+  let tail := if restLength > 4096 then
+      -- This chunk alone fills the tail: discard the old tail and keep only the
+      -- chunk's final 4,096 characters, without copying its potentially huge prefix.
+      (rest.takeEnd 4096).toString
+    else
+      let tail := output.tail ++ rest.toString
+      -- Drop only the overflow, rather than scanning back over the whole retained
+      -- tail for every short line in a large linker log.
+      (tail.drop (tail.length - 4096)).toString
+  return {
+    head := output.head ++ headPart
+    tail
+    -- Count newly discarded characters from the old tail plus incoming remainder.
+    -- Nat subtraction saturates at zero, so a tail that still fits omits nothing.
+    omitted := output.omitted + (output.tail.length + restLength - 4096)
+  }
+
+/-- Reassemble the diagnostic, inserting an explicit omission notice between the
+retained ends. If nothing was discarded, return the original output unchanged. -/
+def CompilationOutput.render (output : CompilationOutput) : String :=
+  output.head ++
+    (if output.omitted == 0 then "" else s!"\n... {output.omitted} characters omitted ...\n") ++
+    output.tail
+
 /-- Run a process with callbacks for status updates and line-by-line output capture,
-checking both explicit cancellation and whether this compilation is still current. -/
+checking both explicit cancellation and whether this compilation is still current.
+Only bounded summaries stay in memory; failed builds retain full stdout/stderr in
+temporary files so pruning a build folder cannot delete the diagnostic logs. -/
 def runProcessWithStatusCallback (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
     (cfg : IO.Process.SpawnArgs)
     (instanceId : Nat) (cancelToken : IO.CancelToken)
@@ -214,36 +289,55 @@ def runProcessWithStatusCallback (sourceFile : String) (command : CompiledComman
     (lineCallback : String → Bool → Nat → IO Unit := fun _ _ _ => pure ())
     : IO ProcessResult := do
   let startTime ← IO.monoMsNow
-  let proc ← IO.Process.spawn { cfg with stdin := .piped, stdout := .piped, stderr := .piped }
-  let stdoutAccum ← IO.mkRef ""
-  let stderrAccum ← IO.mkRef ""
-  -- Helper to read lines from a handle
-  let readLines (handle : IO.FS.Handle) (accum : IO.Ref String) (isError : Bool) : IO Unit := do
-    while true do
-      let line ← handle.getLine
-      if line.isEmpty then break
-      accum.modify (· ++ line)
-      lineCallback line.trimAsciiEnd.toString isError ((← IO.monoMsNow) - startTime)
-  let stdoutTask ← IO.asTask (prio := .dedicated) (readLines proc.stdout stdoutAccum false)
-  let stderrTask ← IO.asTask (prio := .dedicated) (readLines proc.stderr stderrAccum true)
-  let waitTask ← IO.asTask (prio := .dedicated) proc.wait
-  let mut interrupted := false
-  while !(← IO.hasFinished waitTask) do
-    if ← cancelToken.isSet then
-      proc.kill
-      interrupted := true
-      break
-    let current? ← stillCurrentCont sourceFile command commandId instanceId do
-      statusCallback ((← IO.monoMsNow) - startTime)
-    unless current? do
-      proc.kill
-      interrupted := true
-      break
-    IO.sleep 500
-  let _ ← IO.wait stdoutTask
-  let _ ← IO.wait stderrTask
-  match ← IO.wait waitTask with
-  | .ok exitCode => return { exitCode, stdout := ← stdoutAccum.get, stderr := ← stderrAccum.get, interrupted }
-  | .error err => return { exitCode := 1, stdout := ← stdoutAccum.get, stderr := s!"{← stderrAccum.get}\nIO error: {err}", interrupted }
+  let (stdoutLog, stdoutPath) ← IO.FS.createTempFile
+  let (stderrLog, stderrPath) ← IO.FS.createTempFile
+  -- `finally` sees the values from entry to `try`, so share the retention decision
+  -- through a reference rather than a mutable local variable.
+  let keepLogs ← IO.mkRef false
+  try
+    let proc ← IO.Process.spawn { cfg with stdin := .piped, stdout := .piped, stderr := .piped }
+    -- Helper to read lines from a handle
+    let readLines (handle log : IO.FS.Handle) (isError : Bool) : IO CompilationOutput := do
+      let mut output : CompilationOutput := {}
+      while true do
+        let line ← handle.getLine
+        if line.isEmpty then break
+        -- The file gets every character; only the in-memory diagnostic is shortened.
+        log.putStr line
+        output := output.append line
+        -- The live progress widget has a separate, smaller per-line preview limit.
+        let preview := (line.take 2048).toString
+        let preview := if line.length > 2048 then preview ++ " ... (truncated)" else preview
+        lineCallback preview.trimAsciiEnd.toString isError ((← IO.monoMsNow) - startTime)
+      log.flush
+      return output
+    let stdoutTask ← IO.asTask (prio := .dedicated) (readLines proc.stdout stdoutLog false)
+    let stderrTask ← IO.asTask (prio := .dedicated) (readLines proc.stderr stderrLog true)
+    let waitTask ← IO.asTask (prio := .dedicated) proc.wait
+    let mut interrupted := false
+    while !(← IO.hasFinished waitTask) do
+      -- Stop once cancelled, or once a newer invocation of the same command supersedes this one.
+      let wanted ← if ← cancelToken.isSet then pure false else
+        stillCurrentCont sourceFile command commandId instanceId do
+          statusCallback ((← IO.monoMsNow) - startTime)
+      unless wanted do
+        proc.kill
+        interrupted := true
+        break
+      IO.sleep 500
+    let stdout ← IO.ofExcept (← IO.wait stdoutTask)
+    let stderr ← IO.ofExcept (← IO.wait stderrTask)
+    let (exitCode, stderr) ← match ← IO.wait waitTask with
+      | .ok exitCode => pure (exitCode, stderr)
+      | .error err => pure (1, stderr.append s!"\nIO error: {err}")
+    let retain := exitCode != 0 && !interrupted
+    keepLogs.set retain
+    return { exitCode, stdout := stdout.render, stderr := stderr.render, interrupted
+             stdoutLog? := if retain then some stdoutPath else none
+             stderrLog? := if retain then some stderrPath else none }
+  finally
+    unless ← keepLogs.get do
+      IO.FS.removeFile stdoutPath
+      IO.FS.removeFile stderrPath
 
 end Veil.ModelChecker.Compilation

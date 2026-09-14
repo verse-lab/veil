@@ -290,7 +290,10 @@ def updateCompilationLog (instanceId : Nat) (elapsedMs : Nat) (line : String) (i
   withRefs instanceId fun refs => refs.progressRef.modify fun p =>
     let existingLines := match p.compilationStatus with | .inProgress _ l => l | _ => #[]
     let newLine : CompilationLogLine := { timestamp := elapsedMs, content := line, isError }
-    { p with compilationStatus := .inProgress elapsedMs (existingLines.push newLine) }
+    -- Compiler/linker failures can produce hundreds of thousands of lines. The
+    -- process runner keeps full logs on disk; the widget needs only recent output.
+    let recentLines := (existingLines.extract (existingLines.size - 99)).push newLine
+    { p with compilationStatus := .inProgress elapsedMs recentLines }
 
 /-- Update just elapsed time without adding a log line. -/
 def updateCompilationElapsed (instanceId : Nat) (elapsedMs : Nat) : IO Unit :=
