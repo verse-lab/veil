@@ -42,3 +42,8 @@ jobs:
       run: |
         python3 scripts/check_no_mathlib.py
         lake env lean --run scripts/CheckNoMathlib.lean
+    - name: Check Core import boundary and native model checking
+      run: |
+        lake env lean --run scripts/CheckCoreImports.lean
+        lake env lean scripts/CoreModelSmoke.lean
+        python3 scripts/check_core_native.py

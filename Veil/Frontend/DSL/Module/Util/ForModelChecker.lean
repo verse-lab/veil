@@ -62,18 +62,22 @@ def generateBuildFolderName (sourceFile : String) : IO System.FilePath := do
 /-- Template for the `lakefile.lean` in the temp project. Note that it does
 not only require the parent Veil project, but also *all the dependencies*;
 otherwise the temp project will clone and build all of them. -/
-def lakefileTemplate : String :=
+def lakefileTemplate (coreOnly : Bool := false) : String :=
+let coreRequirement := if coreOnly then
+  " with NameMap.empty.insert `coreOnly \"true\"" else ""
+let verificationRequirements := if coreOnly then "" else
+  "require cvc5 from \"../../../.lake/packages/cvc5\"\n" ++
+  "require smt from \"../../../.lake/packages/smt\"\n" ++
+  "require auto from \"../../../.lake/packages/auto\"\n" ++
+  "require Qq from \"../../../.lake/packages/Qq\"\n"
 s!"import Lake
 open Lake DSL System
 
-require Veil from \"../../..\"
-require cvc5 from \"../../../.lake/packages/cvc5\"
-require smt from \"../../../.lake/packages/smt\"
+require Veil from \"../../..\"{coreRequirement}
+{verificationRequirements}\
 require Loom from \"../../../.lake/packages/Loom\"
-require auto from \"../../../.lake/packages/auto\"
 require proofwidgets from \"../../../.lake/packages/proofwidgets\"
 require aesop from \"../../../.lake/packages/aesop\"
-require Qq from \"../../../.lake/packages/Qq\"
 require batteries from \"../../../.lake/packages/batteries\"
 
 package veilmodel
@@ -132,13 +136,20 @@ def main (args : List String) : IO Unit := do
 
 /-- Create the temp build folder with all necessary files.
 Returns the absolute path to the build folder. -/
-def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String) : IO System.FilePath := do
+def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String)
+    (coreOnly : Bool := false) : IO System.FilePath := do
   let veilPath ← IO.currentDir
   let buildFolder ← generateBuildFolderName sourceFile
   -- Create the build folder
   IO.FS.createDirAll buildFolder
   -- Write the lakefile
-  IO.FS.writeFile (buildFolder / "lakefile.lean") lakefileTemplate
+  let lakefile := buildFolder / "lakefile.lean"
+  let config := lakefileTemplate coreOnly
+  if ← lakefile.pathExists then
+    if (← IO.FS.readFile lakefile) != config then
+      let manifest := buildFolder / "lake-manifest.json"
+      if ← manifest.pathExists then IO.FS.removeFile manifest
+  IO.FS.writeFile lakefile config
   -- Write the model source (renamed to Model.lean)
   IO.FS.writeFile (buildFolder / "Model.lean") modelSource
   -- Write the ModelCheckerMain.lean

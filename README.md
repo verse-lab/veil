@@ -49,6 +49,11 @@ These files are also available in the [online playground](#online-playground), u
 An explanation of the constructs of the Veil DSL can be found at
 [`docs/DSL-Reference.md`](docs/DSL-Reference.md). 
 
+For explicit-state model checking without CVC5, use `import Veil.Core`.
+It provides the DSL and concrete model checker without VC generation or the
+verification manager. See [Veil.Core](docs/Veil-Core.md) for usage and the
+`coreOnly` Lake dependency profile, which also excludes solver packages.
+
 ## Build
 
 Veil requires [Lean 4](https://github.com/leanprover/lean4) and

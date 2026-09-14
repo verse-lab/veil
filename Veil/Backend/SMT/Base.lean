@@ -1,7 +1,1 @@
-import Lean
-
-namespace Veil
-
-register_simp_attr smtSimp
-
-end Veil
+import Veil.Frontend.DSL.Infra.SmtSimp

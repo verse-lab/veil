@@ -1,7 +1,8 @@
 import Lake
 open Lake DSL System
 
-require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.32.0-veil-no-mathlib"
+meta if get_config? coreOnly != some "true" then
+  require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.32.0-veil-no-mathlib"
 require Loom from git "https://github.com/verse-lab/loom.git" @ "george/v4.32.0-for-veil-no-mathlib"
 
 require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.32.0"
@@ -10,6 +11,7 @@ require aesop from git "https://github.com/leanprover-community/aesop" @ "v4.32.
 require proofwidgets from git "https://github.com/leanprover-community/ProofWidgets4" @ "6e311e2a844da9b2cc3971187df2fe0066947b93"
 
 package veil where
+  buildDir := if get_config? coreOnly == some "true" then ".lake/build-core" else ".lake/build"
   preferReleaseBuild := true
   buildArchive? := .none
   releaseRepo := "https://github.com/verse-lab/veil"
@@ -93,13 +95,53 @@ target widgetJsAll pkg : Unit :=
 target widgetJsAllDev pkg : Unit :=
   widgetJsAllTarget pkg (isDev := true)
 
+/-- Solver-free modules built by the Core dependency profile. -/
+def coreGlobs : Array Glob := #[
+  .one `Veil.Base,
+  .one `Veil.Core,
+  .submodules `Veil.Core.Tools.ModelChecker.Concrete,
+  .one `Veil.Core.Tools.ModelChecker.ExecutionOutcome,
+  .one `Veil.Core.Tools.ModelChecker.Interface,
+  .one `Veil.Core.Tools.ModelChecker.Trace,
+  .one `Veil.Core.Tools.ModelChecker.TransitionSystem,
+  .submodules `Veil.Core.UI.Trace,
+  .one `Veil.Core.UI.Widget.ProgressViewer,
+  .one `Veil.Core.UI.Widget.RefreshComponent,
+  .submodules `Veil.Frontend.DSL.Action,
+  .one `Veil.Frontend.DSL.Infra.Assertions,
+  .one `Veil.Frontend.DSL.Infra.EnvExtensions,
+  .one `Veil.Frontend.DSL.Infra.Preprocessing,
+  .one `Veil.Frontend.DSL.Infra.Quantifiers,
+  .one `Veil.Frontend.DSL.Infra.Simp,
+  .one `Veil.Frontend.DSL.Infra.SmtSimp,
+  .one `Veil.Frontend.DSL.Infra.TraceSyntax,
+  .one `Veil.Frontend.DSL.Infra.VerificationDiagnostics,
+  .one `Veil.Frontend.DSL.Infra.VerificationSupport,
+  .one `Veil.Frontend.DSL.Module.AssertionInfo,
+  .one `Veil.Frontend.DSL.Module.Elaborators.Core,
+  .one `Veil.Frontend.DSL.Module.Names,
+  .one `Veil.Frontend.DSL.Module.Representation,
+  .one `Veil.Frontend.DSL.Module.Syntax,
+  .one `Veil.Frontend.DSL.Module.Util,
+  .submodules `Veil.Frontend.DSL.Module.Util,
+  .one `Veil.Frontend.DSL.State,
+  .submodules `Veil.Frontend.DSL.State,
+  .submodules `Veil.Frontend.DSL.Tactic,
+  .one `Veil.Frontend.DSL.Util,
+  .one `Veil.Frontend.Std,
+  .submodules `Veil.Util
+]
+
 @[default_target]
 lean_lib «Veil» {
-  globs := #[`Veil, .submodules `Veil]
+  globs := if get_config? coreOnly == some "true" then coreGlobs
+    else #[`Veil, .submodules `Veil]
+  libName := if get_config? coreOnly == some "true" then "VeilCore" else "Veil"
   -- precompileModules := true
   needs := #[widgetJsAll]
 }
 
+meta if get_config? coreOnly != some "true" then
 @[default_target, test_driver]
 lean_lib VeilTest {
   globs := #[Glob.submodules `VeilTest]

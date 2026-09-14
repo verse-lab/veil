@@ -1,4 +1,4 @@
-import Veil.Frontend.DSL.Infra.EnvExtensions
+import Veil.Core.Tools.Verifier.Environment
 import Veil.Core.Tools.Verifier.Manager
 import Veil.Core.Tools.Verifier.Results
 import Std.Sync.Mutex
