@@ -472,7 +472,6 @@ structure ModelCheckContext where
   cancelToken : IO.CancelToken
   assertionSources : Std.HashMap AssertionId AssertionSourceInfo
   parallelCfg : Option ModelChecker.ParallelConfig
-  coreOnly : Bool
 
 /-- Extract the model checking mode from the optional mode syntax. -/
 def getModelCheckingMode (modeStx : Syntax) : ModelCheckingMode :=
@@ -545,13 +544,13 @@ where
       `({})
 
   /-- Generate the model source for compilation:
-      1. Insert `set_option veil.__modelCheckCompileMode true` after imports
+      1. Rewrite Veil imports to Core and enable native re-elaboration after imports
       2. Keep everything up to the point where the spec was finalized
       3. Append the current `#model_check` command
       This filters out `#check_invariants`, `sat trace`, etc. from the compiled model. -/
   generateModelSource (mod : Module) (stx : Syntax) : CommandElabM String := do
     let src := (← getFileMap).source
-    let afterImportsPos := ModelChecker.Compilation.findPosAfterImports src
+    let (coreHeader, afterImportsPos) ← ModelChecker.Compilation.prepareCoreHeader src
     let compileModePreamble := "\nset_option veil.__modelCheckCompileMode true\n"
     -- Use the stored syntax where spec was finalized
     let some specFinalizedAtStx := mod.specFinalizedAtStx
@@ -567,10 +566,9 @@ where
     let specFinalizedAtPos := if modelCheckTriggeredFinalization
       then modelCheckStart
       else specFinalizedAtStx.getTailPos?.getD modelCheckStart
-    let beforeImports := String.Pos.Raw.extract src 0 afterImportsPos
     let afterImportsToSpecFinalized := String.Pos.Raw.extract src afterImportsPos specFinalizedAtPos
     let modelCheckCmd := String.Pos.Raw.extract src modelCheckStart modelCheckEnd
-    return beforeImports ++ compileModePreamble ++ afterImportsToSpecFinalized ++ "\n" ++ modelCheckCmd ++ "\n"
+    return coreHeader ++ compileModePreamble ++ afterImportsToSpecFinalized ++ "\n" ++ modelCheckCmd ++ "\n"
 
   /-- Prepend `name` with `mod.name`. Useful when expressions are printed out for debugging. -/
   mkIdentWithModName (mod : Module) (name : Name) : Ident :=
@@ -768,8 +766,7 @@ where
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM ModelCheckContext := do
     let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (← getActionLabelNames mod)
     let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
-    let coreOnly := !(← hasVerificationSupport)
-    return { mod, stx, instanceId, cancelToken, assertionSources, parallelCfg, coreOnly }
+    return { mod, stx, instanceId, cancelToken, assertionSources, parallelCfg }
 
   /-- Handle errors in model checking computations. -/
   handleModelCheckError (ctx : ModelCheckContext) (e : Exception) : CommandElabM Unit := do
@@ -794,8 +791,8 @@ where
 
   /-- Compile the model. Returns the build folder path if compilation succeeded, none otherwise. -/
   compileModel (mod : Module) (sourceFile : String) (modelSource : String)
-      (instanceId : Nat) (coreOnly : Bool) : IO (Option System.FilePath) := do
-    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString coreOnly
+      (instanceId : Nat) : IO (Option System.FilePath) := do
+    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString
     ModelChecker.Compilation.markRegistryInProgress sourceFile instanceId buildFolder
     let result ← ModelChecker.Compilation.runProcessWithStatusCallback
       { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
@@ -872,7 +869,7 @@ where
 
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let some buildFolder ← compileModel mod sourceFile modelSource ctx.instanceId ctx.coreOnly | return
+        let some buildFolder ← compileModel mod sourceFile modelSource ctx.instanceId | return
         if ← checkCancelled ctx.cancelToken ctx.instanceId then return
         runBinaryAndLogResult ctx buildFolder sourceFile
       catch e : Exception =>
@@ -910,7 +907,7 @@ where
     let compilationCancelTk ← IO.CancelToken.new
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
-        let some buildFolder ← compileModel mod sourceFile modelSource ctx.instanceId ctx.coreOnly | return
+        let some buildFolder ← compileModel mod sourceFile modelSource ctx.instanceId | return
         -- Skip handoff if violation found or interpreted finished
         if (← ModelChecker.Concrete.isViolationFound ctx.instanceId) || (← IO.hasFinished interpretedTask) then
           ModelChecker.Compilation.markRegistryFinished sourceFile buildFolder

@@ -77,10 +77,20 @@ Core and full Veil use separate build directories (`.lake/build-core` and
 library explicitly lists its modules so native builds cannot pull in the
 verification library through Lake's library-wide link inputs.
 
-Compiled model checking automatically chooses this dependency profile when
-the source imports only Core. The generated project preserves the source's
-imports, requires only the solver-free packages, and links without CVC5.
-Sources importing full Veil continue to use the full native build profile.
+Native model checking always uses this dependency profile, including the
+compiled phase of automatic mode. The generated source replaces `import Veil`
+(and the `Veil.DSL` / `Veil.Frontend.DSL.Base` entry points) with `Veil.Core`.
+Other imports are preserved. The generated project requires only solver-free
+packages and links without CVC5 even when the original source uses full Veil
+for verification. Existing generated projects are migrated to this profile
+on their next compilation.
+
+The original source still supports verification commands. As before, native
+generation keeps the source through `#gen_spec` and omits subsequent proofs
+and verification commands, as well as the `assumptions_hold_by` proof. Any
+handwritten definitions or additional imports retained in the generated
+source must be compatible with Core; native compilation never falls back to
+linking the solver.
 
 ## Implementation boundaries
 
@@ -109,5 +119,7 @@ and both import orders. `scripts/CheckCoreImports.lean` audits the compiled
 import closure and rejects SMT, CVC5, VC generation, verifier modules/state,
 and unfinished Veil declarations. `scripts/CoreModelSmoke.lean` exercises
 native compilation and execution without solver plugin flags.
-`scripts/check_core_native.py` then checks the generated dependency manifest
-and native link inputs for solver or verifier dependencies.
+`VeilTest/Core/FullModelCompilation.lean` checks native compilation from a full
+Veil source after verifying its invariants. `scripts/check_core_native.py`
+audits both generated projects' dependency manifests, imports, plugins, and
+native link inputs for solver or verifier dependencies.

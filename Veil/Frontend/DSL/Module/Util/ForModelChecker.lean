@@ -4,14 +4,30 @@ namespace Veil.ModelChecker.Compilation
 
 open Lean Meta Elab Command
 
-/-- Find the byte position right after all `import` statements in a source string.
-    Used to insert `set_option` commands after imports during model compilation. -/
-def findPosAfterImports (src : String) : String.Pos.Raw :=
-  let lines := src.splitOn "\n"
-  let (_, lastImportEnd) := lines.foldl (init := ((0 : Nat), (0 : Nat))) fun (pos, lastImportEnd) line =>
-    let nextPos := pos + line.utf8ByteSize + 1  -- +1 for newline
-    (nextPos, if line.trimAsciiStart.startsWith "import " then nextPos else lastImportEnd)
-  ⟨lastImportEnd⟩
+/-- Rewrite the public Veil frontend imports for native model checking.
+Returns the rewritten header and its end position in the original source.
+Parsing the header preserves comments, Unicode, and import modifiers without
+mistaking text in comments or string literals for import statements. -/
+def prepareCoreHeader (src : String) : IO (String × String.Pos.Raw) := do
+  let (header, state, messages) ← Parser.parseHeader (Parser.mkInputContext src "<model>")
+  if messages.hasErrors then
+    throw <| IO.userError "Cannot parse the model's import header"
+  let mut result := ""
+  let mut cursor : String.Pos.Raw := 0
+  let mut hasCore := false
+  if let `(Parser.Module.header| $[module]? $[prelude]? $imports*) := header then
+    for imp in imports do
+      if let `(Parser.Module.import| $[public]? $[meta]? import $[all]? $mod) := imp then
+        if mod.getId == `Veil.Core then hasCore := true
+        if #[`Veil, `Veil.DSL, `Veil.Frontend.DSL.Base].contains mod.getId then
+          let some startPos := mod.raw.getPos? | throw <| IO.userError "Import has no source position"
+          let some endPos := mod.raw.getTailPos? | throw <| IO.userError "Import has no end position"
+          result := result ++ String.Pos.Raw.extract src cursor startPos ++ "Veil.Core"
+          cursor := endPos
+          hasCore := true
+  result := result ++ String.Pos.Raw.extract src cursor state.pos
+  if !hasCore then result := result ++ "\nimport Veil.Core\n"
+  return (result, state.pos)
 
 /-- Status of the model checker compilation process for a single model. -/
 inductive Status
@@ -62,19 +78,11 @@ def generateBuildFolderName (sourceFile : String) : IO System.FilePath := do
 /-- Template for the `lakefile.lean` in the temp project. Note that it does
 not only require the parent Veil project, but also *all the dependencies*;
 otherwise the temp project will clone and build all of them. -/
-def lakefileTemplate (coreOnly : Bool := false) : String :=
-let coreRequirement := if coreOnly then
-  " with NameMap.empty.insert `coreOnly \"true\"" else ""
-let verificationRequirements := if coreOnly then "" else
-  "require cvc5 from \"../../../.lake/packages/cvc5\"\n" ++
-  "require smt from \"../../../.lake/packages/smt\"\n" ++
-  "require auto from \"../../../.lake/packages/auto\"\n" ++
-  "require Qq from \"../../../.lake/packages/Qq\"\n"
-s!"import Lake
+def lakefileTemplate : String :=
+"import Lake
 open Lake DSL System
 
-require Veil from \"../../..\"{coreRequirement}
-{verificationRequirements}\
+require Veil from \"../../..\" with NameMap.empty.insert `coreOnly \"true\"
 require Loom from \"../../../.lake/packages/Loom\"
 require proofwidgets from \"../../../.lake/packages/proofwidgets\"
 require aesop from \"../../../.lake/packages/aesop\"
@@ -136,15 +144,14 @@ def main (args : List String) : IO Unit := do
 
 /-- Create the temp build folder with all necessary files.
 Returns the absolute path to the build folder. -/
-def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String)
-    (coreOnly : Bool := false) : IO System.FilePath := do
+def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String) : IO System.FilePath := do
   let veilPath ← IO.currentDir
   let buildFolder ← generateBuildFolderName sourceFile
   -- Create the build folder
   IO.FS.createDirAll buildFolder
   -- Write the lakefile
   let lakefile := buildFolder / "lakefile.lean"
-  let config := lakefileTemplate coreOnly
+  let config := lakefileTemplate
   if ← lakefile.pathExists then
     if (← IO.FS.readFile lakefile) != config then
       let manifest := buildFolder / "lake-manifest.json"
