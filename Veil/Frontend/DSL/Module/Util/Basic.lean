@@ -189,6 +189,15 @@ def Parameter.binder [Monad m] [MonadQuotation m] (p : Parameter) : m (TSyntax `
     | .some (.term defValue) => `(bracketedBinder|($(mkIdent p.name) : $(p.type) := $defValue))
     | .some (.tactic tactic) => `(bracketedBinder|($(mkIdent p.name) : $(p.type) := by $tactic:tacticSeq))
 
+/-- Does this parameter become an explicit binder, i.e. one that a caller has to
+supply positionally? Mirrors the case split in `Parameter.binder`: instance and
+implicit binders are left to synthesis and unification. -/
+def Parameter.isExplicit (p : Parameter) : Bool :=
+  match p.kind with
+  | .moduleTypeclass _ | .definitionParameter _ .typeclass => false
+  | .definitionParameter _ .implicit => false
+  | _ => true
+
 def Parameter.bracketedExplicitBinder [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (p : Parameter) : m (TSyntax ``Lean.bracketedExplicitBinders) := do
   match p.kind with
   | .definitionParameter _ .explicit => `(bracketedExplicitBinders|($(identToBinderIdent $ mkIdent p.name) : $(p.type)))

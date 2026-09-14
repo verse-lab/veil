@@ -5,7 +5,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "ee22f271430d7296a298751dfe5f4e7b06758efe",
+   "rev": "cea519ce6072e535331390e6ebab2653561cf61f",
    "name": "Loom",
    "manifestFile": "lake-manifest.json",
    "inputRev": "v4.32.0-for-veil",
