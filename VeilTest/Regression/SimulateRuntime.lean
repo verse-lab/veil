@@ -3,8 +3,8 @@ import Veil
 /-!
 Runtime regressions shared by simulation and model checking: progress survives
 handoff, cancellation reaches compilation, command invocations do not collide in the
-compilation registry, and model checker builds run one at a time. These direct checks avoid
-relying on compilation timing to trigger a handoff.
+compilation registry, model checker builds run one at a time, and pruning never deletes a build
+folder in use. These direct checks avoid relying on compilation timing to trigger a handoff.
 -/
 
 open Veil Veil.ModelChecker.Simulation Veil.ModelChecker.Concrete
@@ -141,15 +141,22 @@ private def registryKeySourceFile := "compilation-registry-key.lean"
     markRegistryFinished registryKeySourceFile command commandId
       (System.FilePath.mk "build" / commandId)
 
+/-- A fresh directory to hold build folders. Tests that touch build folders use one instead of
+`.lake/model_checker_builds`, where compiled checks in concurrently elaborated files take the build
+lock and prune idle folders. -/
+private def isolatedBuildBase : IO System.FilePath := IO.FS.createTempDir
+
 -- Different programs keep independent C and dependency manifests.
 #eval do
   let sourceFile := "compilation-build-folder-inputs.lean"
+  let base ← isolatedBuildBase
   let firstC := "/* first program */"
   let secondC := "/* second program */"
   let firstImports := #[`Veil]
   let secondImports := #[`Veil, `Lean.Compiler.LCNF.EmitC]
-  let firstFolder ← generateBuildFolderName sourceFile simulateCommand firstC firstImports
-  let secondFolder ← generateBuildFolderName sourceFile simulateCommand secondC secondImports
+  let inBase (folder : System.FilePath) := base / folder.fileName.getD ""
+  let firstFolder := inBase (← generateBuildFolderName sourceFile simulateCommand firstC firstImports)
+  let secondFolder := inBase (← generateBuildFolderName sourceFile simulateCommand secondC secondImports)
   for (folder, cCode, imports) in [(firstFolder, firstC, firstImports), (secondFolder, secondC, secondImports)] do
     writeBuildInputs folder cCode imports
   expect "distinct programs must not share generated files" (firstFolder != secondFolder)
@@ -162,12 +169,12 @@ private def registryKeySourceFile := "compilation-registry-key.lean"
       ((← IO.FS.readFile (folder / "imports.json")) == (Lean.toJson imports).compress)
     for name in ["lakefile.lean", "Model.lean", "ModelCheckerMain.lean", "lean-toolchain"] do
       expect s!"native compilation must not generate {name}" (!(← (folder / name).pathExists))
+  IO.FS.removeDirAll base
 
 -- Only one model checker build runs at a time, and a check waiting for the build lock must still
--- respond to cancellation. This uses a temporary directory, since compiled checks in concurrently
--- elaborated files take the workspace's build lock.
+-- respond to cancellation.
 #eval do
-  let base ← IO.FS.createTempDir
+  let base ← isolatedBuildBase
   let acquired ← IO.mkRef false
   let release ← IO.mkRef false
   let holder ← IO.asTask <| withBuildLock base (← IO.CancelToken.new) do
@@ -184,6 +191,29 @@ private def registryKeySourceFile := "compilation-registry-key.lean"
   expect "the holder must finish once released" ((← IO.ofExcept (← IO.wait holder)).isSome)
   expect "the build lock must be free again"
     ((← withBuildLock base (← IO.CancelToken.new) (pure ())).isSome)
+  IO.FS.removeDirAll base
+
+-- Pruning keeps the most recently compiled builds and deletes the rest, but never a folder a check
+-- is still using: a build that finished compiling but has not run its binary yet would lose it.
+#eval do
+  let base ← isolatedBuildBase
+  let folders := #["oldest", "middle", "newest"].map fun (name : String) => base / name
+  for folder in folders do
+    writeBuildInputs folder "/* C */" #[]
+    -- Distinct modification times of `imports.json`, which order the builds.
+    IO.sleep 20
+  pruneBuildFolders base 2
+  expect "pruning must delete builds beyond the most recent ones" (!(← folders[0]!.pathExists))
+  expect "pruning must keep the most recent builds"
+    ((← folders[1]!.pathExists) && (← folders[2]!.pathExists))
+  let (id, _) ← allocProgressInstance (.simulation {})
+  discard <| withBuildLock base (← IO.CancelToken.new) (useBuildFolder id folders[1]!)
+  pruneBuildFolders base 0
+  expect "pruning must not delete a folder a check is using" (← folders[1]!.pathExists)
+  expect "pruning to zero builds must delete idle folders" (!(← folders[2]!.pathExists))
+  releaseBuildFolder id
+  pruneBuildFolders base 0
+  expect "a released folder must be pruned" (!(← folders[1]!.pathExists))
   IO.FS.removeDirAll base
 
 -- Stopping a compiled-only run during compilation leaves no verdict behind, whether the build was

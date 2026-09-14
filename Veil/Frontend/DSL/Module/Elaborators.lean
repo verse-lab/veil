@@ -928,6 +928,19 @@ where
     if (← ModelChecker.Concrete.getProgress instanceId).isRunning then
       discard <| checkCancelled cancelToken instanceId
 
+  /-- Stop using the build folder of a run that has ended, then prune build folders to
+  `veil.modelChecker.maxStoredBuilds`: down to one below the limit, leaving room for the next run's
+  build, or not at all when the limit is 0. Pruning is best-effort cleanup and never fails the run. -/
+  releaseBuild (instanceId : Nat) : CommandElabM Unit := do
+    let limit := veil.modelChecker.maxStoredBuilds.get (← getOptions)
+    liftIO do
+      ModelChecker.Compilation.releaseBuildFolder instanceId
+      if limit = 0 then return
+      try
+        ModelChecker.Compilation.pruneBuildFolders (← ModelChecker.Compilation.getBuildBaseDir)
+          (limit - 1)
+      catch _ => pure ()
+
   /-- Build compilation error message from process result. -/
   mkCompilationErrorMsg (result : ModelChecker.Compilation.ProcessResult) : String :=
     s!"Compilation failed (exit code {result.exitCode}):\n" ++
@@ -1066,6 +1079,7 @@ where
     let sourcePath := (← IO.currentDir) / sourceFile
     ModelChecker.Compilation.markRegistryInProgress sourceFile command commandId instanceId buildFolder
     let result? ← ModelChecker.Compilation.withBuildLock (← ModelChecker.Compilation.getBuildBaseDir) cancelToken do
+      ModelChecker.Compilation.useBuildFolder instanceId buildFolder
       ModelChecker.Compilation.writeBuildInputs buildFolder cCode imports
       ModelChecker.Compilation.runProcessWithStatusCallback
         sourceFile
@@ -1152,6 +1166,7 @@ where
         handleModelCheckError ctx e
       finally
         endRunIfCancelled ctx.cancelToken ctx.instanceId
+        releaseBuild ctx.instanceId
     ) ctx.cancelToken
 
     let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
@@ -1229,6 +1244,8 @@ where
       catch e : Exception =>
         ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
         ModelChecker.Concrete.updateCompilationStatus ctx.instanceId (.failed s!"{← e.toMessageData.toString}")
+      finally
+        releaseBuild ctx.instanceId
     ) compilationCancelTk
     let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
     Command.logSnapshotTask { stx? := none, cancelTk? := compilationCancelTk, task := compilationTask }
@@ -1324,6 +1341,7 @@ private def elabSimulateCompiledMode (mod : Module) (stx : Syntax) (callExpr : T
       elabModelCheck.handleModelCheckError ctx e
     finally
       elabModelCheck.endRunIfCancelled ctx.cancelToken ctx.instanceId
+      elabModelCheck.releaseBuild ctx.instanceId
   ) ctx.cancelToken
   let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := compilationTask }
@@ -1389,6 +1407,8 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
     catch e : Exception =>
       ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
       ModelChecker.Concrete.updateCompilationStatus ctx.instanceId (.failed s!"{← e.toMessageData.toString}")
+    finally
+      elabModelCheck.releaseBuild ctx.instanceId
   ) compilationCancelTk
   let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := compilationCancelTk, task := compilationTask }
