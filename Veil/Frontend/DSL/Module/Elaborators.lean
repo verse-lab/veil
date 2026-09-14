@@ -239,12 +239,12 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     let stxs ← liftTermElabM mod.declareLocalRPropTC
     for stx in stxs do
       elabVeilCommand stx.raw
-    -- Generate the transition weakening lemma for this module
+    -- Generate the transition weakening theorem for this module
     try
       let cmd ← liftTermElabM mod.declareTransitionWeakeningLemma
       elabVeilCommand cmd
     catch ex =>
-      logWarning m!"unable to generate transition weakening lemma: {ex.toMessageData}"
+      logWarning m!"unable to generate transition weakening theorem: {ex.toMessageData}"
   pure mod
 
 private def warnIfNoInvariantsDefined (mod : Module) : CommandElabM Unit := do
@@ -323,7 +323,7 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
     for cmd in (← mkEnumConcreteType actionTagType actionNames) do
       elabVeilCommand cmd
     elabVeilCommand $ ← `(open $className:ident)
-    -- TODO: Generate equivalence lemma (ActionTag.label_equiv) here
+    -- TODO: Generate equivalence theorem (ActionTag.label_equiv) here
 
   let mod ← if (← isModelCheckCompileMode) then pure mod else do
     let (nextCmd, mod) ← mod.assembleNext

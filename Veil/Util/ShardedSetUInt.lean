@@ -1,5 +1,5 @@
 import Veil.Util.TreeSetMisc
-import Mathlib.Data.List.Nodup
+import Veil.Util.List
 
 /-! # Sharded Set
 

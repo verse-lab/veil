@@ -8,6 +8,9 @@ import Veil.Frontend.DSL.State.SubState
   define initializers and actions.
 -/
 
+open Loom.Order
+open scoped Loom.Order
+
 namespace Veil
 
 /-! ## Types  -/
@@ -51,7 +54,7 @@ return values). -/
 abbrev VeilMultiExecM κ ε ρ σ α :=
   ReaderT ρ (ExceptT ε (StateT σ (TsilT (PeDivM (List κ))))) α
 
-abbrev VeilSpecM (ρ σ α : Type) := Cont (SProp ρ σ) α
+abbrev VeilSpecM (ρ σ α : Type) := Loom.Cont (SProp ρ σ) α
 abbrev Transition (ρ σ : Type) := ρ -> σ -> σ -> Prop
 
 end Types
@@ -129,8 +132,8 @@ macro "[AngelFail|" t:term "]" : term =>  `(open TotalCorrectness AngelicChoice 
   set of exceptions `ExId → Prop` which the program can throw WITHOUT
   that implying a failure (i.e. ignore).
 
-  Exception as success: `λ _ => ⊤`
-  Exception as failure: `λ _ => ⊥`
+  Exception as success: `λ _ => ⊤ₗ`
+  Exception as failure: `λ _ => ⊥ₗ`
 
   Moreover, for a particular exception ID `ex`, `λ e => e ≠ ex` gives a
   semantics such that the program fails IF the particular exception
@@ -160,28 +163,28 @@ def VeilM.succeedsAndMeetsSpecification (act : VeilM m ρ σ α) (pre : SProp ρ
 specific exception can be thrown, use `VeilM.doesNotThrow_ex`. -/
 @[reducible]
 def VeilM.doesNotThrow (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
-  VeilM.succeedsAndMeetsSpecification act pre ⊤
+  VeilM.succeedsAndMeetsSpecification act pre ⊤ₗ
 
 /-- There is no code path that throws the exception `ex`. This is a version of
 `VeilM.doesNotThrow` that can be used to retrieve _which_ specific exception
 can be thrown. -/
 @[reducible]
 def VeilM.doesNotThrow_ex (act : VeilM m ρ σ α) (pre : SProp ρ σ) (ex : ExId) : Prop :=
-  [IgnoreEx (· ≠ ex)| triple pre act ⊤]
+  [IgnoreEx (· ≠ ex)| triple pre act ⊤ₗ]
 
 /-- There is no code path that throws an exception, assuming the assumptions
 hold. If you need to know which specific exception can be thrown, use
 `VeilM.doesNotThrowAssuming_ex`. -/
 @[reducible]
 def VeilM.doesNotThrowAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (pre : SProp ρ σ) : Prop :=
-  VeilM.succeedsAndMeetsSpecification act (fun th st => assu th ∧ pre th st) ⊤
+  VeilM.succeedsAndMeetsSpecification act (fun th st => assu th ∧ pre th st) ⊤ₗ
 
 /-- There is no code path that throws the exception `ex`. This is a version of
 `VeilM.doesNotThrowAssuming` that can be used to retrieve _which_ specific exception
 can be thrown. -/
 @[reducible]
 def VeilM.doesNotThrowAssuming_ex (act : VeilM m ρ σ α) (assu : ρ → Prop) (pre : SProp ρ σ) (ex : ExId) : Prop :=
-  [IgnoreEx (· ≠ ex)| triple (fun th st => assu th ∧ pre th st) act ⊤]
+  [IgnoreEx (· ≠ ex)| triple (fun th st => assu th ∧ pre th st) act ⊤ₗ]
 
 @[reducible]
 def VeilM.succeedsAndPreservesInvariants (act : VeilM m ρ σ α) (inv : SProp ρ σ) : Prop :=
@@ -279,8 +282,8 @@ section DerivingSemantics
 
 /-- Does `act` terminate successfully if the set `ex` of exceptions is
 ignored / allowed to be thrown? -/
-def VeilM.succeedsWhenIgnoring (ex : Set ExId) (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
-  [IgnoreEx ex| triple pre act (fun _ => ⊤)]
+def VeilM.succeedsWhenIgnoring (ex : ExId → Prop) (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
+  [IgnoreEx ex| triple pre act (fun _ => ⊤ₗ)]
 
 def VeilSpecM.toTransitionDerived (spec : VeilSpecM ρ σ α) : Transition ρ σ :=
   fun r₀ s₀ s₁ => spec.inv (fun _ r s => r = r₀ ∧ s = s₁) r₀ s₀

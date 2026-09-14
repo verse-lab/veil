@@ -2,7 +2,12 @@ import Lake
 open Lake DSL System
 
 require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.32.0-veil-no-mathlib"
-require Loom from git "https://github.com/verse-lab/loom.git" @ "v4.32.0-for-veil"
+require Loom from git "https://github.com/verse-lab/loom.git" @ "george/v4.32.0-for-veil-no-mathlib"
+
+require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.32.0"
+require aesop from git "https://github.com/leanprover-community/aesop" @ "v4.32.0"
+
+require proofwidgets from git "https://github.com/leanprover-community/ProofWidgets4" @ "6e311e2a844da9b2cc3971187df2fe0066947b93"
 
 package veil where
   preferReleaseBuild := true

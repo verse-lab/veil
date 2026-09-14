@@ -1,17 +1,17 @@
 import Std
-import Mathlib.Data.Fin.Basic
-import Mathlib.Data.FinEnum
-import Mathlib.Algebra.Ring.Parity
-import Mathlib.Data.List.Sublists
+import Veil.Util.List
+import Veil.Util.Tactics
 import Veil.Frontend.DSL.State.Types
 import Veil.Frontend.DSL.State.Instances
 import Std.Data.ExtTreeSet.Lemmas
 import Veil.Util.SortedList
 import Veil.Util.SortedArray
 
-open Std
+open Std Veil
 
-def List.insertOrdered [inst : Ord α] := @List.orderedInsert _ (fun x y => inst.compare x y == Ordering.lt) inferInstance
+def List.insertOrdered [inst : Ord α] (a : α) : List α → List α
+  | [] => [a]
+  | b :: l => if inst.compare a b == .lt then a :: b :: l else b :: List.insertOrdered a l
 
 /-! # Axiomatizations of various structures -/
 
@@ -19,7 +19,6 @@ def List.insertOrdered [inst : Ord α] := @List.orderedInsert _ (fun x y => inst
 def Fin.pos_then_inhabited {n : Nat} (h : 0 < n) : Inhabited (Fin n) where
   default := Fin.mk 0 h
 
-instance : FinEnum Bool := FinEnum.ofNodupList [true, false] (by decide) (by decide)
 
 /-! ## Total order -/
 
@@ -54,34 +53,34 @@ def total_order_by_inj_on_fin {t : Type} {n : Nat} (f : t → Fin n) (h : Functi
 /-- `Nat` is a total order. -/
 instance total_order_nat : TotalOrder Nat where
   le := Nat.le
-  le_refl := by simp
-  le_trans := by simp ; omega
-  le_antisymm := by simp ; omega
-  le_total := by simp ; omega
+  le_refl := Nat.le_refl
+  le_trans _ _ _ := Nat.le_trans
+  le_antisymm _ _ := Nat.le_antisymm
+  le_total := Nat.le_total
 
 /-- Finite types are total orders. -/
 instance total_order_fin (n : Nat) : TotalOrder (Fin n) where
   le := fun x y => x.val ≤ y.val
   le_refl := by simp
-  le_trans := by simp ; omega
-  le_antisymm := by simp ; omega
-  le_total := by simp ; omega
+  le_trans := by intros; omega
+  le_antisymm := by intros; omega
+  le_total := by intros; omega
 
 /-- Finite enumerations are total orders. -/
-instance total_order_fin_enum (t : Type) [fe : FinEnum t] : TotalOrder t where
+instance total_order_fin_enum (t : Type) [Enumeration t] [DecidableEq t] : TotalOrder t :=
+  let fe : FinEncodable t := FinEncodable.ofEnumeration
+  {
   le := fun x y => (total_order_fin fe.card).le (fe.equiv.toFun x) (fe.equiv.toFun y)
   le_refl := by simp [(total_order_fin fe.card).le_refl]
   le_trans := by
-    simp only [Equiv.toFun_as_coe]
     intros x y z hxy hyz
     apply @TotalOrder.le_trans _ (total_order_fin fe.card) _ _ _ hxy hyz
   le_antisymm := by
-    simp only [Equiv.toFun_as_coe]
     intros x y hxy hyx
     have heq := @TotalOrder.le_antisymm _ (total_order_fin fe.card) _ _ hxy hyx
-    simp only [EmbeddingLike.apply_eq_iff_eq] at heq
+    simp only [Equiv.apply_eq_iff_eq] at heq
     apply heq
-  le_total := by simp [(total_order_fin fe.card).le_total]
+  le_total := by simp [(total_order_fin fe.card).le_total] }
 
 /-! ### Decidability -/
 
@@ -93,8 +92,8 @@ instance total_order_nat_dec : ∀ a b, Decidable (TotalOrder.le (t := Nat) a b)
 instance total_order_fin_dec (n : Nat) : ∀ a b, Decidable (TotalOrder.le (t := Fin n) a b) := by
   dsimp [TotalOrder.le]; apply inferInstance
 
-/-- Total orders on `FinEnum t` are decidable. -/
-instance total_order_fin_enum_dec (t : Type) [fe : FinEnum t] : ∀ a b, Decidable (TotalOrder.le (t := t) a b) := by
+/-- Total orders induced by `Enumeration t` are decidable. -/
+instance total_order_fin_enum_dec (t : Type) [Enumeration t] [DecidableEq t] : ∀ a b, Decidable (TotalOrder.le (t := t) a b) := by
   dsimp [TotalOrder.le]; apply inferInstance
 
 /-! ## Total order with zero -/
@@ -117,9 +116,9 @@ class TotalOrderWithZero (t : Type) where
 instance total_order_with_zero_fin (n : Nat) [nz : NeZero n] : TotalOrderWithZero (Fin n) where
   le := fun x y => x.val ≤ y.val
   le_refl := by simp
-  le_trans := by simp ; omega
-  le_antisymm := by simp ; omega
-  le_total := by simp ; omega
+  le_trans := by intros; omega
+  le_antisymm := by intros; omega
+  le_total := by intros; omega
   zero := ⟨0, by cases nz; grind⟩
   zero_le := by simp
 
@@ -152,9 +151,9 @@ class TotalOrderWithMinimum (t : Type) where
 instance (n : Nat): TotalOrderWithMinimum (Fin n.succ) where
   le := fun x y => x.val ≤ y.val
   le_refl := by simp
-  le_trans := by simp ; omega
-  le_antisymm := by simp ; omega
-  le_total := by simp ; omega
+  le_trans := by intros; omega
+  le_antisymm := by intros; omega
+  le_total := by intros; omega
   lt := fun x y => x.val < y.val
   le_lt := by intros; dsimp [TotalOrderWithMinimum.lt, TotalOrderWithMinimum.le]; omega
   next := fun x y => x.val + 1 = y.val
@@ -237,18 +236,6 @@ instance between_fin_dec (n : Nat) : ∀ a b c, Decidable (Between.btw (node := 
 /-- Count the number of set bits in a BitVec -/
 @[inline] def BitVec.popCount (bv : BitVec n) : Nat := bv.toFinList.length
 
-/-- Helper: convert a BitVec to a Finset of indices where bits are set -/
-def BitVec.toFinset (bv : BitVec n) : Finset (Fin n) := bv.toFinList.toFinset
-
-theorem BitVec.toFinset_card (bv : BitVec n) :
-    bv.toFinset.card = bv.popCount := by
-  simp only [toFinset, popCount]
-  rw [List.toFinset_card_of_nodup]
-  apply List.Nodup.filter
-  exact List.nodup_finRange n
-
-theorem BitVec.mem_toFinset (bv : BitVec n) (i : Fin n) : i ∈ bv.toFinset ↔ bv[i] = true := by simp [toFinset, toFinList]
-
 /-- Enumerate all BitVecs of size n -/
 def BitVec.allBitVecs (n : Nat) : List (BitVec n) :=
   List.finRange (2 ^ n) |>.map (BitVec.ofFin)
@@ -275,24 +262,14 @@ theorem Quorum.quorum_intersection {n : Nat} (q1 q2 : Quorum n) :
   ∃ a, a ∈ q1 ∧ a ∈ q2 := by
   rcases q1 with ⟨bv1, hq1⟩ ; rcases q2 with ⟨bv2, hq2⟩
   simp only [Membership.mem]
-  -- Convert to Finset reasoning
-  have hcard1 : n / 2 + 1 ≤ bv1.toFinset.card := by
-    rw [BitVec.toFinset_card] ; exact hq1
-  have hcard2 : n / 2 + 1 ≤ bv2.toFinset.card := by
-    rw [BitVec.toFinset_card] ; exact hq2
-  -- Use Finset intersection argument
-  have hunion := Finset.card_le_univ (bv1.toFinset ∪ bv2.toFinset)
-  have hinter := Finset.card_union_add_card_inter bv1.toFinset bv2.toFinset
-  have hinter_size : 1 ≤ (bv1.toFinset ∩ bv2.toFinset).card := by
-    have : (bv1.toFinset ∪ bv2.toFinset).card ≤ n := by
-      calc (bv1.toFinset ∪ bv2.toFinset).card
-        ≤ Finset.univ.card := Finset.card_le_univ _
-        _ = n := Finset.card_fin n
-    rcases (Nat.even_or_odd' n) with ⟨k, (h | h)⟩ <;> subst h <;> omega
-  simp only [Finset.one_le_card] at hinter_size
-  rcases hinter_size with ⟨a, ha⟩
-  simp only [Finset.mem_inter, BitVec.mem_toFinset] at ha
-  exact ⟨a, ha.1, ha.2⟩
+  have hcount := List.filter_count_overlap (List.finRange n) (fun i => bv1[i]) (fun i => bv2[i])
+  have hpos : 0 < ((List.finRange n).filter (fun i => bv1[i] && bv2[i])).length := by
+    simp only [List.length_finRange] at hcount
+    change n / 2 + 1 ≤ ((List.finRange n).filter (fun i => bv1[i])).length at hq1
+    change n / 2 + 1 ≤ ((List.finRange n).filter (fun i => bv2[i])).length at hq2
+    omega
+  obtain ⟨a, ha⟩ := List.exists_mem_of_ne_nil _ (List.ne_nil_of_length_pos hpos)
+  exact ⟨a, (by simpa using ha)⟩
 
 instance (n : Nat) : Inhabited (Quorum n.succ) where
   default := ⟨BitVec.allOnes (n + 1), by
@@ -319,9 +296,6 @@ theorem allQuorums_complete {n : Nat} : ∀ (q : Quorum n), q ∈ allQuorums n :
   intro ⟨bv, hbv⟩
   simp only [allQuorums, List.mem_attachWith, List.mem_filter, BitVec.popCount]
   exact ⟨BitVec.allBitVecs_complete bv, decide_eq_true hbv⟩
-
-instance (n : Nat) : FinEnum (Quorum n) :=
-  FinEnum.ofList (allQuorums n) allQuorums_complete
 
 instance (n : Nat) : Veil.Enumeration (Quorum n) where
   allValues := allQuorums n
@@ -387,40 +361,27 @@ class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset :
 
 /-! ### Instances -/
 
-theorem Finset.List.ofFn_filter {n : Nat} (p : Finset (Fin n)) :
-  letI l := List.ofFn (n := n) id |>.filter (fun i => i ∈ p)
-  List.Pairwise (· < ·) l ∧ l.length = p.card := by
-  constructor
-  · apply List.Pairwise.filter ; simp
-  · induction p using Finset.induction_on with
-    | empty => simp
-    | insert a p hnotin ih =>
-      simp [hnotin] ; have htmp : a ∈ List.ofFn (n := n) id := by simp
-      rw [List.mem_iff_append] at htmp ; rcases htmp with ⟨l1, l2, htmp⟩ ; rw [htmp] at ih ⊢
-      simp [List.filter] at ih ⊢ ; simp [decide_eq_false hnotin] at ih
-      have htmp2 : List.Nodup (List.ofFn (n := n) id) := by apply List.Pairwise.nodup (r := (· < ·)) ; simp
-      simp [htmp, List.nodup_middle, List.nodup_cons] at htmp2
-      rw [← Nat.add_assoc, ← ih] ; congr! 3 <;> apply List.filter_congr <;> simp <;> aesop
-
 /-- A sorted list of nodes, representing a set in Byzantine fault tolerance. -/
 abbrev ByzNSet (n : Nat) : Type :=
   { fs : List (Fin n) // fs.Pairwise (· < ·) }
 
 /-- All possible ByzNSets (all sorted sublists of [0..n-1]). -/
 def allByzNSets (n : Nat) : List (ByzNSet n) :=
-  let l := List.ofFn (n := n) id
-  let res := FinEnum.Finset.enum l |>.map (fun x => l.filter fun y => y ∈ x)
-  res.attachWith _ (by
-    intro x hmem ; unfold res l at hmem ; simp at hmem ; rcases hmem with ⟨fs, hmem⟩ ; subst x
-    exact (Finset.List.ofFn_filter fs).1)
+  (List.finRange n).sublists.attachWith _ (by
+    intro s hs
+    exact (List.pairwise_lt_finRange n).sublist (List.mem_sublists.mp hs))
 
 theorem allByzNSets_complete {n : Nat} : ∀ (s : ByzNSet n), s ∈ allByzNSets n := by
-  intro ⟨x, hx⟩ ; dsimp [allByzNSets] ; simp ; exists x.toFinset
-  have hnodup := List.Pairwise.nodup hx
-  apply List.Pairwise.eq_of_mem_iff _ hx ; simp ; apply List.Pairwise.filter ; simp
+  intro ⟨s, hs⟩
+  simp only [allByzNSets, List.mem_attachWith, List.mem_sublists]
+  exact List.sublist_of_subperm_of_pairwise
+    (List.subperm_of_subset hs.nodup (by intro a _; exact List.mem_finRange a)) hs (List.pairwise_lt_finRange n)
 
-instance (n : Nat) : FinEnum (ByzNSet n) :=
-  FinEnum.ofList (allByzNSets n) allByzNSets_complete
+private theorem byzNSet_count {n : Nat} (s : ByzNSet n) :
+    ((List.finRange n).filter (fun a => a ∈ s.val)).length = s.val.length := by
+  apply List.Perm.length_eq
+  apply (List.perm_ext_iff_of_nodup ((List.nodup_finRange n).filter _) s.property.nodup).mpr
+  simp
 
 instance (n : Nat) : Veil.Enumeration (ByzNSet n) where
   allValues := allByzNSets n
@@ -447,7 +408,7 @@ variable (n f : Nat) (hf : n = 3 * f + 1)
   (is_byz : Fin n → Prop) [DecidablePred is_byz]
   (hbyz : (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length ≤ f)
 
-include hbyz
+include hf hbyz
 
 /-- ByzNodeSet instance for `Fin n` with at most `f` Byzantine nodes.
     Assumes `n = 3 * f + 1` (standard Byzantine fault tolerance assumption). -/
@@ -461,47 +422,37 @@ def byzNodeSetFin : ByzNodeSet (Fin n) (ByzNSet n) where
   supermajorities_intersect_in_honest := by
     intro ⟨s1, hs1_sorted⟩ ⟨s2, hs2_sorted⟩ hsup1 hsup2
     simp only at hsup1 hsup2
-    -- Two supermajorities of size ≥ 2f+1 in universe of size n = 3f+1
-    -- intersect in ≥ 2(2f+1) - (3f+1) = f+1 elements
-    -- Since ≤ f are Byzantine, ≥ 1 honest in intersection
-    have hnodup1 := List.Pairwise.nodup hs1_sorted
-    have hnodup2 := List.Pairwise.nodup hs2_sorted
-    have hcard1 : s1.toFinset.card = s1.length := List.toFinset_card_of_nodup hnodup1
-    have hcard2 : s2.toFinset.card = s2.length := List.toFinset_card_of_nodup hnodup2
-    have hinter := Finset.card_inter (s1.toFinset) (s2.toFinset)
-    have hunion := Finset.card_le_univ (s1.toFinset ∪ s2.toFinset) ; simp at hunion
-    have hinter_size : f + 1 ≤ (s1.toFinset ∩ s2.toFinset).card := by omega
-    -- The intersection contains at least f+1 nodes, and at most f are Byzantine
-    by_contra h ; push Not at h
-    have hall_byz : ∀ a ∈ s1.toFinset ∩ s2.toFinset, is_byz a := by
-      intro a ha ; simp at h ha
-      have := h a ha.1 ha.2 ; tauto
-    have hbyz_count : (s1.toFinset ∩ s2.toFinset).card ≤ f := by
-      calc (s1.toFinset ∩ s2.toFinset).card
-          ≤ ((List.ofFn (n := n) id).filter (fun i => decide (is_byz i))).toFinset.card := by
-            apply Finset.card_le_card
-            intro a ha ; simp at ha ⊢ ; exact hall_byz a (by simp [ha])
-          _ ≤ (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length := by
-            apply List.toFinset_card_le
-          _ ≤ f := hbyz
+    have hc1 := byzNSet_count (⟨s1, hs1_sorted⟩ : ByzNSet n)
+    have hc2 := byzNSet_count (⟨s2, hs2_sorted⟩ : ByzNSet n)
+    have hc := List.filter_count_overlap (List.finRange n)
+      (fun a => a ∈ s1) (fun a => a ∈ s2)
+    by_contra h
+    have hall : ∀ a, a ∈ s1 → a ∈ s2 → is_byz a := by
+      intro a ha hb
+      by_contra hn
+      exact h ⟨a, by simpa using ha, by simpa using hb, (by simpa using hn)⟩
+    have hm := List.filter_count_mono (List.finRange n)
+      (fun a => decide (a ∈ s1) && decide (a ∈ s2)) (fun a => decide (is_byz a)) (by
+        intro a _ ha
+        simp only [Bool.and_eq_true, decide_eq_true_eq] at ha ⊢
+        exact hall a ha.1 ha.2)
+    simp only [List.length_finRange] at hc
+    change ((List.finRange n).filter (fun i => decide (is_byz i))).length ≤ f at hbyz
+    dsimp only at hc1 hc2
     omega
   greater_than_third_one_honest := by
-    intro ⟨s, hs_sorted⟩ hgt
-    simp only at hgt
-    -- s has ≥ f+1 elements, ≤ f are Byzantine, so ≥ 1 honest
-    by_contra h ; push Not at h
-    have hall_byz : ∀ a ∈ s, is_byz a := by
-      intro a ha ; simp at h ; have := h a ha ; tauto
-    have hnodup := List.Pairwise.nodup hs_sorted
-    have hbyz_count : s.length ≤ f := by
-      calc s.length
-          = s.toFinset.card := by simp [List.toFinset_card_of_nodup hnodup]
-          _ ≤ ((List.ofFn (n := n) id).filter (fun i => decide (is_byz i))).toFinset.card := by
-            apply Finset.card_le_card
-            intro a ha ; simp at ha ⊢ ; exact hall_byz a ha
-          _ ≤ (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length := by
-            apply List.toFinset_card_le
-          _ ≤ f := hbyz
+    intro ⟨s, hs⟩ hgt
+    have hc := byzNSet_count (⟨s, hs⟩ : ByzNSet n)
+    by_contra h
+    have hall : ∀ a, a ∈ s → is_byz a := by
+      intro a ha
+      by_contra hn
+      exact h ⟨a, by simpa using ha, (by simpa using hn)⟩
+    have hm := List.filter_count_mono (List.finRange n)
+      (fun a => a ∈ s) (fun a => decide (is_byz a)) (by
+        intro a _ ha; exact decide_eq_true (hall a (by simpa using ha)))
+    change ((List.finRange n).filter (fun i => decide (is_byz i))).length ≤ f at hbyz
+    dsimp only at hc hgt
     omega
   supermajority_greater_than_third := by
     intro _ hs ; omega
@@ -543,7 +494,7 @@ instance insByzNodeSetFinSimple : ByzNodeSet (Fin (3 * f + 1)) (ByzNSet (3 * f +
         simp
         rintro ⟨a, ha⟩ ; simp ; intros ; omega
       · simp ; omega
-    · simp only [List.length_eq_zero_iff, List.filter_eq_nil_iff, decide_eq_true_eq, _root_.not_lt]
+    · simp only [List.length_eq_zero_iff, List.filter_eq_nil_iff, decide_eq_true_eq, Nat.not_lt]
       simp only [List.mem_iff_getElem?, List.getElem?_drop, List.getElem?_ofFn]
       simp
       rintro ⟨a, ha⟩ ; simp ; intros ; omega
@@ -915,6 +866,9 @@ instance instTMultiSetWithExtTreeMap [Ord α] [TransOrd α]
     intros elem s
     simp [Std.ExtTreeMap.contains_iff_mem, Std.ExtTreeMap.foldl_eq_foldl_toList,
       Std.ExtTreeMap.getElem?_eq_some_iff]
+    constructor
+    · intro h; exact ⟨_, ⟨elem, s[elem], ⟨h, rfl⟩, rfl⟩, by simp⟩
+    · rintro ⟨_, ⟨a, b, ⟨h, _⟩, rfl⟩, hm⟩; simpa using (by simpa using hm : elem = a) ▸ h
 
 instance instTMultisetForFin (n : Nat) : TMultiset (Fin n) (TMapMultiset (Fin n)) :=
   instTMultiSetWithExtTreeMap

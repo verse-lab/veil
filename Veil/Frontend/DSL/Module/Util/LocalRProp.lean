@@ -265,7 +265,7 @@ private def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name)
     let f := body.getAppFn'
     let [th, st] := body.getAppArgs'.toList
       | throwError "unexpected shape of state predicate {nm}: unable to extract theory and state arguments"
-    let f := f.instantiateLambdasOrApps #[th, st]
+    let f := f.betaRev #[st, th] (useZeta := true)
     -- `f` should be like `Theory.casesOn ...`
     let .app ff theoryCasesOnBody := f
       | throwError "unexpected shape of state predicate {f}: expected an application with Theory.casesOn as the function"

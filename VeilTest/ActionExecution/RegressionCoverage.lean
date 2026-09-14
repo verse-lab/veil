@@ -7,7 +7,6 @@ cannot hide an extraction or state-update bug.
 -/
 
 set_option linter.unusedVariables false
-set_option linter.unusedTactic false
 
 open Lean Elab Term Meta
 open VeilTest.ActionExecution

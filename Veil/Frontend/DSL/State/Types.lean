@@ -1,8 +1,8 @@
-import Mathlib.Logic.Equiv.Defs
-import Mathlib.Data.FinEnum
+import Veil.Util.Equiv
+import Veil.Util.List
 import Veil.Frontend.DSL.Module.Names
 import Veil.Util.Deriving
-import Mathlib.Tactic.DeriveFintype
+import Veil.Util.EnumList
 import Std.Data.TreeSet.Lemmas
 import Std.Data.ExtTreeSet.Lemmas
 
@@ -239,9 +239,7 @@ end IteratedProd
 
 section Enumeration
 
-/-- The `FinEnum` in Mathlib might be good for proving, but for execution
-it might be very inefficient. This alternative is centered around `List`s
-that enumerate all values. -/
+/-- A complete executable list of values. Order and duplicates are preserved. -/
 class Enumeration (α : Type u) where
   allValues : List α
   complete : ∀ a : α, a ∈ allValues
@@ -253,7 +251,6 @@ def Enumeration.ofEquiv (α : Type u) {β : Type v} [inst : Enumeration α] (h :
 
 attribute [grind ←] Enumeration.complete
 
-instance (priority := high) [enum : Enumeration α] [DecidableEq α] : FinEnum α := FinEnum.ofList enum.allValues enum.complete
 /-!
 Here only gives some basic instances. More complicated ones should be
 found in `Veil.Frontend.Std`.
@@ -261,7 +258,7 @@ found in `Veil.Frontend.Std`.
 
 instance : Enumeration Empty where
   allValues := []
-  complete := by simp
+  complete := by intro a; cases a
 
 instance : Enumeration PUnit where
   allValues := [PUnit.unit]
@@ -285,7 +282,7 @@ instance {α β} [insta : Enumeration α] [instb : Enumeration β] : Enumeration
 
 instance {α β} [insta : Enumeration α] [instb : Enumeration β] : Enumeration (Sum α β) where
   allValues := (insta.allValues.map Sum.inl) ++ (instb.allValues.map Sum.inr)
-  complete := by simp ; grind
+  complete := by intro a; cases a <;> simp [Enumeration.complete]
 
 instance [inst : Enumeration α] (p : α → Prop) [DecidablePred p] : Enumeration { x // p x } where
   allValues := inst.allValues.filterMap fun x => if h : p x then some ⟨x, h⟩ else none
@@ -296,11 +293,11 @@ instance {β : α → Type v} [insta : Enumeration α] [instb : ∀ a, Enumerati
   complete := by simp ; grind
 
 def Enumeration.Pi.enum [insta : Enumeration α] [DecidableEq α] (β : α → Type v) [instb : ∀ a, Enumeration (β a)] : List (∀ a, β a) :=
-  (List.pi insta.allValues fun x => (instb x).allValues).map (fun f x => f x (insta.complete x))
+  (Veil.List.pi insta.allValues fun x => (instb x).allValues).map (fun f x => f x (insta.complete x))
 
 instance [insta : Enumeration α] [DecidableEq α] {β : α → Type v} [instb : ∀ a, Enumeration (β a)] : Enumeration (∀ a, β a) where
   allValues := (Enumeration.Pi.enum β)
-  complete := by intro f ; simp [Enumeration.Pi.enum, List.mem_pi] ; exists (fun x _ => f x) ; simp ; grind
+  complete := by intro f ; simp [Enumeration.Pi.enum, Veil.List.mem_pi] ; exists (fun x _ => f x) ; simp ; grind
 
 instance (l : List α) : Enumeration ({ a : α // a ∈ l }) where
   allValues := l.attach
@@ -331,8 +328,7 @@ instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp]
   complete := by simp
 
 /-!
-While some `Decidable` instances can be obtained by converting `Enumeration`
-into `Fintype`, their efficiency is not clear.
+Decide quantified propositions directly over the complete candidate list.
 -/
 
 instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred p] : Decidable (∀ a, p a) :=
@@ -343,9 +339,20 @@ instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred 
   decidable_of_iff (∃ a ∈ inst.allValues, p a)
     (Iff.intro (fun ⟨a, _, h⟩ => ⟨a, h⟩) (fun ⟨a, h⟩ => ⟨a, inst.complete a, h⟩))
 
+/-- Decide equality of finite functions by checking their complete domain enumeration. -/
+instance [Enumeration α] {β : α → Type v} [∀ a, DecidableEq (β a)] :
+    DecidableEq (∀ a, β a) := fun f g =>
+  decidable_of_iff (∀ a, f a = g a) ⟨funext, fun h a => congrFun h a⟩
+
 section EnumerationDerivingHandler
 
 open Lean Meta Elab Term Command Deriving
+
+/-- Eliminate the intermediate list introduced by a nested constructor enumeration. -/
+private theorem exists_mapped_candidate {f : α → β} {p : α → Prop} {q : β → Prop} :
+    (∃ b, (∃ a, p a ∧ f a = b) ∧ q b) ↔ ∃ a, p a ∧ q (f a) :=
+  ⟨fun ⟨_, ⟨a, ha, hab⟩, hb⟩ => ⟨a, ha, hab.symm ▸ hb⟩,
+   fun ⟨a, hp, hq⟩ => ⟨f a, ⟨a, hp, rfl⟩, hq⟩⟩
 
 private def mkAllValuesFromHeader (header : Header) (localInsts fieldNames : Array Name) : TermElabM Term := do
   -- for the types, knowing the length of `ts` should be enough
@@ -373,7 +380,7 @@ def mkEnumerationInstCmdForStructure (declName : Name) : CommandElabM Bool := Fo
   let allValues ← mkAllValuesFromHeader header localInsts fieldNames
   let completeProof ← do
     let aIdent ← mkIdent <$> mkFreshUserName `a
-    `(by intro $aIdent:ident ; cases $aIdent:ident ; try (simp [$(mkIdent ``IteratedProd.foldMap):ident] ; try grind))
+    `(by intro $aIdent:ident ; cases $aIdent:ident ; try (simp [$(mkIdent ``IteratedProd.foldMap):ident, $(mkIdent ``exists_mapped_candidate):ident] ; try grind))
   `(instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
       $(mkIdent ``Enumeration) $(header.targetType) where
     $(mkIdent `allValues):ident := $allValues
@@ -395,11 +402,11 @@ def mkEnumerationInstCmdGeneralCase (declName : Name) : CommandElabM Bool := do
 
 def mkEnumerationInstCmd (declName : Name) : CommandElabM Bool := do
   if ← isEnumType declName then
-    -- make use of `Fintype` deriving for enums, since it defines auxiliary definitions
+    -- Generate the constructor list and its lookup/uniqueness proofs.
     let ctorIdxName := declName.mkStr "ctorIdx"
     let enumListName := declName.mkStr "enumList"
     unless (← getEnv).contains enumListName do
-      Mathlib.Deriving.Fintype.mkFintypeEnum declName
+      Veil.Deriving.mkEnumList declName
     let ctorThmName := declName.mkStr "enumList_getElem?_ctorIdx_eq"
     let x ← liftCoreM <| mkIdent <$> mkFreshUserName `x
     let cmd ← `(command|
@@ -423,12 +430,11 @@ end Enumeration
 section FinEncodable
 
 /-!
-Sometimes we want to use the bijection between a finite type and `Fin n` for
-some `n : Nat`, but the `FinEnum` instance generated by `FinEnum.ofList` might be
-inefficient. Here we provide some (potentially) efficient instances for such types.
+A bijection with `Fin n` supports compact indexing. Specialized instances avoid
+the list search used by the generic enumeration-based encoding.
 -/
 
-/-- Essentially the same as `FinEnum`, but without `decEq`. -/
+/-- An executable finite encoding with a proved inverse. -/
 class FinEncodable (α : Type u) where
   card : Nat
   equiv : α ≃ Fin card
@@ -549,11 +555,11 @@ theorem FinEncodable.decodeProd_encodeProd {α : Type u} {β : Type v} {n m : Na
   have hpos : 0 < m := Nat.zero_lt_of_lt hb
   have heq1 : ((equiva a).val * m + (equivb b).val) / m =
       (equiva a).val := by
-    conv_lhs => rw [Nat.add_comm, Nat.mul_comm]
+    conv => lhs; rw [Nat.add_comm, Nat.mul_comm]
     rw [Nat.add_mul_div_left _ _ hpos, Nat.div_eq_of_lt hb, Nat.zero_add]
   have heq2 : ((equiva a).val * m + (equivb b).val) % m =
       (equivb b).val := by
-    conv_lhs => rw [Nat.add_comm, Nat.mul_comm]
+    conv => lhs; rw [Nat.add_comm, Nat.mul_comm]
     rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hb]
   simp only [encodeProd, decodeProd, Prod.mk.injEq]
   constructor <;> rw [Equiv.symm_apply_eq] <;> ext <;> assumption
@@ -648,6 +654,20 @@ theorem FinEncodable.card_ne_0_if_Inhabited [Inhabited α] [inst : FinEncodable 
   else
     Nat.ne_of_gt (Nat.pos_of_ne_zero h)
 
+/-- Generic finite encoding, used when there is no specialized representation. -/
+@[implicit_reducible]
+def FinEncodable.ofEnumeration [Enumeration α] [DecidableEq α] : FinEncodable α where
+  card := (Veil.List.dedup (Enumeration.allValues (α := α))).length
+  equiv :=
+    let l := Veil.List.dedup (Enumeration.allValues (α := α))
+    { toFun := fun a => ⟨l.idxOf a, List.idxOf_lt_length_of_mem (by simp [l, Enumeration.complete])⟩
+      invFun := fun i => l[i.val]
+      left_inv := fun a => List.getElem_idxOf _
+      right_inv := fun i => Fin.ext (List.Nodup.idxOf_getElem (Veil.List.nodup_dedup _) i.val i.isLt) }
+
+instance (priority := low) [Enumeration α] [DecidableEq α] : FinEncodable α :=
+  FinEncodable.ofEnumeration
+
 section FinEncodableDerivingHandler
 
 open Lean Meta Elab Term Command Deriving
@@ -657,16 +677,15 @@ private theorem enumList_getElem?_ctorIdx_eq_implies_ctorIdx_lt {α : Type u} {l
 
 def mkFinEncodableInstCmd (declName : Name) : CommandElabM Bool := do
   if ← isEnumType declName then
-    -- make use of `Fintype` deriving for enums, since it defines auxiliary definitions
+    -- Generate the constructor list and its lookup/uniqueness proofs.
     let ctorIdxName := declName.mkStr "ctorIdx"
     let enumListName := declName.mkStr "enumList"
     unless (← getEnv).contains enumListName do
-      Mathlib.Deriving.Fintype.mkFintypeEnum declName
+      Veil.Deriving.mkEnumList declName
     let ctorThmName := declName.mkStr "enumList_getElem?_ctorIdx_eq"
     let x ← liftCoreM <| mkIdent <$> mkFreshUserName `x
     -- CHECK Will this proof result in huge proof object?
     let cmd ← `(command|
-      set_option linter.unusedTactic false in
       instance : $(mkIdent ``FinEncodable) $(mkIdent declName) where
         $(mkIdent `card):ident := $(mkIdent ``List.length) $(mkIdent enumListName)
         $(mkIdent `equiv):ident :=

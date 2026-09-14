@@ -1,6 +1,6 @@
 import Veil.Core.Tools.ModelChecker.TransitionSystem
 import Veil.Core.Tools.ModelChecker.Trace
-import Mathlib.Tactic.DeriveFintype
+import Veil.Util.Tactics
 import Lean.Data.Json
 
 namespace Veil.ModelChecker
@@ -160,30 +160,14 @@ theorem ParallelConfig.chunkRanges_valid (cfg : ParallelConfig) (n : Nat) :
     unfold computeChunkRanges at h_lr_in
     simp [List.mem_map] at h_lr_in
     obtain ⟨i, h_i_in, h_lr_eq⟩ := h_lr_in
-    split
-    . simp
-    . simp
-      rename_i h_lr_eq
-      apply Nat.div_le_self
-    constructor
-    . rename_i h_lr_eq
-      obtain ⟨a, h_a_lt, h_eq⟩ := h_lr_eq
-      rw [← h_eq]
-      dsimp
-      split_ifs
-      · apply Nat.le_trans (Nat.mul_le_mul_right _ (Nat.le_of_lt (Nat.lt_of_lt_of_le h_a_lt (le_max_right _ _))))
-        rw [Nat.mul_comm]
-        apply Nat.div_mul_le_self
-      · apply Nat.mul_le_mul_right
-        apply Nat.le_succ
-    . rename_i h_lr_eq
-      obtain ⟨a, h_a_lt, h_eq⟩ := h_lr_eq
-      rw [← h_eq]; dsimp
-      split_ifs <;> try apply Nat.le_refl
-      trans (max 1 cfg.numSubTasks) * (n / max 1 cfg.numSubTasks)
-      · apply Nat.mul_le_mul_right; omega
-      · rw [Nat.mul_comm]; apply Nat.div_mul_le_self
-
+    subst lr
+    dsimp only
+    have hm : max 1 cfg.numSubTasks * (n / max 1 cfg.numSubTasks) ≤ n := by
+      rw [Nat.mul_comm]; exact Nat.div_mul_le_self _ _
+    split_ifs
+    · exact ⟨Nat.le_trans (Nat.mul_le_mul_right _ (Nat.le_of_lt h_i_in)) hm, Nat.le_refl _⟩
+    · exact ⟨Nat.mul_le_mul_right _ (Nat.le_succ _),
+        Nat.le_trans (Nat.mul_le_mul_right _ h_i_in) hm⟩
 
 /-- ParallelConfig.chunkRanges covers all indices. -/
 theorem ParallelConfig.chunkRanges_cover (cfg : ParallelConfig) (n : Nat) :

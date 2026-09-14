@@ -7,8 +7,8 @@ import Veil.Frontend.DSL.State
 import Veil.Frontend.DSL.Util
 import Veil.Frontend.DSL.State.Repr
 import Veil.Util.Meta
-import Mathlib.Data.FinEnum
-import Mathlib.Tactic.ProxyType
+import Veil.Util.List
+import Veil.Util.ProxyType
 
 open Lean Parser Elab Command Term
 

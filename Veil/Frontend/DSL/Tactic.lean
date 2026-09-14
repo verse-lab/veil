@@ -277,7 +277,7 @@ attribute [ifSimp] ite_true ite_false dite_true dite_false ite_self
   (¬ (if c then t else e)) = (if c then ¬ t else ¬ e) := by
   by_cases c <;> simp_all
 
-attribute [ifSimp] Compl.compl Classical.not_forall
+attribute [ifSimp] Loom.Order.compl Classical.not_forall
 
 attribute [invSimp] RelationalTransitionSystem.assumptions
 attribute [nextSimp] RelationalTransitionSystem.init RelationalTransitionSystem.tr RelationalTransitionSystem.next
@@ -658,7 +658,7 @@ def elabVeilConcretizeFieldsTr : DesugarTacticM Unit := veilWithMainContext do
   -- Apply `congrArg (χ_rep _).get` to each identified hypothesis
   -- to "view" the equality through the field representation
   for hyp in hypsToTransform do
-    let tac ← `(tactic| apply $(mkIdent ``congrArg) ($(fieldRepresentation) _).$(mkIdent `get) at $hyp:ident)
+    let tac ← `(tactic| replace $hyp:ident := $(mkIdent ``congrArg) ($(fieldRepresentation) _).$(mkIdent `get) $hyp:ident)
     veilEvalTactic tac
 
   -- Step 2: Concretize fields using the standard procedure
@@ -695,7 +695,7 @@ private def smallScaleAxiomatizationSimpSet (withLocalRPropTC? : Bool) : Array N
 /-- Perform "small-scale axiomatization" for a ghost relation `nmFull` based
 on its application `target`. Returns the local `let`-declaration for the
 ghost relation (with only its specific arguments being abstracted over),
-the local `have`-declaration for the equality lemma, and the number of
+the local `have`-declaration for the equality theorem, and the number of
 specific arguments. -/
 private def smallScaleAxiomatization (nBaseParams nExtraParams : Nat) (nm nmFull : Name) (target : Expr) (withLocalRPropTC? : Bool) : TacticM (Option (Expr × Expr × Nat)) := veilWithMainContext do
   -- Note that this is currently done in a very hacky way, might need better
@@ -720,13 +720,13 @@ private def smallScaleAxiomatization (nBaseParams nExtraParams : Nat) (nm nmFull
   -- create the `let` binding, simulating `let nm' : bodyTy := body`
   let mv ← getMainGoal
   mv.withContext do
-  let (fv, mv') ← mv.let nm' body bodyTy
+  let (fv, mv') ← (← mv.define nm' bodyTy body).intro1P
   let grfv := Expr.fvar fv    -- the local `let`-declaration
   replaceMainGoal [mv']
   let mv := mv'
   mv.withContext do
 
-  -- step 2: instantiate the equation lemma
+  -- step 2: instantiate the equation theorem
   let some eqs ← getEqnsFor? nmFull
     -- | throwError "unexpected error: could not find equation lemmas for {nmFull}"
     | return none
@@ -738,7 +738,7 @@ private def smallScaleAxiomatization (nBaseParams nExtraParams : Nat) (nm nmFull
     let eqAppliedTy ← inferType eqApplied
     let eqAppliedTy ← instantiateMVars eqAppliedTy
     let some (_, _, newEqRHS) := eqAppliedTy.eq?
-      | throwError "unexpected error: equation lemma for {nmFull} does not have equality type: got {eqAppliedTy}"
+      | throwError "unexpected error: equation theorem for {nmFull} does not have equality type: got {eqAppliedTy}"
     let newEqLHS := mkAppN grfv xs
     let newEq ← mkEq newEqLHS newEqRHS
     let newEq ← mkForallFVars xs newEq
@@ -752,7 +752,7 @@ private def smallScaleAxiomatization (nBaseParams nExtraParams : Nat) (nm nmFull
   -- create the `have` binding
   let eqName ← mkFreshBinderNameForTactic (nm'.appendAfter "_eq")
   -- simulating `have eqName : newEq := proof`; not sure why there is no direct API for this?
-  let (fv, mv') ← mv.let eqName proof newEq'.expr
+  let (fv, mv') ← (← mv.define eqName newEq'.expr proof).intro1P
   let mv'' ← mv'.clearValue fv
   let eqfv := Expr.fvar fv
   replaceMainGoal [mv'']
@@ -767,9 +767,9 @@ where `(theory)` and `(state)` are _ground_ terms (e.g., `Theory` and `State`
 elements for the current module), then the local declaration will be
 `foo' := fun a b => foo (base parameters) a b (theory) (state) (extra params)`.
 
-Then this tactic tries using the equation lemma of `foo` to introduce an equality
+Then this tactic tries using the equation theorem of `foo` to introduce an equality
 `∀ a b, foo' a b = <rhs>` into the local context, where `rhs` is the right-hand side
-of the equation lemma, after proper argument instantiation and simplification.
+of the equation theorem, after proper argument instantiation and simplification.
 
 This tactic returns a `HashMap` from each involved ghost relation's full name
 to its corresponding local `let`-declaration (as an `Expr`, essentially a fvar)
@@ -816,7 +816,9 @@ def ghostRelationSSA (mod : Module) (hyp : Option Name) : TacticM Unit := veilWi
     | .some hname => do
       let ldecl ← getLocalDeclFromUserName hname
       pure ldecl.type
-    | .none => getMainTarget''
+    | .none => do
+      let ty ← instantiateMVars (← (← getMainGoal).getType)
+      pure ty.cleanupAnnotations
   let info ← ghostRelationSSACore mod._derivedDefinitions baseParams.size ty mod._useLocalRPropTC
   veilWithMainContext do
   let ty' ← foldingByDefEq baseParams.size info ty
@@ -1088,6 +1090,10 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
     )
   veilEvalTactic tac
 
+/-- Internal apply step that preserves the bridge theorem's inferred instances. -/
+elab "__veil_apply_no_synth" t:term : tactic =>
+  evalApplyLikeTactic (fun g e => g.apply e { synthAssignedInstances := false }) t
+
 /-- Implementation of `veil_apply_local_tr`; see the tactic syntax declaration
 for the user-facing behavior. -/
 def elabVeilApplyLocalTr : DesugarTacticM Unit := veilWithMainContext do
@@ -1119,8 +1125,8 @@ def elabVeilApplyLocalTr : DesugarTacticM Unit := veilWithMainContext do
   let preCoreTac ← match preCoreTac? with
     | some tac => pure tac
     | none => `(tactic| skip)
-  -- NOTE:: `-synthAssignedInstances` is required to avoid certain unexpected synthesis failure
-  let hTrTac ← `(tactic| (unhygienic intro _ _ _; apply -$(mkIdent `synthAssignedInstances) $(mkIdent trAbstractName):ident))
+  -- Preserve the bridge theorem's assigned instances during application.
+  let hTrTac ← `(tactic| (unhygienic intro _ _ _; __veil_apply_no_synth $(mkIdent trAbstractName):ident))
   veilEvalTactic $ ← `(tactic|
     refine' $localTransitionMeetsSpecificationIfSuccessfulAssuming:ident ?_ ?_ ?_ ?_ ?_ ?_ <;>
       [ skip

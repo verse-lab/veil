@@ -38,3 +38,7 @@ jobs:
       uses: leanprover/lean-action@v1
       with:
         use-github-cache: false # TODO: enable this
+    - name: Check standalone dependencies
+      run: |
+        python3 scripts/check_no_mathlib.py
+        lake env lean --run scripts/CheckNoMathlib.lean

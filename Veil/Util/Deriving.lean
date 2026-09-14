@@ -1,5 +1,5 @@
 import Lean
-import Mathlib.Tactic.ProxyType
+import Veil.Util.ProxyType
 import Veil.Util.Meta
 
 open Lean Meta Elab Term Command Deriving
