@@ -3,9 +3,8 @@ import Veil
 /-!
 Runtime regressions shared by simulation and model checking: progress survives
 handoff, cancellation reaches compilation, command invocations do not collide in the
-compilation registry, and checks that emit the same program share a build folder without
-building in it at once. These direct checks avoid relying on compilation timing to trigger a
-handoff.
+compilation registry, and model checker builds run one at a time. These direct checks avoid
+relying on compilation timing to trigger a handoff.
 -/
 
 open Veil Veil.ModelChecker.Simulation Veil.ModelChecker.Concrete
@@ -151,9 +150,8 @@ private def registryKeySourceFile := "compilation-registry-key.lean"
   let secondImports := #[`Veil, `Lean.Compiler.LCNF.EmitC]
   let firstFolder ← generateBuildFolderName sourceFile simulateCommand firstC firstImports
   let secondFolder ← generateBuildFolderName sourceFile simulateCommand secondC secondImports
-  let token ← IO.CancelToken.new
   for (folder, cCode, imports) in [(firstFolder, firstC, firstImports), (secondFolder, secondC, secondImports)] do
-    let _ ← withBuildFolderLock folder token (writeBuildInputs folder cCode imports)
+    writeBuildInputs folder cCode imports
   expect "distinct programs must not share generated files" (firstFolder != secondFolder)
   expect "the first program's C must survive the second program's"
     ((← IO.FS.readFile (firstFolder / "ModelCheckerMain.c")) == firstC)
@@ -165,26 +163,28 @@ private def registryKeySourceFile := "compilation-registry-key.lean"
     for name in ["lakefile.lean", "Model.lean", "ModelCheckerMain.lean", "lean-toolchain"] do
       expect s!"native compilation must not generate {name}" (!(← (folder / name).pathExists))
 
--- Checks that emit the same program share a folder, so only one may build in it at a time, and a
--- check waiting for the folder must still respond to cancellation.
+-- Only one model checker build runs at a time, and a check waiting for the build lock must still
+-- respond to cancellation. This uses a temporary directory, since compiled checks in concurrently
+-- elaborated files take the workspace's build lock.
 #eval do
-  let folder ← generateBuildFolderName "compilation-build-folder-lock.lean" simulateCommand "/* shared */" #[]
+  let base ← IO.FS.createTempDir
   let acquired ← IO.mkRef false
   let release ← IO.mkRef false
-  let holder ← IO.asTask <| withBuildFolderLock folder (← IO.CancelToken.new) do
+  let holder ← IO.asTask <| withBuildLock base (← IO.CancelToken.new) do
     acquired.set true
     while !(← release.get) do IO.sleep 10
   while !(← acquired.get) do IO.sleep 10
   let waiterToken ← IO.CancelToken.new
-  let waiter ← IO.asTask <| withBuildFolderLock folder waiterToken (pure ())
+  let waiter ← IO.asTask <| withBuildLock base waiterToken (pure ())
   IO.sleep 300
-  expect "a second build must wait while the folder is locked" (!(← IO.hasFinished waiter))
+  expect "a second build must wait while another build holds the lock" (!(← IO.hasFinished waiter))
   waiterToken.set
-  expect "a cancelled wait for the folder must give up" ((← IO.ofExcept (← IO.wait waiter)).isNone)
+  expect "a cancelled wait for the build lock must give up" ((← IO.ofExcept (← IO.wait waiter)).isNone)
   release.set true
   expect "the holder must finish once released" ((← IO.ofExcept (← IO.wait holder)).isSome)
-  expect "the folder must be free again"
-    ((← withBuildFolderLock folder (← IO.CancelToken.new) (pure ())).isSome)
+  expect "the build lock must be free again"
+    ((← withBuildLock base (← IO.CancelToken.new) (pure ())).isSome)
+  IO.FS.removeDirAll base
 
 -- Stopping a compiled-only run during compilation leaves no verdict behind, whether the build was
 -- killed or elaboration was interrupted, so the run must still end as cancelled. A run that

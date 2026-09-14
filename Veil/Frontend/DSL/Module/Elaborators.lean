@@ -1065,7 +1065,7 @@ where
     let lake ← ModelChecker.Compilation.getLakeExecutable
     let sourcePath := (← IO.currentDir) / sourceFile
     ModelChecker.Compilation.markRegistryInProgress sourceFile command commandId instanceId buildFolder
-    let result? ← ModelChecker.Compilation.withBuildFolderLock buildFolder cancelToken do
+    let result? ← ModelChecker.Compilation.withBuildLock (← ModelChecker.Compilation.getBuildBaseDir) cancelToken do
       ModelChecker.Compilation.writeBuildInputs buildFolder cCode imports
       ModelChecker.Compilation.runProcessWithStatusCallback
         sourceFile

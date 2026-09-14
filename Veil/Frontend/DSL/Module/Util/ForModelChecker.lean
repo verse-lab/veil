@@ -81,7 +81,7 @@ def getLakeExecutable : IO System.FilePath := do
 /-- Build folder for one generated program, named after its C and the modules it links against.
 Checks that emit the same program share a folder, so re-running an unchanged check lets Lake skip
 the C compilation and the link instead of producing another binary. Write to a folder only inside
-`withBuildFolderLock`. -/
+`withBuildLock`. -/
 def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec)
     (cCode : String) (imports : Array Name) : IO System.FilePath := do
   let stem := System.FilePath.mk sourceFile |>.fileStem.getD "unrecognized_model"
@@ -120,14 +120,18 @@ where
     flushStdoutAndStderr
     IO.Process.forceExit 2
 
--- NOTE: Using a lock avoids having two processes simultaneously writing to the same build folder
--- (e.g., when `lake build` and the editor are both processing a file)
-/-- Run `act` while holding the lock of `buildFolder`, which checks emitting the same program
-share. Returns `none` without running `act` if `cancelToken` is set while waiting for the lock. -/
-def withBuildFolderLock (buildFolder : System.FilePath) (cancelToken : IO.CancelToken)
+-- NOTE: Only one model checker build runs in a workspace at a time. Builds of different programs
+-- still share the object files of the modules they import, and Lake deletes an object file before
+-- rebuilding it, so two `lake` processes building the same missing object make each other fail
+-- with "no such file or directory". Those objects are missing on a fresh checkout or in CI, where
+-- several compiled checks start building at once (as can `lake build` and the editor). The lock
+-- also keeps checks that emit the same program from writing to their shared build folder at once.
+/-- Run `act` while holding the build lock of the build folders in `baseDir`. Returns `none` without
+running `act` if `cancelToken` is set while waiting for the lock. -/
+def withBuildLock (baseDir : System.FilePath) (cancelToken : IO.CancelToken)
     (act : IO α) : IO (Option α) := do
-  IO.FS.createDirAll buildFolder
-  let lock ← IO.FS.Handle.mk (buildFolder / "build.lock") .write
+  IO.FS.createDirAll baseDir
+  let lock ← IO.FS.Handle.mk (baseDir / "build.lock") .write
   while !(← lock.tryLock) do
     if ← cancelToken.isSet then return none
     IO.sleep 100
@@ -136,8 +140,9 @@ def withBuildFolderLock (buildFolder : System.FilePath) (cancelToken : IO.Cancel
   finally
     lock.unlock
 
-/-- Write the generated C and the names of the modules it links against. -/
+/-- Write the generated C and the names of the modules it links against, creating the folder. -/
 def writeBuildInputs (buildFolder : System.FilePath) (cCode : String) (imports : Array Name) : IO Unit := do
+  IO.FS.createDirAll buildFolder
   IO.FS.writeFile (buildFolder / "ModelCheckerMain.c") cCode
   IO.FS.writeFile (buildFolder / "imports.json") (toJson imports).compress
 
