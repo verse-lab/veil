@@ -358,8 +358,6 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
 
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident))
     (spec : TSyntax `traceSpec) (pf : Option (TSyntax `term)) : CommandElabM Unit := do
-  -- Skip trace verification in compilation mode (not needed for model checking binary)
-  if ← isModelCheckCompileMode then return
   let stx ← getRef
   let mod ← getCurrentModule (errMsg := "trace commands can only be used inside a Veil module")
   mod.throwIfSpecNotFinalized

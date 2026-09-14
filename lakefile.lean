@@ -105,6 +105,91 @@ lean_lib Examples {
   globs := #[.submodules `Examples]
 }
 
+/-- Compile C emitted by `#model_check` using this workspace's native dependencies. -/
+script veilModelCheckBuild args do
+  let [sourceFile, buildDir] := args
+    | throw <| IO.userError "usage: lake script run veilModelCheckBuild <source.lean> <build-directory>"
+  let buildDir : FilePath := buildDir
+  let ws ← getWorkspace
+  let lean ← getLeanInstall
+  let imports ← IO.ofExcept <| (← IO.FS.readFile (buildDir / "imports.json"))
+    |> Lean.Json.parse |>.bind (Lean.fromJson? (α := Array Lean.Name))
+  let sourceMod? := ws.findModuleBySrc? (FilePath.mk sourceFile |>.normalize)
+  let pkg := sourceMod?.map (·.pkg) |>.getD ws.root
+  let leanConfig : LeanConfig := sourceMod?.map (·.lib.config.toLeanConfig) |>.getD default
+  let exeConfig : LeanExeConfig `ModelCheckerMain := {
+    toLeanConfig := { leanConfig with buildType := .relWithDebInfo }
+  }
+  let exe : LeanExe := ⟨pkg, `ModelCheckerMain, exeConfig⟩
+  -- Compiled checks run alongside their toolchain. Windows keeps static linking until
+  -- the runner supplies the toolchain's DLL search path.
+  let sharedLean := !Platform.isWindows
+  let linkArgs := exe.linkArgs ++
+    (if sharedLean then #["-Wl,-rpath," ++ lean.leanLibDir.toString] else #["-Wl,-s"]) ++
+    #["-L", lean.leanLibDir.toString] ++ lean.ccLinkFlags sharedLean
+  let mut mods := #[]
+  for name in imports do
+    if let some mod := ws.findModule? name then
+      mods := mods.push mod
+    else unless ← (Lean.modToFilePath lean.leanLibDir name "olean").pathExists do
+      throw <| IO.userError s!"cannot find a Lake module or toolchain library for '{name}'"
+  let mut libs := mods.foldl (fun acc mod => acc.insert mod.lib) OrdHashSet.empty
+  if let some mod := sourceMod? then
+    libs := libs.insert mod.lib
+  let _ ← ws.runBuild <| withRegisterJob s!"model-check:{buildDir.fileName.getD "ModelCheckerMain"}" do
+    let c ← inputTextFile (buildDir / "ModelCheckerMain.c")
+    let obj ← buildLeanO (buildDir / "ModelCheckerMain.o") c
+      exe.root.weakLeancArgs exe.root.leancArgs exe.root.leanIncludeDir?
+    let mut objs := #[obj]
+    let mut dynlibs := #[]
+    -- Mirrors the link-input collection in `LeanExe.recBuildExe`, which cannot be reused
+    -- directly: it builds the root module's object from the root's `.lean` source and reads
+    -- the root's imports from that source, whereas here the root is C emitted from the
+    -- elaborator's environment and the imports come from `imports.json`. It also links into
+    -- the package's shared `binDir`, where concurrent checks would overwrite each other.
+    -- Lake does not expose the collection on its own, so keep this in sync with
+    -- `recBuildExe` when updating the toolchain.
+    for mod in mods do
+      for facet in mod.nativeFacets exe.supportInterpreter do
+        objs := objs.push (← facet.fetch mod)
+    for lib in libs.toArray do
+      for obj in lib.moreLinkObjs do
+        objs := objs.push (← obj.fetchIn lib.pkg)
+      for dynlib in lib.moreLinkLibs do
+        dynlibs := dynlibs.push (← dynlib.fetchIn lib.pkg)
+    let deps := (← (← pkg.transDeps.fetch).await).push pkg
+    for dep in deps do
+      for lib in dep.externLibs do
+        objs := objs.push (← lib.static.fetch)
+    -- Follow `buildLeanExe`, but strip before Lake hashes and caches the executable.
+    -- Stripping its returned path could mutate an artifact shared with Lake's cache.
+    (Job.collectArray objs "linkObjs").bindM (sync := true) fun objs => do
+      (Job.collectArray dynlibs "linkLibs").mapM fun dynlibs => do
+        addLeanTrace
+        addPureTrace linkArgs "traceArgs"
+        addPureTrace "strip" "postLink"
+        addPlatformTrace
+        let exeFile := buildDir / exe.fileName
+        let art ← buildArtifactUnlessUpToDate exeFile (ext := FilePath.exeExtension)
+            (exe := true) (restore := true) do
+          let mut objArgs := objs.map FilePath.toString
+          let mut pending := dynlibs.toList
+          let mut visited : Std.TreeSet String compare := {}
+          -- Like Lake's private `mkLinkOrder`, put libraries before their dependencies.
+          while let lib :: rest := pending do
+            pending := rest
+            if let some dir := lib.dir? then
+              objArgs := objArgs.push s!"-L{dir}"
+            objArgs := objArgs.push s!"-l{lib.name}"
+            unless visited.contains lib.name do
+              visited := visited.insert lib.name
+              pending := lib.deps.toList ++ pending
+          compileExe exeFile (objArgs ++ exe.weakLinkArgs ++ linkArgs) lean.cc
+          unless Platform.isWindows do
+            proc { cmd := "strip", args := #[exeFile.toString] }
+        return art.path
+  return 0
+
 /--
 Run performance tests with timeout enforcement.
 
