@@ -714,7 +714,7 @@ theorem binInsert_toList_eq (a : α) (arr : Array α)
         · exact hpre x hx
         · exact hps.2.2 x hx y hy
     · intro x; rw [sortedInsertNoDup_mem]
-      simp only [List.mem_append, List.mem_cons, heq_arr]; tauto
+      simp only [List.mem_append, List.mem_cons, heq_arr]; aesop
 
 /-- `ordArrayInsert` maintains sortedness. -/
 theorem ordArrayInsert_sorted (a : α) (arr : Array α) --(threshold : Nat)

@@ -77,13 +77,8 @@ git clone https://github.com/verse-lab/veil.git
 And, finally, build it:
 
 ```bash
-lake exe cache get
 lake build
 ```
-
-The `lake exe cache get` command downloads a pre-built version of
-[mathlib](https://github.com/leanprover-community/mathlib4), which otherwise
-would take a very long time to build.
 
 ### Troubleshooting
 

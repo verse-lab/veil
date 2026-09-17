@@ -27,7 +27,7 @@ type ballot
 --           /\ \A Q1, Q2 \in Quorums : Q1 \cap Q2 # {}
 
 -- (***************************************************************************)
--- (* The following lemma is an immediate consequence of the assumption.      *)
+-- (* The following theorem is an immediate consequence of the assumption.      *)
 -- (***************************************************************************)
 -- LEMMA QuorumNonEmpty == \A Q \in Quorums : Q # {}
 -- BY QuorumAssumption
@@ -393,9 +393,6 @@ set_option trace.veil.desugar true
     | _, _ => false
   minusOne := 0
   validBallots := [1, 2, 3]  -- 0 represents -1 (no ballot), valid ballots are 1, 2, 3
-}
--- (sequential := true)
-(parallelCfg := some { numSubTasks := 8, thresholdToParallel := 20
-/-, batchSize := 1024-/})
+} (parallelCfg := some { numSubTasks := 8, thresholdToParallel := 20 })
 
 end Paxos

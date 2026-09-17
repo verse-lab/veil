@@ -61,7 +61,7 @@ private def finalizeVerificationSpec (mod : Module) (stx : Syntax) : CommandElab
     for cmd in (← mkEnumConcreteType actionTagType actionNames) do
       elabVeilCommand cmd
     elabVeilCommand $ ← `(open $className:ident)
-    -- TODO: Generate equivalence lemma (ActionTag.label_equiv) here
+    -- TODO: Generate equivalence theorem (ActionTag.label_equiv) here
 
   let mod ← if (← isModelCheckCompileMode) then pure mod else do
     let (nextCmd, mod) ← mod.assembleNext

@@ -4,24 +4,23 @@ structure Theory (α : Type) where
   a : α
   b : α
 
-set_option linter.unusedTactic false
 
 example (α : Type) (t : Theory α) (n : Nat) : 1 + n = n + 1 := by
   veil_destruct
-  #check t.a
-  #check t.b
-  ac_rfl
+  have _ := t.a
+  have _ := t.b
+  omega
 
 example (α : Type) (t : Theory α) (n : Nat) : 1 + n = n + 1 := by
   veil_cases_type* Theory
-  #check t.a
-  #check t.b
-  ac_rfl
+  have _ := t.a
+  have _ := t.b
+  omega
 
 example (α : Type) (t keep : Theory α) (n : Nat) : 1 + n = n + 1 := by
   veil_cases_type* Theory without [keep]
-  #check t.a
-  #check t.b
-  #check keep
+  have _ := t.a
+  have _ := t.b
+  have _ := keep
   have _ : Theory α := keep
-  ac_rfl
+  omega

@@ -1,5 +1,5 @@
 import Lean
-import Mathlib.Tactic.ProxyType
+import Veil.Util.ProxyType
 import Veil.Util.Meta
 
 open Lean Meta Elab Term Command Deriving
@@ -229,7 +229,7 @@ def ensureOrdHomProof (declName : Name) : CommandElabM Name := do
       attribute [scoped instance] $localInsts* in
       theorem $(mkIdent relThmName) $header.binders:bracketedBinder* :
         ∀ $a1:ident $a2:ident,
-          compare $a1:ident $a2:ident = compare ((proxy_equiv% $header.targetType) $a1:ident) ((proxy_equiv% $header.targetType) $a2:ident) := by
+          compare $a1:ident $a2:ident = compare ((veil_proxy_equiv% $header.targetType) $a1:ident) ((veil_proxy_equiv% $header.targetType) $a2:ident) := by
             intros
             conv => rhs ; whnf
             simp ($(mkIdent `failIfUnchanged):ident := false) only [$(mkCIdent ``Ordering.then_eq):ident]
@@ -249,7 +249,7 @@ def mkOrdRelatedInstCmd (className declName : Name) : CommandElabM Bool := do
       attribute [scoped instance] $localInsts* in
       scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* : $(mkCIdent className) ($header.targetType) :=
         $(mkCIdent <| `Veil ++ className ++ `by_equiv)
-          (proxy_equiv% $header.targetType)
+          (veil_proxy_equiv% $header.targetType)
           $(mkCIdent thmName))
   elabVeilCommand cmd
   return true

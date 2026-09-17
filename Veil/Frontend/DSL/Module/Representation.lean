@@ -325,7 +325,7 @@ structure ModuleDependency where
   /-- Modules can be referred to in the dependee by an alias. This
   allows multiple instantiations of child/depended on modules in a
   parent. -/
-  alias : Option Name
+  «alias» : Option Name
   /-- Instantiations of the module's parameters, i.e. the arguments
   passed to the module when it is instantiated. -/
   arguments : Array Term

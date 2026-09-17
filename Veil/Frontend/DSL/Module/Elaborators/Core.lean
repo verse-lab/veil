@@ -237,12 +237,12 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     let stxs ← liftTermElabM mod.declareLocalRPropTC
     for stx in stxs do
       elabVeilCommand stx.raw
-    -- Generate the transition weakening lemma for this module
+    -- Generate the transition weakening theorem for this module
     try
       let cmd ← liftTermElabM mod.declareTransitionWeakeningLemma
       elabVeilCommand cmd
     catch ex =>
-      logWarning m!"unable to generate transition weakening lemma: {ex.toMessageData}"
+      logWarning m!"unable to generate transition weakening theorem: {ex.toMessageData}"
   pure mod
 
 private def warnIfNoInvariantsDefined (mod : Module) : CommandElabM Unit := do
@@ -926,10 +926,7 @@ where
       ModelChecker.Compilation.createBuildFolder buildFolder modelSource mod.name.toString command
       ModelChecker.Compilation.runProcessWithStatusCallback
         sourceFile command commandId
-        { cmd := lake.toString, args := #["build", "ModelCheckerMain"], cwd := buildFolder
-          -- A fresh temp project has no manifest: `lake build` resolves dependencies and runs
-          -- post-update hooks. Mathlib's cache hook rejects the dependencies reused by local path.
-          env := #[("MATHLIB_NO_CACHE_ON_UPDATE", some "1")] }
+        { cmd := lake.toString, args := #["build", "ModelCheckerMain"], cwd := buildFolder }
         instanceId cancelToken
         (fun elapsedMs => ModelChecker.Concrete.updateCompilationElapsed instanceId elapsedMs)
         (fun line isError elapsedMs => ModelChecker.Concrete.updateCompilationLog instanceId elapsedMs line isError)

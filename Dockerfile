@@ -15,5 +15,5 @@ ENV PATH="/root/.elan/bin:${PATH}"
 
 WORKDIR /root/veil
 COPY . .
-RUN . "$HOME/.nvm/nvm.sh" && lake exe cache get && lake build
+RUN . "$HOME/.nvm/nvm.sh" && lake build
 CMD ["bash"]

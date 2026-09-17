@@ -53,7 +53,7 @@ def MapReduceSearchContextLocal.processSuccessors
 def MapReduceSearchContextLocal.processState
   (params : SearchParameters ρ σ) (th : ρ)
   (fpSt : σₕ) (curr : σ)
-  (outcomes : List (κ × ExecutionOutcome ℤ σ))
+  (outcomes : List (κ × ExecutionOutcome Int σ))
   (lctx : MapReduceSearchContextLocal σ κ σₕ asm) : MapReduceSearchContextLocal σ κ σₕ asm :=
   let (ctx, q) := lctx
   let (ctx', outcomesOpt) := ctx.processState params th fpSt curr outcomes
@@ -71,7 +71,7 @@ section
 -- FIXME: The proofs are also very similar to the sequential one
 
 variable {params : SearchParameters ρ σ} {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
   {lctx : MapReduceSearchContextLocal σ κ σₕ asm}
   {globalSeen : ShardedTreeSetUSize σₕ}
 
@@ -202,7 +202,7 @@ private theorem processWorkQueue.subproof6 {α : Type u} {l : List α} :
 
 def processWorkQueue
   {params : SearchParameters ρ σ} {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
   {globalSeen : ShardedTreeSetUSize σₕ}
   (queue : List (MapReduceQueueItem σₕ σ))
   {p q : MapReduceQueueItem σₕ σ → Prop} (h : ∀ x, q x ↔ p x ∨ x ∈ queue)
@@ -231,7 +231,7 @@ def processWorkQueue
 def bfsBigStep
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   (params : SearchParameters ρ σ) {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (globalSeen : ShardedTreeSetUSize σₕ)
   (completedDepth : Nat)
   (queue : List (MapReduceQueueItem σₕ σ))
@@ -435,7 +435,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   whnf at h_closed ; dsimp only at *
   clear h_q_emp
 
-  -- prove a lemma first, since it will be used in both `terminate_empty_queue` and `stable_closed`
+  -- prove a theorem first, since it will be used in both `terminate_empty_queue` and `stable_closed`
   have h_not_explored_all : mbase.finished ≠ Option.some (TerminationReason.exploredAllReachableStates) := by
     intro h ; rw [h_base_desc, Option.bind_eq_some_iff] at h ; simp +unfoldPartialApp [Function.comp] at h
     rcases h with ⟨lbctx, ⟨⟨lq, h_find⟩, h_finished⟩⟩
@@ -503,7 +503,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
         intro _ ; simp at heq
         -- NOTE: Here Lean has some trouble proving the index validity of `j` from the scratch, so use some trick
         set e := getElem lctxs' j _
-        specialize heq e.1 e.2 (by simp [e]) ; simp [BaseSearchContext.hasFinished] at heq
+        specialize heq e.1 e.2 (by exact List.getElem_mem _) ; simp [BaseSearchContext.hasFinished] at heq
         rcases h_local_invs with ⟨_, _, h_dj, h_same_dom, h_succ_coll⟩
         specialize h_succ_coll heq (fp.view u) u (h_getElem_chunk ▸ h_in_chunk)
         grind
@@ -538,7 +538,7 @@ private theorem not_too_small_not_too_large (n : Nat) :
   let t := max 1 (min n 4294967295)
   0 < USize.ofNat t ∧ t < USize.size := by
   apply (fun (p : _ → _) q => And.intro (p q) q)
-  · intro h ; simp [USize.lt_ofNat_iff h]
+  · intro h ; simp [USize.lt_ofNat_iff h]; omega
   · cases USize.size_eq <;> rename_i h <;> rw [h] <;> omega
 
 def breadthFirstSearchParallel {m : Type → Type}
