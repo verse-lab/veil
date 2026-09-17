@@ -167,4 +167,13 @@ register_option veil.simulate.maxSteps : Nat := {
   descr := "Maximum number of action transitions per simulation trace, excluding the initial state. Default is 100."
 }
 
+register_option veil.modelChecker.maxStoredBuilds : Nat := {
+  defValue := 1
+  descr := "Maximum number of compiled builds of `#model_check` and `#simulate` stored in \
+  `.lake/model_checker_builds`; 0 means no limit, so builds are never deleted. When a run ends, \
+  cleanup keeps the most recently compiled builds up to this limit, allowing later runs to reuse \
+  them. Builds that running checks use are never deleted, even beyond the limit. Cleanup is \
+  skipped if another build holds the build lock. The default of 1 retains the latest build."
+}
+
 end Veil

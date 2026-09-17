@@ -527,13 +527,14 @@ structure ModelCheckContext where
   resultKind : TraceDisplay.ResultKind
 
 /-- Report compilation failures without stopping an interpreted run during handoff.
-An interrupted compilation returns `none` normally and produces no diagnostic. -/
+Interruptions produce no diagnostic: a killed build returns `none`, and an interrupt raised
+during compilation propagates, since `catch` rethrows interrupts. -/
 def withCompilationDiagnostics (stx : Syntax) (instanceId : Nat) (handoff : Bool)
-    (compile : IO (Option System.FilePath)) : CommandElabM (Option System.FilePath) := do
-  match ← compile.toBaseIO with
-  | .ok result => return result
-  | .error e =>
-    let message := e.toString
+    (compile : CommandElabM (Option System.FilePath)) : CommandElabM (Option System.FilePath) := do
+  try
+    compile
+  catch e : Exception =>
+    let message ← e.toMessageData.toString
     ModelChecker.Concrete.updateCompilationStatus instanceId (.failed message)
     if handoff then
       logWarningAt stx message
@@ -764,6 +765,25 @@ where
     elabVeilCommand (← `(end $(mkIdent mod.name)))
     elabVeilCommand (← `(export $(mkIdent mod.name) ($(mkIdent `modelCheckerResult))))
 
+  /-- End a compiled-only run that was cancelled before reaching a verdict. -/
+  endRunIfCancelled (cancelToken : IO.CancelToken) (instanceId : Nat) : IO Unit := do
+    if (← ModelChecker.Concrete.getProgress instanceId).isRunning then
+      discard <| checkCancelled cancelToken instanceId
+
+  /-- Called only by the task that compiles and runs the binary, never its interpreted peer.
+  Stop using the build folder of a run that has ended, then prune build folders to
+  `veil.modelChecker.maxStoredBuilds`, or not at all when the limit is 0.
+  Pruning is best-effort cleanup and never fails the run or waits for another build. -/
+  releaseBuild (instanceId : Nat) : CommandElabM Unit := do
+    let limit := veil.modelChecker.maxStoredBuilds.get (← getOptions)
+    liftIO do
+      ModelChecker.Compilation.releaseBuildFolder instanceId
+      if limit = 0 then return
+      try
+        ModelChecker.Compilation.pruneBuildFolders (← ModelChecker.Compilation.getBuildBaseDir)
+          limit
+      catch _ => pure ()
+
   /-- Build compilation error message from process result. -/
   mkCompilationErrorMsg (result : ModelChecker.Compilation.ProcessResult) : String :=
     s!"Compilation failed (exit code {result.exitCode}):\n" ++
@@ -874,6 +894,7 @@ where
     ModelChecker.Concrete.finishProgress ctx.instanceId json
 
   modelCheckerCommandSpec : ModelChecker.Compilation.CompiledCommandSpec := {
+    name := "model_check"
     exportedName := "modelCheckerResult"
     supportsParallelConfig := true
   }
@@ -883,7 +904,7 @@ where
       (sourceFile : String) (command : ModelChecker.Compilation.CompiledCommandSpec)
       (commandId : String) : CommandElabM Unit := do
     let some binPath ← verifyBinaryExists buildFolder ctx.instanceId | return
-    let args := ctx.parallelCfg.map (fun p => #[s!"{p.numSubTasks}", s!"{p.thresholdToParallel}"]) |>.getD #[]
+    let args := ctx.parallelCfg.map (fun p => #[s!"{p.numSubTasks}", s!"{p.thresholdToParallel}", s!"{p.numSubSteps}"]) |>.getD #[]
     let some json ← runBinaryForJson binPath args ctx.instanceId ctx.cancelToken | return
     ModelChecker.Concrete.finishProgress ctx.instanceId (enrichJsonWithAssertions json ctx.assertionSources)
     ModelChecker.Compilation.markRegistryFinished sourceFile command commandId buildFolder
@@ -894,16 +915,25 @@ where
   compileModel (mod : Module) (sourceFile : String) (modelSource : String)
       (commandId : String) (instanceId : Nat) (cancelToken : IO.CancelToken)
       (command : ModelChecker.Compilation.CompiledCommandSpec) : IO (Option System.FilePath) := do
-    let buildFolder ← ModelChecker.Compilation.createBuildFolder sourceFile modelSource mod.name.toString command
+    if ← cancelToken.isSet then return none
+    let buildFolder ← ModelChecker.Compilation.generateBuildFolderName sourceFile command
+      (modelSource ++ ModelChecker.Compilation.modelCheckerMainTemplate mod.name.toString command) #[]
+    let lake ← ModelChecker.Compilation.getLakeExecutable
     ModelChecker.Compilation.markRegistryInProgress sourceFile command commandId instanceId buildFolder
-    let result ← ModelChecker.Compilation.runProcessWithStatusCallback
-      sourceFile
-      command
-      commandId
-      { cmd := "lake", args := #["build", "ModelCheckerMain"], cwd := buildFolder }
-      instanceId cancelToken
-      (fun elapsedMs => ModelChecker.Concrete.updateCompilationElapsed instanceId elapsedMs)
-      (fun line isError elapsedMs => ModelChecker.Concrete.updateCompilationLog instanceId elapsedMs line isError)
+    let result? ← ModelChecker.Compilation.withBuildLock (← ModelChecker.Compilation.getBuildBaseDir) cancelToken
+        (isCurrent := ModelChecker.Compilation.stillCurrentCont sourceFile command commandId instanceId (pure ())) do
+      ModelChecker.Compilation.useBuildFolder instanceId buildFolder
+      ModelChecker.Compilation.createBuildFolder buildFolder modelSource mod.name.toString command
+      ModelChecker.Compilation.runProcessWithStatusCallback
+        sourceFile command commandId
+        { cmd := lake.toString, args := #["build", "ModelCheckerMain"], cwd := buildFolder
+          -- A fresh temp project has no manifest: `lake build` resolves dependencies and runs
+          -- post-update hooks. Mathlib's cache hook rejects the dependencies reused by local path.
+          env := #[("MATHLIB_NO_CACHE_ON_UPDATE", some "1")] }
+        instanceId cancelToken
+        (fun elapsedMs => ModelChecker.Concrete.updateCompilationElapsed instanceId elapsedMs)
+        (fun line isError elapsedMs => ModelChecker.Concrete.updateCompilationLog instanceId elapsedMs line isError)
+    let some result := result? | return none
     if result.interrupted then
       return none
     if result.exitCode != 0 then
@@ -961,6 +991,8 @@ where
         finishWithResult ctx json
       catch e : Exception =>
         handleModelCheckError ctx e
+      finally
+        endRunIfCancelled ctx.cancelToken ctx.instanceId
     ) ctx.cancelToken
     let mkTask ← BaseIO.asTask (computation ()) (prio := .dedicated)
     Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := mkTask }
@@ -978,12 +1010,15 @@ where
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
         let some buildFolder ← withCompilationDiagnostics stx ctx.instanceId false <|
-          compileModel mod sourceFile modelSource commandId ctx.instanceId ctx.cancelToken
+          liftIO <| compileModel mod sourceFile modelSource commandId ctx.instanceId ctx.cancelToken
           modelCheckerCommandSpec | return
         if ← checkCancelled ctx.cancelToken ctx.instanceId then return
         runBinaryAndLogResult ctx buildFolder sourceFile modelCheckerCommandSpec commandId
       catch e : Exception =>
         handleModelCheckError ctx e
+      finally
+        endRunIfCancelled ctx.cancelToken ctx.instanceId
+        releaseBuild ctx.instanceId
     ) ctx.cancelToken
 
     let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
@@ -1015,6 +1050,8 @@ where
               finishWithResult ctx json
       catch e : Exception =>
         handleModelCheckError ctx e
+      finally
+        endRunIfCancelled ctx.cancelToken ctx.instanceId
     ) ctx.cancelToken
     let interpretedTask ← BaseIO.asTask (interpretedComputation ()) (prio := .dedicated)
     Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := interpretedTask }
@@ -1030,7 +1067,7 @@ where
     let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
       try
         let some buildFolder ← withCompilationDiagnostics stx ctx.instanceId true <|
-          compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
+          liftIO <| compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
           modelCheckerCommandSpec | do
             ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
             return
@@ -1062,6 +1099,8 @@ where
       catch e : Exception =>
         ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
         ModelChecker.Concrete.updateCompilationStatus ctx.instanceId (.failed s!"{← e.toMessageData.toString}")
+      finally
+        releaseBuild ctx.instanceId
     ) compilationCancelTk
     let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
     Command.logSnapshotTask { stx? := none, cancelTk? := compilationCancelTk, task := compilationTask }
@@ -1069,6 +1108,7 @@ where
     ModelChecker.displayStreamingProgress stx ctx.instanceId
 
 private def simulateCommandSpec : ModelChecker.Compilation.CompiledCommandSpec := {
+  name := "simulate"
   exportedName := "simulateResult"
 }
 
@@ -1168,6 +1208,8 @@ private def elabSimulateInterpretedMode (mod : Module) (stx : Syntax) (callExpr 
       finishWithSimulationResult ctx combinedJson
     catch e : Exception =>
       elabModelCheck.handleModelCheckError ctx e
+    finally
+      elabModelCheck.endRunIfCancelled ctx.cancelToken ctx.instanceId
   ) ctx.cancelToken
   let task ← BaseIO.asTask (computation ()) (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task }
@@ -1182,12 +1224,15 @@ private def elabSimulateCompiledMode (mod : Module) (stx : Syntax)
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
       let some buildFolder ← withCompilationDiagnostics stx ctx.instanceId false <|
-        elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId ctx.cancelToken
+        liftIO <| elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId ctx.cancelToken
         simulateCommandSpec | return
       if ← elabModelCheck.checkCancelled ctx.cancelToken ctx.instanceId then return
       runSimulateBinaryAndLogResult ctx buildFolder sourceFile commandId
     catch e : Exception =>
       elabModelCheck.handleModelCheckError ctx e
+    finally
+      elabModelCheck.endRunIfCancelled ctx.cancelToken ctx.instanceId
+      elabModelCheck.releaseBuild ctx.instanceId
   ) ctx.cancelToken
   let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := compilationTask }
@@ -1220,13 +1265,15 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
             finishWithSimulationResult ctx combinedJson
     catch e : Exception =>
       elabModelCheck.handleModelCheckError ctx e
+    finally
+      elabModelCheck.endRunIfCancelled ctx.cancelToken ctx.instanceId
   ) ctx.cancelToken
   let interpretedTask ← BaseIO.asTask (interpretedComputation ()) (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := interpretedTask }
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
       let some buildFolder ← withCompilationDiagnostics stx ctx.instanceId true <|
-        elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
+        liftIO <| elabModelCheck.compileModel mod sourceFile modelSource commandId ctx.instanceId compilationCancelTk
         simulateCommandSpec | do
           ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
           return
@@ -1254,6 +1301,8 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
     catch e : Exception =>
       ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
       ModelChecker.Concrete.updateCompilationStatus ctx.instanceId (.failed s!"{← e.toMessageData.toString}")
+    finally
+      elabModelCheck.releaseBuild ctx.instanceId
   ) compilationCancelTk
   let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := compilationCancelTk, task := compilationTask }
