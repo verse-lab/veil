@@ -1,6 +1,6 @@
 import Veil.Frontend.DSL.Module.Util.Basic
 import Veil.Frontend.DSL.State.ConcreteRegistry
-import Veil.Backend.SMT.Quantifiers
+import Veil.Frontend.DSL.Infra.Quantifiers
 
 open Lean Parser Elab Command Term
 

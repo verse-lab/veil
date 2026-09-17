@@ -6,7 +6,7 @@ import Veil.Frontend.DSL.Util
 import Veil.Util.Meta
 import Mathlib.Tactic.Push
 import Veil.Util.ReplacingInstances
-import Veil.Frontend.DSL.Tactic
+import Veil.Frontend.DSL.Tactic.Core
 
 open Lean Elab Command Term
 
@@ -1109,7 +1109,7 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
       if pi matches .initializer | .action _ _ then do
         let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
         let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}]) (compile := !(← isModelCheckCompileMode))
-        unless (← isModelCheckCompileMode) do
+        if !(← isModelCheckCompileMode) && (← hasVerificationSupport) then
           AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
           if deriveTransition? then
             AuxiliaryDefinitions.defineTransition mod nmExt extKind
