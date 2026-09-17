@@ -221,7 +221,7 @@ private def Module.proveLocalityForTheoryPredicateCore (mod : Module) (nm : Name
     let f := body.getAppFn'
     let [th] := body.getAppArgs'.toList
       | throwError "unexpected shape of theory predicate {nm}: unable to extract theory argument"
-    let f := f.instantiateLambdasOrApps #[th]
+    let f := f.betaRev #[th] (useZeta := true)
     let .app ff theoryCasesOnBody := f
       | throwError "unexpected shape of theory predicate {f}: expected an application with Theory.casesOn as the function"
     lambdaTelescope theoryCasesOnBody fun theoryFields body => do

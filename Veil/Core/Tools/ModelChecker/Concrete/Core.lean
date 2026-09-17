@@ -252,7 +252,7 @@ def checkViolationsAndMaybeTerminate
 /-- Process the current state, queuing its successors. -/
 -- @[inline, specialize]
 def BaseSearchContext.processState
-  (outcomes : List (κ × ExecutionOutcome ℤ σ))
+  (outcomes : List (κ × ExecutionOutcome Int σ))
   (ctx : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm × Option (List (κ × σ)) :=
   let (successfulTransitions, assertionFailures) := partitionExecutionOutcome outcomes
   let hasSuccessfulTransition := !successfulTransitions.isEmpty
