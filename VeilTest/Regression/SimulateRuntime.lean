@@ -146,6 +146,31 @@ private def registryKeySourceFile := "compilation-registry-key.lean"
 lock and prune idle folders. -/
 private def isolatedBuildBase : IO System.FilePath := IO.FS.createTempDir
 
+-- Different programs keep independent C and dependency manifests.
+#eval do
+  let sourceFile := "compilation-build-folder-inputs.lean"
+  let base ← isolatedBuildBase
+  let firstC := "/* first program */"
+  let secondC := "/* second program */"
+  let firstImports := #[`Veil]
+  let secondImports := #[`Veil, `Lean.Compiler.LCNF.EmitC]
+  let inBase (folder : System.FilePath) := base / folder.fileName.getD ""
+  let firstFolder := inBase (← generateBuildFolderName sourceFile simulateCommand firstC firstImports)
+  let secondFolder := inBase (← generateBuildFolderName sourceFile simulateCommand secondC secondImports)
+  for (folder, cCode, imports) in [(firstFolder, firstC, firstImports), (secondFolder, secondC, secondImports)] do
+    writeBuildInputs folder cCode imports
+  expect "distinct programs must not share generated files" (firstFolder != secondFolder)
+  expect "the first program's C must survive the second program's"
+    ((← IO.FS.readFile (firstFolder / "ModelCheckerMain.c")) == firstC)
+  expect "the second program must receive its own C"
+    ((← IO.FS.readFile (secondFolder / "ModelCheckerMain.c")) == secondC)
+  for (folder, imports) in [(firstFolder, firstImports), (secondFolder, secondImports)] do
+    expect "each program must keep its own dependency manifest"
+      ((← IO.FS.readFile (folder / "imports.json")) == (Lean.toJson imports).compress)
+    for name in ["lakefile.lean", "Model.lean", "ModelCheckerMain.lean", "lean-toolchain"] do
+      expect s!"native compilation must not generate {name}" (!(← (folder / name).pathExists))
+  IO.FS.removeDirAll base
+
 -- Record a completed build through the same acquisition/release path used by compilation.
 private def createIdleBuild (base folder : System.FilePath) : IO Unit := do
   let (id, token) ← allocProgressInstance (.modelCheck {})

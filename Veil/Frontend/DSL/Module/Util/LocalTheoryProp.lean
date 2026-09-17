@@ -385,7 +385,7 @@ uses the resulting `Assumptions.core_simplified_eq` to instantiate the
 field-exposed assumptions core without depending on typeclass search for the
 assembled definition itself. -/
 def Module.simplifyLocalTheoryPropCore (mod : Module) (nm : Name) : TermElabM Unit := do
-  if !mod._useLocalRPropTC || (← isModelCheckCompileMode) then return
+  if !mod._useLocalRPropTC then return
   let some dk := mod._declarations[nm]?
     | throwError "simplifyLocalTheoryPropCore: {nm} not found in module declarations"
   let (nmParams, _) ← mod.declarationAllParams nm dk
@@ -441,7 +441,7 @@ def Module.simplifyLocalTheoryPropCore (mod : Module) (nm : Name) : TermElabM Un
 /-! ## Assembled Definition Simplification -/
 
 def Module.simplifyAssembledWithLocalTheoryProp (mod : Module) (nm : Name) : TermElabM Unit := do
-  if !mod._useLocalRPropTC || (← isModelCheckCompileMode) then return
+  if !mod._useLocalRPropTC then return
   try
     let nmFull ← resolveGlobalConstNoOverloadCore nm
     let info ← getConstInfoDefn nmFull

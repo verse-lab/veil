@@ -1,4 +1,4 @@
-import Veil
+import Veil.Core
 
 /-!
 Command integration: bound precedence, repeated invocations, compiled execution,
@@ -92,13 +92,12 @@ Seed: 1
 
 -- Exercise generation, compilation, and execution using the same bounded walk.
 -- Require a verdict as well as no errors, so a run cannot silently do nothing.
--- /--
--- info: ✅ No violation in 1 traces
--- Seed: 1
--- -/
--- #guard_msgs in
--- #simulate compiled {} {} (seed := 1) (numTraces := 1) (maxSteps := 1)
--- FIXME: this is a broken test
+/--
+info: ✅ No violation in 1 traces
+Seed: 1
+-/
+#guard_msgs in
+#simulate compiled {} {} (seed := 1) (numTraces := 1) (maxSteps := 1)
 
 end SimulateStepBound
 

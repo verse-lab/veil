@@ -819,7 +819,7 @@ where
 
 /-- Simplify the `LocalRProp.core` for a definition. -/
 def Module.simplifyLocalRPropCore (mod : Module) (nm : Name) : TermElabM Unit := do
-  if !mod._useLocalRPropTC || (← isModelCheckCompileMode) then return
+  if !mod._useLocalRPropTC then return
   let some dk := mod._declarations[nm]?
     | throwError "simplifyLocalRPropCore: {nm} not found in module declarations"
   let (nmParams, _) ← mod.declarationAllParams nm dk
@@ -893,7 +893,7 @@ def Module.simplifyLocalRPropCore (mod : Module) (nm : Name) : TermElabM Unit :=
 `replaceLocalRPropGeneralCase` to rewrite each sub-predicate into its
 `LocalRProp.core` form, then register the result as a `core_eq` theorem. -/
 def Module.simplifyAssembledWithLocalRProp (mod : Module) (nm : Name) : TermElabM Unit := do
-  if !mod._useLocalRPropTC || (← isModelCheckCompileMode) then return
+  if !mod._useLocalRPropTC then return
   try
     let nmFull ← resolveGlobalConstNoOverloadCore nm
     let info ← getConstInfoDefn nmFull
