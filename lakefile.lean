@@ -160,8 +160,18 @@ script veilModelCheckBuild args do
     for dep in deps do
       for lib in dep.externLibs do
         objs := objs.push (← lib.static.fetch)
-    buildLeanExe (buildDir / exe.fileName) objs dynlibs
-      exe.weakLinkArgs exe.linkArgs exe.sharedLean
+    -- Library link inputs include package inputs, so different libraries can resolve
+    -- to the same object. Collect first to retain every dependency's build trace.
+    (Job.collectArray objs).bindM (sync := true) fun paths => do
+      let mut seen : Std.HashSet FilePath := {}
+      let mut unique := #[]
+      for path in paths do
+        let canonical ← IO.FS.realPath path
+        unless seen.contains canonical do
+          seen := seen.insert canonical
+          unique := unique.push (Job.pure path)
+      buildLeanExe (buildDir / exe.fileName) unique dynlibs
+        exe.weakLinkArgs exe.linkArgs exe.sharedLean
   return 0
 
 /--
