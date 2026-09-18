@@ -178,6 +178,14 @@ def releaseBuildFolder (instanceId : Nat) : IO Unit := do
   if let some lock ← buildFolderUses.modifyGet fun uses => (uses[instanceId]?, uses.erase instanceId) then
     lock.unlock
 
+/-- Check for active users and close the handle before deletion: Windows cannot remove an
+open lock file. The caller must hold the global build lock so no new user can enter. -/
+@[noinline] private def canPruneBuildFolder (folder : System.FilePath) : IO Bool := do
+  let use ← openUseLock folder
+  unless ← use.tryLock do return false
+  use.unlock
+  return true
+
 /-- Delete the build folders in `baseDir` beyond the `keep` most recently compiled ones, skipping
 any that a check is using. If the build lock is busy, skip pruning: cleanup must not delay a
 completed or cancelled run while another compilation holds the lock. -/
@@ -194,9 +202,8 @@ def pruneBuildFolders (baseDir : System.FilePath) (keep : Nat) : IO Unit := do
     let newestFirst := folders.qsort fun a b => compare a.2 b.2 == .gt
     for (folder, _) in newestFirst.extract keep do
       try
-        let use ← openUseLock folder
-        if ← use.tryLock then
-          try IO.FS.removeDirAll folder finally use.unlock
+        if ← canPruneBuildFolder folder then
+          IO.FS.removeDirAll folder
       catch _ => pure ()
     return ()
   finally
