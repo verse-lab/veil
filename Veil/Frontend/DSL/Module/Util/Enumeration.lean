@@ -19,7 +19,7 @@ def mkEnumAxiomatisation {m} [Monad m] [MonadQuotation m] [MonadEnv m]
   let (class_name, ax_distinct, ax_complete) := (Ident.toEnumClass id, enumDistinct, enumComplete)
   -- Full verification uses SMT's compact distinctness primitive. Core uses
   -- Lean's equivalent executable predicate without importing the solver.
-  let distinctPred := if ← hasVerificationSupport then mkIdent `distinctN else mkIdent ``List.Nodup
+  let distinctPred := if ← hasVerificationSupport then mkCIdent `distinctN else mkCIdent ``List.Nodup
   let ax_distinct ←
     `(Command.structSimpleBinder|$ax_distinct:ident : $distinctPred:ident [$[$elems],*])
   let x := mkVeilImplementationDetailIdent `x

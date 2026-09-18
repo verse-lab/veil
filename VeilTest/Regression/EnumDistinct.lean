@@ -46,3 +46,16 @@ The following set of actions must preserve the invariant and successfully termin
 #check_invariants
 
 end bar_mod
+
+-- A user predicate must not capture the generated enum distinctness axiom.
+namespace EnumNameCapture
+abbrev distinctN {α : Type} (_ : List α) : Prop := True
+
+veil module Spec
+enum bit = {zero, one}
+
+example {α : Type} [inst : bit_EnumClass α] :
+    _root_.distinctN [inst.zero, inst.one] := inst.distinct
+
+end Spec
+end EnumNameCapture
