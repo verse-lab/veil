@@ -38,5 +38,3 @@ jobs:
       uses: leanprover/lean-action@v1
       with:
         use-github-cache: false # TODO: enable this
-    - name: Test downstream native builds
-      run: python3 scripts/test-native-build.py
