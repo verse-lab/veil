@@ -11,13 +11,12 @@ open Lean
 structure LivenessProperty (ρ σ : Type) where
   name : Name := Name.anonymous
   atoms: List (Veil.ModelChecker.SafetyProperty ρ σ)
-  /-- The LTL formula, with atoms referenced by `SafetyProperty.name.toString`. -/
-  φ : LTLLib.Formula String
+  φ : LTLLib.Formula Nat -- Reference atomic props by their index in `atoms`
 
 @[inline, specialize]
-def LivenessProperty.sysLabel (p : LivenessProperty ρ σ) (th : ρ) (st : σ) : Std.HashSet String :=
-  p.atoms.foldl (init := ∅) fun acc a =>
-    if a.holdsOn th st then acc.insert a.name.toString else acc
+def LivenessProperty.sysLabel (p : LivenessProperty ρ σ) (th : ρ) (st : σ) : Std.HashSet Nat :=
+  (p.atoms.foldl (init := ((0 : Nat), (∅ : Std.HashSet Nat))) fun (i, acc) a =>
+    (i + 1, if a.holdsOn th st then acc.insert i else acc)).2
 
 instance : Inhabited (LivenessProperty ρ σ) where
   default := {
