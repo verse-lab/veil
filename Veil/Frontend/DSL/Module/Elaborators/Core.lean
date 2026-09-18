@@ -242,7 +242,7 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
       let cmd ← liftTermElabM mod.declareTransitionWeakeningLemma
       elabVeilCommand cmd
     catch ex =>
-      logWarning m!"unable to generate transition weakening theorem: {ex.toMessageData}"
+      logWarning m!"unable to generate transition weakening lemma: {ex.toMessageData}"
   pure mod
 
 private def warnIfNoInvariantsDefined (mod : Module) : CommandElabM Unit := do

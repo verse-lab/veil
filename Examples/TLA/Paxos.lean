@@ -27,7 +27,7 @@ type ballot
 --           /\ \A Q1, Q2 \in Quorums : Q1 \cap Q2 # {}
 
 -- (***************************************************************************)
--- (* The following theorem is an immediate consequence of the assumption.      *)
+-- (* The following lemma is an immediate consequence of the assumption.      *)
 -- (***************************************************************************)
 -- LEMMA QuorumNonEmpty == \A Q \in Quorums : Q # {}
 -- BY QuorumAssumption
