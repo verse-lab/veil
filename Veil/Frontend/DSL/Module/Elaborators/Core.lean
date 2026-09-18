@@ -424,7 +424,8 @@ partial def elabLtlFormula (mod : Module) (livenessName : Name) (atoms : Array N
     let assertion : StateAssertion :=
       { kind := .livenessAtom, name := atomName, extraParams := #[], term := t, userSyntax := stx.raw, inSets := Std.HashSet.emptyWithCapacity }
     let mod ← mod.defineAssertion assertion
-    return (← `(term| $(mkIdent ``LTLLib.Formula.atom) $(quote atomName.toString)), mod, atoms.push atomName)
+    -- Atoms are referenced by their position in `atoms`
+    return (← `(term| $(mkIdent ``LTLLib.Formula.atom) $(quote atoms.size)), mod, atoms.push atomName)
   | `(ltlFormula| ⊤) => return (← `(term| $(mkIdent ``LTLLib.Formula.tt)), mod, atoms)
   | `(ltlFormula| ⊥) => return (← `(term| $(mkIdent ``LTLLib.Formula.ff)), mod, atoms)
   | `(ltlFormula| ($f)) => elabLtlFormula mod livenessName atoms f
