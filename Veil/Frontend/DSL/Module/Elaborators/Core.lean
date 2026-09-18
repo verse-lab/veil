@@ -759,7 +759,7 @@ where
         return true
     return false
 
-  /-- End a compiled-only run that was cancelled before reaching a verdict. -/
+  /-- End a run that was cancelled before reaching a verdict, excluding handoff. -/
   endRunIfCancelled (cancelToken : IO.CancelToken) (instanceId : Nat) : IO Unit := do
     if (← ModelChecker.Concrete.getProgress instanceId).isRunning then
       discard <| checkCancelled cancelToken instanceId
@@ -980,6 +980,8 @@ where
         finishWithResult ctx json
       catch e : Exception =>
         handleModelCheckError ctx e
+      finally
+        endRunIfCancelled ctx.cancelToken ctx.instanceId
     ) ctx.cancelToken
     let mkTask ← BaseIO.asTask (computation ()) (prio := .dedicated)
     Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := mkTask }
@@ -1035,6 +1037,8 @@ where
               finishWithResult ctx json
       catch e : Exception =>
         handleModelCheckError ctx e
+      finally
+        endRunIfCancelled ctx.cancelToken ctx.instanceId
     ) ctx.cancelToken
     let interpretedTask ← BaseIO.asTask (interpretedComputation ()) (prio := .dedicated)
     Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := interpretedTask }
@@ -1158,6 +1162,8 @@ private def elabSimulateInterpretedMode (mod : Module) (stx : Syntax) (callExpr 
       finishWithSimulationResult ctx combinedJson
     catch e : Exception =>
       elabModelCheck.handleModelCheckError ctx e
+    finally
+      elabModelCheck.endRunIfCancelled ctx.cancelToken ctx.instanceId
   ) ctx.cancelToken
   let task ← BaseIO.asTask (computation ()) (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task }
@@ -1211,6 +1217,8 @@ private def elabSimulateWithHandoff (mod : Module) (stx : Syntax) (callExpr : Te
             finishWithSimulationResult ctx combinedJson
     catch e : Exception =>
       elabModelCheck.handleModelCheckError ctx e
+    finally
+      elabModelCheck.endRunIfCancelled ctx.cancelToken ctx.instanceId
   ) ctx.cancelToken
   let interpretedTask ← BaseIO.asTask (interpretedComputation ()) (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := interpretedTask }
