@@ -639,7 +639,7 @@ private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) :
       Meta.lambdaTelescope e fun xs body => do
         let simp := Simp.dsimp #[``VeilSpecM.toTransitionDerived, ``Loom.Cont.inv, ``Loom.Order.compl] { unfoldPartialApp := true : Meta.Simp.Config }
           |>.andThen (Simp.simp #[`wpSimp, ``and_true, ``true_and])   -- for rewriting with WP equality theorem, and some minor things
-          |>.andThen (Simp.simp #[``Veil.not_if, ``Classical.not_not, ``not_and, ``not_or, ``not_exists, ``Classical.not_forall])    -- for pushing negations down to get more rewriting opportunities
+          |>.andThen (Simp.simp #[``Veil.not_if, ``Classical.not_not, ``Classical.not_imp, ``not_and, ``not_or, ``not_exists, ``Classical.not_forall])    -- for pushing negations down to get more rewriting opportunities
         let resBody ← withTraceNode (`veil.perf.extract.trSimp ++ nm) (fun _ => return s!"trSimp {nm}") do simp body
         -- (3) Construct the expression
         -- The expression for `act.ext.tr`; **TODO** register as a derived definition
