@@ -4,7 +4,7 @@ import Veil.Frontend.DSL.Action.DoElab
 import Veil.Frontend.DSL.Module.Util
 import Veil.Frontend.DSL.Util
 import Veil.Util.Meta
-import Mathlib.Tactic.Push
+import Veil.Util.Tactics
 import Veil.Util.ReplacingInstances
 import Veil.Frontend.DSL.Tactic.Core
 
@@ -29,6 +29,12 @@ open Lean Elab Command Term
   DON'T care about (assertion failures are treated as exceptions, and
   each assertion has its unique ID).
 -/
+
+open Loom.Order
+open scoped Loom.Order
+
+private theorem contraposition {p q : Prop} (h : ¬q → ¬p) : p → q :=
+  fun hp => Classical.byContradiction (fun hnq => h hnq hp)
 
 namespace Veil
 
@@ -602,10 +608,6 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
           -- For non-transition wps, warn if any step fails (all 3 steps expected)
           logWarning m!"unable to generate wp_local_eq for {nm}: {ex.toMessageData}"
 
--- NOTE: This is for simplifying `.tr` form definitions
--- FIXME: This is probably not the best place to put this
-attribute [push] apply_ite
-
 /-- The template for proving `derive_eq` theorems for transitions. -/
 private theorem derive_eq_template {act : VeilM m ρ σ α}
   {spec : (Int → Prop) → VeilSpecM ρ σ α}
@@ -635,9 +637,9 @@ private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) :
       trace[veil.debug] "[{decl_name%}] e: {e}"
       -- (2) Simplify
       Meta.lambdaTelescope e fun xs body => do
-        let simp := Simp.dsimp #[``VeilSpecM.toTransitionDerived, ``Cont.inv, ``compl] { unfoldPartialApp := true : Meta.Simp.Config }
+        let simp := Simp.dsimp #[``VeilSpecM.toTransitionDerived, ``Loom.Cont.inv, ``Loom.Order.compl] { unfoldPartialApp := true : Meta.Simp.Config }
           |>.andThen (Simp.simp #[`wpSimp, ``and_true, ``true_and])   -- for rewriting with WP equality theorem, and some minor things
-          |>.andThen (Mathlib.Tactic.Push.pushCore (.const ``Not) {} none)    -- for pushing negations down to get more rewriting opportunities
+          |>.andThen (Simp.simp #[``Veil.not_if, ``Classical.not_not, ``Classical.not_imp, ``not_and, ``not_or, ``not_exists, ``Classical.not_forall])    -- for pushing negations down to get more rewriting opportunities
         let resBody ← withTraceNode (`veil.perf.extract.trSimp ++ nm) (fun _ => return s!"trSimp {nm}") do simp body
         -- (3) Construct the expression
         -- The expression for `act.ext.tr`; **TODO** register as a derived definition
@@ -670,7 +672,7 @@ end AuxiliaryDefinitions
 
 /-! ## Transition Weakening Lemma -/
 
-/-- Generate the transition weakening lemma for this module. Called after `#gen_state`. -/
+/-- Generate the transition weakening theorem for this module. Called after `#gen_state`. -/
 def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command := do
   let params := mod.parameters
   let paramBinders ← params.mapM (·.binder)
@@ -775,16 +777,20 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
       $declareLocalRPropInst:tactic
       repeat rw [← $trDerivedEq:ident]
       unfold $(mkIdent ``VeilM.toTransitionDerived) $(mkIdent ``VeilSpecM.toTransitionDerived)
-      simp only [$(mkIdent ``Cont.inv):ident, $(mkIdent ``Compl.compl):ident]
-      contrapose
+      simp only [$(mkIdent ``Loom.Cont.inv):ident, $(mkIdent ``Loom.Order.compl):ident]
+      apply $(mkIdent ``contraposition):ident
+      simp only [$(mkIdent ``Classical.not_not):ident]
       trans $transIntermediate
       · dsimp
         conv => rhs; rw [$wpLocalEq:ident]; rw [← $wpEq:ident]; dsimp only [$(mkIdent <| localRPropTCName ++ `core):ident]
-        intro $h:ident ; convert $h:ident
-        try (simp ; (try rw [$(mkIdent $ stateName ++ `ext_iff):ident]) ; try simp)
+        intro $h:ident ; refine Eq.mpr ?_ $h:ident
+        apply congrArg (fun $auxpost => [IgnoreEx (fun _ => $(mkIdent ``True))|
+          $(mkIdent ``wp) (@$act $specializedPolyArgs*) $auxpost ($(mkIdent ``readFrom) $r₀) $absst₀])
+        funext $auxx $auxth $auxst
+        try (simp +zetaDelta [$(mkIdent <| localRPropTCName ++ `core):ident] ; (try rw [$(mkIdent $ stateName ++ `ext_iff):ident]) ; try simp [$(mkIdent ``funext_iff):ident, $(mkIdent ``Classical.not_forall):ident])
       · dsimp only
         apply [IgnoreEx (fun _ => $(mkIdent ``True))| $(mkIdent ``wp_cons) ($(mkIdent `m) := $veilMStx)]
-        simp only [$(mkIdent ``LE.le):ident]
+        simp only [$(mkIdent ``Loom.Order.pi_le_iff):ident, $(mkIdent ``Loom.Order.prop_le):ident]
         try grind
       )
   return cmd
@@ -920,7 +926,7 @@ where
     -- Idea: the two sides should really equal modulo decidable instances
     let tac ← `(term| by
       intro $h:ident
-      convert $h:ident
+      refine Eq.mpr ?_ $h:ident
       dsimp only [$(mkIdent trFqn):ident]
       __veil_neutralize_decidable_inst at *
       rfl)

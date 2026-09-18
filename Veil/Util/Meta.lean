@@ -1,5 +1,5 @@
 import Lean
-import Mathlib.Util.TermReduce
+import Veil.Util.TermReduce
 open Lean Elab Command
 
 /-! # Meta-programming utility functions

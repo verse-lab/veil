@@ -1,4 +1,5 @@
 import Veil
+import Veil.Util.Permutations
 
 open Std
 
@@ -106,7 +107,7 @@ procedure effects (curState : KVState) (transaction : List (Op key txId)) {
 }
 
 procedure executions (initState : KVState) (trans : List (List (Op key txId))) {
-  let orderings := trans.permutations
+  let orderings := Veil.List.permutations trans
   let initAcc : ExecutionAcc key txId KVState := { execution := [], nextState := initState }
   let allExecutions := orderings.map fun ordering =>
     let executionAcc := ordering.foldl (fun acc t =>

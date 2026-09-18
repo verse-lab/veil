@@ -5,7 +5,7 @@ namespace Veil.ModelChecker.Simulation
 
 theorem randNat_lt_length {α : Type} (xs : List α) (h : xs ≠ []) (gen : StdGen) :
   (let p := randNat gen 0 (xs.length - 1); p.1 < xs.length) := by
-  have hlen : 0 < xs.length := by simpa [List.length_pos_iff_ne_nil] using h
+  have hlen : 0 < xs.length := by grind
   have hk : xs.length - 1 + 1 = xs.length := Nat.sub_add_cancel (Nat.succ_le_of_lt hlen)
   unfold randNat
   simp [Nat.not_lt.mpr (Nat.zero_le (xs.length - 1)), hk]

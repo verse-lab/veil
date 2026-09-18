@@ -1,6 +1,5 @@
 import Veil
 
-set_option linter.unusedTactic false
 
 open Lean Elab Tactic Meta in
 elab "log_lctx_size" : tactic => do

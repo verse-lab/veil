@@ -393,9 +393,6 @@ set_option trace.veil.desugar true
     | _, _ => false
   minusOne := 0
   validBallots := [1, 2, 3]  -- 0 represents -1 (no ballot), valid ballots are 1, 2, 3
-}
--- (sequential := true)
-(parallelCfg := some { numSubTasks := 8, thresholdToParallel := 20
-/-, batchSize := 1024-/})
+} (parallelCfg := some { numSubTasks := 8, thresholdToParallel := 20 })
 
 end Paxos

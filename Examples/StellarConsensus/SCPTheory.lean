@@ -1,5 +1,5 @@
 -- skip eval
-import Mathlib.Data.Set.Basic
+import Veil.Util.Tactics
 
 -- adapted from [FBA.thy](https://github.com/stellar/scp-proofs/blob/ac41c6353fae870c47c0e7ee558da98c03a7d041/FBA.thy)
 
@@ -11,17 +11,37 @@ import Mathlib.Data.Set.Basic
 
 namespace FBA
 
-theorem set_ne_empty_iff_exists_mem {α : Type u} {s : Set α} : s ≠ ∅ ↔ ∃ a, a ∈ s := by
-  rw [← Set.nonempty_iff_ne_empty]
-  aesop
+/-- A predicate set for the mathematical SCP model. -/
+abbrev NodeSet (α : Type u) := α → Prop
+scoped instance : Membership α (NodeSet α) := ⟨fun s a => s a⟩
+scoped instance : Inter (NodeSet α) := ⟨fun s t a => s a ∧ t a⟩
+scoped instance : HasSubset (NodeSet α) := ⟨fun s t => ∀ a, s a → t a⟩
+scoped instance : EmptyCollection (NodeSet α) := ⟨fun _ => False⟩
+@[simp] theorem mem_pred {s : NodeSet α} {a : α} : a ∈ s ↔ s a := Iff.rfl
+@[simp] theorem apply_inter {s t : NodeSet α} {a : α} : (s ∩ t) a ↔ s a ∧ t a := Iff.rfl
+@[simp] theorem mem_inter {s t : NodeSet α} {a : α} : a ∈ s ∩ t ↔ a ∈ s ∧ a ∈ t := Iff.rfl
+@[simp] theorem mem_empty {a : α} : a ∈ (∅ : NodeSet α) ↔ False := Iff.rfl
+@[simp] theorem subset_def {s t : NodeSet α} : s ⊆ t ↔ ∀ a, a ∈ s → a ∈ t := Iff.rfl
 
-def project {α β : Type} (slices : β → Set (Set α)) (S : Set α) : β → Set (Set α) :=
-  fun n => { Sl ∩ S | Sl ∈ slices n }
+theorem set_ne_empty_iff_exists_mem {α : Type u} {s : NodeSet α} : s ≠ ∅ ↔ ∃ a, a ∈ s := by
+  constructor
+  · intro h
+    by_contra hn
+    apply h
+    funext a
+    apply propext
+    simp only [not_exists] at hn
+    exact ⟨hn a, False.elim⟩
+  · rintro ⟨a, ha⟩ rfl
+    exact ha
+
+@[simp] def project {α β : Type} (slices : β → NodeSet (NodeSet α)) (S : NodeSet α) : β → NodeSet (NodeSet α) :=
+  fun n Q => ∃ Sl ∈ slices n, Sl ∩ S = Q
 
 class System (Node : Type) where
   /-- The set of well-behaved nodes. -/
-  W : Set Node
-  slices : Node → Set (Set Node)
+  W : NodeSet Node
+  slices : Node → NodeSet (NodeSet Node)
   /-- The set of slices of a well-behaved node is not empty. -/
   slices_ne : ∀ p ∈ W, slices p ≠ ∅
 
@@ -29,46 +49,36 @@ variable {Node : Type}
 
 /-- Restrict all slices in `sys` to only include nodes from `I`.
     See how it is used in the definition of `intertwined`. -/
-def System.project (sys : System Node) (I : Set Node) : System Node :=
+@[implicit_reducible] def System.project (sys : System Node) (I : NodeSet Node) : System Node :=
   { W := sys.W
     slices := FBA.project sys.slices I
     slices_ne := by
       intro p hin
-      unfold FBA.project
-      have h := sys.slices_ne _ hin
-      rw [set_ne_empty_iff_exists_mem] at h ⊢
-      aesop }
+      obtain ⟨Sl, hSl⟩ := set_ne_empty_iff_exists_mem.mp (sys.slices_ne p hin)
+      apply set_ne_empty_iff_exists_mem.mpr
+      exact ⟨Sl ∩ I, Sl, hSl, rfl⟩ }
 
 variable [inst : System Node]
 open System
 
 /-- A quorum is a set whose well-behaved members have at least one slice
     included in the set. -/
-def quorum (Q : Set Node) : Prop := ∀ p ∈ Q ∩ W, ∃ Sl ∈ slices p, Sl ⊆ Q
+def quorum (Q : NodeSet Node) : Prop := ∀ p ∈ Q ∩ W, ∃ Sl ∈ slices p, Sl ⊆ Q
 
 -- `System.project` allows more quorums.
-theorem quorum_after_proj (Q S : Set Node) : quorum (inst := inst) Q → quorum (inst := inst.project S) Q := by
-  rcases inst with ⟨W, slices, slices_ne⟩
-  unfold quorum System.project FBA.project
-  simp
-  intro hq p h1 h2
-  specialize hq _ h1 h2
-  rcases hq with ⟨Sl, hq1, hq2⟩
-  exists Sl
-  apply And.intro
-  · assumption
-  · rw [Set.subset_def] at hq2 ⊢
-    simp
-    aesop
+theorem quorum_after_proj (Q S : NodeSet Node) : quorum (inst := inst) Q → quorum (inst := inst.project S) Q := by
+  intro h p hp
+  obtain ⟨Sl, hSl, hQ⟩ := h p hp
+  exact ⟨Sl ∩ S, ⟨Sl, hSl, rfl⟩, fun a ha => hQ a ha.1⟩
 
 /-- A set `S` is a slice-blocking set for a node `p` when every slice of
     `p` intersects `S`. -/
-def blocks_slices (S : Set Node) (p : Node) : Prop :=
+def blocks_slices (S : NodeSet Node) (p : Node) : Prop :=
   ∀ Sl ∈ slices p, Sl ∩ S ≠ ∅
 
 /-- A set of node is intertwined if all of its members are well-behaved
     and it satisfies the quorum intersection property. -/
-structure intertwined (S : Set Node) where
+structure intertwined (S : NodeSet Node) where
   well_behaved : S ⊆ W
   /-- The quorum intersection property; `project`ing the system to `S`
       allows for the worst-case quorums that might arise.
@@ -83,7 +93,7 @@ structure intertwined (S : Set Node) where
 /-- A set of node is intact if all of its members are well-behaved
     and it satisfies both the quorum availability property and
     the quorum intersection property. -/
-structure intact (I : Set Node) extends intertwined I where
+structure intact (I : NodeSet Node) extends intertwined I where
   /-- The quorum availability property: `I` itself is a quorum. -/
   q_avail : quorum (inst := inst) I
 
