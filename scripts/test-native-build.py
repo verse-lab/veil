@@ -60,6 +60,21 @@ def check_native_inputs(project):
     assert all(p.stat().st_mtime_ns != t for p, t in mtimes.items())
 
 
+def check_stale_import(project):
+    source = project / "App.lean"
+    source.write_text("import Veil.Core\n" + MODEL.replace("NativeBuild", "ImportedBuild"))
+    run(project, "lake", "build", "App")
+    artifact = project / ".lake/build/lib/lean/App.olean"
+    before = artifact.stat().st_mtime_ns
+    source.write_text(source.read_text() + "\n-- Invalidate the imported Lean artifacts.\n")
+    output = run(project, "lake", "env", "lean", "Tests.lean", success=False)
+    assert "Imported Lean artifacts for 'App' need rebuilding" in output, output
+    assert artifact.stat().st_mtime_ns == before
+    run(project, "lake", "build", "+App")
+    output = run(project, "lake", "env", "lean", "Tests.lean")
+    assert output.count("No violation") == 2, output
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="native-build-test-", dir=ROOT / ".lake") as tmp:
         project = Path(tmp)
@@ -88,6 +103,7 @@ lean_exe normal where
         (project / "extra.c").write_text("int review_extra = 1;\n")
         run(project, "lake", "env", "leanc", "-c", "extra.c", "-o", "extra.o")
         check_native_inputs(project)
+        check_stale_import(project)
     print("Native build regressions passed")
 
 

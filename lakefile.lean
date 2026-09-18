@@ -136,6 +136,23 @@ script veilModelCheckBuild args do
   if let some mod := sourceMod? then
     libs := libs.insert mod.lib
   let _ ← ws.runBuild <| withRegisterJob s!"model-check:{buildDir.fileName.getD "ModelCheckerMain"}" do
+    -- The emitted C uses an already elaborated environment. Re-elaborating an import
+    -- here could change its definitions or run a nested check under our build lock.
+    -- Fetch and await Lean artifacts without rebuilding, in the same job store used
+    -- below, so native facets reuse these checked jobs rather than scheduling them again.
+    let importTraces ← mods.mapM fun mod =>
+      return (← (IO.FS.readFile mod.traceFile).toBaseIO).toOption
+    for (mod, previousTrace) in mods.zip importTraces do
+      let checked ← withTheReader BuildContext (fun ctx => { ctx with noBuild := true })
+        mod.leanArts.fetch
+      unless (← checked.wait?).isSome do
+        error s!"Imported Lean artifacts for '{mod.name}' need rebuilding. Run `lake build +{mod.name}` \
+          in this workspace, then reload the importing file before compiling this check."
+      -- `noBuild` may still restore cached artifacts. Do not link a different imported
+      -- version into C emitted before that restoration.
+      unless (← (IO.FS.readFile mod.traceFile).toBaseIO).toOption == previousTrace do
+        error s!"Imported Lean artifacts for '{mod.name}' changed during validation. \
+          Reload the importing file before compiling this check."
     let c ← inputTextFile (buildDir / "ModelCheckerMain.c")
     let obj ← buildLeanO (buildDir / "ModelCheckerMain.o") c
       exe.root.weakLeancArgs exe.root.leancArgs exe.root.leanIncludeDir?
