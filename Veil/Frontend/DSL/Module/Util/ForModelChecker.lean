@@ -21,23 +21,24 @@ inductive Status
 
 /-- Description of a command that can be compiled into a generated executable. -/
 structure CompiledCommandSpec where
-  /-- Name of the generated definition that the compiled executable calls. -/
-  exportedName : String
-  /-- Whether the generated definition accepts an optional parallel configuration. -/
+  /-- Short identifier of the command, used in registry keys and build folder names. -/
+  name : String
+  /-- Export called by the temporary-project compiler; removed with direct C emission. -/
+  exportedName : String := ""
   supportsParallelConfig : Bool := false
 
 /-- Registry key for one compiled command invocation. -/
 structure CompilationKey where
   /-- Source file containing the compiled command invocation. -/
   sourceFile : String
-  /-- Generated definition called by the compiled executable. -/
-  exportedName : String
+  /-- Identifier of the compiled command, from `CompiledCommandSpec.name`. -/
+  commandName : String
   /-- Identity of the specific command invocation within `sourceFile`. -/
   commandId : String
   deriving BEq, Hashable, Inhabited
 
 /-- Global state tracking compilation status for multiple compiled commands.
-    Keyed by source file path, exported command name, and command identity so
+    Keyed by source file path, command name, and command identity so
     different command invocations in the same file do not supersede each other.
     Uses `Std.Mutex` to prevent race conditions when multiple tasks access the registry. -/
 initialize compilationRegistry : Std.Mutex (Std.HashMap CompilationKey Status) ←
@@ -46,7 +47,7 @@ initialize compilationRegistry : Std.Mutex (Std.HashMap CompilationKey Status) �
 @[inline]
 def mkCompilationKey (sourceFile : String) (command : CompiledCommandSpec) (commandId : String) : CompilationKey := {
   sourceFile,
-  exportedName := command.exportedName,
+  commandName := command.name,
   commandId,
 }
 
@@ -56,46 +57,157 @@ def stillCurrentCont (sourceFile : String) (command : CompiledCommandSpec) (comm
   compilationRegistry.atomically fun ref => do
     let registry ← ref.get
     match registry[mkCompilationKey sourceFile command commandId]? with
-    | some info =>
-      match info with
-      | .inProgress id _ => if id == instanceId then k ref ; pure true else pure false
-      | _ => pure false
-    | none => pure false
+    | some (.inProgress id _) => if id == instanceId then k ref; pure true else pure false
+    | _ => pure false
+
+private def setRegistryStatus (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
+    (status : Status) : IO Unit :=
+  compilationRegistry.atomically fun ref =>
+    ref.modify (·.insert (mkCompilationKey sourceFile command commandId) status)
 
 /-- Mark compilation as finished in the registry. -/
 def markRegistryFinished (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
     (buildFolder : System.FilePath) : IO Unit :=
-  compilationRegistry.atomically fun ref =>
-    ref.modify fun registry =>
-      registry.insert (mkCompilationKey sourceFile command commandId) (.finished buildFolder)
+  setRegistryStatus sourceFile command commandId (.finished buildFolder)
 
 /-- Mark compilation as in progress in the registry. -/
 def markRegistryInProgress (sourceFile : String) (command : CompiledCommandSpec) (commandId : String)
     (instanceId : Nat) (buildFolder : System.FilePath) : IO Unit :=
-  compilationRegistry.atomically fun ref =>
-    ref.modify fun registry =>
-      registry.insert (mkCompilationKey sourceFile command commandId) (.inProgress instanceId buildFolder)
+  setRegistryStatus sourceFile command commandId (.inProgress instanceId buildFolder)
 
 /-- Base directory for model checker build folders. This is an absolute path. -/
 def getBuildBaseDir : IO System.FilePath := do
   let pwd ← IO.currentDir
   return pwd / ".lake" / "model_checker_builds"
 
-/-- Generate the build folder for one compiled command in one source file.
+/-- The `lake` executable that builds model checker binaries. Lake exports its own path as
+`LAKE` to the processes it starts, including the language server, so this is the `lake` that
+launched the current process; without it, fall back to the one in the running toolchain. -/
+def getLakeExecutable : IO System.FilePath := do
+  if let some lake ← IO.getEnv "LAKE" then
+    unless lake.isEmpty do return lake
+  return (← Lean.findSysroot) / "bin" / System.FilePath.addExtension "lake" System.FilePath.exeExtension
 
-Keyed by command *kind*, not by invocation: two `#simulate` commands in the same
-file share a folder, so the second reuses the first one's Lake build cache instead
-of paying for a full rebuild. `CompilationKey` is keyed per invocation instead, so
-neither supersedes the other -- which does mean two invocations of the same command
-in one file can be building into this folder at the same time.
-
-The hash disambiguates same-named files in different directories, which would
-otherwise map to the same folder. -/
-def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec) : IO System.FilePath := do
+/-- Build folder for one generated program, named after its inputs and linked modules.
+Unchanged programs reuse their folder and its Lake cache. Editing a program gives it a new
+folder, so it cannot overwrite a binary an older invocation is about to run. The generated model
+is rebuilt after edits; dependency artifacts are reused from the parent workspace. Touch a folder only inside
+`withBuildLock`, after marking it as in use with `useBuildFolder`. -/
+def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec)
+    (program : String) (imports : Array Name) : IO System.FilePath := do
   let stem := System.FilePath.mk sourceFile |>.fileStem.getD "unrecognized_model"
-  let suffix := toString (hash (sourceFile ++ ":" ++ command.exportedName))
   let baseDir ← getBuildBaseDir
-  return baseDir / s!"{stem}_{command.exportedName}_{suffix}"
+  return baseDir / s!"{stem}_{command.name}_{mixHash (hash program) (hash imports)}"
+
+/-
+NOTE: Locks on build folders.
+
+A build folder is named after the program it builds, so checks that emit the same program share it,
+possibly from different processes (e.g., when `lake build` and the editor both process a file).
+Two file locks keep compilations and cleanups from interfering:
+
+1. `build.lock` next to the folders, exclusive, held by `withBuildLock`. A check holds it while
+   marking its folder as in use, writing the folder's inputs and building; `pruneBuildFolders` holds
+   it for a whole prune.
+   - Only *one* model checker build runs in a workspace at a time: builds of different programs still
+     share the object files of the modules they import, and Lake deletes an object file before
+     rebuilding it, so two `lake` processes building the same missing object make each other fail
+     with "no such file or directory". Those objects are missing on a fresh checkout or in CI, where
+     several compiled checks start building at once.
+   - A check never starts using a folder while a prune deletes it. `use.lock` cannot ensure this
+     itself: it is deleted along with its folder, so a check waiting for it during a deletion would
+     end up locking a deleted file, whereas `build.lock` is never deleted.
+2. `<folder>/use.lock`, shared, held from `useBuildFolder` until `releaseBuildFolder`, that is, from
+   before the build until the run ends. A prune deletes a folder only if it can lock this
+   exclusively, so it never deletes a folder a check still needs. A folder deleted before a check
+   takes this lock is simply rebuilt by that check's own build.
+
+Waiting for `build.lock` polls `tryLock` so that cancellation stays responsive, while `use.lock` is
+only ever tried, never waited for. A lock is released as soon as its handle is no longer referenced,
+since Lean then frees the handle and closes the file, so keep the handle alive while the lock is
+needed.
+-/
+
+/-- Run `act` while holding the build lock of the build folders in `baseDir` (see the note on
+build-folder locks). Returns `none` without running `act` if cancelled or no longer current,
+including when the lock is immediately available. -/
+def withBuildLock (baseDir : System.FilePath) (cancelToken : IO.CancelToken)
+    (act : IO α) (isCurrent : IO Bool := pure true) : IO (Option α) := do
+  let wanted := do return !(← cancelToken.isSet) && (← isCurrent)
+  unless ← wanted do return none
+  IO.FS.createDirAll baseDir
+  let lock ← IO.FS.Handle.mk (baseDir / "build.lock") .write
+  while !(← lock.tryLock) do
+    unless ← wanted do return none
+    IO.sleep 100
+  try
+    unless ← wanted do return none
+    return some (← act)
+  finally
+    -- NOTE: Besides unlocking, this keeps `lock` referenced while `act` runs. Once nothing refers
+    -- to a handle, Lean frees it and closes the file, which releases its lock, so without this
+    -- line the lock would be gone right after `tryLock` succeeds.
+    lock.unlock
+
+private def openUseLock (buildFolder : System.FilePath) : IO IO.FS.Handle :=
+  IO.FS.Handle.mk (buildFolder / "use.lock") .write
+
+/-- Dedicated recency marker, updated only when a build acquires its use lock. -/
+private def lastUsedFile (buildFolder : System.FilePath) : System.FilePath :=
+  buildFolder / "last-used"
+
+/-- Build folders that checks in this process are using, by progress instance, each with the
+shared lock held on the folder's `use.lock`. -/
+initialize buildFolderUses : IO.Ref (Std.HashMap Nat IO.FS.Handle) ← IO.mkRef {}
+
+/-- Mark `buildFolder` as in use by `instanceId` until `releaseBuildFolder`, so that
+`pruneBuildFolders` leaves it alone. Call it while holding `withBuildLock`. -/
+def useBuildFolder (instanceId : Nat) (buildFolder : System.FilePath) : IO Unit := do
+  IO.FS.createDirAll buildFolder
+  let lock ← openUseLock buildFolder
+  -- Cannot fail: a prune locks `use.lock` exclusively only while holding the build lock.
+  discard <| lock.tryLock (exclusive := false)
+  -- NOTE: Storing the handle is what keeps the folder marked as in use. Once nothing refers to a
+  -- handle, Lean frees it and closes the file, which releases its lock, so the shared lock lasts
+  -- exactly as long as this entry, until `releaseBuildFolder` removes it.
+  buildFolderUses.modify (·.insert instanceId lock)
+  IO.FS.writeFile (lastUsedFile buildFolder) ""
+
+/-- Stop marking the build folder used by `instanceId` as in use. -/
+def releaseBuildFolder (instanceId : Nat) : IO Unit := do
+  if let some lock ← buildFolderUses.modifyGet fun uses => (uses[instanceId]?, uses.erase instanceId) then
+    lock.unlock
+
+/-- Check for active users and close the handle before deletion: Windows cannot remove an
+open lock file. The caller must hold the global build lock so no new user can enter. -/
+@[noinline] private def canPruneBuildFolder (folder : System.FilePath) : IO Bool := do
+  let use ← openUseLock folder
+  unless ← use.tryLock do return false
+  use.unlock
+  return true
+
+/-- Delete the build folders in `baseDir` beyond the `keep` most recently compiled ones, skipping
+any that a check is using. If the build lock is busy, skip pruning: cleanup must not delay a
+completed or cancelled run while another compilation holds the lock. -/
+def pruneBuildFolders (baseDir : System.FilePath) (keep : Nat) : IO Unit := do
+  unless ← baseDir.isDir do return
+  let lock ← IO.FS.Handle.mk (baseDir / "build.lock") .write
+  unless ← lock.tryLock do return
+  try
+    let mut folders : Array (System.FilePath × IO.FS.SystemTime) := #[]
+    for entry in ← baseDir.readDir do
+      unless ← entry.path.isDir do continue
+      let lastUsed ← try (·.modified) <$> (lastUsedFile entry.path).metadata catch _ => pure default
+      folders := folders.push (entry.path, lastUsed)
+    let newestFirst := folders.qsort fun a b => compare a.2 b.2 == .gt
+    for (folder, _) in newestFirst.extract keep do
+      try
+        if ← canPruneBuildFolder folder then
+          IO.FS.removeDirAll folder
+      catch _ => pure ()
+    return ()
+  finally
+    lock.unlock
 
 /-- Template for the `lakefile.lean` in the temp project. Note that it does
 not only require the parent Veil project, but also *all the dependencies*;
@@ -177,12 +289,11 @@ def main (args : List String) : IO Unit := do
 "
 
 /-- Create the temp build folder with all necessary files.
-Returns the absolute path to the build folder. Generated inputs are overwritten
-on each call while preserving the Lake build cache in the folder. -/
-def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespace : String)
-    (command : CompiledCommandSpec) : IO System.FilePath := do
+The caller computes and locks the folder once, then passes it here. Generated inputs are
+overwritten on each call while preserving the Lake build cache for unchanged programs. -/
+def createBuildFolder (buildFolder : System.FilePath) (modelSource : String) (specNamespace : String)
+    (command : CompiledCommandSpec) : IO Unit := do
   let veilPath ← IO.currentDir
-  let buildFolder ← generateBuildFolderName sourceFile command
   IO.FS.createDirAll buildFolder
   -- Write the lakefile
   IO.FS.writeFile (buildFolder / "lakefile.lean") lakefileTemplate
@@ -195,7 +306,6 @@ def createBuildFolder (sourceFile : String) (modelSource : String) (specNamespac
   if ← toolchainPath.pathExists then
     let toolchain ← IO.FS.readFile toolchainPath
     IO.FS.writeFile (buildFolder / "lean-toolchain") toolchain
-  return buildFolder
 
 /-- Result of running a compilation process. -/
 structure ProcessResult where
@@ -229,13 +339,11 @@ def runProcessWithStatusCallback (sourceFile : String) (command : CompiledComman
   let waitTask ← IO.asTask (prio := .dedicated) proc.wait
   let mut interrupted := false
   while !(← IO.hasFinished waitTask) do
-    if ← cancelToken.isSet then
-      proc.kill
-      interrupted := true
-      break
-    let current? ← stillCurrentCont sourceFile command commandId instanceId do
-      statusCallback ((← IO.monoMsNow) - startTime)
-    unless current? do
+    -- Stop once cancelled, or once a newer invocation of the same command supersedes this one.
+    let wanted ← if ← cancelToken.isSet then pure false else
+      stillCurrentCont sourceFile command commandId instanceId do
+        statusCallback ((← IO.monoMsNow) - startTime)
+    unless wanted do
       proc.kill
       interrupted := true
       break
