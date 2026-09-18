@@ -668,12 +668,10 @@ def elabModelCheck : CommandElab := fun stx => do
 where
   /-- Compile a temporary entry point in the current snapshot, then emit its C module.
 
-  Only the declarations reachable from that entry point are emitted. `emitC` would
-  emit every declaration elaborated in this file so far, which for a file holding
-  several specifications means compiling the other specifications' C for nothing;
-  the C shrinks by roughly 2/3 even on a two-specification test file. The trade-off
-  is that a top-level `initialize` block in the source file is only run by the
-  binary if the model checker call reaches it. -/
+  Emit the declarations reachable from the entry point and all local initializers.
+  Initializers may have side effects even when their results are unused. Keeping
+  them as roots preserves module initialization without emitting unrelated
+  specifications. The emitter retains Lean's recorded declaration order. -/
   generateCCode (callExpr : Term) : CommandElabM String := withoutModifyingEnv do
     if (← getEnv).contains `main then
       throwError "Cannot compile this model check: the file already declares `main`, \
@@ -693,10 +691,13 @@ where
       Term.synthesizeSyntheticMVarsNoPostponing
       discard <| addVeilDefinition `main (← instantiateMVars expr) (addNamespace := false)
     liftCoreM do
+      let env ← getEnv
+      let initializers := (← Lean.Compiler.LCNF.getLocalImpureDecls).filter fun name =>
+        Lean.isIOUnitInitFn env name || Lean.hasInitAttr env name
       -- `emitCForDecls` indexes its argument, so it must be given the whole closure,
       -- not just the entry point.
-      let (used, _) ← Lean.Compiler.LCNF.collectUsedDecls #[`main]
-      Lean.Compiler.LCNF.emitCForDecls (← getEnv).mainModule (used.map (·.name))
+      let (used, _) ← Lean.Compiler.LCNF.collectUsedDecls (#[`main] ++ initializers)
+      Lean.Compiler.LCNF.emitCForDecls env.mainModule (used.map (·.name))
 
   /-- Build the core model checker call syntax (without parallel config). -/
   mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig)
