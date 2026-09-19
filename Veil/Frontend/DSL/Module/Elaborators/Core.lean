@@ -50,10 +50,22 @@ private def overrideLeanDefaults : CommandElabM Unit := do
   for (name, value) in veilDefaultOptions do
     modifyScope fun scope => { scope with opts := scope.opts.insert name value }
 
+private def checkVeilIsPubliclyImported (stx : Syntax) : CommandElabM Unit := do
+  if ((← getEnv).setExporting true).find? ``Veil.Enumeration |>.isSome then return
+  logErrorAt stx "Veil is only imported into this module's private scope, but `veil module` \
+    elaborates its generated declarations into the public scope. Write `public import Veil` \
+    instead of `import Veil` at the top of this file."
+
 @[command_elab Veil.moduleDeclaration]
 def elabModuleDeclaration : CommandElab := fun stx => do
   match stx with
   | `(veil module $modName:ident) => do
+    /- `veil module` elaborates the declarations it generates into the public scope, so every
+    Veil name their signatures and bodies mention must be publicly visible as well. A plain
+    `import Veil` only reaches the private scope; without this check that surfaces much later,
+    as a wall of unknown-identifier errors from `#gen_state`. `setExporting` is a no-op outside
+    the module system, so files without a `module` header are unaffected. -/
+    checkVeilIsPubliclyImported stx
     overrideLeanDefaults
     let genv ← globalEnv.get
     let name := modName.getId
@@ -67,7 +79,7 @@ def elabModuleDeclaration : CommandElab := fun stx => do
     let exposeAttr ← `(Parser.Term.attrInstance| expose)
     modifyScope fun scope => { scope with isPublic := true, attrs := exposeAttr :: scope.attrs }
     if genv.containsModule name then
-      logInfo "Module {name} has been previously defined. Importing it here."
+      logInfo m!"Module {name} has been previously defined. Importing it here."
       let mod := genv.modules[name]!
       localEnv.modifyModule (fun _ => mod)
     else
@@ -682,8 +694,8 @@ where
         which the generated model checker binary needs as its entry point. \
         Move the `main` declaration into another file, or use `#model_check interpreted`."
     unless (← getEnv).header.isModule do
-      throwError "Compiled checks require Lean's module system. Start this file with `module`, \
-        and use `public import Veil` (or `public import Veil.Core`)."
+      throwError "Compiled checks require Lean's module system. Start this file with `module`, and write \
+        `public import Veil` (instead of `import Veil`)."
     liftCoreM ModelChecker.Compilation.compileRuntimeInitializers
     -- NOTE: Elaborate a term and add it with `addVeilDefinition` instead of elaborating a `def`
     -- command. `elabCommand` logs errors rather than
