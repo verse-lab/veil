@@ -12,6 +12,27 @@ namespace Veil.ModelChecker.Compilation
 
 open Lean Meta Elab Command
 
+/-- Native dependencies follow ordinary imports, including private ones. Meta imports
+supply elaboration tools but do not initialize or link into a standalone checker. -/
+def executionImports (env : Environment) : CoreM (Array Name) := do
+  let mut pending := env.imports.filterMap fun imp => if imp.isMeta then none else some imp.module
+  let mut visited : NameSet := {}
+  let mut imports := #[]
+  while !pending.isEmpty do
+    let name := pending.back!
+    pending := pending.pop
+    if visited.contains name then continue
+    visited := visited.insert name
+    imports := imports.push name
+    let deps ← if let some idx := env.getModuleIdx? name then
+      pure env.header.moduleData[idx]!.imports
+    else
+      -- A private runtime dependency need not have been loaded for elaboration.
+      let (data, _) ← readModuleData (← findOLean name)
+      pure data.imports
+    pending := pending ++ deps.filterMap fun imp => if imp.isMeta then none else some imp.module
+  return imports.qsort Name.quickLt
+
 private unsafe def evalJsonComputationUnsafe (expr : Expr) : TermElabM (IO Json) :=
   Meta.evalExpr (IO Json) (mkApp (mkConst ``IO) (mkConst ``Json)) expr
 

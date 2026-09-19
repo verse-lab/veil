@@ -40,7 +40,7 @@ end Ring
 
 The `module` header enables Lean’s module system and must precede the imports.
 The `public import Veil` statement brings in all Veil DSL syntax and utilities. Verification tools
-are imported for elaboration only.
+are imported for elaboration only; compiled model checkers link the runtime dependencies.
 `veil module` sets the visibility and transparency of its declarations automatically;
 users do not need a `public section` or `@[expose]` annotation.
 

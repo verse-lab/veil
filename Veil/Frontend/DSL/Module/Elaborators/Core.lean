@@ -685,6 +685,18 @@ where
       throwError "Cannot compile this model check: the file already declares `main`, \
         which the generated model checker binary needs as its entry point. \
         Move the `main` declaration into another file, or use `#model_check interpreted`."
+    unless (← getEnv).header.isModule do
+      throwError "Compiled checks require Lean's module system. Start this file with `module`, \
+        and use `public import Veil` (or `public import Veil.Core`)."
+    -- Compile even unused runtime initializers, in source order. New modules postpone
+    -- ordinary definitions until native compilation; compiling only `main` misses these.
+    liftCoreM do
+      let env ← getEnv
+      for name in (Lean.regularInitAttr.ext.getState env).1.reverse do
+        unless Lean.isMarkedMeta env name do
+          if let some initFn := Lean.getInitFnNameFor? env name then
+            Lean.Compiler.LCNF.resumeCompilation initFn (← getOptions)
+          Lean.Compiler.LCNF.resumeCompilation name (← getOptions)
     -- NOTE: Elaborate a term and add it with `addVeilDefinition` instead of elaborating a `def`
     -- command. `elabCommand` logs errors rather than
     -- throwing, and error recovery still adds `main` with a `sorry` body, so a failed
@@ -701,7 +713,7 @@ where
     liftCoreM do
       let env ← getEnv
       let initializers := (← Lean.Compiler.LCNF.getLocalImpureDecls).filter fun name =>
-        Lean.isIOUnitInitFn env name || Lean.hasInitAttr env name
+        !Lean.isMarkedMeta env name && (Lean.isIOUnitInitFn env name || Lean.hasInitAttr env name)
       -- `emitCForDecls` indexes its argument, so it must be given the whole closure,
       -- not just the entry point.
       let (used, _) ← Lean.Compiler.LCNF.collectUsedDecls (#[`main] ++ initializers)
@@ -918,7 +930,7 @@ where
     if ← cancelToken.isSet then return none
     let cCode ← generateCCode callExpr
     if ← cancelToken.isSet then return none
-    let imports := (← getEnv).allImportedModuleNames
+    let imports ← liftCoreM <| ModelChecker.Compilation.executionImports (← getEnv)
     let buildFolder ← ModelChecker.Compilation.generateBuildFolderName sourceFile command cCode imports
     let lake ← ModelChecker.Compilation.getLakeExecutable
     let sourcePath := (← IO.currentDir) / sourceFile
