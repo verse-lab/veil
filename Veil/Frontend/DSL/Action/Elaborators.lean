@@ -37,10 +37,10 @@ open Lean Elab Command Term
 open Loom.Order
 open scoped Loom.Order
 
+namespace Veil
+
 theorem contraposition {p q : Prop} (h : ¬q → ¬p) : p → q :=
   fun hp => Classical.byContradiction (fun hnq => h hnq hp)
-
-namespace Veil
 
 abbrev FullyQualifiedName := Name
 /-- Get the fully qualified name of an _existing_ definition. -/
