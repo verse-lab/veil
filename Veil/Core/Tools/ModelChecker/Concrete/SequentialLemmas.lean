@@ -1,4 +1,9 @@
-import Veil.Core.Tools.ModelChecker.Concrete.SearchContext
+module
+
+public import Veil.Core.Tools.ModelChecker.Concrete.SearchContext
+public meta import Veil.Core.Tools.ModelChecker.Concrete.SearchContext
+
+@[expose] public section
 
 namespace Veil.ModelChecker.Concrete
 

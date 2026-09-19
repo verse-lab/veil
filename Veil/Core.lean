@@ -1,15 +1,33 @@
-import Veil.Frontend.Std
-import Veil.Frontend.DSL.Infra.VerificationDiagnostics
-import Lean
-import Veil.Base
-import Veil.Frontend.DSL.Module.Syntax
-import Veil.Frontend.DSL.Action.Syntax
-import Veil.Frontend.DSL.Action.Semantics.Theorems
-import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.Module.Elaborators.Core
-import Veil.Frontend.DSL.Infra.Assertions
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Frontend.DSL.Infra.Simp
-import Veil.Frontend.DSL.Tactic.Core
-import Veil.Frontend.DSL.State.Instances
-import Veil.Frontend.DSL.State.Repr
+module
+
+public import Veil.Core.Tools.ModelChecker.CompiledRuntime
+public meta import Veil.Core.Tools.ModelChecker.CompiledRuntime
+public import Veil.Core.Tools.ModelChecker.Concrete.Checker
+public meta import Veil.Core.Tools.ModelChecker.Concrete.Checker
+public import Veil.Core.Tools.ModelChecker.Simulation
+public meta import Veil.Core.Tools.ModelChecker.Simulation
+public import Veil.Frontend.DSL.Action.Extract
+public meta import Veil.Frontend.DSL.Action.Extract
+public import Veil.Frontend.Std
+public meta import Veil.Frontend.Std
+public meta import Veil.Frontend.DSL.Infra.VerificationDiagnostics
+public import Lean
+public meta import Lean
+public import Veil.Base
+public meta import Veil.Base
+public meta import Veil.Frontend.DSL.Module.Syntax
+public meta import Veil.Frontend.DSL.Action.Syntax
+public import Veil.Frontend.DSL.Action.Semantics.Theorems
+public meta import Veil.Frontend.DSL.Action.Semantics.Theorems
+public meta import Veil.Frontend.DSL.Module.Representation
+public meta import Veil.Frontend.DSL.Module.Elaborators.Core
+public meta import Veil.Frontend.DSL.Infra.Assertions
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+public meta import Veil.Frontend.DSL.Infra.Simp
+public meta import Veil.Frontend.DSL.Tactic.Core
+public import Veil.Frontend.DSL.State.Instances
+public meta import Veil.Frontend.DSL.State.Instances
+public import Veil.Frontend.DSL.State.Repr
+public meta import Veil.Frontend.DSL.State.Repr
+
+@[expose] public section

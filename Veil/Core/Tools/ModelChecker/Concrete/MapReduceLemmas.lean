@@ -1,5 +1,11 @@
-import Veil.Core.Tools.ModelChecker.Concrete.SequentialLemmas
-import Veil.Util.TreeSetMisc
+module
+
+public import Veil.Core.Tools.ModelChecker.Concrete.SequentialLemmas
+public meta import Veil.Core.Tools.ModelChecker.Concrete.SequentialLemmas
+public import Veil.Util.TreeSetMisc
+public meta import Veil.Util.TreeSetMisc
+
+@[expose] public section
 namespace Veil.ModelChecker.Concrete
 
 variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] [Ord σₕ] {th : ρ}

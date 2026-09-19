@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-!
 # Regression: state reads stay coherent after calls in `pick` and `veil_var` types

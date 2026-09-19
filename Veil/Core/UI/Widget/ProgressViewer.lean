@@ -1,17 +1,21 @@
+module
+
 /-
 Copyright (c) 2025 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: George Pîrlea
 -/
-import Lean.Server.Rpc.Basic
-import Lean.Elab.Command
+public meta import Lean.Server.Rpc.Basic
+public meta import Lean.Elab.Command
 
-import ProofWidgets.Component.Basic
-import ProofWidgets.Component.HtmlDisplay
-import Veil.Core.UI.Widget.RefreshComponent
-import Veil.Core.Tools.ModelChecker.Concrete.Progress
-import Veil.Core.UI.Trace.TraceDisplay
-import ProofWidgets.Component.Recharts
+public meta import ProofWidgets.Component.Basic
+public meta import ProofWidgets.Component.HtmlDisplay
+public meta import Veil.Core.UI.Widget.RefreshComponent
+public meta import Veil.Core.Tools.ModelChecker.Concrete.Progress
+public meta import Veil.Core.UI.Trace.TraceDisplay
+public meta import ProofWidgets.Component.Recharts
+
+public meta section
 
 namespace Veil.ModelChecker
 

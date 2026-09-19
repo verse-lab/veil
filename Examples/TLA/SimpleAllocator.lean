@@ -1,5 +1,7 @@
+module
 
-import Veil
+
+public import Veil
 
 -- https://github.com/tlaplus/Examples/blob/c2641e69204ed241cdf548d9645ac82df55bfcd8/specifications/allocator/SimpleAllocator.tla
 

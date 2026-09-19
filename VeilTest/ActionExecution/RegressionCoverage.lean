@@ -1,4 +1,7 @@
-import VeilTest.ActionExecution
+module
+
+public import VeilTest.ActionExecution
+public meta import VeilTest.ActionExecution
 
 /-!
 Concrete regressions found while reviewing the extensible-`do` port.  Every

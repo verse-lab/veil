@@ -1,4 +1,7 @@
-import VeilTest.ActionExecution
+module
+
+public import VeilTest.ActionExecution
+public meta import VeilTest.ActionExecution
 
 set_option linter.unusedVariables false
 
@@ -17,7 +20,7 @@ namespace VeilTest.NoInlineLetInExtraction
 
 /-- Count occurrences in the expanded tree, caching counts of shared subterms.
 `Expr.forEach` would visit each distinct subterm only once, hiding duplication. -/
-private partial def countLit (lit : Nat) (e₀ : Expr) : Nat := (go e₀).run' {}
+private meta partial def countLit (lit : Nat) (e₀ : Expr) : Nat := (go e₀).run' {}
 where
   go (e : Expr) : StateM (Std.HashMap Expr Nat) Nat := do
     if let some n := (← get).get? e then return n
@@ -28,7 +31,7 @@ where
     return n
 
 /-- Count let binders once per distinct subterm, optionally restricting to `do` join points. -/
-private def countLets (e : Expr) (joinPointsOnly := false) : IO Nat := do
+private meta def countLets (e : Expr) (joinPointsOnly := false) : IO Nat := do
   let count ← IO.mkRef 0
   e.forEach fun e => do
     if let .letE nm .. := e then

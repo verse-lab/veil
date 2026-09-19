@@ -1,8 +1,17 @@
-import Std
-import Veil.Frontend.DSL.State.Concrete
-import Veil.Frontend.DSL.State.Data
-import Veil.Util.List
-import Std.Data.ExtTreeMap.Lemmas
+module
+
+public import Std
+public meta import Std
+public import Veil.Frontend.DSL.State.Concrete
+public meta import Veil.Frontend.DSL.State.Concrete
+public import Veil.Frontend.DSL.State.Data
+public meta import Veil.Frontend.DSL.State.Data
+public import Veil.Util.List
+public meta import Veil.Util.List
+public import Std.Data.ExtTreeMap.Lemmas
+public meta import Std.Data.ExtTreeMap.Lemmas
+
+@[expose] public section
 namespace Veil
 open Lean Std
 

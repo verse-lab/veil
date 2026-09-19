@@ -1,10 +1,21 @@
-import Veil.Util.Equiv
-import Veil.Util.List
-import Veil.Frontend.DSL.Module.Names
-import Veil.Util.Deriving
-import Veil.Util.EnumList
-import Std.Data.TreeSet.Lemmas
-import Std.Data.ExtTreeSet.Lemmas
+module
+
+public import Veil.Util.Equiv
+public meta import Veil.Util.Equiv
+public import Veil.Util.List
+public meta import Veil.Util.List
+public meta import Veil.Frontend.DSL.Module.Names
+public import Veil.Util.Deriving
+public meta import Veil.Util.Deriving
+public import Veil.Util.EnumList
+public meta import Veil.Util.EnumList
+public import Std.Data.TreeMap.Lemmas
+public import Std.Data.TreeSet.Lemmas
+public meta import Std.Data.TreeSet.Lemmas
+public import Std.Data.ExtTreeSet.Lemmas
+public meta import Std.Data.ExtTreeSet.Lemmas
+
+@[expose] public section
 
 /-! # Reification of Types of State Fields -/
 
@@ -304,27 +315,27 @@ instance (l : List α) : Enumeration ({ a : α // a ∈ l }) where
   complete := by grind
 
 instance [DecidableEq α] [Hashable α] (s : Std.HashSet α) : Enumeration ({ a : α // a ∈ s }) where
-  allValues := s.toList.attachWith _ (by simp)
+  allValues := s.toList.attachWith (fun a => a ∈ s) (by simp)
   complete := by grind
 
 instance [DecidableEq α] [Hashable α] (s : Std.HashMap α β) : Enumeration ({ a : α // a ∈ s }) where
-  allValues := s.keys.attachWith _ (by simp)
+  allValues := s.keys.attachWith (fun a => a ∈ s) (by simp)
   complete := by simp
 
 instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp] (s : Std.TreeSet α cmp) : Enumeration ({ a : α // a ∈ s }) where
-  allValues := s.toList.attachWith _ (by simp)
+  allValues := s.toList.attachWith (fun a => a ∈ s) (by simp)
   complete := by simp
 
 instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp] (s : Std.TreeMap α β cmp) : Enumeration ({ a : α // a ∈ s }) where
-  allValues := s.keys.attachWith _ (by simp)
+  allValues := s.keys.attachWith (fun a => a ∈ s) (by simp)
   complete := by simp
 
 instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp] (s : Std.ExtTreeSet α cmp) : Enumeration ({ a : α // a ∈ s }) where
-  allValues := s.toList.attachWith _ (by simp)
+  allValues := s.toList.attachWith (fun a => a ∈ s) (by simp)
   complete := by simp
 
 instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp] (s : Std.ExtTreeMap α β cmp) : Enumeration ({ a : α // a ∈ s }) where
-  allValues := s.keys.attachWith _ (by simp)
+  allValues := s.keys.attachWith (fun a => a ∈ s) (by simp)
   complete := by simp
 
 /-!
@@ -344,17 +355,17 @@ instance [Enumeration α] {β : α → Type v} [∀ a, DecidableEq (β a)] :
     DecidableEq (∀ a, β a) := fun f g =>
   decidable_of_iff (∀ a, f a = g a) ⟨funext, fun h a => congrFun h a⟩
 
-section EnumerationDerivingHandler
+meta section EnumerationDerivingHandler
 
 open Lean Meta Elab Term Command Deriving
 
 /-- Eliminate the intermediate list introduced by a nested constructor enumeration. -/
-private theorem exists_mapped_candidate {f : α → β} {p : α → Prop} {q : β → Prop} :
+theorem exists_mapped_candidate {f : α → β} {p : α → Prop} {q : β → Prop} :
     (∃ b, (∃ a, p a ∧ f a = b) ∧ q b) ↔ ∃ a, p a ∧ q (f a) :=
   ⟨fun ⟨_, ⟨a, ha, hab⟩, hb⟩ => ⟨a, ha, hab.symm ▸ hb⟩,
    fun ⟨a, hp, hq⟩ => ⟨f a, ⟨a, hp, rfl⟩, hq⟩⟩
 
-private def mkAllValuesFromHeader (header : Header) (localInsts fieldNames : Array Name) : TermElabM Term := do
+@[no_expose] private def mkAllValuesFromHeader (header : Header) (localInsts fieldNames : Array Name) : TermElabM Term := do
   -- for the types, knowing the length of `ts` should be enough
   let ts ← do
     let hole ← `(_)
@@ -374,7 +385,7 @@ private def mkAllValuesFromHeader (header : Header) (localInsts fieldNames : Arr
       `(⟨$arr,*⟩)
   `(@$(mkIdent ``IteratedProd.foldMap) _ $ts $init $f $enums)
 
-def mkEnumerationInstCmdForStructure (declName : Name) : CommandElabM Bool := ForStructure.mkInstCmdTemplate declName fun info indVal header => do
+@[no_expose] def mkEnumerationInstCmdForStructure (declName : Name) : CommandElabM Bool := ForStructure.mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (localInsts, binders') ← mkInstImplicitBindersForFields ``Enumeration indVal header.argNames fieldNames
   let allValues ← mkAllValuesFromHeader header localInsts fieldNames
@@ -386,7 +397,7 @@ def mkEnumerationInstCmdForStructure (declName : Name) : CommandElabM Bool := Fo
     $(mkIdent `allValues):ident := $allValues
     $(mkIdent `complete):ident  := $completeProof)
 
-def mkEnumerationInstCmdGeneralCase (declName : Name) : CommandElabM Bool := do
+@[no_expose] def mkEnumerationInstCmdGeneralCase (declName : Name) : CommandElabM Bool := do
   let indVal ← getConstInfoInduct declName
   let cmd ← liftTermElabM do
     let instName ← mkInstName ``Enumeration declName
@@ -400,7 +411,7 @@ def mkEnumerationInstCmdGeneralCase (declName : Name) : CommandElabM Bool := do
   elabVeilCommand cmd
   return true
 
-def mkEnumerationInstCmd (declName : Name) : CommandElabM Bool := do
+@[no_expose] def mkEnumerationInstCmd (declName : Name) : CommandElabM Bool := do
   if ← isEnumType declName then
     -- Generate the constructor list and its lookup/uniqueness proofs.
     let ctorIdxName := declName.mkStr "ctorIdx"
@@ -419,7 +430,7 @@ def mkEnumerationInstCmd (declName : Name) : CommandElabM Bool := do
     return true
   orM (mkEnumerationInstCmdForStructure declName) (mkEnumerationInstCmdGeneralCase declName)
 
-def mkEnumerationHandler := onlyHandleOne mkEnumerationInstCmd
+@[no_expose] def mkEnumerationHandler := onlyHandleOne mkEnumerationInstCmd
 
 initialize registerDerivingHandler ``Enumeration mkEnumerationHandler
 
@@ -668,14 +679,14 @@ def FinEncodable.ofEnumeration [Enumeration α] [DecidableEq α] : FinEncodable 
 instance (priority := low) [Enumeration α] [DecidableEq α] : FinEncodable α :=
   FinEncodable.ofEnumeration
 
-section FinEncodableDerivingHandler
+meta section FinEncodableDerivingHandler
 
 open Lean Meta Elab Term Command Deriving
 
-private theorem enumList_getElem?_ctorIdx_eq_implies_ctorIdx_lt {α : Type u} {l : List α}
+theorem enumList_getElem?_ctorIdx_eq_implies_ctorIdx_lt {α : Type u} {l : List α}
   {f : α → Nat} (h : ∀ a : α, l[f a]? = some a) : ∀ a : α, f a < l.length := by grind
 
-def mkFinEncodableInstCmd (declName : Name) : CommandElabM Bool := do
+@[no_expose] def mkFinEncodableInstCmd (declName : Name) : CommandElabM Bool := do
   if ← isEnumType declName then
     -- Generate the constructor list and its lookup/uniqueness proofs.
     let ctorIdxName := declName.mkStr "ctorIdx"
@@ -702,7 +713,7 @@ def mkFinEncodableInstCmd (declName : Name) : CommandElabM Bool := do
   -- orM (mkFinEncodableInstCmdForStructure declName) (mkFinEncodableInstCmdGeneralCase declName)
   return false
 
-def mkFinEncodableHandler := onlyHandleOne mkFinEncodableInstCmd
+@[no_expose] def mkFinEncodableHandler := onlyHandleOne mkFinEncodableInstCmd
 
 initialize registerDerivingHandler ``FinEncodable mkFinEncodableHandler
 
@@ -777,7 +788,7 @@ def FinEncodableInjOnly.ofEquivWithEnc {β : Type u} [inst : FinEncodableInjOnly
       Fin.ext (by simp only [Fin.mk.injEq] at heq; rw [← h_enc, ← h_enc]; exact heq)
     have hh := inst.encode_inj h ; simp at hh ; exact hh
 
-section FinEncodableInjOnlyDerivingHandler
+meta section FinEncodableInjOnlyDerivingHandler
 
 open Lean Meta Elab Term Command Deriving
 open Lean.Parser.Term (matchAltExpr matchDiscr matchAlt)
@@ -785,7 +796,7 @@ open Lean.Parser.Term (matchAltExpr matchDiscr matchAlt)
 /-- Convert a simple type `Expr` to `Syntax`, mapping parameter fvars to `header.argNames`.
     Handles `const`, `app`, `fvar`, `sort`, `bvar`, and `mdata`. Sufficient for field types
     of simple (non-indexed, non-recursive) inductive types. -/
-private partial def typeExprToSyntax (paramFvars : Array Expr) (argNames : Array Name) (e : Expr) : TermElabM Term := do
+@[no_expose] private partial def typeExprToSyntax (paramFvars : Array Expr) (argNames : Array Name) (e : Expr) : TermElabM Term := do
   -- Check if it's a parameter fvar
   for i in [:paramFvars.size] do
     if paramFvars[i]! == e then return ⟨mkIdent argNames[i]!⟩
@@ -807,7 +818,7 @@ private partial def typeExprToSyntax (paramFvars : Array Expr) (argNames : Array
     - 0 fields → `(1 : Nat)` (Unit card)
     - 1 field  → `FinEncodableInjOnly.card (κ := τ)`
     - k fields → `card τ₁ * (card τ₂ * (... * card τₖ))` (right-associated) -/
-private def mkCtorCardSyntax : List Term → TermElabM Term
+@[no_expose] private def mkCtorCardSyntax : List Term → TermElabM Term
   | [] => `((1 : Nat))
   | [t] => `(FinEncodableInjOnly.card (κ := $t))
   | t :: rest => do
@@ -819,7 +830,7 @@ private def mkCtorCardSyntax : List Term → TermElabM Term
     - 0 fields → `(0 : Nat)`
     - 1 field  → `(FinEncodableInjOnly.encode f).val`
     - k fields → `encode(f₁).val * tailCard + (encode(f₂).val * ... + encode(fₖ).val)` -/
-private def mkLocalEncodeSyntax : List (Ident × Term) → TermElabM Term
+@[no_expose] private def mkLocalEncodeSyntax : List (Ident × Term) → TermElabM Term
   | [] => `((0 : Nat))
   | [(f, _)] => `((FinEncodableInjOnly.encode ($f)).val)
   | (f, _) :: rest => do
@@ -837,13 +848,13 @@ where
 /-- Generate the full encoding with right-nested offset structure, matching
     the right-nested Sum encoding that `veil_proxy_equiv%` generates.
     Produces: `card₀ + (card₁ + (... + (cardₙ₋₁ + localEncode)))` -/
-private def mkFullEncodeSyntax : List Term → Term → TermElabM Term
+@[no_expose] private def mkFullEncodeSyntax : List Term → Term → TermElabM Term
   | [], localEncode => pure localEncode
   | card :: rest, localEncode => do
     let inner ← mkFullEncodeSyntax rest localEncode
     `($card + $inner)
 
-def mkFinEncodableInjOnlyInstCmdDeforested (declName : Name) : CommandElabM Bool := do
+@[no_expose] def mkFinEncodableInjOnlyInstCmdDeforested (declName : Name) : CommandElabM Bool := do
   let indVal ← getConstInfoInduct declName
   let cmd ← liftTermElabM do
     let instName ← mkInstName ``FinEncodableInjOnly declName
@@ -904,10 +915,10 @@ def mkFinEncodableInjOnlyInstCmdDeforested (declName : Name) : CommandElabM Bool
   elabVeilCommand cmd
   return true
 
-def mkFinEncodableInjOnlyInstCmd (declName : Name) : CommandElabM Bool :=
+@[no_expose] def mkFinEncodableInjOnlyInstCmd (declName : Name) : CommandElabM Bool :=
   mkFinEncodableInjOnlyInstCmdDeforested declName
 
-def mkFinEncodableInjOnlyHandler := onlyHandleOne mkFinEncodableInjOnlyInstCmd
+@[no_expose] def mkFinEncodableInjOnlyHandler := onlyHandleOne mkFinEncodableInjOnlyInstCmd
 
 initialize registerDerivingHandler ``FinEncodableInjOnly mkFinEncodableInjOnlyHandler
 
@@ -941,7 +952,7 @@ open Lean Elab Command Meta Term
 where `T` is an enum type, this generates an array of `Bool` such that
 for each constructor `c : T`, the corresponding `Bool` indicates whether
 all `OptionalTC` instances are `some` when applying `df` to `c`. -/
-private def genAllSomePredicateCore (dfName : Name) : MetaM (Name × Array Bool) := do
+@[no_expose] private meta def genAllSomePredicateCore (dfName : Name) : MetaM (Name × Array Bool) := do
   let dfName ← resolveGlobalConstNoOverloadCore dfName
   let dfInfo ← getConstInfo dfName
   let some dfExpr := dfInfo.value?
@@ -970,7 +981,7 @@ private def genAllSomePredicateCore (dfName : Name) : MetaM (Name × Array Bool)
 where hasNoneInstance (e : Expr) : Bool :=
   Option.isSome <| e.find? fun subExpr => subExpr.isConstOf ``instOptionalTCNone
 
-def genAllSomePredicateSyntax (dfName : Name) : MetaM (TSyntax ``Parser.Term.bracketedBinder × Term) := do
+meta def genAllSomePredicateSyntax (dfName : Name) : MetaM (TSyntax ``Parser.Term.bracketedBinder × Term) := do
   let (labelTypeName, results) ← genAllSomePredicateCore dfName
   let casesOn := labelTypeName ++ `casesOn
   let quotedResults : Array Term := results.map quote
@@ -979,7 +990,7 @@ def genAllSomePredicateSyntax (dfName : Name) : MetaM (TSyntax ``Parser.Term.bra
   let body ← `($(mkIdent casesOn) $l $quotedResults*)
   pure (binder, body)
 
-def genAllSomePredicateTermElab (dfName : Name) : TermElabM Expr := do
+meta def genAllSomePredicateTermElab (dfName : Name) : TermElabM Expr := do
   let (labelTypeName, results) ← genAllSomePredicateCore dfName
   let casesOn := labelTypeName ++ `casesOn
   let l ← mkFreshUserName `l
@@ -996,7 +1007,7 @@ def genAllSomePredicateTermElab (dfName : Name) : TermElabM Expr := do
 --   let cmd ← liftTermElabM <| genAllSomePredicateDefSyntax dfName outputName
 --   elabVeilCommand cmd
 
-def genAllSomePredicateCmd [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (dfName : Name) (outputName : Name) : m Syntax := do
+meta def genAllSomePredicateCmd [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (dfName : Name) (outputName : Name) : m Syntax := do
   let checkTerm := Syntax.mkApp (mkIdent ``OptionalTC.genAllSomePredicateTermElab) #[quote dfName]
   `(def $(mkIdent outputName) := by_elab $checkTerm:term)
 

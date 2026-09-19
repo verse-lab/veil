@@ -1,4 +1,9 @@
-import Veil.Core.Tools.ModelChecker.Simulation.Basic
+module
+
+public import Veil.Core.Tools.ModelChecker.Simulation.Basic
+public meta import Veil.Core.Tools.ModelChecker.Simulation.Basic
+
+public section
 
 namespace Veil.ModelChecker.Simulation
 open Lean

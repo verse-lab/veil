@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /- Direct translation of Room.tla for model checking comparison.
 This version aims to match TLA+ semantics as closely as possible.

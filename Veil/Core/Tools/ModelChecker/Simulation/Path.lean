@@ -1,5 +1,12 @@
-import Veil.Core.Tools.ModelChecker.Simulation.Basic
-import Veil.Core.Tools.ModelChecker.Concrete.Core
+module
+
+import all Init.Data.Random
+public import Veil.Core.Tools.ModelChecker.Simulation.Basic
+public meta import Veil.Core.Tools.ModelChecker.Simulation.Basic
+public import Veil.Core.Tools.ModelChecker.Concrete.Core
+public meta import Veil.Core.Tools.ModelChecker.Concrete.Core
+
+@[expose] public section
 
 namespace Veil.ModelChecker.Simulation
 

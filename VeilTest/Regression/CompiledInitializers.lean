@@ -1,4 +1,6 @@
-import Veil.Core
+module
+
+public import Veil.Core
 
 -- These effects are not reachable from the checker entry point. Both anonymous
 -- initialization and a named initializer whose result is unused must still run,

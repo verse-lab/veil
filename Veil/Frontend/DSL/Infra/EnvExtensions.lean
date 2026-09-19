@@ -1,10 +1,14 @@
-import Lean
-import Veil.Base
-import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.Infra.Assertions
-import Veil.Frontend.DSL.Infra.VerificationSupport
+module
+
+public meta import Lean
+public meta import Veil.Base
+public meta import Veil.Frontend.DSL.Module.Representation
+public meta import Veil.Frontend.DSL.Infra.Assertions
+public meta import Veil.Frontend.DSL.Infra.VerificationSupport
 -- Not needed for compilation, but re-exported
-import Veil.Util.EnvExtensions
+public meta import Veil.Util.EnvExtensions
+
+public meta section
 open Lean
 
 namespace Veil

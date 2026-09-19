@@ -1,4 +1,9 @@
-import Lean
+module
+
+public import Lean
+public meta import Lean
+
+@[expose] public section
 
 namespace Veil
 

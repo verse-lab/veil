@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 -- This makes the Veil DSL available in this file, and imports the Veil
 -- standard library (`Veil.Std`), which contains a number of useful

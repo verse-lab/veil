@@ -1,5 +1,7 @@
-import Veil
-import Veil.Util.Permutations
+module
+
+public import Veil
+public import Veil.Util.Permutations
 
 open Std
 

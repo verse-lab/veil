@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 set_option linter.unusedVariables false
 set_option linter.constructorNameAsVariable false

@@ -1,3 +1,5 @@
+module
+
 /-
 Adapted from mathlib; only what Veil's sorted-list operations need. All rights
 reserved by the respective copyright holders; released under Apache 2.0 license
@@ -9,7 +11,10 @@ as described in LICENSE.
 * their lemmas come from `Mathlib.Data.List.Destutter` -- (c) 2022 Eric
   Rodriguez. Authors: Eric Rodriguez, Eric Wieser
 -/
-import Veil.Util.List
+public import Veil.Util.List
+public meta import Veil.Util.List
+
+@[expose] public section
 
 namespace Veil.List
 

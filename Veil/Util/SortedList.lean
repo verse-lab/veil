@@ -1,7 +1,15 @@
-import Std
-import Veil.Util.Destutter
-import Veil.Frontend.DSL.State.Types
-import Veil.Frontend.DSL.State.Instances
+module
+
+public import Std
+public meta import Std
+public import Veil.Util.Destutter
+public meta import Veil.Util.Destutter
+public import Veil.Frontend.DSL.State.Types
+public meta import Veil.Frontend.DSL.State.Types
+public import Veil.Frontend.DSL.State.Instances
+public meta import Veil.Frontend.DSL.State.Instances
+
+@[expose] public section
 
 /-! # Sorted List -/
 
@@ -880,7 +888,8 @@ private theorem sublists_all_sorted [TransOrd α] [LawfulEqOrd α] (l : List α)
 
 @[inline]
 def sublists [TransOrd α] [LawfulEqOrd α] (l : OrdList α) : List (OrdList α) :=
-  l.val.sublists.attachWith _ (sublists_all_sorted l.val l.property)
+  l.val.sublists.attachWith (fun sl => sl.Pairwise (cmpLt (α := α)))
+    (by exact sublists_all_sorted l.val l.property)
 
 -- TODO check these instances later?
 

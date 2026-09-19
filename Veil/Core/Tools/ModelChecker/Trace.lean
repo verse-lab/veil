@@ -1,5 +1,11 @@
-import Veil.Core.Tools.ModelChecker.TransitionSystem
-import Lean
+module
+
+public import Veil.Core.Tools.ModelChecker.TransitionSystem
+public meta import Veil.Core.Tools.ModelChecker.TransitionSystem
+public import Lean
+public meta import Lean
+
+@[expose] public section
 
 namespace Veil.ModelChecker
 open Lean
@@ -50,7 +56,7 @@ theorem StateTrace.push_validFrom (sys : RelationalTransitionSystem ρ σ l)
   simp only [Steps.validFrom, Steps.push, List.push_toArray]
   intro h htr
   induction ts generalizing s with
-  | nil => simpa [StepList.validFrom, Steps.getLastStateD]
+  | nil => simpa [StepList.validFrom, Steps.getLastStateD] using htr
   | cons hd tl ih => grind
 
 @[grind]
@@ -122,6 +128,6 @@ theorem Trace.isValid_empty (sys : RelationalTransitionSystem ρ σ l) (th : ρ)
 
 @[simp, grind =]
 theorem Trace.getLast_empty (th : ρ) (st : σ) :
-  ({ theory := th, initialState := st, steps := #[] } : Trace ρ σ l).lastState = st := by rfl
+  ({ theory := th, initialState := st, steps := #[] } : Trace ρ σ l).lastState = st := by simp [Trace.lastState, Steps.getLastStateD]
 
 end Veil.ModelChecker

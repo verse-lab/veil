@@ -1,20 +1,24 @@
-import Lean
-import Lean.Meta.Tactic.TryThis
-import Veil.Base
-import Veil.Frontend.DSL.Module.Syntax
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Frontend.DSL.Module.Util
-import Veil.Frontend.DSL.Action.Elaborators
-import Veil.Frontend.DSL.State.SubState
-import Veil.Frontend.DSL.State.ConcreteRegistry
-import Veil.Core.UI.Trace.TraceDisplay
-import Veil.Core.Tools.ModelChecker.Concrete.Checker
-import Veil.Core.Tools.ModelChecker.Simulation
-import Veil.Frontend.DSL.Action.Extract
-import Veil.Frontend.DSL.Module.Util.Enumeration
-import Veil.Util.Multiprocessing
-import Veil.Frontend.DSL.Module.AssertionInfo
-import Veil.Frontend.DSL.Infra.VerificationSupport
+module
+
+public meta import Lean
+public meta import Lean.Meta.Tactic.TryThis
+public meta import Veil.Base
+public meta import Veil.Frontend.DSL.Module.Syntax
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+public meta import Veil.Frontend.DSL.Module.Util
+public meta import Veil.Frontend.DSL.Action.Elaborators
+public meta import Veil.Frontend.DSL.State.SubState
+public meta import Veil.Frontend.DSL.State.ConcreteRegistry
+public meta import Veil.Core.UI.Trace.TraceDisplay
+public meta import Veil.Core.Tools.ModelChecker.Concrete.Checker
+public meta import Veil.Core.Tools.ModelChecker.Simulation
+public meta import Veil.Frontend.DSL.Action.Extract
+public meta import Veil.Frontend.DSL.Module.Util.Enumeration
+public meta import Veil.Util.Multiprocessing
+public meta import Veil.Frontend.DSL.Module.AssertionInfo
+public meta import Veil.Frontend.DSL.Infra.VerificationSupport
+
+public meta section
 
 open Lean Parser Elab Command Term
 open scoped Veil.Extract
@@ -58,6 +62,10 @@ def elabModuleDeclaration : CommandElab := fun stx => do
       throwError s!"Module {mod.name} is already open, but you are now trying to open module {name}. Nested modules are not supported!"
     elabVeilCommand $ ← `(open Veil)
     elabVeilCommand $ ← `(namespace $modName)
+    -- Generated declarations form the reusable API of a Veil module. Scope these
+    -- defaults to its namespace, so `end` restores the surrounding Lean defaults.
+    let exposeAttr ← `(Parser.Term.attrInstance| expose)
+    modifyScope fun scope => { scope with isPublic := true, attrs := exposeAttr :: scope.attrs }
     if genv.containsModule name then
       logInfo "Module {name} has been previously defined. Importing it here."
       let mod := genv.modules[name]!
@@ -209,7 +217,7 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
       $(mkIdent ``Array.contains) ($namesArrStx) ($(mkIdent ``Lean.Syntax.getId) $id) ||
       ($(mkIdent ``Veil.isCapital) ($(mkIdent ``Lean.Syntax.getId) $id) && $(mkIdent ``Veil.isVeilProcedureContext) $stack))
     let nm := mkIdent `ignoreStateFields
-    let ignoreFnStx ← `(@[$(mkIdent `unused_variables_ignore_fn):ident] def $nm : $(mkIdent ``Lean.Linter.IgnoreFunction) := $fnStx)
+    let ignoreFnStx ← `(@[$(mkIdent `unused_variables_ignore_fn):ident] meta def $nm : $(mkIdent ``Lean.Linter.IgnoreFunction) := $fnStx)
     return ignoreFnStx
   elabVeilCommand cmd
 
@@ -850,7 +858,7 @@ where
     liftTermElabM do
       let expr ← Term.elabTerm resultExpr none
       Term.synthesizeSyntheticMVarsNoPostponing
-      unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
+      ModelChecker.Compilation.evalJsonComputation (← instantiateMVars expr)
 
   /-- Log model checking result. -/
   logModelCheckResult (kind : TraceDisplay.ResultKind) (stx : Syntax)
@@ -1134,7 +1142,7 @@ private def elaborateSimulateComputation (instanceId : Nat) (callExpr : Term) : 
   liftTermElabM do
     let expr ← Term.elabTerm resultExpr none
     Term.synthesizeSyntheticMVarsNoPostponing
-    unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
+    ModelChecker.Compilation.evalJsonComputation (← instantiateMVars expr)
 
 private def simulationResultWasCancelled (combinedJson : Json) : Bool :=
   elabModelCheck.resultWasCancelled combinedJson

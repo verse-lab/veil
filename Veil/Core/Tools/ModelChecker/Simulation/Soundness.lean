@@ -1,6 +1,13 @@
-import Veil.Core.Tools.ModelChecker.Simulation.Basic
-import Veil.Core.Tools.ModelChecker.Simulation.Path
-import Veil.Core.Tools.ModelChecker.Concrete.Core
+module
+
+public import Veil.Core.Tools.ModelChecker.Simulation.Basic
+public meta import Veil.Core.Tools.ModelChecker.Simulation.Basic
+public import Veil.Core.Tools.ModelChecker.Simulation.Path
+public meta import Veil.Core.Tools.ModelChecker.Simulation.Path
+public import Veil.Core.Tools.ModelChecker.Concrete.Core
+public meta import Veil.Core.Tools.ModelChecker.Concrete.Core
+
+@[expose] public section
 
 namespace Veil.ModelChecker.Simulation
 
@@ -280,7 +287,8 @@ theorem simulateOnce_sound {ρ σ κ : Type}
             simp [initStates, p, idx, hNonemptyRaw] at h
             exact h
           cases hFound
-          exact ⟨hValid, hNoFail, rfl, hNonempty⟩
+          refine ⟨hValid, hNoFail, ?_, hNonempty⟩
+          simp [initTrace]
 
 /-- Any violation reported by a single indexed random trace is sound. -/
 theorem simulateTraceAtIndex_sound {ρ σ κ : Type}

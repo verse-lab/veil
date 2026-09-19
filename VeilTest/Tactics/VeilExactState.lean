@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /- Testing `veil_exact_state` tactic by using ghost relations. -/
 

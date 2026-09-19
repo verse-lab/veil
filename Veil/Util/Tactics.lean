@@ -1,10 +1,14 @@
+module
+
 /-
 The introv elaborator is adapted from Mathlib.Tactic.Basic (Apache 2.0).
 Copyright (c) 2018 Gabriel Ebner.
 -/
-import Veil.Util.Equiv
-import Veil.Util.SetTactic
-import Veil.Util.SplitIfs
+public meta import Veil.Util.Equiv
+public meta import Veil.Util.SetTactic
+public meta import Veil.Util.SplitIfs
+
+public meta section
 namespace Veil.Tactic
 open Lean Elab Tactic Meta
 syntax (name := introv) "introv" (ppSpace colGt binderIdent)* : tactic

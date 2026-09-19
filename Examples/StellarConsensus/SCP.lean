@@ -1,5 +1,7 @@
-import Veil
-import Examples.StellarConsensus.SCPTheory
+module
+
+public import Veil
+public import Examples.StellarConsensus.SCPTheory
 
 open scoped FBA
 
@@ -13,7 +15,7 @@ open scoped FBA
 /-- This type class bundles the properties abstracted from the concrete model
     of SCP, which will be used in the subsequent verification.
     In the Ivy spec, they appear as `trusted` properties (assumptions). -/
-class SCP.Background (node : outParam Type) (nset : outParam Type) where
+public class SCP.Background (node : outParam Type) (nset : outParam Type) where
   well_behaved : node → Prop
   intertwined : node → Prop
   intact : node → Prop

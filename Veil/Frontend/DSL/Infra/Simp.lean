@@ -1,4 +1,8 @@
-import Veil.Util.Meta
+module
+
+public meta import Veil.Util.Meta
+
+public meta section
 
 namespace Veil
 
@@ -94,6 +98,8 @@ where
     -- based on `Lean.Elab.Tactic.elabDeclToUnfoldOrTheorem`
     let simps : Array (Array Meta.SimpTheorem ⊕ Array Meta.SimpEntry) ← simps.filterMapM (fun name => do
       let [(fqn, _)] ← resolveGlobalName name | return none
+      -- Simprocs are executed separately, not unfolded as ordinary definitions.
+      if ← Meta.Simp.isSimproc fqn then return none
       let info ← getConstVal fqn
       if (← Meta.isProp info.type) then
         -- TODO: `post := false` means `↓`, `inv := true` means `←`
@@ -108,9 +114,9 @@ where
     let s := simpEntries.foldl (init := s) (fun thms entry => thms.addSimpEntry entry)
     return s
 
-def EqualityProof := Option Expr
+abbrev EqualityProof := Option Expr
 /-- This not exactly a `Simproc`, since we don't return intermediate `Step`s. -/
-def Simplifier := Expr → MetaM Meta.Simp.Result
+abbrev Simplifier := Expr → MetaM Meta.Simp.Result
 
 /-- A simplifier that does nothing. -/
 def Simplifier.id : Simplifier := fun e => return { expr := e }

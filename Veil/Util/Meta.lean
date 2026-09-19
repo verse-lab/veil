@@ -1,5 +1,9 @@
-import Lean
-import Veil.Util.TermReduce
+module
+
+public meta import Lean
+public meta import Veil.Util.TermReduce
+
+public meta section
 open Lean Elab Command
 
 /-! # Meta-programming utility functions
@@ -253,11 +257,11 @@ def addVeilDefinitionAsync (n : Name) (e : Expr) (compile := true)
   | .some t => pure t
   | .none => Meta.inferType e
   let fullName ← if addNamespace then pure $ (← getCurrNamespace).append n else pure n
-  let addFn := if compile then addAndCompile else addDecl
-  addFn <|
-    Declaration.defnDecl <|
-      mkDefinitionValEx fullName levels type e red
-      (DefinitionSafety.safe) []
+  -- Extraction and proofs in importing modules unfold generated definitions.
+  let decl := Declaration.defnDecl <|
+    mkDefinitionValEx fullName levels type e red (DefinitionSafety.safe) []
+  addDecl decl (forceExpose := true)
+  if compile then compileDecl decl
   trace[veil.desugar] "{← stxForVeilDefinition red attr n type e}"
   return fullName
 

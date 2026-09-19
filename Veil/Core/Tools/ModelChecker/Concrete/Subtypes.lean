@@ -1,4 +1,9 @@
-import Veil.Frontend.DSL.State.Types
+module
+
+public import Veil.Frontend.DSL.State.Types
+public meta import Veil.Frontend.DSL.State.Types
+
+@[expose] public section
 
 open Veil IteratedProd
 

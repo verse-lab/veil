@@ -1,12 +1,16 @@
-import Lean
-import Veil.Base
-import Veil.Frontend.DSL.State.SubState
-import Veil.Frontend.DSL.Module.Util
-import Veil.Util.Meta
-import Veil.Frontend.DSL.Infra.Preprocessing
-import Veil.Frontend.DSL.Infra.Quantifiers
-import Veil.Util.ReplacingInstances
-import Veil.Util.UnhygienicCasesM
+module
+
+public meta import Lean
+public meta import Veil.Base
+public meta import Veil.Frontend.DSL.State.SubState
+public meta import Veil.Frontend.DSL.Module.Util
+public meta import Veil.Util.Meta
+public meta import Veil.Frontend.DSL.Infra.Preprocessing
+public meta import Veil.Frontend.DSL.Infra.Quantifiers
+public meta import Veil.Util.ReplacingInstances
+public meta import Veil.Util.UnhygienicCasesM
+
+public meta section
 
 open Lean Elab Tactic Meta Simp Tactic.TryThis Parser.Tactic
 namespace Veil
@@ -293,7 +297,7 @@ IteratedProd.append Eq.mp LawfulFieldRepresentationSet.set_append
 List.singleton_append CanonicalField.set FieldUpdateDescr.fieldUpdate
 FieldUpdatePat.match IteratedProd.patCmp Bool.and_true Bool.and_eq_true
 decide_eq_true_eq ite_eq_left_iff Bool.false_eq_true false_and and_self
-reduceIte ite_true ite_false and_true true_and List.head?
+reduceFieldRepresentationIte ite_true ite_false and_true true_and List.head?
 
 
 def elabVeilRenameHyp (xs ys : Array Syntax) : TacticM Unit := do
@@ -507,7 +511,7 @@ def elabVeilDestruct' : DesugarTacticM Unit := veilWithMainContext do
   let targetIdents := targets.map mkIdent
   veilEvalTactic $ ← `(tactic| (try veil_cases_type* $[$targetIdents:ident]*) ; expose_names )
 
-private inductive GenericStateKind
+inductive GenericStateKind
   | environmentState
   | backgroundTheory
 

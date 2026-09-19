@@ -1,11 +1,22 @@
-import Veil.Frontend.DSL.Module.Util
-import Veil.Frontend.DSL.Module.Names
-import Veil.Core.Tools.ModelChecker.ExecutionOutcome
-import Veil.Frontend.DSL.Action.Semantics.WP
+module
+
+public meta import Veil.Frontend.DSL.Module.Util
+public meta import Veil.Frontend.DSL.Module.Names
+public import Veil.Core.Tools.ModelChecker.ExecutionOutcome
+public meta import Veil.Core.Tools.ModelChecker.ExecutionOutcome
+public import Veil.Frontend.DSL.Action.Semantics.WP
+public meta import Veil.Frontend.DSL.Action.Semantics.WP
+
+public import Veil.Frontend.DSL.State.Types
+public meta import Veil.Frontend.DSL.State.Types
+
+public section
 
 open Lean Elab Command Term Meta Lean.Parser
 
 namespace Veil.Extract
+
+meta section FrontendExtraction
 
 syntax injectBindersStx := "injection_begin" bracketedBinder* "injection_end"
 
@@ -72,7 +83,8 @@ with the call convention its binder structure implies.
 Specializing a parameter turns it into a `letI` rather than a binder, so a caller
 must not supply it. Both fields are read off the same segmentation, and the
 constructor is private, so the two cannot disagree. -/
-private structure SpecializedTerm where
+structure SpecializedTerm where
+  private mk ::
   /-- The definition's body. -/
   body : Term
   /-- The binders a call site supplies positionally, in order. -/
@@ -177,6 +189,7 @@ scoped elab "veil_dsimp_decidable_instances_before_extraction" : tactic => withM
     let ltype := ldecl.type
     if ltype.getForallBody.isAppOfArity ``Decidable 1 then
       targets := targets.push (mkIdent ldecl.userName)
+  if targets.isEmpty then return
   let simps := #[``Preprocessing.simpFieldRepresentationSetSingle, ``Preprocessing.simpFieldRepresentationGet].map Lean.mkIdent
   evalTactic <| ← `(tactic| dsimp -$(mkIdent `failIfUnchanged) only [$[$simps:ident],*] at $targets:ident* )
 
@@ -241,7 +254,7 @@ where
   let multiExecMonadType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState)
   let extractor := mkIdent <| (if useWeak then ``MultiExtractor.NonDetT.extractPartialList else ``MultiExtractor.NonDetT.extractList)
   -- HACK: when not `intoMonadicActions`, `targetType` is actually partial
-  let targetType ← if intoMonadicActions then `($multiExecMonadType _)
+  let targetType ← if intoMonadicActions then `($multiExecMonadType Unit)
     else
       let tmp ← if useWeak
         then `(term| $(mkIdent ``MultiExtractor.findOfPartialCandidates) _)
@@ -252,10 +265,17 @@ where
       -- NOTE: The following are added to work around a bug (?) fixed in Lean v4.27.0-rc1
       ``id, ``inferInstance, ``«inferInstanceAs», instFieldRepresentationName].map Lean.mkIdent
   let extractSimps := if intoMonadicActions then extractSimps.push extractor else extractSimps
-  let extractedBody ← if intoMonadicActions then `(($extractor ($κ) _ _ ($body) (h := by veil_extract_list_tactic) : $targetType))
+  -- Give the computational `by` block a type before running its tactics. Public
+  -- definitions in the module system postpone tactics whose goal still has metavariables.
+  let extractedBody ← if intoMonadicActions then
+      `((by
+          veil_dsimp_decidable_instances_before_extraction
+          exact $extractor ($κ) _ _ ($body) (h := by veil_extract_list_tactic) : $targetType))
     -- Use the first `show` to have more concise type information that can be
-    -- registered to the discrimination tree
-    else `(show $targetType ($bodyBeforeSimp) from show $targetType ($body) by veil_extract_list_tactic)
+    -- registered to the discrimination tree.
+    else `(show $targetType ($bodyBeforeSimp) from by
+      veil_dsimp_decidable_instances_before_extraction
+      exact (show $targetType ($body) by veil_extract_list_tactic))
   `((veil_dsimp% -$(mkIdent `zeta) -$(mkIdent `failIfUnchanged) [$[$extractSimps:ident],*]
     ($extractedBody)))
 
@@ -264,7 +284,6 @@ def specializeAndExtractSingle (mod : Module) (pi : ProcedureInfo) (extractedNam
   (toExtract : Name := pi.name) : CommandElabM SpecializedTerm := do
   let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams pi.name (.procedure pi)
   let extractBody ← specializeAndExtractCore extraDsimpsForSpecialize κ useWeak intoMonadicActions toExtract (baseParams ++ extraParams ++ actualParams)
-  let extractBody ← `(by veil_dsimp_decidable_instances_before_extraction; exact $extractBody)
   let defBody ← buildingTermWithDefaultχSpecialized baseParams (extraParams ++ actualParams) injectedBinders extractBody mod
   let cmd ← if attrs.isEmpty
     then `(command| def $(mkIdent extractedName):ident := $(defBody.body):term)
@@ -359,6 +378,9 @@ def runGenExtractCommand (mod : Veil.Module) : CommandElabM Unit := do
   elabVeilCommand execListCmd
 
 end Extraction
+end FrontendExtraction
+
+@[expose] section RuntimeExtraction
 
 section VeilSpecificExtractionUtils
 
@@ -471,7 +493,9 @@ def extractAssertionFailures (exec : Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (
     | .assertionFailure e s => some (e, s)
     | _ => none
 
-def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadTrace m] [MonadEnv m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
+end RuntimeExtraction
+
+meta def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadTrace m] [MonadEnv m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
   mod.throwIfAlreadyDeclared enumerableTransitionSystemName
 
   -- Step 1: Use mkDerivedDefinitionsParamsMapFn pattern (like specializeActionsCore)

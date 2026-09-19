@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-
   This is a simplified version of the NOPaxos protocol, without view

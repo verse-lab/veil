@@ -1,4 +1,9 @@
-import Veil
+module
+
+public meta import Veil
+import all Veil.Frontend.DSL.Module.Elaborators.Core
+
+public meta section
 
 /-!
 Runtime regressions shared by simulation and model checking: progress survives

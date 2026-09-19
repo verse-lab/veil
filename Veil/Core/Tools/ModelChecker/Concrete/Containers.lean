@@ -1,5 +1,10 @@
-import Std
-import Veil.Util.Tactics
+module
+
+public import Std
+public meta import Std
+public meta import Veil.Util.Tactics
+
+@[expose] public section
 
 
 /-- Functional Queue, from https://vfoley.xyz/functional-queues. -/

@@ -1,6 +1,10 @@
+module
 
-import Lean
-import Lean.Parser
+
+public meta import Lean
+public meta import Lean.Parser
+
+public meta section
 
 open Lean Lean.Parser
 

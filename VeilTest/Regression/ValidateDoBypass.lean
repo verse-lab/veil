@@ -1,3 +1,5 @@
+module
+
 /-
 Correct behavior:
 the structural restrictions checked by `validateVeilDo` should also hold for
@@ -11,7 +13,7 @@ and `assignmentTarget?` did not recognize havoc.  The guards below record that
 both direct and macro-generated forms are now rejected.
 -/
 
-import Veil
+public import Veil
 
 open Lean Parser Term
 

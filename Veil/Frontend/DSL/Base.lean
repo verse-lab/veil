@@ -1,8 +1,13 @@
-import Veil.Core
-import Veil.Frontend.DSL.Module.Elaborators.Verification
-import Veil.Frontend.DSL.Tactic
-import Veil.Core.Tools.ModelChecker.Symbolic.TraceLang
-import Veil.Core.Tools.Verifier.TheoremDischarger
+module
+
+public import Veil.Core
+public meta import Veil.Core
+public meta import Veil.Frontend.DSL.Module.Elaborators.Verification
+public meta import Veil.Frontend.DSL.Tactic
+public meta import Veil.Core.Tools.ModelChecker.Symbolic.TraceLang
+public meta import Veil.Core.Tools.Verifier.TheoremDischarger
+
+public meta section
 
 
 /-! # Veil DSL

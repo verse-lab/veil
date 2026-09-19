@@ -1,4 +1,9 @@
-import Lean.PrettyPrinter.Delaborator.Basic
+module
+
+public import Lean.PrettyPrinter.Delaborator.Basic
+public meta import Lean.PrettyPrinter.Delaborator.Basic
+
+@[expose] public section
 
 section MonadDrop
 

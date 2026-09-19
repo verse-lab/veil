@@ -1,4 +1,6 @@
-import Veil.Core
+module
+
+public import Veil.Core
 
 /-!
 Command integration: bound precedence, repeated invocations, compiled execution,

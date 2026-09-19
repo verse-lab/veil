@@ -1,5 +1,11 @@
-import Veil.Util.TreeSetMisc
-import Veil.Util.List
+module
+
+public import Veil.Util.TreeSetMisc
+public meta import Veil.Util.TreeSetMisc
+public import Veil.Util.List
+public meta import Veil.Util.List
+
+@[expose] public section
 
 /-! # Sharded Set
 

@@ -1,5 +1,7 @@
-import Veil
-import VeilTest.TestUtil
+module
+
+public import Veil
+public import VeilTest.TestUtil
 
 set_option linter.unusedVariables false
 

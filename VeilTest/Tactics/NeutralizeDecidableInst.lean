@@ -1,4 +1,6 @@
-import Veil.Util.ReplacingInstances
+module
+
+public import Veil.Util.ReplacingInstances
 
 /-! ## Tests for `neutralizeDecidableInst` simproc
 

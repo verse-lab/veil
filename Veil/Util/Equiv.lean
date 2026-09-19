@@ -1,3 +1,5 @@
+module
+
 /-
 Copyright (c) 2015 Microsoft Corporation. All rights reserved.
 Released under Apache 2.0 license as described in LICENSE.
@@ -7,9 +9,14 @@ Adapted from `Mathlib.Logic.Equiv.Defs` and `Mathlib.Logic.Equiv.Prod`; the
 Microsoft Corporation; authors: Leonardo de Moura, Jeremy Avigad, Haitao
 Zhang). Only what Veil's finite encodings need.
 -/
-import Lean
-import Aesop
-import Batteries
+public import Lean
+public meta import Lean
+public import Aesop
+public meta import Aesop
+public import Batteries
+public meta import Batteries
+
+@[expose] public section
 
 /-! Small equivalences used by Veil's concrete state representations. -/
 namespace Veil

@@ -1,4 +1,8 @@
-import Veil.Util.Tactics
+module
+
+public meta import Veil.Util.Tactics
+
+@[expose] public section
 
 /-!
 # List Splitting

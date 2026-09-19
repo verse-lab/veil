@@ -1,4 +1,8 @@
-import Veil.Frontend.DSL.Infra.Simp
+module
+
+public meta import Veil.Frontend.DSL.Infra.Simp
+
+@[expose] public section
 
 class IsSubReaderOf (ρ : outParam Type) (ρ' : Type) where
   /-- Get the small state `ρ` from the big one `ρ'` -/
@@ -81,7 +85,7 @@ theorem instIsSubStateOfRefl.setIn_overwrite {σ : Type} (x y : σ) : instIsSubS
 theorem instIsSubStateOfRefl.getFrom_id {σ : Type} (x : σ) : instIsSubStateOfRefl.getFrom x = x := rfl
 
 open Lean Meta Elab Term in
-def Veil.dsimpSubReaderSubStateRefl (e : Expr) : TermElabM Expr := do
+meta def Veil.dsimpSubReaderSubStateRefl (e : Expr) : TermElabM Expr := do
   -- NOTE: The previous simp is too aggressive, since it unfold `instIsSubReaderOfRefl`
   -- and `instIsSubStateOfRefl`, which can expose the proof objects inside, and as a result,
   -- in delaboration the proof objects will be printed as `⋯`, which is not desirable.

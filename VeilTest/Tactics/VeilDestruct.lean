@@ -1,4 +1,6 @@
-import Veil.Frontend.DSL.Tactic
+module
+
+public import Veil.Frontend.DSL.Tactic
 
 structure Theory (α : Type) where
   a : α

@@ -1,4 +1,9 @@
-import Lean.Data.Json
+module
+
+public import Lean.Data.Json
+public meta import Lean.Data.Json
+
+@[expose] public section
 
 namespace Veil
 open Lean

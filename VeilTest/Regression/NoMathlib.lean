@@ -1,5 +1,8 @@
-import Veil
-import Veil.Util.Permutations
+module
+
+public import Veil
+public import Veil.Util.Permutations
+public meta import Veil.Util.Permutations
 
 /-! Behavioral contracts for Veil's standalone finite-type infrastructure. -/
 open Veil

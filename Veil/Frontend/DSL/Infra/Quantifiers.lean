@@ -1,6 +1,10 @@
-import Lean
-import Veil.Frontend.DSL.Module.Names
-import Veil.Frontend.DSL.Infra.Simp
+module
+
+public meta import Lean
+public meta import Veil.Frontend.DSL.Module.Names
+public meta import Veil.Frontend.DSL.Infra.Simp
+
+public meta section
 open Lean Meta Elab Tactic
 
 namespace Veil

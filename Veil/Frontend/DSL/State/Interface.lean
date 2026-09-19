@@ -1,5 +1,10 @@
-import Veil.Frontend.DSL.State.Types
-import Veil.Frontend.DSL.Infra.Simp
+module
+
+public import Veil.Frontend.DSL.State.Types
+public meta import Veil.Frontend.DSL.State.Types
+public meta import Veil.Frontend.DSL.Infra.Simp
+
+@[expose] public section
 
 /-!
 
@@ -294,7 +299,7 @@ end CanonicalFieldRepresentation
 
 end Interface
 
-section MetaTools
+meta section MetaTools
 
 open Lean Meta Elab
 
@@ -321,6 +326,8 @@ attribute [fieldRepresentationPatSimp] List.take List.drop List.map
 attribute [fieldRepresentationSetSimpPre] FieldRepresentation.setSingle LawfulFieldRepresentationSet.set_append List.singleton_append
 attribute [fieldRepresentationSetSimpPost] CanonicalField.set FieldUpdateDescr.fieldUpdate FieldUpdatePat.match IteratedProd.patCmp IteratedArrow.curry IteratedArrow.uncurry
 attribute [fieldRepresentationSetSimpPost] List.foldr Option.elim Bool.and_true Bool.and_eq_true decide_eq_true_eq ite_eq_left_iff Bool.false_eq_true false_and and_self
-attribute [fieldRepresentationSetSimpPost ↓] reduceIte ite_true ite_false and_true true_and
+simproc_decl reduceFieldRepresentationIte (ite _ _ _) := reduceIte
+
+attribute [fieldRepresentationSetSimpPost ↓] reduceFieldRepresentationIte ite_true ite_false and_true true_and
 
 end Veil

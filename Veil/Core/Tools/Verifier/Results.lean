@@ -1,5 +1,9 @@
-import Veil.Core.Tools.Verifier.Manager
-import Veil.Frontend.DSL.Infra.Metadata
+module
+
+public meta import Veil.Core.Tools.Verifier.Manager
+public meta import Veil.Frontend.DSL.Infra.Metadata
+
+public meta section
 
 namespace Veil
 open Lean
