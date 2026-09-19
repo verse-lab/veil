@@ -1,4 +1,7 @@
-import Veil
+module
+
+public import Veil
+
 veil module NOPaxosTLA
 -- ------------------------------ MODULE NOPaxos ----------------------------------
 -- (*

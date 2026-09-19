@@ -1,6 +1,10 @@
-import Veil.Core.Tools.ModelChecker.Concrete.Core
-import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
-import Veil.Core.Tools.ModelChecker.Concrete.Containers
+module
+
+public import Veil.Core.Tools.ModelChecker.Concrete.Core
+public import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
+public import Veil.Core.Tools.ModelChecker.Concrete.Containers
+
+public section
 
 namespace Veil.ModelChecker.Concrete
 

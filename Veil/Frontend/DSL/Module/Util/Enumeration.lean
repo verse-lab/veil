@@ -1,4 +1,8 @@
-import Veil.Frontend.DSL.Module.Util.Basic
+module
+
+public meta import Veil.Frontend.DSL.Module.Util.Basic
+
+public meta section
 
 open Lean Parser Elab Command Term Meta Tactic
 

@@ -1,5 +1,7 @@
-import Std
-import Veil
+module
+
+public import Std
+public import Veil
 
 namespace VeilTest.Deriving
 

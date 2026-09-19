@@ -1,5 +1,9 @@
-import Veil.Frontend.DSL.Action.Semantics.Definitions
-import Veil.Frontend.DSL.Action.Extract
+module
+
+public import Veil.Frontend.DSL.Action.Semantics.Definitions
+public import Veil.Frontend.DSL.Action.Extract
+
+public section
 
 open Loom.Order
 open scoped Loom.Order

@@ -1,10 +1,14 @@
-import Veil.Core.Tools.ModelChecker.Concrete.SequentialLemmas
-import Veil.Util.TreeSetMisc
+module
+
+public import Veil.Core.Tools.ModelChecker.Concrete.SequentialLemmas
+public import Veil.Util.TreeSetMisc
+
+public section
 namespace Veil.ModelChecker.Concrete
 
 variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] [Ord σₕ] {th : ρ}
 
-def MapReduceSearchContextMain.initial (initStates : List σ) (numShards : Nat)
+@[expose] def MapReduceSearchContextMain.initial (initStates : List σ) (numShards : Nat)
   (h_pos : 0 < USize.ofNat numShards := by native_decide)
   (h_small : numShards < USize.size := by native_decide) : MapReduceSearchContextMain σ κ σₕ asm :=
   let fps := initStates.map fp.view
@@ -15,7 +19,7 @@ def MapReduceSearchContextMain.initial (initStates : List σ) (numShards : Nat)
     globalSeen := ShardedTreeSetUSize.ofListFastByHash fps numShards h_pos h_small }
 
 /-- Create an empty local context with the given `completedDepth`. -/
-def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ asm :=
+@[expose] def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ asm :=
   ({ log := Std.HashMap.emptyWithCapacity,
      violatingStates := [],
      finished := none,

@@ -1,7 +1,11 @@
-import Std
-import Veil.Util.Tactics
-import Veil.Frontend.DSL.State.Interface
-import Veil.Frontend.DSL.Module.Names
+module
+
+public import Std
+public meta import Veil.Util.Tactics
+public import Veil.Frontend.DSL.State.Interface
+public meta import Veil.Frontend.DSL.Module.Names
+
+@[expose] public section
 
 namespace Veil
 

@@ -173,8 +173,9 @@ script veilModelCheckBuild args do
         objs := objs.push (← obj.fetchIn lib.pkg)
       for dynlib in lib.moreLinkLibs do
         dynlibs := dynlibs.push (← dynlib.fetchIn lib.pkg)
-    let deps := (← (← pkg.transDeps.fetch).await).push pkg
-    for dep in deps do
+    -- Compile-time packages (in particular the SMT solver) are not native dependencies.
+    let nativePkgs := libs.toArray.foldl (fun acc lib => acc.insert lib.pkg) OrdHashSet.empty
+    for dep in nativePkgs.toArray do
       for lib in dep.externLibs do
         objs := objs.push (← lib.static.fetch)
     -- Library link inputs include package inputs, so different libraries can resolve

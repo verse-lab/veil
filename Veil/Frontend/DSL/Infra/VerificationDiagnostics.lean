@@ -1,7 +1,11 @@
-import Veil.Frontend.DSL.Module.Syntax
-import Veil.Frontend.DSL.Infra.TraceSyntax
-import Veil.Frontend.DSL.Infra.VerificationSupport
-import Veil.Frontend.DSL.Tactic.Core
+module
+
+public meta import Veil.Frontend.DSL.Module.Syntax
+public meta import Veil.Frontend.DSL.Infra.TraceSyntax
+public meta import Veil.Frontend.DSL.Infra.VerificationSupport
+public meta import Veil.Frontend.DSL.Tactic.Core
+
+public meta section
 
 /-! Fallback diagnostics for verification syntax exposed by `Veil.Core`.
 When full `Veil` is imported, decline with `throwUnsupportedSyntax` so the real

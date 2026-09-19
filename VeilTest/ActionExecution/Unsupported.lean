@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-! Diagnostics for every control/effect construct excluded from Veil actions. -/
 

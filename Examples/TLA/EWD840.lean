@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 -- https://github.com/tlaplus/Examples/blob/c2641e69204ed241cdf548d9645ac82df55bfcd8/specifications/ewd840/EWD840.tla
 

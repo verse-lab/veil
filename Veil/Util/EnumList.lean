@@ -1,9 +1,14 @@
+module
+
 /-
 Copyright (c) 2023 Kyle Miller. All rights reserved.
 Released under Apache 2.0 license as described in LICENSE.
 Adapted from Mathlib.Tactic.DeriveFintype: only constructor enumeration.
 -/
-import Veil.Util.GeneratedNames
+public meta import Lean
+public meta import Veil.Util.GeneratedNames
+
+public meta section
 namespace Veil.Deriving
 open Lean Elab Meta Command
 initialize registerTraceClass `veil.deriving.enum

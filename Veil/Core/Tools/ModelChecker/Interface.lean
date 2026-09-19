@@ -1,7 +1,11 @@
-import Veil.Core.Tools.ModelChecker.TransitionSystem
-import Veil.Core.Tools.ModelChecker.Trace
-import Veil.Util.Tactics
-import Lean.Data.Json
+module
+
+public import Veil.Core.Tools.ModelChecker.TransitionSystem
+public import Veil.Core.Tools.ModelChecker.Trace
+public meta import Veil.Util.Tactics
+public import Lean.Data.Json
+
+@[expose] public section
 
 namespace Veil.ModelChecker
 open Lean Trace

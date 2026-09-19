@@ -1,11 +1,15 @@
-import Std
-import Veil.Util.List
-import Veil.Util.Tactics
-import Veil.Frontend.DSL.State.Types
-import Veil.Frontend.DSL.State.Instances
-import Std.Data.ExtTreeSet.Lemmas
-import Veil.Util.SortedList
-import Veil.Util.SortedArray
+module
+
+public import Std
+public import Veil.Util.List
+public meta import Veil.Util.Tactics
+public import Veil.Frontend.DSL.State.Types
+public import Veil.Frontend.DSL.State.Instances
+public import Std.Data.ExtTreeSet.Lemmas
+public import Veil.Util.SortedList
+public import Veil.Util.SortedArray
+
+@[expose] public section
 
 open Std Veil
 

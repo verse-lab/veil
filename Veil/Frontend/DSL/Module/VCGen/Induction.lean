@@ -1,15 +1,19 @@
-import Lean
-import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.Module.Util
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Frontend.DSL.Infra.Metadata
-import Veil.Util.Meta
-import Veil.Core.Tools.Verifier.Server
-import Veil.Frontend.DSL.Tactic
+module
+
+public meta import Lean
+public meta import Veil.Frontend.DSL.Module.Representation
+public meta import Veil.Frontend.DSL.Module.Util
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+public meta import Veil.Frontend.DSL.Infra.Metadata
+public meta import Veil.Util.Meta
+public meta import Veil.Core.Tools.Verifier.Server
+public meta import Veil.Frontend.DSL.Tactic
 -- FIXME: it really doesn't make sense to import this here
-import Veil.Core.UI.Verifier.Model
-import Veil.Core.UI.Verifier.InductionCounterexample
-import Veil.Frontend.DSL.Module.VCGen.Common
+public meta import Veil.Core.UI.Verifier.Model
+public meta import Veil.Core.UI.Verifier.InductionCounterexample
+public meta import Veil.Frontend.DSL.Module.VCGen.Common
+
+public meta section
 
 /-!
 # Induction VC Generation

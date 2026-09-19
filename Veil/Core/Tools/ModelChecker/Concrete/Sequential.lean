@@ -1,6 +1,10 @@
-import Veil.Core.Tools.ModelChecker.Concrete.Core
-import Veil.Core.Tools.ModelChecker.Concrete.Progress
-import Veil.Core.Tools.ModelChecker.Concrete.SequentialLemmas
+module
+
+public import Veil.Core.Tools.ModelChecker.Concrete.Core
+public import Veil.Core.Tools.ModelChecker.Concrete.Progress
+public import Veil.Core.Tools.ModelChecker.Concrete.SequentialLemmas
+
+public section
 
 namespace Veil.ModelChecker.Concrete
 open Std

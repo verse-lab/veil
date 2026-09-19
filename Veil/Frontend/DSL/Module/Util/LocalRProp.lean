@@ -1,4 +1,8 @@
-import Veil.Frontend.DSL.Module.Util.LocalTheoryProp
+module
+
+public meta import Veil.Frontend.DSL.Module.Util.LocalTheoryProp
+
+public meta section
 
 open Lean Parser Elab Command Term Meta Tactic
 

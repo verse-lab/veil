@@ -1,4 +1,7 @@
-import Veil
+module
+
+public import Veil
+
 veil module FloodSet
 
 type node

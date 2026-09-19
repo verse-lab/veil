@@ -1,5 +1,9 @@
-import Veil.Core.Tools.ModelChecker.Interface
-import Veil.Util.Histogram
+module
+
+public import Veil.Core.Tools.ModelChecker.Interface
+public import Veil.Util.Histogram
+
+public section
 
 namespace Veil.ModelChecker.Simulation
 open Lean

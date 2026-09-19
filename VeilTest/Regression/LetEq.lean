@@ -1,23 +1,25 @@
-import Veil
+module
+
+public import Veil
 
 open Lean Elab Command
 
-private def hasForallBinderNamed (target : Name) (e : Expr) : Bool :=
+private meta def hasForallBinderNamed (target : Name) (e : Expr) : Bool :=
   (e.find? fun
     | .forallE n _ _ _ => n == target
     | _ => false).isSome
 
-private def hasLetBinderNamed (target : Name) (e : Expr) : Bool :=
+private meta def hasLetBinderNamed (target : Name) (e : Expr) : Bool :=
   (e.find? fun
     | .letE n _ _ _ _ => n == target
     | _ => false).isSome
 
-private def containsConst (target : Name) (e : Expr) : Bool :=
+private meta def containsConst (target : Name) (e : Expr) : Bool :=
   (e.find? fun
     | .const n _ => n == target
     | _ => false).isSome
 
-private partial def countConst (target : Name) : Expr → Nat
+private meta partial def countConst (target : Name) : Expr → Nat
   | .const n _ => if n == target then 1 else 0
   | .app f a => countConst target f + countConst target a
   | .lam _ t b _ => countConst target t + countConst target b
@@ -27,7 +29,7 @@ private partial def countConst (target : Name) : Expr → Nat
   | .proj _ _ b => countConst target b
   | _ => 0
 
-private def constValue (constName : Ident) : CommandElabM Expr := do
+private meta def constValue (constName : Ident) : CommandElabM Expr := do
   let constName ← resolveGlobalConstNoOverload constName
   let info ← getConstInfo constName
   let some value := info.value?

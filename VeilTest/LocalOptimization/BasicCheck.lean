@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-! ## Test: Existence of Local Optimization Theorems
 

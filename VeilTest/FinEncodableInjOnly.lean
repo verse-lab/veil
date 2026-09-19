@@ -1,3 +1,5 @@
+module
+
 /-
 Tests for the deforested `FinEncodableInjOnly` deriving handler.
 
@@ -5,7 +7,8 @@ The handler generates direct arithmetic in the `encode` function (no intermediat
 Sum/Sigma proxy types at runtime), while using `veil_proxy_equiv%` only for proofs
 (erased at compilation).
 -/
-import Veil.Frontend.DSL.State.Types
+public import Veil.Frontend.DSL.State.Types
+public meta import Veil.Frontend.DSL.State.Types
 
 open Veil
 

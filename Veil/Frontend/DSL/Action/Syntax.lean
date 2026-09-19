@@ -1,6 +1,10 @@
+module
 
-import Lean
-import Lean.Parser
+
+public meta import Lean
+public meta import Lean.Parser
+
+public meta section
 
 open Lean Lean.Parser
 
@@ -185,7 +189,7 @@ macro_rules
   | `(doElem| let $x:term $[: $ty:term]? :| $p) => do
     `(doElem| let $x:term ← $(mkIdent `VeilM.pickSuchThat):ident $(← ty.getDM `(_)) (fun $x => $p))
 
-private def veilVarType := withForbidden "veil_var" termParser
+def veilVarType := withForbidden "veil_var" termParser
 
 /--
 `veil_var x : τ` declares an Ivy-style uninitialized mutable local by picking

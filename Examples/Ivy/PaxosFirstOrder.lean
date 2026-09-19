@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 -- https://www.wisdom.weizmann.ac.il/~padon/paxos-made-epr-examples.zip /paxos/paxos_fol.ivy
 

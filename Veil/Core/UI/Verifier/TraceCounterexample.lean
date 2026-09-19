@@ -1,14 +1,18 @@
-import Lean
-import Smt
-import ProofWidgets.Compat
-import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.Module.Names
-import Veil.Frontend.DSL.Module.Util.Basic
-import Veil.Frontend.DSL.Module.Util.StateTheory
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Core.UI.Verifier.Model
-import Veil.Core.UI.Verifier.InductionCounterexample
-import Veil.Backend.SMT.Model
+module
+
+public meta import Lean
+public meta import Smt
+public meta import ProofWidgets.Compat
+public meta import Veil.Frontend.DSL.Module.Representation
+public meta import Veil.Frontend.DSL.Module.Names
+public meta import Veil.Frontend.DSL.Module.Util.Basic
+public meta import Veil.Frontend.DSL.Module.Util.StateTheory
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+public meta import Veil.Core.UI.Verifier.Model
+public meta import Veil.Core.UI.Verifier.InductionCounterexample
+public meta import Veil.Backend.SMT.Model
+
+public meta section
 
 /-!
 # Trace Counterexample

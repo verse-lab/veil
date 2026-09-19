@@ -1,5 +1,9 @@
-import Std
-import Batteries.Tactic.Trans
+module
+
+public import Std
+meta import Batteries.Tactic.Trans
+
+public section
 
 namespace Std.TreeSet
 

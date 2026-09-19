@@ -1,20 +1,24 @@
-import Lean
-import Lean.Meta.Tactic.TryThis
-import Veil.Base
-import Veil.Frontend.DSL.Module.Syntax
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Frontend.DSL.Module.Util
-import Veil.Frontend.DSL.Action.Elaborators
-import Veil.Frontend.DSL.State.SubState
-import Veil.Frontend.DSL.State.ConcreteRegistry
-import Veil.Core.UI.Trace.TraceDisplay
-import Veil.Core.Tools.ModelChecker.Concrete.Checker
-import Veil.Core.Tools.ModelChecker.Simulation
-import Veil.Frontend.DSL.Action.Extract
-import Veil.Frontend.DSL.Module.Util.Enumeration
-import Veil.Util.Multiprocessing
-import Veil.Frontend.DSL.Module.AssertionInfo
-import Veil.Frontend.DSL.Infra.VerificationSupport
+module
+
+public meta import Lean
+public meta import Lean.Meta.Tactic.TryThis
+public meta import Veil.Base
+public meta import Veil.Frontend.DSL.Module.Syntax
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+public meta import Veil.Frontend.DSL.Module.Util
+public meta import Veil.Frontend.DSL.Action.Elaborators
+public meta import Veil.Frontend.DSL.State.SubState
+public meta import Veil.Frontend.DSL.State.ConcreteRegistry
+public meta import Veil.Core.UI.Trace.TraceDisplay
+public meta import Veil.Core.Tools.ModelChecker.Concrete.Checker
+public meta import Veil.Core.Tools.ModelChecker.Simulation
+public meta import Veil.Frontend.DSL.Action.Extract
+public meta import Veil.Frontend.DSL.Module.Util.Enumeration
+public meta import Veil.Util.Multiprocessing
+public meta import Veil.Frontend.DSL.Module.AssertionInfo
+public meta import Veil.Frontend.DSL.Infra.VerificationSupport
+
+public meta section
 
 open Lean Parser Elab Command Term
 open scoped Veil.Extract
@@ -46,10 +50,22 @@ private def overrideLeanDefaults : CommandElabM Unit := do
   for (name, value) in veilDefaultOptions do
     modifyScope fun scope => { scope with opts := scope.opts.insert name value }
 
+private def checkVeilIsPubliclyImported (stx : Syntax) : CommandElabM Unit := do
+  if ((← getEnv).setExporting true).find? ``Veil.Enumeration |>.isSome then return
+  logErrorAt stx "Veil is only imported into this module's private scope, but `veil module` \
+    elaborates its generated declarations into the public scope. Write `public import Veil` \
+    instead of `import Veil` at the top of this file."
+
 @[command_elab Veil.moduleDeclaration]
 def elabModuleDeclaration : CommandElab := fun stx => do
   match stx with
   | `(veil module $modName:ident) => do
+    /- `veil module` elaborates the declarations it generates into the public scope, so every
+    Veil name their signatures and bodies mention must be publicly visible as well. A plain
+    `import Veil` only reaches the private scope; without this check that surfaces much later,
+    as a wall of unknown-identifier errors from `#gen_state`. `setExporting` is a no-op outside
+    the module system, so files without a `module` header are unaffected. -/
+    checkVeilIsPubliclyImported stx
     overrideLeanDefaults
     let genv ← globalEnv.get
     let name := modName.getId
@@ -58,8 +74,12 @@ def elabModuleDeclaration : CommandElab := fun stx => do
       throwError s!"Module {mod.name} is already open, but you are now trying to open module {name}. Nested modules are not supported!"
     elabVeilCommand $ ← `(open Veil)
     elabVeilCommand $ ← `(namespace $modName)
+    -- Generated declarations form the reusable API of a Veil module. Scope these
+    -- defaults to its namespace, so `end` restores the surrounding Lean defaults.
+    let exposeAttr ← `(Parser.Term.attrInstance| expose)
+    modifyScope fun scope => { scope with isPublic := true, attrs := exposeAttr :: scope.attrs }
     if genv.containsModule name then
-      logInfo "Module {name} has been previously defined. Importing it here."
+      logInfo m!"Module {name} has been previously defined. Importing it here."
       let mod := genv.modules[name]!
       localEnv.modifyModule (fun _ => mod)
     else
@@ -209,7 +229,7 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
       $(mkIdent ``Array.contains) ($namesArrStx) ($(mkIdent ``Lean.Syntax.getId) $id) ||
       ($(mkIdent ``Veil.isCapital) ($(mkIdent ``Lean.Syntax.getId) $id) && $(mkIdent ``Veil.isVeilProcedureContext) $stack))
     let nm := mkIdent `ignoreStateFields
-    let ignoreFnStx ← `(@[$(mkIdent `unused_variables_ignore_fn):ident] def $nm : $(mkIdent ``Lean.Linter.IgnoreFunction) := $fnStx)
+    let ignoreFnStx ← `(@[$(mkIdent `unused_variables_ignore_fn):ident] meta def $nm : $(mkIdent ``Lean.Linter.IgnoreFunction) := $fnStx)
     return ignoreFnStx
   elabVeilCommand cmd
 
@@ -666,17 +686,17 @@ def elabModelCheck : CommandElab := fun stx => do
     let cfg := stx[4]
     elabModelCheckCore stx mode instTerm theoryTermOpt assumptionsHoldBy cfg
 where
-  /-- Compile a temporary entry point in the current snapshot, then emit its C module.
-
-  Emit the declarations reachable from the entry point and all local initializers.
-  Initializers may have side effects even when their results are unused. Keeping
-  them as roots preserves module initialization without emitting unrelated
-  specifications. The emitter retains Lean's recorded declaration order. -/
+  /-- Compile a temporary entry point in the current snapshot, then emit its C module
+  with runtime initialization. -/
   generateCCode (callExpr : Term) : CommandElabM String := withoutModifyingEnv do
     if (← getEnv).contains `main then
       throwError "Cannot compile this model check: the file already declares `main`, \
         which the generated model checker binary needs as its entry point. \
         Move the `main` declaration into another file, or use `#model_check interpreted`."
+    unless (← getEnv).header.isModule do
+      throwError "Compiled checks require Lean's module system. Start this file with `module`, and write \
+        `public import Veil` (instead of `import Veil`)."
+    liftCoreM ModelChecker.Compilation.compileRuntimeInitializers
     -- NOTE: Elaborate a term and add it with `addVeilDefinition` instead of elaborating a `def`
     -- command. `elabCommand` logs errors rather than
     -- throwing, and error recovery still adds `main` with a `sorry` body, so a failed
@@ -690,14 +710,7 @@ where
       let expr ← Term.elabTerm entry none
       Term.synthesizeSyntheticMVarsNoPostponing
       discard <| addVeilDefinition `main (← instantiateMVars expr) (addNamespace := false)
-    liftCoreM do
-      let env ← getEnv
-      let initializers := (← Lean.Compiler.LCNF.getLocalImpureDecls).filter fun name =>
-        Lean.isIOUnitInitFn env name || Lean.hasInitAttr env name
-      -- `emitCForDecls` indexes its argument, so it must be given the whole closure,
-      -- not just the entry point.
-      let (used, _) ← Lean.Compiler.LCNF.collectUsedDecls (#[`main] ++ initializers)
-      Lean.Compiler.LCNF.emitCForDecls env.mainModule (used.map (·.name))
+    liftCoreM <| ModelChecker.Compilation.emitCWithRuntimeInitializers `main
 
   /-- Build the core model checker call syntax (without parallel config). -/
   mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig)
@@ -850,7 +863,7 @@ where
     liftTermElabM do
       let expr ← Term.elabTerm resultExpr none
       Term.synthesizeSyntheticMVarsNoPostponing
-      unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
+      ModelChecker.Compilation.evalJsonComputation (← instantiateMVars expr)
 
   /-- Log model checking result. -/
   logModelCheckResult (kind : TraceDisplay.ResultKind) (stx : Syntax)
@@ -910,7 +923,7 @@ where
     if ← cancelToken.isSet then return none
     let cCode ← generateCCode callExpr
     if ← cancelToken.isSet then return none
-    let imports := (← getEnv).allImportedModuleNames
+    let imports ← liftCoreM <| ModelChecker.Compilation.executionImports (← getEnv)
     let buildFolder ← ModelChecker.Compilation.generateBuildFolderName sourceFile command cCode imports
     let lake ← ModelChecker.Compilation.getLakeExecutable
     let sourcePath := (← IO.currentDir) / sourceFile
@@ -1134,7 +1147,7 @@ private def elaborateSimulateComputation (instanceId : Nat) (callExpr : Term) : 
   liftTermElabM do
     let expr ← Term.elabTerm resultExpr none
     Term.synthesizeSyntheticMVarsNoPostponing
-    unsafe Meta.evalExpr (IO Lean.Json) (mkApp (mkConst ``IO) (mkConst ``Lean.Json)) (← instantiateMVars expr)
+    ModelChecker.Compilation.evalJsonComputation (← instantiateMVars expr)
 
 private def simulationResultWasCancelled (combinedJson : Json) : Bool :=
   elabModelCheck.resultWasCancelled combinedJson

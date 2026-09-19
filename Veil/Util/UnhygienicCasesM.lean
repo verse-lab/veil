@@ -1,4 +1,8 @@
-import Lean
+module
+
+public meta import Lean
+
+public meta section
 
 -- NOTE: Adapted from `Mathlib.Tactic.CasesM`, but when cases something, allows giving names
 -- to the new hypotheses.

@@ -1,5 +1,9 @@
-import Veil.Util.Tactics
-import Veil.Frontend.DSL.State.Concrete
+module
+
+public meta import Veil.Util.Tactics
+public import Veil.Frontend.DSL.State.Concrete
+
+@[expose] public section
 
 namespace Veil
 

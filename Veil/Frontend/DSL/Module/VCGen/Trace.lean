@@ -1,14 +1,18 @@
-import Lean
-import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.Module.Util
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Frontend.DSL.Infra.Metadata
-import Veil.Util.Meta
-import Veil.Core.Tools.Verifier.Server
-import Veil.Frontend.DSL.Tactic
-import Veil.Core.UI.Verifier.Model
-import Veil.Core.UI.Verifier.TraceCounterexample
-import Veil.Frontend.DSL.Module.VCGen.Common
+module
+
+public meta import Lean
+public meta import Veil.Frontend.DSL.Module.Representation
+public meta import Veil.Frontend.DSL.Module.Util
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+public meta import Veil.Frontend.DSL.Infra.Metadata
+public meta import Veil.Util.Meta
+public meta import Veil.Core.Tools.Verifier.Server
+public meta import Veil.Frontend.DSL.Tactic
+public meta import Veil.Core.UI.Verifier.Model
+public meta import Veil.Core.UI.Verifier.TraceCounterexample
+public meta import Veil.Frontend.DSL.Module.VCGen.Common
+
+public meta section
 
 /-!
 # Trace VC Generation

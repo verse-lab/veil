@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 -- https://github.com/dranov/protocol-specs/blob/main/Paxos/paxos_epr.ivy
 

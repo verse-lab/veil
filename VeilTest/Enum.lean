@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 veil module EnumTest
 enum switch_state = {on, off}

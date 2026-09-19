@@ -1,3 +1,5 @@
+module
+
 /-
 Adapted from mathlib. All rights reserved by the respective copyright holders;
 released under Apache 2.0 license as described in LICENSE. Sources, with their
@@ -14,7 +16,10 @@ from where:
 * `Mathlib.Data.List.Sort` -- (c) 2016 Jeremy Avigad. Authors: Jeremy Avigad,
   Wrenna Robson
 -/
-import Veil.Util.Tactics
+public import Batteries.Data.List.Basic
+meta import Veil.Util.Tactics
+
+@[expose] public section
 
 namespace Veil.List
 

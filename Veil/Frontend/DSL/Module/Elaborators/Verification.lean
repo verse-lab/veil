@@ -1,10 +1,14 @@
-import Veil.Frontend.DSL.Module.Elaborators.Core
-import Veil.Frontend.DSL.Tactic
-import Veil.Core.UI.Verifier.AssertionErrors
-import Veil.Frontend.DSL.Module.VCGen
-import Veil.Core.Tools.Verifier.Server
-import Veil.Core.Tools.Verifier.Results
-import Veil.Core.UI.Verifier.VerificationResults
+module
+
+public meta import Veil.Frontend.DSL.Module.Elaborators.Core
+public meta import Veil.Frontend.DSL.Tactic
+public meta import Veil.Core.UI.Verifier.AssertionErrors
+public meta import Veil.Frontend.DSL.Module.VCGen
+public meta import Veil.Core.Tools.Verifier.Server
+public meta import Veil.Core.Tools.Verifier.Results
+public meta import Veil.Core.UI.Verifier.VerificationResults
+
+public meta section
 
 open Lean Parser Elab Command Term
 open scoped Veil.Extract

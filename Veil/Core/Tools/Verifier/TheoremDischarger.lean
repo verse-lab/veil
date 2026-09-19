@@ -1,4 +1,8 @@
-import Veil.Core.Tools.Verifier.Server
+module
+
+meta import Veil.Core.Tools.Verifier.Server
+
+public meta section
 
 open Lean Elab Term Meta
 
@@ -159,7 +163,9 @@ initialize
     add := fun declName stx kind => do
       unless kind == AttributeKind.global do
         throwAttrMustBeGlobal veilAttrName kind
-      let .thmInfo info := (← getConstInfo declName)
+      -- Public theorems are exported as axioms; inspect the local proof to
+      -- retain the checks for unfinished interactive proofs.
+      let .thmInfo info ← withoutExporting <| getConstInfo declName
         | throwError "`[veil]` only applies to theorems"
       if info.value.hasSorry then
         let fallback := theoremSorryMessage declName info.value

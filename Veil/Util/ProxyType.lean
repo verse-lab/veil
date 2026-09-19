@@ -1,3 +1,5 @@
+module
+
 /-
 Copyright (c) 2023 Kyle Miller. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
@@ -5,9 +7,11 @@ Authors: Kyle Miller
 -/
 
 
-import Veil.Util.Equiv
-import Veil.Util.GeneratedNames
-import Lean
+public meta import Veil.Util.Equiv
+public meta import Veil.Util.GeneratedNames
+public meta import Lean
+
+public meta section
 
 /-!
 # Generating "proxy types"
