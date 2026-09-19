@@ -674,12 +674,8 @@ def elabModelCheck : CommandElab := fun stx => do
     let cfg := stx[4]
     elabModelCheckCore stx mode instTerm theoryTermOpt assumptionsHoldBy cfg
 where
-  /-- Compile a temporary entry point in the current snapshot, then emit its C module.
-
-  Emit the declarations reachable from the entry point and all local initializers.
-  Initializers may have side effects even when their results are unused. Keeping
-  them as roots preserves module initialization without emitting unrelated
-  specifications. The emitter retains Lean's recorded declaration order. -/
+  /-- Compile a temporary entry point in the current snapshot, then emit its C module
+  with runtime initialization. -/
   generateCCode (callExpr : Term) : CommandElabM String := withoutModifyingEnv do
     if (← getEnv).contains `main then
       throwError "Cannot compile this model check: the file already declares `main`, \
@@ -688,15 +684,7 @@ where
     unless (← getEnv).header.isModule do
       throwError "Compiled checks require Lean's module system. Start this file with `module`, \
         and use `public import Veil` (or `public import Veil.Core`)."
-    -- Compile even unused runtime initializers, in source order. New modules postpone
-    -- ordinary definitions until native compilation; compiling only `main` misses these.
-    liftCoreM do
-      let env ← getEnv
-      for name in (Lean.regularInitAttr.ext.getState env).1.reverse do
-        unless Lean.isMarkedMeta env name do
-          if let some initFn := Lean.getInitFnNameFor? env name then
-            Lean.Compiler.LCNF.resumeCompilation initFn (← getOptions)
-          Lean.Compiler.LCNF.resumeCompilation name (← getOptions)
+    liftCoreM ModelChecker.Compilation.compileRuntimeInitializers
     -- NOTE: Elaborate a term and add it with `addVeilDefinition` instead of elaborating a `def`
     -- command. `elabCommand` logs errors rather than
     -- throwing, and error recovery still adds `main` with a `sorry` body, so a failed
@@ -710,14 +698,7 @@ where
       let expr ← Term.elabTerm entry none
       Term.synthesizeSyntheticMVarsNoPostponing
       discard <| addVeilDefinition `main (← instantiateMVars expr) (addNamespace := false)
-    liftCoreM do
-      let env ← getEnv
-      let initializers := (← Lean.Compiler.LCNF.getLocalImpureDecls).filter fun name =>
-        !Lean.isMarkedMeta env name && (Lean.isIOUnitInitFn env name || Lean.hasInitAttr env name)
-      -- `emitCForDecls` indexes its argument, so it must be given the whole closure,
-      -- not just the entry point.
-      let (used, _) ← Lean.Compiler.LCNF.collectUsedDecls (#[`main] ++ initializers)
-      Lean.Compiler.LCNF.emitCForDecls env.mainModule (used.map (·.name))
+    liftCoreM <| ModelChecker.Compilation.emitCWithRuntimeInitializers `main
 
   /-- Build the core model checker call syntax (without parallel config). -/
   mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig)

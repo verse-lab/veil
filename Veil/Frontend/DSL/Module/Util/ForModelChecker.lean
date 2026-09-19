@@ -33,6 +33,27 @@ def executionImports (env : Environment) : CoreM (Array Name) := do
     pending := pending ++ deps.filterMap fun imp => if imp.isMeta then none else some imp.module
   return imports.qsort Name.quickLt
 
+/-- Resume postponed compilation of all local runtime initializers in source order.
+Compiling only the entry point misses initializers whose results are unused. -/
+def compileRuntimeInitializers : CoreM Unit := do
+  let env ← getEnv
+  for name in (regularInitAttr.ext.getState env).1.reverse do
+    unless isMarkedMeta env name do
+      if let some initFn := getInitFnNameFor? env name then
+        Lean.Compiler.LCNF.resumeCompilation initFn (← getOptions)
+      Lean.Compiler.LCNF.resumeCompilation name (← getOptions)
+
+/-- Emit a compiled entry point and the local runtime initializers prepared by
+`compileRuntimeInitializers`. Initializers remain roots even when their results are
+unused, preserving their side effects. Lean's emitter retains declaration order. -/
+def emitCWithRuntimeInitializers (entryPoint : Name) : CoreM String := do
+  let env ← getEnv
+  let initializers := (← Lean.Compiler.LCNF.getLocalImpureDecls).filter fun name =>
+    !isMarkedMeta env name && (isIOUnitInitFn env name || hasInitAttr env name)
+  -- `emitCForDecls` indexes its argument, so it needs the whole dependency closure.
+  let (used, _) ← Lean.Compiler.LCNF.collectUsedDecls (#[entryPoint] ++ initializers)
+  Lean.Compiler.LCNF.emitCForDecls env.mainModule (used.map (·.name))
+
 private unsafe def evalJsonComputationUnsafe (expr : Expr) : TermElabM (IO Json) :=
   Meta.evalExpr (IO Json) (mkApp (mkConst ``IO) (mkConst ``Json)) expr
 
