@@ -672,7 +672,7 @@ where
   Initializers may have side effects even when their results are unused. Keeping
   them as roots preserves module initialization without emitting unrelated
   specifications. The emitter retains Lean's recorded declaration order. -/
-  generateCCode (callExpr : Term) : CommandElabM String := withoutModifyingEnv do
+  generateCCode (callExpr : Term) : CommandElabM (String × Array Name) := withoutModifyingEnv do
     if (← getEnv).contains `main then
       throwError "Cannot compile this model check: the file already declares `main`, \
         which the generated model checker binary needs as its entry point. \
@@ -696,8 +696,10 @@ where
         Lean.isIOUnitInitFn env name || Lean.hasInitAttr env name
       -- `emitCForDecls` indexes its argument, so it must be given the whole closure,
       -- not just the entry point.
-      let (used, _) ← Lean.Compiler.LCNF.collectUsedDecls (#[`main] ++ initializers)
-      Lean.Compiler.LCNF.emitCForDecls env.mainModule (used.map (·.name))
+      let (used, external) ← Lean.Compiler.LCNF.collectUsedDecls (#[`main] ++ initializers)
+      let (imports, initCode) ← ModelChecker.Compilation.executionImports env (external.map (·.name))
+      let code ← Lean.Compiler.LCNF.emitCForDecls env.mainModule (used.map (·.name))
+      return (code ++ initCode, imports)
 
   /-- Build the core model checker call syntax (without parallel config). -/
   mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig)
@@ -908,9 +910,8 @@ where
       (commandId : String) (instanceId : Nat) (cancelToken : IO.CancelToken)
       (command : ModelChecker.Compilation.CompiledCommandSpec) : CommandElabM (Option System.FilePath) := do
     if ← cancelToken.isSet then return none
-    let cCode ← generateCCode callExpr
+    let (cCode, imports) ← generateCCode callExpr
     if ← cancelToken.isSet then return none
-    let imports := (← getEnv).allImportedModuleNames
     let buildFolder ← ModelChecker.Compilation.generateBuildFolderName sourceFile command cCode imports
     let lake ← ModelChecker.Compilation.getLakeExecutable
     let sourcePath := (← IO.currentDir) / sourceFile
