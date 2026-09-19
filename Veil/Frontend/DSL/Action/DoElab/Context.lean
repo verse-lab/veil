@@ -237,6 +237,34 @@ private def bindInternalResult (ref : Syntax) (hint operation : Name)
   let rhs ← `(doElem| veil_do_internal_expr% $(mkIdent operation):term)
   elabDoIdDecl (mkIdentFrom ref name) none rhs (k name)
 
+/-- Reopen all unshadowed mutable fields from a fresh monadic `get`, then run
+the statement elaborator directly. -/
+def openStateAround (mod : Module) (k : DoElabM Expr) : DoElabM Expr := do
+  let ref ← getRef
+  let shadowed ← userLocalNames
+  bindInternalResult ref `state ``get fun stateName =>
+    bindStateFields shadowed stateName mod.mutableComponents k
+
+/-- Open the state for everything *after* the current statement, by wrapping the
+continuation rather than the statement.
+
+A handler uses this exactly when the monadic operation it emits may write the
+state; handlers that emit only state-preserving operations (`require`, `assert`,
+a pure `let`, …) pass `dec` through untouched and the next statement reuses the
+opening already in scope. The classification is local to each handler and needs
+no cross-statement bookkeeping: Lean lifts every `(← e)` out into its own
+`doElem` *before* dispatching to a handler (`Lean.Elab.Do.elabDoElem`), so a
+handler that claims to be state-preserving cannot be hiding an effect. -/
+def openStateAfter (mod : Module) (dec : DoElemCont) : DoElemCont :=
+  { dec with k := do
+      /- When nothing after this statement is reachable (both branches of an
+      `if` returned, say) there is no one to read the state, and emitting the
+      opening would make Lean report the generated element as dead code. -/
+      if (← read).deadCode matches .alive then
+        openStateAround mod dec.k
+      else
+        dec.k }
+
 syntax (name := theoryOpen) "veil_do_open_theory%" : doElem
 
 @[doElem_control_info theoryOpen]
@@ -251,15 +279,9 @@ def elabTheoryOpen : DoElab := fun stx dec => do
   let shadowed ← userLocalNames
   bindInternalResult stx `theory ``read fun theoryName =>
     bindTheoryFields shadowed theoryName ctx.mod.immutableComponents
-      dec.continueWithUnit
-
-/-- Reopen all unshadowed mutable fields from a fresh monadic `get`, then run
-the statement elaborator directly. -/
-def openStateAround (mod : Module) (k : DoElabM Expr) : DoElabM Expr := do
-  let ref ← getRef
-  let shadowed ← userLocalNames
-  bindInternalResult ref `state ``get fun stateName =>
-    bindStateFields shadowed stateName mod.mutableComponents k
+      /- The first statement of the body needs field views in scope; every later
+      opening is emitted by the preceding state-writing statement. -/
+      (openStateAround ctx.mod dec.continueWithUnit)
 
 /-- Inline generated field views, and ordinary local lets derived from them,
 when an expression's outer shape must be visible to a later consumer. -/
