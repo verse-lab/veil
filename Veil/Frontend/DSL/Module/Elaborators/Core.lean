@@ -697,9 +697,9 @@ where
       -- `emitCForDecls` indexes its argument, so it must be given the whole closure,
       -- not just the entry point.
       let (used, external) ← Lean.Compiler.LCNF.collectUsedDecls (#[`main] ++ initializers)
-      let (imports, initCode) ← ModelChecker.Compilation.executionImports env (external.map (·.name))
+      let native ← ModelChecker.Compilation.prepareExecutionImports env (external.map (·.name))
       let code ← Lean.Compiler.LCNF.emitCForDecls env.mainModule (used.map (·.name))
-      return (code ++ initCode, imports)
+      return (code ++ native.initializerCode, native.imports)
 
   /-- Build the core model checker call syntax (without parallel config). -/
   mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig)

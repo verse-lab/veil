@@ -7,21 +7,33 @@ open Lean Meta Elab Command
 
 /-- These import-only modules add verification to `Veil.Core`. Standalone execution
 uses Core in their place; the original elaboration environment is unchanged. -/
-private def verificationEntrypoints : Array Name :=
+private def replaceableVerificationModules : Array Name :=
   #[`Veil, `Veil.DSL, `Veil.Frontend.DSL.Base]
+
+/-- Native dependencies and replacement initialization code for standalone execution. -/
+structure ExecutionImports where
+  imports : Array Name
+  initializerCode : String
+
+/-- Redirect existing callers of the replaced modules' initializers to Core. -/
+private def emitInitializerForwarders (coreInit : String) (forwardedInitializers : Array String) : String := Id.run do
+  let mut code := s!"\nlean_object* {coreInit}(uint8_t builtin);\n"
+  for init in forwardedInitializers do
+    code := code ++ s!"lean_object* {init}(uint8_t builtin) \{ return {coreInit}(builtin); }\n"
+  return code
 
 /-- Select native imports without walking through Veil's verification entrypoints.
 Keep other imports, including user modules whose initializers have side effects.
 The forwarding initialization functions also cover references from those modules'
 existing native objects, so they do not need to be recompiled with different imports. -/
-def executionImports (env : Environment) (used : Array Name) : CoreM (Array Name × String) := do
+def prepareExecutionImports (env : Environment) (externalDecls : Array Name) : CoreM ExecutionImports := do
   let mut pending := env.imports.map (·.module)
   -- Runtime references can use definitions re-exported by a replaced entrypoint.
-  for name in used do
+  for name in externalDecls do
     if let some idx := env.getModuleIdxFor? name then
       pending := pending.push env.header.modules[idx]!.module
   let mut visited : NameSet := {}
-  let mut forwarded : Array Name := #[]
+  let mut forwardedInitializers : Array String := #[]
   while !pending.isEmpty do
     let name := pending.back!
     pending := pending.pop
@@ -30,10 +42,11 @@ def executionImports (env : Environment) (used : Array Name) : CoreM (Array Name
     let some idx := env.getModuleIdx? name
       | throwError "Cannot find imported module {name} for standalone execution"
     let data := env.header.moduleData[idx]!
-    if verificationEntrypoints.contains name then
+    if replaceableVerificationModules.contains name then
       unless data.constNames.isEmpty do
         throwError "Cannot replace verification entrypoint {name}: it is no longer import-only"
-      forwarded := forwarded.push name
+      forwardedInitializers := forwardedInitializers.push
+        (mkModuleInitializationFunctionName name (env.getModulePackageByIdx? idx))
       pending := pending.push `Veil.Core
     else
       if (`cvc5).isPrefixOf name then
@@ -41,19 +54,14 @@ def executionImports (env : Environment) (used : Array Name) : CoreM (Array Name
           Keep solver-dependent runtime code out of the model or use interpreted mode."
       pending := pending ++ data.imports.map (·.module)
   let imports := env.allImportedModuleNames.filter fun name =>
-    visited.contains name && !verificationEntrypoints.contains name
-  let mut code := ""
-  unless forwarded.isEmpty do
+    visited.contains name && !replaceableVerificationModules.contains name
+  let initializerCode ← if forwardedInitializers.isEmpty then pure "" else do
     let some coreIdx := env.getModuleIdx? `Veil.Core
       | throwError "Veil.Core is not available for standalone execution"
     let coreInit := mkModuleInitializationFunctionName `Veil.Core
       (env.getModulePackageByIdx? coreIdx)
-    code := s!"\nlean_object* {coreInit}(uint8_t builtin);\n"
-    for name in forwarded do
-      let some idx := env.getModuleIdx? name | unreachable!
-      let init := mkModuleInitializationFunctionName name (env.getModulePackageByIdx? idx)
-      code := code ++ s!"lean_object* {init}(uint8_t builtin) \{ return {coreInit}(builtin); }\n"
-  return (imports, code)
+    pure <| emitInitializerForwarders coreInit forwardedInitializers
+  return { imports, initializerCode }
 
 /-- Status of the model checker compilation process for a single model. -/
 inductive Status
