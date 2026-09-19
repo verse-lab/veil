@@ -677,6 +677,9 @@ where
       throwError "Cannot compile this model check: the file already declares `main`, \
         which the generated model checker binary needs as its entry point. \
         Move the `main` declaration into another file, or use `#model_check interpreted`."
+    liftCoreM do
+      let native ← ModelChecker.Compilation.prepareExecutionImports (← getEnv) #[]
+      ModelChecker.Compilation.restrictSpecializationCache native.imports
     -- NOTE: Elaborate a term and add it with `addVeilDefinition` instead of elaborating a `def`
     -- command. `elabCommand` logs errors rather than
     -- throwing, and error recovery still adds `main` with a `sorry` body, so a failed

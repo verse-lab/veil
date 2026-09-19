@@ -1,5 +1,6 @@
 import Veil.Core.UI.Widget.ProgressViewer
 import Lean.Compiler.NameMangling
+import Veil.Util.Compiler
 
 namespace Veil.ModelChecker.Compilation
 
