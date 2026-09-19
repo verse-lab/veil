@@ -1,12 +1,10 @@
 module
 
 public import Veil.Frontend.DSL.Action.Semantics.Definitions
-public meta import Veil.Frontend.DSL.Action.Semantics.Definitions
 public meta import Veil.Util.Meta
 public import Veil.Frontend.DSL.State.Types
-public meta import Veil.Frontend.DSL.State.Types
 
-@[expose] public section
+public section
 
 /-! # Utilities for Displaying -/
 

@@ -1,15 +1,11 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.Concrete.MapReduceLemmas
-public meta import Veil.Core.Tools.ModelChecker.Concrete.MapReduceLemmas
 public import Veil.Core.Tools.ModelChecker.Concrete.Progress
-public meta import Veil.Core.Tools.ModelChecker.Concrete.Progress
 public import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
-public meta import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
 public import Veil.Util.ListSplit
-public meta import Veil.Util.ListSplit
 
-@[expose] public section
+public section
 
 namespace Veil.ModelChecker.Concrete
 open Veil

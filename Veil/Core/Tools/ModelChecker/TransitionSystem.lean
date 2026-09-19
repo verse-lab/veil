@@ -1,7 +1,6 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.ExecutionOutcome
-public meta import Veil.Core.Tools.ModelChecker.ExecutionOutcome
 
 @[expose] public section
 

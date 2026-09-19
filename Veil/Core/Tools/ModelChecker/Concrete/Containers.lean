@@ -1,8 +1,7 @@
 module
 
 public import Std
-public meta import Std
-public meta import Veil.Util.Tactics
+meta import Veil.Util.Tactics
 
 @[expose] public section
 

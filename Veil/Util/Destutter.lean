@@ -12,7 +12,6 @@ as described in LICENSE.
   Rodriguez. Authors: Eric Rodriguez, Eric Wieser
 -/
 public import Veil.Util.List
-public meta import Veil.Util.List
 
 @[expose] public section
 

@@ -1,7 +1,6 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.Concrete.Progress
-public meta import Veil.Core.Tools.ModelChecker.Concrete.Progress
 
 public section
 

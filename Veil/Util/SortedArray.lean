@@ -5,17 +5,11 @@ import all Init.Data.Array.BinSearch
 import all Init.Data.Array.Subarray
 
 public import Std
-public meta import Std
 public import Batteries.Data.Array.Merge
-public meta import Batteries.Data.Array.Merge
 public import Batteries.Data.Array.Pairwise
-public meta import Batteries.Data.Array.Pairwise
 public import Veil.Frontend.DSL.State.Types
-public meta import Veil.Frontend.DSL.State.Types
 public import Veil.Frontend.DSL.State.Instances
-public meta import Veil.Frontend.DSL.State.Instances
 public import Veil.Util.SortedList
-public meta import Veil.Util.SortedList
 
 @[expose] public section
 

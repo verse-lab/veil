@@ -1,9 +1,7 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.TransitionSystem
-public meta import Veil.Core.Tools.ModelChecker.TransitionSystem
 public import Lean
-public meta import Lean
 
 @[expose] public section
 

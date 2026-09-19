@@ -1,10 +1,8 @@
 module
 
 public import Std
-public meta import Std
 public meta import Veil.Util.Tactics
 public import Veil.Frontend.DSL.State.Interface
-public meta import Veil.Frontend.DSL.State.Interface
 public meta import Veil.Frontend.DSL.Module.Names
 
 @[expose] public section

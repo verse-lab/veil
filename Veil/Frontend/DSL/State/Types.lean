@@ -1,19 +1,14 @@
 module
 
 public import Veil.Util.Equiv
-public meta import Veil.Util.Equiv
 public import Veil.Util.List
-public meta import Veil.Util.List
 public meta import Veil.Frontend.DSL.Module.Names
 public import Veil.Util.Deriving
-public meta import Veil.Util.Deriving
-public import Veil.Util.EnumList
 public meta import Veil.Util.EnumList
+public meta import Veil.Util.Tactics
 public import Std.Data.TreeMap.Lemmas
 public import Std.Data.TreeSet.Lemmas
-public meta import Std.Data.TreeSet.Lemmas
 public import Std.Data.ExtTreeSet.Lemmas
-public meta import Std.Data.ExtTreeSet.Lemmas
 
 @[expose] public section
 

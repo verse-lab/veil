@@ -1,17 +1,11 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.TransitionSystem
-public meta import Veil.Core.Tools.ModelChecker.TransitionSystem
 public import Veil.Core.Tools.ModelChecker.Interface
-public meta import Veil.Core.Tools.ModelChecker.Interface
 public import Veil.Core.Tools.ModelChecker.Trace
-public meta import Veil.Core.Tools.ModelChecker.Trace
 public import Veil.Frontend.DSL.State.Types
-public meta import Veil.Frontend.DSL.State.Types
 public import Veil.Util.ShardedSetUInt
-public meta import Veil.Util.ShardedSetUInt
 public import Batteries.Lean.HashMap
-public meta import Batteries.Lean.HashMap
 
 @[expose] public section
 

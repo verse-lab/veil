@@ -1,6 +1,6 @@
 module
 
-public meta import Veil.Core.Tools.Verifier.Server
+meta import Veil.Core.Tools.Verifier.Server
 
 public meta section
 

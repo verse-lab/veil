@@ -16,7 +16,8 @@ from where:
 * `Mathlib.Data.List.Sort` -- (c) 2016 Jeremy Avigad. Authors: Jeremy Avigad,
   Wrenna Robson
 -/
-public meta import Veil.Util.Tactics
+public import Batteries.Data.List.Basic
+meta import Veil.Util.Tactics
 
 @[expose] public section
 

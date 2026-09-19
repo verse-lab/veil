@@ -1,7 +1,6 @@
 module
 
 public import Lean
-public meta import Lean
 public meta import Veil.Util.ProxyType
 public meta import Veil.Util.Meta
 

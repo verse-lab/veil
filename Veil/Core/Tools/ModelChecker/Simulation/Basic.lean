@@ -1,11 +1,9 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.Interface
-public meta import Veil.Core.Tools.ModelChecker.Interface
 public import Veil.Util.Histogram
-public meta import Veil.Util.Histogram
 
-@[expose] public section
+public section
 
 namespace Veil.ModelChecker.Simulation
 open Lean

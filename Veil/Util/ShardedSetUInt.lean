@@ -1,9 +1,8 @@
 module
 
 public import Veil.Util.TreeSetMisc
-public meta import Veil.Util.TreeSetMisc
 public import Veil.Util.List
-public meta import Veil.Util.List
+meta import Veil.Util.Tactics
 
 @[expose] public section
 

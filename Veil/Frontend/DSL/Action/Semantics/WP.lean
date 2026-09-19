@@ -3,9 +3,7 @@ module
 public import Batteries.Lean.Expr
 public meta import Batteries.Lean.Expr
 public import Veil.Frontend.DSL.Action.Semantics.Definitions
-public meta import Veil.Frontend.DSL.Action.Semantics.Definitions
 public import Veil.Frontend.DSL.State.SubState
-public meta import Veil.Frontend.DSL.State.SubState
 public meta import Veil.Frontend.DSL.Infra.Simp
 
 public section

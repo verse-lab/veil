@@ -1,13 +1,10 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.Simulation.Basic
-public meta import Veil.Core.Tools.ModelChecker.Simulation.Basic
 public import Veil.Core.Tools.ModelChecker.Simulation.Path
-public meta import Veil.Core.Tools.ModelChecker.Simulation.Path
 public import Veil.Core.Tools.ModelChecker.Concrete.Core
-public meta import Veil.Core.Tools.ModelChecker.Concrete.Core
 
-@[expose] public section
+public section
 
 namespace Veil.ModelChecker.Simulation
 
@@ -44,7 +41,7 @@ theorem pickedInitialState_valid {ρ σ κ : Type}
   · simp [EnumerableTransitionSystem.toRelational]
   · simpa [EnumerableTransitionSystem.toRelational, hInitStates] using hSelected
 
-def Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
+@[expose] def Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) : ViolationKind → Prop
@@ -85,7 +82,7 @@ theorem Trace.witnessesSimulationViolation_valid {ρ σ κ : Type} {th : ρ}
   | deadlock => exact h.1
   | assertionFailure _ => exact h.1
 
-def ReportedViolationSound {ρ σ κ : Type} {th₀ : ρ}
+@[expose] def ReportedViolationSound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (result : Option (SimulationResult ρ σ κ)) : Prop :=

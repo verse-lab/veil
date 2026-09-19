@@ -1,13 +1,10 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.Concrete.Core
-public meta import Veil.Core.Tools.ModelChecker.Concrete.Core
 public import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
-public meta import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
 public import Veil.Core.Tools.ModelChecker.Concrete.Containers
-public meta import Veil.Core.Tools.ModelChecker.Concrete.Containers
 
-@[expose] public section
+public section
 
 namespace Veil.ModelChecker.Concrete
 

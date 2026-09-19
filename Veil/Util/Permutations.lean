@@ -6,10 +6,9 @@ Released under Apache 2.0 license as described in LICENSE.
 Adapted from Mathlib.Data.List.Defs (authors: Parikshit Khanna, Jeremy Avigad,
 Leonardo de Moura, Floris van Doorn, Mario Carneiro).
 -/
-public import Lean
-public meta import Lean
+import Lean.Elab.Tactic.Omega
 
-@[expose] public section
+public section
 
 namespace Veil.List
 
@@ -29,6 +28,6 @@ termination_by ts is => (ts.length + is.length, ts.length)
 decreasing_by all_goals (simp_wf; omega)
 
 /-- All permutations, retaining the previous mathlib candidate order and duplicates. -/
-@[no_expose] def permutations (l : List α) : List (List α) := l :: permutationsAux l []
+def permutations (l : List α) : List (List α) := l :: permutationsAux l []
 
 end Veil.List

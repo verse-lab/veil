@@ -1,13 +1,9 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.Simulation.Runtime
-public meta import Veil.Core.Tools.ModelChecker.Simulation.Runtime
 public import Veil.Core.Tools.ModelChecker.Simulation.Result
-public meta import Veil.Core.Tools.ModelChecker.Simulation.Result
 public import Veil.Core.Tools.ModelChecker.Simulation.Soundness
-public meta import Veil.Core.Tools.ModelChecker.Simulation.Soundness
 
-@[expose] public section
 
 namespace Veil.ModelChecker.Simulation
 

@@ -1,12 +1,9 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.TransitionSystem
-public meta import Veil.Core.Tools.ModelChecker.TransitionSystem
 public import Veil.Core.Tools.ModelChecker.Trace
-public meta import Veil.Core.Tools.ModelChecker.Trace
 public meta import Veil.Util.Tactics
 public import Lean.Data.Json
-public meta import Lean.Data.Json
 
 @[expose] public section
 

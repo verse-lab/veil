@@ -10,11 +10,8 @@ Microsoft Corporation; authors: Leonardo de Moura, Jeremy Avigad, Haitao
 Zhang). Only what Veil's finite encodings need.
 -/
 public import Lean
-public meta import Lean
 public import Aesop
-public meta import Aesop
 public import Batteries
-public meta import Batteries
 
 @[expose] public section
 

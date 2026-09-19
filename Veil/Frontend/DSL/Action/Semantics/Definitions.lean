@@ -1,9 +1,7 @@
 module
 
 public import Loom.MonadAlgebras.NonDetT'.ExtractList
-public meta import Loom.MonadAlgebras.NonDetT'.ExtractList
 public import Veil.Frontend.DSL.State.SubState
-public meta import Veil.Frontend.DSL.State.SubState
 
 @[expose] public section
 

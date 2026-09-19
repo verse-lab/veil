@@ -1,7 +1,6 @@
 module
 
 public import Veil.Frontend.DSL.State.Types
-public meta import Veil.Frontend.DSL.State.Types
 public meta import Veil.Frontend.DSL.Infra.Simp
 
 @[expose] public section

@@ -1,13 +1,9 @@
 module
 
 public import Std
-public meta import Std
 public import Veil.Util.Destutter
-public meta import Veil.Util.Destutter
 public import Veil.Frontend.DSL.State.Types
-public meta import Veil.Frontend.DSL.State.Types
 public import Veil.Frontend.DSL.State.Instances
-public meta import Veil.Frontend.DSL.State.Instances
 
 @[expose] public section
 

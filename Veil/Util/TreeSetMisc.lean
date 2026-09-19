@@ -1,11 +1,9 @@
 module
 
 public import Std
-public meta import Std
-public import Batteries.Tactic.Trans
-public meta import Batteries.Tactic.Trans
+meta import Batteries.Tactic.Trans
 
-@[expose] public section
+public section
 
 namespace Std.TreeSet
 

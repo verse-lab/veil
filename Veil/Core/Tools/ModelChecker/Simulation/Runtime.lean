@@ -1,11 +1,8 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.Simulation.Path
-public meta import Veil.Core.Tools.ModelChecker.Simulation.Path
 public import Veil.Core.Tools.ModelChecker.Simulation.Soundness
-public meta import Veil.Core.Tools.ModelChecker.Simulation.Soundness
 public import Veil.Core.Tools.ModelChecker.Concrete.Progress
-public meta import Veil.Core.Tools.ModelChecker.Concrete.Progress
 
 public section
 

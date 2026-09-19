@@ -1,11 +1,9 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.Concrete.Sequential
-public meta import Veil.Core.Tools.ModelChecker.Concrete.Sequential
 public import Veil.Core.Tools.ModelChecker.Concrete.MapReduce
-public meta import Veil.Core.Tools.ModelChecker.Concrete.MapReduce
 
-@[expose] public section
+public section
 
 namespace Veil.ModelChecker.Concrete
 

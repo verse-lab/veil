@@ -1,11 +1,10 @@
 module
 
-public import Lean
-public meta import Lean
+public import Std.Data.HashSet
 
-@[expose] public section
+public section
 
-open Lean Std
+open Std
 
 namespace Veil
 

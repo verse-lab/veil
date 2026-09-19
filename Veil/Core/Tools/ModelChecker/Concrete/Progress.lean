@@ -6,13 +6,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: George Pîrlea
 -/
 public import Lean.Data.Json
-public meta import Lean.Data.Json
 public import Std.Data.HashMap
-public meta import Std.Data.HashMap
 public import Veil.Core.Tools.ModelChecker.Concrete.Core
-public meta import Veil.Core.Tools.ModelChecker.Concrete.Core
 public import Veil.Util.Histogram
-public meta import Veil.Util.Histogram
 
 public section
 

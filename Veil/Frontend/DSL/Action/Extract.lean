@@ -3,12 +3,9 @@ module
 public meta import Veil.Frontend.DSL.Module.Util
 public meta import Veil.Frontend.DSL.Module.Names
 public import Veil.Core.Tools.ModelChecker.ExecutionOutcome
-public meta import Veil.Core.Tools.ModelChecker.ExecutionOutcome
 public import Veil.Frontend.DSL.Action.Semantics.WP
-public meta import Veil.Frontend.DSL.Action.Semantics.WP
 
 public import Veil.Frontend.DSL.State.Types
-public meta import Veil.Frontend.DSL.State.Types
 
 public section
 

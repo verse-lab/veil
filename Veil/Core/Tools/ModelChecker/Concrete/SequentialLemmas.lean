@@ -1,9 +1,8 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.Concrete.SearchContext
-public meta import Veil.Core.Tools.ModelChecker.Concrete.SearchContext
 
-@[expose] public section
+public section
 
 namespace Veil.ModelChecker.Concrete
 
@@ -14,7 +13,7 @@ variable {ρ σ κ σₕ asm : Type}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (params : SearchParameters ρ σ)
 
-def SequentialSearchContext.initial : SequentialSearchContext σ κ σₕ asm :=
+@[expose] def SequentialSearchContext.initial : SequentialSearchContext σ κ σₕ asm :=
   let iss := sys.initStates
   (BaseSearchContext.initial iss, fQueue.ofList (iss.map (fun s => ⟨fp.view s, s, 0⟩)))
 

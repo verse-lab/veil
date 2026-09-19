@@ -1,7 +1,6 @@
 module
 
 public import Veil.Core
-public meta import Veil.Core
 public meta import Veil.Frontend.DSL.Module.Elaborators.Verification
 public meta import Veil.Frontend.DSL.Tactic
 public meta import Veil.Core.Tools.ModelChecker.Symbolic.TraceLang

@@ -1,9 +1,8 @@
 module
 
-public import Lean
-public meta import Lean
+public import Lean.Data.Name
 
-@[expose] public section
+public section
 
 namespace Veil
 
