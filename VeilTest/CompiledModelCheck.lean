@@ -1,6 +1,6 @@
 module
 
-public import Veil.Core
+public import Veil
 
 veil module CompiledStateConstraint
 
@@ -51,6 +51,8 @@ action fail {
 
 invariant true
 
+/-- error: This assertion might fail when called from fail -/
+#guard_msgs in
 #gen_spec
 
 /--
