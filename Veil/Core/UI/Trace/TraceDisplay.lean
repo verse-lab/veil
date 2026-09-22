@@ -1,9 +1,13 @@
-import Lean.Server.Rpc.Basic
-import Lean.Elab.Command
-import Veil.Core.Tools.ModelChecker.Interface
+module
 
-import ProofWidgets.Component.Basic
-import ProofWidgets.Component.HtmlDisplay
+public meta import Lean.Server.Rpc.Basic
+public meta import Lean.Elab.Command
+public meta import Veil.Core.Tools.ModelChecker.Interface
+
+public meta import ProofWidgets.Component.Basic
+public meta import ProofWidgets.Component.HtmlDisplay
+
+public meta section
 
 namespace Veil.TraceDisplay
 open Lean

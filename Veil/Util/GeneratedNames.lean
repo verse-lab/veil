@@ -1,4 +1,8 @@
-import Lean
+module
+
+public import Lean.Data.Name
+
+public section
 
 namespace Veil
 

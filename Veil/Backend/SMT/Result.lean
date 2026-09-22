@@ -1,6 +1,10 @@
-import Lean
-import ProofWidgets
-import Smt
+module
+
+public meta import Lean
+public meta import ProofWidgets
+public meta import Smt
+
+public meta section
 
 /-!
 # SMT Result Types

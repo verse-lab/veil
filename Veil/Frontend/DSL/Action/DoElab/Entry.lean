@@ -1,5 +1,9 @@
-import Veil.Frontend.DSL.Action.DoElab.Assign
-import Veil.Frontend.DSL.Action.DoElab.Statements
+module
+
+public meta import Veil.Frontend.DSL.Action.DoElab.Assign
+public meta import Veil.Frontend.DSL.Action.DoElab.Statements
+
+public meta section
 
 open Lean Elab Term Meta Lean.Parser
 open Lean.Elab.Do

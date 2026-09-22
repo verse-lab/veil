@@ -1,5 +1,9 @@
-import Lean
-import Veil.Util.Meta
+module
+
+public meta import Lean
+public meta import Veil.Util.Meta
+
+public meta section
 open Lean Elab Command Term Meta Lean.Parser
 
 namespace Veil

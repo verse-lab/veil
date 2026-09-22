@@ -1,19 +1,23 @@
-import Veil.Frontend.DSL.Infra.TraceSyntax
-import Lean
-import Lean.Parser
-import Veil.Util.Meta
-import Veil.Frontend.DSL.Module.Util.Assertions
-import Veil.Frontend.DSL.Module.Names
-import Veil.Frontend.DSL.Util
-import Veil.Core.Tools.ModelChecker.TransitionSystem
-import Veil.Core.Tools.Verifier.Server
-import Veil.Core.Tools.Verifier.Results
-import Veil.Frontend.DSL.Module.VCGen
-import Veil.Core.UI.Trace.TraceDisplay
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import ProofWidgets.Component.HtmlDisplay
-import Veil.Core.UI.Widget.RefreshComponent
-import Veil.Frontend.DSL.Module.Elaborators.Verification
+module
+
+public meta import Veil.Frontend.DSL.Infra.TraceSyntax
+public meta import Lean
+public meta import Lean.Parser
+public meta import Veil.Util.Meta
+public meta import Veil.Frontend.DSL.Module.Util.Assertions
+public meta import Veil.Frontend.DSL.Module.Names
+public meta import Veil.Frontend.DSL.Util
+public meta import Veil.Core.Tools.ModelChecker.TransitionSystem
+public meta import Veil.Core.Tools.Verifier.Server
+public meta import Veil.Core.Tools.Verifier.Results
+public meta import Veil.Frontend.DSL.Module.VCGen
+public meta import Veil.Core.UI.Trace.TraceDisplay
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+public meta import ProofWidgets.Component.HtmlDisplay
+public meta import Veil.Core.UI.Widget.RefreshComponent
+public meta import Veil.Frontend.DSL.Module.Elaborators.Verification
+
+public meta section
 
 /-!
   # Symbolic Trace Language

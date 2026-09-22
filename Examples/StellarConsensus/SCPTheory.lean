@@ -1,5 +1,9 @@
+module
+
 -- skip eval
-import Veil.Util.Tactics
+public import Veil.Util.Tactics
+
+@[expose] public section
 
 -- adapted from [FBA.thy](https://github.com/stellar/scp-proofs/blob/ac41c6353fae870c47c0e7ee558da98c03a7d041/FBA.thy)
 

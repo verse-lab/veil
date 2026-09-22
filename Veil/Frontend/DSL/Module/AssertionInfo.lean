@@ -1,5 +1,9 @@
-import Lean
-import Veil.Frontend.DSL.Infra.EnvExtensions
+module
+
+public meta import Lean
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+
+public meta section
 
 open Lean Elab Command
 

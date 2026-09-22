@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-! # FloodSet: A Synchronous Crash Fault Agreement Protocol
 

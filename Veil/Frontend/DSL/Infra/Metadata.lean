@@ -1,6 +1,10 @@
-import Lean
-import Veil.Frontend.DSL.Module.Representation
-import Veil.Backend.SMT.Result
+module
+
+public meta import Lean
+public meta import Veil.Frontend.DSL.Module.Representation
+public meta import Veil.Backend.SMT.Result
+
+public meta section
 
 /-!
 # Verification Condition Metadata

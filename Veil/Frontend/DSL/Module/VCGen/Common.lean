@@ -1,9 +1,13 @@
-import Lean
-import Veil.Backend.SMT.Result
-import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Core.Tools.Verifier.Server
-import Veil.Core.UI.Verifier.Model
+module
+
+public meta import Lean
+public meta import Veil.Backend.SMT.Result
+public meta import Veil.Frontend.DSL.Module.Representation
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+public meta import Veil.Core.Tools.Verifier.Server
+public meta import Veil.Core.UI.Verifier.Model
+
+public meta section
 
 /-!
 # VC Generation Common Utilities

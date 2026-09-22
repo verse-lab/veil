@@ -1,6 +1,10 @@
-import Veil.Frontend.DSL.Module.Util.Basic
-import Veil.Frontend.DSL.State.ConcreteRegistry
-import Veil.Frontend.DSL.Infra.Quantifiers
+module
+
+public meta import Veil.Frontend.DSL.Module.Util.Basic
+public meta import Veil.Frontend.DSL.State.ConcreteRegistry
+public meta import Veil.Frontend.DSL.Infra.Quantifiers
+
+public meta section
 
 open Lean Parser Elab Command Term
 
@@ -191,7 +195,7 @@ where
     let χBinder ← Parameter.fieldConcreteType >>= Parameter.binder
     let binders := #[χBinder]
     let hoTy ← `(term|$(mkIdent ``Veil.IsHigherOrder) ($stateIdent $fieldConcreteType))
-    `(scoped instance (priority := default) $(mkIdent $ Name.mkSimple s!"{stateName}_ho"):ident $[$binders]* : $hoTy := ⟨⟩)
+    `(@[implicit_reducible, expose, scoped instance] meta def $(mkIdent $ Name.mkSimple s!"{stateName}_ho"):ident $[$binders]* : $hoTy := ⟨⟩)
   /-- Generate binders of the form `(χ : State.Label → Type) [∀ f : State.Label, C (χ f)]` -/
   mkFieldConcreteTypeBinders (typeclass : Name) : m (Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) := do
     let χBinder ← Parameter.fieldConcreteType >>= Parameter.binder

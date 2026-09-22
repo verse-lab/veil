@@ -1,10 +1,14 @@
+module
+
 /-
 Copyright (c) 2014 Parikshit Khanna. All rights reserved.
 Released under Apache 2.0 license as described in LICENSE.
 Adapted from Mathlib.Data.List.Defs (authors: Parikshit Khanna, Jeremy Avigad,
 Leonardo de Moura, Floris van Doorn, Mario Carneiro).
 -/
-import Lean
+import Lean.Elab.Tactic.Omega
+
+public section
 
 namespace Veil.List
 

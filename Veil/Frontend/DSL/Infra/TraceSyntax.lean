@@ -1,4 +1,8 @@
-import Lean
+module
+
+public meta import Lean
+
+public meta section
 
 declare_syntax_cat expected_smt_result
 syntax (name := expected_sat) "sat" : expected_smt_result

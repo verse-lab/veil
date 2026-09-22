@@ -1,7 +1,11 @@
-import Veil.Core.Tools.ModelChecker.Concrete.MapReduceLemmas
-import Veil.Core.Tools.ModelChecker.Concrete.Progress
-import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
-import Veil.Util.ListSplit
+module
+
+public import Veil.Core.Tools.ModelChecker.Concrete.MapReduceLemmas
+public import Veil.Core.Tools.ModelChecker.Concrete.Progress
+public import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
+public import Veil.Util.ListSplit
+
+public section
 
 namespace Veil.ModelChecker.Concrete
 open Veil
@@ -211,7 +215,7 @@ def processWorkQueue
     LawfulMapReduceSearchContextLocal (κ := κ) sys params globalSeen q :=
   let ⟨v, hl⟩ := lctx
   match queue with
-  | [] => ⟨v, (processWorkQueue.subproof1 h) ▸ hl⟩
+  | [] => ⟨v, by simpa [← processWorkQueue.subproof1 h] using hl⟩
   | item :: rest =>
     if h_finished : v.hasFinished
     then ⟨v, hl.finished_change_visited_pred_in_invs h_finished⟩
@@ -220,11 +224,11 @@ def processWorkQueue
       let v' := v.processState globalSeen params th fpSt curr (sys.tr th curr)
       -- CHECK Is this proper tail-recursive?
       processWorkQueue rest
-        (processWorkQueue.subproof2 h)
-        (processWorkQueue.subproof4 h_inqueue_reachable)
+        (by exact processWorkQueue.subproof2 h)
+        (by exact processWorkQueue.subproof4 h_inqueue_reachable)
         <| Subtype.mk v' <| hl.processState_progress fpSt curr
-          (processWorkQueue.subproof5 (α := MapReduceQueueItem σₕ σ) h_inqueue_reachable)
-          (processWorkQueue.subproof3 h_finished)
+          (by exact processWorkQueue.subproof5 (α := MapReduceQueueItem σₕ σ) h_inqueue_reachable)
+          (by exact processWorkQueue.subproof3 h_finished)
 
 /-- Main worker entry point. Creates a neutral context and processes the work queue.
     This function is called by each parallel task. -/
@@ -239,7 +243,7 @@ def bfsBigStep
   m (LawfulMapReduceSearchContextLocal (κ := κ) sys params globalSeen (· ∈ queue)) :=
   let lctx : LawfulMapReduceSearchContextLocal sys params globalSeen (fun _ => False) :=
     ⟨MapReduceSearchContextLocal.initial completedDepth, MapReduceSearchContextLocalInvariants.initial sys params globalSeen completedDepth⟩
-  let res := lctx.processWorkQueue queue processWorkQueue.subproof6 h_inqueue_reachable
+  let res := lctx.processWorkQueue queue (by exact processWorkQueue.subproof6) h_inqueue_reachable
   pure res
 
 end LawfulMapReduceSearchContextLocal
@@ -552,7 +556,9 @@ def breadthFirstSearchParallel {m : Type → Type}
   (cancelToken : IO.CancelToken) :
   m (MapReduceSearchContextMain σ κ σₕ asm) := do
   let numShards := max 1 <| min parallelCfg.numSubTasks 4294967295
-  have ⟨h_pos, h_small⟩ := not_too_small_not_too_large parallelCfg.numSubTasks
+  have h_bounds : 0 < USize.ofNat numShards ∧ numShards < USize.size := by
+    exact not_too_small_not_too_large parallelCfg.numSubTasks
+  have ⟨h_pos, h_small⟩ := h_bounds
   let mut mctx : LawfulMapReduceSearchContextMain (fp := fp) sys params :=
     Subtype.mk (MapReduceSearchContextMain.initial sys.initStates numShards h_pos h_small)
       (MapReduceSearchContextMainInvariants.initial sys params numShards)
@@ -587,8 +593,9 @@ def breadthFirstSearchParallel {m : Type → Type}
       -- in some other file.
       let tasks ← IteratedProd.taskSplit splitLists fun subList h_sublist_in =>
         LawfulMapReduceSearchContextLocal.bfsBigStep params sys globalSeen completedDepth subList
-          (breadthFirstSearchParallel.subproof1 h_mctx.queue_sound splitLists
-            (fun item hm => (ListSplit.splitList_mem_iff numSplits chunkSize numLarge tovisit item).mp hm) _ h_sublist_in)
+          (by
+            exact breadthFirstSearchParallel.subproof1 h_mctx.queue_sound splitLists
+              (fun item hm => (ListSplit.splitList_mem_iff numSplits chunkSize numLarge tovisit item).mp hm) _ h_sublist_in)
       let results ← IteratedProd.mapM
         (T₂ := (fun a => LawfulMapReduceSearchContextLocal sys params globalSeen (· ∈ a)))
         (fun task => IO.ofExcept task.get) tasks

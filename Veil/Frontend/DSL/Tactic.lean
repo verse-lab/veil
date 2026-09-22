@@ -1,5 +1,9 @@
-import Veil.Frontend.DSL.Tactic.Core
-import Smt
+module
+
+public meta import Veil.Frontend.DSL.Tactic.Core
+public meta import Smt
+
+public meta section
 
 open Lean Elab Tactic Meta Simp Tactic.TryThis Parser.Tactic
 namespace Veil

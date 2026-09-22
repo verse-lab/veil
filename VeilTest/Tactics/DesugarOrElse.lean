@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-! ## Test: `DesugarTacticM.orElse` properly backtracks accumulated tactics
 

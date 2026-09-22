@@ -1,7 +1,11 @@
-import Lean
-import Smt
-import ProofWidgets.Compat
-import Veil.Frontend.DSL.Module.Util.Basic
+module
+
+public meta import Lean
+public meta import Smt
+public meta import ProofWidgets.Compat
+public meta import Veil.Frontend.DSL.Module.Util.Basic
+
+public meta section
 
 /-! ## Helper Functions -/
 

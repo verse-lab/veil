@@ -1,7 +1,11 @@
-import Lean.Elab.BuiltinDo
-import Veil.Frontend.DSL.Action.Semantics.WP
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Frontend.DSL.Module.Util
+module
+
+public meta import Lean.Elab.BuiltinDo
+public meta import Veil.Frontend.DSL.Action.Semantics.WP
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+public meta import Veil.Frontend.DSL.Module.Util
+
+public meta section
 
 open Lean Elab Term Meta Lean.Parser
 open Lean.Elab.Do

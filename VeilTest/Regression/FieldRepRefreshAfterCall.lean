@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-!
 # Regression: indexed updates use the current represented field after a call

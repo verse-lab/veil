@@ -1,5 +1,9 @@
-import Veil.Base
-import Veil.Frontend.DSL.Module.Representation
+module
+
+public meta import Veil.Base
+public meta import Veil.Frontend.DSL.Module.Representation
+
+public meta section
 
 open Lean Elab Command
 namespace Veil

@@ -1,7 +1,12 @@
-import Batteries.Lean.Expr
-import Veil.Frontend.DSL.Action.Semantics.Definitions
-import Veil.Frontend.DSL.State.SubState
-import Veil.Frontend.DSL.Infra.Simp
+module
+
+public import Batteries.Lean.Expr
+public meta import Batteries.Lean.Expr
+public import Veil.Frontend.DSL.Action.Semantics.Definitions
+public import Veil.Frontend.DSL.State.SubState
+public meta import Veil.Frontend.DSL.Infra.Simp
+
+public section
 
 open Loom.Order
 open scoped Loom.Order
@@ -13,31 +18,30 @@ variable (hd : ExId -> Prop) [IsHandler hd]
 
 /- Languge constructs -/
 
-def VeilExecM.assert (p : Prop) [Decidable p] (ex : ExId) : VeilExecM m ρ σ Unit := do
+@[expose] def VeilExecM.assert (p : Prop) [Decidable p] (ex : ExId) : VeilExecM m ρ σ Unit := do
   if p then pure () else throw ex
 
-def VeilM.assert (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
+@[expose] def VeilM.assert (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
   liftM (@VeilExecM.assert m ρ σ p _ ex)
 
 /-- We require the predicate to be `Decidable`, even though `assume`
 does not, in order to collect the appropriate instances needed for
 execution. -/
-@[reducible]
-def VeilM.assume (p : Prop) [Decidable p] : VeilM m ρ σ PUnit := do
+@[reducible, expose] def VeilM.assume (p : Prop) [Decidable p] : VeilM m ρ σ PUnit := do
   MonadNonDet.assume p
 
 /-- We require the predicate to be `Decidable`, even though `assume`
 does not, in order to collect the appropriate instances needed for
 execution. -/
-def VeilM.pickSuchThat (τ : Type) (p : τ → Prop) [∀ x, Decidable (p x)] : VeilM m ρ σ τ := do
+@[expose] def VeilM.pickSuchThat (τ : Type) (p : τ → Prop) [∀ x, Decidable (p x)] : VeilM m ρ σ τ := do
   MonadNonDet.pickSuchThat τ p
 
-def VeilM.require (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
+@[expose] def VeilM.require (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
   match m with
   | .internal => VeilM.assert p ex
   | .external => assume p
 
-def VeilM.ensure (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
+@[expose] def VeilM.ensure (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
   match m with
   | .internal => assume p
   | .external => VeilM.assert p ex
@@ -53,8 +57,7 @@ frame (`unchanged`). -/
   return ret
 
 /-- Takes a `VeilM` action, executes it, and returns `Unit`.-/
-@[reducible]
-def VeilM.returnUnit (act : VeilM m ρ σ α) : VeilM m ρ σ Unit := do
+@[reducible, expose] def VeilM.returnUnit (act : VeilM m ρ σ α) : VeilM m ρ σ Unit := do
   let _ ← act
   return ()
 
@@ -246,7 +249,7 @@ names from do-notation with generic ones like `x`, `x_1`, or `t`. These
 simprocs perform the same rewrites and then alpha-rename the introduced
 binders to match the original source names.
 -/
-section PickSimprocs
+meta section PickSimprocs
 
 open Lean Meta
 
@@ -270,7 +273,7 @@ private partial def underLambdas (f : Expr → Expr) : Expr → Expr
   | e => f e
 
 /-- Rewrite `e` at the root with `lem` (one shot — no recursion into the result). -/
-private def rewriteRoot? (e : Expr) (lem : Name) : MetaM (Option (Expr × Expr)) := do
+private meta def rewriteRoot? (e : Expr) (lem : Name) : MetaM (Option (Expr × Expr)) := do
   let goal ← mkFreshExprMVar (mkConst ``True)
   let r ←
     try goal.mvarId!.rewrite e (← mkConstWithFreshMVarLevels lem) (config := { occs := .pos [1] })
@@ -362,13 +365,13 @@ equality proof.  Recursive work under a generated `letEq` continuation is lifted
 back with `funext` and `congrArg`; metadata is definitionally transparent and
 carries no proof obligation.
 -/
-section CompactSimprocs
+meta section CompactSimprocs
 
 open Lean Meta
 
 private def wpCompactIteMarkerKey : Name := `Veil.wpCompactLetEq
 
-private partial def wpCompactIteImpl : Simp.Simproc := fun e => do
+private meta partial def wpCompactIteImpl : Simp.Simproc := fun e => do
   let e := e.consumeMData
   unless (← Meta.isProp e) && e.isIte do
     return .continue

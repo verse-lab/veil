@@ -1,6 +1,10 @@
-import Veil.Frontend.DSL.Action.DoElab.Context
-import Veil.Frontend.DSL.Action.Syntax
-import Lean.Elab.Idbg
+module
+
+public meta import Veil.Frontend.DSL.Action.DoElab.Context
+public meta import Veil.Frontend.DSL.Action.Syntax
+public meta import Lean.Elab.Idbg
+
+public meta section
 
 open Lean Elab Term Meta Lean.Parser
 open Lean.Elab.Do

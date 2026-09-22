@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-!
 Distinct simulation outcomes: safety and assertion failures, deadlock before and

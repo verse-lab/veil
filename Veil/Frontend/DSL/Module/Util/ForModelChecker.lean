@@ -1,8 +1,65 @@
-import Veil.Core.UI.Widget.ProgressViewer
+module
+
+public meta import Lean.Compiler.LCNF.Main
+public meta import Lean.Compiler.LCNF.EmitC
+public meta import Lean.Compiler.LCNF.EmitUtil
+public meta import Veil.Core.Tools.ModelChecker.CompiledRuntime
+public meta import Veil.Core.UI.Widget.ProgressViewer
+
+public meta section
 
 namespace Veil.ModelChecker.Compilation
 
 open Lean Meta Elab Command
+
+/-- Native dependencies follow ordinary imports, including private ones. Meta imports
+supply elaboration tools but do not initialize or link into a standalone checker. -/
+def executionImports (env : Environment) : CoreM (Array Name) := do
+  let mut pending := env.imports.filterMap fun imp => if imp.isMeta then none else some imp.module
+  let mut visited : NameSet := {}
+  let mut imports := #[]
+  while !pending.isEmpty do
+    let name := pending.back!
+    pending := pending.pop
+    if visited.contains name then continue
+    visited := visited.insert name
+    imports := imports.push name
+    let deps ← if let some idx := env.getModuleIdx? name then
+      pure env.header.moduleData[idx]!.imports
+    else
+      -- A private runtime dependency need not have been loaded for elaboration.
+      let (data, _) ← readModuleData (← findOLean name)
+      pure data.imports
+    pending := pending ++ deps.filterMap fun imp => if imp.isMeta then none else some imp.module
+  return imports.qsort Name.quickLt
+
+/-- Resume postponed compilation of all local runtime initializers in source order.
+Compiling only the entry point misses initializers whose results are unused. -/
+def compileRuntimeInitializers : CoreM Unit := do
+  let env ← getEnv
+  for name in (regularInitAttr.ext.getState env).1.reverse do
+    unless isMarkedMeta env name do
+      if let some initFn := getInitFnNameFor? env name then
+        Lean.Compiler.LCNF.resumeCompilation initFn (← getOptions)
+      Lean.Compiler.LCNF.resumeCompilation name (← getOptions)
+
+/-- Emit a compiled entry point and the local runtime initializers prepared by
+`compileRuntimeInitializers`. Initializers remain roots even when their results are
+unused, preserving their side effects. Lean's emitter retains declaration order. -/
+def emitCWithRuntimeInitializers (entryPoint : Name) : CoreM String := do
+  let env ← getEnv
+  let initializers := (← Lean.Compiler.LCNF.getLocalImpureDecls).filter fun name =>
+    !isMarkedMeta env name && (isIOUnitInitFn env name || hasInitAttr env name)
+  -- `emitCForDecls` indexes its argument, so it needs the whole dependency closure.
+  let (used, _) ← Lean.Compiler.LCNF.collectUsedDecls (#[entryPoint] ++ initializers)
+  Lean.Compiler.LCNF.emitCForDecls env.mainModule (used.map (·.name))
+
+private unsafe def evalJsonComputationUnsafe (expr : Expr) : TermElabM (IO Json) :=
+  Meta.evalExpr (IO Json) (mkApp (mkConst ``IO) (mkConst ``Json)) expr
+
+/-- Evaluate a checked model-checker computation in the elaboration environment. -/
+@[implemented_by evalJsonComputationUnsafe]
+opaque evalJsonComputation (expr : Expr) : TermElabM (IO Json)
 
 /-- Status of the model checker compilation process for a single model. -/
 inductive Status
@@ -87,37 +144,6 @@ def generateBuildFolderName (sourceFile : String) (command : CompiledCommandSpec
   let baseDir ← getBuildBaseDir
   return baseDir / s!"{stem}_{command.name}_{mixHash (hash cCode) (hash imports)}"
 
-/-- Entry point shared by the generated model checker executables. -/
-def runMain (check : Option ModelChecker.ParallelConfig → Nat → IO.CancelToken → IO Json) (args : List String) : IO Unit := do
-  let _ ← IO.asTask (prio := .dedicated) exitWhenParentDies
-  -- Enable progress reporting to stderr for the IDE to read
-  Veil.ModelChecker.Concrete.enableCompiledModeProgress
-  let pcfg : Option Veil.ModelChecker.ParallelConfig :=
-    match args with
-    | a :: b :: args' =>
-      let numSubSteps := args'.head?.bind String.toNat? |>.getD 1
-      match a.toNat?, b.toNat? with
-      | some numSubTasks, some thresholdToParallel => some { numSubTasks, thresholdToParallel, numSubSteps : Veil.ModelChecker.ParallelConfig }
-      | _, _ => none
-    | _ => none
-  -- Instance ID is not used in compiled mode, pass 0
-  -- Cancel token is created locally; cancellation is handled by killing the process from outside
-  let cancelTk ← IO.CancelToken.new
-  let res ← check pcfg 0 cancelTk
-  IO.println s!"{res}"
-  flushStdoutAndStderr
-  IO.Process.forceExit 0
-where
-  flushStdoutAndStderr : IO Unit := do
-    let stdout ← IO.getStdout
-    let stderr ← IO.getStderr
-    stdout.flush
-    stderr.flush
-  exitWhenParentDies : IO Unit := do
-    let stdin ← IO.getStdin
-    let _ ← stdin.readToEnd
-    flushStdoutAndStderr
-    IO.Process.forceExit 2
 
 /-
 NOTE: Locks on build folders.

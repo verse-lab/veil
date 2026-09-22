@@ -1,4 +1,7 @@
-import Veil
+module
+
+public import Veil
+
 set_option linter.unusedVariables false
 
 veil module Ring

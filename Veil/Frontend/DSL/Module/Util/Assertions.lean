@@ -1,4 +1,8 @@
-import Veil.Frontend.DSL.Module.Util.StateTheory
+module
+
+public meta import Veil.Frontend.DSL.Module.Util.StateTheory
+
+public meta section
 
 open Lean Parser Elab Command Term Meta Tactic
 
@@ -283,7 +287,10 @@ capitalized variables are universally quantified via `uqc%` (only valid for
 `Prop`-returning terms). The `motiveType` parameter controls the motive used
 in the `casesOn` eliminators. -/
 def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind) (params : Option (TSyntax `Lean.explicitBinders)) (term : Term)
-  (motiveType : Option Term) (justTheory : Bool := false) (quantifyCapitals : Bool := false) : TermElabM ElaboratedVeilTerm := do
+  (motiveType : Option Term) (justTheory : Bool := false) (quantifyCapitals : Bool := false) : TermElabM ElaboratedVeilTerm := withExporting (isExporting := true) do
+  -- Default theory/state arguments store tactic syntax in auxiliary declarations.
+  -- These are part of the public signature of an assertion or ghost definition.
+  withDeclName ((← getCurrNamespace) ++ name) do
   let baseParams ← mod.declarationBaseParams dk
   let binders ← baseParams.mapM (·.binder)
   let paramBinders ← Option.stxArrMapM params toBracketedBinderArray

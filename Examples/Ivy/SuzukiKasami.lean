@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 -- https://github.com/markyuen/tlaplus-to-ivy/blob/main/ivy/suzuki_kasami.ivy
 

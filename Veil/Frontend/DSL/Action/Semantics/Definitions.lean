@@ -1,5 +1,9 @@
-import Loom.MonadAlgebras.NonDetT'.ExtractList
-import Veil.Frontend.DSL.State.SubState
+module
+
+public import Loom.MonadAlgebras.NonDetT'.ExtractList
+public import Veil.Frontend.DSL.State.SubState
+
+@[expose] public section
 
 /-!
   # Action Language

@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 -- source:https://github.com/DistAlgo/proofs/blob/master/basic-paxos/PaxosLam.tla
 -- ------------------------------- MODULE Paxos -------------------------------

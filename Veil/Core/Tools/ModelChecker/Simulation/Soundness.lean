@@ -1,6 +1,10 @@
-import Veil.Core.Tools.ModelChecker.Simulation.Basic
-import Veil.Core.Tools.ModelChecker.Simulation.Path
-import Veil.Core.Tools.ModelChecker.Concrete.Core
+module
+
+public import Veil.Core.Tools.ModelChecker.Simulation.Basic
+public import Veil.Core.Tools.ModelChecker.Simulation.Path
+public import Veil.Core.Tools.ModelChecker.Concrete.Core
+
+public section
 
 namespace Veil.ModelChecker.Simulation
 
@@ -37,7 +41,7 @@ theorem pickedInitialState_valid {ρ σ κ : Type}
   · simp [EnumerableTransitionSystem.toRelational]
   · simpa [EnumerableTransitionSystem.toRelational, hInitStates] using hSelected
 
-def Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
+@[expose] def Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) : ViolationKind → Prop
@@ -78,7 +82,7 @@ theorem Trace.witnessesSimulationViolation_valid {ρ σ κ : Type} {th : ρ}
   | deadlock => exact h.1
   | assertionFailure _ => exact h.1
 
-def ReportedViolationSound {ρ σ κ : Type} {th₀ : ρ}
+@[expose] def ReportedViolationSound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
   (params : SearchParameters ρ σ) (result : Option (SimulationResult ρ σ κ)) : Prop :=
@@ -280,7 +284,8 @@ theorem simulateOnce_sound {ρ σ κ : Type}
             simp [initStates, p, idx, hNonemptyRaw] at h
             exact h
           cases hFound
-          exact ⟨hValid, hNoFail, rfl, hNonempty⟩
+          refine ⟨hValid, hNoFail, ?_, hNonempty⟩
+          simp [initTrace]
 
 /-- Any violation reported by a single indexed random trace is sound. -/
 theorem simulateTraceAtIndex_sound {ρ σ κ : Type}

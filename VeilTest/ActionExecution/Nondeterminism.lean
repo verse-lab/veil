@@ -1,4 +1,7 @@
-import VeilTest.ActionExecution
+module
+
+public import VeilTest.ActionExecution
+public meta import VeilTest.ActionExecution
 
 /-!
 Concrete tests for nondeterministic statements, logical sharing, assumptions,

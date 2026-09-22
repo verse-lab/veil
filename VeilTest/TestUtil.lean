@@ -1,4 +1,8 @@
-import Lean
+module
+
+public meta import Lean
+
+public meta section
 open Lean
 
 /-- Lean introduces a "synthetic" `sorry` when elaboration fails for a terms.

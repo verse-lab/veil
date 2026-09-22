@@ -1,5 +1,9 @@
-import Veil.Frontend.DSL.Module.Util.LocalRProp
-import Veil.Core.Tools.ModelChecker.TransitionSystem
+module
+
+public meta import Veil.Frontend.DSL.Module.Util.LocalRProp
+public meta import Veil.Core.Tools.ModelChecker.TransitionSystem
+
+public meta section
 
 open Lean Parser Elab Command Term Meta Tactic
 

@@ -1,6 +1,10 @@
-import Lean
-import Veil.Util.ProxyType
-import Veil.Util.Meta
+module
+
+public import Lean
+public meta import Veil.Util.ProxyType
+public meta import Veil.Util.Meta
+
+@[expose] public section
 
 open Lean Meta Elab Term Command Deriving
 
@@ -114,6 +118,12 @@ end InstancesForSum
 
 end Veil
 
+end
+
+public meta section
+
+open Lean Meta Elab Term Command Deriving
+
 namespace Veil.Deriving
 
 /-! # Meta-Programs For Instance Derivation
@@ -212,9 +222,11 @@ Returns the theorem name. When both `Std.TransOrd` and `Std.LawfulEqOrd` are der
 for the same type, the second derivation reuses the cached theorem.
 Assume `declName` is the fully qualified name. -/
 def ensureOrdHomProof (declName : Name) : CommandElabM Name := do
-  let thmName := declName ++ `_proxyOrdHom
-  if (← getEnv).find? thmName |>.isSome then
-    return thmName
+  -- Commands use the source-level namespace, even for a private inductive.
+  -- Resolve the generated theorem afterwards to recover its actual private name.
+  let thmName := privateToUserName declName ++ `_proxyOrdHom
+  if let [(existing, [])] ← resolveGlobalName thmName then
+    return existing
   let indVal ← getConstInfoInduct declName
   -- Compute a name relative to the current namespace so that
   -- `elabVeilCommand` (which uses the current namespace) doesn't double it.
@@ -236,7 +248,7 @@ def ensureOrdHomProof (declName : Name) : CommandElabM Name := do
             try (destruct_proxy_sum <;> destruct_proxy_sum <;> try rfl)
             all_goals (first | rfl | (destruct_proxy_sigma ; first | rfl | grind)))
   elabVeilCommand cmd
-  return thmName
+  resolveGlobalConstNoOverloadCore thmName
 
 def mkOrdRelatedInstCmd (className declName : Name) : CommandElabM Bool := do
   let thmName ← ensureOrdHomProof declName

@@ -1,4 +1,8 @@
-import Veil.Core.Tools.ModelChecker.ExecutionOutcome
+module
+
+public import Veil.Core.Tools.ModelChecker.ExecutionOutcome
+
+@[expose] public section
 
 namespace Veil
 

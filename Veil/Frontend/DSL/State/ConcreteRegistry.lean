@@ -1,7 +1,11 @@
-import Lean
-import Std
-import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.State.Concrete
+module
+
+public meta import Lean
+public meta import Std
+public meta import Veil.Frontend.DSL.Module.Representation
+public meta import Veil.Frontend.DSL.State.Concrete
+
+public meta section
 
 /-!
 # Concrete Representation Registry

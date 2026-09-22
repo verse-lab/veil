@@ -1,12 +1,16 @@
+module
+
 /-
 Copyright (c) 2025 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: George Pîrlea
 -/
-import Lean.Data.Json
-import Std.Data.HashMap
-import Veil.Core.Tools.ModelChecker.Concrete.Core
-import Veil.Util.Histogram
+public import Lean.Data.Json
+public import Std.Data.HashMap
+public import Veil.Core.Tools.ModelChecker.Concrete.Core
+public import Veil.Util.Histogram
+
+public section
 
 namespace Veil.ModelChecker.Concrete
 open Lean

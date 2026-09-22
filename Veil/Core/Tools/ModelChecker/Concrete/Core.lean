@@ -1,9 +1,13 @@
-import Veil.Core.Tools.ModelChecker.TransitionSystem
-import Veil.Core.Tools.ModelChecker.Interface
-import Veil.Core.Tools.ModelChecker.Trace
-import Veil.Frontend.DSL.State.Types
-import Veil.Util.ShardedSetUInt
-import Batteries.Lean.HashMap
+module
+
+public import Veil.Core.Tools.ModelChecker.TransitionSystem
+public import Veil.Core.Tools.ModelChecker.Interface
+public import Veil.Core.Tools.ModelChecker.Trace
+public import Veil.Frontend.DSL.State.Types
+public import Veil.Util.ShardedSetUInt
+public import Batteries.Lean.HashMap
+
+@[expose] public section
 
 namespace Veil.ModelChecker.Concrete
 open Std

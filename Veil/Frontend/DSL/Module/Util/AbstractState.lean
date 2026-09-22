@@ -1,6 +1,10 @@
-import Veil.Frontend.DSL.Module.Util.Assertions
-import Veil.Util.ReplacingInstances
-import Veil.Util.Meta
+module
+
+public meta import Veil.Frontend.DSL.Module.Util.Assertions
+public meta import Veil.Util.ReplacingInstances
+public meta import Veil.Util.Meta
+
+public meta section
 
 open Lean Parser Elab Command Term Meta Tactic
 

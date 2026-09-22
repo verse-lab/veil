@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-! Ghost relations used in `sat trace` assertions should elaborate correctly. -/
 

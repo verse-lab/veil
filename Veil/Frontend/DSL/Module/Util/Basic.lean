@@ -1,14 +1,18 @@
-import Lean
-import Veil.Frontend.DSL.Module.Names
-import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.Module.Syntax
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Frontend.DSL.State
-import Veil.Frontend.DSL.Util
-import Veil.Frontend.DSL.State.Repr
-import Veil.Util.Meta
-import Veil.Util.List
-import Veil.Util.ProxyType
+module
+
+public meta import Lean
+public meta import Veil.Frontend.DSL.Module.Names
+public meta import Veil.Frontend.DSL.Module.Representation
+public meta import Veil.Frontend.DSL.Module.Syntax
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+public meta import Veil.Frontend.DSL.State
+public meta import Veil.Frontend.DSL.Util
+public meta import Veil.Frontend.DSL.State.Repr
+public meta import Veil.Util.Meta
+public meta import Veil.Util.List
+public meta import Veil.Util.ProxyType
+
+public meta section
 
 open Lean Parser Elab Command Term
 

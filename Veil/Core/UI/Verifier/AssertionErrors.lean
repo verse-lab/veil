@@ -1,6 +1,10 @@
-import Veil.Frontend.DSL.Module.AssertionInfo
-import Veil.Core.Tools.Verifier.Results
-import Veil.Core.UI.Verifier.VerificationResults
+module
+
+public meta import Veil.Frontend.DSL.Module.AssertionInfo
+public meta import Veil.Core.Tools.Verifier.Results
+public meta import Veil.Core.UI.Verifier.VerificationResults
+
+public meta section
 
 open Lean Elab Command
 namespace Veil

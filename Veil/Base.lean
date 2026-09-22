@@ -1,4 +1,9 @@
-import Lean
+module
+
+public import Lean.Data.Options
+import Lean.Util.Trace
+
+public section
 open Lean
 
 /-! # Veil

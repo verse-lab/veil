@@ -1,4 +1,6 @@
-import Veil.Core
+module
+
+public import Veil.Core
 
 veil module CompiledStateConstraint
 

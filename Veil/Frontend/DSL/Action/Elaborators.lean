@@ -1,12 +1,16 @@
-import Lean
-import Veil.Frontend.DSL.Action.Syntax
-import Veil.Frontend.DSL.Action.DoElab
-import Veil.Frontend.DSL.Module.Util
-import Veil.Frontend.DSL.Util
-import Veil.Util.Meta
-import Veil.Util.Tactics
-import Veil.Util.ReplacingInstances
-import Veil.Frontend.DSL.Tactic.Core
+module
+
+public meta import Lean
+public meta import Veil.Frontend.DSL.Action.Syntax
+public meta import Veil.Frontend.DSL.Action.DoElab
+public meta import Veil.Frontend.DSL.Module.Util
+public meta import Veil.Frontend.DSL.Util
+public meta import Veil.Util.Meta
+public meta import Veil.Util.Tactics
+public meta import Veil.Util.ReplacingInstances
+public meta import Veil.Frontend.DSL.Tactic.Core
+
+public meta section
 
 open Lean Elab Command Term
 
@@ -33,10 +37,10 @@ open Lean Elab Command Term
 open Loom.Order
 open scoped Loom.Order
 
-private theorem contraposition {p q : Prop} (h : ¬q → ¬p) : p → q :=
-  fun hp => Classical.byContradiction (fun hnq => h hnq hp)
-
 namespace Veil
+
+theorem contraposition {p q : Prop} (h : ¬q → ¬p) : p → q :=
+  fun hp => Classical.byContradiction (fun hnq => h hnq hp)
 
 abbrev FullyQualifiedName := Name
 /-- Get the fully qualified name of an _existing_ definition. -/
@@ -75,8 +79,8 @@ elab_rules : term
 namespace AuxiliaryDefinitions
 open Veil Veil.Simp
 
-def Argument := Term
-def SyntaxTemplate := Array Argument → TermElabM Term
+abbrev Argument := Term
+abbrev SyntaxTemplate := Array Argument → TermElabM Term
 
 /-- Template for defining the WP of an action. -/
 private def wpTemplate (sourceAction : Name) : SyntaxTemplate :=
@@ -609,7 +613,7 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
           logWarning m!"unable to generate wp_local_eq for {nm}: {ex.toMessageData}"
 
 /-- The template for proving `derive_eq` theorems for transitions. -/
-private theorem derive_eq_template {act : VeilM m ρ σ α}
+theorem derive_eq_template {act : VeilM m ρ σ α}
   {spec : (Int → Prop) → VeilSpecM ρ σ α}
   {tr : Transition ρ σ}
   (heq1 : ∀ (handler : Int → Prop) (post : RProp α ρ σ) (r : ρ) (s : σ),
@@ -1034,7 +1038,10 @@ private def withVeilModeVar (bi : BinderInfo) (k : Expr → TermElabM α) : Term
   Meta.withLocalDecl veilModeVar.getId bi (mkConst ``Mode) k
 
 /-- Elaborate `body` under `br`, and obtain its extra parameters. -/
-def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (body : Term) (addModeArg : Bool := true) : TermElabM (Array Parameter × Expr) := do
+def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (body : Term) (addModeArg : Bool := true) : TermElabM (Array Parameter × Expr) := withExporting (isExporting := true) do
+  -- Matchers generated while elaborating an action must have public names as
+  -- well as public bodies, so extraction can unfold them in an importing module.
+  withDeclName ((← getCurrNamespace) ++ pi.nameInMode .none) do
   let brs ← Option.stxArrMapM br toFunBinderArray
   let stx ← mkFunSyntax brs body
   try

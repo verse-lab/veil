@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /- https://muratbuffalo.blogspot.com/2025/11/tla-modeling-of-aws-outage-dns-race.html?m=1 -/
 
