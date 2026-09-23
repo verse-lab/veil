@@ -19,11 +19,19 @@ of `allNodes`. The refinement relation connects list membership to the abstract
 Boolean relations and maintains the concrete well-formedness conditions needed
 by the proof.
 
-The simulation target is a CSLib LTS whose edges are finite abstract executions.
-A concrete duplicate send matches an empty execution. Most other steps match
-one abstract step. A leader receiving its own token again matches two abstract
-steps, `recv` followed by `send`. CSLib's `MTr` and `CanReach` supply these
-witnesses. No dissertation-specific simulation predicate is used.
+The simulation uses CSLib's `LTS.saturate` and `STr`, with `send` classified as
+internal (`τ`) and `recv` as the visible `receive` event. A duplicate concrete
+send matches zero abstract steps. Most other steps match one abstract step.
+A leader receiving its own token again matches `recv` followed by internal
+`send`. Each visible receive therefore matches exactly one abstract receive,
+with internal sends permitted before and after it. The observation hides the
+receive parameters; the state relation connects the actual messages.
+
+CSLib's `IsSimulation.isSimulation_saturate_left` also gives a simulation of both
+saturated systems. `sim_trace` preserves finite observed traces in the saturated
+target. No dissertation-specific simulation predicate is used. These results
+establish safety and finite-trace matching, without a fairness or eventual-election
+claim.
 
 The concrete safety proof depends on the abstract invariant and the simulation;
 the dissertation's separate direct concrete VC proofs are not required here.
@@ -38,4 +46,5 @@ lake build Examples.Ring.RingRef VeilTest.CSLibRing
 
 The test checks the imported theorem's axioms and a concrete execution on the
 ring `[7, 2, 9]`, including duplicate-send stuttering and re-emission of a token
-by an existing leader.
+by an existing leader. It also uses CSLib's trace theorem to match that execution
+with the same observations in the saturated abstract system.

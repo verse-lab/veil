@@ -2,7 +2,7 @@ module
 
 public import Examples.Ring.RingConc
 public import Examples.Ring.RingAbs
-public import Veil.CSLib.Simulation
+public import Veil.CSLib.WeakSimulation
 
 @[expose] public section
 
@@ -22,9 +22,10 @@ abstract safety property `single_leader` — is already discharged (see
 `RingAbs.single_leader.is_inv`).
 
 This file connects the two with CSLib's `LTS.IsSimulation` and transports the
-abstract safety property back to the concrete system. The target is a CSLib LTS
-whose edges are finite abstract executions, permitting both stuttering and
-multiple abstract steps for one concrete step.
+abstract safety property back to the concrete system. Sends are internal (τ),
+receives are visible, and the abstract LTS uses CSLib's τ-saturation. Thus a
+concrete receive matches exactly one abstract receive, with internal steps
+allowed before and after it; a concrete send can stutter.
 
 The abstract `node` type is instantiated, for a fixed concrete background theory
 `allNodes = L`, with the subtype `{x : ℕ // x ∈ L}`:
@@ -366,11 +367,27 @@ theorem ca_assumptions_true {node : Type} [DecidableEq node] [Inhabited node]
     (CA (node := node)).assumptions th := by
   simp only [CA, RingAbs.relationalTransitionSystem, invSimp, RingAbs.Assumptions]
 
-/-- The abstract LTS, with each edge denoting any finite abstract execution.
-The concrete labels need not encode the parameters of the abstract actions. -/
-noncomputable def abstractPaths (th : RingConc.Theory) [NeZero th.allNodes.length] :
-    Cslib.LTS (RingAbs.State (RingAbs.FieldAbstractType (RNode th.allNodes))) RingConc.Label where
-  Tr sa _ sa' := ((CA (node := RNode th.allNodes)).toLTS ⟨⟩).CanReach sa sa'
+/-- Observations intentionally hide sends and expose receives. -/
+inductive Observation where
+  | τ
+  | receive
+  deriving DecidableEq
+
+instance : Cslib.HasTau Observation := ⟨.τ⟩
+
+def observeConcrete : RingConc.Label → Observation
+  | .send => .τ
+  | .recv => .receive
+
+def observeAbstract {node : Type} : RingAbs.Label node → Observation
+  | .send .. => .τ
+  | .recv .. => .receive
+
+noncomputable def concreteLTS (th : RingConc.Theory) :=
+  CC.toObservedLTS th observeConcrete
+
+noncomputable def abstractLTS (th : RingConc.Theory) [NeZero th.allNodes.length] :=
+  (CA (node := RNode th.allNodes)).toObservedLTS ⟨⟩ observeAbstract
 
 /-- The initial concrete and abstract states satisfy the refinement relation. -/
 theorem initially_related (th : RingConc.Theory) [NeZero th.allNodes.length]
@@ -383,13 +400,14 @@ theorem initially_related (th : RingConc.Theory) [NeZero th.allNodes.length]
   · refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> simp
 
 /-- Every concrete step is matched by zero, one, or two abstract steps.
-This is CSLib's simulation predicate, with abstract paths as the target edges. -/
+This is CSLib's simulation predicate into its saturated abstract LTS. Each
+visible receive matches one abstract receive surrounded by internal sends. -/
 theorem sim (th : RingConc.Theory) (hnodup : th.allNodes.Nodup)
     (hlen : 1 < th.allNodes.length) [NeZero th.allNodes.length] :
-    Cslib.LTS.IsSimulation (CC.toLTS th) (abstractPaths th) (rel th) := by
-  intro sc sa hrel label sc' htr
-  change CC.tr th sc label sc' at htr
-  change ∃ sa', ((CA (node := RNode th.allNodes)).toLTS ⟨⟩).CanReach sa sa' ∧ rel th sc' sa'
+    Cslib.LTS.IsSimulation (concreteLTS th) (abstractLTS th).saturate (rel th) := by
+  intro sc sa hrel event sc' htr
+  obtain ⟨label, rfl, htr⟩ := htr
+  change ∃ sa', (abstractLTS th).STr sa (observeConcrete label) sa' ∧ rel th sc' sa'
   obtain ⟨hLead, hPend, hLNodup, hLsub, hMNodup, hMwf⟩ := hrel
   cases label with
   | send =>
@@ -406,8 +424,7 @@ theorem sim (th : RingConc.Theory) (hnodup : th.allNodes.Nodup)
       subst htr
       refine ⟨⟨sa.leader,
           fun x y => if nodeN = x ∧ nodeNN = y then true else sa.pending x y⟩, ?_, ?_⟩
-      · refine ⟨[RingAbs.Label.send nodeN nodeNN], Cslib.LTS.MTr.single _ ?_⟩
-        change (CA (node := RNode th.allNodes)).tr _ _ _ _
+      · refine Cslib.LTS.STr.single ⟨RingAbs.Label.send nodeN nodeNN, rfl, ?_⟩
         rw [ca_send]
         exact ⟨fun Z => isNext_nextNode hnodup hlen n hn hnn Z, rfl⟩
       · refine ⟨hLead, ?_, hLNodup, hLsub, ?_, ?_⟩
@@ -436,7 +453,7 @@ theorem sim (th : RingConc.Theory) (hnodup : th.allNodes.Nodup)
           · exact hMwf m' hin
     · -- `msg ∈ messages`: concrete state unchanged, no abstract step.
       rename_i _h_in
-      refine ⟨sa, ⟨[], .refl⟩, ?_⟩
+      refine ⟨sa, .refl, ?_⟩
       rw [← htr]
       exact ⟨hLead, hPend, hLNodup, hLsub, hMNodup, hMwf⟩
   | recv =>
@@ -469,8 +486,7 @@ theorem sim (th : RingConc.Theory) (hnodup : th.allNodes.Nodup)
       subst htr
       refine ⟨⟨fun x => if a = x then true else sa.leader x,
           fun x y => if sender = x ∧ a = y then false else sa.pending x y⟩, ?_, ?_⟩
-      · refine ⟨[RingAbs.Label.recv sender a b], Cslib.LTS.MTr.single _ ?_⟩
-        change (CA (node := RNode th.allNodes)).tr _ _ _ _
+      · refine Cslib.LTS.STr.single ⟨RingAbs.Label.recv sender a b, rfl, ?_⟩
         rw [ca_recv]
         refine ⟨fun Z => hisNext Z, hpend_m, ?_⟩
         rw [if_pos hsa]
@@ -561,15 +577,14 @@ theorem sim (th : RingConc.Theory) (hnodup : th.allNodes.Nodup)
               fun x y => if a = x ∧ b = y then true
                 else if a = x ∧ a = y then false else sa.pending x y⟩, ?_, ?_⟩
           · -- two abstract steps: clear the self-token, then re-emit it.
-            refine ⟨[RingAbs.Label.recv a a b, RingAbs.Label.send a b],
-              Cslib.LTS.MTr.stepL
-                (s2 := ⟨fun x => if a = x then true else sa.leader x,
-                  fun x y => if a = x ∧ a = y then false else sa.pending x y⟩)
-                ?_ (Cslib.LTS.MTr.single _ ?_)⟩
-            · change (CA (node := RNode th.allNodes)).tr _ _ _ _
+            refine Cslib.LTS.STr.tr
+              (s3 := ⟨fun x => if a = x then true else sa.leader x,
+                fun x y => if a = x ∧ a = y then false else sa.pending x y⟩)
+              .refl ?_ ?_
+            · refine ⟨RingAbs.Label.recv a a b, rfl, ?_⟩
               rw [ca_recv]
               exact ⟨fun Z => hisNext Z, hsa ▸ hpend_m, by rw [if_pos rfl]⟩
-            · change (CA (node := RNode th.allNodes)).tr _ _ _ _
+            · refine Relation.ReflTransGen.single ⟨RingAbs.Label.send a b, rfl, ?_⟩
               rw [ca_send]
               exact ⟨fun Z => hisNext Z, rfl⟩
           · refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -607,8 +622,7 @@ theorem sim (th : RingConc.Theory) (hnodup : th.allNodes.Nodup)
           refine ⟨⟨sa.leader, fun x y =>
               if sender = x ∧ b = y then true
               else if sender = x ∧ a = y then false else sa.pending x y⟩, ?_, ?_⟩
-          · refine ⟨[RingAbs.Label.recv sender a b], Cslib.LTS.MTr.single _ ?_⟩
-            change (CA (node := RNode th.allNodes)).tr _ _ _ _
+          · refine Cslib.LTS.STr.single ⟨RingAbs.Label.recv sender a b, rfl, ?_⟩
             rw [ca_recv]
             refine ⟨fun Z => hisNext Z, hpend_m, ?_⟩
             rw [if_neg hsna, if_pos (show TotalOrder.le a sender from hle)]
@@ -648,8 +662,7 @@ theorem sim (th : RingConc.Theory) (hnodup : th.allNodes.Nodup)
         subst htr
         refine ⟨⟨sa.leader,
             fun x y => if sender = x ∧ a = y then false else sa.pending x y⟩, ?_, ?_⟩
-        · refine ⟨[RingAbs.Label.recv sender a b], Cslib.LTS.MTr.single _ ?_⟩
-          change (CA (node := RNode th.allNodes)).tr _ _ _ _
+        · refine Cslib.LTS.STr.single ⟨RingAbs.Label.recv sender a b, rfl, ?_⟩
           rw [ca_recv]
           refine ⟨fun Z => hisNext Z, hpend_m, ?_⟩
           rw [if_neg hsna, if_neg (show ¬ TotalOrder.le a sender from hnle)]
@@ -695,7 +708,7 @@ theorem single_leader_holds :
   rw [cc_assumptions] at hass
   obtain ⟨hnodup, hlen⟩ := hass
   haveI : NeZero th.allNodes.length := ⟨by omega⟩
-  -- The CSLib simulation into finite abstract executions.
+  -- The CSLib simulation into the τ-saturated abstract system.
   have S := sim th hnodup hlen
   -- The abstract `single_leader` invariant, specialized to our node type.
   have habs : ∀ sa, (CA (node := RNode th.allNodes)).reachable
@@ -713,11 +726,11 @@ theorem single_leader_holds :
     have hX : sa.leader ⟨x, hLsub x hx⟩ = true := (hLead _).mpr hx
     have hY : sa.leader ⟨y, hLsub y hy⟩ = true := (hLead _).mpr hy
     exact congrArg Subtype.val (hsingle _ _ ⟨hX, hY⟩)
-  exact invariant_of_simulation_into
+  exact invariant_of_weakSimulation
     (abstract := CA (node := RNode th.allNodes)) (thAbstract := ⟨⟩)
     (fun _ => ca_assumptions_true _)
     (fun sc _ hi => initially_related th sc hi)
-    (fun _ => S) (fun _ _ _ h => h) habs hrel hreach
+    (fun _ => S) habs hrel hreach
 
 /-- The same result, phrased against the safety predicate `RingConc.single_leader`
 *generated* by `RingConc.lean`'s `safety [single_leader] leader.length ≤ 1` declaration.

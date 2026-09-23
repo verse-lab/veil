@@ -43,14 +43,88 @@ Both theories are fixed independently. For a theory map, apply the theorem at
 state type after fixing the concrete theory, as the dissertation's ring proof
 does with `{n : Nat // n ∈ th.allNodes}`.
 
-## Stuttering and different labels
+## Internal actions and weak simulation
 
-CSLib's `IsSimulation` matches each concrete edge with one abstract edge with
-the **same label**. The dissertation's `PointedForwardSimulation` instead permits
-zero or more abstract steps and different label types.
+For weak simulation, import:
 
-To express that behavior using the same CSLib definition, make the target a
-CSLib LTS whose edges represent finite abstract executions. For example:
+```lean
+import Veil.CSLib.WeakSimulation
+```
+
+Choose a common observation type with an instance of `Cslib.HasTau`, whose `τ`
+value denotes an internal action. Map each system's native labels into that type:
+
+```lean
+concrete.toObservedLTS thConcrete observeConcrete
+abstract.toObservedLTS thAbstract observeAbstract
+```
+
+The native label types can differ. Several native labels can have the same
+observation; for example, both `prepare` and `cleanup` can map to `τ`. An observed
+transition exists exactly when a native transition has the given observation.
+This adapter is needed because CSLib's `mapLabel` pulls labels back in the
+opposite direction.
+
+Prove the ordinary CSLib simulation predicate with a saturated abstract target:
+
+```lean
+Cslib.LTS.IsSimulation
+  (concrete.toObservedLTS thConcrete observeConcrete)
+  (abstract.toObservedLTS thAbstract observeAbstract).saturate rel
+```
+
+CSLib's [`STr` and `saturate`](https://github.com/leanprover/cslib/blob/v4.32.0/Cslib/Foundations/Semantics/LTS/HasTau.lean)
+give the target edges their meaning:
+
+- A `τ` edge represents any finite sequence of internal actions, including none.
+- A visible `a` edge represents `τ*; a; τ*`: exactly one action observed as `a`,
+  with any finite number of internal actions before and after it.
+
+A visible event cannot be matched by an empty execution, a different event, or
+two visible events. The matching action can still leave the state unchanged.
+The underlying `STr.refl`, `STr.single`, and `STr.tr` constructors supply proof
+witnesses directly; Veil introduces no separate weak-simulation predicate.
+
+`reachable_of_weakSimulation` and `invariant_of_weakSimulation` combine this
+simulation with background-assumption and initialization proofs. They discharge
+the correspondence with native finite executions automatically, so generated
+`<clause>.is_inv` theorems can be transferred as before.
+
+CSLib's `hsim.isSimulation_saturate_left` derives a simulation with **both**
+systems saturated. Its `hsim.sim_trace` matches finite observed traces in the
+saturated target. `observed_mTr_of_mTr` turns a native trace into an observed one.
+
+This is more expressive about observations than unlabelled path matching, while
+imposing stronger obligations when actions remain visible. Hiding **every**
+action recovers exactly arbitrary finite-path matching, as proved by
+`all_internal_sTr_iff_canReach`. These are finite-execution results: they do not
+establish fairness, eventual progress, or divergence-sensitive refinement.
+
+### Ring example
+
+The [Ring refinement](../Examples/Ring/README.md) uses this interface:
+
+- `send` is internal (`τ`), and `recv` is the visible `receive` event.
+- A duplicate concrete send matches zero abstract steps.
+- Most steps match one abstract action.
+- A leader receiving its own token again matches abstract `recv; send`: one
+  visible receive followed by an internal send.
+
+The observation records the action kind, not the receive parameters. The state
+relation still connects leaders and pending messages, and transports the abstract
+generated single-leader invariant to the concrete system. The
+[Ring regression test](../VeilTest/CSLibRing.lean) checks a nine-step concrete
+execution and its matching observed abstract trace using CSLib's `sim_trace`.
+The [weak-simulation tests](../VeilTest/CSLibWeakSimulation.lean) additionally check
+internal prefixes and suffixes, many-to-one label hiding, and rejection of invalid
+visible matches.
+
+## Other finite-path matching policies
+
+`reachable_of_simulation_into` and `invariant_of_simulation_into` remain available
+for arbitrary target LTSs. Their `hsteps` premise requires each target edge to
+represent a real finite abstract execution. For example, the dissertation's
+unlabelled `PointedForwardSimulation` can also be encoded directly as:
 
 ```lean
 def abstractPaths (sys : Veil.RelationalTransitionSystem ρa σa la) (th : ρa) :
@@ -58,28 +132,10 @@ def abstractPaths (sys : Veil.RelationalTransitionSystem ρa σa la) (th : ρa) 
   Tr sa _ sa' := (sys.toLTS th).CanReach sa sa'
 ```
 
-Then prove `Cslib.LTS.IsSimulation (concrete.toLTS thConcrete)
-(abstractPaths abstract thAbstract) rel`. An empty path witnesses stuttering;
-CSLib's `MTr` witnesses a longer execution. This ignores action labels, exactly
-as the dissertation's unlabelled forward simulation does.
-
-Use `reachable_of_simulation_into` or `invariant_of_simulation_into` for this
-case. Their additional `hsteps` premise requires that every target edge is a
-real finite execution of the abstract system. For `abstractPaths` above this
-proof is `fun _ _ _ h => h`. For trace-sensitive refinement, the target relation
-can instead constrain which abstract label sequence matches each concrete label.
-CSLib's own saturation operations can likewise be used with a proof of `hsteps`.
-The closure encoding establishes safety refinement; it does not assert progress
-or preservation of infinite executions.
-
-See [the checked examples](../VeilTest/CSLibSimulation.lean) for direct simulation,
-stuttering, a concrete step matching two abstract steps, transfer of a generated
-invariant, and a theory-dependent abstract state type. No Veil-specific simulation
-predicate is introduced.
-
-The [Ring refinement example](../Examples/Ring/README.md) ports the full
-dissertation simulation proof to this interface and derives the concrete
-single-leader safety theorem from the abstract generated invariant.
+Here `hsteps` is `fun _ _ _ h => h`, and labels are ignored. See the
+[original bridge tests](../VeilTest/CSLibSimulation.lean) for this encoding,
+direct simulation, a step matching two abstract steps, generated-invariant
+transfer, and a theory-dependent abstract state type.
 
 ## Imports and versions
 
