@@ -16,7 +16,6 @@ public meta import Veil.Frontend.DSL.Action.Extract
 public meta import Veil.Frontend.DSL.Module.Util.Enumeration
 public meta import Veil.Util.Multiprocessing
 public meta import Veil.Frontend.DSL.Module.AssertionInfo
-public meta import Veil.Frontend.DSL.Infra.VerificationSupport
 
 public meta section
 
@@ -236,7 +235,7 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
 
 /-- Crystallizes the state of the module, i.e. it defines it as a Lean
 `structure` definition, if that hasn't already happened. -/
-private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
+def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
   if mod.isStateDefined then
     return mod
   -- Resolve concrete representation configurations
@@ -264,48 +263,6 @@ private def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := 
     catch ex =>
       logWarning m!"unable to generate transition weakening lemma: {ex.toMessageData}"
   pure mod
-
-private def warnIfNoInvariantsDefined (mod : Module) : CommandElabM Unit := do
-  if mod.invariants.isEmpty then
-    logWarning "you have not defined any invariants for this specification; did you forget?"
-
-private def warnIfNoActionsDefined (mod : Module) : CommandElabM Unit := do
-  if mod.actions.isEmpty then
-    logWarning "you have not defined any actions for this specification; did you forget?"
-
-private def throwIfNoInitializerDefined (mod : Module) : CommandElabM Unit := do
-  unless mod.procedures.any (·.info matches .initializer) do
-    throwError "no `after_init` block has been defined for this specification; every Veil module must have one"
-
-/-- Elaborate the assumption conjunction shared by execution and verification. -/
-def Module.elaborateAssumptions (mod : Module) : CommandElabM (Command × Module) := do
-  let (cmd, mod) ← mod.assembleAssumptions
-  elabVeilCommand cmd
-  return (cmd, mod)
-
-/-- Elaborate action labels shared by execution and verification. -/
-def Module.elaborateLabels (mod : Module) : CommandElabM Module := do
-  let (cmds, mod) ← mod.assembleLabel
-  for cmd in cmds do elabVeilCommand cmd
-  return mod
-
-/-- Crystallizes the specification of the module, i.e. it finalizes the set of
-`procedures` and `assertions`. The `stx` parameter is the syntax of the command
-that triggered the finalization; it is stored for use by `#model_check` when
-generating compiled model source. -/
-def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Module := do
-  if mod.isSpecFinalized then return mod
-  let mod ← mod.ensureStateIsDefined
-  throwIfNoInitializerDefined mod
-  warnIfNoInvariantsDefined mod
-  warnIfNoActionsDefined mod
-  let mod ← if let some support ← getVerificationSupport? then
-    support.finalizeSpec mod stx
-  else do
-    -- Keep assumptions available for explicit `assumptions_hold_by` proofs.
-    let (_, mod) ← mod.elaborateAssumptions
-    mod.elaborateLabels
-  return { mod with _specFinalizedAt := some stx }
 
 private def Module.ensureExecutableModelCheckerDefinitions (mod : Module) : CommandElabM Unit := do
   if (← getEnv).contains (mod.name ++ enumerableTransitionSystemName) then
@@ -447,14 +404,6 @@ def elabAssertion : CommandElab := fun stx => do
     let mod' ← mod.defineAssertion assertion
   --   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
     localEnv.modifyModule (fun _ => mod')
-
-@[command_elab Veil.genSpec]
-def elabGenSpec : CommandElab := fun stx => do
-  -- Use dynamic trace class name for detailed profiling
-  withTraceNode `veil.perf.elaborator.genSpec (fun _ => return "#gen_spec") do
-    let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
-    let mod ← mod.ensureSpecIsFinalized stx
-    localEnv.modifyModule (fun _ => mod)
 
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/

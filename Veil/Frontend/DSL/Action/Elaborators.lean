@@ -1122,14 +1122,13 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
       if pi matches .initializer | .action _ _ then do
         let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
         let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
-        if ← hasVerificationSupport then
-          AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
-          if deriveTransition? then
-            AuxiliaryDefinitions.defineTransition mod nmExt extKind
-          try
-            defineTransitionAbstract mod nmExt extKind deriveTransition?
-          catch ex =>
-            logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
+        AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
+        if deriveTransition? then
+          AuxiliaryDefinitions.defineTransition mod nmExt extKind
+        try
+          defineTransitionAbstract mod nmExt extKind deriveTransition?
+        catch ex =>
+          logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
     return mod
 
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option ActionSyntax) (l : ActionSyntax) (stx : Syntax) : CommandElabM Module := do

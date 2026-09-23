@@ -14,10 +14,32 @@ open Lean Parser Elab Command Term
 open scoped Veil.Extract
 namespace Veil
 
-private def finalizeVerificationSpec (mod : Module) (stx : Syntax) : CommandElabM Module := do
+private def warnIfNoInvariantsDefined (mod : Module) : CommandElabM Unit := do
+  if mod.invariants.isEmpty then
+    logWarning "you have not defined any invariants for this specification; did you forget?"
+
+private def warnIfNoActionsDefined (mod : Module) : CommandElabM Unit := do
+  if mod.actions.isEmpty then
+    logWarning "you have not defined any actions for this specification; did you forget?"
+
+private def throwIfNoInitializerDefined (mod : Module) : CommandElabM Unit := do
+  unless mod.procedures.any (·.info matches .initializer) do
+    throwError "no `after_init` block has been defined for this specification; every Veil module must have one"
+
+/-- Crystallizes the specification of the module, i.e. it finalizes the set of
+`procedures` and `assertions`. The `stx` parameter is the syntax of the command
+that triggered the finalization; it is stored for use by `#model_check` when
+generating compiled model source. -/
+def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Module := do
+  if mod.isSpecFinalized then return mod
+  let mod ← mod.ensureStateIsDefined
+  throwIfNoInitializerDefined mod
+  warnIfNoInvariantsDefined mod
+  warnIfNoActionsDefined mod
   let mod ← do
     let mod ← withTraceNode `veil.perf.elaborator.decl.Assumptions (fun _ => return "Assumptions") do
-      let (assumptionCmd, mod) ← mod.elaborateAssumptions
+      let (assumptionCmd, mod) ← mod.assembleAssumptions
+      elabVeilCommand assumptionCmd
       if !mod.assumptions.isEmpty then
         liftTermElabM do
           mod.tryDefineLocalAbstractEqForTheoryPredicate assembledAssumptionsName assumptionCmd
@@ -53,7 +75,9 @@ private def finalizeVerificationSpec (mod : Module) (stx : Syntax) : CommandElab
       elabVeilCommand safetyCmd
       return mod
     pure mod
-  let mod ← mod.elaborateLabels
+  let (labelCmds, mod) ← mod.assembleLabel
+  for cmd in labelCmds do
+    elabVeilCommand cmd
 
   -- Generate ActionTag type for symbolic model checking
   -- NOTE: ActionTag is query-local (not a module sort), but we generate the
@@ -90,7 +114,15 @@ private def finalizeVerificationSpec (mod : Module) (stx : Syntax) : CommandElab
   Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
   mod.generateInvariantVCs
   -- Invariant VCs are generated here; verifier commands decide when to start them.
-  return mod
+  return { mod with _specFinalizedAt := some stx }
+
+@[command_elab Veil.genSpec]
+def elabGenSpec : CommandElab := fun stx => do
+  -- Use dynamic trace class name for detailed profiling
+  withTraceNode `veil.perf.elaborator.genSpec (fun _ => return "#gen_spec") do
+    let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
+    let mod ← mod.ensureSpecIsFinalized stx
+    localEnv.modifyModule (fun _ => mod)
 
 private def proofHasSorryGoalCount (results : VerificationResults VCMetadata SmtResult) : Nat :=
   results.vcs.foldl (init := 0) fun count vc =>
@@ -197,11 +229,5 @@ def elabGenTheorems : CommandElab := fun _stx => do
     mod.throwIfSpecNotFinalized
     let _ ← Verifier.waitFilteredSync (fun _ => true)
     Verifier.addProvenTheoremsInDependencyOrder (fun _ => true)
-
-
-initialize registerVerificationSupport ⟨finalizeVerificationSpec⟩
-
-run_cmd enableVerificationSupport
-
 
 end Veil

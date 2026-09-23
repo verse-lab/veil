@@ -17,15 +17,12 @@ private def isEqualToOneOf {m} [Monad m] [MonadQuotation m] (x : TSyntax `term) 
 
 /-- Generate an axiomatisation class for an enum-like type with distinctness and completeness axioms.
     Used for both user-defined enums and generated ActionTag types. -/
-def mkEnumAxiomatisation {m} [Monad m] [MonadQuotation m] [MonadEnv m]
+def mkEnumAxiomatisation {m} [Monad m] [MonadQuotation m]
     (id : Ident) (elems : Array Ident) : m (Ident × TSyntax `command) := do
   let variants ← elems.mapM (fun elem => `(Command.structSimpleBinder|$elem:ident : $id))
   let (class_name, ax_distinct, ax_complete) := (Ident.toEnumClass id, enumDistinct, enumComplete)
-  -- Full verification uses SMT's compact distinctness primitive. Core uses
-  -- Lean's equivalent executable predicate without importing the solver.
-  let distinctPred := if ← hasVerificationSupport then mkCIdent `distinctN else mkCIdent ``List.Nodup
   let ax_distinct ←
-    `(Command.structSimpleBinder|$ax_distinct:ident : $distinctPred:ident [$[$elems],*])
+    `(Command.structSimpleBinder|$ax_distinct:ident : $(mkCIdent `distinctN):ident [$[$elems],*])
   let x := mkVeilImplementationDetailIdent `x
   let ax_complete ← `(Command.structSimpleBinder|$ax_complete:ident : ∀ ($x : $id), $(← isEqualToOneOf x elems))
   let class_decl ← `(

@@ -4,7 +4,6 @@ public meta import Lean
 public meta import Veil.Base
 public meta import Veil.Frontend.DSL.Module.Representation
 public meta import Veil.Frontend.DSL.Infra.Assertions
-public meta import Veil.Frontend.DSL.Infra.VerificationSupport
 -- Not needed for compilation, but re-exported
 public meta import Veil.Util.EnvExtensions
 
