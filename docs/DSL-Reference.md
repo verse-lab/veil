@@ -389,6 +389,8 @@ proof `hr`, `safe.is_inv th st hr` proves the clause `safe` at that state.
 The theorems retain the module's sort and user parameters.
 When using a module's predicates in another file, enable its representation
 instances with `open scoped MyModule`.
+These invariants can also be transferred through
+[CSLib simulation proofs](CSLib.md).
 
 Action VCs assume the full invariant conjunction, so a successful clause alone
 does not justify a reachability theorem when another clause is unproved.
