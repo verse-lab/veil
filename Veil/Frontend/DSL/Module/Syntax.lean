@@ -305,8 +305,16 @@ scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term :
 /-- Assemble the specification. -/
 scoped syntax (name := genSpec) kw_gen_spec : command
 
+/-- Wait for verification and publish successful VC theorems in both WP and
+transition-relation forms. Invariant theorems are named `<action>_<invariant>`
+(WP) and `<action>_<invariant>_tr` (transition relation), including `initializer`.
+Failed obligations are not declared. When all invariant dependencies are proved,
+also publishes `Invariants.is_inv`, each clause's `.is_inv`, and `Safeties.is_inv`.
+-/
 scoped syntax (name := genTheorems) kw_gen_theorems : command
 
+/-- Check induction obligations asynchronously, streaming results to the widget.
+Use `#gen_theorems` to publish successful proofs in the Lean environment. -/
 scoped syntax (name := checkInvariants) "#check_invariants" : command
 
 scoped syntax (name := checkAction) "#check_action" ident : command

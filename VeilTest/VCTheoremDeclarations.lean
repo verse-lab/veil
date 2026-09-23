@@ -32,6 +32,10 @@ run_cmd do
     throwError "expected invariant VC theorem to be added to the main environment"
   unless env.contains `VCTheoremDeclarations.keep_doesNotThrow do
     throwError "expected doesNotThrow VC theorem to be added to the main environment"
+  for name in #[`VCTheoremDeclarations.keep_excluded_tr,
+      `VCTheoremDeclarations.initializer_excluded_tr] do
+    unless env.contains name do
+      throwError "expected transition-form theorem {name} to be added to the main environment"
 
 #check_invariants
 

@@ -4,6 +4,7 @@ public meta import Veil.Frontend.DSL.Module.Elaborators.Core
 public meta import Veil.Frontend.DSL.Tactic
 public meta import Veil.Core.UI.Verifier.AssertionErrors
 public meta import Veil.Frontend.DSL.Module.VCGen
+public meta import Veil.Frontend.DSL.Module.ReachableInvariants
 public meta import Veil.Core.Tools.Verifier.Server
 public meta import Veil.Core.Tools.Verifier.Results
 public meta import Veil.Core.UI.Verifier.VerificationResults
@@ -228,6 +229,7 @@ def elabGenTheorems : CommandElab := fun _stx => do
     let mod ← getCurrentModule (errMsg := "You cannot #gen_theorems outside of a Veil module!")
     mod.throwIfSpecNotFinalized
     let _ ← Verifier.waitFilteredSync (fun _ => true)
-    Verifier.addProvenTheoremsInDependencyOrder (fun _ => true)
+    Verifier.addInductionTheorems (fun _ => true)
+    mod.generateReachableInvariantTheorems
 
 end Veil
