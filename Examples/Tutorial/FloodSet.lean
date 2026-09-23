@@ -449,8 +449,8 @@ theorem nodeDecide_agreement (ρ : Type) (σ : Type) (node : Type) [node_dec_eq 
       st.crashed m = false ∨ st.crashed m = true ∧ st.crashedInRound m = st.round := by
     by_cases hcr : st.crashed m = true
     · refine .inr ⟨hcr, ?_⟩
-      have := hdecision_crashed_after_end m v hdec hcr
-      have := hcrashed_le_round m; rw [hround] at *; omega
+      exact Nat.le_antisymm (hcrashed_le_round m)
+        (by rw [hround]; exact hdecision_crashed_after_end m v hdec hcr)
     · exact .inl (by grind)
   -- After the crash-free round, all participants have identical `W` sets,
   -- so any old decided value must equal the minimum `t` chosen by `n`.
