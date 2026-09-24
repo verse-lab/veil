@@ -170,31 +170,6 @@ private def proveEqAboutBody (lhs : Expr) (rhs : Name) (xs : Array Expr) (proof 
     pure (eqStatement, eqProof)
   let _ ← addVeilTheorem eqThmName eqStatement eqProof (attr := eqThmAttrs)
 
--- NOTE: Might eventually replace this with `mkFunextFor` in `Sym`
-/-- Given a proof of `a x₁ ... xₙ = b x₁ ... xₙ`, construct a proof of
-`a = b` by function extensionality over `xs`.
-
-"Exact" describes the syntax of the equality endpoints in the generated
-proof, not merely their definitional equality.  For example, for `xs = #[x, y]`,
-the outer `funext` is instantiated with the endpoints `a` and `b`, and
-the inner one with `a x` and `b x`:
-```
-@funext _ _ a b (fun x =>
-  @funext _ _ (a x) (b x) (fun y => pointProof))
-```
-`Meta.mkFunExt` instead infers these implicit endpoints from the pointwise
-proof and may choose their eta expansions, such as `fun x => a x`.  Although
-that conclusion is definitionally equal to `a = b`, connecting the two asks
-the kernel to perform the expensive def-equality check avoided here. -/
-private def mkFunExtNExact (a b : Expr) (xs : Array Expr)
-    (pointProof : Expr) : MetaM Expr := do
-  let (_, _, layers) := xs.foldl (init := (a, b, #[])) fun (a, b, layers) x =>
-    (mkApp a x, mkApp b x, layers.push (a, b, x))
-  layers.foldrM (init := pointProof) fun (a, b, x) inner => do
-    let pointwise ← Meta.mkLambdaFVars #[x] inner
-    -- Keep these endpoints rather than inferring eta expansions from `pointwise`.
-    Meta.mkAppOptM ``funext #[none, none, some a, some b, some pointwise]
-
 -- FIXME: Unfolding ghost relation as below is not very good. We might want
 -- a new design of `LocalRProp` and have some meta theory over it to avoid
 -- such unfolding.
@@ -251,7 +226,7 @@ not matter much.
 Special note: for transition-generated WPs, we skip Step 3 since they are typically in
 the shape of `∀ (s : State χ), ...`, for which proving `↔` might be impossible.
 -/
-private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp : Expr) (wpAppAfterSimp : Meta.Simp.Result)
+private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp wpAppAfterSimp : Expr)
     (vs extraFVars : Array Expr) (handler post : Expr)
     (dk : DeclarationKind) (wpDef_fqn : Name) (notFromTransition? : Bool) : TermElabM Unit := do
   -- NOTE: Transition-generated WPs are typically in the shape of `∀ (s : State χ), ...`,
@@ -260,6 +235,9 @@ private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp : Expr) (w
   -- complicated, so we just skip the whole `wp_local_eq` generation for transition-generated WPs.
   unless notFromTransition? do
     return
+
+  -- `defineWp` registers the pointwise equality before calling this function.
+  let wpEq_fqn ← resolveGlobalConstNoOverloadCore (toWpEqName nm)
 
   -- FIXME: this way of obtaining the arguments required by `LocalRPropTC` is hacky
   let vs' := vs.take mod.parameters.size
@@ -311,12 +289,9 @@ private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp : Expr) (w
       let (eqStatement, eqProof) ← Meta.withImplicitBinderInfos extraFVars do
         let eqStatement ← instantiateMVars $ ← mkForallFVars fvars (← mkEq originalWpAppBody curTarget)
         let eqProof ← do
-          -- NOTE: `wpAppAfterSimp` DOES NOT have `r` and `s`, so need to do a congruence here
-          let pf ← do
-            let pfPre ← wpAppAfterSimp.getProof
-            let pfPreCongr ← mkCongrFun pfPre r
-            let pfPreCongr ← mkCongrFun pfPreCongr s
-            mkEqTrans pfPreCongr proof
+          -- Reuse the named equality instead of embedding its simplifier proof again.
+          let pfPre ← mkAppOptM wpEq_fqn ((vs ++ #[handler, post, r, s]).map some)
+          let pf ← mkEqTrans pfPre proof
           instantiateMVars $ ← mkLambdaFVars fvars pf
         pure (eqStatement, eqProof)
       trace[veil.debug] "final eq statement: {eqStatement}"
@@ -337,7 +312,7 @@ where
       (readFromArg getFromArg theoryType stateType : Expr)
       (uName thName stName : Name)
       (handler post r s : Expr) (wpDef_fqn : Name)
-      (wpAppAfterSimp : Meta.Simp.Result) (vs : Array Expr)
+      (wpAppAfterSimp : Expr) (vs : Array Expr)
       : TermElabM (Expr × Expr) := do
     let step1AllArgs ← specializeArgsForStateχ allParams vs theoryType stateType
     let step1Post ← withLocalDeclsDND #[(uName, mkConst ``Unit), (thName, theoryType), (stName, stateType)] fun arr => do
@@ -348,7 +323,7 @@ where
     trace[veil.debug] "step 1 target: {step1Target}"
     let step1Simp := (Simp.unfold #[wpDef_fqn] |>.andThen (evalOpenClassical ∘ Simp.simp #[`substateSimp]))
     let step1Result ← step1Simp step1Target
-    let source := mkAppN wpAppAfterSimp.expr #[r, s]
+    let source := mkAppN wpAppAfterSimp #[r, s]
     let some decidableNeutralizationPf ← isDefEqModuloDecidableInstances source step1Result.expr
       | throwError m!"wp_local_eq step 1 (generalize state) failed, not definitionally equal\n  source: {source}\n  step1Result: {step1Result.expr}"
     -- Goal: `source = step1Target`
@@ -580,14 +555,9 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
       let resPoint ← withTraceNode (`veil.perf.extract.wpSimp ++ nm) (fun _ => return s!"wpSimp {nm}") do
         withBackwardsCompatibility <| simp pointBody
       let simplifiedBody ← Meta.mkLambdaFVars rs resPoint.expr
-      -- Keep `body` as the literal left endpoint.  Using `Meta.mkFunExt` here
-      -- would infer its eta expansion from the pointwise proof, leaving the
-      -- kernel an expensive def-equality junction at the large raw WP body.
-      let bodyProof ← mkFunExtNExact body simplifiedBody rs (← resPoint.getProof)
-      let resBody : Meta.Simp.Result := { expr := simplifiedBody, proof? := some bodyProof }
       -- (3) Construct the expression for `act.wp`
       -- The expression for `act.wp`; **TODO** register as a derived definition
-      let wpExpr ← instantiateMVars $ ← Meta.mkLambdaFVars (vs ++ xs) resBody.expr
+      let wpExpr ← instantiateMVars $ ← Meta.mkLambdaFVars (vs ++ xs) simplifiedBody
       let wpSimpAttrLow ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ low)
       let wpDef_fqn ← addVeilDefinition (toWpName nm) wpExpr (attr := #[{name := `reducible}, wpSimpAttrLow])
       -- We want to prove the pointwise equality:
@@ -607,7 +577,7 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
       if dk matches .derivedDefinition .actionLike _ then
       if mode matches .external then
         try
-          defineWpLocalEq mod nm body resBody vs extraFVars handler post dk wpDef_fqn notFromTransition?
+          defineWpLocalEq mod nm body simplifiedBody vs extraFVars handler post dk wpDef_fqn notFromTransition?
         catch ex =>
           -- For non-transition wps, warn if any step fails (all 3 steps expected)
           logWarning m!"unable to generate wp_local_eq for {nm}: {ex.toMessageData}"
