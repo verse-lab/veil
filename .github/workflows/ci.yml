@@ -40,4 +40,4 @@ jobs:
         use-github-cache: true
     - name: Build examples
       run: lake build Examples
-      timeout-minutes: 10
+      timeout-minutes: 15
