@@ -47,7 +47,7 @@ private def validateTheoremWitness (declName : Name) (vcStatement : VCStatement)
     pure (.error ex)
 
 private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
-    (vc : VerificationCondition VCMetadata SmtResult) (theoremName : Name)
+    (vc : VerificationCondition VCMetadata SmtResult) (theoremName : Name) (theoremValue : Expr)
     (existingId? : Option DischargerId := none)
     (result : DischargerResult SmtResult) :
     BaseIO (Discharger SmtResult × DischargerResult SmtResult) := do
@@ -57,6 +57,7 @@ private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
     dischargerId := dischargerId
     name := interactiveDischargerName theoremName
     managerId := mgr._managerId
+    revision := existingId?.bind (vc.dischargers[·]?) |>.map (·.id.revision + 1) |>.getD 0
   }
   let cancelTk ← IO.CancelToken.new
   let task ← BaseIO.asTask (pure (default : Lean.Language.SnapshotTree)) (prio := .dedicated)
@@ -67,6 +68,7 @@ private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
   let discharger : Discharger SmtResult := {
     id := id
     isInteractive := true
+    theoremValue? := some (theoremName, theoremValue)
     term := mkIdent theoremName
     cancelTk := cancelTk
     task := some task
@@ -77,8 +79,10 @@ private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
   pure (discharger, result)
 
 private def registerFinishedTheoremDischarger
-    (declName : Name) (result : DischargerResult SmtResult) : AttrM (Except String Unit) :=
-  liftM <| vcManager.atomically (fun ref => do
+    (session : Session) (declName : Name) (result : DischargerResult SmtResult) : AttrM (Except String Unit) := do
+  let .thmInfo info ← withoutExporting <| getConstInfo declName
+    | throwError "Expected an interactive theorem"
+  session.withManager (fun ref => do
     let mgr ← ref.get
     let vcIds := findMatchingVCs mgr declName
     if vcIds.isEmpty then
@@ -88,23 +92,21 @@ private def registerFinishedTheoremDischarger
       let some vc := mgr.nodes[vcId]?
         | pure <| Except.error s!"`@[veil]` found verification condition {vcId}, but it is no longer registered"
       let existingId? := findInteractiveDischargerId? vc declName
-      let (discharger, result) ← mkFinishedTheoremDischarger mgr vc declName existingId? result
+      let (discharger, result) ← mkFinishedTheoremDischarger mgr vc declName info.value existingId? result
       let vc := match existingId? with
         | some existingId =>
-          { vc with
-            dischargers := vc.dischargers.set! existingId discharger
-            successful := if vc.successful == some existingId && !result.isSuccessful then none else vc.successful }
+          -- Keep the old success until recordDischargerResult observes the
+          -- transition and invalidates downstream attempts if necessary.
+          {vc with dischargers := vc.dischargers.set! existingId discharger}
         | none =>
           { vc with dischargers := vc.dischargers.push discharger }
-      let mut mgr := { mgr with nodes := mgr.nodes.insert vcId vc }
+      let mut mgr := { mgr with
+        nodes := mgr.nodes.insert vcId vc
+        _dischargerResults := mgr._dischargerResults.erase (vcId, discharger.id.dischargerId) }
       if vc.successful.isNone then
         mgr := { mgr with _doneWith := mgr._doneWith.erase vcId }
       mgr ← mgr.recordDischargerResult discharger.id result
       ref.set mgr
-      -- This bypasses the notification channel, so schedule a fill: the
-      -- result may have completed a VC (unlocking dependents) or re-opened
-      -- one whose remaining automatic dischargers should now run.
-      let _ ← vcManagerCh.send .fill
       pure (Except.ok ())
     else
       pure <| Except.error s!"`@[veil]` is ambiguous for `{declName}`; matched {vcIds.size} verification conditions")
@@ -121,8 +123,9 @@ private def currentErrorEntries (fallback : MessageData) : AttrM (Array (Excepti
       pure (Exception.error Syntax.missing msg.data, Json.str text)
 
 private def registerTheoremDischarger (declName : Name) : AttrM Unit := do
+  let session ← getSession
   let res ← do
-    let mgr ← vcManager.atomically fun ref => ref.get
+    let mgr ← session.snapshot
     let vcIds := findMatchingVCs mgr declName
     if vcIds.isEmpty then
       pure <| Except.error s!"`@[veil]` could not find a verification condition named `{declName}`"
@@ -136,11 +139,11 @@ private def registerTheoremDischarger (declName : Name) : AttrM Unit := do
         let message ← ex.toMessageData.toString
         let result : DischargerResult SmtResult :=
           .error #[(ex, Json.str message)] 0
-        registerFinishedTheoremDischarger declName result
+        registerFinishedTheoremDischarger session declName result
       | .ok witness => do
         let result : DischargerResult SmtResult :=
           .proven (some witness) none 0
-        registerFinishedTheoremDischarger declName result
+        registerFinishedTheoremDischarger session declName result
     else
       pure <| Except.error s!"`@[veil]` is ambiguous for `{declName}`; matched {vcIds.size} verification conditions"
   match res with
@@ -170,7 +173,8 @@ initialize
       if info.value.hasSorry then
         let fallback := theoremSorryMessage declName info.value
         let result : DischargerResult SmtResult := .error (← currentErrorEntries fallback) 0
-        let res ← registerFinishedTheoremDischarger declName result
+        let session ← getSession
+        let res ← registerFinishedTheoremDischarger session declName result
         match res with
         | .ok () => liftM frontendNotification.notifyAll
         | .error err => throwError err
