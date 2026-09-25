@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 veil module TwoPhaseCommitTLA
 -- ------------------------------- MODULE TwoPhase -----------------------------
@@ -218,9 +220,6 @@ invariant [TCConsistency] ¬ (∃ rm1 rm2 : RM,
 
 set_option trace.veil.desugar true
 #model_check compiled { RM := Fin 5 }
-{}
--- (sequential := true)
-(parallelCfg := some { numSubTasks := 4, thresholdToParallel := 20})
--- (sequential := false)
+{} (parallelCfg := some { numSubTasks := 4, thresholdToParallel := 20 })
 
 end TwoPhaseCommitTLA

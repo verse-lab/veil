@@ -1,5 +1,9 @@
-import Veil.Frontend.DSL.Module.Util.LocalRProp
-import Veil.Core.Tools.ModelChecker.TransitionSystem
+module
+
+public meta import Veil.Frontend.DSL.Module.Util.LocalRProp
+public meta import Veil.Core.Tools.ModelChecker.TransitionSystem
+
+public meta section
 
 open Lean Parser Elab Command Term Meta Tactic
 
@@ -39,7 +43,7 @@ def Module.defineAssertion (mod : Module) (base : StateAssertion) : CommandElabM
   let attrs : Array Attribute := #[{name := `invSimp}, {name := `nextSimp}] ++ veilAbbrevAttrs
   let expr ← liftTermElabM <| cleanupVeilDefinitionExpr veilTerm.expr
   let _ ← liftTermElabM <| addVeilDefinition base.name expr (red := .abbrev) (attr := attrs)
-  if mod._useLocalRPropTC && !(← isModelCheckCompileMode) then liftTermElabM do
+  if mod._useLocalRPropTC then liftTermElabM do
     if base.kind matches .assumption then
       mod.proveLocalityForTheoryPredicate base.name base.userSyntax (some veilTerm.expr)
       mod.tryDefineLocalAbstractEqForTheoryPredicate base.name base.userSyntax
@@ -85,7 +89,7 @@ def Module.defineGhostDefinition (mod : Module) (name : Name) (params : Option (
   let _ ← liftTermElabM <| addVeilDefinition name expr (red := .abbrev) (attr := attrs)
   let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := .none }
   let mod ← mod.registerDerivedDefinition ddef
-  if isRelation && mod._useLocalRPropTC && !(← isModelCheckCompileMode) then
+  if isRelation && mod._useLocalRPropTC then
     liftTermElabM do
       let ref ← getRef
       if justTheory then

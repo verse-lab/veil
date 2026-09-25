@@ -1,19 +1,21 @@
-import Veil
+module
+
+public import Veil
 
 -- Original TLA+ file, Copyright: Igor Konnov
 -- https://github.com/konnov/cyclic-buffer-challenge/blob/1e499eeb2923d70f5269aca877dc3180f3baccf9/tla/BuggyCircularBuffer.tla
 
 
-instance [NeZero N] : Inhabited { n : Nat // n ∈ List.range N } where
+public instance [NeZero N] : Inhabited { n : Nat // n ∈ List.range N } where
   default := ⟨0, by
     simp only [List.mem_range]
     have : N ≠ 0 := NeZero.ne N
     omega⟩
 
-instance (n : Nat) (N : Nat) [NeZero N] :  Inhabited (Std.TreeMap (Fin n) { t // t ∈ List.range N } compare) := by
+public instance (n : Nat) (N : Nat) [NeZero N] :  Inhabited (Std.TreeMap (Fin n) { t // t ∈ List.range N } compare) := by
   infer_instance
 
-instance :  Inhabited (Std.TreeMap (Fin 2) { n // n ∈ List.range 2 } compare) := by
+public instance :  Inhabited (Std.TreeMap (Fin 2) { n // n ∈ List.range 2 } compare) := by
   infer_instance
 
 veil module BuggyCircularBuffer

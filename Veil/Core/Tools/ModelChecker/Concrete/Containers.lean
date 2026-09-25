@@ -1,5 +1,9 @@
-import Std
-import Mathlib.Tactic.DeriveFintype
+module
+
+public import Std
+meta import Veil.Util.Tactics
+
+@[expose] public section
 
 
 /-- Functional Queue, from https://vfoley.xyz/functional-queues. -/
@@ -578,7 +582,7 @@ theorem getElem?_insertIfNew_of_not_contains_same_key {σₕ β : Type}
   split
   · next h_cond => rfl
   · next h_cond =>
-    push Not at h_cond
+    simp only [not_and, Classical.not_not] at h_cond
     have h_beq_refl : (k == k) = true := by simp
     have h := h_cond h_beq_refl
     simp only [Std.HashMap.mem_iff_contains] at h_not_in
@@ -709,7 +713,7 @@ theorem List.foldl_insertIfNew_source {σₕ β : Type}
         right; exact h_in_tl
       · simp only [Std.HashMap.mem_iff_contains] at h_not_in_step ⊢
         simp only [Std.HashMap.contains_insertIfNew] at h_not_in_step
-        push Not at h_not_in_step
+        simp only [not_or, Bool.or_eq_true, Bool.not_eq_true] at h_not_in_step
         grind
 
 /-- Trace back the source of a lookup result from HashMap.fold insertIfNew.

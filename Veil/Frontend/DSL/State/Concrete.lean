@@ -1,7 +1,11 @@
-import Std
-import Mathlib.Algebra.BigOperators.Group.Finset.Basic
-import Veil.Frontend.DSL.State.Interface
-import Veil.Frontend.DSL.Module.Names
+module
+
+public import Std
+public meta import Veil.Util.Tactics
+public import Veil.Frontend.DSL.State.Interface
+public meta import Veil.Frontend.DSL.Module.Names
+
+@[expose] public section
 
 namespace Veil
 
@@ -150,7 +154,7 @@ theorem FieldRepresentation.FinmapLike.get_set_for_validFootprint
     IteratedProd.foldMap_eq_cartesianProduct, FieldUpdateDescr.fieldUpdate, IteratedArrow.uncurry_curry,
     Function.comp]
   simp [← (FieldUpdatePat.footprint_match_iff_when_valid dec h)]
-  congr! 1 ; ext args
+  congr 1 ; ext args
   -- `foldr` is more convenient for induction here
   rw [List.foldl_eq_foldr_reverse]
   conv => enter [2, 1] ; rw [← List.mem_reverse]
@@ -158,7 +162,7 @@ theorem FieldRepresentation.FinmapLike.get_set_for_validFootprint
   generalize (v.uncurry) = vv
   induction prods with
   | nil => simp
-  | cons p prods ih => simp [ite_or, ← ih, instl.insert_get] ; grind
+  | cons p prods ih => simp [instl.insert_get] ; grind
 
 instance instFinmapLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain FieldCodomain γ
     -- TODO this is awkward; synthesis fails here
@@ -308,7 +312,7 @@ instance [FinEncodable α] [FinEncodable β] [Inhabited β] : FinmapLike α β (
 instance [inst : FinEncodable α] : FinmapLike α β (ArrayAsFinmap α β) where
   get mp a := mp.val[inst.equiv a]
   insert a b mp := ⟨mp.val.set (inst.equiv a) b,
-    (Eq.symm (Array.size_set (xs := mp.val) (i := inst.equiv a) (v := b) (mp.prop ▸ (inst.equiv a |>.prop)))) ▸ mp.prop⟩
+    (Eq.symm (Array.size_set (xs := mp.val) (i := inst.equiv a) (v := b) (mp.property ▸ (inst.equiv a |>.isLt)))) ▸ mp.property⟩
 
 instance [BEq α] [Hashable α] [Inhabited β] : FinmapLike α β (Std.HashMap α β) where
   get mp a := mp.getD a default
@@ -343,7 +347,7 @@ instance [FinEncodable α] [FinEncodable β] [Inhabited β] [DecidableEq α] : L
       symm ; rw [← Equiv.apply_eq_iff_eq_symm_apply]
       ext ; dsimp ; symm ; trans ; apply Nat.min_eq_left
       all_goals grind
-    · congr! 3
+    · congr 3
       rw [BitVec.extractLsb'_xor, BitVec.zeroExtend, BitVec.xor_getself_iff]
       ext i hi ; simp only [BitVec.getElem_extractLsb', BitVec.getLsbD_shiftLeft]
       set ida' := ↑(FinEncodable.equiv a')

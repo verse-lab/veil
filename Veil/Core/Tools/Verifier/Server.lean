@@ -1,9 +1,13 @@
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Core.Tools.Verifier.Manager
-import Veil.Core.Tools.Verifier.Results
-import Std.Sync.Mutex
-import Veil.Util.Multiprocessing
-import Veil.Util.Meta
+module
+
+public meta import Veil.Core.Tools.Verifier.Environment
+public meta import Veil.Core.Tools.Verifier.Manager
+public meta import Veil.Core.Tools.Verifier.Results
+public meta import Std.Sync.Mutex
+public meta import Veil.Util.Multiprocessing
+public meta import Veil.Util.Meta
+
+public meta section
 
 namespace Veil.Verifier
 

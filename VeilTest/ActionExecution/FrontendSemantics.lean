@@ -1,4 +1,7 @@
-import VeilTest.ActionExecution
+module
+
+public import VeilTest.ActionExecution
+public meta import VeilTest.ActionExecution
 
 /-!
 Gap coverage for the extensible-`do` frontend, complementing the suites in
@@ -467,7 +470,7 @@ syntax (name := exoticStatement) "exotic_statement%" : doElem
 statement: even a kind that *would* elaborate must be rejected by the guard
 before dispatch, since it bypasses Veil's state handling. -/
 @[doElem_elab exoticStatement]
-def elabExoticStatement : Lean.Elab.Do.DoElab := fun _ _ =>
+meta def elabExoticStatement : Lean.Elab.Do.DoElab := fun _ _ =>
   Lean.Elab.throwUnsupportedSyntax
 
 /--

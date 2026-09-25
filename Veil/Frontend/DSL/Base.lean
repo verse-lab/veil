@@ -1,18 +1,30 @@
-import Lean
-import Veil.Base
-import Veil.Frontend.DSL.Module.Syntax
-import Veil.Frontend.DSL.Action.Syntax
-import Veil.Frontend.DSL.Action.Semantics.Theorems
-import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.Module.Elaborators
-import Veil.Frontend.DSL.Infra.Assertions
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Frontend.DSL.Infra.Simp
-import Veil.Frontend.DSL.Tactic
-import Veil.Frontend.DSL.State.Instances
-import Veil.Frontend.DSL.State.Repr
-import Veil.Core.Tools.ModelChecker.Symbolic.TraceLang
-import Veil.Core.Tools.Verifier.TheoremDischarger
+module
+
+public import Veil.Core.Tools.ModelChecker.CompiledRuntime
+public import Veil.Core.Tools.ModelChecker.Concrete.Checker
+public import Veil.Core.Tools.ModelChecker.Simulation
+public import Veil.Frontend.DSL.Action.Extract
+public import Veil.Frontend.Std
+-- Generated checks and counterexamples evaluate the standard instances,
+-- including enumeration, orders, and JSON serializers, during elaboration.
+public meta import Veil.Frontend.Std
+public import Lean
+public import Veil.Base
+public meta import Veil.Frontend.DSL.Module.Syntax
+public meta import Veil.Frontend.DSL.Action.Syntax
+public import Veil.Frontend.DSL.Action.Semantics.Theorems
+public meta import Veil.Frontend.DSL.Module.Representation
+public meta import Veil.Frontend.DSL.Module.Elaborators.Verification
+public meta import Veil.Frontend.DSL.Infra.Assertions
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+public meta import Veil.Frontend.DSL.Infra.Simp
+public meta import Veil.Frontend.DSL.Tactic
+public import Veil.Frontend.DSL.State.Instances
+public import Veil.Frontend.DSL.State.Repr
+public meta import Veil.Core.Tools.ModelChecker.Symbolic.TraceLang
+public meta import Veil.Core.Tools.Verifier.TheoremDischarger
+
+public meta section
 
 
 /-! # Veil DSL

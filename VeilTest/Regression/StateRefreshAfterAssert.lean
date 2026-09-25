@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-!
 # Regression: current-state coherence after a call in an argument position

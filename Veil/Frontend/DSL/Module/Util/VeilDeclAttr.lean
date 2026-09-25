@@ -1,6 +1,10 @@
-import Lean
-import Veil.Util.Meta
-import Veil.Util.Deriving
+module
+
+public meta import Lean
+public meta import Veil.Util.Meta
+public meta import Veil.Util.Deriving
+
+public meta section
 
 open Lean Elab Command
 

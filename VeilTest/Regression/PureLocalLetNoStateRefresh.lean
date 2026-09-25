@@ -1,6 +1,7 @@
-import Veil
+module
 
-set_option linter.unusedTactic false
+public import Veil
+
 
 open Lean Elab Tactic Meta in
 elab "log_lctx_size" : tactic => do
@@ -44,16 +45,16 @@ info: local declarations: 13
 -/
 #guard_msgs(info, drop warning) in
 action pure_local_lets {
-  let z1 := (by
+  let z1 : Nat := (by
     log_lctx_size
     exact 0)
-  let mut z2 := (by
+  let mut z2 : Nat := (by
     log_lctx_size
     exact 0)
-  let z3 := (by
+  let z3 : Nat := (by
     log_lctx_size
     exact 0)
-  let mut z4 := (by
+  let mut z4 : Nat := (by
     log_lctx_size
     exact 0)
   require z1 + z2 > z3 + z4

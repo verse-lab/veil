@@ -1,4 +1,7 @@
-import ProofWidgets.Component.RefreshComponent
+module
+
+public import ProofWidgets.Component.RefreshComponent
+
 
 /-!
 Veil used to vendor `RefreshComponent`. ProofWidgets now provides the component

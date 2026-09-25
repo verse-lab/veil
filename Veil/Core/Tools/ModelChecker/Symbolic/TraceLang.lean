@@ -1,18 +1,23 @@
-import Lean
-import Lean.Parser
-import Veil.Util.Meta
-import Veil.Frontend.DSL.Module.Util.Assertions
-import Veil.Frontend.DSL.Module.Names
-import Veil.Frontend.DSL.Util
-import Veil.Core.Tools.ModelChecker.TransitionSystem
-import Veil.Core.Tools.Verifier.Server
-import Veil.Core.Tools.Verifier.Results
-import Veil.Frontend.DSL.Module.VCGen
-import Veil.Core.UI.Trace.TraceDisplay
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import ProofWidgets.Component.HtmlDisplay
-import Veil.Core.UI.Widget.RefreshComponent
-import Veil.Frontend.DSL.Module.Elaborators
+module
+
+public meta import Veil.Frontend.DSL.Infra.TraceSyntax
+public meta import Lean
+public meta import Lean.Parser
+public meta import Veil.Util.Meta
+public meta import Veil.Frontend.DSL.Module.Util.Assertions
+public meta import Veil.Frontend.DSL.Module.Names
+public meta import Veil.Frontend.DSL.Util
+public meta import Veil.Core.Tools.ModelChecker.TransitionSystem
+public meta import Veil.Core.Tools.Verifier.Server
+public meta import Veil.Core.Tools.Verifier.Results
+public meta import Veil.Frontend.DSL.Module.VCGen
+public meta import Veil.Core.UI.Trace.TraceDisplay
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+public meta import ProofWidgets.Component.HtmlDisplay
+public meta import Veil.Core.UI.Widget.RefreshComponent
+public meta import Veil.Frontend.DSL.Module.Elaborators.Verification
+
+public meta section
 
 /-!
   # Symbolic Trace Language
@@ -42,30 +47,6 @@ import Veil.Frontend.DSL.Module.Elaborators
   } by { bmc_sat }
   ```
 -/
-
-declare_syntax_cat expected_smt_result
-syntax (name := expected_sat) "sat" : expected_smt_result
-syntax (name := expected_unsat) "unsat" : expected_smt_result
-
-declare_syntax_cat trace_line
-syntax (name := any_action_star) "*" : trace_line
-syntax (name := any_action) atomic("any" "action") : trace_line
-syntax traceAnyAction := any_action_star <|> any_action
-
-syntax (name := traceAnyNActions) "any " num " actions": trace_line
-
-syntax (name := traceActionName) ident : trace_line
-syntax traceAction := (traceActionName <|> traceAnyAction <|> traceAnyNActions)
-
-syntax (name := traceAssertion) "assert " term:max : trace_line
-
-syntax traceLine := (traceAction <|> traceAssertion)
-syntax traceSpec := manyIndent(traceLine)
-
-syntax expected_smt_result "trace" ("[" ident "]")? "{"
-  traceSpec
-"}" (term)? : command
-
 
 namespace Veil
 open Lean Elab Command Term Meta ProofWidgets RefreshComponent
@@ -311,7 +292,10 @@ private partial def runTraceRefreshStep (session : Verifier.Session) (isExpected
   | some vcResult =>
     -- Show trace widget if we have JSON, otherwise show status message
     if let some (traceJson, rawHtml?) := extractTraceDataFromVC vcResult then
-      token.update (Html.ofComponent TraceDisplayViewer { result := traceJson, layout := "vertical", rawHtml := rawHtml? } #[])
+      let props : TraceDisplayProps :=
+        { result := traceJson, layout := "vertical", rawHtml := rawHtml?,
+          kind := .symbolicTrace }
+      token.update (Html.ofComponent TraceDisplayViewer props #[])
     else
       token.update (.text s!"{formatTraceStatus isExpectedSat vcResult.status}")
 
@@ -339,12 +323,12 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
   match vcResult.status with
   | some .proven =>
     if isExpectedSat then
-      if let some traceJson := traceJson? then logInfoAt stx m!"{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
+      if let some traceJson := traceJson? then logInfoAt stx m!"{Veil.TraceDisplay.formatResult .symbolicTrace traceJson}"
       else logInfoAt stx "Found satisfying trace"
   | some .disproven =>
     if isExpectedSat then logViolation "No satisfying trace exists"
     else if let some traceJson := traceJson? then
-      logViolation m!"Counterexample found\n{Veil.TraceDisplay.formatModelCheckingResult traceJson}"
+      logViolation m!"Counterexample found\n{Veil.TraceDisplay.formatResult .symbolicTrace traceJson}"
     else logViolation "Counterexample found"
   | some .unknown => logViolation "Solver returned unknown"
   | some .error => logViolation "Verification error"; logDischargerErrors vcResult.timing.dischargers
@@ -356,8 +340,6 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
 
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident))
     (spec : TSyntax `traceSpec) (pf : Option (TSyntax `term)) : CommandElabM Unit := do
-  -- Skip trace verification in compilation mode (not needed for model checking binary)
-  if ← isModelCheckCompileMode then return
   let stx ← getRef
   let mod ← getCurrentModule (errMsg := "trace commands can only be used inside a Veil module")
   mod.throwIfSpecNotFinalized

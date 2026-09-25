@@ -1,4 +1,8 @@
-import Veil.Frontend.DSL.Module.Util.LocalTheoryProp
+module
+
+public meta import Veil.Frontend.DSL.Module.Util.LocalTheoryProp
+
+public meta section
 
 open Lean Parser Elab Command Term Meta Tactic
 
@@ -265,7 +269,7 @@ private def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name)
     let f := body.getAppFn'
     let [th, st] := body.getAppArgs'.toList
       | throwError "unexpected shape of state predicate {nm}: unable to extract theory and state arguments"
-    let f := f.instantiateLambdasOrApps #[th, st]
+    let f := f.betaRev #[st, th] (useZeta := true)
     -- `f` should be like `Theory.casesOn ...`
     let .app ff theoryCasesOnBody := f
       | throwError "unexpected shape of state predicate {f}: expected an application with Theory.casesOn as the function"
@@ -819,7 +823,7 @@ where
 
 /-- Simplify the `LocalRProp.core` for a definition. -/
 def Module.simplifyLocalRPropCore (mod : Module) (nm : Name) : TermElabM Unit := do
-  if !mod._useLocalRPropTC || (← isModelCheckCompileMode) then return
+  if !mod._useLocalRPropTC then return
   let some dk := mod._declarations[nm]?
     | throwError "simplifyLocalRPropCore: {nm} not found in module declarations"
   let (nmParams, _) ← mod.declarationAllParams nm dk
@@ -893,7 +897,7 @@ def Module.simplifyLocalRPropCore (mod : Module) (nm : Name) : TermElabM Unit :=
 `replaceLocalRPropGeneralCase` to rewrite each sub-predicate into its
 `LocalRProp.core` form, then register the result as a `core_eq` theorem. -/
 def Module.simplifyAssembledWithLocalRProp (mod : Module) (nm : Name) : TermElabM Unit := do
-  if !mod._useLocalRPropTC || (← isModelCheckCompileMode) then return
+  if !mod._useLocalRPropTC then return
   try
     let nmFull ← resolveGlobalConstNoOverloadCore nm
     let info ← getConstInfoDefn nmFull

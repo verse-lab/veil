@@ -29,14 +29,21 @@ Every Veil module follows a canonical structure with the following components:
 A Veil module begins with `veil module <Name>` and ends with `end <Name>`:
 
 ```lean
-import Veil
+module
+
+public import Veil
 
 veil module Ring
 -- module contents go here
 end Ring
 ```
 
-The `import Veil` statement brings in all Veil DSL syntax and utilities.
+The `module` header enables Lean’s module system and must precede the imports.
+The `public import Veil` statement brings in all Veil DSL syntax and utilities. It must be public
+because a model exports generated declarations whose types and bodies refer to Veil definitions.
+Verification tools are imported for elaboration only; compiled model checkers link the runtime dependencies.
+`veil module` sets the visibility and transparency of its declarations automatically;
+users do not need a `public section` or `@[expose]` annotation.
 
 ### 2. Type Declarations
 
@@ -389,6 +396,16 @@ _not_ enumerate all possible instances or theories, so treat it as a testing
 tool). Progress and action-coverage statistics are displayed live in an
 InfoView widget; if a violation is found, Veil shows a concrete counterexample
 trace.
+
+##### Random Simulation
+
+If you do not want exhaustive testing, you can use the `#simulate` command to
+perform random walks on the state graph. Provide the type instantiation and
+theory, optionally followed by the settings:
+
+```lean
+#simulate { node := Fin 3 } {} (numTraces := 2000) (maxSteps := 500) (seed := 42)
+```
 
 #### Symbolic Bounded Model Checking
 

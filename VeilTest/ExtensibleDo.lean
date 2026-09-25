@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-! Regression coverage specific to the extensible-`do` action elaborator. -/
 

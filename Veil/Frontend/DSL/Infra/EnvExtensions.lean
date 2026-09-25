@@ -1,21 +1,19 @@
-import Lean
-import Veil.Base
-import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.Infra.Assertions
-import Veil.Frontend.DSL.Infra.Metadata
-import Veil.Core.Tools.Verifier.Manager
+module
+
+public meta import Lean
+public meta import Veil.Base
+public meta import Veil.Frontend.DSL.Module.Representation
+public meta import Veil.Frontend.DSL.Infra.Assertions
 -- Not needed for compilation, but re-exported
-import Veil.Util.EnvExtensions
+public meta import Veil.Util.EnvExtensions
+
+public meta section
 open Lean
 
 namespace Veil
 
 structure LocalEnvironment where
   currentModule : Option Module
-deriving Inhabited
-
-structure VCManagerEnvironment where
-  mgr : VCManager VCMetadata SmtResult
 deriving Inhabited
 
 structure GlobalEnvironment where
@@ -32,14 +30,6 @@ initialize localEnv : SimpleScopedEnvExtension LocalEnvironment LocalEnvironment
     addEntry := fun _ s' => s'
   }
 
-/-- Prompt the frontend to read the VCManager, e.g. to print the VCs. We use a
-`Condvar` instead of `Channel` because channels on the frontend thread (which
-is cancellable) are subject to potential race conditions. For instance,
-multiple `#gen_spec`s can be running in parallel, and one of them will "eat"
-the notification from a channel, which causes the other to wait forever. With a
-`Condvar`, we can `notifyAll` and check the predicate/condition holds. -/
-initialize frontendNotification : Std.Condvar ← Std.Condvar.new
-
 initialize globalEnv : SimpleScopedEnvExtension GlobalEnvironment GlobalEnvironment ←
   registerSimpleScopedEnvExtension {
     initial := default
@@ -54,14 +44,6 @@ def getCurrentModule [Monad m] [MonadEnv m] [MonadError m] (errMsg : MessageData
     return mod
   else
     throwError errMsg
-
-namespace Frontend
-
-open Lean.Elab.Command in
-def notify : CommandElabM Unit := do
-  frontendNotification.notifyAll
-
-end Frontend
 
 def mkNewAssertion [Monad m] [MonadEnv m] [MonadError m] (proc : Name) (stx : Syntax) : m AssertionId := do
   let mod ← getCurrentModule (errMsg := "Cannot have a Veil assertion outside of a module")
@@ -85,36 +67,5 @@ elab "veil_set_option " o:ident v:term : command => do
   | _ => throwError s!"Unsupported option {o}"
 
 end DevelopingTools
-
-section ModelCheckCompilationMode
-
-/-! ## Model Check Compilation Mode
-
-When building a model checker binary (triggered by default `#model_check` behavior
-or by background compilation), the source file is re-elaborated. This option is set
-to `true` during that compilation to:
-1. Skip verification-only operations (like `doesNotThrow` error reporting)
-2. Skip verification commands (`#check_invariants`, `sat trace`, etc.)
-3. Prevent `logError` calls from failing the build
--/
-
-/-- Check if we're in model checking compilation mode. -/
-def isModelCheckCompileMode [Monad m] [MonadOptions m] : m Bool := do
-  return veil.__modelCheckCompileMode.get (← getOptions)
-
-/-- Log an error, but only if not in model check compilation mode.
-    In compilation mode, errors would cause lake build to fail. -/
-def veilLogError [Monad m] [MonadOptions m] [AddMessageContext m] [MonadLog m]
-    (msg : MessageData) : m Unit := do
-  unless ← isModelCheckCompileMode do
-    logError msg
-
-/-- Log an error at a specific syntax location, but only if not in compilation mode. -/
-def veilLogErrorAt [Monad m] [MonadOptions m] [AddMessageContext m] [MonadLog m]
-    (stx : Syntax) (msg : MessageData) : m Unit := do
-  unless ← isModelCheckCompileMode do
-    logErrorAt stx msg
-
-end ModelCheckCompilationMode
 
 end Veil

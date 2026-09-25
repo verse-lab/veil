@@ -1,7 +1,11 @@
-import Veil.Core.Tools.ModelChecker.Concrete.MapReduceLemmas
-import Veil.Core.Tools.ModelChecker.Concrete.Progress
-import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
-import Veil.Util.ListSplit
+module
+
+public import Veil.Core.Tools.ModelChecker.Concrete.MapReduceLemmas
+public import Veil.Core.Tools.ModelChecker.Concrete.Progress
+public import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
+public import Veil.Util.ListSplit
+
+public section
 
 namespace Veil.ModelChecker.Concrete
 open Veil
@@ -53,7 +57,7 @@ def MapReduceSearchContextLocal.processSuccessors
 def MapReduceSearchContextLocal.processState
   (params : SearchParameters ρ σ) (th : ρ)
   (fpSt : σₕ) (curr : σ)
-  (outcomes : List (κ × ExecutionOutcome ℤ σ))
+  (outcomes : List (κ × ExecutionOutcome Int σ))
   (lctx : MapReduceSearchContextLocal σ κ σₕ asm) : MapReduceSearchContextLocal σ κ σₕ asm :=
   let (ctx, q) := lctx
   let (ctx', outcomesOpt) := ctx.processState params th fpSt curr outcomes
@@ -71,7 +75,7 @@ section
 -- FIXME: The proofs are also very similar to the sequential one
 
 variable {params : SearchParameters ρ σ} {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
   {lctx : MapReduceSearchContextLocal σ κ σₕ asm}
   {globalSeen : ShardedTreeSetUSize σₕ}
 
@@ -202,7 +206,7 @@ private theorem processWorkQueue.subproof6 {α : Type u} {l : List α} :
 
 def processWorkQueue
   {params : SearchParameters ρ σ} {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
   {globalSeen : ShardedTreeSetUSize σₕ}
   (queue : List (MapReduceQueueItem σₕ σ))
   {p q : MapReduceQueueItem σₕ σ → Prop} (h : ∀ x, q x ↔ p x ∨ x ∈ queue)
@@ -211,7 +215,7 @@ def processWorkQueue
     LawfulMapReduceSearchContextLocal (κ := κ) sys params globalSeen q :=
   let ⟨v, hl⟩ := lctx
   match queue with
-  | [] => ⟨v, (processWorkQueue.subproof1 h) ▸ hl⟩
+  | [] => ⟨v, by simpa [← processWorkQueue.subproof1 h] using hl⟩
   | item :: rest =>
     if h_finished : v.hasFinished
     then ⟨v, hl.finished_change_visited_pred_in_invs h_finished⟩
@@ -220,18 +224,18 @@ def processWorkQueue
       let v' := v.processState globalSeen params th fpSt curr (sys.tr th curr)
       -- CHECK Is this proper tail-recursive?
       processWorkQueue rest
-        (processWorkQueue.subproof2 h)
-        (processWorkQueue.subproof4 h_inqueue_reachable)
+        (by exact processWorkQueue.subproof2 h)
+        (by exact processWorkQueue.subproof4 h_inqueue_reachable)
         <| Subtype.mk v' <| hl.processState_progress fpSt curr
-          (processWorkQueue.subproof5 (α := MapReduceQueueItem σₕ σ) h_inqueue_reachable)
-          (processWorkQueue.subproof3 h_finished)
+          (by exact processWorkQueue.subproof5 (α := MapReduceQueueItem σₕ σ) h_inqueue_reachable)
+          (by exact processWorkQueue.subproof3 h_finished)
 
 /-- Main worker entry point. Creates a neutral context and processes the work queue.
     This function is called by each parallel task. -/
 def bfsBigStep
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   (params : SearchParameters ρ σ) {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) ℤ κ (List (κ × ExecutionOutcome ℤ σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   (globalSeen : ShardedTreeSetUSize σₕ)
   (completedDepth : Nat)
   (queue : List (MapReduceQueueItem σₕ σ))
@@ -239,7 +243,7 @@ def bfsBigStep
   m (LawfulMapReduceSearchContextLocal (κ := κ) sys params globalSeen (· ∈ queue)) :=
   let lctx : LawfulMapReduceSearchContextLocal sys params globalSeen (fun _ => False) :=
     ⟨MapReduceSearchContextLocal.initial completedDepth, MapReduceSearchContextLocalInvariants.initial sys params globalSeen completedDepth⟩
-  let res := lctx.processWorkQueue queue processWorkQueue.subproof6 h_inqueue_reachable
+  let res := lctx.processWorkQueue queue (by exact processWorkQueue.subproof6) h_inqueue_reachable
   pure res
 
 end LawfulMapReduceSearchContextLocal
@@ -435,7 +439,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   whnf at h_closed ; dsimp only at *
   clear h_q_emp
 
-  -- prove a lemma first, since it will be used in both `terminate_empty_queue` and `stable_closed`
+  -- prove a theorem first, since it will be used in both `terminate_empty_queue` and `stable_closed`
   have h_not_explored_all : mbase.finished ≠ Option.some (TerminationReason.exploredAllReachableStates) := by
     intro h ; rw [h_base_desc, Option.bind_eq_some_iff] at h ; simp +unfoldPartialApp [Function.comp] at h
     rcases h with ⟨lbctx, ⟨⟨lq, h_find⟩, h_finished⟩⟩
@@ -503,7 +507,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
         intro _ ; simp at heq
         -- NOTE: Here Lean has some trouble proving the index validity of `j` from the scratch, so use some trick
         set e := getElem lctxs' j _
-        specialize heq e.1 e.2 (by simp [e]) ; simp [BaseSearchContext.hasFinished] at heq
+        specialize heq e.1 e.2 (by exact List.getElem_mem _) ; simp [BaseSearchContext.hasFinished] at heq
         rcases h_local_invs with ⟨_, _, h_dj, h_same_dom, h_succ_coll⟩
         specialize h_succ_coll heq (fp.view u) u (h_getElem_chunk ▸ h_in_chunk)
         grind
@@ -538,7 +542,7 @@ private theorem not_too_small_not_too_large (n : Nat) :
   let t := max 1 (min n 4294967295)
   0 < USize.ofNat t ∧ t < USize.size := by
   apply (fun (p : _ → _) q => And.intro (p q) q)
-  · intro h ; simp [USize.lt_ofNat_iff h]
+  · intro h ; simp [USize.lt_ofNat_iff h]; omega
   · cases USize.size_eq <;> rename_i h <;> rw [h] <;> omega
 
 def breadthFirstSearchParallel {m : Type → Type}
@@ -552,7 +556,9 @@ def breadthFirstSearchParallel {m : Type → Type}
   (cancelToken : IO.CancelToken) :
   m (MapReduceSearchContextMain σ κ σₕ asm) := do
   let numShards := max 1 <| min parallelCfg.numSubTasks 4294967295
-  have ⟨h_pos, h_small⟩ := not_too_small_not_too_large parallelCfg.numSubTasks
+  have h_bounds : 0 < USize.ofNat numShards ∧ numShards < USize.size := by
+    exact not_too_small_not_too_large parallelCfg.numSubTasks
+  have ⟨h_pos, h_small⟩ := h_bounds
   let mut mctx : LawfulMapReduceSearchContextMain (fp := fp) sys params :=
     Subtype.mk (MapReduceSearchContextMain.initial sys.initStates numShards h_pos h_small)
       (MapReduceSearchContextMainInvariants.initial sys params numShards)
@@ -587,8 +593,9 @@ def breadthFirstSearchParallel {m : Type → Type}
       -- in some other file.
       let tasks ← IteratedProd.taskSplit splitLists fun subList h_sublist_in =>
         LawfulMapReduceSearchContextLocal.bfsBigStep params sys globalSeen completedDepth subList
-          (breadthFirstSearchParallel.subproof1 h_mctx.queue_sound splitLists
-            (fun item hm => (ListSplit.splitList_mem_iff numSplits chunkSize numLarge tovisit item).mp hm) _ h_sublist_in)
+          (by
+            exact breadthFirstSearchParallel.subproof1 h_mctx.queue_sound splitLists
+              (fun item hm => (ListSplit.splitList_mem_iff numSplits chunkSize numLarge tovisit item).mp hm) _ h_sublist_in)
       let results ← IteratedProd.mapM
         (T₂ := (fun a => LawfulMapReduceSearchContextLocal sys params globalSeen (· ∈ a)))
         (fun task => IO.ofExcept task.get) tasks

@@ -1,6 +1,10 @@
-import Veil.Frontend.DSL.Module.VCGen.Common
-import Veil.Frontend.DSL.Module.VCGen.Induction
-import Veil.Frontend.DSL.Module.VCGen.Trace
+module
+
+public meta import Veil.Frontend.DSL.Module.VCGen.Common
+public meta import Veil.Frontend.DSL.Module.VCGen.Induction
+public meta import Veil.Frontend.DSL.Module.VCGen.Trace
+
+public meta section
 
 /-!
 # VC Generation

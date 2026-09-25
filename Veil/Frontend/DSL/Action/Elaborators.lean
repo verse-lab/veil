@@ -1,12 +1,16 @@
-import Lean
-import Veil.Frontend.DSL.Action.Syntax
-import Veil.Frontend.DSL.Action.DoElab
-import Veil.Frontend.DSL.Module.Util
-import Veil.Frontend.DSL.Util
-import Veil.Util.Meta
-import Mathlib.Tactic.Push
-import Veil.Util.ReplacingInstances
-import Veil.Frontend.DSL.Tactic
+module
+
+public meta import Lean
+public meta import Veil.Frontend.DSL.Action.Syntax
+public meta import Veil.Frontend.DSL.Action.DoElab
+public meta import Veil.Frontend.DSL.Module.Util
+public meta import Veil.Frontend.DSL.Util
+public meta import Veil.Util.Meta
+public meta import Veil.Util.Tactics
+public meta import Veil.Util.ReplacingInstances
+public meta import Veil.Frontend.DSL.Tactic.Core
+
+public meta section
 
 open Lean Elab Command Term
 
@@ -30,7 +34,13 @@ open Lean Elab Command Term
   each assertion has its unique ID).
 -/
 
+open Loom.Order
+open scoped Loom.Order
+
 namespace Veil
+
+theorem contraposition {p q : Prop} (h : ¬q → ¬p) : p → q :=
+  fun hp => Classical.byContradiction (fun hnq => h hnq hp)
 
 abbrev FullyQualifiedName := Name
 /-- Get the fully qualified name of an _existing_ definition. -/
@@ -69,8 +79,8 @@ elab_rules : term
 namespace AuxiliaryDefinitions
 open Veil Veil.Simp
 
-def Argument := Term
-def SyntaxTemplate := Array Argument → TermElabM Term
+abbrev Argument := Term
+abbrev SyntaxTemplate := Array Argument → TermElabM Term
 
 /-- Template for defining the WP of an action. -/
 private def wpTemplate (sourceAction : Name) : SyntaxTemplate :=
@@ -602,12 +612,8 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
           -- For non-transition wps, warn if any step fails (all 3 steps expected)
           logWarning m!"unable to generate wp_local_eq for {nm}: {ex.toMessageData}"
 
--- NOTE: This is for simplifying `.tr` form definitions
--- FIXME: This is probably not the best place to put this
-attribute [push] apply_ite
-
 /-- The template for proving `derive_eq` theorems for transitions. -/
-private theorem derive_eq_template {act : VeilM m ρ σ α}
+theorem derive_eq_template {act : VeilM m ρ σ α}
   {spec : (Int → Prop) → VeilSpecM ρ σ α}
   {tr : Transition ρ σ}
   (heq1 : ∀ (handler : Int → Prop) (post : RProp α ρ σ) (r : ρ) (s : σ),
@@ -635,9 +641,9 @@ private def defineTransition (mod : Module) (nm : Name) (dk : DeclarationKind) :
       trace[veil.debug] "[{decl_name%}] e: {e}"
       -- (2) Simplify
       Meta.lambdaTelescope e fun xs body => do
-        let simp := Simp.dsimp #[``VeilSpecM.toTransitionDerived, ``Cont.inv, ``compl] { unfoldPartialApp := true : Meta.Simp.Config }
+        let simp := Simp.dsimp #[``VeilSpecM.toTransitionDerived, ``Loom.Cont.inv, ``Loom.Order.compl] { unfoldPartialApp := true : Meta.Simp.Config }
           |>.andThen (Simp.simp #[`wpSimp, ``and_true, ``true_and])   -- for rewriting with WP equality theorem, and some minor things
-          |>.andThen (Mathlib.Tactic.Push.pushCore (.const ``Not) {} none)    -- for pushing negations down to get more rewriting opportunities
+          |>.andThen (Simp.simp #[``Veil.not_if, ``Classical.not_not, ``Classical.not_imp, ``not_and, ``not_or, ``not_exists, ``Classical.not_forall])    -- for pushing negations down to get more rewriting opportunities
         let resBody ← withTraceNode (`veil.perf.extract.trSimp ++ nm) (fun _ => return s!"trSimp {nm}") do simp body
         -- (3) Construct the expression
         -- The expression for `act.ext.tr`; **TODO** register as a derived definition
@@ -670,7 +676,7 @@ end AuxiliaryDefinitions
 
 /-! ## Transition Weakening Lemma -/
 
-/-- Generate the transition weakening lemma for this module. Called after `#gen_state`. -/
+/-- Generate the transition weakening theorem for this module. Called after `#gen_state`. -/
 def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command := do
   let params := mod.parameters
   let paramBinders ← params.mapM (·.binder)
@@ -775,16 +781,20 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
       $declareLocalRPropInst:tactic
       repeat rw [← $trDerivedEq:ident]
       unfold $(mkIdent ``VeilM.toTransitionDerived) $(mkIdent ``VeilSpecM.toTransitionDerived)
-      simp only [$(mkIdent ``Cont.inv):ident, $(mkIdent ``Compl.compl):ident]
-      contrapose
+      simp only [$(mkIdent ``Loom.Cont.inv):ident, $(mkIdent ``Loom.Order.compl):ident]
+      apply $(mkIdent ``contraposition):ident
+      simp only [$(mkIdent ``Classical.not_not):ident]
       trans $transIntermediate
       · dsimp
         conv => rhs; rw [$wpLocalEq:ident]; rw [← $wpEq:ident]; dsimp only [$(mkIdent <| localRPropTCName ++ `core):ident]
-        intro $h:ident ; convert $h:ident
-        try (simp ; (try rw [$(mkIdent $ stateName ++ `ext_iff):ident]) ; try simp)
+        intro $h:ident ; refine Eq.mpr ?_ $h:ident
+        apply congrArg (fun $auxpost => [IgnoreEx (fun _ => $(mkIdent ``True))|
+          $(mkIdent ``wp) (@$act $specializedPolyArgs*) $auxpost ($(mkIdent ``readFrom) $r₀) $absst₀])
+        funext $auxx $auxth $auxst
+        try (simp +zetaDelta [$(mkIdent <| localRPropTCName ++ `core):ident] ; (try rw [$(mkIdent $ stateName ++ `ext_iff):ident]) ; try simp [$(mkIdent ``funext_iff):ident, $(mkIdent ``Classical.not_forall):ident])
       · dsimp only
         apply [IgnoreEx (fun _ => $(mkIdent ``True))| $(mkIdent ``wp_cons) ($(mkIdent `m) := $veilMStx)]
-        simp only [$(mkIdent ``LE.le):ident]
+        simp only [$(mkIdent ``Loom.Order.pi_le_iff):ident, $(mkIdent ``Loom.Order.prop_le):ident]
         try grind
       )
   return cmd
@@ -920,7 +930,7 @@ where
     -- Idea: the two sides should really equal modulo decidable instances
     let tac ← `(term| by
       intro $h:ident
-      convert $h:ident
+      refine Eq.mpr ?_ $h:ident
       dsimp only [$(mkIdent trFqn):ident]
       __veil_neutralize_decidable_inst at *
       rfl)
@@ -1004,7 +1014,7 @@ def Module.defineTransitionAbstractForNext (mod : Module) : TermElabM (Option Co
           let casesPat ← do
             let tmp := args.push h
             `(Lean.Parser.Tactic.rcasesPatMed| ⟨$tmp,*⟩)
-          `(tactic| (rcases $h:ident with $casesPat ; exists $args,*) )
+          `(tactic| (rcases $h:ident with $casesPat ; refine ⟨$args,*, ?_⟩) )
         let revertAndApplyTac ← do
           -- NOTE: As somewhere mentioned, directly `apply` can sometimes fail due to
           -- failing to synthesize instance of instance does not match, so need to
@@ -1028,7 +1038,10 @@ private def withVeilModeVar (bi : BinderInfo) (k : Expr → TermElabM α) : Term
   Meta.withLocalDecl veilModeVar.getId bi (mkConst ``Mode) k
 
 /-- Elaborate `body` under `br`, and obtain its extra parameters. -/
-def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (body : Term) (addModeArg : Bool := true) : TermElabM (Array Parameter × Expr) := do
+def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (body : Term) (addModeArg : Bool := true) : TermElabM (Array Parameter × Expr) := withExporting (isExporting := true) do
+  -- Matchers generated while elaborating an action must have public names as
+  -- well as public bodies, so extraction can unfold them in an importing module.
+  withDeclName ((← getCurrNamespace) ++ pi.nameInMode .none) do
   let brs ← Option.stxArrMapM br toFunBinderArray
   let stx ← mkFunSyntax brs body
   try
@@ -1099,24 +1112,23 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
     -- Elaborate the definitions in the Lean environment
     liftTermElabM $ do
       let nmDo := pi.nameInMode .none
-      let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}]) (compile := !(← isModelCheckCompileMode))
+      let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}])
       let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
-      let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}]) (compile := !(← isModelCheckCompileMode))
+      let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}])
       AuxiliaryDefinitions.defineWp mod nmInt .internal intKind deriveTransition?
 
       -- Procedures are never considered in their external view, so save some
       -- time by not elaborating those definitions.
       if pi matches .initializer | .action _ _ then do
         let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
-        let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}]) (compile := !(← isModelCheckCompileMode))
-        unless (← isModelCheckCompileMode) do
-          AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
-          if deriveTransition? then
-            AuxiliaryDefinitions.defineTransition mod nmExt extKind
-          try
-            defineTransitionAbstract mod nmExt extKind deriveTransition?
-          catch ex =>
-            logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
+        let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
+        AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
+        if deriveTransition? then
+          AuxiliaryDefinitions.defineTransition mod nmExt extKind
+        try
+          defineTransitionAbstract mod nmExt extKind deriveTransition?
+        catch ex =>
+          logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
     return mod
 
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option ActionSyntax) (l : ActionSyntax) (stx : Syntax) : CommandElabM Module := do
@@ -1149,7 +1161,7 @@ def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TS
     instantiateMVars tmp
   -- FIXME: How to define the `l` in `ps`? Might need to change the definition of `ProcedureSpecification`
   let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams .none /- this is not correct -/ ⟨t.raw⟩ stx
-  let _nmTr_fullyQualified ← liftTermElabM $ addVeilDefinition (toTransitionName <| toActName pi.name .external) eTr (compile := !(← isModelCheckCompileMode))
+  let _nmTr_fullyQualified ← liftTermElabM $ addVeilDefinition (toTransitionName <| toActName pi.name .external) eTr
   mod.defineProcedureCore pi eDo ps false
 
 end Veil

@@ -1,14 +1,18 @@
-import Lean
-import Veil.Frontend.DSL.Module.Names
-import Veil.Frontend.DSL.Module.Representation
-import Veil.Frontend.DSL.Module.Syntax
-import Veil.Frontend.DSL.Infra.EnvExtensions
-import Veil.Frontend.DSL.State
-import Veil.Frontend.DSL.Util
-import Veil.Frontend.DSL.State.Repr
-import Veil.Util.Meta
-import Mathlib.Data.FinEnum
-import Mathlib.Tactic.ProxyType
+module
+
+public meta import Lean
+public meta import Veil.Frontend.DSL.Module.Names
+public meta import Veil.Frontend.DSL.Module.Representation
+public meta import Veil.Frontend.DSL.Module.Syntax
+public meta import Veil.Frontend.DSL.Infra.EnvExtensions
+public meta import Veil.Frontend.DSL.State
+public meta import Veil.Frontend.DSL.Util
+public meta import Veil.Frontend.DSL.State.Repr
+public meta import Veil.Util.Meta
+public meta import Veil.Util.List
+public meta import Veil.Util.ProxyType
+
+public meta section
 
 open Lean Parser Elab Command Term
 
@@ -188,6 +192,15 @@ def Parameter.binder [Monad m] [MonadQuotation m] (p : Parameter) : m (TSyntax `
     | .none => `(bracketedBinder|($(mkIdent p.name) : $(p.type)))
     | .some (.term defValue) => `(bracketedBinder|($(mkIdent p.name) : $(p.type) := $defValue))
     | .some (.tactic tactic) => `(bracketedBinder|($(mkIdent p.name) : $(p.type) := by $tactic:tacticSeq))
+
+/-- Does this parameter become an explicit binder, i.e. one that a caller has to
+supply positionally? Mirrors the case split in `Parameter.binder`: instance and
+implicit binders are left to synthesis and unification. -/
+def Parameter.isExplicit (p : Parameter) : Bool :=
+  match p.kind with
+  | .moduleTypeclass _ | .definitionParameter _ .typeclass => false
+  | .definitionParameter _ .implicit => false
+  | _ => true
 
 def Parameter.bracketedExplicitBinder [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (p : Parameter) : m (TSyntax ``Lean.bracketedExplicitBinders) := do
   match p.kind with

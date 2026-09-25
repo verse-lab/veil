@@ -1,8 +1,10 @@
-import Veil
+module
+
+public import Veil
 
 open Lean Elab Command
 
-private def hasForallBinderNamed (target : Name) (e : Expr) : Bool :=
+private meta def hasForallBinderNamed (target : Name) (e : Expr) : Bool :=
   (e.find? fun
     | .forallE n _ _ _ => n == target
     | _ => false).isSome

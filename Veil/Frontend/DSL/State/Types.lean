@@ -1,10 +1,16 @@
-import Mathlib.Logic.Equiv.Defs
-import Mathlib.Data.FinEnum
-import Veil.Frontend.DSL.Module.Names
-import Veil.Util.Deriving
-import Mathlib.Tactic.DeriveFintype
-import Std.Data.TreeSet.Lemmas
-import Std.Data.ExtTreeSet.Lemmas
+module
+
+public import Veil.Util.Equiv
+public import Veil.Util.List
+public meta import Veil.Frontend.DSL.Module.Names
+public import Veil.Util.Deriving
+public meta import Veil.Util.EnumList
+public meta import Veil.Util.Tactics
+public import Std.Data.TreeMap.Lemmas
+public import Std.Data.TreeSet.Lemmas
+public import Std.Data.ExtTreeSet.Lemmas
+
+@[expose] public section
 
 /-! # Reification of Types of State Fields -/
 
@@ -132,8 +138,12 @@ end EfficientIteratedProd
 
 section IteratedArrow
 
-abbrev IteratedArrow (codomain : Type) (ts : List Type) : Type :=
-  ts.foldr (· → ·) codomain
+/-- An iterated function type. This is explicitly recursive and reducible so
+low-transparency elaboration can expose its arrow structure without unfolding
+`List.foldr`. -/
+@[reducible] def IteratedArrow (codomain : Type) : List Type → Type
+  | [] => codomain
+  | t :: ts => t → IteratedArrow codomain ts
 
 def IteratedArrow.curry {codomain : Type} {ts : List Type}
   (k : (IteratedProd ts) → codomain) : IteratedArrow codomain ts :=
@@ -239,9 +249,7 @@ end IteratedProd
 
 section Enumeration
 
-/-- The `FinEnum` in Mathlib might be good for proving, but for execution
-it might be very inefficient. This alternative is centered around `List`s
-that enumerate all values. -/
+/-- A complete executable list of values. Order and duplicates are preserved. -/
 class Enumeration (α : Type u) where
   allValues : List α
   complete : ∀ a : α, a ∈ allValues
@@ -253,7 +261,6 @@ def Enumeration.ofEquiv (α : Type u) {β : Type v} [inst : Enumeration α] (h :
 
 attribute [grind ←] Enumeration.complete
 
-instance (priority := high) [enum : Enumeration α] [DecidableEq α] : FinEnum α := FinEnum.ofList enum.allValues enum.complete
 /-!
 Here only gives some basic instances. More complicated ones should be
 found in `Veil.Frontend.Std`.
@@ -261,7 +268,7 @@ found in `Veil.Frontend.Std`.
 
 instance : Enumeration Empty where
   allValues := []
-  complete := by simp
+  complete := by intro a; cases a
 
 instance : Enumeration PUnit where
   allValues := [PUnit.unit]
@@ -285,7 +292,7 @@ instance {α β} [insta : Enumeration α] [instb : Enumeration β] : Enumeration
 
 instance {α β} [insta : Enumeration α] [instb : Enumeration β] : Enumeration (Sum α β) where
   allValues := (insta.allValues.map Sum.inl) ++ (instb.allValues.map Sum.inr)
-  complete := by simp ; grind
+  complete := by intro a; cases a <;> simp [Enumeration.complete]
 
 instance [inst : Enumeration α] (p : α → Prop) [DecidablePred p] : Enumeration { x // p x } where
   allValues := inst.allValues.filterMap fun x => if h : p x then some ⟨x, h⟩ else none
@@ -296,43 +303,42 @@ instance {β : α → Type v} [insta : Enumeration α] [instb : ∀ a, Enumerati
   complete := by simp ; grind
 
 def Enumeration.Pi.enum [insta : Enumeration α] [DecidableEq α] (β : α → Type v) [instb : ∀ a, Enumeration (β a)] : List (∀ a, β a) :=
-  (List.pi insta.allValues fun x => (instb x).allValues).map (fun f x => f x (insta.complete x))
+  (Veil.List.pi insta.allValues fun x => (instb x).allValues).map (fun f x => f x (insta.complete x))
 
 instance [insta : Enumeration α] [DecidableEq α] {β : α → Type v} [instb : ∀ a, Enumeration (β a)] : Enumeration (∀ a, β a) where
   allValues := (Enumeration.Pi.enum β)
-  complete := by intro f ; simp [Enumeration.Pi.enum, List.mem_pi] ; exists (fun x _ => f x) ; simp ; grind
+  complete := by intro f ; simp [Enumeration.Pi.enum, Veil.List.mem_pi] ; exists (fun x _ => f x) ; simp ; grind
 
 instance (l : List α) : Enumeration ({ a : α // a ∈ l }) where
   allValues := l.attach
   complete := by grind
 
 instance [DecidableEq α] [Hashable α] (s : Std.HashSet α) : Enumeration ({ a : α // a ∈ s }) where
-  allValues := s.toList.attachWith _ (by simp)
+  allValues := s.toList.attachWith (fun a => a ∈ s) (by simp)
   complete := by grind
 
 instance [DecidableEq α] [Hashable α] (s : Std.HashMap α β) : Enumeration ({ a : α // a ∈ s }) where
-  allValues := s.keys.attachWith _ (by simp)
+  allValues := s.keys.attachWith (fun a => a ∈ s) (by simp)
   complete := by simp
 
 instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp] (s : Std.TreeSet α cmp) : Enumeration ({ a : α // a ∈ s }) where
-  allValues := s.toList.attachWith _ (by simp)
+  allValues := s.toList.attachWith (fun a => a ∈ s) (by simp)
   complete := by simp
 
 instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp] (s : Std.TreeMap α β cmp) : Enumeration ({ a : α // a ∈ s }) where
-  allValues := s.keys.attachWith _ (by simp)
+  allValues := s.keys.attachWith (fun a => a ∈ s) (by simp)
   complete := by simp
 
 instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp] (s : Std.ExtTreeSet α cmp) : Enumeration ({ a : α // a ∈ s }) where
-  allValues := s.toList.attachWith _ (by simp)
+  allValues := s.toList.attachWith (fun a => a ∈ s) (by simp)
   complete := by simp
 
 instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp] (s : Std.ExtTreeMap α β cmp) : Enumeration ({ a : α // a ∈ s }) where
-  allValues := s.keys.attachWith _ (by simp)
+  allValues := s.keys.attachWith (fun a => a ∈ s) (by simp)
   complete := by simp
 
 /-!
-While some `Decidable` instances can be obtained by converting `Enumeration`
-into `Fintype`, their efficiency is not clear.
+Decide quantified propositions directly over the complete candidate list.
 -/
 
 instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred p] : Decidable (∀ a, p a) :=
@@ -343,11 +349,22 @@ instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred 
   decidable_of_iff (∃ a ∈ inst.allValues, p a)
     (Iff.intro (fun ⟨a, _, h⟩ => ⟨a, h⟩) (fun ⟨a, h⟩ => ⟨a, inst.complete a, h⟩))
 
-section EnumerationDerivingHandler
+/-- Decide equality of finite functions by checking their complete domain enumeration. -/
+instance [Enumeration α] {β : α → Type v} [∀ a, DecidableEq (β a)] :
+    DecidableEq (∀ a, β a) := fun f g =>
+  decidable_of_iff (∀ a, f a = g a) ⟨funext, fun h a => congrFun h a⟩
+
+meta section EnumerationDerivingHandler
 
 open Lean Meta Elab Term Command Deriving
 
-private def mkAllValuesFromHeader (header : Header) (localInsts fieldNames : Array Name) : TermElabM Term := do
+/-- Eliminate the intermediate list introduced by a nested constructor enumeration. -/
+theorem exists_mapped_candidate {f : α → β} {p : α → Prop} {q : β → Prop} :
+    (∃ b, (∃ a, p a ∧ f a = b) ∧ q b) ↔ ∃ a, p a ∧ q (f a) :=
+  ⟨fun ⟨_, ⟨a, ha, hab⟩, hb⟩ => ⟨a, ha, hab.symm ▸ hb⟩,
+   fun ⟨a, hp, hq⟩ => ⟨f a, ⟨a, hp, rfl⟩, hq⟩⟩
+
+@[no_expose] private def mkAllValuesFromHeader (header : Header) (localInsts fieldNames : Array Name) : TermElabM Term := do
   -- for the types, knowing the length of `ts` should be enough
   let ts ← do
     let hole ← `(_)
@@ -367,40 +384,40 @@ private def mkAllValuesFromHeader (header : Header) (localInsts fieldNames : Arr
       `(⟨$arr,*⟩)
   `(@$(mkIdent ``IteratedProd.foldMap) _ $ts $init $f $enums)
 
-def mkEnumerationInstCmdForStructure (declName : Name) : CommandElabM Bool := ForStructure.mkInstCmdTemplate declName fun info indVal header => do
+@[no_expose] def mkEnumerationInstCmdForStructure (declName : Name) : CommandElabM Bool := ForStructure.mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (localInsts, binders') ← mkInstImplicitBindersForFields ``Enumeration indVal header.argNames fieldNames
   let allValues ← mkAllValuesFromHeader header localInsts fieldNames
   let completeProof ← do
     let aIdent ← mkIdent <$> mkFreshUserName `a
-    `(by intro $aIdent:ident ; cases $aIdent:ident ; try (simp [$(mkIdent ``IteratedProd.foldMap):ident] ; try grind))
+    `(by intro $aIdent:ident ; cases $aIdent:ident ; try (simp [$(mkIdent ``IteratedProd.foldMap):ident, $(mkIdent ``exists_mapped_candidate):ident] ; try grind))
   `(instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
       $(mkIdent ``Enumeration) $(header.targetType) where
     $(mkIdent `allValues):ident := $allValues
     $(mkIdent `complete):ident  := $completeProof)
 
-def mkEnumerationInstCmdGeneralCase (declName : Name) : CommandElabM Bool := do
+@[no_expose] def mkEnumerationInstCmdGeneralCase (declName : Name) : CommandElabM Bool := do
   let indVal ← getConstInfoInduct declName
   let cmd ← liftTermElabM do
     let instName ← mkInstName ``Enumeration declName
     let header ← mkHeader ``Enumeration 0 indVal
     let auxDefCmd ← do
       let funBinders ← header.binders.mapM bracketedBinderToFunBinder
-      let target ← `(($(mkIdent ``Enumeration.ofEquiv) _ (proxy_equiv% $header.targetType) : $(mkIdent ``Enumeration) $header.targetType))
+      let target ← `(($(mkIdent ``Enumeration.ofEquiv) _ (veil_proxy_equiv% $header.targetType) : $(mkIdent ``Enumeration) $header.targetType))
       let defBody ← mkFunSyntax funBinders target
       `(command|@[implicit_reducible, instance] def $(mkIdent instName) := remove_unused_args% $defBody)
     pure auxDefCmd
   elabVeilCommand cmd
   return true
 
-def mkEnumerationInstCmd (declName : Name) : CommandElabM Bool := do
+@[no_expose] def mkEnumerationInstCmd (declName : Name) : CommandElabM Bool := do
   if ← isEnumType declName then
-    -- make use of `Fintype` deriving for enums, since it defines auxiliary definitions
+    -- Generate the constructor list and its lookup/uniqueness proofs.
     let ctorIdxName := declName.mkStr "ctorIdx"
-    let enumListName := declName.mkStr "enumList"
+    let enumListName := generatedName `Enumeration declName `enumList
     unless (← getEnv).contains enumListName do
-      Mathlib.Deriving.Fintype.mkFintypeEnum declName
-    let ctorThmName := declName.mkStr "enumList_getElem?_ctorIdx_eq"
+      Veil.Deriving.mkEnumList declName
+    let ctorThmName := generatedName `Enumeration declName `enumList_getElem?_ctorIdx_eq
     let x ← liftCoreM <| mkIdent <$> mkFreshUserName `x
     let cmd ← `(command|
       instance : $(mkIdent ``Enumeration) $(mkIdent declName) where
@@ -412,7 +429,7 @@ def mkEnumerationInstCmd (declName : Name) : CommandElabM Bool := do
     return true
   orM (mkEnumerationInstCmdForStructure declName) (mkEnumerationInstCmdGeneralCase declName)
 
-def mkEnumerationHandler := onlyHandleOne mkEnumerationInstCmd
+@[no_expose] def mkEnumerationHandler := onlyHandleOne mkEnumerationInstCmd
 
 initialize registerDerivingHandler ``Enumeration mkEnumerationHandler
 
@@ -423,12 +440,11 @@ end Enumeration
 section FinEncodable
 
 /-!
-Sometimes we want to use the bijection between a finite type and `Fin n` for
-some `n : Nat`, but the `FinEnum` instance generated by `FinEnum.ofList` might be
-inefficient. Here we provide some (potentially) efficient instances for such types.
+A bijection with `Fin n` supports compact indexing. Specialized instances avoid
+the list search used by the generic enumeration-based encoding.
 -/
 
-/-- Essentially the same as `FinEnum`, but without `decEq`. -/
+/-- An executable finite encoding with a proved inverse. -/
 class FinEncodable (α : Type u) where
   card : Nat
   equiv : α ≃ Fin card
@@ -549,11 +565,11 @@ theorem FinEncodable.decodeProd_encodeProd {α : Type u} {β : Type v} {n m : Na
   have hpos : 0 < m := Nat.zero_lt_of_lt hb
   have heq1 : ((equiva a).val * m + (equivb b).val) / m =
       (equiva a).val := by
-    conv_lhs => rw [Nat.add_comm, Nat.mul_comm]
+    conv => lhs; rw [Nat.add_comm, Nat.mul_comm]
     rw [Nat.add_mul_div_left _ _ hpos, Nat.div_eq_of_lt hb, Nat.zero_add]
   have heq2 : ((equiva a).val * m + (equivb b).val) % m =
       (equivb b).val := by
-    conv_lhs => rw [Nat.add_comm, Nat.mul_comm]
+    conv => lhs; rw [Nat.add_comm, Nat.mul_comm]
     rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hb]
   simp only [encodeProd, decodeProd, Prod.mk.injEq]
   constructor <;> rw [Equiv.symm_apply_eq] <;> ext <;> assumption
@@ -648,25 +664,38 @@ theorem FinEncodable.card_ne_0_if_Inhabited [Inhabited α] [inst : FinEncodable 
   else
     Nat.ne_of_gt (Nat.pos_of_ne_zero h)
 
-section FinEncodableDerivingHandler
+/-- Generic finite encoding, used when there is no specialized representation. -/
+@[implicit_reducible]
+def FinEncodable.ofEnumeration [Enumeration α] [DecidableEq α] : FinEncodable α where
+  card := (Veil.List.dedup (Enumeration.allValues (α := α))).length
+  equiv :=
+    let l := Veil.List.dedup (Enumeration.allValues (α := α))
+    { toFun := fun a => ⟨l.idxOf a, List.idxOf_lt_length_of_mem (by simp [l, Enumeration.complete])⟩
+      invFun := fun i => l[i.val]
+      left_inv := fun a => List.getElem_idxOf _
+      right_inv := fun i => Fin.ext (List.Nodup.idxOf_getElem (Veil.List.nodup_dedup _) i.val i.isLt) }
+
+instance (priority := low) [Enumeration α] [DecidableEq α] : FinEncodable α :=
+  FinEncodable.ofEnumeration
+
+meta section FinEncodableDerivingHandler
 
 open Lean Meta Elab Term Command Deriving
 
-private theorem enumList_getElem?_ctorIdx_eq_implies_ctorIdx_lt {α : Type u} {l : List α}
+theorem enumList_getElem?_ctorIdx_eq_implies_ctorIdx_lt {α : Type u} {l : List α}
   {f : α → Nat} (h : ∀ a : α, l[f a]? = some a) : ∀ a : α, f a < l.length := by grind
 
-def mkFinEncodableInstCmd (declName : Name) : CommandElabM Bool := do
+@[no_expose] def mkFinEncodableInstCmd (declName : Name) : CommandElabM Bool := do
   if ← isEnumType declName then
-    -- make use of `Fintype` deriving for enums, since it defines auxiliary definitions
+    -- Generate the constructor list and its lookup/uniqueness proofs.
     let ctorIdxName := declName.mkStr "ctorIdx"
-    let enumListName := declName.mkStr "enumList"
+    let enumListName := generatedName `Enumeration declName `enumList
     unless (← getEnv).contains enumListName do
-      Mathlib.Deriving.Fintype.mkFintypeEnum declName
-    let ctorThmName := declName.mkStr "enumList_getElem?_ctorIdx_eq"
+      Veil.Deriving.mkEnumList declName
+    let ctorThmName := generatedName `Enumeration declName `enumList_getElem?_ctorIdx_eq
     let x ← liftCoreM <| mkIdent <$> mkFreshUserName `x
     -- CHECK Will this proof result in huge proof object?
     let cmd ← `(command|
-      set_option linter.unusedTactic false in
       instance : $(mkIdent ``FinEncodable) $(mkIdent declName) where
         $(mkIdent `card):ident := $(mkIdent ``List.length) $(mkIdent enumListName)
         $(mkIdent `equiv):ident :=
@@ -683,7 +712,7 @@ def mkFinEncodableInstCmd (declName : Name) : CommandElabM Bool := do
   -- orM (mkFinEncodableInstCmdForStructure declName) (mkFinEncodableInstCmdGeneralCase declName)
   return false
 
-def mkFinEncodableHandler := onlyHandleOne mkFinEncodableInstCmd
+@[no_expose] def mkFinEncodableHandler := onlyHandleOne mkFinEncodableInstCmd
 
 initialize registerDerivingHandler ``FinEncodable mkFinEncodableHandler
 
@@ -758,7 +787,7 @@ def FinEncodableInjOnly.ofEquivWithEnc {β : Type u} [inst : FinEncodableInjOnly
       Fin.ext (by simp only [Fin.mk.injEq] at heq; rw [← h_enc, ← h_enc]; exact heq)
     have hh := inst.encode_inj h ; simp at hh ; exact hh
 
-section FinEncodableInjOnlyDerivingHandler
+meta section FinEncodableInjOnlyDerivingHandler
 
 open Lean Meta Elab Term Command Deriving
 open Lean.Parser.Term (matchAltExpr matchDiscr matchAlt)
@@ -766,7 +795,7 @@ open Lean.Parser.Term (matchAltExpr matchDiscr matchAlt)
 /-- Convert a simple type `Expr` to `Syntax`, mapping parameter fvars to `header.argNames`.
     Handles `const`, `app`, `fvar`, `sort`, `bvar`, and `mdata`. Sufficient for field types
     of simple (non-indexed, non-recursive) inductive types. -/
-private partial def typeExprToSyntax (paramFvars : Array Expr) (argNames : Array Name) (e : Expr) : TermElabM Term := do
+@[no_expose] private partial def typeExprToSyntax (paramFvars : Array Expr) (argNames : Array Name) (e : Expr) : TermElabM Term := do
   -- Check if it's a parameter fvar
   for i in [:paramFvars.size] do
     if paramFvars[i]! == e then return ⟨mkIdent argNames[i]!⟩
@@ -784,11 +813,11 @@ private partial def typeExprToSyntax (paramFvars : Array Expr) (argNames : Array
   | _ => throwError "typeExprToSyntax: unsupported expression kind {e}"
 
 /-- Generate the cardinality expression for a constructor's fields, matching
-    the right-nested Sigma structure that `proxy_equiv%` generates.
+    the right-nested Sigma structure that `veil_proxy_equiv%` generates.
     - 0 fields → `(1 : Nat)` (Unit card)
     - 1 field  → `FinEncodableInjOnly.card (κ := τ)`
     - k fields → `card τ₁ * (card τ₂ * (... * card τₖ))` (right-associated) -/
-private def mkCtorCardSyntax : List Term → TermElabM Term
+@[no_expose] private def mkCtorCardSyntax : List Term → TermElabM Term
   | [] => `((1 : Nat))
   | [t] => `(FinEncodableInjOnly.card (κ := $t))
   | t :: rest => do
@@ -800,7 +829,7 @@ private def mkCtorCardSyntax : List Term → TermElabM Term
     - 0 fields → `(0 : Nat)`
     - 1 field  → `(FinEncodableInjOnly.encode f).val`
     - k fields → `encode(f₁).val * tailCard + (encode(f₂).val * ... + encode(fₖ).val)` -/
-private def mkLocalEncodeSyntax : List (Ident × Term) → TermElabM Term
+@[no_expose] private def mkLocalEncodeSyntax : List (Ident × Term) → TermElabM Term
   | [] => `((0 : Nat))
   | [(f, _)] => `((FinEncodableInjOnly.encode ($f)).val)
   | (f, _) :: rest => do
@@ -816,15 +845,15 @@ where
       `(FinEncodableInjOnly.card (κ := $t) * $restCard)
 
 /-- Generate the full encoding with right-nested offset structure, matching
-    the right-nested Sum encoding that `proxy_equiv%` generates.
+    the right-nested Sum encoding that `veil_proxy_equiv%` generates.
     Produces: `card₀ + (card₁ + (... + (cardₙ₋₁ + localEncode)))` -/
-private def mkFullEncodeSyntax : List Term → Term → TermElabM Term
+@[no_expose] private def mkFullEncodeSyntax : List Term → Term → TermElabM Term
   | [], localEncode => pure localEncode
   | card :: rest, localEncode => do
     let inner ← mkFullEncodeSyntax rest localEncode
     `($card + $inner)
 
-def mkFinEncodableInjOnlyInstCmdDeforested (declName : Name) : CommandElabM Bool := do
+@[no_expose] def mkFinEncodableInjOnlyInstCmdDeforested (declName : Name) : CommandElabM Bool := do
   let indVal ← getConstInfoInduct declName
   let cmd ← liftTermElabM do
     let instName ← mkInstName ``FinEncodableInjOnly declName
@@ -876,7 +905,7 @@ def mkFinEncodableInjOnlyInstCmdDeforested (declName : Name) : CommandElabM Bool
     let encFn ← `(fun $xIdent => $matchExpr)
     -- Build the full instance definition
     let funBinders ← header.binders.mapM bracketedBinderToFunBinder
-    let target ← `((FinEncodableInjOnly.ofEquivWithEnc (proxy_equiv% $header.targetType).symm
+    let target ← `((FinEncodableInjOnly.ofEquivWithEnc (veil_proxy_equiv% $header.targetType).symm
       $encFn
       (by intro x; cases x <;> rfl) :
       FinEncodableInjOnly $header.targetType))
@@ -885,10 +914,10 @@ def mkFinEncodableInjOnlyInstCmdDeforested (declName : Name) : CommandElabM Bool
   elabVeilCommand cmd
   return true
 
-def mkFinEncodableInjOnlyInstCmd (declName : Name) : CommandElabM Bool :=
+@[no_expose] def mkFinEncodableInjOnlyInstCmd (declName : Name) : CommandElabM Bool :=
   mkFinEncodableInjOnlyInstCmdDeforested declName
 
-def mkFinEncodableInjOnlyHandler := onlyHandleOne mkFinEncodableInjOnlyInstCmd
+@[no_expose] def mkFinEncodableInjOnlyHandler := onlyHandleOne mkFinEncodableInjOnlyInstCmd
 
 initialize registerDerivingHandler ``FinEncodableInjOnly mkFinEncodableInjOnlyHandler
 
@@ -922,7 +951,7 @@ open Lean Elab Command Meta Term
 where `T` is an enum type, this generates an array of `Bool` such that
 for each constructor `c : T`, the corresponding `Bool` indicates whether
 all `OptionalTC` instances are `some` when applying `df` to `c`. -/
-private def genAllSomePredicateCore (dfName : Name) : MetaM (Name × Array Bool) := do
+@[no_expose] private meta def genAllSomePredicateCore (dfName : Name) : MetaM (Name × Array Bool) := do
   let dfName ← resolveGlobalConstNoOverloadCore dfName
   let dfInfo ← getConstInfo dfName
   let some dfExpr := dfInfo.value?
@@ -951,7 +980,7 @@ private def genAllSomePredicateCore (dfName : Name) : MetaM (Name × Array Bool)
 where hasNoneInstance (e : Expr) : Bool :=
   Option.isSome <| e.find? fun subExpr => subExpr.isConstOf ``instOptionalTCNone
 
-def genAllSomePredicateSyntax (dfName : Name) : MetaM (TSyntax ``Parser.Term.bracketedBinder × Term) := do
+meta def genAllSomePredicateSyntax (dfName : Name) : MetaM (TSyntax ``Parser.Term.bracketedBinder × Term) := do
   let (labelTypeName, results) ← genAllSomePredicateCore dfName
   let casesOn := labelTypeName ++ `casesOn
   let quotedResults : Array Term := results.map quote
@@ -960,7 +989,7 @@ def genAllSomePredicateSyntax (dfName : Name) : MetaM (TSyntax ``Parser.Term.bra
   let body ← `($(mkIdent casesOn) $l $quotedResults*)
   pure (binder, body)
 
-def genAllSomePredicateTermElab (dfName : Name) : TermElabM Expr := do
+meta def genAllSomePredicateTermElab (dfName : Name) : TermElabM Expr := do
   let (labelTypeName, results) ← genAllSomePredicateCore dfName
   let casesOn := labelTypeName ++ `casesOn
   let l ← mkFreshUserName `l
@@ -977,7 +1006,7 @@ def genAllSomePredicateTermElab (dfName : Name) : TermElabM Expr := do
 --   let cmd ← liftTermElabM <| genAllSomePredicateDefSyntax dfName outputName
 --   elabVeilCommand cmd
 
-def genAllSomePredicateCmd [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (dfName : Name) (outputName : Name) : m Syntax := do
+meta def genAllSomePredicateCmd [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (dfName : Name) (outputName : Name) : m Syntax := do
   let checkTerm := Syntax.mkApp (mkIdent ``OptionalTC.genAllSomePredicateTermElab) #[quote dfName]
   `(def $(mkIdent outputName) := by_elab $checkTerm:term)
 

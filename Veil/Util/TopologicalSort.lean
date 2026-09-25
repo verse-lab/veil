@@ -1,6 +1,10 @@
-import Lean
+module
 
-open Lean Std
+public import Std.Data.HashSet
+
+public section
+
+open Std
 
 namespace Veil
 

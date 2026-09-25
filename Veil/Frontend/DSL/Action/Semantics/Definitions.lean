@@ -1,5 +1,9 @@
-import Loom.MonadAlgebras.NonDetT'.ExtractList
-import Veil.Frontend.DSL.State.SubState
+module
+
+public import Loom.MonadAlgebras.NonDetT'.ExtractList
+public import Veil.Frontend.DSL.State.SubState
+
+@[expose] public section
 
 /-!
   # Action Language
@@ -7,6 +11,9 @@ import Veil.Frontend.DSL.State.SubState
   This file defines the semantics for the imperative language we use to
   define initializers and actions.
 -/
+
+open Loom.Order
+open scoped Loom.Order
 
 namespace Veil
 
@@ -51,7 +58,7 @@ return values). -/
 abbrev VeilMultiExecM κ ε ρ σ α :=
   ReaderT ρ (ExceptT ε (StateT σ (TsilT (PeDivM (List κ))))) α
 
-abbrev VeilSpecM (ρ σ α : Type) := Cont (SProp ρ σ) α
+abbrev VeilSpecM (ρ σ α : Type) := Loom.Cont (SProp ρ σ) α
 abbrev Transition (ρ σ : Type) := ρ -> σ -> σ -> Prop
 
 end Types
@@ -279,7 +286,7 @@ section DerivingSemantics
 
 /-- Does `act` terminate successfully if the set `ex` of exceptions is
 ignored / allowed to be thrown? -/
-def VeilM.succeedsWhenIgnoring (ex : Set ExId) (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
+def VeilM.succeedsWhenIgnoring (ex : ExId → Prop) (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
   [IgnoreEx ex| triple pre act (fun _ => ⊤)]
 
 def VeilSpecM.toTransitionDerived (spec : VeilSpecM ρ σ α) : Transition ρ σ :=

@@ -1,4 +1,7 @@
-import VeilTest.ActionExecution
+module
+
+public import VeilTest.ActionExecution
+public meta import VeilTest.ActionExecution
 
 /-!
 Concrete regressions found while reviewing the extensible-`do` port.  Every
@@ -7,7 +10,6 @@ cannot hide an extraction or state-update bug.
 -/
 
 set_option linter.unusedVariables false
-set_option linter.unusedTactic false
 
 open Lean Elab Term Meta
 open VeilTest.ActionExecution

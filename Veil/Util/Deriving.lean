@@ -1,6 +1,10 @@
-import Lean
-import Mathlib.Tactic.ProxyType
-import Veil.Util.Meta
+module
+
+public import Lean
+public meta import Veil.Util.ProxyType
+public meta import Veil.Util.Meta
+
+@[expose] public section
 
 open Lean Meta Elab Term Command Deriving
 
@@ -114,6 +118,12 @@ end InstancesForSum
 
 end Veil
 
+end
+
+public meta section
+
+open Lean Meta Elab Term Command Deriving
+
 namespace Veil.Deriving
 
 /-! # Meta-Programs For Instance Derivation
@@ -212,9 +222,11 @@ Returns the theorem name. When both `Std.TransOrd` and `Std.LawfulEqOrd` are der
 for the same type, the second derivation reuses the cached theorem.
 Assume `declName` is the fully qualified name. -/
 def ensureOrdHomProof (declName : Name) : CommandElabM Name := do
-  let thmName := declName ++ `_proxyOrdHom
-  if (← getEnv).find? thmName |>.isSome then
-    return thmName
+  -- Commands use the source-level namespace, even for a private inductive.
+  -- Resolve the generated theorem afterwards to recover its actual private name.
+  let thmName := privateToUserName declName ++ `_proxyOrdHom
+  if let [(existing, [])] ← resolveGlobalName thmName then
+    return existing
   let indVal ← getConstInfoInduct declName
   -- Compute a name relative to the current namespace so that
   -- `elabVeilCommand` (which uses the current namespace) doesn't double it.
@@ -229,14 +241,14 @@ def ensureOrdHomProof (declName : Name) : CommandElabM Name := do
       attribute [scoped instance] $localInsts* in
       theorem $(mkIdent relThmName) $header.binders:bracketedBinder* :
         ∀ $a1:ident $a2:ident,
-          compare $a1:ident $a2:ident = compare ((proxy_equiv% $header.targetType) $a1:ident) ((proxy_equiv% $header.targetType) $a2:ident) := by
+          compare $a1:ident $a2:ident = compare ((veil_proxy_equiv% $header.targetType) $a1:ident) ((veil_proxy_equiv% $header.targetType) $a2:ident) := by
             intros
             conv => rhs ; whnf
             simp ($(mkIdent `failIfUnchanged):ident := false) only [$(mkCIdent ``Ordering.then_eq):ident]
             try (destruct_proxy_sum <;> destruct_proxy_sum <;> try rfl)
             all_goals (first | rfl | (destruct_proxy_sigma ; first | rfl | grind)))
   elabVeilCommand cmd
-  return thmName
+  resolveGlobalConstNoOverloadCore thmName
 
 def mkOrdRelatedInstCmd (className declName : Name) : CommandElabM Bool := do
   let thmName ← ensureOrdHomProof declName
@@ -249,7 +261,7 @@ def mkOrdRelatedInstCmd (className declName : Name) : CommandElabM Bool := do
       attribute [scoped instance] $localInsts* in
       scoped instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* : $(mkCIdent className) ($header.targetType) :=
         $(mkCIdent <| `Veil ++ className ++ `by_equiv)
-          (proxy_equiv% $header.targetType)
+          (veil_proxy_equiv% $header.targetType)
           $(mkCIdent thmName))
   elabVeilCommand cmd
   return true

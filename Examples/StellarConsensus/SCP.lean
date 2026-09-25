@@ -1,5 +1,9 @@
-import Veil
-import Examples.StellarConsensus.SCPTheory
+module
+
+public import Veil
+public import Examples.StellarConsensus.SCPTheory
+
+open scoped FBA
 
 -- adapted from [SCP.ivy](https://github.com/stellar/scp-proofs/blob/3e0428acc78e598a227a866b99fe0b3ad4582914/SCP.ivy)
 
@@ -11,7 +15,7 @@ import Examples.StellarConsensus.SCPTheory
 /-- This type class bundles the properties abstracted from the concrete model
     of SCP, which will be used in the subsequent verification.
     In the Ivy spec, they appear as `trusted` properties (assumptions). -/
-class SCP.Background (node : outParam Type) (nset : outParam Type) where
+public class SCP.Background (node : outParam Type) (nset : outParam Type) where
   well_behaved : node → Prop
   intertwined : node → Prop
   intact : node → Prop
@@ -29,9 +33,9 @@ class SCP.Background (node : outParam Type) (nset : outParam Type) where
 /-- Given a concrete system model `FBA.System`, fix the intertwined set `S` and
     the intact set `I ⊆ S` to consider, all abstracted properties can be satisfied. -/
 def one_such_Background (node : Type) [fba : FBA.System node]
-    (I : Set node) (_hI : FBA.intact (inst := fba) I)
-    (S : Set node) (hS : FBA.intertwined (inst := fba) S)
-    (hIS : I ⊆ S) : SCP.Background node (Set node) where
+    (I : FBA.NodeSet node) (_hI : FBA.intact (inst := fba) I)
+    (S : FBA.NodeSet node) (hS : FBA.intertwined (inst := fba) S)
+    (hIS : I ⊆ S) : SCP.Background node (FBA.NodeSet node) where
   well_behaved n := n ∈ fba.W
   intertwined n := n ∈ S
   intact n := n ∈ I

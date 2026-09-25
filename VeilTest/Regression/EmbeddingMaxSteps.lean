@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 -- Regression test for the following bug reported by Mark Tuttle:
 -- https://leanprover.zulipchat.com/#narrow/channel/537982-Veil/topic/Brittle.20invariance.20checking.20in.20the.20initial.20state/with/573570686

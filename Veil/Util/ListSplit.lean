@@ -1,4 +1,8 @@
-import Mathlib.Tactic.Common
+module
+
+meta import Veil.Util.Tactics
+
+@[expose] public section
 
 /-!
 # List Splitting

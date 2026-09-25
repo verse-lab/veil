@@ -1,12 +1,15 @@
-import VeilTest.ActionExecution
+module
+
+public import VeilTest.ActionExecution
+public meta import VeilTest.ActionExecution
 
 set_option linter.unusedVariables false
 
 open VeilTest.ActionExecution
 
-def ACK : Bool := true
+public def ACK : Bool := true
 
-inductive CapitalIndex where
+public inductive CapitalIndex where
   | Zero
   | One
 deriving DecidableEq

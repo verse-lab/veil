@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-!
 Importing Veil must not alter parsing or execution of ordinary Lean `do`

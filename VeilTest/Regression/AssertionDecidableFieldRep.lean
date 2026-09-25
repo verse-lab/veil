@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 set_option linter.unusedVariables false
 
@@ -109,7 +111,7 @@ info: GhostExprDefinitionRegression.prettyFn {ρ σ node : Type} [node_dec_eq : 
       LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)
         (χ_rep __veil_f)]
   [σ_sub : IsSubStateOf (State χ) σ] [ρ_sub : IsSubReaderOf (Theory node) ρ] (th : ρ := by veil_exact_theory)
-  (st : σ := by veil_exact_state) : ℕ
+  (st : σ := by veil_exact_state) : Nat
 -/
 #guard_msgs in
 #check prettyFn

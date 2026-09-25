@@ -1,5 +1,10 @@
-import Veil.Util.TreeSetMisc
-import Mathlib.Data.List.Nodup
+module
+
+public import Veil.Util.TreeSetMisc
+public import Veil.Util.List
+meta import Veil.Util.Tactics
+
+@[expose] public section
 
 /-! # Sharded Set
 
@@ -410,7 +415,7 @@ theorem length_toList [EquivBEq α] [LawfulHashable α]
 theorem nodup_elements [LawfulBEq α] [LawfulHashable α]
     {shs : ShardedHashSetUSize α numShards} :
     shs.toList.Nodup := by
-  simp [toList, List.nodup_flatMap] ; constructor
+  simp [toList, Veil.List.nodup_flatMap] ; constructor
   · intros ; apply Std.HashMap.nodup_keys
   · rw [List.pairwise_iff_getElem] ; intros i j hi hj hne
     whnf ; simp ; intro a hini hinj

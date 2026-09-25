@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 -- This test intentionally uses SMT proofs for trivial `True` goals below.
 -- Suppress the trusted-SMT proof warning so the expected messages stay focused

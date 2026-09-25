@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-!
 # Regression: current-state coherence at `if (← someProc) …` branch entry

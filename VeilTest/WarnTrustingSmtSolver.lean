@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 set_option warn.sorry false
 set_option veil.smt.trust true

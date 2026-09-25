@@ -1,12 +1,16 @@
-import Veil.Frontend.DSL.Module.Util.Basic
-import Veil.Frontend.DSL.Module.Util.StateTheory
-import Veil.Frontend.DSL.Module.Util.Assertions
-import Veil.Frontend.DSL.Module.Util.AbstractState
-import Veil.Frontend.DSL.Module.Util.LocalRProp
-import Veil.Frontend.DSL.Module.Util.LocalTheoryProp
-import Veil.Frontend.DSL.Module.Util.Assemble
-import Veil.Frontend.DSL.Module.Util.ForModelChecker
-import Veil.Frontend.DSL.Module.Util.VeilDeclAttr
+module
+
+public meta import Veil.Frontend.DSL.Module.Util.Basic
+public meta import Veil.Frontend.DSL.Module.Util.StateTheory
+public meta import Veil.Frontend.DSL.Module.Util.Assertions
+public meta import Veil.Frontend.DSL.Module.Util.AbstractState
+public meta import Veil.Frontend.DSL.Module.Util.LocalRProp
+public meta import Veil.Frontend.DSL.Module.Util.LocalTheoryProp
+public meta import Veil.Frontend.DSL.Module.Util.Assemble
+public meta import Veil.Frontend.DSL.Module.Util.ForModelChecker
+public meta import Veil.Frontend.DSL.Module.Util.VeilDeclAttr
+
+public meta section
 
 /-!
 # Module Utilities

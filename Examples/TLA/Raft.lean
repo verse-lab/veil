@@ -1,4 +1,7 @@
-import Veil
+module
+
+public import Veil
+
 -- --------------------------------- MODULE raft ---------------------------------
 -- \* This is the formal specification for the Raft consensus algorithm.
 -- \*

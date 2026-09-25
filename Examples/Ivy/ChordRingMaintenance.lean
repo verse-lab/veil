@@ -1,4 +1,7 @@
-import Veil
+module
+
+public import Veil
+
 -- https://github.com/aman-goel/ivybench/blob/master/i4/ivy/chord_ring_maintenance.ivy
 
 

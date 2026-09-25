@@ -1,6 +1,10 @@
-import Veil.Frontend.DSL.Action.Semantics.Definitions
-import Veil.Util.Meta
-import Veil.Frontend.DSL.State.Types
+module
+
+public import Veil.Frontend.DSL.Action.Semantics.Definitions
+public meta import Veil.Util.Meta
+public import Veil.Frontend.DSL.State.Types
+
+public section
 
 /-! # Utilities for Displaying -/
 

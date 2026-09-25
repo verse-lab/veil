@@ -1,4 +1,8 @@
-import Veil.Frontend.DSL.Module.Util.AbstractState
+module
+
+public meta import Veil.Frontend.DSL.Module.Util.AbstractState
+
+public meta section
 
 open Lean Parser Elab Command Term Meta Tactic
 
@@ -221,7 +225,7 @@ private def Module.proveLocalityForTheoryPredicateCore (mod : Module) (nm : Name
     let f := body.getAppFn'
     let [th] := body.getAppArgs'.toList
       | throwError "unexpected shape of theory predicate {nm}: unable to extract theory argument"
-    let f := f.instantiateLambdasOrApps #[th]
+    let f := f.betaRev #[th] (useZeta := true)
     let .app ff theoryCasesOnBody := f
       | throwError "unexpected shape of theory predicate {f}: expected an application with Theory.casesOn as the function"
     lambdaTelescope theoryCasesOnBody fun theoryFields body => do
@@ -385,7 +389,7 @@ uses the resulting `Assumptions.core_simplified_eq` to instantiate the
 field-exposed assumptions core without depending on typeclass search for the
 assembled definition itself. -/
 def Module.simplifyLocalTheoryPropCore (mod : Module) (nm : Name) : TermElabM Unit := do
-  if !mod._useLocalRPropTC || (← isModelCheckCompileMode) then return
+  if !mod._useLocalRPropTC then return
   let some dk := mod._declarations[nm]?
     | throwError "simplifyLocalTheoryPropCore: {nm} not found in module declarations"
   let (nmParams, _) ← mod.declarationAllParams nm dk
@@ -441,7 +445,7 @@ def Module.simplifyLocalTheoryPropCore (mod : Module) (nm : Name) : TermElabM Un
 /-! ## Assembled Definition Simplification -/
 
 def Module.simplifyAssembledWithLocalTheoryProp (mod : Module) (nm : Name) : TermElabM Unit := do
-  if !mod._useLocalRPropTC || (← isModelCheckCompileMode) then return
+  if !mod._useLocalRPropTC then return
   try
     let nmFull ← resolveGlobalConstNoOverloadCore nm
     let info ← getConstInfoDefn nmFull

@@ -1,7 +1,11 @@
-import Veil.Core.Tools.ModelChecker.TransitionSystem
-import Veil.Core.Tools.ModelChecker.Trace
-import Mathlib.Tactic.DeriveFintype
-import Lean.Data.Json
+module
+
+public import Veil.Core.Tools.ModelChecker.TransitionSystem
+public import Veil.Core.Tools.ModelChecker.Trace
+public meta import Veil.Util.Tactics
+public import Lean.Data.Json
+
+@[expose] public section
 
 namespace Veil.ModelChecker
 open Lean Trace
@@ -160,30 +164,14 @@ theorem ParallelConfig.chunkRanges_valid (cfg : ParallelConfig) (n : Nat) :
     unfold computeChunkRanges at h_lr_in
     simp [List.mem_map] at h_lr_in
     obtain ⟨i, h_i_in, h_lr_eq⟩ := h_lr_in
-    split
-    . simp
-    . simp
-      rename_i h_lr_eq
-      apply Nat.div_le_self
-    constructor
-    . rename_i h_lr_eq
-      obtain ⟨a, h_a_lt, h_eq⟩ := h_lr_eq
-      rw [← h_eq]
-      dsimp
-      split_ifs
-      · apply Nat.le_trans (Nat.mul_le_mul_right _ (Nat.le_of_lt (Nat.lt_of_lt_of_le h_a_lt (le_max_right _ _))))
-        rw [Nat.mul_comm]
-        apply Nat.div_mul_le_self
-      · apply Nat.mul_le_mul_right
-        apply Nat.le_succ
-    . rename_i h_lr_eq
-      obtain ⟨a, h_a_lt, h_eq⟩ := h_lr_eq
-      rw [← h_eq]; dsimp
-      split_ifs <;> try apply Nat.le_refl
-      trans (max 1 cfg.numSubTasks) * (n / max 1 cfg.numSubTasks)
-      · apply Nat.mul_le_mul_right; omega
-      · rw [Nat.mul_comm]; apply Nat.div_mul_le_self
-
+    subst lr
+    dsimp only
+    have hm : max 1 cfg.numSubTasks * (n / max 1 cfg.numSubTasks) ≤ n := by
+      rw [Nat.mul_comm]; exact Nat.div_mul_le_self _ _
+    split_ifs
+    · exact ⟨Nat.le_trans (Nat.mul_le_mul_right _ (Nat.le_of_lt h_i_in)) hm, Nat.le_refl _⟩
+    · exact ⟨Nat.mul_le_mul_right _ (Nat.le_succ _),
+        Nat.le_trans (Nat.mul_le_mul_right _ h_i_in) hm⟩
 
 /-- ParallelConfig.chunkRanges covers all indices. -/
 theorem ParallelConfig.chunkRanges_cover (cfg : ParallelConfig) (n : Nat) :
@@ -278,6 +266,30 @@ def SearchParameters.satisfiesConstraints (params : SearchParameters ρ σ) (th 
 def SearchParameters.violatedAssumptions (params : SearchParameters ρ σ) (th : ρ) : List Name :=
   params.assumptions.filterMap fun p =>
     if p.holdsOn th then none else some p.name
+
+/-- Create a filtered transition system that explores only states satisfying
+state constraints. -/
+@[inline]
+def restrictSystemByStateConstraints {ρ σ κ : Type} {th₀ : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (params : SearchParameters ρ σ) (th : ρ) :
+  EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀ :=
+  if params.stateConstraints.isEmpty then sys else {
+    initStates := sys.initStates.filter (params.satisfiesConstraints th)
+    tr := fun th' st => (sys.tr th' st).filter fun (_, outcome) =>
+      match outcome with
+      | .success st' => params.satisfiesConstraints th st'
+      -- Assertion failures should satisfy constraints to be considered.
+      | .assertionFailure _ st' => params.satisfiesConstraints th st'
+      -- Divergence has no successor state to constrain.
+      | .divergence => true
+  }
+
+@[inline]
+def violatedInvariantNames {ρ σ : Type}
+  (params : SearchParameters ρ σ) (th : ρ) (st : σ) : List Lean.Name :=
+  params.invariants.filterMap fun p =>
+    if !p.holdsOn th st then some p.name else none
 
 -- class ModelChecker (ts : TransitionSystem ρ σ l) where
 --   isReachable : SearchParameters ρ σ → Option ParallelConfig → ModelCheckingResult ρ σ l σₕ

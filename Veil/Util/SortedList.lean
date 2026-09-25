@@ -1,8 +1,11 @@
-import Std
-import Mathlib.Data.List.Sublists
-import Mathlib.Data.List.Destutter
-import Veil.Frontend.DSL.State.Types
-import Veil.Frontend.DSL.State.Instances
+module
+
+public import Std
+public import Veil.Util.Destutter
+public import Veil.Frontend.DSL.State.Types
+public import Veil.Frontend.DSL.State.Instances
+
+@[expose] public section
 
 /-! # Sorted List -/
 
@@ -27,24 +30,24 @@ variable {α : Type u} [Ord α]
 def empty : OrdList α := ⟨[], List.Pairwise.nil⟩
 
 def ofList.inner [TransOrd α] (l : List α) : List α :=
-  (l.mergeSort (fun a b => compare a b != .gt)).destutter cmpLt
+  Veil.List.destutter cmpLt (l.mergeSort (fun a b => compare a b != .gt))
 
 private theorem mem_destutter'_of_weakly_sorted [TransOrd α] [LawfulEqOrd α]
     (a : α) (l : List α)
     (hsorted : (a :: l).Pairwise (fun p q => (compare p q != .gt) = true))
     (x : α) (hmem : x ∈ a :: l) :
-    x ∈ l.destutter' (cmpLt (α := α)) a := by
+    x ∈ Veil.List.destutter' (cmpLt (α := α)) a l := by
   induction l generalizing a with
-  | nil => simp [List.destutter'] ; simp at hmem ; exact hmem
+  | nil => simp [Veil.List.destutter'] ; simp at hmem ; exact hmem
   | cons b t ih =>
-    rw [List.destutter'_cons]
+    rw [Veil.List.destutter'_cons]
     have hab : (compare a b != .gt) = true :=
       List.rel_of_pairwise_cons hsorted (by simp)
     rcases List.mem_cons.mp hmem with rfl | hmem'
     · -- x = a
       split_ifs with h
       · simp
-      · exact List.mem_destutter' _ _ _
+      · exact Veil.List.mem_destutter' _ _ _
     · -- x ∈ b :: t
       split_ifs with h
       · -- cmpLt a b, result = a :: destutter' cmpLt b t
@@ -79,7 +82,7 @@ private theorem mergeSort_pairwise_le [TransOrd α] (l : List α) :
     exact ne_gt_of_isLE (TransOrd.isLE_trans (isLE_of_ne_gt hab) (isLE_of_ne_gt hbc))
   · intro a b
     simp only [le_fn, Bool.or_eq_true, bne_iff_ne, ne_eq]
-    by_contra h ; push Not at h
+    by_contra h; simp only [not_or] at h
     have h1 := h.1 ; have h2 := h.2
     have := OrientedCmp.eq_swap (cmp := compare) (a := a) (b := b)
     cases ha : compare a b <;> simp_all
@@ -90,13 +93,13 @@ theorem ofList.inner_spec [TransOrd α] [LawfulEqOrd α] (l : List α) :
   have hle : (fun a b : α => compare a b != .gt) = le_fn α := rfl
   constructor
   · have : Trans (cmpLt (α := α)) cmpLt cmpLt := ⟨TransCmp.lt_trans⟩
-    apply List.isChain_iff_pairwise.mp (List.isChain_destutter _ _)
+    apply Veil.List.pairwise_destutter
   · intro x
     simp only [ofList.inner, hle]
     constructor
     · -- forward: x ∈ destutter ... → x ∈ l
       intro hmem
-      have hsub := List.destutter_sublist (cmpLt (α := α)) (l.mergeSort (le_fn α))
+      have hsub := Veil.List.destutter_sublist (cmpLt (α := α)) (l.mergeSort (le_fn α))
       exact (List.mergeSort_perm l (le_fn α)).mem_iff.mp (hsub.mem hmem)
     · -- backward: x ∈ l → x ∈ destutter ...
       intro hmem
@@ -106,7 +109,7 @@ theorem ofList.inner_spec [TransOrd α] [LawfulEqOrd α] (l : List α) :
       | nil => simp_all
       | cons a t =>
         rw [hl] at hmem_sorted hsorted
-        rw [List.destutter_cons']
+        rw [Veil.List.destutter_cons']
         exact mem_destutter'_of_weakly_sorted a t hsorted x hmem_sorted
 
 /-- Build an `OrdList` from an arbitrary list by sorting and removing duplicates. -/
@@ -224,9 +227,9 @@ private theorem sortedMergeGeneral_sub (x : α) (kl kr kb : Bool) (l₁ l₂ : L
   | x_1 => exact inferInstance
   | case1 | case2 | case3 | case4 => simp_all [sortedMergeGeneral]
   | case5 _ _ _ _ hcmp hk ih | case7 _ _ _ _ hcmp hk ih | case9 _ _ _ _ hcmp hk ih =>
-    subst hk; simp_all [sortedMergeGeneral, List.mem_cons]; tauto
+    subst hk; simp_all [sortedMergeGeneral, List.mem_cons]; aesop
   | case6 _ _ _ _ hcmp hk ih | case8 _ _ _ _ hcmp hk ih | case10 _ _ _ _ hcmp hk ih =>
-    simp only [Bool.not_eq_true] at hk; subst hk; simp_all [sortedMergeGeneral, List.mem_cons]; tauto
+    simp only [Bool.not_eq_true] at hk; subst hk; simp_all [sortedMergeGeneral, List.mem_cons]; aesop
 
 private theorem sortedMergeGeneral_sorted [TransOrd α] [LawfulEqOrd α]
     (kl kr kb : Bool) (l₁ l₂ : List α)
@@ -322,14 +325,14 @@ private theorem sortedMergeGeneral_mem [TransOrd α] [LawfulEqOrd α]
       a :: sortedMergeGeneral true kr kb l' (b :: r') := by simp [sortedMergeGeneral, hcmp]
     rw [hunf, List.mem_cons, ih (List.Pairwise.of_cons hs₁) hs₂]
     have := not_mem_of_cmpLt_cons hcmp hs₂
-    simp only [List.mem_cons, not_or] at *; tauto
+    simp only [List.mem_cons, not_or] at *; aesop
   | case6 a l' b r' hcmp hk ih =>
     simp only [Bool.not_eq_true] at hk; subst hk
     have hunf : sortedMergeGeneral false kr kb (a :: l') (b :: r') =
       sortedMergeGeneral false kr kb l' (b :: r') := by simp [sortedMergeGeneral, hcmp]
     rw [hunf, ih (List.Pairwise.of_cons hs₁) hs₂]
     have := not_mem_of_cmpLt_cons hcmp hs₂
-    simp only [List.mem_cons, not_or] at *; tauto
+    simp only [List.mem_cons, not_or] at *; aesop
   | case7 a l' b r' hcmp hk ih =>
     subst hk; have hab := LawfulEqOrd.eq_of_compare hcmp; subst hab
     have hunf : sortedMergeGeneral kl kr true (a :: l') (a :: r') =
@@ -339,7 +342,7 @@ private theorem sortedMergeGeneral_mem [TransOrd α] [LawfulEqOrd α]
       have := List.rel_of_pairwise_cons hs₁ h; simp [cmpLt, ReflOrd.compare_self] at this
     have : a ∉ r' := fun h => by
       have := List.rel_of_pairwise_cons hs₂ h; simp [cmpLt, ReflOrd.compare_self] at this
-    simp only [List.mem_cons, not_or] at *; tauto
+    simp only [List.mem_cons, not_or] at *; aesop
   | case8 a l' b r' hcmp hk ih =>
     simp only [Bool.not_eq_true] at hk; subst hk
     have hab := LawfulEqOrd.eq_of_compare hcmp; subst hab
@@ -350,21 +353,21 @@ private theorem sortedMergeGeneral_mem [TransOrd α] [LawfulEqOrd α]
       have := List.rel_of_pairwise_cons hs₁ h; simp [cmpLt, ReflOrd.compare_self] at this
     have : a ∉ r' := fun h => by
       have := List.rel_of_pairwise_cons hs₂ h; simp [cmpLt, ReflOrd.compare_self] at this
-    simp only [List.mem_cons, not_or] at *; tauto
+    simp only [List.mem_cons, not_or] at *; aesop
   | case9 a l' b r' hcmp hk ih =>
     subst hk
     have hunf : sortedMergeGeneral kl true kb (a :: l') (b :: r') =
       b :: sortedMergeGeneral kl true kb (a :: l') r' := by simp [sortedMergeGeneral, hcmp]
     rw [hunf, List.mem_cons, ih hs₁ (List.Pairwise.of_cons hs₂)]
     have := not_mem_of_cmpGt_cons hcmp hs₁
-    simp only [List.mem_cons, not_or] at *; tauto
+    simp only [List.mem_cons, not_or] at *; aesop
   | case10 a l' b r' hcmp hk ih =>
     simp only [Bool.not_eq_true] at hk; subst hk
     have hunf : sortedMergeGeneral kl false kb (a :: l') (b :: r') =
       sortedMergeGeneral kl false kb (a :: l') r' := by simp [sortedMergeGeneral, hcmp]
     rw [hunf, ih hs₁ (List.Pairwise.of_cons hs₂)]
     have := not_mem_of_cmpGt_cons hcmp hs₁
-    simp only [List.mem_cons, not_or] at *; tauto
+    simp only [List.mem_cons, not_or] at *; aesop
 -/
 
 /-! ### Uniqueness of sorted lists -/
@@ -379,7 +382,7 @@ theorem sorted_unique [TransOrd α] {l₁ l₂ : List α}
     (hmem : ∀ x, x ∈ l₁ ↔ x ∈ l₂) :
     l₁ = l₂ := by
   apply List.Perm.eq_of_pairwise <;> try assumption
-  on_goal 1=> intro a b _ _ h1 h2 ; whnf at h1 h2 ; have := OrientedCmp.gt_of_lt h1 ; grind
+  on_goal 1=> intro a b _ _ h1 h2 ; whnf at h1 h2; have := OrientedCmp.gt_of_lt h1; grind
   rw [List.perm_ext_iff_of_nodup] ; assumption
   all_goals grind [sorted_nodup]
 
@@ -422,7 +425,7 @@ theorem sortedInsertNoDup_new_in [TransOrd α] [LawfulEqOrd α] {a : α} {l : Li
   ∃ pre suf, l = pre ++ suf ∧ sortedInsertNoDup a l = pre ++ (a :: suf) ∧
     (∀ x ∈ pre, cmpLt x a) ∧ (∀ x ∈ suf, cmpLt a x) := by
   induction l with
-  | nil => simp [sortedInsertNoDup]
+  | nil => exact ⟨[], [], rfl, rfl, by simp, by simp⟩
   | cons h t ih =>
     simp at hmem ; rcases hmem with ⟨hneq, hmem⟩
     specialize ih (List.Pairwise.of_cons hs) hmem
@@ -557,12 +560,12 @@ theorem sortedMergeNoDup_mem [TransOrd α] [LawfulEqOrd α] (x : α) (l₁ l₂ 
   | case1 r => simp [sortedMergeNoDup]
   | case2 l hl => simp [sortedMergeNoDup_nil_right]
   | case3 a l' b r' hlt ih =>
-    simp only [sortedMergeNoDup, hlt, List.mem_cons, ih] ; tauto
+    simp only [sortedMergeNoDup, hlt, List.mem_cons, ih] ; aesop
   | case4 a l' b r' heq ih =>
     simp only [sortedMergeNoDup, heq, List.mem_cons, ih]
-    have := LawfulEqOrd.eq_of_compare heq ; subst this ; tauto
+    have := LawfulEqOrd.eq_of_compare heq ; subst this ; aesop
   | case5 a l' b r' hgt ih =>
-    simp only [sortedMergeNoDup, hgt, List.mem_cons, ih] ; tauto
+    simp only [sortedMergeNoDup, hgt, List.mem_cons, ih] ; aesop
 
 theorem sortedMergeNoDup_sorted [TransOrd α] [LawfulEqOrd α] (l₁ l₂ : List α)
     (hs₁ : l₁.Pairwise (cmpLt (α := α))) (hs₂ : l₂.Pairwise (cmpLt (α := α))) :
@@ -634,9 +637,9 @@ theorem sortedDiffNoDup_sub (x : α) (l₁ l₂ : List α) :
   | case1 r => simp [sortedDiffNoDup]
   | case2 l hl => simp [sortedDiffNoDup_nil_right]
   | case3 a l' b r' hlt ih =>
-    simp only [sortedDiffNoDup, hlt, List.mem_cons] ; tauto
+    simp only [sortedDiffNoDup, hlt, List.mem_cons] ; aesop
   | case4 a l' b r' heq ih =>
-    simp only [sortedDiffNoDup, heq, List.mem_cons] ; tauto
+    simp only [sortedDiffNoDup, heq, List.mem_cons] ; aesop
   | case5 a l' b r' hgt ih =>
     simp only [sortedDiffNoDup, hgt] ; exact ih
 
@@ -723,9 +726,9 @@ theorem sortedIntersectNoDup_sub (x : α) (l₁ l₂ : List α) :
   | case1 r => simp [sortedIntersectNoDup]
   | case2 l hl => simp [sortedIntersectNoDup_nil_right]
   | case3 a l' b r' hlt ih =>
-    simp only [sortedIntersectNoDup, hlt, List.mem_cons] ; tauto
+    simp only [sortedIntersectNoDup, hlt, List.mem_cons] ; aesop
   | case4 a l' b r' heq ih =>
-    simp only [sortedIntersectNoDup, heq, List.mem_cons] ; tauto
+    simp only [sortedIntersectNoDup, heq, List.mem_cons] ; aesop
   | case5 a l' b r' hgt ih =>
     simp only [sortedIntersectNoDup, hgt] ; exact ih
 
@@ -881,7 +884,8 @@ private theorem sublists_all_sorted [TransOrd α] [LawfulEqOrd α] (l : List α)
 
 @[inline]
 def sublists [TransOrd α] [LawfulEqOrd α] (l : OrdList α) : List (OrdList α) :=
-  l.val.sublists.attachWith _ (sublists_all_sorted l.val l.property)
+  l.val.sublists.attachWith (fun sl => sl.Pairwise (cmpLt (α := α)))
+    (by exact sublists_all_sorted l.val l.property)
 
 -- TODO check these instances later?
 
@@ -897,7 +901,7 @@ scoped instance cmpLt_antisymm [TransOrd α] :
 theorem mem_contains_then_is_sublist [TransOrd α] [LawfulEqOrd α] (l1 l2 : List α)
   (hs1 : l1.Pairwise (cmpLt (α := α))) (hs2 : l2.Pairwise (cmpLt (α := α)))
   (h : ∀ x, x ∈ l1 → x ∈ l2) : l1.Sublist l2 := by
-  apply @List.sublist_of_subperm_of_pairwise _ _ (cmpLt_antisymm (α := α))
+  apply @Veil.List.sublist_of_subperm_of_pairwise _ _ (cmpLt_antisymm (α := α))
   · apply List.subperm_of_subset (sorted_nodup hs1)
     grind
   · grind
@@ -921,7 +925,7 @@ theorem foldl_sortedInsertNoDup_mem [TransOrd α] [LawfulEqOrd α]
   induction l generalizing acc with
   | nil => simp
   | cons h t ih =>
-    simp only [List.foldl_cons, ih, sortedInsertNoDup_mem, List.mem_cons] ; tauto
+    simp only [List.foldl_cons, ih, sortedInsertNoDup_mem, List.mem_cons] ; aesop
 -/
 
 end SortedLemmas

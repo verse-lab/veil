@@ -1,8 +1,12 @@
-import Lean
-import Batteries.Lean.Meta.UnusedNames
-import Veil.Backend.SMT.Base
+module
+
+public meta import Lean
+public meta import Batteries.Lean.Meta.UnusedNames
+public meta import Veil.Frontend.DSL.Infra.SmtSimp
 -- FIXME: This is somehow coupling frontend and backend, not very good
-import Veil.Frontend.DSL.Action.Semantics.Definitions
+public meta import Veil.Frontend.DSL.Action.Semantics.Definitions
+
+public meta section
 
 open Lean Meta Elab Tactic
 

@@ -1,4 +1,6 @@
-import Veil
+module
+
+public import Veil
 
 /-!
 # Concrete execution tests for Veil's extensible `do` notation
@@ -13,11 +15,11 @@ set_option linter.unusedVariables false
 
 namespace VeilTest.ActionExecution
 
-open Veil.Extract
+open Veil Veil.Extract
 
 /-- Check that an extracted action has one successful execution satisfying
 `p`, with no discarded, failing, or divergent alternatives. -/
-def exactlyOneSuccess (results : List (ExecutionResult ε σ α))
+public def exactlyOneSuccess (results : List (ExecutionResult ε σ α))
     (p : α → σ → Bool) : Bool :=
   match results with
   | [.success value state] => p value state
@@ -25,25 +27,25 @@ def exactlyOneSuccess (results : List (ExecutionResult ε σ α))
 
 /-- Check every extracted alternative and its expected cardinality without
 depending on the extractor's enumeration order. -/
-def exactlyNSuccesses (n : Nat) (results : List (ExecutionResult ε σ α))
+public def exactlyNSuccesses (n : Nat) (results : List (ExecutionResult ε σ α))
     (p : α → σ → Bool) : Bool :=
   results.length == n && results.all fun
     | .success value state => p value state
     | _ => false
 
-def hasSuccess (results : List (ExecutionResult ε σ α))
+public def hasSuccess (results : List (ExecutionResult ε σ α))
     (p : α → σ → Bool) : Bool :=
   results.any fun
     | .success value state => p value state
     | _ => false
 
-def hasAssertionFailure (results : List (ExecutionResult ε σ α))
+public def hasAssertionFailure (results : List (ExecutionResult ε σ α))
     (p : ε → σ → Bool) : Bool :=
   results.any fun
     | .assertionFailure error state => p error state
     | _ => false
 
-def hasNoExecutions (results : List (ExecutionResult ε σ α)) : Bool :=
+public def hasNoExecutions (results : List (ExecutionResult ε σ α)) : Bool :=
   results.isEmpty
 
 end VeilTest.ActionExecution

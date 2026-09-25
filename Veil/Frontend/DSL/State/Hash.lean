@@ -1,6 +1,9 @@
-import Mathlib.Data.UInt
-import Mathlib.Algebra.BigOperators.Group.Finset.Basic
-import Veil.Frontend.DSL.State.Concrete
+module
+
+public meta import Veil.Util.Tactics
+public import Veil.Frontend.DSL.State.Concrete
+
+@[expose] public section
 
 namespace Veil
 
@@ -77,41 +80,7 @@ theorem toLawfulFieldRepresentation
 
 end Simple
 
-/-
--- FIXME: This needs more investigation
-namespace IncrementalFinmapLike
 
-variable {α : Type u} {β : Type v}
-  [DecidableEq α] [inst : FinmapLike α Bool β] [instl : LawfulFinmapLike β]
-  [AddCommGroup ι] [insth : HashAsAddCommGroup α ι]
-  [Fintype α]
-
-abbrev sumAsHash (inner : β) : ι :=
-  ∑ a ∈ Finset.filter (fun a => inst.get inner a) Finset.univ, insth.op a
-
-local macro "aop" : term => `(sumAsHash)
-
-def insert' (a : α) (b : Bool) (c : HashCompanioned β ι aop) : HashCompanioned β ι aop :=
-  let newInner := inst.insert a b c.inner
-  { inner := newInner
-    hashval := sumAsHash newInner
-    invariant := rfl }
-
-scoped instance : FinmapLike α Bool (HashCompanioned β ι aop) where
-  get c a := inst.get c.inner a
-  insert a b c := insert' a b c
-
-scoped instance : LawfulFinmapLike (HashCompanioned β ι aop) where
-  insert_get a a' b mp := by
-    simp only [FinmapLike.get, FinmapLike.insert, insert']
-    exact instl.insert_get a a' b mp.inner
-
-scoped instance [Hashable α] : Hashable (HashCompanioned β UInt64 aop) where
-  hash := HashCompanioned.hashval
-
-end IncrementalFinmapLike
-
--/
 
 end HashCompanioned
 

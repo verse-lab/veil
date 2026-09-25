@@ -1,6 +1,15 @@
-import Veil.Frontend.DSL.Action.Semantics.Definitions
-import Veil.Frontend.DSL.State.SubState
-import Veil.Frontend.DSL.Infra.Simp
+module
+
+public import Batteries.Lean.Expr
+public meta import Batteries.Lean.Expr
+public import Veil.Frontend.DSL.Action.Semantics.Definitions
+public import Veil.Frontend.DSL.State.SubState
+public meta import Veil.Frontend.DSL.Infra.Simp
+
+public section
+
+open Loom.Order
+open scoped Loom.Order
 
 namespace Veil
 open PartialCorrectness DemonicChoice
@@ -9,31 +18,30 @@ variable (hd : ExId -> Prop) [IsHandler hd]
 
 /- Languge constructs -/
 
-def VeilExecM.assert (p : Prop) [Decidable p] (ex : ExId) : VeilExecM m ρ σ Unit := do
+@[expose] def VeilExecM.assert (p : Prop) [Decidable p] (ex : ExId) : VeilExecM m ρ σ Unit := do
   if p then pure () else throw ex
 
-def VeilM.assert (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
+@[expose] def VeilM.assert (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
   liftM (@VeilExecM.assert m ρ σ p _ ex)
 
 /-- We require the predicate to be `Decidable`, even though `assume`
 does not, in order to collect the appropriate instances needed for
 execution. -/
-@[reducible]
-def VeilM.assume (p : Prop) [Decidable p] : VeilM m ρ σ PUnit := do
+@[reducible, expose] def VeilM.assume (p : Prop) [Decidable p] : VeilM m ρ σ PUnit := do
   MonadNonDet.assume p
 
 /-- We require the predicate to be `Decidable`, even though `assume`
 does not, in order to collect the appropriate instances needed for
 execution. -/
-def VeilM.pickSuchThat (τ : Type) (p : τ → Prop) [∀ x, Decidable (p x)] : VeilM m ρ σ τ := do
+@[expose] def VeilM.pickSuchThat (τ : Type) (p : τ → Prop) [∀ x, Decidable (p x)] : VeilM m ρ σ τ := do
   MonadNonDet.pickSuchThat τ p
 
-def VeilM.require (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
+@[expose] def VeilM.require (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
   match m with
   | .internal => VeilM.assert p ex
   | .external => assume p
 
-def VeilM.ensure (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
+@[expose] def VeilM.ensure (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
   match m with
   | .internal => assume p
   | .external => VeilM.assert p ex
@@ -49,8 +57,7 @@ frame (`unchanged`). -/
   return ret
 
 /-- Takes a `VeilM` action, executes it, and returns `Unit`.-/
-@[reducible]
-def VeilM.returnUnit (act : VeilM m ρ σ α) : VeilM m ρ σ Unit := do
+@[reducible, expose] def VeilM.returnUnit (act : VeilM m ρ σ α) : VeilM m ρ σ Unit := do
   let _ ← act
   return ()
 
@@ -74,31 +81,31 @@ of leanprover/lean4#14803. Downstream lemmas of the old shape
 `wp act post = fun r s => …` should be restated pointwise
 (`wp act post r s = …`) to keep simplifying under `wpSimp`. -/
 
-lemma VeilM.wp_bind (act : VeilM m ρ σ α) (f : α → VeilM m ρ σ β)
+theorem VeilM.wp_bind (act : VeilM m ρ σ α) (f : α → VeilM m ρ σ β)
     (post : RProp β ρ σ) (r : ρ) (s : σ) :
     wp (act >>= f) post r s = wp act (fun x => wp (f x) post) r s := by
   rw [_root_.wp_bind]
 
 @[wpSimp ↓]
-lemma VeilM.wp_pure (x : α) (post : RProp α ρ σ) (r : ρ) (s : σ) :
+theorem VeilM.wp_pure (x : α) (post : RProp α ρ σ) (r : ρ) (s : σ) :
     wp (pure x : VeilM m ρ σ α) post r s = post x r s := by
   rw [_root_.wp_pure]
 
 @[wpSimp ↓]
-lemma VeilM.wp_map (act : VeilM m ρ σ α) (f : α → β)
+theorem VeilM.wp_map (act : VeilM m ρ σ α) (f : α → β)
     (post : RProp β ρ σ) (r : ρ) (s : σ) :
     wp (f <$> act) post r s = wp act (fun x => post (f x)) r s := by
   rw [_root_.wp_map]
 
 @[wpSimp ↓]
-lemma VeilExecM.wp_assume (p : Prop) [Decidable p]
+theorem VeilExecM.wp_assume (p : Prop) [Decidable p]
     (post : RProp PUnit ρ σ) (r : ρ) (s : σ) :
     wp (VeilM.assume p : VeilM m ρ σ PUnit) post r s = (p → post .unit r s) := by
-  simp [MonadNonDet.wp_assume, loomLogicSimp, himp]
+  simp [VeilM.assume, MonadNonDet.wp_assume, loomLogicSimp]
 
 /-- This formulation avoids a blowup in formula size by avoiding copies of `post`. -/
 @[wpSimp ↓]
-lemma VeilM.wp_require (p : Prop) [Decidable p] (ex : ExId)
+theorem VeilM.wp_require (p : Prop) [Decidable p] (ex : ExId)
     (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
     wp (VeilM.require p ex : VeilM m ρ σ Unit) post r s =
       (letI wpI := fun _p [Decidable _p] _post =>
@@ -110,7 +117,7 @@ lemma VeilM.wp_require (p : Prop) [Decidable p] (ex : ExId)
 
 /-- This formulation avoids a blowup in formula size by avoiding copies of `post`. -/
 @[wpSimp ↓]
-lemma VeilM.wp_ensure (p : Prop) [Decidable p] (ex : ExId)
+theorem VeilM.wp_ensure (p : Prop) [Decidable p] (ex : ExId)
     (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
     wp (VeilM.ensure p ex : VeilM m ρ σ Unit) post r s =
       (letI wpI := fun _p [Decidable _p] _post =>
@@ -121,7 +128,7 @@ lemma VeilM.wp_ensure (p : Prop) [Decidable p] (ex : ExId)
   cases m <;> rfl
 
 @[wpSimp ↓]
-lemma VeilExecM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId)
+theorem VeilExecM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId)
     (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
     wp (@VeilExecM.assert m ρ σ p _ ex) post r s =
       if p then post () r s else hd ex := by
@@ -139,14 +146,14 @@ lemma VeilExecM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId)
 
 set_option backward.isDefEq.respectTransparency false in
 @[wpSimp ↓]
-lemma VeilM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId)
+theorem VeilM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId)
     (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
     wp (@VeilM.assert m ρ σ p _ ex) post r s =
       if p then post () r s else hd ex := by
   simp only [assert, MAlgLift.wp_lift, monadLift_self, ↓VeilExecM.wp_assert]
 
 @[wpSimp ↓]
-lemma VeilM.wp_get {_ : IsSubStateOf σₛ σ}
+theorem VeilM.wp_get {_ : IsSubStateOf σₛ σ}
     (post : RProp σₛ ρ σ) (r : ρ) (s : σ) :
     wp (get : VeilM m ρ σ σₛ) post r s = post (getFrom s) r s := by
   rfl
@@ -154,80 +161,77 @@ lemma VeilM.wp_get {_ : IsSubStateOf σₛ σ}
 /-- This is used when converting transitions to actions, which require getting
 the full state, not just the sub-state. -/
 @[wpSimp ↓]
-lemma VeilM.wp_getOf (post : RProp σ ρ σ) (r : ρ) (s : σ) :
+theorem VeilM.wp_getOf (post : RProp σ ρ σ) (r : ρ) (s : σ) :
     wp (MonadStateOf.get : VeilM m ρ σ σ) post r s = post s r s := by
   rfl
 
 @[wpSimp ↓ high]
-lemma VeilM.wp_get' (post : RProp σ ρ σ) (r : ρ) (s : σ) :
+theorem VeilM.wp_get' (post : RProp σ ρ σ) (r : ρ) (s : σ) :
     wp (get : VeilM m ρ σ σ) post r s = post s r s := by
   rfl
 
 @[wpSimp ↓]
-lemma VeilM.wp_set {_ : IsSubStateOf σₛ σ} (s' : σₛ)
+theorem VeilM.wp_set {_ : IsSubStateOf σₛ σ} (s' : σₛ)
     (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
     wp (set s' : VeilM m ρ σ Unit) post r s = post () r (setIn s' s) := by
   rfl
 
 @[wpSimp ↓ high]
-lemma VeilM.wp_set' (s' : σ) (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
+theorem VeilM.wp_set' (s' : σ) (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
     wp (set s' : VeilM m ρ σ Unit) post r s = post () r s' := by
   rfl
 
 @[wpSimp ↓]
-lemma VeilM.wp_modifyGet {_ : IsSubStateOf σₛ σ} (f : σₛ → α × σₛ)
+theorem VeilM.wp_modifyGet {_ : IsSubStateOf σₛ σ} (f : σₛ → α × σₛ)
     (post : RProp α ρ σ) (r : ρ) (s : σ) :
     wp (modifyGet f : VeilM m ρ σ α) post r s =
       post (f (getFrom s)).1 r (setIn (f (getFrom s)).2 s) := by
   rfl
 
 @[wpSimp ↓ high]
-lemma VeilM.wp_modifyGet' (f : σ → α × σ)
+theorem VeilM.wp_modifyGet' (f : σ → α × σ)
     (post : RProp α ρ σ) (r : ρ) (s : σ) :
     wp (modifyGet f : VeilM m ρ σ α) post r s = post (f s).1 r (f s).2 := by
   rfl
 
 @[wpSimp ↓]
-lemma VeilM.wp_modify {_ : IsSubStateOf σₛ σ} (f : σₛ → σₛ)
+theorem VeilM.wp_modify {_ : IsSubStateOf σₛ σ} (f : σₛ → σₛ)
     (post : RProp PUnit ρ σ) (r : ρ) (s : σ) :
     wp (modify f : VeilM m ρ σ PUnit) post r s =
       post .unit r (setIn (f (getFrom s)) s) := by
   rfl
 
 @[wpSimp ↓ high]
-lemma VeilM.wp_modify' (f : σ → σ)
+theorem VeilM.wp_modify' (f : σ → σ)
     (post : RProp PUnit ρ σ) (r : ρ) (s : σ) :
     wp (modify f : VeilM m ρ σ PUnit) post r s = post .unit r (f s) := by
   rfl
 
 @[wpSimp ↓]
-lemma VeilM.wp_read {_ : IsSubReaderOf ρₛ ρ}
+theorem VeilM.wp_read {_ : IsSubReaderOf ρₛ ρ}
     (post : RProp ρₛ ρ σ) (r : ρ) (s : σ) :
     wp (read : VeilM m ρ σ ρₛ) post r s = post (readFrom r) r s := by
   rfl
 
 @[wpSimp ↓ high]
-lemma VeilM.wp_read' (post : RProp ρ ρ σ) (r : ρ) (s : σ) :
+theorem VeilM.wp_read' (post : RProp ρ ρ σ) (r : ρ) (s : σ) :
     wp (read : VeilM m ρ σ ρ) post r s = post r r s := by
   rfl
 
-lemma VeilM.wp_pick (post : RProp τ ρ σ) (r : ρ) (s : σ) :
+theorem VeilM.wp_pick (post : RProp τ ρ σ) (r : ρ) (s : σ) :
     wp (pick τ : VeilM m ρ σ τ) post r s = ∀ t, post t r s := by
-  simp only [MonadNonDet.wp_pick, iInf, sInf, Set.mem_range, eq_iff_iff, Subtype.exists,
-    exists_prop, exists_exists_eq_and, forall_exists_index]
-  aesop
+  simp [MonadNonDet.wp_pick, loomLogicSimp]
 
-lemma VeilM.wp_pickSuchThat {p : τ → Prop} {_ : ∀ x, Decidable (p x)}
+
+theorem VeilM.wp_pickSuchThat {p : τ → Prop} {_ : ∀ x, Decidable (p x)}
     (post : RProp τ ρ σ) (r : ρ) (s : σ) :
     wp (VeilM.pickSuchThat τ p : VeilM m ρ σ τ) post r s =
       ∀ t, p t → post t r s := by
-  simp only [VeilM.pickSuchThat, MonadNonDet.wp_pickSuchThat, iInf, sInf, himpE,
-    himpPureE, Set.mem_range, eq_iff_iff, Subtype.exists, pureE, purePropE,
-    exists_prop, exists_exists_eq_and, forall_exists_index]
-  aesop
+  simp [VeilM.pickSuchThat, MonadNonDet.wp_pickSuchThat, loomLogicSimp]
+
 
 @[wpSimp ↓]
-lemma VeilM.wp_if [Decidable p] (a b : VeilM m ρ σ τ)
+theorem VeilM.wp_if [Decidable p] (a b : VeilM m ρ σ τ)
     (post : RProp τ ρ σ) (r : ρ) (s : σ) :
     wp (if p then a else b) post r s =
       if p then wp a post r s else wp b post r s := by
@@ -245,7 +249,7 @@ names from do-notation with generic ones like `x`, `x_1`, or `t`. These
 simprocs perform the same rewrites and then alpha-rename the introduced
 binders to match the original source names.
 -/
-section PickSimprocs
+meta section PickSimprocs
 
 open Lean Meta
 
@@ -269,7 +273,7 @@ private partial def underLambdas (f : Expr → Expr) : Expr → Expr
   | e => f e
 
 /-- Rewrite `e` at the root with `lem` (one shot — no recursion into the result). -/
-private def rewriteRoot? (e : Expr) (lem : Name) : MetaM (Option (Expr × Expr)) := do
+private meta def rewriteRoot? (e : Expr) (lem : Name) : MetaM (Option (Expr × Expr)) := do
   let goal ← mkFreshExprMVar (mkConst ``True)
   let r ←
     try goal.mvarId!.rewrite e (← mkConstWithFreshMVarLevels lem) (config := { occs := .pos [1] })
@@ -282,7 +286,7 @@ private def wpPostIdx? (e : Expr) : MetaM (Option Nat) := do
   unless e.getAppFn'.isConstOf ``wp do return none
   let n := e.getAppNumArgs
   if n < 2 then return none
-  let applied := (← whnf (← inferType e)).isProp && n ≥ 4
+  let applied := (← whnf (← inferType e)).isProp && Nat.ble 4 n
   return some (if applied then n - 3 else n - 1)
 
 simproc_decl wpChoicePreserveBinder (_) := fun e => do
@@ -361,13 +365,13 @@ equality proof.  Recursive work under a generated `letEq` continuation is lifted
 back with `funext` and `congrArg`; metadata is definitionally transparent and
 carries no proof obligation.
 -/
-section CompactSimprocs
+meta section CompactSimprocs
 
 open Lean Meta
 
 private def wpCompactIteMarkerKey : Name := `Veil.wpCompactLetEq
 
-private partial def wpCompactIteImpl : Simp.Simproc := fun e => do
+private meta partial def wpCompactIteImpl : Simp.Simproc := fun e => do
   let e := e.consumeMData
   unless (← Meta.isProp e) && e.isIte do
     return .continue

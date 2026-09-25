@@ -1,9 +1,17 @@
-import Std
-import Batteries.Data.Array.Merge
-import Batteries.Data.Array.Pairwise
-import Veil.Frontend.DSL.State.Types
-import Veil.Frontend.DSL.State.Instances
-import Veil.Util.SortedList
+module
+
+import all Init.Data.Array.Basic
+import all Init.Data.Array.BinSearch
+import all Init.Data.Array.Subarray
+
+public import Std
+public import Batteries.Data.Array.Merge
+public import Batteries.Data.Array.Pairwise
+public import Veil.Frontend.DSL.State.Types
+public import Veil.Frontend.DSL.State.Instances
+public import Veil.Util.SortedList
+
+@[expose] public section
 
 /-! # Sorted Array
 
@@ -453,7 +461,7 @@ private theorem insertIdx_eq_take_cons_drop {α : Type u} {l : List α} {i : Nat
 
 set_option maxHeartbeats 6400000 in
 open private Array.binInsertAux in Array.binInsertM in
-theorem binInsertAux_intact_if_in
+private theorem binInsertAux_intact_if_in
     (a : α) (arr : Array α)
     (hs : arr.toList.Pairwise (cmpLt (α := α)))
     (hmem : a ∈ arr.toList)
@@ -540,7 +548,7 @@ theorem binInsertAux_intact_if_in
 
 set_option maxHeartbeats 6400000 in
 open private Array.binInsertAux in Array.binInsertM in
-theorem binInsertAux_new_in
+private theorem binInsertAux_new_in
     (a : α) (arr : Array α)
     (hs : arr.toList.Pairwise (cmpLt (α := α)))
     (hmem : a ∉ arr.toList)
@@ -714,7 +722,7 @@ theorem binInsert_toList_eq (a : α) (arr : Array α)
         · exact hpre x hx
         · exact hps.2.2 x hx y hy
     · intro x; rw [sortedInsertNoDup_mem]
-      simp only [List.mem_append, List.mem_cons, heq_arr]; tauto
+      simp only [List.mem_append, List.mem_cons, heq_arr]; aesop
 
 /-- `ordArrayInsert` maintains sortedness. -/
 theorem ordArrayInsert_sorted (a : α) (arr : Array α) --(threshold : Nat)

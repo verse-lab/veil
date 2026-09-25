@@ -1,5 +1,9 @@
-import Lean
-import Veil.Frontend.DSL.Action.Semantics.Definitions
+module
+
+public meta import Lean
+public meta import Veil.Frontend.DSL.Action.Semantics.Definitions
+
+public meta section
 
 open Lean
 
