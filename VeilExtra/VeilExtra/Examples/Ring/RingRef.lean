@@ -1,8 +1,8 @@
 module
 
-public import Examples.Ring.RingConc
-public import Examples.Ring.RingAbs
-public import Veil.CSLib.WeakSimulation
+public import VeilExtra.Examples.Ring.RingConc
+public import VeilExtra.Examples.Ring.RingAbs
+public import VeilExtra.CSLib.WeakSimulation
 
 @[expose] public section
 

@@ -38,13 +38,8 @@ the dissertation's separate direct concrete VC proofs are not required here.
 The namespaces are `RingAbs` and `RingConc` to avoid collisions with existing
 tutorial examples.
 
-Build the example and its regression test with:
+From the repository root, build the example with:
 
 ```sh
-lake build Examples.Ring.RingRef VeilTest.CSLibRing
+lake -d VeilExtra build VeilExtra.Examples.Ring.RingRef
 ```
-
-The test checks the imported theorem's axioms and a concrete execution on the
-ring `[7, 2, 9]`, including duplicate-send stuttering and re-emission of a token
-by an existing leader. It also uses CSLib's trace theorem to match that execution
-with the same observations in the saturated abstract system.

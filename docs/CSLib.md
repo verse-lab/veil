@@ -1,13 +1,14 @@
 # Simulation proofs with CSLib
 
-Veil uses CSLib's
+The optional [VeilExtra package](../VeilExtra/README.md) uses CSLib's
 [`LTS`](https://github.com/leanprover/cslib/blob/v4.32.0/Cslib/Foundations/Semantics/LTS/Basic.lean)
 and
 [`LTS.IsSimulation`](https://github.com/leanprover/cslib/blob/v4.32.0/Cslib/Foundations/Semantics/LTS/Simulation.lean)
-directly. Import the bridge in files containing refinement proofs:
+directly. Build it from the repository root with `lake -d VeilExtra build`.
+In files inside that package, import the bridge for refinement proofs:
 
 ```lean
-import Veil.CSLib.Simulation
+import VeilExtra.CSLib.Simulation
 ```
 
 For a specification whose `#gen_spec` has generated `relationalTransitionSystem`,
@@ -48,7 +49,7 @@ does with `{n : Nat // n ∈ th.allNodes}`.
 For weak simulation, import:
 
 ```lean
-import Veil.CSLib.WeakSimulation
+import VeilExtra.CSLib.WeakSimulation
 ```
 
 Choose a common observation type with an instance of `Cslib.HasTau`, whose `τ`
@@ -102,7 +103,7 @@ establish fairness, eventual progress, or divergence-sensitive refinement.
 
 ### Ring example
 
-The [Ring refinement](../Examples/Ring/README.md) uses this interface:
+The [Ring refinement](../VeilExtra/VeilExtra/Examples/Ring/README.md) uses this interface:
 
 - `send` is internal (`τ`), and `recv` is the visible `receive` event.
 - A duplicate concrete send matches zero abstract steps.
@@ -112,12 +113,7 @@ The [Ring refinement](../Examples/Ring/README.md) uses this interface:
 
 The observation records the action kind, not the receive parameters. The state
 relation still connects leaders and pending messages, and transports the abstract
-generated single-leader invariant to the concrete system. The
-[Ring regression test](../VeilTest/CSLibRing.lean) checks a nine-step concrete
-execution and its matching observed abstract trace using CSLib's `sim_trace`.
-The [weak-simulation tests](../VeilTest/CSLibWeakSimulation.lean) additionally check
-internal prefixes and suffixes, many-to-one label hiding, and rejection of invalid
-visible matches.
+generated single-leader invariant to the concrete system.
 
 ## Other finite-path matching policies
 
@@ -132,23 +128,23 @@ def abstractPaths (sys : Veil.RelationalTransitionSystem ρa σa la) (th : ρa) 
   Tr sa _ sa' := (sys.toLTS th).CanReach sa sa'
 ```
 
-Here `hsteps` is `fun _ _ _ h => h`, and labels are ignored. See the
-[original bridge tests](../VeilTest/CSLibSimulation.lean) for this encoding,
-direct simulation, a step matching two abstract steps, generated-invariant
-transfer, and a theory-dependent abstract state type.
+Here `hsteps` is `fun _ _ _ h => h`, and labels are ignored. Each concrete step
+can match any finite abstract execution, including zero or multiple steps.
 
 ## Imports and versions
 
 The dependency is pinned to CSLib `v4.32.0` (commit
 `197a7be621263b84c67ca4f803f69205b36d06df`), which uses the same Lean toolchain
-as Veil. Veil keeps its standalone Loom dependency; CSLib brings Mathlib as a
-transitive package dependency. The bridge imports
+as Veil. Core Veil keeps its standalone Loom dependency and does not depend on
+CSLib or Mathlib. VeilExtra depends on the parent Veil checkout and CSLib;
+Mathlib is a transitive dependency of VeilExtra only. The bridge imports
 `Cslib.Foundations.Semantics.LTS.Simulation`, not the umbrella `Cslib` module.
 For just the adapter and reachability correspondence, import
-`Veil.CSLib.TransitionSystem` instead.
+`VeilExtra.CSLib.TransitionSystem` instead.
 
-These modules are opt-in: importing `Veil` imports neither CSLib nor Mathlib.
-CSLib's leaf modules do have transitive Mathlib imports, and Lake still resolves
-the package dependencies. Lean's module system limits imports; it does not remove
-those transitive dependencies. In a file using `module`, use `public import` for
-the bridge when exporting declarations that depend on it.
+Core `lake build` and `import Veil` use neither CSLib nor Mathlib. VeilExtra has
+its own Lake manifest, dependency directory, and CI builds. Merely separating
+Lean libraries within the root package would not isolate those dependencies.
+CSLib's leaf modules still have transitive Mathlib imports inside VeilExtra.
+In a file using `module`, use `public import` for the bridge when exporting
+declarations that depend on it.

@@ -1,6 +1,6 @@
 module
 
-public import Veil.CSLib.TransitionSystem
+public import VeilExtra.CSLib.TransitionSystem
 public import Cslib.Foundations.Semantics.LTS.Simulation
 
 public section
