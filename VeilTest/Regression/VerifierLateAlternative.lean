@@ -7,7 +7,7 @@ run_cmd do
   let mgr : VCManager Unit Unit ← VCManager.new ch
   let data : VCData Unit := {name := `test, params := #[], statement := ← `(term| True), metadata := ()}
   let (mgr, primary) := mgr.addVC data {}
-  let failed := {mgr with _doneWith := mgr._doneWith.insert primary .error}
+  let failed := {mgr.enableAll with _doneWith := mgr._doneWith.insert primary .error}
   let (failed, alternative) := failed.addAlternativeVC data primary
   unless !failed.dormantVCs.contains alternative && failed.enabledVCs.contains alternative do
     throwError "alternative registered after primary failure stayed dormant"
@@ -15,3 +15,7 @@ run_cmd do
   let (proven, alternative) := proven.addAlternativeVC data primary
   unless proven.dormantVCs.contains alternative && !proven.enabledVCs.contains alternative do
     throwError "successful primary unnecessarily started its late alternative"
+  let unowned := {mgr with _doneWith := mgr._doneWith.insert primary .error}
+  let (unowned, alternative) := unowned.addAlternativeVC data primary
+  unless !unowned.dormantVCs.contains alternative && !unowned.enabledVCs.contains alternative do
+    throwError "late alternative created execution demand without an owner"

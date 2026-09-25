@@ -80,7 +80,8 @@ private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
 
 private def registerFinishedTheoremDischarger
     (session : Session) (declName : Name) (result : DischargerResult SmtResult) : AttrM (Except String Unit) := do
-  let .thmInfo info ← getConstInfo declName | throwError "Expected an interactive theorem"
+  let .thmInfo info ← withoutExporting <| getConstInfo declName
+    | throwError "Expected an interactive theorem"
   session.withManager (fun ref => do
     let mgr ← ref.get
     let vcIds := findMatchingVCs mgr declName

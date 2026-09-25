@@ -37,11 +37,17 @@ run_cmd do
     let _ ← awaitTask waiter.task
     for (_, vc) in before.nodes do
       let some d := vc.dischargers[0]? | throwError "missing discharger"
-      unless ← d.cancelTk.isSet do
-        throwError "cancelled request left queued work eligible to execute"
+      unless (← d.cancelTk.isSet) == d.task.isSome do
+        throwError "cancellation did not distinguish running and queued work"
+    unless (← session.snapshot).enabledVCs.isEmpty do
+      throwError "cancelled request left queued work eligible to execute"
     release.resolve ()
     for (_, vc) in before.nodes do
       let some d := vc.dischargers[0]? | throwError "missing discharger"
-      let _ ← awaitTask d.resultPromise.result?
+      if d.task.isSome then
+        let _ ← awaitTask d.resultPromise.result?
+      else
+        unless !(← IO.hasFinished d.resultPromise.result?) do
+          throwError "unowned queued attempt was executed"
   finally
     numCoresCache.set cores
