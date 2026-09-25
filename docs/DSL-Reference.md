@@ -359,56 +359,6 @@ states and is preserved by every action:
 #check_invariants
 ```
 
-`#check_invariants` returns immediately so the widget can display progress. To
-wait for verification and publish successful proofs in the Lean environment, use:
-
-```lean
-#gen_theorems
-```
-
-Subsequent proofs and importing files can use these theorems directly. For an
-action `keep` and invariant `[safe]`, `#gen_theorems` publishes `keep_safe` in
-weakest-precondition form and `keep_safe_tr` in transition-relation form, under
-the module's namespace. Initialization uses `initializer_safe` and
-`initializer_safe_tr`; exception-freedom proofs use `<action>_doesNotThrow`.
-The equivalent WP/TR form is derived from the successful proof without another
-SMT query. Failed obligations are not declared. Repeating the command is safe;
-an existing declaration with a different type is reported as a name conflict.
-
-When all invariant dependencies have proofs, `#gen_theorems` also publishes:
-
-- `Invariants.is_inv`: the conjunction of all invariant and safety clauses
-  holds in every state reachable in `relationalTransitionSystem`.
-- `<clause>.is_inv`: the corresponding reachability theorem for each clause.
-- `Safeties.is_inv`: the conjunction of the safety clauses holds in every
-  reachable state.
-
-These use `RelationalTransitionSystem.isInvariant sys p`, defined as
-`∀ th st, sys.reachable th st → p th st`. For example, given a reachability
-proof `hr`, `safe.is_inv th st hr` proves the clause `safe` at that state.
-The theorems retain the module's sort and user parameters.
-When using a module's predicates in another file, enable its representation
-instances with `open scoped MyModule`.
-These invariants can also be transferred through
-[CSLib simulation proofs](CSLib.md).
-
-Action VCs assume the full invariant conjunction, so a successful clause alone
-does not justify a reachability theorem when another clause is unproved.
-Publication therefore requires initialization and preservation proofs for every
-clause, or an existing `<clause>.is_inv` proof. This includes `trusted invariant`
-clauses: declaring one trusted does not supply a proof. Incomplete verification
-still publishes the successful WP/TR obligations, leaving reachability theorems
-undeclared. Reachability concerns successful transitions and does not require
-the separate exception-freedom obligations.
-
-`#gen_theorems` derives these reachability proofs automatically from the
-published obligations without extra SMT queries.
-
-The proofs retain the configured SMT trust policy: use
-`set_option veil.smt.trust false` for reconstructed Lean proofs. Keeping
-publication separate also leaves unproved theorem names available for the
-interactive proof workflow below.
-
 Results are streamed into an InfoView widget. For clauses that are not
 preserved, clicking on the clause reveals a _counterexample to induction_
 (CTI): a pre-state satisfying the invariant, a transition, and a post-state
@@ -423,6 +373,12 @@ Lean tactics. The inserted theorem is tagged `@[veil]`, which makes
 `#check_invariants` use it to discharge that verification condition.
 
 To check a single action, use `#check_action <name>`.
+
+`#gen_theorems` waits for verification and publishes proved obligations in Lean,
+in both weakest-precondition and transition-relation forms. When all
+required invariant dependencies are proved, it also generates reachable-state
+invariant theorems for each clause and their conjunctions. These theorems are
+available to subsequent proofs and importing modules.
 
 #### Explicit-State Model Checking
 

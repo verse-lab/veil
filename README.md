@@ -80,10 +80,6 @@ And, finally, build it:
 lake build
 ```
 
-Core Veil has no CSLib or Mathlib dependency. The optional
-[`VeilExtra`](VeilExtra/README.md) package contains the CSLib simulation bridges
-and Ring refinement example. Build it separately with `lake -d VeilExtra build`.
-
 ### Troubleshooting
 
 **(NPM errors)** If you see an error about `npm`, make sure it's in your
