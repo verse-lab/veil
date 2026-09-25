@@ -272,6 +272,30 @@ theorem Transition.meetsSpecificationIfSuccessful_eq [Inhabited α] (act : VeilM
   apply wp_cons act; rotate_left; apply hwp _ _ hpre
   intro _ _ _; aesop
 
+theorem Transition.meetsSpecificationIfSuccessfulAssuming_eq [Inhabited α] (act : VeilM m ρ σ α)
+    (assu : ρ → Prop) (pre post : SProp ρ σ) :
+  act.toTransition.meetsSpecificationIfSuccessfulAssuming assu pre post =
+    act.meetsSpecificationIfSuccessfulAssuming assu pre post := by
+  unfold Transition.meetsSpecificationIfSuccessfulAssuming
+    VeilM.meetsSpecificationIfSuccessfulAssuming
+  apply Transition.meetsSpecificationIfSuccessful_eq
+
+/-- A monadic transition specification implies the raw one when
+the relation and postcondition depend only on the module's substate. -/
+theorem Transition.meetsSpecificationIfSuccessfulAssuming_of_toVeilM
+    {σ₀ : Type} [IsSubStateOf σ₀ σ] {act : Transition ρ σ}
+    {assu : ρ → Prop} {pre post : SProp ρ σ}
+    (htr : ∀ th st st', act th st (setIn (getFrom st') st) = act th st st')
+    (hpost : ∀ th st st', post th (setIn (getFrom st') st) = post th st')
+    (h : (act.toVeilM (m := m)).returnUnit.meetsSpecificationIfSuccessfulAssuming assu pre post) :
+    act.meetsSpecificationIfSuccessfulAssuming assu pre post := by
+  intro th st st' hpre ht
+  have hw := h th st hpre
+  simp +instances [Transition.toVeilM, VeilM.returnUnit, wpSimp,
+    DemonicChoice.MonadNonDet.wp_assume, loomLogicSimp, himp] at hw
+  have hp := hw (getFrom st') (by simpa only [htr] using ht)
+  simpa only [hpost] using hp
+
 theorem Transition.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m ρ σ α) (inv : SProp ρ σ) :
   act.toTransition.preservesInvariantsIfSuccesful inv = act.preservesInvariantsIfSuccesful inv := by
   apply Transition.meetsSpecificationIfSuccessful_eq

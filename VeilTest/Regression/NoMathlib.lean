@@ -5,6 +5,13 @@ public import Veil.Util.Permutations
 public meta import Veil.Util.Permutations
 
 /-! Behavioral contracts for Veil's standalone finite-type infrastructure. -/
+
+-- The separate CSLib integration must not enter the core frontend's imports.
+run_cmd do
+  for name in (← Lean.getEnv).allImportedModuleNames do
+    if (`Mathlib).isPrefixOf name || (`Cslib).isPrefixOf name then
+      throwError "ordinary Veil import unexpectedly imports {name}"
+
 open Veil
 
 namespace NoMathlib

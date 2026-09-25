@@ -13,6 +13,8 @@ public meta import Veil.Core.UI.Verifier.Model
 public meta import Veil.Core.UI.Verifier.InductionCounterexample
 public meta import Veil.Frontend.DSL.Module.VCGen.Common
 
+public meta import Veil.Frontend.DSL.Action.Semantics.Theorems
+
 public meta section
 
 /-!
@@ -285,5 +287,88 @@ def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
 def Module.generateVCs (mod : Module) : CommandElabM Unit := do
   mod.generateDoesNotThrowVCs
   mod.generateInvariantVCs
+
+/-- Native transitions pick a module substate and set it in the ambient state.
+Their raw relation is not equal to the framed monadic transition. Specialize the
+source VC to the same parameters, then transport its proof through that update. -/
+private def nativeTransitionWitness (sourceName : Name) (sourceMeta : InductionVCMetadata)
+    (statement : Expr) : TermElabM Expr := do
+  let tr := mkIdent ((← getCurrNamespace) ++ toTransitionName (toExtName sourceMeta.action))
+  Meta.forallTelescope statement fun xs body => do
+    let source := mkAppN (mkConst sourceName) xs
+    Meta.withLocalDeclD `sourceProof (← Meta.inferType source) fun h => do
+      let sourceProof := mkIdent `sourceProof
+      let proof ← match sourceMeta.style with
+        | .tr => `(term| by
+            intro th st hpre
+            have h := fun newSt => $sourceProof:ident th st (setIn newSt st) hpre
+            simpa +instances [$tr:ident, wpSimp, loomLogicSimpForVeil, substateSimp] using h)
+        | .wp => `(term| by
+            refine Transition.meetsSpecificationIfSuccessfulAssuming_of_toVeilM ?_ ?_ $sourceProof:ident
+            · intros; simp only [$tr:ident, decide_eq_true_eq, substateSimp]
+            · intros; simp only [invSimp, substateSimp])
+      let witness ← withOptions (·.setBool `linter.unnecessarySimpa false) do
+        instantiateMVars <| ← withSynthesize (postpone := .no) <|
+          withoutErrToSorry <| elabTermEnsuringType proof body
+      if witness.hasMVar || witness.hasSyntheticSorry then
+        throwError "failed to transport native transition proof `{sourceName}`"
+      let witness := mkApp (← Meta.mkLambdaFVars #[h] witness) source
+      Meta.mkLambdaFVars xs witness
+
+private def addEquivalentInductionTheorem
+    (source target : VerificationCondition VCMetadata SmtResult) : CommandElabM Unit := do
+  let .induction sourceMeta := source.metadata | return
+  let .induction targetMeta := target.metadata | return
+  unless sourceMeta.action == targetMeta.action && sourceMeta.property == targetMeta.property &&
+      sourceMeta.style != targetMeta.style do
+    return
+  let witness? ← liftTermElabM do
+    let ns ← getCurrNamespace
+    let sourceName := ns ++ source.name
+    unless (← getEnv).contains sourceName do return none
+    let statement ← target.toVCStatement.type
+    if let some info := (← getEnv).find? (ns ++ target.name) then
+      unless ← Meta.isDefEq info.type statement do
+        throwError "cannot generate VC theorem `{ns ++ target.name}` because a declaration with that name already exists with a different type"
+      return none
+    let derivedEqName := ns ++ toDerivedEqName (toExtName sourceMeta.action)
+    unless (← getEnv).contains derivedEqName do
+      return some (← nativeTransitionWitness sourceName sourceMeta statement)
+    let derivedEq := mkIdent derivedEqName
+    let sourceProof := mkIdent sourceName
+    let assumingEq := mkIdent ``Transition.meetsSpecificationIfSuccessfulAssuming_eq
+    let sound := mkIdent ``VeilM.toTransitionDerived_sound
+    let proof ← match sourceMeta.style with
+      | .wp => `(term| by
+          intros
+          simp only [← $derivedEq:ident, ← $sound:ident, $assumingEq:ident, $sourceProof:ident])
+      | .tr => `(term| by
+          intros
+          simp only [← $assumingEq:ident, $sound:ident, $derivedEq:ident, $sourceProof:ident])
+    let witness ← instantiateMVars <| ← withSynthesize (postpone := .no) <|
+      withoutErrToSorry <| elabTermEnsuringType proof statement
+    if witness.hasMVar || witness.hasFVar || witness.hasSyntheticSorry then
+      throwError "failed to generate equivalent VC theorem `{target.name}` from `{source.name}`"
+    return some witness
+  if let some witness := witness? then
+    Verifier.addProvenVCTheorem target witness
+
+/-- Publish successful induction VCs and derive their WP/TR counterparts using
+semantic equivalence proofs. No additional solver calls are needed;
+failed obligations are left undeclared and the manager's results are unchanged. -/
+def Verifier.addInductionTheorems (filter : VCMetadata → Bool) : CommandElabM Unit := do
+  Verifier.addProvenTheoremsInDependencyOrder filter
+  let mgr ← Verifier.vcManager.atomically fun ref => ref.get
+  for primaryId in mgr.vcIdsInDependencyOrder filter do
+    let some primary := mgr.nodes[primaryId]? | continue
+    let some alternatives := mgr.alternativeVCs[primaryId]? | continue
+    for alternativeId in alternatives do
+      let some alternative := mgr.nodes[alternativeId]? | continue
+      unless filter alternative.metadata do continue
+      -- Either the primary or its fallback may have supplied the proof.
+      if (mgr.provenWitness? primaryId).isSome then
+        addEquivalentInductionTheorem primary alternative
+      if (mgr.provenWitness? alternativeId).isSome then
+        addEquivalentInductionTheorem alternative primary
 
 end Veil

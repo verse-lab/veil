@@ -15,10 +15,18 @@ jobs:
       # https://docs.github.com/en/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
       matrix:
         include:
-        - name: macOS-aarch64
+        - name: Veil / macOS-aarch64
           os: macos-15
-        - name: Linux-x86_64
+          package: .
+        - name: Veil / Linux-x86_64
           os: ubuntu-24.04
+          package: .
+        - name: VeilExtra / macOS-aarch64
+          os: macos-15
+          package: VeilExtra
+        - name: VeilExtra / Linux-x86_64
+          os: ubuntu-24.04
+          package: VeilExtra
         # Currently disabled on private repositories:
         # - name: Linux-aarch64
         #   os: ubuntu-24.04-arm
@@ -34,7 +42,11 @@ jobs:
         sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-15 100
     - name: Checkout repository
       uses: actions/checkout@v4
-    - name: Build and test Veil
+    - name: Check package boundaries
+      run: python3 scripts/check-package-boundaries.py
+    - name: Build and test package
       uses: leanprover/lean-action@v1
       with:
+        lake-package-directory: ${{ matrix.package }}
+        test: ${{ matrix.package == '.' }}
         use-github-cache: false # TODO: enable this

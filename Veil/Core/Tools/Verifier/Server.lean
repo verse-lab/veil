@@ -216,7 +216,9 @@ private def ensureExistingTheoremMatches (fullName : Name) (statement : Expr) : 
   unless ← Meta.isDefEq info.type statement do
     throwError "cannot generate VC theorem `{fullName}` because a declaration with that name already exists with a different type"
 
-private def addProvenVCTheorem (vc : VerificationCondition VCMetadata SmtResult)
+/-- Publish a VC proof in the current environment, accepting an existing declaration
+only when its type matches. Must run on the command elaboration thread. -/
+def addProvenVCTheorem (vc : VerificationCondition VCMetadata SmtResult)
     (witness : Witness) : CommandElabM Unit := do
   liftTermElabM do
     let fullName := (← getCurrNamespace).append vc.name

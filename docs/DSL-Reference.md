@@ -374,6 +374,12 @@ Lean tactics. The inserted theorem is tagged `@[veil]`, which makes
 
 To check a single action, use `#check_action <name>`.
 
+`#gen_theorems` waits for verification and publishes proved obligations in Lean,
+in both weakest-precondition and transition-relation forms. When all
+required invariant dependencies are proved, it also generates reachable-state
+invariant theorems for each clause and their conjunctions. These theorems are
+available to subsequent proofs and importing modules.
+
 #### Explicit-State Model Checking
 
 Exhaustive enumeration of the reachable states of a finite instance, checking
