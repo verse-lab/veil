@@ -1073,6 +1073,7 @@ set_option synthInstance.maxSize 200000
 set_option maxHeartbeats 10000000
 open Std
 #gen_spec
+#gen_executable
 
 -- set_option veil.violationIsError false in
 -- #model_check

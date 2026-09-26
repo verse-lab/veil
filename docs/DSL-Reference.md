@@ -349,6 +349,17 @@ To enable verification, we need to finalize the module specification:
 Then, we can use a number of verification commands to check the properties of
 the module.
 
+To check extraction without exploring the state space, use:
+
+```lean
+#gen_executable
+```
+
+This generates executable actions and the enumerable transition system used by
+`#model_check` and `#simulate`, without running either command. It requires
+`#gen_spec` first and can be repeated safely; later model checks reuse the
+generated definitions.
+
 #### Checking Invariants
 
 Tries to prove, using SMT solvers, that the conjunction of all `safety` and

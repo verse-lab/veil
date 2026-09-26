@@ -291,6 +291,7 @@ termination [all_thread_done] (∀ t : txId, t ≠ noVal → pc t Done)
 
 -- veil_set_option useNewExtraction true
 #gen_spec
+#gen_executable
 
 
 

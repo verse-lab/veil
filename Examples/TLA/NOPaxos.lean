@@ -1544,6 +1544,7 @@ invariant [sync_safety]
 
 
 #gen_spec
+#gen_executable
 
 -- #model_check
 -- {

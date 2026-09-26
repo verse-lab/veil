@@ -345,6 +345,7 @@ invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
 termination [AllDone] ∀s ≠ NONE, pc s Done = true
 
 #time #gen_spec
+#gen_executable
 -- NOTE: comment out the line containing `BUG:` to fix the violation
 
 -- set_option veil.violationIsError false in

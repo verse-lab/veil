@@ -67,6 +67,7 @@ scoped syntax (name := kw_termination) "termination" : veilKeyword
 scoped syntax (name := kw_state_constraint) "state_constraint" : veilKeyword
 
 scoped syntax (name := kw_gen_spec) "#gen_spec" : veilKeyword
+scoped syntax (name := kw_gen_executable) "#gen_executable" : veilKeyword
 scoped syntax (name := kw_gen_theorems) "#gen_theorems" : veilKeyword
 
 end VeilKeywords
@@ -304,6 +305,10 @@ scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term :
 
 /-- Assemble the specification. -/
 scoped syntax (name := genSpec) kw_gen_spec : command
+
+/-- Generate executable actions and the enumerable transition system without running a search.
+Requires a finalized specification (`#gen_spec`). -/
+scoped syntax (name := genExecutable) kw_gen_executable : command
 
 scoped syntax (name := genTheorems) kw_gen_theorems : command
 

@@ -1386,6 +1386,7 @@ invariant [Nontriviality]
   ∀ i : Instance replica seqNum,
     commitSet.toList (committedMap i) |>.all (fun ct => isProposedOrNone ct.cmd)
 #gen_spec
+#gen_executable
 
 -- =============================================================================
 -- \* Modification History

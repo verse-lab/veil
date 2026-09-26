@@ -199,6 +199,7 @@ invariant [honest_non_conflicting_votes]
     (¬ is_byz src) → (vote_msg src dst₁ originator r v₁ ∧ vote_msg src dst₂ originator r v₂ → v₁ = v₂)
 
 #time #gen_spec
+#gen_executable
 
 #check_invariants
 

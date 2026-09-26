@@ -372,6 +372,7 @@ invariant [consistency]
 
 
 #gen_spec
+#gen_executable
 
 /- To compare the efficiency with TLA+ model, here we use
 `quorum := Fin 3` and `member relation` to concretize the parameters.

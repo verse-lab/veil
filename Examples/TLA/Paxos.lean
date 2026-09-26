@@ -348,6 +348,7 @@ invariant [Consistency] ∀ v1 v2, Chosen v1 ∧ Chosen v2 → v1 = v2
 
 -- invariant [MsgInv] MsgInv1b ∧ MsgInv2a ∧ MsgInv2b
 #gen_spec
+#gen_executable
 
 -- \* Modification History
 -- \* Created Sat Nov 17 16:02:06 PST 2012 by lamport
