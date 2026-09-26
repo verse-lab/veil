@@ -276,6 +276,12 @@ private def Module.ensureExecutableModelCheckerDefinitions (mod : Module) : Comm
   stepOrAbort <| Extract.runGenExtractCommand mod
   stepOrAbort <| elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
 
+@[command_elab Veil.genExecutable]
+def elabGenExecutable : CommandElab := fun _stx => do
+  let mod ← getCurrentModule (errMsg := "You cannot #gen_executable outside of a Veil module!")
+  mod.throwIfSpecNotFinalized
+  mod.ensureExecutableModelCheckerDefinitions
+
 @[command_elab Veil.genState]
 def elabGenState : CommandElab := fun _stx => do
   -- Use dynamic trace class name for detailed profiling

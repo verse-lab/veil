@@ -37,4 +37,7 @@ jobs:
     - name: Build and test Veil
       uses: leanprover/lean-action@v1
       with:
-        use-github-cache: false # TODO: enable this
+        use-github-cache: true
+    - name: Build examples
+      run: lake build Examples
+      timeout-minutes: 15

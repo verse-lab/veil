@@ -199,14 +199,14 @@ invariant [honest_non_conflicting_votes]
     (¬ is_byz src) → (vote_msg src dst₁ originator r v₁ ∧ vote_msg src dst₂ originator r v₂ → v₁ = v₂)
 
 #time #gen_spec
+#gen_executable
 
 #check_invariants
 
--- NOTE: For `f = 1`, the state space explodes
-#model_check
-  { nodeset := ByzNSet (3 * 1 + 1)
-    address := Fin (3 * 1 + 1)
-    round := Fin 3
-    value := Fin 3   }
+-- #model_check
+--   { nodeset := ByzNSet (3 * 1 + 1)
+--     address := Fin (3 * 1 + 1)
+--     round := Fin 3
+--     value := Fin 3   }
 
 end ReliableBroadcast

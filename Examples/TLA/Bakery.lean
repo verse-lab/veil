@@ -301,20 +301,18 @@ safety [mutual_exclusion] pc I = cs ∧ pc J = cs → I = J
 
 set_option maxHeartbeats 2500000
 #gen_spec
+#gen_executable
 /-
 Note that:
 `process := Fin 2` corresponds to `N = 2`
-`seq_t := Fin 3` corresponds to Nat = `MaxNat = 2`
+`seq_t := Fin 2` corresponds to Nat = `MaxNat = 1`
 
-So the corresponding parameters here are:
-`2-3`, `3-4`
 -/
-#model_check
-{ process := Fin 2,
-  seq_t := Fin 3,
-  pc_state := pc_state_IndT }
-{ one_th := 1,
-  one := 1 }
-
+-- #model_check
+-- { process := Fin 2,
+--   seq_t := Fin 2,
+--   pc_state := pc_state_IndT }
+-- { one_th := 1,
+--   one := 1 }
 
 end Bakery

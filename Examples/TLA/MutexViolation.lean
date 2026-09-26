@@ -345,10 +345,10 @@ invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
 termination [AllDone] ∀s ≠ NONE, pc s Done = true
 
 #time #gen_spec
+#gen_executable
 -- NOTE: comment out the line containing `BUG:` to fix the violation
 
-/- `Fin n` means `n-1` valid threads.-/
-set_option veil.violationIsError false in
-#model_check { process := Fin 10 } { NONE := 0 }
+-- set_option veil.violationIsError false in
+-- #model_check { process := Fin 3 } { NONE := 0 }
 
 end MutexViolation

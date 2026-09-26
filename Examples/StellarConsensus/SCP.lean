@@ -32,7 +32,7 @@ public class SCP.Background (node : outParam Type) (nset : outParam Type) where
 
 /-- Given a concrete system model `FBA.System`, fix the intertwined set `S` and
     the intact set `I ⊆ S` to consider, all abstracted properties can be satisfied. -/
-def one_such_Background (node : Type) [fba : FBA.System node]
+@[reducible] def one_such_Background (node : Type) [fba : FBA.System node]
     (I : FBA.NodeSet node) (_hI : FBA.intact (inst := fba) I)
     (S : FBA.NodeSet node) (hS : FBA.intertwined (inst := fba) S)
     (hIS : I ⊆ S) : SCP.Background node (FBA.NodeSet node) where
@@ -244,6 +244,104 @@ invariant ∀ N B V1 V2,
   well_behaved N ∧ accepted_prepared N B V1 ∧ accepted_prepared N B V2 → V1 = V2
 
 #gen_spec
+
+@[veil]
+theorem receive_accept_commit_intertwined_safe (ρ : Type) (σ : Type) (value : Type)
+    [value_dec_eq : DecidableEq.{1} value] [value_inhabited : Inhabited.{1} value] (node : Type)
+    [node_dec_eq : DecidableEq.{1} node] [node_inhabited : Inhabited.{1} node] (nset : Type)
+    [nset_dec_eq : DecidableEq.{1} nset] [nset_inhabited : Inhabited.{1} nset] (ballot : Type)
+    [ballot_dec_eq : DecidableEq.{1} ballot] [ballot_inhabited : Inhabited.{1} ballot]
+    [tot : TotalOrderWithMinimum ballot] [bg : Background node nset] (χ : State.Label → Type)
+    [χ_rep :
+      ∀ __veil_f,
+        Veil.FieldRepresentation (State.Label.toDomain value node nset ballot __veil_f)
+          (State.Label.toCodomain value node nset ballot __veil_f) (χ __veil_f)]
+    [χ_rep_lawful :
+      ∀ __veil_f,
+        Veil.LawfulFieldRepresentation (State.Label.toDomain value node nset ballot __veil_f)
+          (State.Label.toCodomain value node nset ballot __veil_f) (χ __veil_f) (χ_rep __veil_f)]
+    [σ_sub : IsSubStateOf (@State χ) σ] [ρ_sub : IsSubReaderOf (@Theory value node nset ballot) ρ]
+    [receive_accept_commit_dec_0 :
+      delta% @SCP.receive_accept_commit._veil_dec_type_0 node ballot value χ nset bg χ_rep tot]
+    [receive_accept_commit_dec_1 :
+      delta% @SCP.receive_accept_commit._veil_dec_type_1 node ballot value χ nset bg χ_rep] :
+    ∀ (na : node) (nb : node) (b : ballot) (v : value),
+      Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
+        (@receive_accept_commit.ext ρ σ value value_dec_eq value_inhabited node node_dec_eq node_inhabited nset
+          nset_dec_eq nset_inhabited ballot ballot_dec_eq ballot_inhabited tot bg χ χ_rep χ_rep_lawful σ_sub ρ_sub
+          receive_accept_commit_dec_0 receive_accept_commit_dec_1 na nb b v)
+        (@Assumptions ρ value value_dec_eq value_inhabited node node_dec_eq node_inhabited nset nset_dec_eq
+          nset_inhabited ballot ballot_dec_eq ballot_inhabited tot bg ρ_sub)
+        (@Invariants ρ σ value value_dec_eq value_inhabited node node_dec_eq node_inhabited nset nset_dec_eq
+          nset_inhabited ballot ballot_dec_eq ballot_inhabited tot bg χ χ_rep χ_rep_lawful σ_sub ρ_sub)
+        (@intertwined_safe ρ σ value value_dec_eq value_inhabited node node_dec_eq node_inhabited nset nset_dec_eq
+          nset_inhabited ballot ballot_dec_eq ballot_inhabited tot bg χ χ_rep χ_rep_lawful σ_sub ρ_sub) :=
+  by
+  unveil
+  classical
+  rcases hinv with ⟨hsafe, hcommitted_prepared, hno_conflict, hconfirmed_quorum,
+    hprepared_quorum, hreceived, _, hprepared_unique⟩
+  have intersect {Q1 Q2 : nset} (hq1 : is_quorum Q1)
+      (hm1 : ∃ n, intertwined n ∧ member n Q1) (hq2 : is_quorum Q2)
+      (hm2 : ∃ n, intertwined n ∧ member n Q2) :
+      ∃ n, well_behaved n ∧ member n Q1 ∧ member n Q2 := by
+    obtain ⟨n1, hn1, hm1⟩ := hm1
+    obtain ⟨n2, hn2, hm2⟩ := hm2
+    exact bg.qi_intertwined Q1 Q2 ⟨⟨n1, hn1, hq1, hm1⟩, ⟨n2, hn2, hq2, hm2⟩⟩
+  have prepared_quorum (B : ballot) (V : value) (Q : nset)
+      (hm : ∃ n, intertwined n ∧ member n Q)
+      (hc : ∀ n, well_behaved n → member n Q → st.accepted_committed n B V = true) :
+      ∃ P, is_quorum P ∧ (∃ n, intertwined n ∧ member n P) ∧
+        ∀ n, well_behaved n → member n P → st.accepted_prepared n B V = true := by
+    obtain ⟨n, hn, hm⟩ := hm
+    exact hprepared_quorum B V n hn
+      (hcommitted_prepared n B V (bg.axiom_1 n hn) (hc n (bg.axiom_1 n hn) hm))
+  have quorum_agreement (B1 B2 : ballot) (V1 V2 : value) (Q1 Q2 : nset)
+      (hq1 : is_quorum Q1) (hm1 : ∃ n, intertwined n ∧ member n Q1)
+      (hc1 : ∀ n, well_behaved n → member n Q1 → st.accepted_committed n B1 V1 = true)
+      (hq2 : is_quorum Q2) (hm2 : ∃ n, intertwined n ∧ member n Q2)
+      (hc2 : ∀ n, well_behaved n → member n Q2 → st.accepted_committed n B2 V2 = true) :
+      V1 = V2 := by
+    obtain ⟨P1, hp1, hpm1, hprep1⟩ := prepared_quorum B1 V1 Q1 hm1 hc1
+    obtain ⟨P2, hp2, hpm2, hprep2⟩ := prepared_quorum B2 V2 Q2 hm2 hc2
+    by_cases hb : B1 = B2
+    · subst B2
+      obtain ⟨n, hn, hn1, hn2⟩ := intersect hp1 hpm1 hp2 hpm2
+      exact hprepared_unique n B1 V1 V2 hn (hprep1 n hn hn1) (hprep2 n hn hn2)
+    · by_contra hv
+      rcases tot.le_total B1 B2 with hle | hle
+      · obtain ⟨n, hn, hn1, hn2⟩ := intersect hq1 hm1 hp2 hpm2
+        have hfalse := hno_conflict n B1 B2 V1 V2 hn (hprep2 n hn hn2)
+          ((tot.le_lt B1 B2).mpr ⟨hle, hb⟩) hv
+        rw [hc1 n hn hn1] at hfalse
+        contradiction
+      · obtain ⟨n, hn, hn2, hn1⟩ := intersect hq2 hm2 hp1 hpm1
+        have hfalse := hno_conflict n B2 B1 V2 V1 hn (hprep1 n hn hn1)
+          ((tot.le_lt B2 B1).mpr ⟨hle, Ne.symm hb⟩) (Ne.symm hv)
+        rw [hc2 n hn hn2] at hfalse
+        contradiction
+  intro haccepted
+  split_ifs with hconfirm
+  · obtain ⟨Q, hq, hmember, hmessages⟩ := hconfirm
+    have confirmed_quorum (n : node) (B : ballot) (V : value) (hn : intertwined n)
+        (hc : (na = n → b = B → ¬v = V) → st.confirmed_committed n B V = true) :
+        ∃ Q, is_quorum Q ∧ (∃ n, intertwined n ∧ member n Q) ∧
+          ∀ n, well_behaved n → member n Q → st.accepted_committed n B V = true := by
+      by_cases hnew : na = n ∧ b = B ∧ v = V
+      · rcases hnew with ⟨rfl, rfl, rfl⟩
+        refine ⟨Q, hq, ⟨na, hn, hmember⟩, ?_⟩
+        intro N hN hm
+        by_cases hnb : nb = N
+        · simpa [hnb] using haccepted
+        · exact hreceived na N b v (bg.axiom_1 na hn) (hmessages N hm hnb) hN
+      · exact hconfirmed_quorum B V n hn (hc (by
+          intro ha hb hv
+          exact hnew ⟨ha, hb, hv⟩))
+    intro n1 n2 b1 b2 v1 v2 hn1 hn2 hc1 hc2
+    obtain ⟨Q1, hq1, hm1, hcomm1⟩ := confirmed_quorum n1 b1 v1 hn1 hc1
+    obtain ⟨Q2, hq2, hm2, hcomm2⟩ := confirmed_quorum n2 b2 v2 hn2 hc2
+    exact quorum_agreement b1 b2 v1 v2 Q1 Q2 hq1 hm1 hcomm1 hq2 hm2 hcomm2
+  · exact hsafe
 
 #time #check_invariants
 
