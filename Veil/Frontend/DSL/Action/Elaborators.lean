@@ -1067,12 +1067,83 @@ private def Module.registerDerivedActionDefinition [Monad m] [MonadQuotation m] 
   let mod ← mod.registerDerivedDefinition derivedDef
   return (mod, declKind)
 
+/-- Define the WP-based verification definitions of the external view of an
+initializer or action: its WP, its transition (unless the action is given in
+transition form), and its transition weakening theorem. -/
+private def Module.defineExternalVerificationDefinitions (mod : Module) (pi : ProcedureInfo)
+    (extKind : DeclarationKind) (deriveTransition? : Bool) : TermElabM Unit := do
+  let nmExt := pi.nameInMode Mode.external
+  AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
+  if deriveTransition? then
+    AuxiliaryDefinitions.defineTransition mod nmExt extKind
+  try
+    defineTransitionAbstract mod nmExt extKind deriveTransition?
+  catch ex =>
+    logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
+
+/-! ## Deferred WP generation (`veil.deferVCGeneration`)
+
+A procedure declared with the option set records what its WP generation needs
+instead of generating it. The first verification command generates the
+deferred definitions (see `Module.ensureVerificationSpec`). The option may also
+be turned off partway through a module: then the next procedure declared, or
+`#gen_spec` run, without it first generates the deferred definitions, so that
+everything from there on behaves as if the option had never been set. -/
+
+/-- What `defineProcedureCore` needs to generate the verification definitions
+of a procedure later, as if it had generated them at the declaration. -/
+private structure DeferredWPGeneration where
+  /-- The module right after the procedure was registered. -/
+  mod : Module
+  info : ProcedureInfo
+  intKind : DeclarationKind
+  extKind : DeclarationKind
+  deriveTransition : Bool
+  /-- Options and open declarations in effect at the declaration. -/
+  options : Options
+  openDecls : List OpenDecl
+  ref : Syntax
+
+/-- The deferred procedures of each Veil module, in declaration order.
+**This state is not exported**: a deferred module's verification definitions exist
+downstream only if a verification command generated them. -/
+private initialize deferredWPGenerationExt : EnvExtension (NameMap (Array DeferredWPGeneration)) ←
+  registerEnvExtension (pure {})
+
+/-- Generate the verification definitions deferred by `veil.deferVCGeneration`
+in declaration order, each under the options and open declarations it was
+declared with. Called by the first verification command, and by a declaration
+or `#gen_spec` after the option was turned off. -/
+def Module.generateDeferredWPs (mod : Module) : CommandElabM Unit := do
+  let some pending := (deferredWPGenerationExt.getState (← getEnv)).find? mod.name | return
+  modifyEnv (deferredWPGenerationExt.modifyState · (·.erase mod.name))
+  for d in pending do
+    withRef d.ref <| withScope (fun scope => { scope with
+        opts := d.options, openDecls := d.openDecls, currNamespace := mod.name }) do
+      try
+        -- Like the eager path, each procedure gets its own heartbeat budget
+        -- (`liftTermElabM` resets it) and its declaration-time recursion limit.
+        liftTermElabM <| withTheReader Core.Context
+            (fun ctx => { ctx with maxRecDepth := maxRecDepth.get d.options }) do
+          AuxiliaryDefinitions.defineWp d.mod (d.info.nameInMode Mode.internal) .internal
+            d.intKind d.deriveTransition
+          if d.info matches .initializer | .action _ _ then
+            d.mod.defineExternalVerificationDefinitions d.info d.extKind d.deriveTransition
+      catch ex =>
+        if ex.isInterrupt then throw ex
+        logException ex
+
 /- The implementation of this method _could_ be split into two distinct
 parts (i.e. registering the action, then elaboration the definitions),
 but that would eliminate opportunities for async elaboration. -/
 def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
   (eDo : Expr) (ps : ProcedureSpecification) (deriveTransition? : Bool) : CommandElabM Module := do
   withTraceNode `veil.perf.extract (fun _ => return s!"defineProcedureCore {pi.name}") do
+    let deferWP := veil.deferVCGeneration.get (← getOptions)
+    -- If the option was set for earlier declarations of this module but is
+    -- off now, generate their deferred definitions first: this procedure may
+    -- call them, and its WP generation needs their `wp_eq` lemmas.
+    unless deferWP do mod.generateDeferredWPs
     -- We register the `internal` view of the action as the "real" one
     let mod ← mod.registerProcedureSpecification ps
     -- The `.do` and `.ext` views are marked as derived definitions
@@ -1085,20 +1156,23 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
       let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}])
       let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
       let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}])
-      AuxiliaryDefinitions.defineWp mod nmInt .internal intKind deriveTransition?
+      unless deferWP do
+        AuxiliaryDefinitions.defineWp mod nmInt .internal intKind deriveTransition?
 
       -- Procedures are never considered in their external view, so save some
       -- time by not elaborating those definitions.
       if pi matches .initializer | .action _ _ then do
         let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
         let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
-        AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
-        if deriveTransition? then
-          AuxiliaryDefinitions.defineTransition mod nmExt extKind
-        try
-          defineTransitionAbstract mod nmExt extKind deriveTransition?
-        catch ex =>
-          logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
+        unless deferWP do
+          mod.defineExternalVerificationDefinitions pi extKind deriveTransition?
+    if deferWP then
+      -- Pack the information needed for deferred WP generation
+      let d : DeferredWPGeneration := {
+        mod, info := pi, intKind, extKind, deriveTransition := deriveTransition?
+        options := ← getOptions, openDecls := ← getOpenDecls, ref := ps.userSyntax }
+      modifyEnv (deferredWPGenerationExt.modifyState · fun m =>
+        m.insert mod.name (((m.find? mod.name).getD #[]).push d))
     return mod
 
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option ActionSyntax) (l : ActionSyntax) (stx : Syntax) : CommandElabM Module := do
