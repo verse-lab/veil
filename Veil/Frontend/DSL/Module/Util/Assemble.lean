@@ -89,7 +89,7 @@ def Module.defineGhostDefinition (mod : Module) (name : Name) (params : Option (
   let _ ← liftTermElabM <| addVeilDefinition name expr (red := .abbrev) (attr := attrs)
   let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := .none }
   let mod ← mod.registerDerivedDefinition ddef
-  if isRelation && mod._useLocalRPropTC then
+  if mod._useLocalRPropTC then
     liftTermElabM do
       let ref ← getRef
       if justTheory then
