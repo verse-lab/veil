@@ -95,7 +95,7 @@ liveness [phil0EventuallyEatsFair]
 
 #gen_spec
 
-#model_check {}
+#gen_executable
 
 #eval Veil.LivenessMC.printCheckResult "BoolProgPhilosophers" "□◇(eat0)"
   (Veil.LivenessMC.check (enumerableTransitionSystem Taken_IndT {})
@@ -104,7 +104,7 @@ liveness [phil0EventuallyEatsFair]
     (by native_decide) (by native_decide))
 
 #eval Veil.LivenessMC.printCheckResult "BoolProgPhilosophers" "(fairness for phil0) → □◇(eat0)"
-  (Veil.LivenessMC.check (enumerableTransitionSystem Taken_IndT {})
+  (Veil.LivenessMC.checkFair (enumerableTransitionSystem Taken_IndT {})
     (phil0EventuallyEatsFair (Theory Taken_IndT) (State (FieldConcreteType Taken_IndT))
       Taken_IndT (FieldConcreteType Taken_IndT))
     (by native_decide) (by native_decide))
