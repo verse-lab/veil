@@ -415,8 +415,19 @@ def elabAssertion : CommandElab := fun stx => do
   --   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
     localEnv.modifyModule (fun _ => mod')
 
-partial def elabLtlFormula (mod : Module) (livenessName : Name) (atoms : Array Name)
-    (stx : TSyntax `ltlFormula) : CommandElabM (Term × Module × Array Name) := do
+/-- Resolve the action named in an `E(…)`/`T(…)` atom and check its arity. An unapplied name means "any instantiation". -/
+private def resolveActionAtom (mod : Module) (a : Ident) (args : Array Term) : CommandElabM Name := do
+  let actionName := a.getId
+  let some spec := mod.actions.find? (fun p => p.name == actionName)
+    | throwErrorAt a "unknown action `{actionName}`; the module's actions are \
+        {mod.actions.map (·.name) |>.toList}"
+  unless args.isEmpty || args.size == spec.params.size do
+    throwErrorAt a "action `{actionName}` takes {spec.params.size} parameter(s), but {args.size} \
+      were given; write `{actionName}` on its own for any instantiation"
+  return actionName
+
+partial def elabLtlFormula (mod : Module) (livenessName : Name) (atoms : Array LivenessAtomSpec)
+    (stx : TSyntax `ltlFormula) : CommandElabM (Term × Module × Array LivenessAtomSpec) := do
   match stx with
   -- Each atomic proposition `⌜ AP ⌝` becomes a fresh `livenessAtom` assertion (elaborated exactly like `safety`/`invariant`)
   | `(ltlFormula| ⌜ $t:term ⌝) =>
@@ -425,7 +436,16 @@ partial def elabLtlFormula (mod : Module) (livenessName : Name) (atoms : Array N
       { kind := .livenessAtom, name := atomName, extraParams := #[], term := t, userSyntax := stx.raw, inSets := Std.HashSet.emptyWithCapacity }
     let mod ← mod.defineAssertion assertion
     -- Atoms are referenced by their position in `atoms`
-    return (← `(term| $(mkIdent ``LTLLib.Formula.atom) $(quote atoms.size)), mod, atoms.push atomName)
+    return (← `(term| $(mkIdent ``LTLLib.Formula.atom) $(quote atoms.size)), mod, atoms.push (.state atomName))
+  -- `E(a)` / `T(a)` need no assertion: they are decided against the action label, not against a state term
+  | `(ltlFormula| E($a:ident $args*)) =>
+    let actionName ← resolveActionAtom mod a args
+    return (← `(term| $(mkIdent ``LTLLib.Formula.atom) $(quote atoms.size)), mod,
+      atoms.push (.enabled actionName args))
+  | `(ltlFormula| T($a:ident $args*)) =>
+    let actionName ← resolveActionAtom mod a args
+    return (← `(term| $(mkIdent ``LTLLib.Formula.atom) $(quote atoms.size)), mod,
+      atoms.push (.taken actionName args))
   | `(ltlFormula| ⊤) => return (← `(term| $(mkIdent ``LTLLib.Formula.tt)), mod, atoms)
   | `(ltlFormula| ⊥) => return (← `(term| $(mkIdent ``LTLLib.Formula.ff)), mod, atoms)
   | `(ltlFormula| ($f)) => elabLtlFormula mod livenessName atoms f
@@ -477,23 +497,47 @@ def Module.generateLivenessDefinitions (mod : Module) : CommandElabM Module := d
   for lp in mod.livenessProperties do
     mod.throwIfAlreadyDeclared lp.name
     mod ← withTraceNode (`veil.perf.elaborator.liveness ++ lp.name) (fun _ => return s!"liveness {lp.name} (gen)") do
-      let atomTerms ← lp.atoms.mapM fun atomName => do
-        let (params, _) ← mod.declarationAllParams atomName (.stateAssertion .livenessAtom)
-        let args ← params.mapM (·.arg)
-        -- Atomic propositions as `SafetyProperty` (like in `#model_check`)
-        let atomApp ← `(term| @$(mkIdent (mod.name ++ atomName)):ident $args* $(mkIdent `th) $(mkIdent `st))
-        `(term| $(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
-            ($(mkIdent `name) := $(quote atomName))
-            ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $atomApp))
+      -- `E(a)`/`T(a)` are decided by a predicate on the *label*. For an unapplied action name that is a
+      -- match over every constructor and for an applied one it is equality against that instantiation
+      -- via the derived `DecidableEq Label`.
+      let mkIsMatch (actionName : Name) (args : Array Term) : CommandElabM Term := do
+        let lbl := mkIdent `lbl
+        if args.isEmpty then
+          let alts ← mod.actions.mapM fun (act : ProcedureSpecification) => do
+            let ctor : Ident := Lean.mkIdent (labelTypeName ++ act.name)
+            let rhs : Ident :=
+              if act.name == actionName then Lean.mkIdent ``Bool.true else Lean.mkIdent ``Bool.false
+            `(Lean.Parser.Term.matchAltExpr| | $ctor:ident .. => $rhs)
+          `(term| fun $lbl => match $lbl:ident with $alts:matchAlt*)
+        else
+          `(term| fun $lbl => decide ($lbl = $(Lean.mkIdent (labelTypeName ++ actionName)):ident $args*))
+      let atomTerms ← lp.atoms.mapM fun spec => do
+        match spec with
+        | .state atomName =>
+          let (params, _) ← mod.declarationAllParams atomName (.stateAssertion .livenessAtom)
+          let args ← params.mapM (·.arg)
+          -- Atomic propositions as `SafetyProperty` (like in `#model_check`)
+          let atomApp ← `(term| @$(mkIdent (mod.name ++ atomName)):ident $args* $(mkIdent `th) $(mkIdent `st))
+          `(term| $(mkIdent ``Veil.LivenessMC.LivenessAtom.state)
+            ($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
+              ($(mkIdent `name) := $(quote atomName))
+              ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $atomApp)))
+        | .enabled actionName args =>
+          `(term| $(mkIdent ``Veil.LivenessMC.LivenessAtom.enabled)
+            $(quote (Name.mkSimple s!"E({actionName})")) $(← mkIsMatch actionName args))
+        | .taken actionName args =>
+          `(term| $(mkIdent ``Veil.LivenessMC.LivenessAtom.taken)
+            $(quote (Name.mkSimple s!"T({actionName})")) $(← mkIsMatch actionName args))
       let propTerm ← `(term| { $(mkIdent `name):ident := $(quote lp.name), $(mkIdent `atoms):ident := [$atomTerms,*], $(mkIdent `φ):ident := $(lp.formula) })
-      let derivedFrom := Std.HashSet.ofArray lp.atoms
+      let derivedFrom := Std.HashSet.ofArray (lp.atoms.filterMap (·.assertionName?))
       let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .invariantLike derivedFrom)
       -- Require `Enumeration` for every sort, so that `∀`/`∃` over a sort inside a
       -- liveness atom can synthesize `Decidable` (see `Module.livenessEnumerationParams`).
       let enumParams ← mod.livenessEnumerationParams
       let binders ← (baseParams ++ extraParams ++ enumParams).mapM (·.binder)
       let propCmd ← `(command| def $(mkIdent lp.name) $[$binders]* :
-        $(mkIdent ``Veil.LivenessMC.LivenessProperty) $environmentTheory $environmentState := $propTerm)
+        $(mkIdent ``Veil.LivenessMC.LivenessProperty) $environmentTheory $environmentState
+          $(← mod.labelTypeStx) := $propTerm)
       elabVeilCommand propCmd
       let derivedDef : DerivedDefinition :=
         { name := lp.name, kind := .invariantLike, params := #[], extraParams := extraParams, derivedFrom := derivedFrom, stx := propCmd }

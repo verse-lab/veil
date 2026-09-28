@@ -314,6 +314,17 @@ scoped syntax (name := ltlTop) "⊤" : ltlFormula
 scoped syntax (name := ltlBot) "⊥" : ltlFormula
 scoped syntax (name := ltlParen) "(" ltlFormula ")" : ltlFormula
 
+/-- `E(a)`: Some instantiation of action `a` can fire here. `E(a x y)`: That parameterized instantiation can.
+
+A *state* atom: whether an action can fire is determined by the state alone. "Can fire" means the action
+has a successful outcome, see `LivenessMC.enabledLabels`. -/
+scoped syntax (name := ltlEnabled) "E(" ident (term:max)* ")" : ltlFormula
+
+/-- `T(a)`: The step taken here is some instantiation of action `a`. `T(a x y)`: It is that parameterized instantiation.
+
+An *edge* atom: it is a property of the step, not of either endpoint. -/
+scoped syntax (name := ltlTaken) "T(" ident (term:max)* ")" : ltlFormula
+
 scoped syntax:max (name := ltlNot) "¬" ltlFormula:max : ltlFormula
 scoped syntax:max (name := ltlEventually) "◇" ltlFormula:max : ltlFormula
 scoped syntax:max (name := ltlAlways) "□" ltlFormula:max : ltlFormula
@@ -328,6 +339,7 @@ scoped syntax:20 (name := ltlIff) ltlFormula " ↔ " ltlFormula:21 : ltlFormula
 Example:
 ```lean
 liveness [someChosen] ◇ ⌜ chosen = 1 ⌝
+liveness [sendIsFair] □ (E(send) → ◇ T(send))
 ```
 -/
 scoped syntax (name := livenessDeclaration) kw_liveness (propertyName)? ltlFormula : command
@@ -340,6 +352,9 @@ Requires a finalized specification (`#gen_spec`). -/
 scoped syntax (name := genExecutable) kw_gen_executable : command
 
 scoped syntax (name := genTheorems) kw_gen_theorems : command
+
+/-- Generate the executable model checking definitions (`enumerableTransitionSystem`) -/
+scoped syntax (name := genExecutable) "#gen_executable" : command
 
 scoped syntax (name := checkInvariants) "#check_invariants" : command
 
