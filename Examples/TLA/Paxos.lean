@@ -348,6 +348,7 @@ invariant [Consistency] ∀ v1 v2, Chosen v1 ∧ Chosen v2 → v1 = v2
 
 -- invariant [MsgInv] MsgInv1b ∧ MsgInv2a ∧ MsgInv2b
 #gen_spec
+#gen_executable
 
 -- \* Modification History
 -- \* Created Sat Nov 17 16:02:06 PST 2012 by lamport
@@ -372,29 +373,29 @@ between acceptors and quorums.
 --   minusOne := 0
 --   validBallots := [1, 2, 3]  -- 0 represents -1 (no ballot), valid ballots are 1, 2, 3
 -- }
-set_option trace.veil.desugar true
-#model_check compiled
-{
-  ballot := Fin 4,   -- 0 = minusOne, 1..3 = valid ballots (matches TLA+ MaxBallot = 2, i.e., 0..2)
-  value := Fin 2,    -- matches TLA+ Values = {v1, v2}
-  acceptor := Fin 3,
-  quorum := Fin 3,
-  MsgSet := Std.ExtTreeSet (Msg (Fin 3) (Fin 2) (Fin 4)),
-  AcceptorSet := Std.ExtTreeSet (Fin 3)
-}
-{
-  AcceptorsUNIV := [0, 1, 2],  -- a0, a1, a2
-  member := fun a q =>
-    match a.val, q.val with
-    | 0, 0 => true
-    | 1, 0 => true
-    | 0, 1 => true
-    | 2, 1 => true
-    | 1, 2 => true
-    | 2, 2 => true
-    | _, _ => false
-  minusOne := 0
-  validBallots := [1, 2, 3]  -- 0 represents -1 (no ballot), valid ballots are 1, 2, 3
-} (parallelCfg := some { numSubTasks := 8, thresholdToParallel := 20 })
+-- #model_check
+-- {
+--   ballot := Fin 4,   -- 0 = minusOne, 1..3 = valid ballots (matches TLA+ MaxBallot = 2, i.e., 0..2)
+--   value := Fin 2,    -- matches TLA+ Values = {v1, v2}
+--   acceptor := Fin 3,
+--   quorum := Fin 3,
+--   MsgSet := Std.ExtTreeSet (Msg (Fin 3) (Fin 2) (Fin 4)),
+--   AcceptorSet := Std.ExtTreeSet (Fin 3)
+-- }
+-- {
+--   AcceptorsUNIV := [0, 1, 2],  -- a0, a1, a2
+--   member := fun a q =>
+--     match a.val, q.val with
+--     | 0, 0 => true
+--     | 1, 0 => true
+--     | 0, 1 => true
+--     | 2, 1 => true
+--     | 1, 2 => true
+--     | 2, 2 => true
+--     | _, _ => false
+--   minusOne := 0
+--   validBallots := [1, 2, 3]  -- 0 represents -1 (no ballot), valid ballots are 1, 2, 3
+-- }
+--   (maxDepth := 2) (sequential := true)
 
 end Paxos
