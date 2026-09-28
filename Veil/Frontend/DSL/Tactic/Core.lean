@@ -286,18 +286,16 @@ attribute [invSimp] RelationalTransitionSystem.assumptions
 attribute [nextSimp] RelationalTransitionSystem.init RelationalTransitionSystem.tr RelationalTransitionSystem.next
 
 -- Collected from the various `FieldRepresentation` atrributes
-attribute [nextSimp] FieldRepresentation.get FieldRepresentation.set
-FieldRepresentation.mkFromSingleSet instFinmapLikeAsFieldRep
-IteratedArrow.curry Equiv.coe_fn_mk Function.comp IteratedProd'.equiv
-IteratedProd.toIteratedProd' FieldRepresentation.setSingle
+attribute [nextSimp] FieldRepresentation.get FieldRepresentation.setSingle
+instFinmapLikeAsFieldRep IteratedArrow.curry Equiv.coe_fn_mk Function.comp
+IteratedProd'.equiv IteratedProd.toIteratedProd'
 FieldRepresentation.FinmapLike.setSingle' IteratedArrow.uncurry List.foldr
 IteratedProd.foldMap FieldUpdatePat.footprintRaw IteratedProd.zipWith
 Option.elim List.foldl FieldUpdatePat.pad IteratedProd.default HAppend.hAppend
-IteratedProd.append Eq.mp LawfulFieldRepresentationSet.set_append
-List.singleton_append CanonicalField.set FieldUpdateDescr.fieldUpdate
+IteratedProd.append Eq.mp CanonicalField.set
 FieldUpdatePat.match IteratedProd.patCmp Bool.and_true Bool.and_eq_true
 decide_eq_true_eq ite_eq_left_iff Bool.false_eq_true false_and and_self
-reduceFieldRepresentationIte ite_true ite_false and_true true_and List.head?
+reduceFieldRepresentationIte ite_true ite_false and_true true_and
 
 
 def elabVeilRenameHyp (xs ys : Array Syntax) : TacticM Unit := do
@@ -577,7 +575,7 @@ def elabVeilConcretizeStateTr : DesugarTacticM Unit := veilWithMainContext do
 
 /-- Similar idea to `elabVeilConcretizeState`, but for fields when
 `FieldRepresentation` is used. This also does simplification using
-`LawfulFieldRepresentation` and unfolds the `fieldUpdate`s.
+`LawfulFieldRepresentation` and unfolds the resulting `CanonicalField.set`s.
 Note that even parts of the simplication have been done during WP
 generation, it might still be necessary here since the post-condition
 might contain `get` and we need to use laws to eliminate `get (set ...)`. -/
@@ -603,15 +601,13 @@ def elabVeilConcretizeFieldsWp (fast : Bool) : DesugarTacticM Unit := veilWithMa
   let mut tacs : Array (TSyntax `Lean.Parser.Tactic.tacticSeq) := #[]
   let localSimpTerms := #[fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
   if !fast then
-    -- (1) do basic simplification using `LawfulFieldRepresentation`
-    tacs := tacs.push <| ← `(tacticSeq| veil_simp +$(mkIdent `instances) only [$(mkIdent `fieldRepresentationSetSimpPre):ident])
-    -- (2) simplify using `get_set_idempotent'`
+    -- (1) simplify using `get_setSingle`
     let simpTerms ← fields.mapM fun f =>
-      `(($lawfulRep .$f).$(mkIdent `get_set_idempotent') (by infer_instance_for_iterated_prod))
+      `(($lawfulRep .$f).$(mkIdent `get_setSingle) (by infer_instance_for_iterated_prod))
     tacs := tacs.push <| ← `(tacticSeq| open $(mkIdent `Classical):ident in veil_simp +$(mkIdent `instances) only [$[$simpTerms:term],*] at *)
-    -- (3) simplify the resulting things
+    -- (2) simplify the resulting things
     tacs := tacs.push <| ← `(tacticSeq| open $(mkIdent `Classical):ident in veil_simp +$(mkIdent `instances) only [$(mkIdent `fieldRepresentationSetSimpPost):ident, $[$localSimpTerms:ident],*] at *)
-  -- (4) concretize the `FieldRepresentation.get`-ed fields
+  -- (3) concretize the `FieldRepresentation.get`-ed fields
   let rep := mkIdent hyp.userName
   for stHyp in stHyps do
     let st := mkIdent stHyp.userName
@@ -626,7 +622,7 @@ def elabVeilConcretizeFieldsWp (fast : Bool) : DesugarTacticM Unit := veilWithMa
     veilWithMainContext $ veilEvalTactic t
 
 /-- Similar to `elabVeilConcretizeFields`, but for transition goals where
-hypotheses have the form `st'.field = FieldRepresentation.set [...] st.field`
+hypotheses have the form `st'.field = FieldRepresentation.setSingle ... st.field`
 or `st'.field = st.field` (for unchanged fields).
 This first applies `congrArg (χ_rep _).get` to view the equalities through
 the field representation, then calls `elabVeilConcretizeFields`, and finally
@@ -642,7 +638,7 @@ def elabVeilConcretizeFieldsTr : DesugarTacticM Unit := veilWithMainContext do
   -- Step 1: Identify hypotheses where the equality's type involves a field label.
   -- These are equalities like:
   -- ```lean4
-  -- hleader' : st'.leader = Veil.FieldRepresentation.set [((some n, ()), fun x => true)] st.leader
+  -- hleader' : st'.leader = Veil.FieldRepresentation.setSingle (some n, ()) (fun x => true) st.leader
   -- hpending' : st'.pending = st.pending  -- unchanged field
   -- ```
   -- The equality type will be `χ State.Label.leader` or similar.

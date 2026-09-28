@@ -65,8 +65,8 @@ scoped instance [Hashable β] : Hashable (HashCompanioned β UInt64 hash) where
 def toFieldRepresentation (inst : FieldRepresentation FieldDomain FieldCodomain β)
   : FieldRepresentation FieldDomain FieldCodomain (HashCompanioned β ι op) where
   get cf := inst.get cf.inner
-  set favs cf :=
-    let res := inst.set favs cf.inner
+  setSingle fa v cf :=
+    let res := inst.setSingle fa v cf.inner
     { inner := res, hashval := op res, invariant := rfl }
 
 theorem toLawfulFieldRepresentation
@@ -74,9 +74,7 @@ theorem toLawfulFieldRepresentation
   (instl : LawfulFieldRepresentation FieldDomain FieldCodomain β inst)
   : LawfulFieldRepresentation FieldDomain FieldCodomain (HashCompanioned β ι op)
     (toFieldRepresentation _ inst) where
-  set_nil := by intro fc ; cases fc ; simp +instances [toFieldRepresentation, instl.set_nil] ; grind
-  set_append := by intro favs1 favs2 fc ; cases fc ; simp +instances [toFieldRepresentation, instl.set_append]
-  get_set_idempotent := by intro dec fc favs ; cases fc ; simp +instances [toFieldRepresentation] ; apply instl.get_set_idempotent
+  get_setSingle := by intro dec fa v fc ; cases fc ; simp +instances [toFieldRepresentation] ; apply instl.get_setSingle
 
 end Simple
 

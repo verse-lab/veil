@@ -54,7 +54,6 @@ called. -/
 register_simp_attr ifSimp
 
 register_simp_attr fieldRepresentationPatSimp
-register_simp_attr fieldRepresentationSetSimpPre
 register_simp_attr fieldRepresentationSetSimpPost
 
 register_simp_attr dsimpFieldRepresentationGet

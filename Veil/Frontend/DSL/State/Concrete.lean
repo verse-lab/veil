@@ -139,19 +139,18 @@ def FieldRepresentation.FinmapLike.setSingle'
   delta% FieldRepresentation.FinmapLike.setSingle'Core equiv v fc (fa.footprintRaw instfin)
 
 @[implicit_reducible]
-def instFinmapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain γ :=
-  FieldRepresentation.mkFromSingleSet
-    (get := delta% FieldRepresentation.FinmapLike.get equiv)
-    (setSingle := FieldRepresentation.FinmapLike.setSingle' equiv instfin)
+def instFinmapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain γ where
+  get := delta% FieldRepresentation.FinmapLike.get equiv
+  setSingle := FieldRepresentation.FinmapLike.setSingle' equiv instfin
 
 theorem FieldRepresentation.FinmapLike.get_set_for_validFootprint
   (dec : IteratedProd (List.map DecidableEq FieldDomain)) (fc : γ)
   (fa : FieldUpdatePat FieldDomain) (v : CanonicalField FieldDomain FieldCodomain)
   (footprint : _) (h : fa.validFootprint footprint) :
   get equiv (setSingle'Core equiv v fc footprint) =
-    CanonicalField.set dec [(fa, v)] (get equiv fc) := by classical
+    CanonicalField.set dec (get equiv fc) fa v := by classical
   simp +unfoldPartialApp [get, setSingle'Core, CanonicalField.set,
-    IteratedProd.foldMap_eq_cartesianProduct, FieldUpdateDescr.fieldUpdate, IteratedArrow.uncurry_curry,
+    IteratedProd.foldMap_eq_cartesianProduct, IteratedArrow.uncurry_curry,
     Function.comp]
   simp [← (FieldUpdatePat.footprint_match_iff_when_valid dec h)]
   congr 1 ; ext args
@@ -167,9 +166,7 @@ theorem FieldRepresentation.FinmapLike.get_set_for_validFootprint
 instance instFinmapLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain FieldCodomain γ
     -- TODO this is awkward; synthesis fails here
     (instFinmapLikeAsFieldRep equiv instfin) where
-  toLawfulFieldRepresentationSet :=
-    LawfulFieldRepresentationSet.mkFromSingleSet ..
-  get_set_idempotent := by
+  get_setSingle := by
     introv
     apply FieldRepresentation.FinmapLike.get_set_for_validFootprint
     apply FieldUpdatePat.footprintRaw_valid
@@ -198,31 +195,28 @@ def HybridFinmapLike.setSingle
   (v : CanonicalField FieldDomain FieldCodomain) (fc : HybridFinmapLike γ FieldDomain FieldCodomain)
   : HybridFinmapLike γ FieldDomain FieldCodomain :=
   match fc with
-  | .canonical cf => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)] cf.inner
+  | .canonical cf => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq cf.inner fa v
   | .concrete fc' =>
     match fa.footprintRestricted instfin with
-    | none => .canonical <| CanonicalFieldWrapper.mk <| CanonicalField.set instdeceq [(fa, v)]
-      <| FieldRepresentation.FinmapLike.get equiv fc'
+    | none => .canonical <| CanonicalFieldWrapper.mk <|
+      CanonicalField.set instdeceq (FieldRepresentation.FinmapLike.get equiv fc') fa v
     | some footprint => .concrete <|
       FieldRepresentation.FinmapLike.setSingle'Core equiv v fc' footprint
 
 @[implicit_reducible]
 def instHybridFinmapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain
-  (HybridFinmapLike γ FieldDomain FieldCodomain) :=
-  FieldRepresentation.mkFromSingleSet
-    (get := HybridFinmapLike.get equiv)
-    (setSingle := HybridFinmapLike.setSingle equiv instfin instdeceq)
+  (HybridFinmapLike γ FieldDomain FieldCodomain) where
+  get := HybridFinmapLike.get equiv
+  setSingle := HybridFinmapLike.setSingle equiv instfin instdeceq
 
 instance instHybridFinmapLikeLawfulFieldRep : LawfulFieldRepresentation FieldDomain FieldCodomain
     (HybridFinmapLike γ FieldDomain FieldCodomain)
     -- TODO this is awkward; synthesis fails here
     (instHybridFinmapLikeAsFieldRep equiv instfin instdeceq) where
-  toLawfulFieldRepresentationSet :=
-    LawfulFieldRepresentationSet.mkFromSingleSet ..
-  get_set_idempotent := by open Classical in
-    introv ; rcases fav with ⟨fa, v⟩
-    simp +unfoldPartialApp +instances [instHybridFinmapLikeAsFieldRep, FieldRepresentation.mkFromSingleSet,
-      FieldRepresentation.set, HybridFinmapLike.setSingle,
+  get_setSingle := by open Classical in
+    introv
+    simp +unfoldPartialApp +instances [instHybridFinmapLikeAsFieldRep,
+      FieldRepresentation.setSingle, HybridFinmapLike.setSingle,
       HybridFinmapLike.get]
     rcases fc with cf | fc <;> dsimp only
     · congr ; apply IteratedProd.map_DecidableEq_eq
