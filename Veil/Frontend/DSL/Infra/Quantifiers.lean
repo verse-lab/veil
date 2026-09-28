@@ -46,6 +46,19 @@ end EnablerTheorems
 
 section UniversalQuantifierTheorems
 
+-- A Subtype domain can hide state reads after an update. Expose its constraint
+-- as a proposition so subsequent substate/field-representation simplification
+-- can rewrite it. Keep the proof binder, since the body may depend on it.
+@[forallQuantifierSimp]
+theorem forall_subtype_eq {α : Sort u} {p : α → Prop} {q : Subtype p → Prop} :
+    (∀ x, q x) = (∀ a (h : p a), q ⟨a, h⟩) := by
+  apply propext
+  constructor
+  · intro h a ha
+    exact h ⟨a, ha⟩
+  · intro h ⟨a, ha⟩
+    exact h a ha
+
 /- Shift HO quantifiers left (ensuring you don't go into loops, i.e. if both quantifiers are HO) -/
 theorem forall_comm_eq {p : α → β → Prop} : (∀ a b, p a b) = (∀ b a, p a b) := by rw [forall_comm]
 
