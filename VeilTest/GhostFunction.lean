@@ -39,8 +39,6 @@ action promote (n : node) {
   leader n := true
 }
 
--- CHECK fix this later, once `LocalRProp` is required
-veil_set_option useLocalRPropTC false
 safety [rank_nonneg] getRank N ≤ maxRank
 
 #gen_spec

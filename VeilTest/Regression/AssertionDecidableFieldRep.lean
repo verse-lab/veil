@@ -45,8 +45,6 @@ end AssertionDecidableFieldRep
 
 veil module AssertionAutoParamPrettyPrint
 
-veil_set_option useLocalRPropTC false
-
 #gen_state
 
 invariant [pretty] true
@@ -66,8 +64,6 @@ info: AssertionAutoParamPrettyPrint.pretty {ρ σ : Type} {χ : State.Label → 
 end AssertionAutoParamPrettyPrint
 
 veil module GhostExprDefinitionRegression
-
-veil_set_option useLocalRPropTC false
 
 type node
 relation r : node → node → Bool

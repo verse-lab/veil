@@ -25,10 +25,10 @@ private def Module.localTheoryPropParams (mod : Module) : Array Parameter :=
 /-- Declare the `LocalTheoryProp` typeclass for the module.
 Its general form is:
 ```lean
-class LocalTheoryProp /- theory parameters -/ (post : ρ → Prop)
+class LocalTheoryProp /- theory parameters -/ {α : Sort u} (post : ρ → α)
 where
   core :
-    /- types of fields of `Theory`, connected with `→` -/ → Prop
+    /- types of fields of `Theory`, connected with `→` -/ → α
   core_eq : ∀ (th : ρ),
     post th = core /- fields of `Theory` -/
 ```
@@ -37,18 +37,21 @@ def Module.declareLocalTheoryPropTC (mod : Module) : MetaM (List Command) := do
   let params := mod.localTheoryPropParams
   let paramBinders ← params.mapM (·.binder)
   let post ← Lean.mkIdent <$> mkFreshUserName `post
+  let codomain ← Lean.mkIdent <$> mkFreshUserName `α
   let core := mkIdent `core
   let core_eq := mkIdent `core_eq
   let coreType ← do
     let theoryFields ← mod.immutableComponents.mapM (·.getSimpleBinder >>= getSimpleBinderType)
-    mkArrowStx theoryFields.toList (← `(term| Prop))
+    mkArrowStx theoryFields.toList codomain
   let th ← Lean.mkIdent <$> mkFreshUserName `th
   let coreEqType ← do
-    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th, true)] (some $ ← `(term| Prop)) fun theoryFieldNames _ =>
+    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th, true)] (some codomain) fun theoryFieldNames _ =>
       pure <| Syntax.mkApp core theoryFieldNames
     `(term| ∀ ($th : $environmentTheory), $post $th = $body)
   let cmd1 ← do
-    let binders := paramBinders.push (← `(bracketedBinder| ($post : $environmentTheory → Prop)))
+    let binders := paramBinders
+      |>.push (← `(bracketedBinder| {$codomain : Sort _}))
+      |>.push (← `(bracketedBinder| ($post : $environmentTheory → $codomain)))
     `(command| class $localTheoryPropTC $[$binders]* where
       $core:ident : $coreType
       $core_eq:ident : $coreEqType)
@@ -61,7 +64,7 @@ def Module.declareLocalTheoryPropTC (mod : Module) : MetaM (List Command) := do
       `(Lean.Parser.Term.funBinder| $f)
     let coreFn ← mkFunSyntax fieldBinders <| mkIdent ``True
     `(command| scoped instance $[$implBinders]* :
-        @$localTheoryPropTC $args* (fun _ => True) where
+        @$localTheoryPropTC $args* Prop (fun _ => True) where
       $core:ident := $coreFn
       $core_eq:ident := by intros ; rfl)
   let cmd3 ← do
@@ -77,8 +80,8 @@ def Module.declareLocalTheoryPropTC (mod : Module) : MetaM (List Command) := do
     let fieldArgs : Array Term ← fieldNames.mapM fun f => `(term| $f)
     let coreFn ← mkFunSyntax fieldBinders (← `(term| $inst1.$(mkIdent `core) $fieldArgs* ∧ $inst2.$(mkIdent `core) $fieldArgs*))
     `(command| scoped instance $[$implBinders]* ($p $q : $environmentTheory → Prop)
-        [$inst1 : @$localTheoryPropTC $args* $p] [$inst2 : @$localTheoryPropTC $args* $q] :
-        @$localTheoryPropTC $args* (fun $th => $p $th ∧ $q $th) where
+        [$inst1 : @$localTheoryPropTC $args* Prop $p] [$inst2 : @$localTheoryPropTC $args* Prop $q] :
+        @$localTheoryPropTC $args* Prop (fun $th => $p $th ∧ $q $th) where
       $core:ident := $coreFn
       $core_eq:ident := fun $th => $(mkIdent ``congrArg₂) $(mkIdent ``And) ($inst1.$(mkIdent `core_eq) $th) ($inst2.$(mkIdent `core_eq) $th))
   pure [cmd1, cmd2, cmdTrue, cmd3]
@@ -107,10 +110,10 @@ private def Module.theoryPredicateExprParams [Monad m] [MonadQuotation m] [Monad
   match dk with
   | .stateAssertion .assumption =>
     pure <| baseParams ++ extraParams ++ #[thParam]
-  | .derivedDefinition (.theoryGhost true) _ =>
+  | .derivedDefinition (.theoryGhost _) _ =>
     let (userParams, thParams) := actualParams.partition fun p => p.kind != .theoryArg
     unless thParams.any (·.kind == .theoryArg) do
-      throwError "theory ghost relation {nm} does not carry theory argument metadata"
+      throwError "theory ghost definition {nm} does not carry theory argument metadata"
     -- `mkVeilTerm` elaborates theory ghost definitions as
     --   theory params, user params, extracted Decidable params, th.
     -- Reassemble that order explicitly because `declarationSplitParams`
@@ -161,7 +164,7 @@ private def getLocalTheoryPropInst (f : Expr) (args : Array Expr) : SimpM (Optio
   -- TODO: Like `getLocalRPropInst`, this relies on the generated predicate
   -- declaration taking the theory-local module parameters as its exact binder
   -- prefix. This should eventually come from a systematic Parameter-layout API.
-  let targetInstType ← mkAppOptM targetInstName (((args.take classParams.size).push self).map some)
+  let targetInstType ← mkAppOptM targetInstName ((args.take classParams.size).map some |>.push none |>.push (some self))
   let e ← synthInstance targetInstType
   pure <| some (e, args[layout.thPos]!)
 
@@ -243,12 +246,12 @@ private def Module.proveLocalityForTheoryPredicateCore (mod : Module) (nm : Name
         unless classParams.size ≤ xs.size do
           throwError "unexpected theory-parameter prefix while building LocalTheoryProp instance for {nm}"
         let self ← mkTheoryPredicateSelf (.inl nmFull) xs layout
-        pure ((xs.take classParams.size).push self)
+        pure ((xs.take classParams.size).map some |>.push none |>.push (some self))
       let coreEq ← do
         let theoryAltResult ← bodyResult.addLambdas theoryFields
         let fullProof ← mkCongrArg ff (← theoryAltResult.getProof)
         mkLambdaFVars #[th] fullProof
-      let inst ← Meta.mkAppOptM ctor.name (ctorArgs |>.push core |>.push coreEq |>.map some)
+      let inst ← Meta.mkAppOptM ctor.name (ctorArgs |>.push (some core) |>.push (some coreEq))
       mkLambdaFVars xs inst (usedOnly := true)
   check inst
   let inst ← instantiateMVars inst
@@ -302,10 +305,10 @@ private def Module.defineLocalAbstractEqForTheoryPredicate (mod : Module) (nm : 
     let localTheoryPropName ← resolveGlobalConstNoOverloadCore localTheoryPropTCName
     let classParams := mod.localTheoryPropParams
     let localTheoryPropArgs := xs.take classParams.size
-    let genericInstType ← mkAppOptM localTheoryPropName ((localTheoryPropArgs.push postGeneric).map some)
+    let genericInstType ← mkAppOptM localTheoryPropName (localTheoryPropArgs.map some |>.push none |>.push (some postGeneric))
     let genericInst ← synthInstance genericInstType
     let targetLocalTheoryPropArgs ← specializeTheoryArgs classParams localTheoryPropArgs theoryType
-    let targetInstType ← Tactic.classical <| mkAppOptM localTheoryPropName (targetLocalTheoryPropArgs.push (some postTarget))
+    let targetInstType ← Tactic.classical <| mkAppOptM localTheoryPropName (targetLocalTheoryPropArgs.push none |>.push (some postTarget))
     let targetInst ← Tactic.classical <| synthInstance targetInstType
     let genericCoreEq ← Meta.mkProjection genericInst `core_eq
     let targetCoreEq ← Meta.mkProjection targetInst `core_eq
@@ -344,13 +347,17 @@ def Module.proveLocalityForTheoryPredicate (mod : Module) (nm : Name) (stx : Syn
     let attrs ← do
       let tmp ← `(Parser.Term.attrInstance| scoped instance)
       elabAttrs (#[tmp])
-    let _ ← addVeilDefinition (generateLocalTheoryPropInstName nm) inst
+    -- Like state locality, this certificate may have a noncomputable core.
+    let instName ← addVeilDefinition (generateLocalTheoryPropInstName nm) inst (compile := false)
       (attr := #[{ name := `implicit_reducible }] ++ attrs)
+    modifyEnv (addNoncomputable · instName)
   catch ex =>
     logWarningAt stx m!"unable to prove theory locality for predicate {nm}: {ex.toMessageData}"
 where
+  -- Preserve the declaration name: capitalizing it would make `A`
+  -- and `a` generate the same instance name.
   generateLocalTheoryPropInstName (nm : Name) : Name :=
-    Name.mkSimple <| "instLocalTheoryProp" ++ nm.capitalize.toString
+    nm ++ `instLocalTheoryProp
 
 /-! ## Simplified LocalTheoryProp for Assembled Definitions -/
 
@@ -400,7 +407,7 @@ def Module.simplifyLocalTheoryPropCore (mod : Module) (nm : Name) : TermElabM Un
       let nmFull ← resolveGlobalConstNoOverloadCore nm
       mkAppOptM nmFull (vs.map some)
     let instType ← do
-      let tm ← `(@$localTheoryPropTC $localTheoryPropArgs*)
+      let tm ← `(@$localTheoryPropTC $localTheoryPropArgs* Prop)
       let tc ← withoutErrToSorry <| elabTermAndSynthesize tm none
       pure <| mkApp tc nmApp
     let inst ← synthInstance instType

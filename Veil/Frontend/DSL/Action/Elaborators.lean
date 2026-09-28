@@ -245,7 +245,8 @@ private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp wpAppAfter
   let localRPropTCArgIdent := mkIdent localRPropTCArgName
   let localRPropTCFqn ← resolveGlobalConstNoOverloadCore localRPropTCName
   -- `post : RProp Unit ρ σ`; apply to `()` to get `SProp ρ σ` for the new `LocalRProp` typeclass
-  let localRPropTCArg ← mkAppOptM localRPropTCFqn (vs'.map Option.some |>.push (mkApp post (mkConst ``Unit.unit)))
+  let localRPropTCArg ← mkAppOptM localRPropTCFqn
+    (vs'.map Option.some |>.push (some (mkSort .zero)) |>.push (some (mkApp post (mkConst ``Unit.unit))))
   withLocalDecl localRPropTCArgName BinderInfo.instImplicit localRPropTCArg fun inst => do
     -- Further telescope into r : ρ and s : σ
     let originalWpApp ← etaExpand originalWpApp
@@ -693,7 +694,7 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
         let post ← AuxiliaryDefinitions.defineWpLocalEq.step3PostTerm mod auxx auxth auxst auxlocalRPropInst abstractStateSortTerm
         `($pred $auxhandler $post ($(mkIdent ``readFrom) $auxr) $absst)
       `($wpLocalEqLhs = $wpLocalEqRhs)
-    let localRPropInstTypeStx ← `(@$localRPropTC $paramArgs* ($auxpost $(mkIdent ``Unit.unit)))
+    let localRPropInstTypeStx ← `(@$localRPropTC $paramArgs* Prop ($auxpost $(mkIdent ``Unit.unit)))
     `(∀ $auxhandler:ident $auxpost:ident [$auxlocalRPropInst : $localRPropInstTypeStx]
         ($auxr : $environmentTheory) ($auxs : $environmentState), $mainTy)
   let wpEqTy ← do
@@ -729,7 +730,7 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
     let post ← do
       let absst ← mod.toAbstractStateBodyStx (← `($(mkIdent ``getFrom) $auxs)) abstractStateSortTerm
       `(fun $auxr $auxs => ¬ ($(mkIdent ``readFrom) $auxr = $auxrr ∧ $absst = $auxss))
-    let ty ← `(@$localRPropTC $paramArgs* $post)
+    let ty ← `(@$localRPropTC $paramArgs* Prop $post)
     let coreStx ← do
       let theoryFieldIdents : Array Ident := mod.immutableComponents.map fun sc => mkIdent sc.name
       let stateFieldIdents : Array Ident := mod.mutableComponents.map fun sc => mkIdent sc.name

@@ -10,23 +10,18 @@ namespace Veil
 
 /-! ## LocalRProp Typeclass Declaration -/
 
--- NOTE: `LocalRPropTC` actually does not have to be about `Prop`s, but currently
--- we only use it for `Prop`s, so it is dealt with as such.
-
--- NOTE: Previously, `LocalRPropTC` had an extra `{α : Type}` parameter and
--- took `post : RProp α ρ σ` instead of `post : SProp ρ σ`. In practice, `α`
--- was always instantiated to `Unit`, so it has been removed to simplify the
--- code. This file is planned for a rewrite; see also `Action/Elaborators.lean`
--- which still carries `Unit`-typed `u` variables related to the old design.
+-- The return type may be `Prop` or the value type of a ghost function. The
+-- environment and representation remain class parameters: cross-representation
+-- equality is proved separately by `defineLocalAbstractEqForStatePredicate`.
 
 /-- Declare the `LocalRProp` typeclass for the module.
 Its general form is:
 ```lean
-class LocalRPropTC /- module parameters -/ (post : SProp ρ σ)
+class LocalRPropTC /- module parameters -/ {α : Sort u} (post : ρ → σ → α)
 where
   core :
     /- types of fields of `Theory`, connected with `→` -/ →
-    /- types of _canonical_ fields of `State`, connected with `→` -/ → Prop
+    /- types of _canonical_ fields of `State`, connected with `→` -/ → α
   core_eq : ∀ (th : ρ) (st : σ),
     post th st = core /- fields of `Theory` -/ /- _canonical_ fields of `State` -/
 ```
@@ -37,22 +32,25 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (List Command) := do
   let paramBinders ← params.mapM (·.binder)
   -- build binders
   let post ← Lean.mkIdent <$> mkFreshUserName `post
+  let codomain ← Lean.mkIdent <$> mkFreshUserName `α
   let core := mkIdent `core ; let core_eq := mkIdent `core_eq
   -- build the type of `core`
   let coreType ← do
     let theoryFields ← mod.immutableComponents.mapM (·.getSimpleBinder >>= getSimpleBinderType)
     let stateFields ← mod.mutableComponents.mapM (·.getSimpleBinder >>= getSimpleBinderType)
-    mkArrowStx ((theoryFields ++ stateFields).toList) (← `(term| Prop ))
+    mkArrowStx ((theoryFields ++ stateFields).toList) codomain
   -- build the type of `core_eq`
   let th ← Lean.mkIdent <$> mkFreshUserName `th
   let st ← Lean.mkIdent <$> mkFreshUserName `st
   let coreEqType ← do
-    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th, true), (.state .none "_conc", st, true)] (some $ ← `(term| Prop)) fun theoryFieldNames stateFieldNames =>
+    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th, true), (.state .none "_conc", st, true)] (some codomain) fun theoryFieldNames stateFieldNames =>
       pure <| Syntax.mkApp core (theoryFieldNames ++ stateFieldNames)
     `(term| ∀ ($th : $environmentTheory) ($st : $environmentState),
     $post $th $st = $body)
   let cmd1 ← do
-    let binders := paramBinders.push (← `(bracketedBinder| ($post : $(mkIdent ``SProp) $environmentTheory $environmentState) ))
+    let binders := paramBinders
+      |>.push (← `(bracketedBinder| {$codomain : Sort _}))
+      |>.push (← `(bracketedBinder| ($post : $environmentTheory → $environmentState → $codomain)))
     `(command| class $localRPropTC $[$binders]* where
       $core:ident : $coreType
       $core_eq:ident : $coreEqType)
@@ -70,8 +68,8 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (List Command) := do
     let fieldArgs : Array Term ← fieldNames.mapM fun f => `(term| $f)
     let coreFn ← mkFunSyntax fieldBinders (← `(term| $inst1.$(mkIdent `core) $fieldArgs* ∧ $inst2.$(mkIdent `core) $fieldArgs*))
     `(command| scoped instance $[$implBinders]* ($p $q : $(mkIdent ``SProp) $environmentTheory $environmentState)
-        [$inst1 : @$localRPropTC $args* $p] [$inst2 : @$localRPropTC $args* $q] :
-        @$localRPropTC $args* (fun $th $st => $p $th $st ∧ $q $th $st) where
+        [$inst1 : @$localRPropTC $args* Prop $p] [$inst2 : @$localRPropTC $args* Prop $q] :
+        @$localRPropTC $args* Prop (fun $th $st => $p $th $st ∧ $q $th $st) where
       $core:ident := $coreFn
       $core_eq:ident := fun $th $st => $(mkIdent ``congrArg₂) $(mkIdent ``And) ($inst1.$(mkIdent `core_eq) $th $st) ($inst2.$(mkIdent `core_eq) $th $st))
   return [cmd1, cmd2, cmd3]
@@ -116,11 +114,10 @@ private def Module.statePredicateExprParams [Monad m] [MonadQuotation m] [MonadE
     unless isStateAssertionWithState k do
       throwError "{nm} is not a state assertion with a state argument"
     pure <| baseParams ++ extraParams ++ #[thParam, stParam]
-  | .derivedDefinition (.ghost true) _ =>
-    -- FIXME: Relax this to support general ghost definitions
+  | .derivedDefinition (.ghost _) _ =>
     let (userParams, thstParams) := actualParams.partition fun p => p.kind != .theoryArg && p.kind != .stateArg
     unless (thstParams.any (·.kind == .theoryArg) && thstParams.any (·.kind == .stateArg)) do
-      throwError "state ghost relation {nm} does not carry theory/state argument metadata"
+      throwError "state ghost definition {nm} does not carry theory/state argument metadata"
     -- `mkVeilTerm` elaborates ghost definitions as
     --   module params, user params, extracted Decidable params, th, st.
     -- `declarationSplitParams` intentionally separates extra params from
@@ -181,7 +178,7 @@ private def getLocalRPropInst (f : Expr) (args : Array Expr) : SimpM (Option (Ex
   -- should eventually come from a systematic Parameter-layout API instead of
   -- slicing raw application arguments by prefix length.
   let localRPropArgs := args.take mod.parameters.size
-  let targetInstType ← mkAppOptM targetInstName ((localRPropArgs.push self).map Option.some)
+  let targetInstType ← mkAppOptM targetInstName (localRPropArgs.map some |>.push none |>.push (some self))
   let e ← synthInstance targetInstType
   pure <| some (e, args[layout.thPos]!, args[layout.stPos]!)
 
@@ -234,8 +231,8 @@ simproc_decl replaceLocalRPropGeneralCase (_) := fun e => do
 
 /-! ## Locality Proof Generation -/
 
-/-- Construct a `LocalRProp` term for the given state predicate `nm`,
-including assertions and ghost relations. This is done at the level of
+/-- Construct a `LocalRProp` term for the given state definition `nm`,
+including assertions, ghost relations, and ghost functions. This is done at the level of
 `Expr` to avoid uncertainty introduced by, for example, the use of
 `veil_exact_state` tactics. Also, this should provide more useful
 error message.
@@ -307,7 +304,7 @@ private def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name)
               throwError "unexpected module-parameter prefix while building LocalRProp instance for {nm}"
             let localRPropArgs := xs.take mod.parameters.size
             let self ← mkStatePredicateSelf (.inl nmFull) xs layout
-            pure (localRPropArgs.push self)
+            pure (localRPropArgs.map some |>.push none |>.push (some self))
           -- Construct the `core_eq` proof by "rolling back" what has been peeled off and simplified
           let coreEq ← do
             let stateLetExpr ← mkLetFVars stateFields bodyResult.expr (usedLetOnly := false) (generalizeNondepLet := false)
@@ -326,7 +323,7 @@ private def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name)
             -- NOTE: Here, implicitly requiring `th` and `st` to be fvars;
             -- which should be the case in general
             mkLambdaFVars #[th, st] fullProof
-          let inst ← Meta.mkAppOptM ctor.name (ctorArgs |>.push core |>.push coreEq |>.map Option.some)
+          let inst ← Meta.mkAppOptM ctor.name (ctorArgs |>.push (some core) |>.push (some coreEq))
           mkLambdaFVars xs inst (usedOnly := true)
   check inst
   let inst ← instantiateMVars inst
@@ -383,7 +380,7 @@ private def Module.defineLocalAbstractEqForStatePredicate (mod : Module) (nm : N
       params.zipWithM (bs := args) fun p v =>
         specializeArg thArg stArg p v
     -- Construct the theorem statement directly from full applications of the
-    -- predicate.  Separately construct the `SProp` arguments needed to
+    -- definition. Separately construct the `ρ → σ → α` arguments needed to
     -- synthesize the generic and abstract-state `LocalRProp` instances.
     let lhs ← mkAppOptM nmFull (xs.map some)
     let targetFullArgs ← specializeArgs layout.params xs readFromArg targetState
@@ -392,8 +389,8 @@ private def Module.defineLocalAbstractEqForStatePredicate (mod : Module) (nm : N
     let postTarget ← do
       let thName ← mkFreshUserName `th
       let stName ← mkFreshUserName `st
-      -- Rebuild the target predicate under fresh target-world theory/state
-      -- variables so the result has type `SProp targetTheory targetState`.
+      -- Rebuild the target definition under fresh target-world theory/state
+      -- variables so the result has type `targetTheory → targetState → α`.
       withLocalDeclsDND #[(thName, theoryType.consumeMData), (stName, stateTypeTarget.consumeMData)] fun ldecls => do
         let targetSelfArgs ← specializeArgs layout.params xs ldecls[0]! ldecls[1]!
         let targetSelfApp ← Tactic.classical <| mkAppOptM nmFull targetSelfArgs
@@ -406,10 +403,10 @@ private def Module.defineLocalAbstractEqForStatePredicate (mod : Module) (nm : N
     -- prefix, so this mirrors the prefix invariant used by `getLocalRPropInst`.
     let localRPropName ← resolveGlobalConstNoOverloadCore localRPropTCName
     let localRPropArgs := xs.take mod.parameters.size
-    let genericInstType ← mkAppOptM localRPropName ((localRPropArgs.push postGeneric).map some)
+    let genericInstType ← mkAppOptM localRPropName (localRPropArgs.map some |>.push none |>.push (some postGeneric))
     let genericInst ← synthInstance genericInstType
     let targetLocalRPropArgs ← specializeArgs mod.parameters localRPropArgs readFromArg targetState
-    let targetInstType ← Tactic.classical <| mkAppOptM localRPropName (targetLocalRPropArgs.push (some postTarget))
+    let targetInstType ← Tactic.classical <| mkAppOptM localRPropName (targetLocalRPropArgs.push none |>.push (some postTarget))
     let targetInst ← Tactic.classical <| synthInstance targetInstType
     -- The two `core_eq` fields give:
     --
@@ -632,7 +629,7 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
         {$assu : $environmentTheory → Prop}
         {$pre : $(mkIdent ``SProp) $environmentTheory $environmentState}
         {$post : $(mkIdent ``SProp) $environmentTheory $environmentState}
-        [$postLocal : @$localRPropTC $paramArgs* $post]
+        [$postLocal : @$localRPropTC $paramArgs* Prop $post]
         {$pred : $predTy}
         ($handler : $(mkIdent ``Int) → Prop)
         ($assuCore : $assuCoreType)
@@ -747,7 +744,7 @@ def Module.defineTransitionMeetsSpecificationIfSuccessfulAssumingLocalTheorem (m
         {$assu : $environmentTheory → Prop}
         {$pre : $(mkIdent ``SProp) $environmentTheory $environmentState}
         {$post : $(mkIdent ``SProp) $environmentTheory $environmentState}
-        [$postLocal : @$localRPropTC $paramArgs* $post]
+        [$postLocal : @$localRPropTC $paramArgs* Prop $post]
         {$trAbs : $(mkIdent ``Transition) $theoryTy $abstractStateTypeTerm}
         ($assuCore : $assuCoreType)
         ($preCore : $stateCoreType)
@@ -806,13 +803,18 @@ def Module.proveLocalityForStatePredicate (mod : Module) (nm : Name) (stx : Synt
     let attrs ← do
       let tmp ← `(Parser.Term.attrInstance| scoped instance)
       elabAttrs (#[tmp])
-    let _ ← addVeilDefinition (generateLocalRPropInstName nm) inst
+    -- The core may use classical `Decidable` instances. It is a proof artifact;
+    -- execution still uses the original ghost definition and its instances.
+    let instName ← addVeilDefinition (generateLocalRPropInstName nm) inst (compile := false)
       (attr := #[{ name := `implicit_reducible }] ++ attrs)
+    modifyEnv (addNoncomputable · instName)
   catch ex =>
     logWarningAt stx m!"unable to prove locality for state predicate {nm}: {ex.toMessageData}"
 where
+  -- Preserve the declaration name: capitalizing it would make `A`
+  -- and `a` generate the same instance name.
   generateLocalRPropInstName (nm : Name) : Name :=
-    Name.mkSimple <| "instLocalRProp" ++ nm.capitalize.toString
+    nm ++ `instLocalRProp
 
 /-! ## Simplified LocalRProp for Assembled Definitions -/
 
@@ -840,7 +842,7 @@ def Module.simplifyLocalRPropCore (mod : Module) (nm : Name) : TermElabM Unit :=
       -- NOTE: Ideally, we could also construct it only at the `Expr` level,
       -- but that requires filtering out the parameters that are not needed,
       -- which is a bit tricky.
-      let tm ← `(@$localRPropTC $localRPropArgs*)
+      let tm ← `(@$localRPropTC $localRPropArgs* Prop)
       let tc ← withoutErrToSorry <| elabTermAndSynthesize tm none
       pure <| mkApp tc nmApp
     let inst ← synthInstance instType
