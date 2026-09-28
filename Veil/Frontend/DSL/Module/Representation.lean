@@ -286,10 +286,23 @@ deriving Inhabited
 def StateAssertion.declarationKind (sa : StateAssertion) : DeclarationKind := .stateAssertion sa.kind
 
 
+/-- One atomic proposition of a liveness property.
+`state` names the generated `livenessAtom` assertion, the other two name an action and,
+when the user wrote an applied form, the arguments pinning one instantiation. -/
+inductive LivenessAtomSpec where
+  | state (assertionName : Name)
+  | enabled (actionName : Name) (args : Array Term)
+  | taken (actionName : Name) (args : Array Term)
+deriving Inhabited
+
+def LivenessAtomSpec.assertionName? : LivenessAtomSpec → Option Name
+  | .state n => some n
+  | _ => none
+
 structure LivenessAssertion where
   name : Name
-  /-- List of atomic propositions `⌜ AP ⌝` checked per state -/
-  atoms : Array Name
+  /-- The atomic propositions of the formula, in the order the formula indexes them. -/
+  atoms : Array LivenessAtomSpec
   formula : Term
   /-- The user-written syntax that resulted in the declaration of this
   assertion. -/
