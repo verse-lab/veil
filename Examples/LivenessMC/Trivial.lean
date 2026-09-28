@@ -22,7 +22,7 @@ liveness [eventuallyFalse] ◇ ⊥
 
 #gen_spec
 
-#model_check {}
+#gen_executable
 
 #eval Veil.LivenessMC.printCheckResult "Live" "□⊤"
   (Veil.LivenessMC.check (enumerableTransitionSystem {})

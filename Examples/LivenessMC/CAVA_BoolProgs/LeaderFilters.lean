@@ -390,7 +390,7 @@ liveness [φStableElection] ◇ □ ⌜ elected = true ⌝
 
 #gen_spec
 
-#model_check {}
+#gen_executable
 
 #eval Veil.LivenessMC.printCheckResult "BoolProgLeaderFilters" "◇(elected)"
   (Veil.LivenessMC.check (enumerableTransitionSystem {})

@@ -39,7 +39,7 @@ liveness [φInfinitelyOn] □ ◇ ⌜ v0 = true ⌝
 
 #gen_spec
 
-#model_check {}
+#gen_executable
 
 #eval Veil.LivenessMC.printCheckResult "BoolProgSimple" "◇□(¬v0)"
   (Veil.LivenessMC.check (enumerableTransitionSystem {})

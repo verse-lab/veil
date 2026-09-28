@@ -127,7 +127,7 @@ liveness [φWriterEventuallyActive] ◇ ⌜ writersActive = true ⌝
 
 #gen_spec
 
-#model_check {}
+#gen_executable
 
 #eval Veil.LivenessMC.printCheckResult "BoolProgReaderWriter" "□(¬q_error)"
   (Veil.LivenessMC.check (enumerableTransitionSystem {})

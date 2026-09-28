@@ -62,7 +62,7 @@ liveness [φSomeoneEats] ◇ (⌜ eat0 = true ⌝ ∨ ⌜ eat1 = true ⌝ ∨ �
 
 #gen_spec
 
-#model_check {}
+#gen_executable
 
 #eval Veil.LivenessMC.printCheckResult "BoolProgPhilosophers" "□◇(eat0)"
   (Veil.LivenessMC.check (enumerableTransitionSystem {})
