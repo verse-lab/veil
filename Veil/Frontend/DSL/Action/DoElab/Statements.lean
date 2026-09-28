@@ -113,9 +113,41 @@ def elabVeilLet : DoElab :=
 def elabVeilHave : DoElab :=
   delegate Lean.Elab.Do.elabDoHave (before := warnShadowingBinders)
 
+/-- In `let x ← rhs`, Lean elaborates the type of `x` under this statement's
+state opening but elaborates `rhs` as a `do` element of its own. A plain
+expression `rhs` would then go through `elabVeilExpr`, whose second opening
+binds fresh field views that are out of scope of `x`'s type, so a type
+mentioning mutable state (e.g. `let i ← pick { i // i ∈ s }`) could not be
+assigned to `x`. Since Lean lifts nested actions `(← …)` out of the whole
+statement before any handler runs, the statement's own opening is already
+current for `rhs`: mark `rhs` internal so it is elaborated under that opening. -/
+private def rhsUnderStatementOpening (ctx : Context) (stx : DoElem) : DoElabM DoElem := do
+  let internal? (rhs : DoElem) : DoElabM (Option DoElem) := do
+    let `(doElem| $e:term) := rhs | return none
+    rejectDirectRecursion ctx rhs
+    some <$> withRef rhs `(doElem| veil_do_internal_expr% $e)
+  -- NOTE: It would also be possible to write the following through
+  -- indices of `stx` and `decl` (e.g., let `decl` being `stx[3]`),
+  -- but using the concrete syntax matching should be more readable and maintainable.
+  let `(doLetArrow| let%$tk $[mut%$mutTk?]? $cfg:letConfig $decl) := stx | return stx
+  match decl with
+  | `(doIdDecl| $x:ident $[: $ty?]? ← $rhs) =>
+    let some rhs ← internal? rhs | return stx
+    let decl ← `(doIdDecl| $x:ident $[: $ty?]? ← $rhs)
+    `(doElem| let%$tk $[mut%$mutTk?]? $cfg:letConfig $decl:doIdDecl)
+  | `(doPatDecl| $pat:term $[: $ty?]? ← $rhs $[| $otherwise? $(rest?)?]?) =>
+    let some rhs ← internal? rhs | return stx
+    let decl ← `(doPatDecl| $pat:term $[: $ty?]? ← $rhs $[| $otherwise? $(rest?)?]?)
+    `(doElem| let%$tk $[mut%$mutTk?]? $cfg:letConfig $decl:doPatDecl)
+  | _ => return stx
+
 @[doElem_elab Lean.Parser.Term.doLetArrow]
-def elabVeilLetArrow : DoElab :=
-  delegate Lean.Elab.Do.elabDoLetArrow (before := warnShadowingBinders)
+def elabVeilLetArrow : DoElab := fun stx dec => do
+  -- This looks like `delegate`, but needs processing of `stx`
+  let ctx ← requireVeilDoBlock
+  warnShadowingBinders ctx stx
+  let stx ← rhsUnderStatementOpening ctx stx
+  openStateAround ctx.mod <| Lean.Elab.Do.elabDoLetArrow stx dec
 
 @[doElem_elab Lean.Parser.Term.doLetElse]
 def elabVeilLetElse : DoElab :=
