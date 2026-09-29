@@ -113,7 +113,7 @@ private def elabSimpArgForTerms (ctx : Meta.Simp.Context) (simps : Array (TSynta
   let ctx' := ctx.setSimpTheorems (thmsArray.set! 0 thms)
   return ctx'
 
-/-- Perform simplification using `get_set_idempotent'`. This requires
+/-- Perform simplification using `get_setSingle`. This requires
 some special handling since these `simp` theorems might only be given
 in terms of `Expr`s. -/
 private def simpGetSetForFieldRepTC (ctx : Meta.Simp.Context) : TermElabM Meta.Simp.Context := do
@@ -133,8 +133,8 @@ private def simpGetSetForFieldRepTC (ctx : Meta.Simp.Context) : TermElabM Meta.S
   let stateTypeName := labelTypeName.getPrefix
   let fields ← getFieldIdentsForStruct stateTypeName
   let simps ← fields.mapM fun f => do
-    let stx ← `(($lawfulRep .$f).$(mkIdent `get_set_idempotent') (by infer_instance_for_iterated_prod))
-    let name ← mkFreshUserName (f.getId ++ `get_set_idempotent')
+    let stx ← `(($lawfulRep .$f).$(mkIdent `get_setSingle) (by infer_instance_for_iterated_prod))
+    let name ← mkFreshUserName (f.getId ++ `get_setSingle)
     pure (stx, name)
   elabSimpArgForTerms ctx simps
 
@@ -234,7 +234,7 @@ General idea: consider `act.ext.wp`.
       let ... := (χ_rep _).get ...
       (⟨...⟩ : State FieldAbstractType))
   ```
-  by doing `dsimp -zeta [instIsSubStateOfRefl, ...]` + `simp [get_set_idempotent']`
+  by doing `dsimp -zeta [instIsSubStateOfRefl, ...]` + `simp [get_setSingle]`
   on the *former* expression. Currently it also unfolds ghost relations since the content
   of ghost relations also need simplification.
 
@@ -385,7 +385,7 @@ where
     `(fun $uIdent $thIdent $stIdent => $step3PostBody)
   /-- Step 3: Construct the target at abstract field types using
   `withTheoryAndStateTermTemplate`, then prove equality by simplifying
-  the Step 2 result with `dsimp -zeta` + `get_set_idempotent'`.
+  the Step 2 result with `dsimp -zeta` + `get_setSingle`.
 
   The final target is not left as the raw abstract `act.ext.wp`.  We define
   `act.ext.wp_local_eq.pred`, the stable simplified abstract WP predicate, and
@@ -567,11 +567,9 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
           |>.andThen (evalOpenClassical ∘ Simp.simp #[`forallQuantifierSimp])
           |>.andThen (evalOpenClassical ∘ Simp.simp #[`substateSimp])
         let ss ← simplifierGetSetForFieldRepTC
-        -- (1) do basic simplification using `LawfulFieldRepresentation`
-        pure <| (tmp |>.andThen (Simp.simp #[`fieldRepresentationSetSimpPre])
-          -- (2) simplify using `get_set_idempotent'`
-          |>.andThen ss
-          -- (3) simplify the resulting things
+        -- (1) simplify using `get_setSingle`
+        pure <| (tmp |>.andThen ss
+          -- (2) simplify the resulting things
           |>.andThen (evalOpenClassical ∘ Simp.simp
             #[fieldLabelToDomainName stateName,
               fieldLabelToCodomainName stateName,

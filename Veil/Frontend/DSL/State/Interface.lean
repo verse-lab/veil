@@ -46,7 +46,6 @@ section UpdatePatterns
 
 /-- A field update pattern specifies which components are accessed. -/
 abbrev FieldUpdatePat : Type := IteratedProd (FieldDomain.map Option)
-abbrev FieldUpdateDescr := List (⌞ FieldUpdatePat ⌟ × ⌞_ CanonicalField ⌟)
 
 def fieldUpdatePatComponentMatch (a : Option (Enumeration t)) (b : Option t) :
   Option (Unit → List t) :=
@@ -65,20 +64,14 @@ def FieldUpdatePat.match
   (fa : FieldUpdatePat FieldDomain) args :=
   IteratedProd.patCmp (fun o x => o.elim true (fun y => decide (y = x))) dec fa args
 
-def FieldUpdateDescr.fieldUpdate
-  {FieldDomain : List Type}
-  {FieldCodomain : Type}
-  (dec : IteratedProd (FieldDomain.map DecidableEq))
-  (favs : ⌞_ FieldUpdateDescr ⌟)
-  (vbase : ⌞_ CanonicalField ⌟)
-  (args : IteratedProd FieldDomain) : FieldCodomain :=
-  favs.foldr (init := vbase.uncurry args) fun (fa, v) acc => if fa.match dec args then v.uncurry args else acc
-
+/-- Overwrite the entries of `fc` that `fa` matches with the corresponding
+entries of `v`. -/
 def CanonicalField.set {FieldDomain : List Type} {FieldCodomain : Type}
   (dec : IteratedProd (FieldDomain.map DecidableEq))
-  (favs : ⌞_ FieldUpdateDescr ⌟)
-  (fc : ⌞_ CanonicalField ⌟) : ⌞_ CanonicalField ⌟ :=
-  IteratedArrow.curry (favs.fieldUpdate dec fc)
+  (fc : ⌞_ CanonicalField ⌟)
+  (fa : ⌞ FieldUpdatePat ⌟)
+  (v : ⌞_ CanonicalField ⌟) : ⌞_ CanonicalField ⌟ :=
+  IteratedArrow.curry fun args => if fa.match dec args then v.uncurry args else fc.uncurry args
 
 def FieldUpdatePat.footprintRaw
   {FieldDomain : List Type}
@@ -173,61 +166,24 @@ section RepresentationInterface
 
 class FieldRepresentation (FieldTypeConcrete : Type) where
   get : FieldTypeConcrete → ⌞_ CanonicalField ⌟
-  set : ⌞_ FieldUpdateDescr ⌟ → FieldTypeConcrete → FieldTypeConcrete
-
-class LawfulFieldRepresentationSet (FieldTypeConcrete : Type)
-  (inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟) where
-  -- NOTE: If `set` is defined as `foldr` of `setSingle`, then the following
-  -- two laws automatically hold.
-  set_append :
-    ∀ (favs₁ favs₂ : ⌞_ FieldUpdateDescr ⌟) (fc : FieldTypeConcrete),
-      inst.set favs₂ (inst.set favs₁ fc) = inst.set (favs₂ ++ favs₁) fc
-  set_nil :
-    ∀ {fc : FieldTypeConcrete}, inst.set [] fc = fc
+  /-- Apply one update. `LawfulFieldRepresentation.get_setSingle` requires
+  `get` to see it as `CanonicalField.set`. Several writes to a field become
+  nested `setSingle`s. -/
+  setSingle : ⌞ FieldUpdatePat ⌟ → ⌞_ CanonicalField ⌟ → FieldTypeConcrete → FieldTypeConcrete
 
 class LawfulFieldRepresentation (FieldTypeConcrete : Type)
-  (inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟)
-  extends ⌞_ LawfulFieldRepresentationSet FieldTypeConcrete inst ⌟ where
-  get_set_idempotent :
+  (inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟) where
+  get_setSingle :
     ∀ -- TODO not sure this should be made here in the argument, but using
       -- the fact that all `DecidableEq` instances are equal, this will not
       -- matter much?
       (dec : IteratedProd (FieldDomain.map DecidableEq))
-      (fc : FieldTypeConcrete) fav,
-      inst.get (inst.set [fav] fc) = (inst.get fc).set dec [fav]
+      (fa : ⌞ FieldUpdatePat ⌟) (v : ⌞_ CanonicalField ⌟) (fc : FieldTypeConcrete),
+      inst.get (inst.setSingle fa v fc) = (inst.get fc).set dec fa v
   -- NOTE: temporarily disabling this law, since it is not used
   -- set_get_idempotent :
   --   ∀ (fc : FieldTypeConcrete) (fa : FieldUpdatePat fieldDomain),
-  --     inst.set [(fa, inst.get fc)] fc = fc
-
--- Handy notation
-abbrev FieldRepresentation.setSingle {FieldDomain : List Type}
-  {FieldCodomain FieldTypeConcrete : Type}
-  [self : ⌞_ FieldRepresentation FieldTypeConcrete ⌟]
-  (fa : ⌞ FieldUpdatePat ⌟)
-  (v : ⌞_ CanonicalField ⌟)
-  (fc : FieldTypeConcrete) : FieldTypeConcrete :=
-  self.set [(fa, v)] fc
-
-@[implicit_reducible]
-def FieldRepresentation.mkFromSingleSet {FieldDomain : List Type}
-  {FieldCodomain : Type} {FieldTypeConcrete : Type}
-  (get : FieldTypeConcrete → ⌞_ CanonicalField ⌟)
-  (setSingle : ⌞ FieldUpdatePat ⌟ → ⌞_ CanonicalField ⌟ → FieldTypeConcrete → FieldTypeConcrete) :
-  ⌞_ FieldRepresentation FieldTypeConcrete ⌟ where
-  get := get
-  set favs fc := favs.foldr (init := fc) fun (fa, v) acc => setSingle fa v acc
-
-theorem LawfulFieldRepresentationSet.mkFromSingleSet {FieldDomain : List Type}
-  {FieldCodomain : Type} {FieldTypeConcrete : Type}
-  (get : FieldTypeConcrete → ⌞_ CanonicalField ⌟)
-  (setSingle : ⌞ FieldUpdatePat ⌟ → ⌞_ CanonicalField ⌟ → FieldTypeConcrete → FieldTypeConcrete) :
-  (⌞_ LawfulFieldRepresentationSet FieldTypeConcrete ⌟)
-    (FieldRepresentation.mkFromSingleSet get setSingle) where
-  set_append := by
-    introv ; simp [FieldRepresentation.set]
-  set_nil := by
-    introv ; simp [FieldRepresentation.set]
+  --     inst.setSingle fa (inst.get fc) fc = fc
 
 end RepresentationInterface
 
@@ -246,7 +202,7 @@ def canonicalFieldRepresentation {FieldDomain : List Type} {FieldCodomain : Type
   (dec : IteratedProd (FieldDomain.map DecidableEq)) :
   (⌞_ FieldRepresentation ⌟) (⌞_ CanonicalField ⌟) where
   get := id
-  set favs fc := fc.set dec favs
+  setSingle fa v fc := fc.set dec fa v
 
 instance canonicalFieldRepresentationLawful
   (dec : IteratedProd (FieldDomain.map DecidableEq)) :
@@ -254,45 +210,23 @@ instance canonicalFieldRepresentationLawful
     -- TODO why synthesis fails here? is it because there is no `semiOutParam`, `outParam` or because of `dec`?
     -- also, due to the synthesis failure, `inst` cannot be declared using `[]`
     (inst := canonicalFieldRepresentation dec) where
-  get_set_idempotent := by
-    introv ; simp [FieldRepresentation.get, FieldRepresentation.set]
+  get_setSingle := by
+    introv ; simp [FieldRepresentation.get, FieldRepresentation.setSingle]
     congr ; apply IteratedProd.map_DecidableEq_eq
   -- set_get_idempotent := by
-  --   introv ; simp +unfoldPartialApp [CanonicalField.set, FieldUpdateDescr.fieldUpdate, FieldRepresentation.set, FieldRepresentation.get, IteratedArrow.curry_uncurry]
-  set_append := by
-    introv ; simp +unfoldPartialApp [CanonicalField.set, FieldUpdateDescr.fieldUpdate, FieldRepresentation.set, IteratedArrow.uncurry_curry]
-  set_nil := by
-    introv ; simp +unfoldPartialApp [CanonicalField.set, FieldRepresentation.set, FieldUpdateDescr.fieldUpdate, IteratedArrow.curry_uncurry]
-
-/-- Strengthen `get_set_idempotent` to `FieldUpdateDescr`. -/
-theorem LawfulFieldRepresentation.get_set_idempotent' {FieldDomain : List Type} {FieldCodomain : Type}
-  {FieldTypeConcrete : Type}
-  {inst : ⌞_ FieldRepresentation FieldTypeConcrete ⌟}
-  (inst2 : ⌞_ LawfulFieldRepresentation FieldTypeConcrete inst ⌟)
-  (dec : IteratedProd (FieldDomain.map DecidableEq)) favs fc :
-    inst.get (inst.set favs fc) = (inst.get fc).set dec favs := by
-  induction favs with
-  | nil => simp +unfoldPartialApp [inst2.set_nil, CanonicalField.set,
-    FieldUpdateDescr.fieldUpdate, IteratedArrow.curry_uncurry]
-  | cons fav favs ih =>
-    have tmp := inst2.set_append favs [fav]
-    simp at tmp ; rw [← tmp, inst2.get_set_idempotent dec, ih]
-    apply (canonicalFieldRepresentationLawful _ _ dec).set_append
+  --   introv ; simp +unfoldPartialApp [CanonicalField.set, FieldRepresentation.setSingle, FieldRepresentation.get, IteratedArrow.curry_uncurry]
 
 instance (priority := high + 1) instFieldRepresentationIndividual
   : FieldRepresentation [] FieldCodomain FieldCodomain where
   get := id
-  set favs fc := List.head? favs |>.elim fc Prod.snd
+  -- The pattern of an individual field matches its only entry.
+  setSingle _ v _ := v
 
 set_option backward.isDefEq.respectTransparency false in
 instance (priority := high + 1) instLawfulFieldRepresentationIndividual
   : LawfulFieldRepresentation [] FieldCodomain FieldCodomain
     (instFieldRepresentationIndividual FieldCodomain) where
-  set_nil := by introv ; simp [FieldRepresentation.set]
-  set_append := by
-    introv ; simp [FieldRepresentation.set]
-    rcases favs₂ with _ | ⟨fav₂, _⟩ <;> simp
-  get_set_idempotent := by introv ; rfl
+  get_setSingle := by introv ; rfl
 
 end CanonicalFieldRepresentation
 
@@ -322,9 +256,8 @@ by the assignment elaborator's generated `veil_dsimp%` calls and by `wp`
 extraction. -/
 attribute [fieldRepresentationPatSimp] FieldUpdatePat.pad IteratedArrow.curry IteratedProd.default HAppend.hAppend IteratedProd.append Eq.mp
 attribute [fieldRepresentationPatSimp] List.take List.drop List.map
-attribute [fieldRepresentationSetSimpPre] FieldRepresentation.setSingle LawfulFieldRepresentationSet.set_append List.singleton_append
-attribute [fieldRepresentationSetSimpPost] CanonicalField.set FieldUpdateDescr.fieldUpdate FieldUpdatePat.match IteratedProd.patCmp IteratedArrow.curry IteratedArrow.uncurry
-attribute [fieldRepresentationSetSimpPost] List.foldr Option.elim Bool.and_true Bool.and_eq_true decide_eq_true_eq ite_eq_left_iff Bool.false_eq_true false_and and_self
+attribute [fieldRepresentationSetSimpPost] CanonicalField.set FieldUpdatePat.match IteratedProd.patCmp IteratedArrow.curry IteratedArrow.uncurry
+attribute [fieldRepresentationSetSimpPost] Option.elim Bool.and_true Bool.and_eq_true decide_eq_true_eq ite_eq_left_iff Bool.false_eq_true false_and and_self
 simproc_decl reduceFieldRepresentationIte (ite _ _ _) := reduceIte
 
 attribute [fieldRepresentationSetSimpPost ↓] reduceFieldRepresentationIte ite_true ite_false and_true true_and
