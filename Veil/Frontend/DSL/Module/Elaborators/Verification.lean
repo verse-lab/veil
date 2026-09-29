@@ -133,14 +133,6 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
       mod.prepareVerification stx
   return { mod with _specFinalizedAt := some stx }
 
-@[command_elab Veil.genSpec]
-def elabGenSpec : CommandElab := fun stx => do
-  -- Use dynamic trace class name for detailed profiling
-  withTraceNode `veil.perf.elaborator.genSpec (fun _ => return "#gen_spec") do
-    let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
-    let mod ← mod.ensureSpecIsFinalized stx
-    localEnv.modifyModule (fun _ => mod)
-
 /-- Called by the verification commands. If `#gen_spec` deferred VC generation
 (`veil.deferVCGeneration`), the first call generates the deferred verification
 definitions and does what `#gen_spec` skipped; otherwise this only checks that
@@ -153,6 +145,17 @@ def Module.ensureVerificationSpec (mod : Module) (stx : Syntax) : CommandElabM M
   let mod := { mod with _vcGenerationDeferred := false }
   localEnv.modifyModule (fun _ => mod)
   return mod
+
+@[command_elab Veil.genSpec]
+def elabGenSpec : CommandElab := fun stx => do
+  -- Use dynamic trace class name for detailed profiling
+  withTraceNode `veil.perf.elaborator.genSpec (fun _ => return "#gen_spec") do
+    let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
+    let mod ← mod.ensureSpecIsFinalized stx
+    -- A previous #gen_spec may have finalized the spec while deferring verification.
+    let mod ← if veil.deferVCGeneration.get (← getOptions) then pure mod
+      else mod.ensureVerificationSpec stx
+    localEnv.modifyModule (fun _ => mod)
 
 private def proofHasSorryGoalCount (results : VerificationResults VCMetadata SmtResult) : Nat :=
   results.vcs.foldl (init := 0) fun count vc =>

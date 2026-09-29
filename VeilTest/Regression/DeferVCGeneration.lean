@@ -135,6 +135,33 @@ set_option veil.deferVCGeneration false
 #gen_spec
 end DeferThenCheck
 
+-- Turning deferral off also finishes an already-finalized specification.
+veil module DeferThenGenSpec
+set_option veil.deferVCGeneration true
+individual flag : Bool
+after_init { flag := false }
+action toggle { flag := !flag }
+invariant flag = true ∨ flag = false
+#gen_spec
+
+run_cmd do
+  let env ← Lean.getEnv
+  for n in [`DeferThenGenSpec.toggle.wp, `DeferThenGenSpec.relationalTransitionSystem] do
+    if env.contains n then throwError "generated while deferred: {n}"
+
+set_option veil.deferVCGeneration false
+#gen_spec
+
+run_cmd do
+  let env ← Lean.getEnv
+  for n in [`DeferThenGenSpec.initializer.wp, `DeferThenGenSpec.toggle.wp,
+      `DeferThenGenSpec.toggle.ext.tr, `DeferThenGenSpec.relationalTransitionSystem] do
+    unless env.contains n do throwError "missing after second #gen_spec: {n}"
+
+-- Once prepared, further calls must reuse the generated definitions.
+#gen_spec
+end DeferThenGenSpec
+
 -- Deferred definitions are generated under the options of their declaration.
 veil module DeferOptions
 set_option veil.deferVCGeneration true
