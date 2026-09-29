@@ -414,6 +414,19 @@ def ConstrainedExtractResult.require_VeilM {m ρ σ ex} (p : Prop) [decp : Decid
   | .external => ConstrainedExtractResult.assume_VeilM p (decp := decp)
   | .internal => ConstrainedExtractResult.liftM _ _ _ _ (@VeilExecM.assert m ρ σ p decp ex)
 
+/-- The computation without results: the empty choice. -/
+@[inline]
+def TsilT.empty {m : Type u → Type v} {α : Type u} : TsilT m α := []
+
+/-- The failure branch of `assume` and `require` as extraction produces it
+(`ConstrainedExtractResult.assume`) is the empty `TsilT` computation, lifted. If it's in the form
+`MonadFlatMap'.op []`, the compiler cannot see that the branch has no results, since `op`
+maps over the list at every layer of the monad; so the bind that follows, together with the
+rest of the action, stays compiled into the most common path of the model checker. -/
+@[multiExtractSimp] theorem VeilMultiExecM.op_nil :
+    (MonadFlatMap'.op ([] : List (VeilMultiExecM κ ε ρ σ α)) : VeilMultiExecM κ ε ρ σ α)
+      = liftM (TsilT.empty : TsilT (PeDivM (List κ)) α) := rfl
+
 end VeilSpecificExtractionUtils
 
 open MultiExtractor in
