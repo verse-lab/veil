@@ -226,8 +226,16 @@ private def bindStateFields (shadowed : NameSet) (stateName : Name)
         bindUserFacingField shadowed field.name declaredTy implementationValue rest
 
 /-- Internal element used by openings so the generated `read`/`get` does not
-redispatch through the user-statement wrapper. -/
+redispatch through the user-statement wrapper. The right-hand side of a Veil
+`let x ← rhs` is marked the same way, to stay under the statement's opening. -/
 syntax (name := internalExpr) "veil_do_internal_expr% " term : doElem
+
+/- Behaves like a plain `doExpr`. Registered because an internal element can
+now stand in for the right-hand side of `let x ← rhs`, a position that Lean's
+control-info inference recurses into. -/
+@[doElem_control_info internalExpr]
+def internalExprControlInfo : ControlInfoHandler := fun _ =>
+  return ControlInfo.pure
 
 @[doElem_elab internalExpr]
 def elabInternalExpr : DoElab := fun stx dec => do
