@@ -170,31 +170,6 @@ private def proveEqAboutBody (lhs : Expr) (rhs : Name) (xs : Array Expr) (proof 
     pure (eqStatement, eqProof)
   let _ ← addVeilTheorem eqThmName eqStatement eqProof (attr := eqThmAttrs)
 
--- NOTE: Might eventually replace this with `mkFunextFor` in `Sym`
-/-- Given a proof of `a x₁ ... xₙ = b x₁ ... xₙ`, construct a proof of
-`a = b` by function extensionality over `xs`.
-
-"Exact" describes the syntax of the equality endpoints in the generated
-proof, not merely their definitional equality.  For example, for `xs = #[x, y]`,
-the outer `funext` is instantiated with the endpoints `a` and `b`, and
-the inner one with `a x` and `b x`:
-```
-@funext _ _ a b (fun x =>
-  @funext _ _ (a x) (b x) (fun y => pointProof))
-```
-`Meta.mkFunExt` instead infers these implicit endpoints from the pointwise
-proof and may choose their eta expansions, such as `fun x => a x`.  Although
-that conclusion is definitionally equal to `a = b`, connecting the two asks
-the kernel to perform the expensive def-equality check avoided here. -/
-private def mkFunExtNExact (a b : Expr) (xs : Array Expr)
-    (pointProof : Expr) : MetaM Expr := do
-  let (_, _, layers) := xs.foldl (init := (a, b, #[])) fun (a, b, layers) x =>
-    (mkApp a x, mkApp b x, layers.push (a, b, x))
-  layers.foldrM (init := pointProof) fun (a, b, x) inner => do
-    let pointwise ← Meta.mkLambdaFVars #[x] inner
-    -- Keep these endpoints rather than inferring eta expansions from `pointwise`.
-    Meta.mkAppOptM ``funext #[none, none, some a, some b, some pointwise]
-
 -- FIXME: Unfolding ghost relation as below is not very good. We might want
 -- a new design of `LocalRProp` and have some meta theory over it to avoid
 -- such unfolding.
@@ -251,7 +226,7 @@ not matter much.
 Special note: for transition-generated WPs, we skip Step 3 since they are typically in
 the shape of `∀ (s : State χ), ...`, for which proving `↔` might be impossible.
 -/
-private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp : Expr) (wpAppAfterSimp : Meta.Simp.Result)
+private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp wpAppAfterSimp : Expr)
     (vs extraFVars : Array Expr) (handler post : Expr)
     (dk : DeclarationKind) (wpDef_fqn : Name) (notFromTransition? : Bool) : TermElabM Unit := do
   -- NOTE: Transition-generated WPs are typically in the shape of `∀ (s : State χ), ...`,
@@ -260,6 +235,9 @@ private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp : Expr) (w
   -- complicated, so we just skip the whole `wp_local_eq` generation for transition-generated WPs.
   unless notFromTransition? do
     return
+
+  -- `defineWp` registers the pointwise equality before calling this function.
+  let wpEq_fqn ← resolveGlobalConstNoOverloadCore (toWpEqName nm)
 
   -- FIXME: this way of obtaining the arguments required by `LocalRPropTC` is hacky
   let vs' := vs.take mod.parameters.size
@@ -311,12 +289,9 @@ private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp : Expr) (w
       let (eqStatement, eqProof) ← Meta.withImplicitBinderInfos extraFVars do
         let eqStatement ← instantiateMVars $ ← mkForallFVars fvars (← mkEq originalWpAppBody curTarget)
         let eqProof ← do
-          -- NOTE: `wpAppAfterSimp` DOES NOT have `r` and `s`, so need to do a congruence here
-          let pf ← do
-            let pfPre ← wpAppAfterSimp.getProof
-            let pfPreCongr ← mkCongrFun pfPre r
-            let pfPreCongr ← mkCongrFun pfPreCongr s
-            mkEqTrans pfPreCongr proof
+          -- Reuse the named equality instead of embedding its simplifier proof again.
+          let pfPre ← mkAppOptM wpEq_fqn ((vs ++ #[handler, post, r, s]).map some)
+          let pf ← mkEqTrans pfPre proof
           instantiateMVars $ ← mkLambdaFVars fvars pf
         pure (eqStatement, eqProof)
       trace[veil.debug] "final eq statement: {eqStatement}"
@@ -337,7 +312,7 @@ where
       (readFromArg getFromArg theoryType stateType : Expr)
       (uName thName stName : Name)
       (handler post r s : Expr) (wpDef_fqn : Name)
-      (wpAppAfterSimp : Meta.Simp.Result) (vs : Array Expr)
+      (wpAppAfterSimp : Expr) (vs : Array Expr)
       : TermElabM (Expr × Expr) := do
     let step1AllArgs ← specializeArgsForStateχ allParams vs theoryType stateType
     let step1Post ← withLocalDeclsDND #[(uName, mkConst ``Unit), (thName, theoryType), (stName, stateType)] fun arr => do
@@ -348,7 +323,7 @@ where
     trace[veil.debug] "step 1 target: {step1Target}"
     let step1Simp := (Simp.unfold #[wpDef_fqn] |>.andThen (evalOpenClassical ∘ Simp.simp #[`substateSimp]))
     let step1Result ← step1Simp step1Target
-    let source := mkAppN wpAppAfterSimp.expr #[r, s]
+    let source := mkAppN wpAppAfterSimp #[r, s]
     let some decidableNeutralizationPf ← isDefEqModuloDecidableInstances source step1Result.expr
       | throwError m!"wp_local_eq step 1 (generalize state) failed, not definitionally equal\n  source: {source}\n  step1Result: {step1Result.expr}"
     -- Goal: `source = step1Target`
@@ -578,14 +553,9 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
       let resPoint ← withTraceNode (`veil.perf.extract.wpSimp ++ nm) (fun _ => return s!"wpSimp {nm}") do
         withBackwardsCompatibility <| simp pointBody
       let simplifiedBody ← Meta.mkLambdaFVars rs resPoint.expr
-      -- Keep `body` as the literal left endpoint.  Using `Meta.mkFunExt` here
-      -- would infer its eta expansion from the pointwise proof, leaving the
-      -- kernel an expensive def-equality junction at the large raw WP body.
-      let bodyProof ← mkFunExtNExact body simplifiedBody rs (← resPoint.getProof)
-      let resBody : Meta.Simp.Result := { expr := simplifiedBody, proof? := some bodyProof }
       -- (3) Construct the expression for `act.wp`
       -- The expression for `act.wp`; **TODO** register as a derived definition
-      let wpExpr ← instantiateMVars $ ← Meta.mkLambdaFVars (vs ++ xs) resBody.expr
+      let wpExpr ← instantiateMVars $ ← Meta.mkLambdaFVars (vs ++ xs) simplifiedBody
       let wpSimpAttrLow ← elabAttr $ ← `(Parser.Term.attrInstance| wpSimp ↓ low)
       let wpDef_fqn ← addVeilDefinition (toWpName nm) wpExpr (attr := #[{name := `reducible}, wpSimpAttrLow])
       -- We want to prove the pointwise equality:
@@ -605,7 +575,7 @@ private def defineWp (mod : Module) (nm : Name) (mode : Mode) (dk : DeclarationK
       if dk matches .derivedDefinition .actionLike _ then
       if mode matches .external then
         try
-          defineWpLocalEq mod nm body resBody vs extraFVars handler post dk wpDef_fqn notFromTransition?
+          defineWpLocalEq mod nm body simplifiedBody vs extraFVars handler post dk wpDef_fqn notFromTransition?
         catch ex =>
           -- For non-transition wps, warn if any step fails (all 3 steps expected)
           logWarning m!"unable to generate wp_local_eq for {nm}: {ex.toMessageData}"
@@ -1095,12 +1065,83 @@ private def Module.registerDerivedActionDefinition [Monad m] [MonadQuotation m] 
   let mod ← mod.registerDerivedDefinition derivedDef
   return (mod, declKind)
 
+/-- Define the WP-based verification definitions of the external view of an
+initializer or action: its WP, its transition (unless the action is given in
+transition form), and its transition weakening theorem. -/
+private def Module.defineExternalVerificationDefinitions (mod : Module) (pi : ProcedureInfo)
+    (extKind : DeclarationKind) (deriveTransition? : Bool) : TermElabM Unit := do
+  let nmExt := pi.nameInMode Mode.external
+  AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
+  if deriveTransition? then
+    AuxiliaryDefinitions.defineTransition mod nmExt extKind
+  try
+    defineTransitionAbstract mod nmExt extKind deriveTransition?
+  catch ex =>
+    logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
+
+/-! ## Deferred WP generation (`veil.deferVCGeneration`)
+
+A procedure declared with the option set records what its WP generation needs
+instead of generating it. The first verification command generates the
+deferred definitions (see `Module.ensureVerificationSpec`). The option may also
+be turned off partway through a module: then the next procedure declared, or
+`#gen_spec` run, without it first generates the deferred definitions, so that
+everything from there on behaves as if the option had never been set. -/
+
+/-- What `defineProcedureCore` needs to generate the verification definitions
+of a procedure later, as if it had generated them at the declaration. -/
+private structure DeferredWPGeneration where
+  /-- The module right after the procedure was registered. -/
+  mod : Module
+  info : ProcedureInfo
+  intKind : DeclarationKind
+  extKind : DeclarationKind
+  deriveTransition : Bool
+  /-- Options and open declarations in effect at the declaration. -/
+  options : Options
+  openDecls : List OpenDecl
+  ref : Syntax
+
+/-- The deferred procedures of each Veil module, in declaration order.
+**This state is not exported**: a deferred module's verification definitions exist
+downstream only if a verification command generated them. -/
+private initialize deferredWPGenerationExt : EnvExtension (NameMap (Array DeferredWPGeneration)) ←
+  registerEnvExtension (pure {})
+
+/-- Generate the verification definitions deferred by `veil.deferVCGeneration`
+in declaration order, each under the options and open declarations it was
+declared with. Called by the first verification command, and by a declaration
+or `#gen_spec` after the option was turned off. -/
+def Module.generateDeferredWPs (mod : Module) : CommandElabM Unit := do
+  let some pending := (deferredWPGenerationExt.getState (← getEnv)).find? mod.name | return
+  modifyEnv (deferredWPGenerationExt.modifyState · (·.erase mod.name))
+  for d in pending do
+    withRef d.ref <| withScope (fun scope => { scope with
+        opts := d.options, openDecls := d.openDecls, currNamespace := mod.name }) do
+      try
+        -- Like the eager path, each procedure gets its own heartbeat budget
+        -- (`liftTermElabM` resets it) and its declaration-time recursion limit.
+        liftTermElabM <| withTheReader Core.Context
+            (fun ctx => { ctx with maxRecDepth := maxRecDepth.get d.options }) do
+          AuxiliaryDefinitions.defineWp d.mod (d.info.nameInMode Mode.internal) .internal
+            d.intKind d.deriveTransition
+          if d.info matches .initializer | .action _ _ then
+            d.mod.defineExternalVerificationDefinitions d.info d.extKind d.deriveTransition
+      catch ex =>
+        if ex.isInterrupt then throw ex
+        logException ex
+
 /- The implementation of this method _could_ be split into two distinct
 parts (i.e. registering the action, then elaboration the definitions),
 but that would eliminate opportunities for async elaboration. -/
 def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
   (eDo : Expr) (ps : ProcedureSpecification) (deriveTransition? : Bool) : CommandElabM Module := do
   withTraceNode `veil.perf.extract (fun _ => return s!"defineProcedureCore {pi.name}") do
+    let deferWP := veil.deferVCGeneration.get (← getOptions)
+    -- If the option was set for earlier declarations of this module but is
+    -- off now, generate their deferred definitions first: this procedure may
+    -- call them, and its WP generation needs their `wp_eq` lemmas.
+    unless deferWP do mod.generateDeferredWPs
     -- We register the `internal` view of the action as the "real" one
     let mod ← mod.registerProcedureSpecification ps
     -- The `.do` and `.ext` views are marked as derived definitions
@@ -1113,20 +1154,23 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
       let _nmDo_fullyQualified ← addVeilDefinition nmDo eDo (attr := #[{name := `reducible}])
       let (nmInt, eInt) ← elabProcedureInMode pi Mode.internal
       let _nmInt_fullyQualified ← addVeilDefinition nmInt eInt (attr := #[{name := `actSimp}])
-      AuxiliaryDefinitions.defineWp mod nmInt .internal intKind deriveTransition?
+      unless deferWP do
+        AuxiliaryDefinitions.defineWp mod nmInt .internal intKind deriveTransition?
 
       -- Procedures are never considered in their external view, so save some
       -- time by not elaborating those definitions.
       if pi matches .initializer | .action _ _ then do
         let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
         let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
-        AuxiliaryDefinitions.defineWp mod nmExt .external extKind deriveTransition?
-        if deriveTransition? then
-          AuxiliaryDefinitions.defineTransition mod nmExt extKind
-        try
-          defineTransitionAbstract mod nmExt extKind deriveTransition?
-        catch ex =>
-          logWarning m!"unable to generate transition weakening theorem for {nmExt}: {ex.toMessageData}"
+        unless deferWP do
+          mod.defineExternalVerificationDefinitions pi extKind deriveTransition?
+    if deferWP then
+      -- Pack the information needed for deferred WP generation
+      let d : DeferredWPGeneration := {
+        mod, info := pi, intKind, extKind, deriveTransition := deriveTransition?
+        options := ← getOptions, openDecls := ← getOpenDecls, ref := ps.userSyntax }
+      modifyEnv (deferredWPGenerationExt.modifyState · fun m =>
+        m.insert mod.name (((m.find? mod.name).getD #[]).push d))
     return mod
 
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option ActionSyntax) (l : ActionSyntax) (stx : Syntax) : CommandElabM Module := do

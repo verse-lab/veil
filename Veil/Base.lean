@@ -157,6 +157,15 @@ register_option veil.experimental.wpCompact : Bool := {
   descr := "Experimental. If true, compact generated `wp_local_eq.pred` definitions by sharing duplicated postcondition branches with `letEq` and exposing abstract-state conditionals field-wise."
 }
 
+register_option veil.deferVCGeneration : Bool := {
+  defValue := false
+  descr := "If true, procedures and actions declared while this option is set do not generate their verification definitions, \
+  and `#gen_spec` run while it is set generates no verification conditions, so it also skips the assertion-failure (`doesNotThrow`) checks. \
+  The first verification command (e.g. `#check_invariants`) generates the definitions and runs the checks. \
+  If the option is turned off within a module, the next declaration or `#gen_spec` first generates the definitions deferred so far. \
+  `#model_check` and `#simulate` need neither."
+}
+
 register_option veil.simulate.numTraces : Nat := {
   defValue := 10000
   descr := "Number of simulation traces to attempt, stopping early on a violation or cancellation. Default is 10000."

@@ -26,6 +26,47 @@ private def throwIfNoInitializerDefined (mod : Module) : CommandElabM Unit := do
   unless mod.procedures.any (·.info matches .initializer) do
     throwError "no `after_init` block has been defined for this specification; every Veil module must have one"
 
+/-- Assemble the symbolic transition system and generate the verification
+conditions, starting the `doesNotThrow` checks. This needs the WP-based
+verification definitions of every procedure. -/
+private def Module.prepareVerification (mod : Module) (stx : Syntax) : CommandElabM Module := do
+  -- Generate ActionTag type for symbolic model checking
+  -- NOTE: ActionTag is query-local (not a module sort), but we generate the
+  -- axiomatisation class and concrete type here for convenience
+  let actionNames := mod.actions.map (fun (a : ProcedureSpecification) => Lean.mkIdent a.name)
+  if !actionNames.isEmpty then
+    let (className, classDecl) ← mkEnumAxiomatisation actionTagType actionNames
+    elabVeilCommand classDecl
+    for cmd in (← mkEnumConcreteType actionTagType actionNames) do
+      elabVeilCommand cmd
+    elabVeilCommand $ ← `(open $className:ident)
+    -- TODO: Generate equivalence theorem (ActionTag.label_equiv) here
+
+  let mod ← do
+    let (nextCmd, mod) ← mod.assembleNext
+    elabVeilCommand nextCmd
+    let (nextTrCmd, mod) ← mod.assembleNextTransition
+    elabVeilCommand nextTrCmd
+    let nextTr'Cmd ← mod.assembleNextTransition'
+    elabVeilCommand nextTr'Cmd
+    try
+      if let some abstractNextCmd ← liftTermElabM mod.defineTransitionAbstractForNext then
+        elabVeilCommand abstractNextCmd
+    catch ex =>
+      logWarningAt stx m!"unable to prove {toTransitionAbstractName assembledNextName}: {ex.toMessageData}"
+    let (initCmd, mod) ← mod.assembleInit
+    elabVeilCommand initCmd
+    let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
+    elabVeilCommand rtsCmd
+    pure mod
+  Verifier.runManager
+  mod.generateDoesNotThrowVCs
+  -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
+  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
+  mod.generateInvariantVCs
+  -- Invariant VCs are generated here; verifier commands decide when to start them.
+  return mod
+
 /-- Crystallizes the specification of the module, i.e. it finalizes the set of
 `procedures` and `assertions`. The `stx` parameter is the syntax of the command
 that triggered the finalization; it is stored for use by `#model_check` when
@@ -78,43 +119,32 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   let (labelCmds, mod) ← mod.assembleLabel
   for cmd in labelCmds do
     elabVeilCommand cmd
-
-  -- Generate ActionTag type for symbolic model checking
-  -- NOTE: ActionTag is query-local (not a module sort), but we generate the
-  -- axiomatisation class and concrete type here for convenience
-  let actionNames := mod.actions.map (fun (a : ProcedureSpecification) => Lean.mkIdent a.name)
-  if !actionNames.isEmpty then
-    let (className, classDecl) ← mkEnumAxiomatisation actionTagType actionNames
-    elabVeilCommand classDecl
-    for cmd in (← mkEnumConcreteType actionTagType actionNames) do
-      elabVeilCommand cmd
-    elabVeilCommand $ ← `(open $className:ident)
-    -- TODO: Generate equivalence theorem (ActionTag.label_equiv) here
-
-  let mod ← do
-    let (nextCmd, mod) ← mod.assembleNext
-    elabVeilCommand nextCmd
-    let (nextTrCmd, mod) ← mod.assembleNextTransition
-    elabVeilCommand nextTrCmd
-    let nextTr'Cmd ← mod.assembleNextTransition'
-    elabVeilCommand nextTr'Cmd
-    try
-      if let some abstractNextCmd ← liftTermElabM mod.defineTransitionAbstractForNext then
-        elabVeilCommand abstractNextCmd
-    catch ex =>
-      logWarningAt stx m!"unable to prove {toTransitionAbstractName assembledNextName}: {ex.toMessageData}"
-    let (initCmd, mod) ← mod.assembleInit
-    elabVeilCommand initCmd
-    let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
-    elabVeilCommand rtsCmd
-    pure mod
-  Verifier.runManager
-  mod.generateDoesNotThrowVCs
-  -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
-  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
-  mod.generateInvariantVCs
-  -- Invariant VCs are generated here; verifier commands decide when to start them.
+  -- With `veil.deferVCGeneration`, the verification conditions and everything
+  -- else that needs the actions' WPs, including the `doesNotThrow` checks, wait
+  -- for a verification command.
+  let mod ← if veil.deferVCGeneration.get (← getOptions) then do
+      -- Still drop the VCs of a previous module, as `prepareVerification` does.
+      Verifier.runManager
+      pure { mod with _vcGenerationDeferred := true }
+    else do
+      -- The option may have been set for some declarations and turned off
+      -- since; generate what they deferred, then finalize as usual.
+      mod.generateDeferredWPs
+      mod.prepareVerification stx
   return { mod with _specFinalizedAt := some stx }
+
+/-- Called by the verification commands. If `#gen_spec` deferred VC generation
+(`veil.deferVCGeneration`), the first call generates the deferred verification
+definitions and does what `#gen_spec` skipped; otherwise this only checks that
+`#gen_spec` ran. -/
+def Module.ensureVerificationSpec (mod : Module) (stx : Syntax) : CommandElabM Module := do
+  mod.throwIfSpecNotFinalized
+  unless mod._vcGenerationDeferred do return mod
+  mod.generateDeferredWPs
+  let mod ← mod.prepareVerification stx
+  let mod := { mod with _vcGenerationDeferred := false }
+  localEnv.modifyModule (fun _ => mod)
+  return mod
 
 @[command_elab Veil.genSpec]
 def elabGenSpec : CommandElab := fun stx => do
@@ -122,6 +152,9 @@ def elabGenSpec : CommandElab := fun stx => do
   withTraceNode `veil.perf.elaborator.genSpec (fun _ => return "#gen_spec") do
     let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
     let mod ← mod.ensureSpecIsFinalized stx
+    -- A previous #gen_spec may have finalized the spec while deferring verification.
+    let mod ← if veil.deferVCGeneration.get (← getOptions) then pure mod
+      else mod.ensureVerificationSpec stx
     localEnv.modifyModule (fun _ => mod)
 
 private def proofHasSorryGoalCount (results : VerificationResults VCMetadata SmtResult) : Nat :=
@@ -206,7 +239,7 @@ def elabCheckInvariants : CommandElab := fun stx => do
   withTraceNode `veil.perf.elaborator.checkInvariants (fun _ => return "#check_invariants") do
     -- Skip in compilation mode (no verification feedback needed)
     let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
-    mod.throwIfSpecNotFinalized
+    let mod ← mod.ensureVerificationSpec stx
     runFilteredInvariantCheck stx mod VCMetadata.isInduction
 
 @[command_elab Veil.checkAction]
@@ -219,14 +252,15 @@ def elabCheckAction : CommandElab := fun stx => do
     let actionName := stx[1].getId
     unless (getCheckableAction? mod actionName).isSome do
       throwUnknownCheckAction mod actionName
+    let mod ← mod.ensureVerificationSpec stx
     runFilteredInvariantCheck stx mod (isInductionForAction actionName)
 
 
 @[command_elab Veil.genTheorems]
-def elabGenTheorems : CommandElab := fun _stx => do
+def elabGenTheorems : CommandElab := fun stx => do
   withTraceNode `veil.perf.elaborator.genTheorems (fun _ => return "#gen_theorems") do
     let mod ← getCurrentModule (errMsg := "You cannot #gen_theorems outside of a Veil module!")
-    mod.throwIfSpecNotFinalized
+    let _ ← mod.ensureVerificationSpec stx
     let _ ← Verifier.waitFilteredSync (fun _ => true)
     Verifier.addProvenTheoremsInDependencyOrder (fun _ => true)
 
