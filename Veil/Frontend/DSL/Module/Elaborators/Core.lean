@@ -676,12 +676,13 @@ where
     let sp ← mkSearchParameters mod config
     -- Model checker call with type annotation to help inference
     -- Note: findReachable takes parallelCfg, progressInstanceId, and cancelToken as the last three args
-    `((let $inst : $instantiationType := $instTerm
+    -- `veil_dsimp_field_reads%` simplifies the field reads in the `Decidable` instances synthesized here
+    `((veil_dsimp_field_reads% (let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
        $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
          ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
          ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
-         $sp : _ → _ → _ → IO _))
+         $sp : _ → _ → _ → IO _)))
 
   /-- Check that the provided theory satisfies all module assumptions by
       elaborating a proof obligation using the assembled `Assumptions` definition.
@@ -1074,11 +1075,12 @@ private def mkSimulatorRuntimeCall (mod : Module) (instTerm theoryTerm : Term)
   let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
   let cfgTerm ← `($(mkIdent ``Veil.ModelChecker.Simulation.SimulateConfig.mk)
       $(quote cfg.numTraces) $(quote cfg.maxSteps) $(quote cfg.seed))
-  `((let $inst : $instantiationType := $instTerm
+  -- See `mkModelCheckerCall` for `veil_dsimp_field_reads%`
+  `((veil_dsimp_field_reads% (let $inst : $instantiationType := $instTerm
       let $th : $theoryIdent $instSortArgs* := $theoryTerm
       $(mkIdent ``Veil.ModelChecker.Simulation.simulateWithProgress)
         ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
-        $sp $th $cfgTerm : _ → _ → IO _))
+        $sp $th $cfgTerm : _ → _ → IO _)))
 
 /-- Build the simulator runtime call syntax with progress and cancellation hooks. -/
 private def mkSimulateJsonExpr (resultIdent : Ident) : CommandElabM Term :=
