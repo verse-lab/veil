@@ -338,7 +338,7 @@ instance
       ExceptT.map, ExceptT.mk, Except.getD, TsilTCore.op,
       StateT.map, StateT.pure, StateT.bind,
       MonadPersistentLog.log, MonadLift.monadLift, StateT.lift, ExceptT.lift, PeDivM.log,
-      PeDivM.prepend, pure, bind, Loom.Order.embed]
+      PeDivM.prependAll_eq, PeDivM.prepend, pure, bind, Loom.Order.embed]
 
 open AngelicChoice TotalCorrectness in
 theorem VeilM.extract_list_eq_wp (s : VeilM m ρ σ α)
