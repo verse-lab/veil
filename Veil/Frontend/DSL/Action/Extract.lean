@@ -647,15 +647,11 @@ def getAllPostStates (c : List (DivM ((Except ε α) × σ))) : List (Option σ)
 def extractValidStates (exec : Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
   exec rd st |>.map Prod.snd |> getAllPostStates
 
-/-- Extract all execution outcomes (including assertion failures) from a VeilMultiExecM computation -/
-def extractAllOutcomes (exec : Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : ρ) (st : σ) : List (Veil.ExecutionOutcome Int σ) :=
-  exec rd st |>.map fun (_, st) => getExecutionResult st
-
 /-- The transitions of all labels, in label order, built in one pass: the same list as
-`labels.flatMap fun l => (extractAllOutcomes (next l) rd st).map (l, ·)`, but with `next`
-specialized in, so there is no closure per label, and with only the outcomes that exist
-allocated: no intermediate list from `extractAllOutcomes`'s `map`, from the `(l, ·)` `map` or
-from `flatMap`'s array accumulator. The model checker runs this on every state, and most labels
+`labels.flatMap fun l => (extractAllResults (next l) rd st).map (l, ·)`
+(`outcomesOfLabelsRev_eq`), but with `next` specialized in, so there is no closure per label,
+and with only the outcomes that exist allocated: no intermediate list from `extractAllResults`'s
+`map`, from the `(l, ·)` `map` or from `flatMap`'s array accumulator. The model checker runs this on every state, and most labels
 fail their `require`, so the per-label cost matters more than the per-outcome cost.
 
 The labels are traversed last to first and each label's outcomes are pushed in front of `acc`,
@@ -682,12 +678,26 @@ where
 def extractAllResults (exec : Veil.VeilMultiExecM κᵣ ε ρ σ α) (rd : ρ) (st : σ) : List (ExecutionResult ε σ α) :=
   exec rd st |>.map fun (_, st) => getExecutionResult st
 
-/-- Extract only assertion failures from a VeilMultiExecM computation.
-Returns a list of (exception ID, state at failure) pairs. -/
-def extractAssertionFailures (exec : Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : ρ) (st : σ) : List (Int × σ) :=
-  extractAllOutcomes exec rd st |>.filterMap fun
-    | .assertionFailure e s => some (e, s)
-    | _ => none
+theorem outcomesOfLabelsRev.prependOutcomes_eq (l : κ)
+    (rs : List (List κᵣ × DivM ((Except Int Unit) × σ))) (acc : List (κ × Veil.ExecutionOutcome Int σ)) :
+    outcomesOfLabelsRev.prependOutcomes l rs acc = (rs.map fun (_, r) => (l, getExecutionResult r)) ++ acc := by
+  induction rs with
+  | nil => rfl
+  | cons x rs ih => obtain ⟨_, r⟩ := x ; simp [outcomesOfLabelsRev.prependOutcomes, ih]
+
+/-- `outcomesOfLabelsRev` on the reversed label list is the `flatMap` it replaces, with the
+accumulator appended. -/
+theorem outcomesOfLabelsRev_eq (next : κ → Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : ρ) (st : σ)
+    (ls : List κ) (acc : List (κ × Veil.ExecutionOutcome Int σ)) :
+    outcomesOfLabelsRev next rd st ls acc =
+      (ls.reverse.flatMap fun l => (extractAllResults (next l) rd st).map (l, ·)) ++ acc := by
+  induction ls generalizing acc with
+  | nil => simp [outcomesOfLabelsRev]
+  | cons l ls ih =>
+    rw [outcomesOfLabelsRev]
+    split <;> simp_all [extractAllResults, outcomesOfLabelsRev.prependOutcomes_eq, List.flatMap_append]
+    -- the general case: the two `map`s differ only in how they destructure the pair
+    exact List.map_congr_left fun ⟨_, _⟩ _ => rfl
 
 end RuntimeExtraction
 
