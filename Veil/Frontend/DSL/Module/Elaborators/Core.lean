@@ -660,8 +660,8 @@ where
     -- which `withoutModifyingEnv` does not roll back.
     liftTermElabM <| withOptions (·.setBool `compiler.postponeCompile false) do
       let entry ← `(ModelChecker.Compilation.runMain
-        (fun pcfg progressInstanceId cancelToken =>
-          Lean.toJson <$> $callExpr pcfg progressInstanceId cancelToken))
+        (fun pcfg progressInstanceId cancelToken finish =>
+          $callExpr pcfg progressInstanceId cancelToken (fun result => finish (Lean.toJson result))))
       let expr ← Term.elabTerm entry none
       Term.synthesizeSyntheticMVarsNoPostponing
       discard <| addVeilDefinition `main (← instantiateMVars expr) (addNamespace := false)
@@ -675,14 +675,15 @@ where
     let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
     let sp ← mkSearchParameters mod config
     -- Model checker call with type annotation to help inference
-    -- Note: findReachable takes parallelCfg, progressInstanceId, and cancelToken as the last three args
+    -- Note: findReachableThen takes parallelCfg, progressInstanceId, cancelToken, and the
+    -- continuation for the result as the last four args
     -- `veil_dsimp_field_reads%` simplifies the field reads in the `Decidable` instances synthesized here
     `((veil_dsimp_field_reads% (let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
-       $(mkIdent ``Veil.ModelChecker.Concrete.findReachable)
+       $(mkIdent ``Veil.ModelChecker.Concrete.findReachableThen)
          ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
          ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
-         $sp : _ → _ → _ → IO _)))
+         $sp : _ → _ → _ → _ → IO _)))
 
   /-- Check that the provided theory satisfies all module assumptions by
       elaborating a proof obligation using the assembled `Assumptions` definition.
@@ -814,7 +815,7 @@ where
       (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM (IO Lean.Json) := do
     let resultExpr ← `(do
       let some refs ← Veil.ModelChecker.Concrete.getProgressRefs $(quote instanceId) | pure Lean.Json.null
-      Lean.toJson <$> $callExpr ($(quote parallelCfg)) ($(quote instanceId)) refs.cancelToken)
+      Lean.toJson <$> $callExpr ($(quote parallelCfg)) ($(quote instanceId)) refs.cancelToken pure)
     trace[veil.desugar] "{resultExpr}"
     liftTermElabM do
       let expr ← Term.elabTerm resultExpr none
@@ -1090,9 +1091,9 @@ private def mkSimulateCompiledCall (callExpr : Term) : CommandElabM Term := do
   let resultIdent := mkVeilImplementationDetailIdent `simulateRuntimeResult
   let jsonExpr ← mkSimulateJsonExpr resultIdent
   `(fun (_ : Option Veil.ModelChecker.ParallelConfig)
-      (progressInstanceId : Nat) (cancelToken : IO.CancelToken) => do
+      (progressInstanceId : Nat) (cancelToken : IO.CancelToken) (finish : Lean.Json → IO Unit) => do
     let $resultIdent ← ($callExpr progressInstanceId cancelToken)
-    pure $jsonExpr)
+    finish $jsonExpr)
 
 private def elaborateSimulateComputation (instanceId : Nat) (callExpr : Term) : CommandElabM (IO Lean.Json) := do
   let resultIdent := mkVeilImplementationDetailIdent `simulateRuntimeResult
