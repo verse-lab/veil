@@ -1,5 +1,6 @@
 module
 
+public import Veil.Util.DecidableQuantifiers
 public import Veil.Util.Equiv
 public import Veil.Util.List
 public meta import Veil.Frontend.DSL.Module.Names
@@ -339,15 +340,23 @@ instance {cmp : α → α → Ordering} [Std.TransCmp cmp] [Std.LawfulEqCmp cmp]
 
 /-!
 Decide quantified propositions directly over the complete candidate list.
+
+These are `@[macro_inline]` for the same reason as the instances in
+`Veil.Util.DecidableQuantifiers`: each call site then gets its own copy of `List.all` / `List.any`
+with the predicate compiled in, instead of calling `List.decidableBAll` with a closure.
 -/
 
-instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred p] : Decidable (∀ a, p a) :=
-  decidable_of_iff (∀ a ∈ inst.allValues, p a)
-    (Iff.intro (fun h a => h _ (inst.complete a)) (fun h a _ => h a))
+@[macro_inline] instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred p] :
+    Decidable (∀ a, p a) :=
+  decidable_of_iff (inst.allValues.all (fun a => decide (p a)) = true) <| by
+    simp only [List.all_eq_true, decide_eq_true_eq]
+    exact ⟨fun h a => h a (inst.complete a), fun h a _ => h a⟩
 
-instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred p] : Decidable (∃ a, p a) :=
-  decidable_of_iff (∃ a ∈ inst.allValues, p a)
-    (Iff.intro (fun ⟨a, _, h⟩ => ⟨a, h⟩) (fun ⟨a, h⟩ => ⟨a, inst.complete a, h⟩))
+@[macro_inline] instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred p] :
+    Decidable (∃ a, p a) :=
+  decidable_of_iff (inst.allValues.any (fun a => decide (p a)) = true) <| by
+    simp only [List.any_eq_true, decide_eq_true_eq]
+    exact ⟨fun ⟨a, _, h⟩ => ⟨a, h⟩, fun ⟨a, h⟩ => ⟨a, inst.complete a, h⟩⟩
 
 /-- Decide equality of finite functions by checking their complete domain enumeration. -/
 instance [Enumeration α] {β : α → Type v} [∀ a, DecidableEq (β a)] :
