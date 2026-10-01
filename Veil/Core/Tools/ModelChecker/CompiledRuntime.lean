@@ -8,8 +8,10 @@ namespace Veil.ModelChecker.Compilation
 
 open Lean
 
-/-- Entry point shared by the generated model checker executables. -/
-def runMain (check : Option ModelChecker.ParallelConfig → Nat → IO.CancelToken → IO Json) (args : List String) : IO Unit := do
+/-- Entry point shared by the generated model checker executables. `check` runs the model check and
+passes the result to its last argument. -/
+def runMain (check : Option ModelChecker.ParallelConfig → Nat → IO.CancelToken → (Json → IO Unit) → IO Unit)
+    (args : List String) : IO Unit := do
   let _ ← IO.asTask (prio := .dedicated) exitWhenParentDies
   -- Enable progress reporting to stderr for the IDE to read
   Veil.ModelChecker.Concrete.enableCompiledModeProgress
@@ -24,10 +26,13 @@ def runMain (check : Option ModelChecker.ParallelConfig → Nat → IO.CancelTok
   -- Instance ID is not used in compiled mode, pass 0
   -- Cancel token is created locally; cancellation is handled by killing the process from outside
   let cancelTk ← IO.CancelToken.new
-  let res ← check pcfg 0 cancelTk
-  IO.println s!"{res}"
-  flushStdoutAndStderr
-  IO.Process.forceExit 0
+  -- Exit from inside `check`, while it still holds the search's data structures: the OS then
+  -- reclaims them at once, instead of the runtime freeing them object by object first.
+  check pcfg 0 cancelTk fun res => do
+    IO.println s!"{res}"
+    flushStdoutAndStderr
+    IO.Process.forceExit 0
+  throw <| IO.userError "the model check finished without reporting a result"
 where
   flushStdoutAndStderr : IO Unit := do
     let stdout ← IO.getStdout

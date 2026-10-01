@@ -78,31 +78,15 @@ where
 This module provides the main entry point for model checking, dispatching to
 either the sequential or parallel implementation based on configuration. -/
 
-def findReachable {ρ σ κ : Type} {m : Type → Type}
+/-- The result of a finished search, with a trace for a violation. -/
+private def searchResult {ρ σ κ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
-  [inhabσ : Inhabited σ] [Repr κ]
-  [ActionStatUpdate κ asm]
+  [Inhabited σ] [ActionStatUpdate κ asm]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
   [fp : StateFingerprint σ UInt64]
-  (params : SearchParameters ρ σ)
-  (parallelCfg : Option ParallelConfig)
-  (progressInstanceId : Nat)
-  (cancelToken : IO.CancelToken)
+  (ctx : BaseSearchContext σ κ UInt64 asm) (distinctCount : Nat)
   : m (ModelCheckingResult ρ σ κ UInt64) := do
-  let assumptionViolations := params.violatedAssumptions th
-  unless assumptionViolations.isEmpty do
-    setViolationFound progressInstanceId
-    return ModelCheckingResult.foundViolation 0 (.assumptionFailure assumptionViolations) none
-  -- Create a "filtered" version of the system
-  let sys := Veil.ModelChecker.restrictSystemByStateConstraints sys params th
-  let (ctx, distinctCount) ← match parallelCfg with
-    | some cfg => do
-      let mctx ← breadthFirstSearchParallel (σₕ := UInt64) params sys cfg progressInstanceId cancelToken
-      pure (mctx.base, mctx.globalSeen.size)
-    | none => do
-      let sctx ← breadthFirstSearchSequential (σₕ := UInt64) params sys 60000 progressInstanceId cancelToken
-      pure (sctx.1, sctx.1.log.size)
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
     return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverTrace sys ctx fingerprint))
@@ -127,5 +111,52 @@ def findReachable {ρ σ κ : Type} {m : Type → Type}
     else
       return ModelCheckingResult.noViolationFound distinctCount (.exploredAllReachableStates)
   | none => panic! s!"SearchContext.finished is none! This should never happen."
+
+/-- Run `act`, and only then let go of `keep`, which is part of the result. If inlined, the caller
+would take the pair apart right away and release `keep` before `act` runs; a function that just
+ignored `keep` would not work either, since the compiler drops unused parameters. -/
+@[noinline] private def keepingThen {m : Type → Type} [Monad m] {α β : Type} (keep : β) (act : m α) :
+    m (α × β) := do
+  let a ← act
+  pure (a, keep)
+
+section
+
+variable {ρ σ κ α : Type} {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
+  [inhabσ : Inhabited σ] [Repr κ]
+  [ActionStatUpdate κ asm]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  [fp : StateFingerprint σ UInt64]
+  (params : SearchParameters ρ σ)
+  (parallelCfg : Option ParallelConfig)
+  (progressInstanceId : Nat)
+  (cancelToken : IO.CancelToken)
+
+/-- `findReachable`, then `finish` on the result while the search's data structures (the seen
+set, the log for recovering traces) are still referenced; they are released only after `finish`
+returns. -/
+def findReachableThen (finish : ModelCheckingResult ρ σ κ UInt64 → m α) : m α := do
+  let assumptionViolations := params.violatedAssumptions th
+  unless assumptionViolations.isEmpty do
+    setViolationFound progressInstanceId
+    return ← finish (ModelCheckingResult.foundViolation 0 (.assumptionFailure assumptionViolations) none)
+  -- Create a "filtered" version of the system
+  let sys := Veil.ModelChecker.restrictSystemByStateConstraints sys params th
+  match parallelCfg with
+  | some cfg => do
+    let mctx ← breadthFirstSearchParallel (σₕ := UInt64) params sys cfg progressInstanceId cancelToken
+    let result ← searchResult sys mctx.base mctx.globalSeen.size
+    return (← keepingThen mctx (finish result)).1
+  | none => do
+    let sctx ← breadthFirstSearchSequential (σₕ := UInt64) params sys 60000 progressInstanceId cancelToken
+    let result ← searchResult sys sctx.1 sctx.1.log.size
+    return (← keepingThen sctx (finish result)).1
+
+def findReachable : m (ModelCheckingResult ρ σ κ UInt64) :=
+  findReachableThen sys params parallelCfg progressInstanceId cancelToken pure
+
+end
 
 end Veil.ModelChecker.Concrete
