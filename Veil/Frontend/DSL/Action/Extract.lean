@@ -669,6 +669,10 @@ def outcomesOfLabelsRev (next : κ → Veil.VeilMultiExecM κᵣ Int ρ σ Unit)
     | [(_, r)] => outcomesOfLabelsRev next rd st ls ((l, getExecutionResult r) :: acc)
     | rs => outcomesOfLabelsRev next rd st ls (prependOutcomes l rs acc)
 where
+  /-- `(rs.map fun (_, r) => (l, getExecutionResult r)) ++ acc` (`prependOutcomes_eq`), with one
+  allocation per outcome. Written that way it would cost four: `map` compiles to `mapTR` (a reversed
+  list, then `reverse`) and `++` to `appendTR` (`reverse`, then `reverseAux`); `foldr` would go
+  through `foldrTR`, i.e. an array. Only labels with two or more outcomes get here. -/
   prependOutcomes (l : κ) : List (List κᵣ × DivM ((Except Int Unit) × σ)) →
       List (κ × Veil.ExecutionOutcome Int σ) → List (κ × Veil.ExecutionOutcome Int σ)
     | [], acc => acc
