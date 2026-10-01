@@ -651,6 +651,33 @@ def extractValidStates (exec : Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : �
 def extractAllOutcomes (exec : Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : ρ) (st : σ) : List (Veil.ExecutionOutcome Int σ) :=
   exec rd st |>.map fun (_, st) => getExecutionResult st
 
+/-- The transitions of all labels, in label order, built in one pass: the same list as
+`labels.flatMap fun l => (extractAllOutcomes (next l) rd st).map (l, ·)`, but with `next`
+specialized in, so there is no closure per label, and with only the outcomes that exist
+allocated: no intermediate list from `extractAllOutcomes`'s `map`, from the `(l, ·)` `map` or
+from `flatMap`'s array accumulator. The model checker runs this on every state, and most labels
+fail their `require`, so the per-label cost matters more than the per-outcome cost.
+
+The labels are traversed last to first and each label's outcomes are pushed in front of `acc`,
+which keeps the loop tail recursive and the order unchanged; the caller passes the reversed label
+list, computed once rather than per state. -/
+@[specialize]
+def outcomesOfLabelsRev (next : κ → Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : ρ) (st : σ) :
+    List κ → List (κ × Veil.ExecutionOutcome Int σ) → List (κ × Veil.ExecutionOutcome Int σ)
+  | [], acc => acc
+  | l :: ls, acc =>
+    match next l rd st with
+    -- the usual case: `require` failed
+    | [] => outcomesOfLabelsRev next rd st ls acc
+    -- a deterministic step
+    | [(_, r)] => outcomesOfLabelsRev next rd st ls ((l, getExecutionResult r) :: acc)
+    | rs => outcomesOfLabelsRev next rd st ls (prependOutcomes l rs acc)
+where
+  prependOutcomes (l : κ) : List (List κᵣ × DivM ((Except Int Unit) × σ)) →
+      List (κ × Veil.ExecutionOutcome Int σ) → List (κ × Veil.ExecutionOutcome Int σ)
+    | [], acc => acc
+    | (_, r) :: rs, acc => (l, getExecutionResult r) :: prependOutcomes l rs acc
+
 /-- Extract all execution results, preserving successful return values. -/
 def extractAllResults (exec : Veil.VeilMultiExecM κᵣ ε ρ σ α) (rd : ρ) (st : σ) : List (ExecutionResult ε σ α) :=
   exec rd st |>.map fun (_, st) => getExecutionResult st
@@ -699,7 +726,6 @@ meta def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] 
     let labelStx ← mod.labelTypeStx
     let (CInit, CNext) := (mkVeilImplementationDetailIdent `CInit, mkVeilImplementationDetailIdent `CNext)
     let (th, st) := (mkVeilImplementationDetailIdent `th, mkVeilImplementationDetailIdent `st)
-    let (label, next) := (mkVeilImplementationDetailIdent `label, mkVeilImplementationDetailIdent `next)
     let lbls := mkVeilImplementationDetailIdent `lbls
     let filterMap ← `($(mkIdent ``List.filterMap) $(mkIdent ``id))
 
@@ -708,11 +734,9 @@ meta def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] 
       $(mkIdent `initStates):ident :=
         let $CInit := $(mkIdent <| toExtractedName <| toExtName initializerName) $theoryStx $stateStx $(← mod.uninterpretedParamIdents)*
         $(mkIdent ``extractValidStates) $CInit $theoryId $(mkIdent ``default) |> $filterMap
-      $(mkIdent `tr):ident := let $lbls := (@$(mkIdent ``Veil.Enumeration.allValues) _ $labelsId) ; fun $th $st =>
+      $(mkIdent `tr):ident := let $lbls := $(mkIdent ``List.reverse) (@$(mkIdent ``Veil.Enumeration.allValues) _ $labelsId) ; fun $th $st =>
         let $CNext := $(mkIdent <| toExtractedName assembledNextActName) $theoryStx $stateStx $(← mod.uninterpretedParamIdents)*
-        $(mkIdent ``List.flatMap) (fun ($label : $labelStx) =>
-         $(mkIdent ``List.map) (fun $next => ($label, $next)) ($(mkIdent ``extractAllOutcomes) ($CNext $label) $th $st))
-        $lbls
+        $(mkIdent ``outcomesOfLabelsRev) $CNext $th $st $lbls []
       : $(mkIdent ``Veil.EnumerableTransitionSystem)
         $theoryStx ($(mkIdent ``List) $theoryStx)
         $stateStx ($(mkIdent ``List) $stateStx)
