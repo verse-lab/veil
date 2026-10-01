@@ -370,9 +370,9 @@ def MapReduceSearchContextMain.mergeWithLocalOnes
   {params : SearchParameters ρ σ} {th : ρ}
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
   (mctx : MapReduceSearchContextMain σ κ σₕ asm)
-  {splitLists : List (List (MapReduceQueueItem σₕ σ))}
+  {preds : List (MapReduceQueueItem σₕ σ → Prop)}
   {globalSeen : ShardedTreeSetUSize σₕ}
-  (lctxs : IteratedProd (splitLists.map fun a => LawfulMapReduceSearchContextLocal (κ := κ) sys params globalSeen (· ∈ a))) :
+  (lctxs : IteratedProd (preds.map fun P => LawfulMapReduceSearchContextLocal (κ := κ) sys params globalSeen P)) :
   MapReduceSearchContextMain σ κ σₕ asm :=
   let ⟨ctx, len, q, globalSeen, accLogs⟩ := mctx
   let ⟨mbase, mq, st⟩ := IteratedProd.foldl (β := MapReduceSearchContextTemp σ κ σₕ asm globalSeen.numShards) (elements := lctxs)
@@ -410,8 +410,8 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   (h_mctx : MapReduceSearchContextMainInvariants sys params mctx)
   {numSplits chunkSize numLarge : Nat}
   (lctxs :
-    let splitLists := ListSplit.splitList numSplits chunkSize numLarge mctx.tovisit
-    IteratedProd (splitLists.map fun a => LawfulMapReduceSearchContextLocal (κ := κ) sys params mctx.globalSeen (· ∈ a))) :
+    let preds := (ListSplit.splitList numSplits chunkSize numLarge mctx.tovisit).map fun a item => item ∈ a
+    IteratedProd (preds.map fun P => LawfulMapReduceSearchContextLocal (κ := κ) sys params mctx.globalSeen P)) :
   let mctx' := MapReduceSearchContextMain.mergeWithLocalOnes
     ⟨{ mctx.base with completedDepth := mctx.base.currentFrontierDepth, currentFrontierDepth := mctx.base.currentFrontierDepth + 1 }, 0, [], mctx.globalSeen, mctx.accumulatedLogs⟩ lctxs
   MapReduceSearchContextMainInvariants sys params mctx' := by
@@ -496,7 +496,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
         obtain ⟨chunk, h_chunk_in, h_in_chunk⟩ := ListSplit.splitList_mem numSplits chunkSize numLarge tovisit ⟨fp.view u, u⟩ h_in_tovisit
         rw [List.mem_iff_getElem] at h_chunk_in
         rcases h_chunk_in with ⟨j, h_j, h_getElem_chunk⟩
-        have h_in_zip := List.zip_mem (by apply Nat.le_of_eq ; symm ; apply h_length_eq) (by exact h_j)
+        have h_in_zip := List.zip_mem (by apply Nat.le_of_eq ; symm ; apply h_length_eq) (by simpa using h_j)
         simp [h_getElem_chunk] at h_in_zip
         specialize h_local_invs _ _ _ h_in_zip ; simp at h_local_invs
         -- show that no `lctx` has finished
@@ -596,14 +596,23 @@ def breadthFirstSearchParallel {m : Type → Type}
           (by
             exact breadthFirstSearchParallel.subproof1 h_mctx.queue_sound splitLists
               (fun item hm => (ListSplit.splitList_mem_iff numSplits chunkSize numLarge tovisit item).mp hm) _ h_sublist_in)
-      let results ← IteratedProd.mapM
-        (T₂ := (fun a => LawfulMapReduceSearchContextLocal sys params globalSeen (· ∈ a)))
+      -- Functions on an `IteratedProd` walk its index list at run time, passing each element to
+      -- their callback. Indexed by `splitLists`, the tasks would make the main thread keep the
+      -- whole frontier alive until the merge below, and free it there. Index them by the
+      -- predicates `(· ∈ chunk)` instead, which are erased: then each task holds the last
+      -- reference to its chunk and frees it. The cast does nothing at run time.
+      let preds := splitLists.map fun a item => item ∈ a
+      let tasks : IteratedProd (preds.map fun P =>
+          Task (Except IO.Error (LawfulMapReduceSearchContextLocal sys params globalSeen P))) := by
+        simp only [preds, List.map_map] ; exact tasks
+      let results ← IteratedProd.mapM (as := preds)
+        (T₂ := (fun P => LawfulMapReduceSearchContextLocal sys params globalSeen P))
         (fun task => IO.ofExcept task.get) tasks
       -- CHECK Ideally, `tovisit` should not be involved in any computational part from this point on
       -- Reduce step
       let mctxValForMerge : MapReduceSearchContextMain σ κ σₕ asm :=
         { base := { base with completedDepth := base.currentFrontierDepth, currentFrontierDepth := base.currentFrontierDepth + 1 } , tovisitLen := 0, tovisit := [], globalSeen := globalSeen, accumulatedLogs := accLogs }
-      let mctxVal' := mctxValForMerge.mergeWithLocalOnes results
+      let mctxVal' := mctxValForMerge.mergeWithLocalOnes (preds := preds) results
       have h_mctx' : MapReduceSearchContextMainInvariants sys params mctxVal' :=
         MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs h_not_finished_val h_mctx results
       match heq : mctxVal' with
