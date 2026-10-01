@@ -537,6 +537,43 @@ end VeilMultiExecM
 
 end PreSimplifiedContinuationFacingPrimitives
 
+/-! ### Binds of picks and the trailing `pure ()`
+
+Two binds survive the rewrites above, because their left-hand side has no statically known
+results: a pick followed by its continuation, and the `pure ()` that `VeilM.returnUnit` puts
+after every action. Loom's generic rule would extract a pick as `MonadFlatMap'.op` over one
+computation per candidate, and the `bind` after it would collect their results into a list,
+then take it apart again with a runtime `match` on its length; the trailing bind would then run
+over the whole action's results once more. Loom's rules for these two shapes avoid both:
+
+- A pick followed by `f` (`ConstrainedExtractResult.pickList_bind`, `pick_bind`) becomes
+  `MonadFlatMap'.opMap candidates fun x => log (rep x) >>= fun _ => f' x`. On `VeilMultiExecM`,
+  `opMap` passes the theory and the state down to `TsilT`, where it is one `List.flatMap` over
+  the candidates, and each candidate's `bind` compiles to prefixing its log entry to the
+  results of `f' x` (of which there are none, most often, when a `require` fails).
+- `act >>= fun _ => pure ()` becomes `act'` itself (`bind_pure_unit`).
+
+They are registered with a high priority (below), so that `extract_list_use_extracted` tries
+them before the generic `bind`, which matches the same goals. -/
+
+section PicksAndTrailingPure
+
+variable {ρ σ τ β : Type} {mode : Mode}
+
+open MultiExtractor
+
+/-- `ConstrainedExtractResult.pickList_bind` for `VeilM.pickSuchThat`, which the discrimination
+tree does not see through (see `pickSuchThat_VeilM`). -/
+def ConstrainedExtractResult.pickSuchThat_bind_VeilM (p : τ → Prop) [∀ x, Decidable (p x)]
+    [instec : ExtCandidates Candidates Std.Format p] {f : τ → VeilM mode ρ σ β}
+    (hf : ∀ x, ConstrainedExtractResult Std.Format (VeilExecM mode ρ σ)
+      (VeilMultiExecM Std.Format ExId ρ σ) (findOfCandidates _) (f x)) :
+    ConstrainedExtractResult Std.Format (VeilExecM mode ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
+      (findOfCandidates _) (VeilM.pickSuchThat τ p >>= f) :=
+  ConstrainedExtractResult.pickList_bind _ _ _ _ p (instec := instec) hf
+
+end PicksAndTrailingPure
+
 end VeilSpecificExtractionUtils
 
 open MultiExtractor in
@@ -550,6 +587,15 @@ attribute [multiextracted] ConstrainedExtractResult.pure
   ConstrainedExtractResult.pickSuchThat_VeilM
   ConstrainedExtractResult.assume_VeilM
   ConstrainedExtractResult.require_VeilM
+
+open MultiExtractor in
+/- These match goals that `ConstrainedExtractResult.bind` matches too, and must be tried first.
+   The key of `bind_pure_unit` has the continuation as a lambda, which the discrimination tree
+   does not index, so it is tried (and fails to unify) on the other binds of `PUnit` as well. -/
+attribute [multiextracted high] ConstrainedExtractResult.bind_pure
+  ConstrainedExtractResult.bind_pure_unit
+  ConstrainedExtractResult.pick_bind
+  ConstrainedExtractResult.pickSuchThat_bind_VeilM
 
 open MultiExtractor in
 attribute [multiExtractSimp]
@@ -569,6 +615,9 @@ attribute [multiExtractSimp ↓] ConstrainedExtractResult.pure
   ConstrainedExtractResult.pickSuchThat_VeilM
   ConstrainedExtractResult.assume_VeilM
   ConstrainedExtractResult.require_VeilM
+  ConstrainedExtractResult.pickList_bind ConstrainedExtractResult.pick_bind
+  ConstrainedExtractResult.pickSuchThat_bind_VeilM
+  ConstrainedExtractResult.bind_pure ConstrainedExtractResult.bind_pure_unit
   /- `change` wraps the new extraction goal in `id` as a type checkpoint. Expose
      its let-bound result so the projection simproc can remove the certificate. -/
   id
