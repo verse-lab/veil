@@ -446,6 +446,97 @@ rest of the action, stays compiled into the most common path of the model checke
     (MonadFlatMap'.op ([] : List (VeilMultiExecM κ ε ρ σ α)) : VeilMultiExecM κ ε ρ σ α)
       = liftM (TsilT.empty : TsilT (PeDivM (List κ)) α) := rfl
 
+/-! ### Pre-simplified continuation-facing primitives
+
+Extraction leaves an action as a chain of `bind`s in `VeilMultiExecM`, one per statement. For the
+deterministic ones (`get`, `read`, `modifyGet`, `pure`, a pick candidate's `log; pure`), the rules
+below rewrite the `bind` into a definitionally equal form that applies the continuation directly,
+e.g. `go get >>= k` into `getThen k`. They are `rfl` thanks to the `LogMonoid.isEmpty` fast path
+in Loom's `bind`.
+
+The compiler does not get there by itself: `cse` runs before `simp` and merges all the
+`MonadFlatMapGo.go … get` of an action into one local function, which is never inlined (used
+several times, larger than `compiler.small`), so every read, used or not, costs a closure call,
+five allocations and `match`es on the result list, log, `DivM` and `Except`. Hence one rule per
+primitive: the generic `go x >>= k = fun r s => match x r s with …` is `rfl` too, but keeps `x`
+for `cse` to share.
+
+`getThen` and the like are not unfolded in the term: `simp` would beta-reduce the over-applied `k`
+with `betaRev (useZeta := true)`, inlining a `let`-bound join point at its head once per jump, the
+growth `ConstrainedExtractResult.joinPoint` exists to prevent. The compiler unfolds them in ANF,
+where beta does not duplicate.
+
+The `IsSubStateOf` and `IsSubReaderOf` assumptions are those of the actions themselves: their
+`get`, `read` and `modifyGet` are elaborated through Veil's sub-state and sub-reader instances
+(`SubState.lean`), `dsimp` matches the left-hand sides syntactically, and `getFrom`, `setIn` and
+`readFrom` come from the same classes. `VeilExecM` fixes its exception type to `ExId`, so the
+`go` rules do too. -/
+
+section PreSimplifiedContinuationFacingPrimitives
+
+namespace VeilMultiExecM
+
+variable {κ ε ρ σ τ ρ' α β : Type} {mode : Mode}
+
+/-- `go get >>= k`, run directly: the continuation receives the current sub-state. -/
+@[always_inline, inline]
+def getThen [IsSubStateOf τ σ] (k : τ → VeilMultiExecM κ ε ρ σ α) :
+    VeilMultiExecM κ ε ρ σ α :=
+  fun r s => k (getFrom s) r s
+
+/-- `go read >>= k`, run directly: the continuation receives the theory. -/
+@[always_inline, inline]
+def readThen [IsSubReaderOf ρ' ρ] (k : ρ' → VeilMultiExecM κ ε ρ σ α) :
+    VeilMultiExecM κ ε ρ σ α :=
+  fun r s => k (readFrom r) r s
+
+/-- `go (modifyGet f) >>= k`, run directly: the continuation runs on the updated state. -/
+@[always_inline, inline]
+def modifyGetThen [IsSubStateOf τ σ] (f : τ → β × τ)
+    (k : β → VeilMultiExecM κ ε ρ σ α) : VeilMultiExecM κ ε ρ σ α :=
+  fun r s => match f (getFrom s) with
+    | (a, x') => k a r (setIn x' s)
+
+@[multiExtractSimp] theorem go_get_bind [IsSubStateOf τ σ]
+    (k : τ → VeilMultiExecM κ ExId ρ σ α) :
+    (MonadFlatMapGo.go (m := VeilExecM mode ρ σ) (n := VeilMultiExecM κ ExId ρ σ)
+        (MonadStateOf.get : VeilExecM mode ρ σ τ) >>= k)
+      = getThen k := rfl
+
+@[multiExtractSimp] theorem go_read_bind [IsSubReaderOf ρ' ρ]
+    (k : ρ' → VeilMultiExecM κ ExId ρ σ α) :
+    (MonadFlatMapGo.go (m := VeilExecM mode ρ σ) (n := VeilMultiExecM κ ExId ρ σ)
+        (MonadReader.read : VeilExecM mode ρ σ ρ') >>= k)
+      = readThen k := rfl
+
+@[multiExtractSimp] theorem go_modifyGet_bind [IsSubStateOf τ σ]
+    (f : τ → β × τ) (k : β → VeilMultiExecM κ ExId ρ σ α) :
+    (MonadFlatMapGo.go (m := VeilExecM mode ρ σ) (n := VeilMultiExecM κ ExId ρ σ)
+        (MonadState.modifyGet f : VeilExecM mode ρ σ β) >>= k)
+      = modifyGetThen f k := rfl
+
+/-- A state read whose result is unused (the frontend reopens the state after every statement)
+is no read at all. The pattern `fun _ => k` only unifies with a continuation that does not
+depend on its binder. -/
+@[multiExtractSimp] theorem getThen_const [IsSubStateOf τ σ]
+    (k : VeilMultiExecM κ ε ρ σ α) : getThen (τ := τ) (fun _ => k) = k := rfl
+
+@[multiExtractSimp] theorem readThen_const [IsSubReaderOf ρ' ρ]
+    (k : VeilMultiExecM κ ε ρ σ α) : readThen (ρ' := ρ') (fun _ => k) = k := rfl
+
+-- Using `let` to avoid duplicating the expression in `k`
+@[multiExtractSimp] theorem pure_bind (x : β) (k : β → VeilMultiExecM κ ε ρ σ α) :
+    ((pure x : VeilMultiExecM κ ε ρ σ β) >>= k) = (let y := x ; k y) := rfl
+
+/-- A pick's per-candidate computation: log the candidate, then return it. -/
+@[multiExtractSimp] theorem log_bind_pure (w : κ) (x : β) :
+    ((MonadPersistentLog.log w : VeilMultiExecM κ ε ρ σ PUnit) >>= fun _ => pure x)
+      = fun _ s => [([w], DivM.res (Except.ok x, s))] := rfl
+
+end VeilMultiExecM
+
+end PreSimplifiedContinuationFacingPrimitives
+
 end VeilSpecificExtractionUtils
 
 open MultiExtractor in
