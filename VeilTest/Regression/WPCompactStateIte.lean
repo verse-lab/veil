@@ -74,11 +74,7 @@ example (n : Nat) (handler : Int → Prop)
                   (Classical.propDecidable (b_1 = true)) n
                   (@ite (FieldAbstractType State.Label.a) (b = true)
                     (Classical.propDecidable (b = true)) (n + 1) 0),
-              b :=
-                @ite (FieldAbstractType State.Label.b) (b_1 = true)
-                  (Classical.propDecidable (b_1 = true)) st.b
-                  (@ite (FieldAbstractType State.Label.b) (b = true)
-                    (Classical.propDecidable (b = true)) st.b st.b) } := by
+              b := st.b } := by
   unfold compact_act.ext.wp_local_eq.pred
   rfl
 
@@ -140,13 +136,7 @@ example {node : Type} [DecidableEq node] [Inhabited node]
         letEq (decide (n = m)) fun b_1 =>
           post () th
             {
-              r := fun x =>
-                if b_1 = true then
-                  if m = x then true else st.r x
-                else if b = true then
-                  st.r x
-                else
-                  st.r x,
+              r := fun x => if b_1 = true then if m = x then true else st.r x else st.r x,
               f := fun x =>
                 if b_1 = true then
                   st.f x
@@ -154,16 +144,9 @@ example {node : Type} [DecidableEq node] [Inhabited node]
                   if n = x then m else st.f x
                 else
                   st.f x,
-              a :=
-                if b_1 = true then
-                  st.a
-                else if b = true then
-                  st.a
-                else
-                  true } := by
+              a := if b_1 = true then st.a else if b = true then st.a else true } := by
   unfold compact_verify.ext.wp_local_eq.pred
   __veil_neutralize_decidable_inst !
-  rfl
 
 invariant [r_refl] r N → r N
 invariant [f_refl] f N = f N
@@ -208,7 +191,8 @@ action compact_seq (n : node) {
 }
 
 /-- The two copies of the `a` conditional share one barrier: the predicate has
-one barrier per conditional of the action, not one per copy. -/
+one barrier per conditional of the action, not one per copy.  Each field then
+depends only on the conditionals that write it. -/
 example {node : Type} [DecidableEq node] [Inhabited node]
     (n : node) (handler : Int → Prop)
     (post : Unit → Theory node → State (FieldAbstractType node) → Prop)
@@ -217,34 +201,11 @@ example {node : Type} [DecidableEq node] [Inhabited node]
       letEq (decide (st.a = true)) fun b =>
         letEq (decide (n = th.k)) fun b_1 =>
           post () th
-            {
-              r := fun x =>
-                if b_1 = true then
-                  if b = true then
-                    if n = x then true else st.r x
-                  else
-                    if n = x then true else st.r x
-                else if b = true then
-                  st.r x
-                else
-                  st.r x,
-              a :=
-                if b_1 = true then
-                  if b = true then st.a else st.a
-                else if b = true then
-                  st.a
-                else
-                  st.a,
-              c :=
-                if b_1 = true then
-                  if b = true then true else st.c
-                else if b = true then
-                  true
-                else
-                  st.c } := by
+            { r := fun x => if b_1 = true then if n = x then true else st.r x else st.r x,
+              a := st.a,
+              c := if b = true then true else st.c } := by
   unfold compact_seq.ext.wp_local_eq.pred
   __veil_neutralize_decidable_inst !
-  rfl
 
 end WPCompactSequentialIte
 
@@ -281,13 +242,7 @@ example {node : Type} [DecidableEq node] [Inhabited node]
             letEq (decide (n = m)) fun b_1 =>
               post () th
                 {
-                  r := fun x =>
-                    if b_1 = true then
-                      if m = x then true else st.r x
-                    else if b = true then
-                      st.r x
-                    else
-                      st.r x,
+                  r := fun x => if b_1 = true then if m = x then true else st.r x else st.r x,
                   f := fun x =>
                     if b_1 = true then
                       st.f x
@@ -295,13 +250,7 @@ example {node : Type} [DecidableEq node] [Inhabited node]
                       if n = x then m else st.f x
                     else
                       st.f x,
-                  a :=
-                    if b_1 = true then
-                      st.a
-                    else if b = true then
-                      st.a
-                    else
-                      true } := by
+                  a := if b_1 = true then st.a else if b = true then st.a else true } := by
       unfold compact_disabled.ext.wp_local_eq.pred
       __veil_neutralize_decidable_inst !
   trivial
