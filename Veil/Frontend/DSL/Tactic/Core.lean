@@ -119,6 +119,13 @@ def veilWithMainContext [Inhabited α] [Monad m] [MonadControlT MetaM m] [MonadL
   else
     return default
 
+/-- Run `tac`, reporting whether it succeeded instead of propagating its error.
+On failure the tactic state (and the accumulated desugaring) is restored. -/
+private def probeTactic (tac : TSyntax `tactic) : DesugarTacticM Bool :=
+  DesugarTacticM.orElse
+    (do veilWithMainContext <| veilEvalTactic tac; pure true)
+    (fun _ => pure false)
+
 def stateSimpHypName : Name := `hStateSimp
 
 instance : BEq LocalDecl := ⟨fun a b => a.userName == b.userName⟩
@@ -1211,8 +1218,31 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
     `(tactic| ($inferNonemptyTac:tactic; $tac:tactic))
   veilEvalTactic tac
 
+@[inherit_doc veil_unveil]
 def elabVeilHuman : DesugarTacticM Unit := veilWithMainContext do
-  veilEvalTactic $ ← `(tactic| veil_intros; veil_wp; __veil_neutralize_decidable_inst at *; veil_concretize_wp; veil_clear; veil_simp +$(mkIdent `instances) at *)
+  let cleanupTac ← do
+    let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
+    `(tacticSeq|
+      open $(mkIdent `Classical):ident in veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident] at *
+      veil_intro_ho
+      $inferNonemptyTac:tactic
+      veil_clear
+      veil_simp +$(mkIdent `instances) at *)
+  if ← probeTactic (← `(tactic| veil_apply_local_wp)) then
+    veilWithMainContext <| clearCaseTag
+    veilWithMainContext <| veilEvalTactic cleanupTac
+  else if ← probeTactic (← `(tactic| veil_apply_local_tr)) then
+    veilWithMainContext <| clearCaseTag
+    veilWithMainContext <| veilEvalTactic cleanupTac
+  else
+    veilWithMainContext <| veilEvalTactic $ ← `(tactic| veil_intros; veil_wp; __veil_neutralize_decidable_inst at *; veil_concretize_wp)
+    veilWithMainContext <| veilEvalTactic cleanupTac
+where
+  /-- The bridge theorems are applied with `refine'`, which leaves a `refine'_…`
+  case tag on the remaining goal. That tag is noise in an interactive proof. -/
+  clearCaseTag : DesugarTacticM Unit := do
+    for goal in ← getUnsolvedGoals do
+      goal.setTag .anonymous
 
 /-- The fast WP-local continuation after `veil_apply_local_wp` has succeeded.
 
@@ -1269,11 +1299,7 @@ the goal into the exposed local/core obligation, so we commit to
 `__veil_solve_wplo`.  On failure, backtracking restores the original public VC
 and the old conservative route starts with `veil_intros` as before. -/
 def elabVeilSolveWp : DesugarTacticM Unit := veilWithMainContext do
-  let probeSucceeds? ← DesugarTacticM.orElse
-    (do
-      veilWithMainContext <| veilEvalTactic <| ← `(tactic| veil_apply_local_wp)
-      pure true)
-    (fun _ => pure false)
+  let probeSucceeds? ← probeTactic (← `(tactic| veil_apply_local_wp))
   if probeSucceeds? then
     veilWithMainContext <| veilEvalTactic <| ← `(tactic| __veil_solve_wplo)
   else
@@ -1295,11 +1321,7 @@ The probe mirrors `veil_solve_wp`: `veil_apply_local_tr` either commits the
 goal to the exposed local/core TR obligation, or backtracking restores the
 public TR VC before the conservative route starts with `veil_intros`. -/
 def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
-  let probeSucceeds? ← DesugarTacticM.orElse
-    (do
-      veilWithMainContext <| veilEvalTactic <| ← `(tactic| veil_apply_local_tr)
-      pure true)
-    (fun _ => pure false)
+  let probeSucceeds? ← probeTactic (← `(tactic| veil_apply_local_tr))
   if probeSucceeds? then
     veilWithMainContext <| veilEvalTactic <| ← `(tactic| __veil_solve_trlo)
   else
