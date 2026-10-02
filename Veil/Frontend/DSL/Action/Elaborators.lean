@@ -425,16 +425,25 @@ where
         mkAppOptM wpDef_fqn <| step3AllArgs ++ #[some handler] ++ xs.map some
       let finalSimpBase : Simplifier :=
         Simp.unfold #[wpDef_fqn]
-          |>.andThen (Simp.dsimp #[`nextSimp])
+          -- `instances := true` makes `dsimp` visit instance arguments, so the
+          -- `nextSimp` entries for `instIsSubStateOfRefl`/`instIsSubReaderOfRefl`
+          -- apply: the abstract state and theory are the environment ones, so
+          -- `getFrom`/`setIn`/`readFrom` are the identity and are reduced away
+          -- instead of being carried into the predicate, where they would block
+          -- the projections of the state literals.
+          |>.andThen (Simp.dsimp #[`nextSimp] { instances := true })
           |>.andThen (evalOpenClassical ∘ Simp.simp #[`invSimp, `smtSimp])
       let finalSimp : Simplifier :=
         if veil.experimental.wpCompact.get (← getOptions) then
           -- First compact duplicated postcondition branches while preserving
           -- `letEq` sharing barriers; then expose abstract-state conditionals
-          -- field-wise without re-running the ITE compactifier.
+          -- field-wise without re-running the ITE compactifier.  The field-wise
+          -- conditionals of the fields a branch leaves unchanged have identical
+          -- branches; `ite_self` collapses them.
           finalSimpBase
             |>.andThen (evalOpenClassical ∘ Simp.simp #[`wpCompactIteSimp])
             |>.andThen (evalOpenClassical ∘ Simp.simp #[`wpCompactStateSimp])
+            |>.andThen (Simp.simp #[``ite_self])
             |>.andThen (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType])
         else
           finalSimpBase

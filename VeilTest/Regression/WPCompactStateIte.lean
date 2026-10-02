@@ -74,11 +74,7 @@ example (n : Nat) (handler : Int → Prop)
                   (Classical.propDecidable (b_1 = true)) n
                   (@ite (FieldAbstractType State.Label.a) (b = true)
                     (Classical.propDecidable (b = true)) (n + 1) 0),
-              b :=
-                @ite (FieldAbstractType State.Label.b) (b_1 = true)
-                  (Classical.propDecidable (b_1 = true)) st.b
-                  (@ite (FieldAbstractType State.Label.b) (b = true)
-                    (Classical.propDecidable (b = true)) st.b st.b) } := by
+              b := st.b } := by
   unfold compact_act.ext.wp_local_eq.pred
   rfl
 
@@ -140,13 +136,7 @@ example {node : Type} [DecidableEq node] [Inhabited node]
         letEq (decide (n = m)) fun b_1 =>
           post () th
             {
-              r := fun x =>
-                if b_1 = true then
-                  if m = x then true else st.r x
-                else if b = true then
-                  st.r x
-                else
-                  st.r x,
+              r := fun x => if b_1 = true then if m = x then true else st.r x else st.r x,
               f := fun x =>
                 if b_1 = true then
                   st.f x
@@ -154,16 +144,9 @@ example {node : Type} [DecidableEq node] [Inhabited node]
                   if n = x then m else st.f x
                 else
                   st.f x,
-              a :=
-                if b_1 = true then
-                  st.a
-                else if b = true then
-                  st.a
-                else
-                  true } := by
+              a := if b_1 = true then st.a else if b = true then st.a else true } := by
   unfold compact_verify.ext.wp_local_eq.pred
   __veil_neutralize_decidable_inst !
-  rfl
 
 invariant [r_refl] r N → r N
 invariant [f_refl] f N = f N
@@ -185,6 +168,46 @@ The following set of actions must preserve the invariant and successfully termin
 #check_invariants
 
 end WPCompactRelationStateIte
+
+veil module WPCompactSequentialIte
+
+type node
+
+immutable individual k : node
+relation r : node → Bool
+individual a : Bool
+individual c : Bool
+
+#gen_state
+
+-- Two sequential conditionals.  The condition of the second one does not read
+-- what the first one writes, so both branches of `n = k` contain the same copy
+-- of the `a` conditional.
+action compact_seq (n : node) {
+  if n = k then
+    r n := true
+  if a then
+    c := true
+}
+
+/-- The two copies of the `a` conditional share one barrier: the predicate has
+one barrier per conditional of the action, not one per copy.  Each field then
+depends only on the conditionals that write it. -/
+example {node : Type} [DecidableEq node] [Inhabited node]
+    (n : node) (handler : Int → Prop)
+    (post : Unit → Theory node → State (FieldAbstractType node) → Prop)
+    (th : Theory node) (st : State (FieldAbstractType node)) :
+    compact_seq.ext.wp_local_eq.pred node n handler post th st =
+      letEq (decide (st.a = true)) fun b =>
+        letEq (decide (n = th.k)) fun b_1 =>
+          post () th
+            { r := fun x => if b_1 = true then if n = x then true else st.r x else st.r x,
+              a := st.a,
+              c := if b = true then true else st.c } := by
+  unfold compact_seq.ext.wp_local_eq.pred
+  __veil_neutralize_decidable_inst !
+
+end WPCompactSequentialIte
 
 set_option veil.experimental.wpCompact false
 
@@ -219,13 +242,7 @@ example {node : Type} [DecidableEq node] [Inhabited node]
             letEq (decide (n = m)) fun b_1 =>
               post () th
                 {
-                  r := fun x =>
-                    if b_1 = true then
-                      if m = x then true else st.r x
-                    else if b = true then
-                      st.r x
-                    else
-                      st.r x,
+                  r := fun x => if b_1 = true then if m = x then true else st.r x else st.r x,
                   f := fun x =>
                     if b_1 = true then
                       st.f x
@@ -233,13 +250,7 @@ example {node : Type} [DecidableEq node] [Inhabited node]
                       if n = x then m else st.f x
                     else
                       st.f x,
-                  a :=
-                    if b_1 = true then
-                      st.a
-                    else if b = true then
-                      st.a
-                    else
-                      true } := by
+                  a := if b_1 = true then st.a else if b = true then st.a else true } := by
       unfold compact_disabled.ext.wp_local_eq.pred
       __veil_neutralize_decidable_inst !
   trivial

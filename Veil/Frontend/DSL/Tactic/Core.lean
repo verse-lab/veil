@@ -1222,8 +1222,16 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
 def elabVeilHuman : DesugarTacticM Unit := veilWithMainContext do
   let cleanupTac ← do
     let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
+    -- The local WP predicate shares the branches of each conditional of the
+    -- action behind a `letEq (decide c)` barrier (see `wpCompactIte`).  An
+    -- interactive proof wants the conditional back, so the barrier is undone
+    -- before `letEq_to_forall` (in `smtSimp`) can turn it into a `Bool`
+    -- quantifier: the final `simp` would split such a quantifier into a
+    -- conjunction of implications (`Bool.forall_bool`), duplicating the goal
+    -- once per barrier, even when the goal does not depend on the barrier.
+    let undoBarrierRule := mkIdent ``Veil.letEq_decide_eq_ite
     `(tacticSeq|
-      open $(mkIdent `Classical):ident in veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident] at *
+      open $(mkIdent `Classical):ident in veil_simp +$(mkIdent `instances) only [↓ $undoBarrierRule:ident, $(mkIdent `smtSimp):ident] at *
       veil_intro_ho
       $inferNonemptyTac:tactic
       veil_clear
