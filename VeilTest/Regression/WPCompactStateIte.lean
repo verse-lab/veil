@@ -186,6 +186,68 @@ The following set of actions must preserve the invariant and successfully termin
 
 end WPCompactRelationStateIte
 
+veil module WPCompactSequentialIte
+
+type node
+
+immutable individual k : node
+relation r : node → Bool
+individual a : Bool
+individual c : Bool
+
+#gen_state
+
+-- Two sequential conditionals.  The condition of the second one does not read
+-- what the first one writes, so both branches of `n = k` contain the same copy
+-- of the `a` conditional.
+action compact_seq (n : node) {
+  if n = k then
+    r n := true
+  if a then
+    c := true
+}
+
+/-- The two copies of the `a` conditional share one barrier: the predicate has
+one barrier per conditional of the action, not one per copy. -/
+example {node : Type} [DecidableEq node] [Inhabited node]
+    (n : node) (handler : Int → Prop)
+    (post : Unit → Theory node → State (FieldAbstractType node) → Prop)
+    (th : Theory node) (st : State (FieldAbstractType node)) :
+    compact_seq.ext.wp_local_eq.pred node n handler post th st =
+      letEq (decide (st.a = true)) fun b =>
+        letEq (decide (n = th.k)) fun b_1 =>
+          post () th
+            {
+              r := fun x =>
+                if b_1 = true then
+                  if b = true then
+                    if n = x then true else st.r x
+                  else
+                    if n = x then true else st.r x
+                else if b = true then
+                  st.r x
+                else
+                  st.r x,
+              a :=
+                if b_1 = true then
+                  if b = true then st.a else st.a
+                else if b = true then
+                  st.a
+                else
+                  st.a,
+              c :=
+                if b_1 = true then
+                  if b = true then true else st.c
+                else if b = true then
+                  true
+                else
+                  st.c } := by
+  unfold compact_seq.ext.wp_local_eq.pred
+  __veil_neutralize_decidable_inst !
+  rfl
+
+end WPCompactSequentialIte
+
 set_option veil.experimental.wpCompact false
 
 veil module WPCompactDisabled

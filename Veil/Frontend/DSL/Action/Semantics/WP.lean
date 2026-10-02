@@ -331,39 +331,53 @@ end PickSimprocs
 This is a deliberately small, proof-producing compaction pass for duplicated
 postconditions in generated WPs.
 
-The algorithm runs as `wpCompactIteSimp` post-simplification (`↑`):
+The algorithm runs as `wpCompactIteSimp` post-simplification (`↑`), so the
+branches of a conditional have already been compacted when the conditional
+itself is visited:
 
 1. First do the cheap guards once: the expression must be a proposition, and it
    must be an `if`.
 
-2. Before trying to merge the current `if`, repeatedly hoist branch-local
-   sharing barriers introduced by this pass:
+2. Hoist the sharing barriers introduced by this pass out of both branches.
+   For example,
 
    `if p then marked(letEq v f) else b`
 
-   is rewritten with `ite_letEq_hoist_left`, and symmetrically for the right
-   branch.  After hoisting one barrier, the algorithm recurses into the newly
-   produced `letEq` continuation and keeps hoisting until the inner `if` has no
-   marked `letEq` branch left.  The metadata marker is a provenance bit: only
-   `letEq`s introduced by this compactification pass are hoisted.
+   becomes `letEq v fun a => if p then f a else b` (`ite_letEq_hoist_left`), and
+   symmetrically for the right branch; a branch may start with a chain of such
+   barriers, which are hoisted one after the other.  A barrier is identified by
+   its value: when the other branch, or an outer barrier of the same branch,
+   already provided a barrier with the same value, the two are merged into one
+   binder instead of nesting two `letEq`s of the same value.  This matters for
+   sequences of conditionals: `if c₁ …; if c₂ …` yields a copy of the `c₂`
+   conditional in each branch of `c₁`, and the merge keeps the number of
+   barriers linear in the number of conditionals rather than exponential.
 
-3. Once there is no marked branch-local `letEq`, try the actual postcondition
-   merge.  Since Lean applications are binary, the duplicated-continuation test
-   only compares the two branches' immediate `appFn`s:
+   `marked(…)` is the metadata marker `wpCompactIteMarkerKey` on the `letEq`
+   application.  It is a provenance bit: every `letEq` produced by this pass
+   (in step 2 or step 3) carries it, and only marked `letEq`s are hoisted or
+   merged.  `letEq`s that were already in the WP, such as the ones standing for
+   `let` statements of the action, stay where they are.
+
+3. Once no marked `letEq` is left on top of either branch, try the actual
+   postcondition merge.  Since Lean applications are binary, the
+   duplicated-continuation test only compares the two branches' immediate
+   `appFn`s:
 
    `if p then k a₁ else k a₂`
 
    is rewritten with `ite_push_cond_into_arg` to
 
-   `letEq (decide p) fun b => k (if b then a₁ else a₂)`.
+   `marked(letEq (decide p) fun b => k (if b then a₁ else a₂))`.
 
 The theorem `ite_push_cond_into_arg` and the hoisting theorems are intentionally
 not registered as ordinary simp rules: unguarded use would rewrite unrelated
 conditionals, and hoisting every `letEq` would destroy the provenance invariant.
-All root rewrites below use `rewriteRoot?`, so each rewrite comes with an
-equality proof.  Recursive work under a generated `letEq` continuation is lifted
-back with `funext` and `congrArg`; metadata is definitionally transparent and
-carries no proof obligation.
+Step 3 uses `rewriteRoot?`, so the merge comes with an equality proof, which is
+lifted back through the hoisted binders with `funext` and `congrArg`.  Step 2
+needs no proof: hoisting and merging barriers only unfolds `letEq`, so the
+rebuilt chain is definitionally equal to the conditional it came from (the
+hoisting theorems are `rfl`), and metadata is definitionally transparent.
 -/
 meta section CompactSimprocs
 
@@ -371,23 +385,37 @@ open Lean Meta
 
 private def wpCompactIteMarkerKey : Name := `Veil.wpCompactLetEq
 
+/-- A barrier hoisted out of the conditional being compacted. -/
+private structure HoistedBarrier where
+  /-- The value `v` of the barrier's `letEq`.  Barriers with the same value are
+  merged. -/
+  value : Expr
+  /-- The barrier's `letEq` application without its continuation, `@letEq α β v`.
+  Applying it to a new continuation rebuilds the barrier, and it is the function
+  `congrArg` is applied to when the proof of the merged continuation is lifted
+  through the barrier's binder. -/
+  head : Expr
+  /-- The local variable standing for the bound value while the conditional is
+  rebuilt; the rebuilt barrier binds it again. -/
+  var : Expr
+
 private meta partial def wpCompactIteImpl : Simp.Simproc := fun e => do
   let e := e.consumeMData
   unless (← Meta.isProp e) && e.isIte do
     return .continue
-  let result ← compactIte e
-  if let some res := result then
-    return .done res
-  else
-    return .continue
+  let some res ← compactIte e | return .continue
+  return .done res
 where
-  iteBranches? (e : Expr) : Option (Expr × Expr) := do
-    let_expr ite _ _ _ thenBranch elseBranch := e | none
-    some (thenBranch, elseBranch)
-  isLetEq (e : Expr) : Bool := e.isAppOfArity' ``letEq 4
-  isMarkedLetEq : Expr → Bool
-    | .mdata md body => md.getBool wpCompactIteMarkerKey false && isLetEq body
-    | _ => false
+  /-- The barrier `e` stands for, if `e` is a `letEq` carrying the provenance
+  marker: the `letEq` application, the type of its value, the value, and the
+  continuation. -/
+  markedLetEq? (e : Expr) : Option (Expr × Expr × Expr × Expr) := do
+    let .mdata md letEqApp := e | none
+    guard <| md.getBool wpCompactIteMarkerKey false
+    let_expr letEq α _ value f := letEqApp | none
+    return (letEqApp, α, value, f)
+  markLetEqUnchecked (e : Expr) : Expr :=
+    .mdata (MData.empty.insert wpCompactIteMarkerKey (.ofBool true)) e
   sameAppFn (thenBranch elseBranch : Expr) : Bool :=
     match thenBranch.consumeMData, elseBranch.consumeMData with
     | .app thenFn _, .app elseFn _ => thenFn.consumeMData == elseFn.consumeMData
@@ -397,38 +425,40 @@ where
       return none
     let some (rhs, proof) ← rewriteRoot? e ``ite_push_cond_into_arg | return none
     return some { expr := markLetEqUnchecked rhs, proof? := some proof }
+  /-- Hoist the chain of marked barriers off `branch`, then continue with the
+  barriers collected so far and the chain's body, in which every barrier has
+  been replaced by its variable.  A barrier whose value is that of an already
+  collected barrier (from this branch or the other one) reuses that variable
+  instead of being collected again. -/
+  hoistBarriers (barriers : Array HoistedBarrier) (branch : Expr)
+      (k : Array HoistedBarrier → Expr → SimpM (Option Simp.Result)) : SimpM (Option Simp.Result) := do
+    let some (letEqApp, α, value, f) := markedLetEq? branch | k barriers branch
+    if let some b := barriers.find? (·.value == value) then
+      hoistBarriers barriers (f.beta #[b.var]) k
+    else
+      let name := match f with | .lam n .. => n | _ => `b
+      withLocalDeclD name α fun x =>
+        hoistBarriers (barriers.push { value, head := letEqApp.appFn!, var := x }) (f.beta #[x]) k
   compactIte (e : Expr) : SimpM (Option Simp.Result) := do
-    let some (thenBranch, elseBranch) := iteBranches? e.consumeMData | return none
-    let some lem :=
-      if isMarkedLetEq thenBranch then
-        some ``ite_letEq_hoist_left
-      else if isMarkedLetEq elseBranch then
-        some ``ite_letEq_hoist_right
-      else
-        none
-      | pushSameContinuation e thenBranch elseBranch
-    let some (rhs, _) ← rewriteRoot? e lem | return none
-    let afterHoist : Simp.Result := { expr := markLetEqUnchecked rhs }
-    let some bodyResult ← compactMarkedLetEqBody afterHoist.expr | return some afterHoist
-    return some (← afterHoist.mkEqTrans bodyResult)
-  compactMarkedLetEqBody (e : Expr) : SimpM (Option Simp.Result) := do
-    let .mdata md body := e | return none
-    let body := body.consumeMData
-    let .app letEqFn f := body | return none
-    lambdaBoundedTelescope f 1 fun xs body => do
-      if xs.isEmpty then
-        return none
-      let some bodyResult ← compactIte body | return none
-      let resNew ← bodyResult.addLambdas xs
-      let fNew := resNew.expr
-      let funProof ← resNew.getProof
-      let proof ← mkCongrArg letEqFn funProof
-      return some {
-        expr := .mdata md (mkApp letEqFn fNew)
-        proof? := some proof
-      }
-  markLetEqUnchecked (e : Expr) : Expr :=
-    .mdata (MData.empty.insert wpCompactIteMarkerKey (.ofBool true)) e
+    let e := e.consumeMData
+    let_expr ite α c inst thenBranch elseBranch := e | return none
+    hoistBarriers #[] thenBranch fun barriers thenBody =>
+    hoistBarriers barriers elseBranch fun barriers elseBody => do
+      let inner := mkApp5 e.getAppFn α c inst thenBody elseBody
+      let pushed? ← pushSameContinuation inner thenBody elseBody
+      if barriers.isEmpty then
+        return pushed?
+      -- Rebuild the chain of barriers around the conditional (or around the
+      -- merged continuation).  `e` and the rebuilt chain are definitionally
+      -- equal, so only the proof of the merge has to be lifted through the
+      -- binders.
+      let res ← barriers.foldrM (init := pushed?.getD { expr := inner }) fun b res => do
+        let res ← res.addLambdas #[b.var]
+        return {
+          expr := markLetEqUnchecked (mkApp b.head res.expr)
+          proof? := ← res.proof?.mapM fun h => mkCongrArg b.head h
+        }
+      return some res
 
 simproc_decl wpCompactIte (ite _ _ _) := wpCompactIteImpl
 

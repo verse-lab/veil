@@ -85,6 +85,14 @@ theorem ite_push_cond_into_arg (f : α → β) {p : Prop} [Decidable p] {a₁ a�
   unfold letEq
   grind
 
+/-- Undo the sharing of a conditional's branches (`ite_push_cond_into_arg`): a
+barrier over a decided condition is the conditional on that condition.  The SMT
+pipeline keeps the barrier; `unveil` uses this rule to present an interactive
+goal as the case split the action's `if` stands for. -/
+theorem letEq_decide_eq_ite {c : Prop} {inst : Decidable c} (f : Bool → β) :
+    letEq (@decide c inst) f = @ite β c inst (f true) (f false) := by
+  cases inst <;> rfl
+
 /-- Equality packaged as a non-substituting predicate for Veil `veil_let`. -/
 def eqWithoutSubst (a b : α) : Prop := a = b
 
