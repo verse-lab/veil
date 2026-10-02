@@ -11,25 +11,22 @@ namespace Veil.ModelChecker.Simulation
 theorem pickedTransition_valid {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ]
   (th : ρ)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (_params : SearchParameters ρ σ) (currSt : σ)
   (nexts : List (κ × σ))
-  (hNexts : nexts = (Veil.ModelChecker.Concrete.partitionExecutionOutcome
-    (sys.tr th currSt)).fst)
+  (hNexts : nexts = (sys.tr th currSt).successes)
   (selected : κ × σ)
   (hSelected : selected ∈ nexts) :
   sys.toRelational.tr th currSt selected.1 selected.2 := by
   have hGood : selected ∈
-      (Veil.ModelChecker.Concrete.partitionExecutionOutcome
-        (sys.tr th currSt)).fst := by
+      (sys.tr th currSt).successes := by
     simpa [hNexts] using hSelected
-  simpa [EnumerableTransitionSystem.toRelational] using
-    (Veil.ModelChecker.Concrete.partitionExecutionOutcome.fst_spec _ _ _).mp hGood
+  simpa [EnumerableTransitionSystem.toRelational, Transitions.mem_success_iff] using hGood
 
 theorem pickedInitialState_valid {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ]
   (th : ρ)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (_params : SearchParameters ρ σ)
   (initStates : List σ)
   (hInitStates : initStates = sys.initStates)
@@ -43,7 +40,7 @@ theorem pickedInitialState_valid {ρ σ κ : Type}
 
 @[expose] def Trace.witnessesSimulationViolation {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th₀)
   (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) : ViolationKind → Prop
   | .assumptionFailure violates =>
       trace.isValid sys.toRelational ∧
@@ -57,10 +54,8 @@ theorem pickedInitialState_valid {ρ σ κ : Type}
   | .deadlock =>
       trace.isValid sys.toRelational ∧
       trace.failingStep = none ∧
-      (Veil.ModelChecker.Concrete.partitionExecutionOutcome
-        (sys.tr trace.theory trace.lastState)).fst = [] ∧
-      (Veil.ModelChecker.Concrete.partitionExecutionOutcome
-        (sys.tr trace.theory trace.lastState)).snd = [] ∧
+      (sys.tr trace.theory trace.lastState).successes = [] ∧
+      (sys.tr trace.theory trace.lastState).failures = [] ∧
       !params.terminating.holdsOn trace.theory trace.lastState = true
   | .assertionFailure exId =>
       trace.isValid sys.toRelational ∧
@@ -71,7 +66,7 @@ theorem pickedInitialState_valid {ρ σ κ : Type}
 
 theorem Trace.witnessesSimulationViolation_valid {ρ σ κ : Type} {th : ρ}
   [DecidableEq σ] [DecidableEq κ]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ) (trace : Trace ρ σ κ) (violation : ViolationKind) :
   Trace.witnessesSimulationViolation sys params trace violation →
     trace.isValid sys.toRelational := by
@@ -84,7 +79,7 @@ theorem Trace.witnessesSimulationViolation_valid {ρ σ κ : Type} {th : ρ}
 
 @[expose] def ReportedViolationSound {ρ σ κ : Type} {th₀ : ρ}
   [DecidableEq σ] [DecidableEq κ]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th₀)
   (params : SearchParameters ρ σ) (result : Option (SimulationResult ρ σ κ)) : Prop :=
   match result with
   | some (.foundViolation violation trace) => Trace.witnessesSimulationViolation sys params trace violation
@@ -97,7 +92,7 @@ set_option backward.isDefEq.respectTransparency false in
 theorem simulateOnceLoop_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ] [Inhabited (κ × σ)]
   (th : ρ)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
   (currSt : σ)
   (trace : Trace ρ σ κ)
@@ -115,22 +110,20 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
       simp [simulateOnceLoop] at h
   | succ steps ih =>
       intro gen result h
-      cases hPartition : Veil.ModelChecker.Concrete.partitionExecutionOutcome
-          (sys.tr th currSt) with
+      cases hPartition : sys.tr th currSt with
       | mk nexts assertionFailures =>
       cases hFailures : assertionFailures with
       | cons failure failures =>
           rcases failure with ⟨label, exId, st⟩
           simp [simulateOnceLoop, hPartition, hFailures] at h
           cases h
-          have hFailureMem : (label, exId, st) ∈
-              (Veil.ModelChecker.Concrete.partitionExecutionOutcome
-                (sys.tr th currSt)).snd := by
+          have hFailureMem : (⟨label, exId, st⟩ : FailedTransition κ Int σ) ∈
+              (sys.tr th currSt).failures := by
             rw [hPartition]
             simp [hFailures]
           have hMem : (label, ExecutionOutcome.assertionFailure exId st) ∈
               sys.tr th currSt :=
-            (Veil.ModelChecker.Concrete.partitionExecutionOutcome.snd_spec _ _ _ _).mp hFailureMem
+            Transitions.mem_assertionFailure_iff.mpr hFailureMem
           let step : Step σ κ := { transitionLabel := label, nextState := st }
           let failedTrace := { trace with failingStep := some step }
           have hValidFail : failedTrace.isValid sys.toRelational := by
@@ -151,11 +144,9 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
               | true =>
                   simp [simulateOnceLoop, hPartition, hFailures, hNexts, hTerminating] at h
                   cases h
-                  have hNoSuccesses : (Veil.ModelChecker.Concrete.partitionExecutionOutcome
-                      (sys.tr trace.theory trace.lastState)).fst = [] := by
+                  have hNoSuccesses : (sys.tr trace.theory trace.lastState).successes = [] := by
                     simp [hTheory, hLast, hPartition, hNexts]
-                  have hNoFailures : (Veil.ModelChecker.Concrete.partitionExecutionOutcome
-                      (sys.tr trace.theory trace.lastState)).snd = [] := by
+                  have hNoFailures : (sys.tr trace.theory trace.lastState).failures = [] := by
                     simp [hTheory, hLast, hPartition, hFailures]
                   have hDeadlock : !params.terminating.holdsOn trace.theory trace.lastState = true := by
                     simpa [hTheory, hLast] using hTerminating
@@ -176,8 +167,7 @@ theorem simulateOnceLoop_sound {ρ σ κ : Type}
               have hSelected : selected ∈ nexts' := by
                 dsimp [selected]
                 exact List.get_mem nexts' ⟨idx, hlt⟩
-              have hNextsHd : nexts' = (Veil.ModelChecker.Concrete.partitionExecutionOutcome
-                  (sys.tr th currSt)).fst := by
+              have hNextsHd : nexts' = (sys.tr th currSt).successes := by
                 simp [nexts', hPartition, hNexts]
               have hRel : sys.toRelational.tr th currSt selected.1 selected.2 :=
                 pickedTransition_valid th sys params currSt nexts' hNextsHd selected hSelected
@@ -226,7 +216,7 @@ set_option backward.isDefEq.respectTransparency false in
 theorem simulateOnce_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ] [Inhabited σ] [Inhabited (κ × σ)]
   (th : ρ)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ) (gen : StdGen) (maxSteps : Nat) (result : SimulationResult ρ σ κ) :
   (((simulateOnce sys params th maxSteps).run gen).1).1 = some result ->
     ReportedViolationSound sys params (some result) := by
@@ -291,7 +281,7 @@ theorem simulateOnce_sound {ρ σ κ : Type}
 theorem simulateTraceAtIndex_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ] [Inhabited σ] [Inhabited (κ × σ)]
   (th : ρ)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
   (cfg : SimulateConfig)
   (traceIndex : Nat)

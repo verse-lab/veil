@@ -94,4 +94,57 @@ def exceptionId? : ExecutionResult ε σ α → Option ε
 
 end ExecutionResult
 
+/-- A transition whose execution raised an assertion: its label, the exception, and the state at
+the point of failure (for trace construction). -/
+structure FailedTransition (l ε σ : Type) where
+  label : l
+  error : ε
+  state : σ
+deriving Repr, Inhabited
+
+/-- The transitions out of a state, as the model checker consumes them: the post-states of the
+successful executions, each with its label, and the assertion failures. Divergence is not
+recorded; no consumer looked at it. `(label, outcome) ∈ ts` is membership in the matching list,
+so `EnumerableTransitionSystem.next` and `reachable` read as before. -/
+structure Transitions (l ε σ : Type) where
+  successes : List (l × σ)
+  failures : List (FailedTransition l ε σ)
+deriving Repr, Inhabited
+
+namespace Transitions
+
+variable {l ε σ : Type}
+
+instance : Membership (l × ExecutionOutcome ε σ) (Transitions l ε σ) where
+  mem ts
+    | (label, .success s) => (label, s) ∈ ts.successes
+    | (label, .assertionFailure e s) => ⟨label, e, s⟩ ∈ ts.failures
+    | (_, .divergence) => False
+
+/-! The three lemmas below are not `simp` lemmas on purpose: the search's proofs treat
+`(label, outcome) ∈ sys.tr th st` as an opaque atom (as they did when `tr` returned a list), and a
+`simp` call rewriting some occurrences but not others would hide that they are the same atom. -/
+
+theorem mem_success_iff {ts : Transitions l ε σ} {label : l} {s : σ} :
+    (label, ExecutionOutcome.success s) ∈ ts ↔ (label, s) ∈ ts.successes := Iff.rfl
+
+theorem mem_assertionFailure_iff {ts : Transitions l ε σ} {label : l} {e : ε} {s : σ} :
+    (label, ExecutionOutcome.assertionFailure e s) ∈ ts ↔ ⟨label, e, s⟩ ∈ ts.failures := Iff.rfl
+
+theorem not_mem_divergence {ts : Transitions l ε σ} {label : l} :
+    ¬ (label, (ExecutionResult.divergence : ExecutionOutcome ε σ)) ∈ ts := fun h => h
+
+/-- Only to satisfy the `Std.Stream` requirement of `EnumerableTransitionSystem`: the transitions
+as `(label, outcome)` pairs, successes first. -/
+instance : Std.Stream (Transitions l ε σ) (l × ExecutionOutcome ε σ) where
+  next? ts :=
+    match ts.successes with
+    | (label, s) :: rest => some ((label, .success s), { ts with successes := rest })
+    | [] =>
+      match ts.failures with
+      | f :: rest => some ((f.label, .assertionFailure f.error f.state), { ts with failures := rest })
+      | [] => none
+
+end Transitions
+
 end Veil

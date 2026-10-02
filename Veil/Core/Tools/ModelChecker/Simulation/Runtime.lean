@@ -18,7 +18,7 @@ private def noInitialStatesResult {ρ σ κ : Type} (cfg : SimulateConfig) : Sim
 }
 
 private def hasNoInitialStates {ρ σ κ : Type} {th₀ : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀) : Bool :=
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th₀) : Bool :=
   sys.initStates.isEmpty
 
 private structure SimulationHooks (m : Type → Type) [Monad m] where
@@ -32,7 +32,7 @@ private structure SimulationHooks (m : Type → Type) [Monad m] where
 
 private def simulateLoopM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀ : ρ}
   (hooks : SimulationHooks m)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)
   (cfg : SimulateConfig)
@@ -78,7 +78,7 @@ termination_by remaining
 checker's evaluator before checking initial states, budgets, or cancellation. -/
 private def simulateRunM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀ : ρ}
   (hooks : SimulationHooks m)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)
   (cfg : SimulateConfig)
@@ -101,7 +101,7 @@ private def simulateRunM {m : Type → Type} [Monad m] {ρ σ κ : Type} {th₀ 
 
 @[inline, specialize]
 def simulateCommandSemantics {ρ σ κ : Type} {th₀ : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)
   (shouldStop : Nat → Bool)
@@ -113,7 +113,7 @@ def simulateCommandSemantics {ρ σ κ : Type} {th₀ : ρ}
 
 @[inline, specialize]
 def simulateCore {ρ σ κ : Type} {th₀ : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)
   (cfg : SimulateConfig)
@@ -122,7 +122,7 @@ def simulateCore {ρ σ κ : Type} {th₀ : ρ}
 
 @[inline, specialize]
 def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)
   (cfg : SimulateConfig)
@@ -162,7 +162,7 @@ def simulateWithProgress {ρ σ κ : Type} {th₀ : ρ}
 
 @[inline, specialize]
 def simulate {ρ σ κ : Type} {th₀ : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)
   (cfg : SimulateConfig)
@@ -174,7 +174,7 @@ private theorem simulateLoopM_id_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ]
   [Inhabited σ] [Inhabited (κ × σ)]
   (th : ρ)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
   (cfg : SimulateConfig)
   (shouldStop : Nat → Bool) :
@@ -208,7 +208,7 @@ theorem simulateCommandSemantics_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ]
   [Inhabited σ] [Inhabited (κ × σ)]
   (th : ρ)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
   (shouldStop : Nat → Bool)
   (cfg : SimulateConfig) :
@@ -231,7 +231,7 @@ theorem simulateCore_sound {ρ σ κ : Type}
   [DecidableEq σ] [DecidableEq κ]
   [Inhabited σ] [Inhabited (κ × σ)]
   (th : ρ)
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
   (cfg : SimulateConfig) :
   ReportedViolationSound (restrictSystemByStateConstraints sys params th) params

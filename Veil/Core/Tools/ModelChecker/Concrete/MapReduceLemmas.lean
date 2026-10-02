@@ -29,7 +29,7 @@ variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionSta
      actionStatsMap := ActionStatUpdate.empty (κ := κ) }, [])
 
 theorem MapReduceSearchContextMainInvariants.initial [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ) (numShards : Nat) {h_pos} {h_small} :
   MapReduceSearchContextMainInvariants sys params (MapReduceSearchContextMain.initial (fp := fp) sys.initStates numShards h_pos h_small) := by
   simp [MapReduceSearchContextMain.initial, BaseSearchContext.initial]
@@ -38,7 +38,7 @@ theorem MapReduceSearchContextMainInvariants.initial [Std.TransOrd σₕ] [Std.L
     ← List.map_uncurry_zip_eq_zipWith, ← List.map_prod_right_eq_zip, ShardedTreeSetUSize.mem_ofListFastByHash] ; (try solve | intros ; grind [= Std.TreeSet.insertManyFast_hashset_eq_insertManyFast_toList])
 
 theorem MapReduceSearchContextLocalInvariants.initial
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
   (globalSeen : ShardedTreeSetUSize σₕ) (completedDepth : Nat) :
   MapReduceSearchContextLocalInvariants sys params globalSeen (fun _ => False)
@@ -48,7 +48,7 @@ theorem MapReduceSearchContextLocalInvariants.initial
   all_goals (try solve | intros ; grind)
 
 variable {params : SearchParameters ρ σ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
 
 theorem MapReduceSearchContextMainInvariants.setExploredAll_preserves_invs
   {mctx : MapReduceSearchContextMain σ κ σₕ asm}

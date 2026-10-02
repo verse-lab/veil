@@ -162,7 +162,7 @@ where
 structure SearchContextInvariants {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   -- NOTE: Although `params` is not used in the invariants below yet,
   -- we should better keep it here for future extensions.
   (params : SearchParameters ρ σ)
@@ -195,43 +195,12 @@ def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ �
 -- Lean should be able to reuse constructors inside it? Can we somehow
 -- achieve zero additional memory allocation here?
 
-/-- Partition a list of `(label × ExecutionOutcome)` pairs into two components:
-a list of successful transitions, and a list of labeled transitions where
-exceptions were raised. The divergence part is discarded. -/
-def partitionExecutionOutcome (outcomes : List (κ × ExecutionOutcome Int σ)) :
-  List (κ × σ) × List (κ × Int × σ) :=
-  outcomes.foldr
-    (init := ([], []))
-    (fun (label, outcome) (succs, exns) =>
-      match outcome with
-      | .success st => ((label, st) :: succs, exns)
-      | .assertionFailure exId st => (succs, (label, exId, st) :: exns)
-      | .divergence => (succs, exns))
-
-theorem partitionExecutionOutcome.fst_spec {κ σ : Type} (outcomes : List (κ × ExecutionOutcome Int σ)) :
-  ∀ (label : κ) (st : σ),
-    (label, st) ∈ (partitionExecutionOutcome outcomes).fst ↔
-    (label, ExecutionOutcome.success st) ∈ outcomes := by
-  introv ; unfold partitionExecutionOutcome
-  induction outcomes with
-  | nil => simp
-  | cons x l ih => rcases x with ⟨l, _ | _ | _⟩ <;> grind
-
-theorem partitionExecutionOutcome.snd_spec {κ σ : Type} (outcomes : List (κ × ExecutionOutcome Int σ)) :
-  ∀ (label : κ) (exId : Int) (st : σ),
-    (label, exId, st) ∈ (partitionExecutionOutcome outcomes).snd ↔
-    (label, ExecutionOutcome.assertionFailure exId st) ∈ outcomes := by
-  introv ; unfold partitionExecutionOutcome
-  induction outcomes with
-  | nil => simp
-  | cons x l ih => rcases x with ⟨l, _ | _ | _⟩ <;> grind
-
 -- NOTE: If this function is put inside `BaseSearchContext.checkViolationsAndMaybeTerminate`,
 -- `specialize` of `List.filterMap` may not exhibit
 def checkViolationsAndMaybeTerminate
   (completedDepth : Nat)
   (hasSuccessfulTransition : Bool)
-  (assertionFailures : List (κ × Int × σ)) :
+  (assertionFailures : List (FailedTransition κ Int σ)) :
   List (σₕ × ViolationKind) × Option (EarlyTerminationReason σₕ) :=
   -- Compute all violation conditions once
   let safetyViolations := violatedInvariantNames params th curr
@@ -243,26 +212,25 @@ def checkViolationsAndMaybeTerminate
     (if safetyViolation then [(fpSt, .safetyFailure safetyViolations)] else []) ++
     (if deadlock then [(fpSt, .deadlock)] else []) ++
     -- NOTE: This should be further optimized to avoid extra memory allocation
-    (assertionFailures.map fun (_, exId, _) => (fpSt, .assertionFailure exId))
+    (assertionFailures.map fun f => (fpSt, .assertionFailure f.error))
 
   let earlyTermination := params.earlyTerminationConditions.findSome? fun
     | .foundViolatingState => if safetyViolation then some (.foundViolatingState fpSt safetyViolations) else none
     | .reachedDepthBound bound => if completedDepth >= bound then some (.reachedDepthBound bound) else none
     | .deadlockOccurred => if deadlock then some (.deadlockOccurred fpSt) else none
-    | .assertionFailed => assertionFailures.head?.map fun (_, exId, _) => .assertionFailed fpSt exId
+    | .assertionFailed => assertionFailures.head?.map fun f => .assertionFailed fpSt f.error
     | .cancelled => none  -- Cancellation is handled externally via cancel token, not through early termination conditions
   (newViolations, earlyTermination)
 
-/-- Process the current state, queuing its successors. -/
+/-- Process the current state, queuing its successors. `trs` is `sys.tr th curr`. -/
 -- @[inline, specialize]
 def BaseSearchContext.processState
-  (outcomes : List (κ × ExecutionOutcome Int σ))
+  (trs : Transitions κ Int σ)
   (ctx : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm × Option (List (κ × σ)) :=
-  let (successfulTransitions, assertionFailures) := partitionExecutionOutcome outcomes
-  let hasSuccessfulTransition := !successfulTransitions.isEmpty
+  let hasSuccessfulTransition := !trs.successes.isEmpty
   let completedDepth := ctx.completedDepth
   let (newViolations, earlyTermination) :=
-    checkViolationsAndMaybeTerminate params th fpSt curr completedDepth hasSuccessfulTransition assertionFailures
+    checkViolationsAndMaybeTerminate params th fpSt curr completedDepth hasSuccessfulTransition trs.failures
   let ctx := {ctx with violatingStates := newViolations ++ ctx.violatingStates}
   -- Check for violations, record them, and determine if we should terminate early
   let ctx := match earlyTermination with
@@ -274,7 +242,7 @@ def BaseSearchContext.processState
       | .assertionFailed fp exId => {ctx with finished := some (.earlyTermination (.assertionFailed fp exId))}
       | .cancelled => {ctx with finished := some (.earlyTermination .cancelled)}
     | none => ctx
-  (ctx, if earlyTermination.isSome then none else some successfulTransitions)
+  (ctx, if earlyTermination.isSome then none else some trs.successes)
 
 def BaseSearchContext.mergeWithoutDepthChange (ctx1 ctx2 : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm :=
   { log := ctx1.log.union ctx2.log,

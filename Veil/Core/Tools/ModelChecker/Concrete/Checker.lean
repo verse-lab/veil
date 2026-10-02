@@ -40,7 +40,7 @@ def recoverTrace {ρ σ κ σₕ asm : Type} {m : Type → Type}
   [Inhabited σ] [Repr σₕ]
   [ActionStatUpdate κ asm]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   -- (params : SearchParameters ρ σ)
   (ctx : BaseSearchContext σ κ σₕ asm)
   (targetFingerprint : σₕ)
@@ -55,9 +55,7 @@ def recoverTrace {ρ σ κ σₕ asm : Type} {m : Type → Type}
   let mut curSt := initialState
   let mut steps : Steps σ κ := #[]
   for step in stepsFp do
-    let outcomes := sys.tr th curSt
-    -- Extract successful transitions for trace recovery
-    let (successfulTransitions, _) := partitionExecutionOutcome outcomes
+    let successfulTransitions := (sys.tr th curSt).successes
     let (transitionLabel, nextSt) ←
       match successfulTransitions.find? (fun (_, s) => fp.view s == step.nextState) with
       | some (tr, s) => pure (tr, s)
@@ -68,9 +66,9 @@ def recoverTrace {ρ σ κ σₕ asm : Type} {m : Type → Type}
 where
   findFailingStep (st : σ) : Option Int → Option (Step σ κ)
     | some exId =>
-      match (sys.tr th st).find? (·.2.exceptionId? == some exId) with
-      | some (label, .assertionFailure _ failState) => some { transitionLabel := label, nextState := failState }
-      | _ => none
+      match (sys.tr th st).failures.find? (·.error == exId) with
+      | some f => some { transitionLabel := f.label, nextState := f.state }
+      | none => none
     | none => none
 
 /-! ## Model Checker
@@ -83,7 +81,7 @@ private def searchResult {ρ σ κ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [Inhabited σ] [ActionStatUpdate κ asm]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   [fp : StateFingerprint σ UInt64]
   (ctx : BaseSearchContext σ κ UInt64 asm) (distinctCount : Nat)
   : m (ModelCheckingResult ρ σ κ UInt64) := do
@@ -127,7 +125,7 @@ variable {ρ σ κ α : Type} {m : Type → Type}
   [inhabσ : Inhabited σ] [Repr κ]
   [ActionStatUpdate κ asm]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   [fp : StateFingerprint σ UInt64]
   (params : SearchParameters ρ σ)
   (parallelCfg : Option ParallelConfig)
