@@ -51,14 +51,14 @@ def SequentialSearchContext.processState
   (fpSt : σₕ)
   (depth : Nat)  -- depth of the current state
   (curr : σ)
-  (outcomes : List (κ × ExecutionOutcome Int σ))
+  (trs : Transitions κ Int σ)
   (sctx : SequentialSearchContext σ κ σₕ asm)
   -- Depth tracking information computed by caller
   (newCompletedDepth : Nat)
   (newFrontierDepth : Nat) :
   SequentialSearchContext σ κ σₕ asm :=
   let (ctx, sq) := sctx
-  let (ctx', outcomesOpt) := ctx.processState params th fpSt curr outcomes
+  let (ctx', outcomesOpt) := ctx.processState params th fpSt curr trs
   match outcomesOpt with
   | none =>
     -- Early termination case: processState returned none, meaning we're terminating early
@@ -80,7 +80,7 @@ def SequentialSearchContext.processState
 /-- Perform one step of BFS. -/
 -- @[inline, specialize]
 def SequentialSearchContext.bfsStep
-  (outcomesComputer : ρ → σ → List (κ × ExecutionOutcome Int σ))
+  (outcomesComputer : ρ → σ → Transitions κ Int σ)
   (sctx : SequentialSearchContext σ κ σₕ asm) : SequentialSearchContext σ κ σₕ asm :=
   let (ctx, sq) := sctx
   match sq.dequeue? with
@@ -100,7 +100,7 @@ def SequentialSearchContext.bfsStep
       (ctx, q_tail) newCompletedDepth newFrontierDepth
 
 theorem SequentialSearchContext.processSuccessors_preserves_invs
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
   {sctx : SequentialSearchContext σ κ σₕ asm}
   (h_not_finished : sctx.1.finished = .none)
   {fpSt depth} (curr : σ) {succs}
@@ -150,7 +150,7 @@ theorem SequentialSearchContext.processSuccessors_add_to_seen
       split_ifs with h <;> dsimp <;> grind
 
 theorem SequentialSearchContext.bfsStep_preserves_invs
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
   {sctx : SequentialSearchContext σ κ σₕ asm}
   (h_not_finished : sctx.1.hasFinished = false)
   (sctx_invs : SequentialSearchContextInvariants sys params .none sctx) :
@@ -172,10 +172,10 @@ theorem SequentialSearchContext.bfsStep_preserves_invs
   -- now process the state
   dsimp [SequentialSearchContext.processState]
   fun_cases BaseSearchContext.processState params th fpSt curr (sys.tr th curr) ctx
-  rename_i succs exns h_eq_part hasSuccessfulTransition completedDepth newViolations
+  rename_i hasSuccessfulTransition completedDepth newViolations
     earlyTermination h_eq_checkvio ctx' ctx''
   subst completedDepth ; dsimp only
-  revert h_eq_checkvio ; fun_cases checkViolationsAndMaybeTerminate params th fpSt curr ctx.completedDepth hasSuccessfulTransition exns
+  revert h_eq_checkvio ; fun_cases checkViolationsAndMaybeTerminate params th fpSt curr ctx.completedDepth hasSuccessfulTransition (sys.tr th curr).failures
   rename_i safetyViolations safetyViolation deadlock tmp1 tmp2
   intro htmp ; injection htmp with h_eq_newvio h_eq_earlyterm ; subst tmp1 tmp2
   -- see if early termination happened
@@ -187,25 +187,26 @@ theorem SequentialSearchContext.bfsStep_preserves_invs
     all_goals (try solve
       | dsimp
         constructor ; on_goal 1=> constructor
-        all_goals dsimp only at * ; (try solve | assumption | grind))
+        -- nothing may be left for `dsimp only` to do: `trs` is `sys.tr th curr`, not a pair to project
+        all_goals (try dsimp only at *) ; (try solve | assumption | grind))
   subst ctx' ctx'' ; dsimp ; rw [h_not_finished]
   -- normal case, in transit
   apply SequentialSearchContextInvariants.finish_stateInTransit (curr := curr)
   · apply SequentialSearchContext.processSuccessors_preserves_invs
     · rfl
     · grind
-    · introv ; rw [← partitionExecutionOutcome.fst_spec, h_eq_part]
+    · introv ; exact Transitions.mem_success_iff.symm
     · constructor ; on_goal 1=> constructor
       all_goals dsimp only [isStableClosed] at * ; grind
   · introv ; intro h1 ; apply SequentialSearchContext.processSuccessors_add_to_seen l v
-    simp ; rw [← partitionExecutionOutcome.fst_spec, h_eq_part] at h1 ; exact h1
+    simp ; exact Transitions.mem_success_iff.mp h1
 
 -- @[specialize]
 omit th in
 def breadthFirstSearchSequential {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (updateTimeInterval : Nat)
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken) :

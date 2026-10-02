@@ -18,7 +18,7 @@ theorem randNat_lt_length {α : Type} (xs : List α) (h : xs ≠ []) (gen : StdG
 
 @[inline, specialize]
 def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)
   (stepsLeft : Nat)
@@ -28,10 +28,10 @@ def simulateOnceLoop {ρ σ κ : Type} {th₀ : ρ}
   match stepsLeft with
   | 0 => return (none, trace.steps.size)
   | stepsLeft + 1 =>
-    let outcomes := sys.tr th currSt
-    let (nexts, assertionFailures) := Veil.ModelChecker.Concrete.partitionExecutionOutcome outcomes
-    match assertionFailures with
-    | (label, exId, st) :: _ =>
+    let trs := sys.tr th currSt
+    let nexts := trs.successes
+    match trs.failures with
+    | ⟨label, exId, st⟩ :: _ =>
         let failedTrace := { trace with failingStep := some { transitionLabel := label, nextState := st } }
         return (some (.foundViolation (.assertionFailure exId) failedTrace), failedTrace.steps.size + 1)
     | [] =>
@@ -63,7 +63,7 @@ termination_by stepsLeft
 
 @[inline, specialize]
 def simulateOnce {ρ σ κ : Type} {th₀ : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)
   (maxSteps : Nat)
@@ -97,7 +97,7 @@ the trace reached. The depth is reported even when no violation is found, which 
 what lets the caller summarise how far the traces actually got.
 -/
 def simulateTraceAtIndex {ρ σ κ : Type} {th₀ : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th₀)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th₀)
   (params : SearchParameters ρ σ)
   (th : ρ)
   (cfg : SimulateConfig)

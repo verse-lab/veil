@@ -57,10 +57,10 @@ def MapReduceSearchContextLocal.processSuccessors
 def MapReduceSearchContextLocal.processState
   (params : SearchParameters ρ σ) (th : ρ)
   (fpSt : σₕ) (curr : σ)
-  (outcomes : List (κ × ExecutionOutcome Int σ))
+  (trs : Transitions κ Int σ)
   (lctx : MapReduceSearchContextLocal σ κ σₕ asm) : MapReduceSearchContextLocal σ κ σₕ asm :=
   let (ctx, q) := lctx
-  let (ctx', outcomesOpt) := ctx.processState params th fpSt curr outcomes
+  let (ctx', outcomesOpt) := ctx.processState params th fpSt curr trs
   match outcomesOpt with
   | none => (ctx', q)
   | some successfulTransitions =>
@@ -75,7 +75,7 @@ section
 -- FIXME: The proofs are also very similar to the sequential one
 
 variable {params : SearchParameters ρ σ} {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
   {lctx : MapReduceSearchContextLocal σ κ σₕ asm}
   {globalSeen : ShardedTreeSetUSize σₕ}
 
@@ -141,10 +141,10 @@ theorem MapReduceSearchContextLocalInvariants.processState_progress
 
   dsimp [MapReduceSearchContextLocal.processState]
   fun_cases BaseSearchContext.processState params th fpSt curr (sys.tr th curr) ctx
-  rename_i succs exns h_eq_part hasSuccessfulTransition completedDepth newViolations
+  rename_i hasSuccessfulTransition completedDepth newViolations
     earlyTermination h_eq_checkvio ctx' ctx''
   subst completedDepth ; dsimp only
-  revert h_eq_checkvio ; fun_cases checkViolationsAndMaybeTerminate params th fpSt curr ctx.completedDepth hasSuccessfulTransition exns
+  revert h_eq_checkvio ; fun_cases checkViolationsAndMaybeTerminate params th fpSt curr ctx.completedDepth hasSuccessfulTransition (sys.tr th curr).failures
   rename_i safetyViolations safetyViolation deadlock tmp1 tmp2
   intro htmp ; injection htmp with h_eq_newvio h_eq_earlyterm ; subst tmp1 tmp2
   -- see if early termination happened
@@ -163,12 +163,12 @@ theorem MapReduceSearchContextLocalInvariants.processState_progress
   · apply MapReduceSearchContextLocalInvariants.processSuccessors_preserves_invs
     · rfl
     · exact h_reachable
-    · introv ; rw [← partitionExecutionOutcome.fst_spec, h_eq_part]
+    · introv ; exact Transitions.mem_success_iff.symm
     · constructor ; on_goal 1=> constructor
       all_goals dsimp only at * ; try grind
   · introv ; intro h1
     apply MapReduceSearchContextLocalInvariants.processSuccessors_successors_collected l v
-    simp ; rw [← partitionExecutionOutcome.fst_spec, h_eq_part] at h1 ; exact h1
+    simp ; exact Transitions.mem_success_iff.mp h1
   · simp
 
 end
@@ -206,7 +206,7 @@ private theorem processWorkQueue.subproof6 {α : Type u} {l : List α} :
 
 def processWorkQueue
   {params : SearchParameters ρ σ} {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
   {globalSeen : ShardedTreeSetUSize σₕ}
   (queue : List (MapReduceQueueItem σₕ σ))
   {p q : MapReduceQueueItem σₕ σ → Prop} (h : ∀ x, q x ↔ p x ∨ x ∈ queue)
@@ -235,7 +235,7 @@ def processWorkQueue
 def bfsBigStep
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   (params : SearchParameters ρ σ) {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (globalSeen : ShardedTreeSetUSize σₕ)
   (completedDepth : Nat)
   (queue : List (MapReduceQueueItem σₕ σ))
@@ -368,7 +368,7 @@ theorem BaseSearchContext.mergeWithoutDepthChangeNoLog_foldl_description
 
 def MapReduceSearchContextMain.mergeWithLocalOnes
   {params : SearchParameters ρ σ} {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
   (mctx : MapReduceSearchContextMain σ κ σₕ asm)
   {preds : List (MapReduceQueueItem σₕ σ → Prop)}
   {globalSeen : ShardedTreeSetUSize σₕ}
@@ -404,7 +404,7 @@ attribute [local simp] ShardedTreeSetUSize.mem_insertManyFastSHS in
 theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ]
   {params : SearchParameters ρ σ} {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
   {mctx : MapReduceSearchContextMain σ κ σₕ asm}
   (h_not_finished : mctx.base.hasFinished = false)
   (h_mctx : MapReduceSearchContextMainInvariants sys params mctx)
@@ -526,7 +526,7 @@ omit [ActionStatUpdate κ asm] in
 private theorem breadthFirstSearchParallel.subproof1 {ρ σₕ σ : Type}
   [fp : StateFingerprint σ σₕ]
   {th : ρ}
-  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
   {seen : σₕ → Prop}
   {tovisit : List (MapReduceQueueItem σₕ σ)}
   (h : ∀ x st, ⟨x, st⟩ ∈ tovisit → sys.reachable st ∧ seen x ∧ x = fp.view st)
@@ -550,7 +550,7 @@ def breadthFirstSearchParallel {m : Type → Type}
   [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ]
   (params : SearchParameters ρ σ)
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (List (κ × ExecutionOutcome Int σ)) th)
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (parallelCfg : ParallelConfig)
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken) :

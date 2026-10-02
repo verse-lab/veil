@@ -647,61 +647,46 @@ def getAllPostStates (c : List (DivM ((Except ε α) × σ))) : List (Option σ)
 def extractValidStates (exec : Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
   exec rd st |>.map Prod.snd |> getAllPostStates
 
-/-- The transitions of all labels, in label order, built in one pass: the same list as
-`labels.flatMap fun l => (extractAllResults (next l) rd st).map (l, ·)`
-(`outcomesOfLabelsRev_eq`), but with `next` specialized in, so there is no closure per label,
-and with only the outcomes that exist allocated: no intermediate list from `extractAllResults`'s
-`map`, from the `(l, ·)` `map` or from `flatMap`'s array accumulator. The model checker runs this on every state, and most labels
-fail their `require`, so the per-label cost matters more than the per-outcome cost.
+/-- The transitions of all labels, in label order, built in one pass and already split into the
+successful ones and the assertion failures, which is how the model checker consumes them
+(`EnumerableTransitionSystem.tr`). `next` is specialized in, so there is no closure per label, and
+only the results that exist are allocated: no intermediate `(label, outcome)` list, no partition
+afterwards. The model checker runs this on every state, and most labels fail their `require`, so
+the per-label cost matters more than the per-result cost.
 
-The labels are traversed last to first and each label's outcomes are pushed in front of `acc`,
+The labels are traversed last to first and each label's results are pushed in front of `acc`,
 which keeps the loop tail recursive and the order unchanged; the caller passes the reversed label
 list, computed once rather than per state. -/
 @[specialize]
-def outcomesOfLabelsRev (next : κ → Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : ρ) (st : σ) :
-    List κ → List (κ × Veil.ExecutionOutcome Int σ) → List (κ × Veil.ExecutionOutcome Int σ)
+def transitionsOfLabelsRev (next : κ → Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : ρ) (st : σ) :
+    List κ → Veil.Transitions κ Int σ → Veil.Transitions κ Int σ
   | [], acc => acc
   | l :: ls, acc =>
     match next l rd st with
     -- the usual case: `require` failed
-    | [] => outcomesOfLabelsRev next rd st ls acc
+    | [] => transitionsOfLabelsRev next rd st ls acc
     -- a deterministic step
-    | [(_, r)] => outcomesOfLabelsRev next rd st ls ((l, getExecutionResult r) :: acc)
-    | rs => outcomesOfLabelsRev next rd st ls (prependOutcomes l rs acc)
+    | [(_, r)] => transitionsOfLabelsRev next rd st ls (prependResult l r acc)
+    | rs => transitionsOfLabelsRev next rd st ls (prependResults l rs acc)
 where
-  /-- `(rs.map fun (_, r) => (l, getExecutionResult r)) ++ acc` (`prependOutcomes_eq`), with one
-  allocation per outcome. Written that way it would cost four: `map` compiles to `mapTR` (a reversed
-  list, then `reverse`) and `++` to `appendTR` (`reverse`, then `reverseAux`); `foldr` would go
-  through `foldrTR`, i.e. an array. Only labels with two or more outcomes get here. -/
-  prependOutcomes (l : κ) : List (List κᵣ × DivM ((Except Int Unit) × σ)) →
-      List (κ × Veil.ExecutionOutcome Int σ) → List (κ × Veil.ExecutionOutcome Int σ)
+  /-- One result in front of the transitions. -/
+  @[inline] prependResult (l : κ) (r : DivM ((Except Int Unit) × σ)) (acc : Veil.Transitions κ Int σ) :
+      Veil.Transitions κ Int σ :=
+    match r with
+    | .res (.ok _, s) => { acc with successes := (l, s) :: acc.successes }
+    | .res (.error e, s) => { acc with failures := ⟨l, e, s⟩ :: acc.failures }
+    | .div => acc
+  /-- Several results (a pick) in front of the transitions, in their order, with one allocation per
+  result; `map` and `++` would cost four (`map` compiles to `mapTR`, `++` to `appendTR`). Only
+  labels with two or more results get here. -/
+  prependResults (l : κ) : List (List κᵣ × DivM ((Except Int Unit) × σ)) → Veil.Transitions κ Int σ →
+      Veil.Transitions κ Int σ
     | [], acc => acc
-    | (_, r) :: rs, acc => (l, getExecutionResult r) :: prependOutcomes l rs acc
+    | (_, r) :: rs, acc => prependResult l r (prependResults l rs acc)
 
 /-- Extract all execution results, preserving successful return values. -/
 def extractAllResults (exec : Veil.VeilMultiExecM κᵣ ε ρ σ α) (rd : ρ) (st : σ) : List (ExecutionResult ε σ α) :=
   exec rd st |>.map fun (_, st) => getExecutionResult st
-
-theorem outcomesOfLabelsRev.prependOutcomes_eq (l : κ)
-    (rs : List (List κᵣ × DivM ((Except Int Unit) × σ))) (acc : List (κ × Veil.ExecutionOutcome Int σ)) :
-    outcomesOfLabelsRev.prependOutcomes l rs acc = (rs.map fun (_, r) => (l, getExecutionResult r)) ++ acc := by
-  induction rs with
-  | nil => rfl
-  | cons x rs ih => obtain ⟨_, r⟩ := x ; simp [outcomesOfLabelsRev.prependOutcomes, ih]
-
-/-- `outcomesOfLabelsRev` on the reversed label list is the `flatMap` it replaces, with the
-accumulator appended. -/
-theorem outcomesOfLabelsRev_eq (next : κ → Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : ρ) (st : σ)
-    (ls : List κ) (acc : List (κ × Veil.ExecutionOutcome Int σ)) :
-    outcomesOfLabelsRev next rd st ls acc =
-      (ls.reverse.flatMap fun l => (extractAllResults (next l) rd st).map (l, ·)) ++ acc := by
-  induction ls generalizing acc with
-  | nil => simp [outcomesOfLabelsRev]
-  | cons l ls ih =>
-    rw [outcomesOfLabelsRev]
-    split <;> simp_all [extractAllResults, outcomesOfLabelsRev.prependOutcomes_eq, List.flatMap_append]
-    -- the general case: the two `map`s differ only in how they destructure the pair
-    exact List.map_congr_left fun ⟨_, _⟩ _ => rfl
 
 end RuntimeExtraction
 
@@ -750,12 +735,12 @@ meta def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] 
         $(mkIdent ``extractValidStates) $CInit $theoryId $(mkIdent ``default) |> $filterMap
       $(mkIdent `tr):ident := let $lbls := $(mkIdent ``List.reverse) (@$(mkIdent ``Veil.Enumeration.allValues) _ $labelsId) ; fun $th $st =>
         let $CNext := $(mkIdent <| toExtractedName assembledNextActName) $theoryStx $stateStx $(← mod.uninterpretedParamIdents)*
-        $(mkIdent ``outcomesOfLabelsRev) $CNext $th $st $lbls []
+        $(mkIdent ``transitionsOfLabelsRev) $CNext $th $st $lbls ⟨[], []⟩
       : $(mkIdent ``Veil.EnumerableTransitionSystem)
         $theoryStx ($(mkIdent ``List) $theoryStx)
         $stateStx ($(mkIdent ``List) $stateStx)
         $(mkIdent ``Int)
-        $labelStx ($(mkIdent ``List) ($labelStx × $(mkIdent ``Veil.ExecutionOutcome) $(mkIdent ``Int) $stateStx))
+        $labelStx ($(mkIdent ``Veil.Transitions) $labelStx $(mkIdent ``Int) $stateStx)
         $theoryId
      })
 
