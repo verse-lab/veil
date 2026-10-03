@@ -53,6 +53,9 @@ theorem forall_comm_eq {p : α → β → Prop} : (∀ a b, p a b) = (∀ b a, p
 def HO_forall_push_left_impl : Simp.Simproc := fun e => do
   match e with
   | Expr.forallE _ t (Expr.forallE _ t' _ .default) .default =>
+    -- A dependent second binder cannot be swapped. Check before calling `Meta`
+    -- operations on its type, which still contains the first binder's loose bvar.
+    if t'.hasLooseBVars then return .continue
     if (← isHigherOrder t') && !(← isHigherOrder t) then
       let step ← forallBoundedTelescope e (maxFVars? := some 2) (fun ks body' => do
         let e' ← mkForallFVars ks.reverse body'
@@ -245,9 +248,16 @@ def hasHOQuantification (e : Expr) : MetaM Bool := do
   let found ← IO.mkRef false
   Meta.forEachExpr e fun sub => do
     -- Check for forall with HO bound type
-    if let .forallE _ t _ _ := sub then
-      if (← isHigherOrder t) then
-        found.set true
+    if sub.isForall then
+      -- Inspect every binder here. Checking only `sub`'s outermost binder is
+      -- insufficient: for a chain of nested foralls, `forEachExpr` visits the
+      -- domains and final body, but does not call this callback on inner forall nodes.
+      -- For example, in `∀ b : Bool, ∀ f : Nat → Bool, P b f`, checking only
+      -- the outermost binder would miss the higher-order binder `f`.
+      forallTelescope sub fun xs _ => do
+        for x in xs do
+          if (← isHigherOrder (← inferType x)) then
+            found.set true
     -- Check for exists with HO bound type
     if sub.isAppOfArity ``Exists 2 then
       let t := sub.getArg! 0
