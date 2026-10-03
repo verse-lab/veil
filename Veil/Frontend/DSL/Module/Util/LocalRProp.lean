@@ -279,7 +279,7 @@ private def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name)
         -- now, `body` should be the actual body of the predicate
         letBoundedTelescope body (.some stateFieldsConc.size) fun stateFields body => do
           let simplifyBody : Simp.Simplifier :=
-            Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType]
+            Simp.simp #[``Veil.Util.neutralizeDecidableInstWithExpectedType]
               |>.andThen (Simp.simp #[``replaceLocalTheoryPropWithCoreAppOnLCtxFields,
                 ``replaceLocalRPropWithCoreAppOnLCtxFields])
           let bodyResult ← simplifyBody body

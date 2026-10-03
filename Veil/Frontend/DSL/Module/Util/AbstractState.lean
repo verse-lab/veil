@@ -112,8 +112,8 @@ effect. -/
 def proveEqModuloDecidableInstances? (e1 e2 : Expr) : MetaM (Option Expr) := do
   let e1 ← whnf e1
   let e2 ← whnf e2
-  let r1 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneral]) e1
-  let r2 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneral]) e2
+  let r1 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInst]) e1
+  let r2 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInst]) e2
   if ← withBackwardsCompatibility (isDefEq r1.expr r2.expr) then
     -- Return the proof that `e1` = `e2`
     -- `r1.proof : e1 = r1.expr, r2.proof : e2 = r2.expr`
