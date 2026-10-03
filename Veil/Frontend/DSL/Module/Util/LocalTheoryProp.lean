@@ -233,7 +233,7 @@ private def Module.proveLocalityForTheoryPredicateCore (mod : Module) (nm : Name
       | throwError "unexpected shape of theory predicate {f}: expected an application with Theory.casesOn as the function"
     lambdaTelescope theoryCasesOnBody fun theoryFields body => do
       let simplifyBody : Simp.Simplifier :=
-        Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType]
+        Simp.simp #[``Veil.Util.neutralizeDecidableInstWithExpectedType]
           |>.andThen (Simp.simp #[``replaceLocalTheoryPropWithCoreAppOnLCtxFields])
       let bodyResult ← simplifyBody body
       let core ← mkLambdaFVars theoryFields bodyResult.expr

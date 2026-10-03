@@ -232,6 +232,8 @@ syntax (name := veil_apply_local_tr) "veil_apply_local_tr" : tactic
 with `Classical.propDecidable`. Without this, the `Decidable` instances
 in the local context might prevent `veil_concretize_state` or
 `veil_concretize_fields` from abstracting states/fields in the `if` conditions.
+Instances passed unapplied, of type `∀ xs, Decidable (p xs)`, are replaced by
+`fun xs => Classical.propDecidable (p xs)`.
 
 NOTE: This is not done at the stage of WP generation since `veil_wp` uses
 `simp [wpSimp]` to simplify the goal, which, at the same time, _seems_ to
@@ -239,7 +241,7 @@ replace the noncomputable `Decidable` instances with those in the local context.
 Therefore, unless we do not use `simp [wpSimp]`, the changes made to `Decidable`
 instances during WP generation will be reverted, and this tactic is still
 required in verification. -/
-syntax (name := __veil_neutralize_decidable_inst) "__veil_neutralize_decidable_inst" ("!")? (ppSpace location)? : tactic
+syntax (name := __veil_neutralize_decidable_inst) "__veil_neutralize_decidable_inst" (ppSpace location)? : tactic
 
 syntax (name := __veil_ghost_relation_ssa) "__veil_ghost_relation_ssa" ("at" ident)? : tactic
 
@@ -677,9 +679,8 @@ def elabVeilConcretizeFieldsTr : DesugarTacticM Unit := veilWithMainContext do
     $(mkIdent ``Bool.decide_eq_bool_eq):ident] at *))
 
 @[inherit_doc __veil_neutralize_decidable_inst]
-def elabVeilNeutralizeDecidableInst (deep : Bool) (loc : Option (TSyntax ``Lean.Parser.Tactic.location)) : DesugarTacticM Unit := veilWithMainContext do
-  let nm := if deep then ``Veil.Util.neutralizeDecidableInstGeneral else ``Veil.Util.neutralizeDecidableInstDepth0
-  veilEvalTactic $ ← `(tactic| veil_simp +$(mkIdent `instances) only [$(mkIdent nm):ident] $[$loc]?)
+def elabVeilNeutralizeDecidableInst (loc : Option (TSyntax ``Lean.Parser.Tactic.location)) : DesugarTacticM Unit := veilWithMainContext do
+  veilEvalTactic $ ← `(tactic| veil_simp +$(mkIdent `instances) only [$(mkIdent ``Veil.Util.neutralizeDecidableInst):ident] $[$loc]?)
   clearDecidableInsts
 where
   clearDecidableInsts : DesugarTacticM Unit := veilWithMainContext do
@@ -1406,8 +1407,8 @@ def elabVeilTactics : Tactic := fun stx => do
     withTraceNode `veil.perf.tactic (fun _ => return "__veil_concretize_fields_wp") (elabVeilConcretizeFieldsWp (agg.isSome))
   | `(tactic| __veil_concretize_fields_tr) => do
     withTraceNode `veil.perf.tactic (fun _ => return "__veil_concretize_fields_tr") elabVeilConcretizeFieldsTr
-  | `(tactic| __veil_neutralize_decidable_inst $[!%$agg]? $[$loc]?) => do
-    withTraceNode `veil.perf.tactic (fun _ => return "__veil_neutralize_decidable_inst") (elabVeilNeutralizeDecidableInst (agg.isSome) loc)
+  | `(tactic| __veil_neutralize_decidable_inst $[$loc]?) => do
+    withTraceNode `veil.perf.tactic (fun _ => return "__veil_neutralize_decidable_inst") (elabVeilNeutralizeDecidableInst loc)
   | `(tactic| __veil_ghost_relation_ssa $[at $hyp:ident]?) => do
     withTraceNode `veil.perf.tactic (fun _ => return "__veil_ghost_relation_ssa") (elabGhostRelationSSA hyp)
   -- User-facing tactics

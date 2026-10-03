@@ -6,9 +6,6 @@ public meta section
 
 namespace Veil.Util
 
-theorem neutralize_Decidable (p : Prop) [inst : Decidable p] :
-  inst = Classical.propDecidable p := by grind
-
 section replacement
 
 open Lean Meta Elab Term
@@ -17,23 +14,13 @@ private def getLambdaBody : Expr → Expr
   | .lam _ _ b ..   => getLambdaBody b
   | e               => e
 
-/-- Essentially a special case of `neutralizeDecidableInstGeneralStep`, but should be more efficient? -/
-private def neutralizeDecidableInstDepth0Step (arg : Expr) (expectedType? : Option Expr) (idx : Nat) : SimpM (Option (Simp.Result × Nat)) := do
-  if arg.getAppFn'.isConstOf ``Classical.propDecidable then
-    return none
-  let ty ← match expectedType? with
-    | some expectedType => whnf expectedType
-    | none => inferType arg
-  ty.withApp fun fn args => do
-    if fn.isConstOf ``Decidable then
-      let p := args[0]!
-      let q ← mkAppM ``Classical.propDecidable #[p]
-      let proof := mkAppN (mkConst ``neutralize_Decidable) #[p, arg]
-      return some ({ expr := q, proof? := .some proof }, idx)
-    else
-      return none
-
-private def neutralizeDecidableInstGeneralStep (arg : Expr) (expectedType? : Option Expr) (idx : Nat) : SimpM (Option (Simp.Result × Nat)) := do
+/-- If `ty` (the type of `arg`, or the binder type it is passed to) is
+`∀ xs, Decidable (p xs)`, replace `arg` by `fun xs => Classical.propDecidable (p xs)`.
+This covers both fully applied instances (`xs` empty) and instances passed
+unapplied. `forallTelescope` does not unfold `DecidableEq α`, `DecidablePred p`,
+etc., so unapplied instances of these types (such as module parameters) are
+left alone. -/
+private def neutralizeDecidableInstStep (arg : Expr) (expectedType? : Option Expr) : MetaM (Option Simp.Result) := do
   if (getLambdaBody arg).getAppFn'.isConstOf ``Classical.propDecidable then
     return none
   let ty ← match expectedType? with
@@ -41,67 +28,70 @@ private def neutralizeDecidableInstGeneralStep (arg : Expr) (expectedType? : Opt
     | none => inferType arg
   forallTelescope ty fun xs body =>
     body.withApp fun fn args => do
-      if fn.isConstOf ``Decidable then
-        let p := args[0]!
-        let q ← mkAppM ``Classical.propDecidable #[p]
-        let proof := mkAppN (mkConst ``neutralize_Decidable) #[p, mkAppN arg xs]
-        let res ← Simp.Result.addLambdas { expr := q, proof? := .some proof } xs
-        return some (res, idx)
-      else
+      unless fn.isConstOf ``Decidable do
         return none
+      let p := args[0]!
+      let q ← mkAppM ``Classical.propDecidable #[p]
+      let rhs ← mkLambdaFVars xs q
+      -- Decidable and dependent functions into it are subsingletons.
+      -- Apply the endpoints directly to avoid unfolding ghosts during unification.
+      let elim ← mkAppOptM ``Subsingleton.elim #[some ty, none]
+      return some { expr := rhs, proof? := mkApp2 elim arg rhs }
 
-private def neutralizeDecidableInstCore
-    (step : Expr → Option Expr → Nat → SimpM (Option (Simp.Result × Nat)))
-    (useExpectedType : Bool := false) : Expr → SimpM Simp.Step := fun e => do
+private def neutralizeDecidableInstCore (useExpectedType : Bool) : Expr → SimpM Simp.Step := fun e => do
   -- idea: if any of the arguments is a potential target, replace it
   -- and `visit` again; otherwise, `continue`
   -- NOTE: it seems that `simp` will skip instance arguments in the recursion,
   -- so we need to visit all arguments and implement this manually
   let args := e.getAppArgs
   let f := e.getAppFn'
-  let target? ←
+  let target? ← do
     if useExpectedType then
       let (paramInfos, _) ← try
           instantiateForallWithParamInfos (← inferType f) args
         catch _ =>
           return .continue
-      (args.zip paramInfos).zipIdx.findSomeM? fun ((arg, paramInfo), idx) =>
-        step arg (some paramInfo.type) idx
+      (args.zip paramInfos).zipIdx.findSomeM? fun ((arg, paramInfo), idx) => do
+        return (← neutralizeDecidableInstStep arg (some paramInfo.type)).map (·, idx)
     else
-      args.zipIdx.findSomeM? fun (arg, idx) =>
-        step arg none idx
+      args.zipIdx.findSomeM? fun (arg, idx) => do
+        return (← neutralizeDecidableInstStep arg none).map (·, idx)
   let some (res, idx) := target?
     | return .continue
   -- use congruence here
   let fpre := mkAppN f <| args.take idx
-  let proof2 ← mkAppM ``congrArg #[fpre, (← res.getProof)]
-  let proof3 ← Array.foldlM (fun subproof sufarg => mkAppM ``congrFun #[subproof, sufarg])
+  -- Keep the endpoints of the equality. Re-inferring them through `mkAppM`
+  -- may unfold a ghost in the instance's type to assign endpoint metavariables.
+  let proof2 ← mkCongrArg fpre (← res.getProof)
+  let proof3 ← Array.foldlM (fun subproof sufarg => mkCongrFun subproof sufarg)
     proof2 (args.drop (idx + 1))
   return .visit { expr := mkAppN f (args.set! idx res.expr), proof? := .some proof3 }
 
-simproc_decl neutralizeDecidableInstDepth0 (_) := neutralizeDecidableInstCore neutralizeDecidableInstDepth0Step
-simproc_decl neutralizeDecidableInstGeneral (_) := neutralizeDecidableInstCore neutralizeDecidableInstGeneralStep
+/-- Replace every `Decidable` instance argument by `Classical.propDecidable`
+(by `fun xs => Classical.propDecidable (p xs)` if it is passed unapplied). The
+proposition is read off the type of the argument. This is the variant *tactics*
+should use. -/
+simproc_decl neutralizeDecidableInst (_) := neutralizeDecidableInstCore (useExpectedType := false)
 
-/-
-The default simprocs above inspect the actual type of each argument.  That is
-usually the least surprising behavior, and it is what tactics exposed to users
-should keep using.
+/-- Like `neutralizeDecidableInst`, but reads the proposition off the binder
+type of the surrounding application instead of the type of the argument.
 
-The variants below inspect the _expected_ binder type at the surrounding
-application instead.  This is useful only in generated proof artifacts where the
-rewritten expression is immediately abstracted again with `mkLambdaFVars`.  In
-field-representation mode, an elaborated `Decidable` argument may have a type
-whose proposition mentions concrete field variables such as `r_conc`, while the
-surrounding application has already exposed the canonical fields `r`.  Replacing
-with `Classical.propDecidable` at the expected type keeps the proposition in
-that canonical form, so the later abstraction step does not capture the wrong
-field variables.
--/
-simproc_decl neutralizeDecidableInstDepth0WithExpectedType (_) :=
-  neutralizeDecidableInstCore neutralizeDecidableInstDepth0Step (useExpectedType := true)
-
-simproc_decl neutralizeDecidableInstGeneralWithExpectedType (_) :=
-  neutralizeDecidableInstCore neutralizeDecidableInstGeneralStep (useExpectedType := true)
+The two differ only when these types are definitionally but not syntactically
+equal. The result here is then well-typed without unfolding anything; unfolding
+is only needed to check the proof (`Subsingleton.elim`). Use this in
+*generated proof artifacts* whose result is abstracted again, saved, or compared
+while some definitions must stay folded:
+* In field-representation mode, the type of an elaborated instance may mention
+  concrete field variables such as `r_conc`, while the application has already
+  exposed the canonical field `r`. Reading the binder type keeps the
+  proposition in terms of `r`, so a later abstraction over `r` (e.g. by
+  `mkLambdaFVars`) does not leave `r_conc` behind.
+* An instance synthesized through the body of a definition, e.g.
+  `Nat.decLt (readCount n) (bound n)` for `if enabled n then …` with a ghost
+  relation `enabled`, is replaced by `Classical.propDecidable (enabled n)`
+  rather than `Classical.propDecidable (readCount n < bound n)`. -/
+simproc_decl neutralizeDecidableInstWithExpectedType (_) :=
+  neutralizeDecidableInstCore (useExpectedType := true)
 
 end replacement
 
