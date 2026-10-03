@@ -349,10 +349,15 @@ implementation-detail `let`, so the write itself stays a trivial structure
 update the WP simplifier can digest (via `VeilM.wp_modify`/`wp_modify'`):
 `modify fun st => { st with f := __veil_bind_f }`.
 
-The statement produces no value (`ensureUnitAt`), and the returned expression
-is the entire remaining block: the continuation `dec` is elaborated after the
-write. `ref` and the target's head only position diagnostics and hovers on the
-original assignment syntax. -/
+The statement produces no value (its write is a `modify`, which returns
+`PUnit`), and the returned expression is the entire remaining block: the
+continuation `dec` is elaborated after the write. `ensureUnitAt` is there for
+the error message. The `modify` goes to `elabDoExpr` as an expression
+statement, so without it an assignment ending a branch that returns a value
+would still be rejected, but as a type mismatch of the generated `modify`
+rather than of the statement (see the note on `elabAssertionStatement` in
+`DoElab/Statements.lean`). `ref` and the target's head only position
+diagnostics and hovers on the original assignment syntax. -/
 private def elabPinnedStateAssignment (mod : Module) (component : StateComponent)
     (target : Target) (caps : Array (Option Name)) (rhs : Term)
     (ref : Syntax) (dec : DoElemCont) : DoElabM Expr := do

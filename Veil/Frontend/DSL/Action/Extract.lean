@@ -433,6 +433,22 @@ def ConstrainedExtractResult.require_VeilM {m ρ σ ex} (p : Prop) [decp : Decid
   | .external => ConstrainedExtractResult.assume_VeilM p (decp := decp)
   | .internal => ConstrainedExtractResult.liftM _ _ _ _ (@VeilExecM.assert m ρ σ p decp ex)
 
+def ConstrainedExtractResult.pickSubtype_VeilM (p : τ → Prop) [∀ x, Decidable (p x)] [instec : ExtCandidates Candidates Std.Format p] :
+  ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
+  (findOfCandidates _) (VeilM.pickSubtype τ p) := ConstrainedExtractResult.pickSubtype _ _ _ p (instec := instec)
+
+def ConstrainedExtractResult.assumeSubtype_VeilM {m ρ σ} (p : Prop) [decp : Decidable p] :
+  ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
+  (findOfCandidates _) (@VeilM.assumeSubtype m ρ σ p decp) :=
+  ConstrainedExtractResult.assumeSubtype _ _ _ _ p (decp := decp)
+
+def ConstrainedExtractResult.requireSubtype_VeilM {m ρ σ ex} (p : Prop) [decp : Decidable p] :
+  ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
+  (findOfCandidates _) (@VeilM.requireSubtype m ρ σ p decp ex) :=
+  match m with
+  | .external => ConstrainedExtractResult.assumeSubtype_VeilM p (decp := decp)
+  | .internal => ConstrainedExtractResult.liftM _ _ _ _ (@VeilExecM.assertSubtype m ρ σ p decp ex)
+
 /-- The computation without results: the empty choice. -/
 @[inline]
 def TsilT.empty {m : Type u → Type v} {α : Type u} : TsilT m α := []
@@ -572,6 +588,16 @@ def ConstrainedExtractResult.pickSuchThat_bind_VeilM (p : τ → Prop) [∀ x, D
       (findOfCandidates _) (VeilM.pickSuchThat τ p >>= f) :=
   ConstrainedExtractResult.pickList_bind _ _ _ _ p (instec := instec) hf
 
+/-- `ConstrainedExtractResult.pickSubtype_bind` for `VeilM.pickSubtype`, which the discrimination
+tree does not see through either. -/
+def ConstrainedExtractResult.pickSubtype_bind_VeilM (p : τ → Prop) [∀ x, Decidable (p x)]
+    [instec : ExtCandidates Candidates Std.Format p] {f : {x // p x} → VeilM mode ρ σ β}
+    (hf : ∀ x, ConstrainedExtractResult Std.Format (VeilExecM mode ρ σ)
+      (VeilMultiExecM Std.Format ExId ρ σ) (findOfCandidates _) (f x)) :
+    ConstrainedExtractResult Std.Format (VeilExecM mode ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
+      (findOfCandidates _) (VeilM.pickSubtype τ p >>= f) :=
+  ConstrainedExtractResult.pickSubtype_bind _ _ _ p (instec := instec) hf
+
 end PicksAndTrailingPure
 
 end VeilSpecificExtractionUtils
@@ -587,6 +613,10 @@ attribute [multiextracted] ConstrainedExtractResult.pure
   ConstrainedExtractResult.pickSuchThat_VeilM
   ConstrainedExtractResult.assume_VeilM
   ConstrainedExtractResult.require_VeilM
+  ConstrainedExtractResult.dite
+  ConstrainedExtractResult.pickSubtype_VeilM
+  ConstrainedExtractResult.assumeSubtype_VeilM
+  ConstrainedExtractResult.requireSubtype_VeilM
 
 open MultiExtractor in
 /- These match goals that `ConstrainedExtractResult.bind` matches too, and must be tried first.
@@ -596,6 +626,7 @@ attribute [multiextracted high] ConstrainedExtractResult.bind_pure
   ConstrainedExtractResult.bind_pure_unit
   ConstrainedExtractResult.pick_bind
   ConstrainedExtractResult.pickSuchThat_bind_VeilM
+  ConstrainedExtractResult.pickSubtype_bind_VeilM
 
 open MultiExtractor in
 attribute [multiExtractSimp]
@@ -618,6 +649,12 @@ attribute [multiExtractSimp ↓] ConstrainedExtractResult.pure
   ConstrainedExtractResult.pickList_bind ConstrainedExtractResult.pick_bind
   ConstrainedExtractResult.pickSuchThat_bind_VeilM
   ConstrainedExtractResult.bind_pure ConstrainedExtractResult.bind_pure_unit
+  ConstrainedExtractResult.dite
+  ConstrainedExtractResult.pickSubtype ConstrainedExtractResult.assumeSubtype
+  ConstrainedExtractResult.pickSubtype_VeilM
+  ConstrainedExtractResult.assumeSubtype_VeilM
+  ConstrainedExtractResult.requireSubtype_VeilM
+  ConstrainedExtractResult.pickSubtype_bind ConstrainedExtractResult.pickSubtype_bind_VeilM
   /- `change` wraps the new extraction goal in `id` as a type checkpoint. Expose
      its let-bound result so the projection simproc can remove the certificate. -/
   id

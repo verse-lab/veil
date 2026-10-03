@@ -46,6 +46,31 @@ execution. -/
   | .internal => assume p
   | .external => VeilM.assert p ex
 
+/-! The following variants also return the proof of the proposition (`assert h : p`,
+`require h : p`, `assume h : p` and `let x :| h : p`). -/
+
+@[expose] def VeilExecM.assertSubtype (p : Prop) [Decidable p] (ex : ExId) :
+    VeilExecM m ρ σ (NonDetT.Holds p) :=
+  if h : p then pure ⟨.unit, h⟩ else throw ex
+
+@[expose] def VeilM.assertSubtype (p : Prop) [Decidable p] (ex : ExId) :
+    VeilM m ρ σ (NonDetT.Holds p) :=
+  liftM (@VeilExecM.assertSubtype m ρ σ p _ ex)
+
+@[reducible, expose] def VeilM.assumeSubtype (p : Prop) [Decidable p] :
+    VeilM m ρ σ (NonDetT.Holds p) :=
+  MonadNonDet.assumeSubtype p
+
+@[expose] def VeilM.pickSubtype (τ : Type) (p : τ → Prop) [∀ x, Decidable (p x)] :
+    VeilM m ρ σ {x // p x} :=
+  MonadNonDet.pickSubtype τ p
+
+@[expose] def VeilM.requireSubtype (p : Prop) [Decidable p] (ex : ExId) :
+    VeilM m ρ σ (NonDetT.Holds p) :=
+  match m with
+  | .internal => VeilM.assertSubtype p ex
+  | .external => VeilM.assumeSubtype p
+
 /-- `ens` takes the pre-state as an argument to be able to compute the
 frame (`unchanged`). -/
 @[reducible] def VeilM.spec (req : SProp ρ σ) (ens : σ → RProp ρ σ α) (pre_ex post_ex : ExId) [∀ rd st, Decidable (req rd st)] [∀ rd st st' ret, Decidable (ens rd st st' ret)] : VeilM m ρ σ α := do
@@ -153,6 +178,47 @@ theorem VeilM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId)
   simp only [assert, MAlgLift.wp_lift, monadLift_self, ↓VeilExecM.wp_assert]
 
 @[wpSimp ↓]
+theorem VeilM.wp_assumeSubtype (p : Prop) [Decidable p]
+    (post : RProp (NonDetT.Holds p) ρ σ) (r : ρ) (s : σ) :
+    wp (VeilM.assumeSubtype p : VeilM m ρ σ (NonDetT.Holds p)) post r s =
+      ∀ h : p, post ⟨.unit, h⟩ r s := by
+  simp [VeilM.assumeSubtype, MonadNonDet.wp_assumeSubtype, loomLogicSimp]
+
+@[wpSimp ↓]
+theorem VeilExecM.wp_assertSubtype (p : Prop) {_ : Decidable p} (ex : ExId)
+    (post : RProp (NonDetT.Holds p) ρ σ) (r : ρ) (s : σ) :
+    wp (@VeilExecM.assertSubtype m ρ σ p _ ex) post r s =
+      if h : p then post ⟨.unit, h⟩ r s else hd ex := by
+  simp only [VeilExecM.assertSubtype]
+  split
+  · simp [_root_.wp_pure]
+  simp +instances only [throw, throwThe, ReaderT.instMonadExceptOf]
+  simp only [MAlgLift.wp_lift]
+  erw [ExceptT.wp_throw]
+  simp [loomLogicSimp]
+  rfl
+
+set_option backward.isDefEq.respectTransparency false in
+@[wpSimp ↓]
+theorem VeilM.wp_assertSubtype (p : Prop) {_ : Decidable p} (ex : ExId)
+    (post : RProp (NonDetT.Holds p) ρ σ) (r : ρ) (s : σ) :
+    wp (@VeilM.assertSubtype m ρ σ p _ ex) post r s =
+      if h : p then post ⟨.unit, h⟩ r s else hd ex := by
+  simp only [assertSubtype, MAlgLift.wp_lift, monadLift_self, ↓VeilExecM.wp_assertSubtype]
+
+/-- This formulation avoids a blowup in formula size by avoiding copies of `post`. -/
+@[wpSimp ↓]
+theorem VeilM.wp_requireSubtype (p : Prop) [Decidable p] (ex : ExId)
+    (post : RProp (NonDetT.Holds p) ρ σ) (r : ρ) (s : σ) :
+    wp (VeilM.requireSubtype p ex : VeilM m ρ σ (NonDetT.Holds p)) post r s =
+      (letI wpI := fun _p [Decidable _p] (_post : RProp (NonDetT.Holds _p) ρ σ) =>
+        wp (VeilM.assertSubtype _p ex : VeilM .internal ρ σ (NonDetT.Holds _p)) _post
+       letI wpE := fun _p [Decidable _p] (_post : RProp (NonDetT.Holds _p) ρ σ) =>
+        wp (VeilM.assumeSubtype _p : VeilM .external ρ σ (NonDetT.Holds _p)) _post
+       (match m with | .internal => wpI | .external => wpE) p post) r s := by
+  cases m <;> rfl
+
+@[wpSimp ↓]
 theorem VeilM.wp_get {_ : IsSubStateOf σₛ σ}
     (post : RProp σₛ ρ σ) (r : ρ) (s : σ) :
     wp (get : VeilM m ρ σ σₛ) post r s = post (getFrom s) r s := by
@@ -229,6 +295,12 @@ theorem VeilM.wp_pickSuchThat {p : τ → Prop} {_ : ∀ x, Decidable (p x)}
       ∀ t, p t → post t r s := by
   simp [VeilM.pickSuchThat, MonadNonDet.wp_pickSuchThat, loomLogicSimp]
 
+theorem VeilM.wp_pickSubtype {p : τ → Prop} {_ : ∀ x, Decidable (p x)}
+    (post : RProp {x // p x} ρ σ) (r : ρ) (s : σ) :
+    wp (VeilM.pickSubtype τ p : VeilM m ρ σ {x // p x}) post r s =
+      ∀ t (h : p t), post ⟨t, h⟩ r s := by
+  simp [VeilM.pickSubtype, MonadNonDet.wp_pickSubtype, loomLogicSimp]
+
 
 @[wpSimp ↓]
 theorem VeilM.wp_if [Decidable p] (a b : VeilM m ρ σ τ)
@@ -237,12 +309,24 @@ theorem VeilM.wp_if [Decidable p] (a b : VeilM m ρ σ τ)
       if p then wp a post r s else wp b post r s := by
   split <;> rfl
 
+@[wpSimp ↓]
+theorem VeilM.wp_dite [Decidable p] (a : p → VeilM m ρ σ τ) (b : ¬p → VeilM m ρ σ τ)
+    (post : RProp τ ρ σ) (r : ρ) (s : σ) :
+    wp (if h : p then a h else b h) post r s =
+      if h : p then wp (a h) post r s else wp (b h) post r s := by
+  split <;> rfl
+
+/- A `dite` whose branches end up not using the hypothesis (as after `assert h : p` when `h` is
+not used) becomes the `ite` that the version without the hypothesis produces; the SMT
+preprocessing does not handle such a `dite` the same way. -/
+attribute [wpSimp] dite_eq_ite
+
 -- Keep this as an unfolding rule so the binder-preserving bind simproc sees
 -- the continuation introduced by `returnUnit` with its source names intact.
 attribute [wpSimp ↓] VeilM.returnUnit
 
 /-!
-## Binder-preserving WP rewrites for `bind`, `pick`, and `pickSuchThat`
+## Binder-preserving WP rewrites for `bind`, `pick`, `pickSuchThat`, and `pickSubtype`
 
 Applying the pointwise WP lemmas as plain simp rules replaces source binder
 names from do-notation with generic ones like `x`, `x_1`, or `t`. These
@@ -297,18 +381,21 @@ simproc_decl wpChoicePreserveBinder (_) := fun e => do
   let go (name : Name) (lem : Name) : SimpM Simp.Step := do
     let some (rhs, proof) ← rewriteRoot? e lem | return .continue
     return .visit { expr := underLambdas (renameBinder name) rhs.headBeta, proof? := some proof }
+  -- `let x : τ :| p` may keep the user name on the predicate, not the post lambda.
+  let predicateName : SimpM Name := do
+    match lambdaUserName? post with
+    | some n => pure n
+    | none   =>
+      let p? ← act.getAppArgs'.findSomeM? fun a => do
+        let .forallE _ _ b _ := ← whnf (← inferType a) | return none
+        return if b.isProp then some a else none
+      pure <| (p?.bind lambdaUserName?).getD `t
   if act.getAppFn'.isConstOf ``MonadNonDet.pick then
     go ((lambdaUserName? post).getD `t) ``VeilM.wp_pick
   else if act.getAppFn'.isConstOf ``VeilM.pickSuchThat then
-    -- `let x : τ :| p` may keep the user name on the predicate, not the post lambda.
-    let name ← match lambdaUserName? post with
-      | some n => pure n
-      | none   =>
-        let p? ← act.getAppArgs'.findSomeM? fun a => do
-          let .forallE _ _ b _ := ← whnf (← inferType a) | return none
-          return if b.isProp then some a else none
-        pure <| (p?.bind lambdaUserName?).getD `t
-    go name ``VeilM.wp_pickSuchThat
+    go (← predicateName) ``VeilM.wp_pickSuchThat
+  else if act.getAppFn'.isConstOf ``VeilM.pickSubtype then
+    go (← predicateName) ``VeilM.wp_pickSubtype
   else return .continue
 
 simproc_decl wpBindPreserveBinder (_) := fun e => do
