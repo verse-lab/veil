@@ -256,7 +256,8 @@ where
 
 /-- Internal element used by openings so the generated `read`/`get` does not
 redispatch through the user-statement wrapper. The right-hand side of a Veil
-`let x ← rhs` is marked the same way, to stay under the statement's opening. -/
+`let x ← rhs`, and the operation of `require h : p` and `assert h : p`, are
+marked the same way, to stay under the statement's opening. -/
 syntax (name := internalExpr) "veil_do_internal_expr% " term : doElem
 
 /- Behaves like a plain `doExpr`. Registered because an internal element can
@@ -300,19 +301,19 @@ def internalIfPlainTerm? (ctx : Context) (rhs : DoElem) : DoElabM (Option DoElem
   rejectDirectRecursion ctx rhs
   some <$> withRef rhs `(doElem| veil_do_internal_expr% $e)
 
-/-- Bind the result of the monadic `operation` under `name`, then elaborate `k`. -/
-private def bindInternalResultAs (ref : Syntax) (name operation : Name)
+/-- Bind the result of the monadic `rhs` under `name`, then elaborate `k`. -/
+private def bindInternalResultAs (ref : Syntax) (name : Name) (rhs : Term)
     (k : DoElabM Expr) : DoElabM Expr := do
-  let rhs ← `(doElem| veil_do_internal_expr% $(mkIdent operation):term)
-  elabDoIdDecl (mkIdentFrom ref name) none rhs k
+  let elem ← `(doElem| veil_do_internal_expr% $rhs:term)
+  elabDoIdDecl (mkIdentFrom ref name) none elem k
 
-/-- Bind the result of the monadic `operation` under a fresh
-implementation-detail name derived from `hint`, then elaborate `k` with that
-name. -/
-private def bindInternalResult (ref : Syntax) (hint operation : Name)
+/-- Bind the result of the monadic `rhs` to a fresh implementation-detail name
+derived from `hint`, and run `k` with that name. `rhs` is elaborated as an
+internal element, so it stays under the current state opening. -/
+def bindInternalResult (ref : Syntax) (hint : Name) (rhs : Term)
     (k : Name → DoElabM Expr) : DoElabM Expr := do
   let name ← mkFreshUserName (mkVeilImplementationDetailName hint)
-  bindInternalResultAs ref name operation (k name)
+  bindInternalResultAs ref name rhs (k name)
 
 syntax (name := theoryOpen) "veil_do_open_theory%" : doElem
 
@@ -324,9 +325,12 @@ def theoryOpenControlInfo : ControlInfoHandler := fun _ =>
 def elabTheoryOpen : DoElab := fun stx dec => do
   let `(doElem| veil_do_open_theory%) := stx | throwUnsupportedSyntax
   let ctx ← requireVeilDoBlock
+  /- The opening produces no value: it binds its result and continues with
+  `continueWithUnit`, as Lean's handler for `let x ← e` does (see the note on
+  `elabAssertionStatement` in `DoElab/Statements.lean`). -/
   let dec ← dec.ensureUnitAt stx
   let shadowed ← userLocalNames
-  bindInternalResult stx `theory ``read fun theoryName =>
+  bindInternalResult stx `theory (mkIdent ``read) fun theoryName =>
     bindTheoryFields shadowed theoryName ctx.mod.immutableComponents
       dec.continueWithUnit
 
@@ -336,7 +340,7 @@ run the statement elaborator directly. -/
 def openStateAround (mod : Module) (k : DoElabM Expr) : DoElabM Expr := do
   let ref ← getRef
   let shadowed ← userLocalNames
-  bindInternalResultAs ref currentStateBindingName ``get <|
+  bindInternalResultAs ref currentStateBindingName (mkIdent ``get) <|
     bindStateFields shadowed mod.mutableComponents k
 
 /-- Inline generated field views, and ordinary local lets derived from them,

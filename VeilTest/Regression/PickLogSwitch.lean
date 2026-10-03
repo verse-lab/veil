@@ -10,7 +10,8 @@ result, in order, each shown by its `Display` and rendered as `x = v`, where `x`
 is bound to. The results themselves do not depend on the switch.
 
 Covered: a plain pick, a constrained pick after it, a pick that a `require` filters, a pick in a
-procedure whose value an action uses, and a havoc in the initializer.
+procedure whose value an action uses, a havoc in the initializer, and proof-producing picks
+(single and tuple witnesses, conditional picks, and empty candidate sets).
 -/
 
 veil module PickLogSwitch
@@ -38,6 +39,53 @@ action choose_true {
   let b ← pick Bool
   require b
   chosen := b
+}
+
+/- Adding a proof must preserve both the choice's source name and the log
+switch; assumptions/assertions themselves must not add synthetic choices. -/
+action choose_true_proof {
+  let b ← pick Bool
+  require _h : b
+  assert _h' : b
+  assume _h'' : b
+  chosen := b
+}
+
+action choose_two_proof {
+  let b ← pick Bool
+  let c :| _h : c ≠ b
+  chosen := c
+}
+
+action choose_if_proof {
+  if b : Bool :| _h : b = true then
+    chosen := b
+  else
+    chosen := false
+}
+
+action choose_pair_proof {
+  let (b, c) : Bool × Bool :| _h : b ≠ c
+  chosen := b
+}
+
+-- The proof is used by a partial accessor. The choice must display the
+-- original Option value, without the outer subtype or its proof.
+action choose_some_proof {
+  let m : Option Bool :| h : m.isSome
+  chosen := m.get h
+}
+
+action choose_none_proof {
+  let b : Bool :| _h : False
+  chosen := b
+}
+
+action choose_if_none_proof {
+  if b : Bool :| _h : False then
+    chosen := b
+  else
+    chosen := false
 }
 
 procedure pick_val {
@@ -86,5 +134,39 @@ def outcomes (on : Bool) : List (List (List String × Option Bool)) :=
   [(["b = true", "c = false"], some false), (["b = false", "c = true"], some true)],
   [(["b = true"], some true)],
   [(["b = true"], some true), (["b = false"], some false)]]
+
+#guard (letI : LogSwitch := ⟨false⟩; run (choose_true_proof.ext.extracted _ _)) ==
+  [([], some true)]
+#guard (letI : LogSwitch := ⟨true⟩; run (choose_true_proof.ext.extracted _ _)) ==
+  [(["b = true"], some true)]
+
+#guard (letI : LogSwitch := ⟨false⟩; run (choose_two_proof.ext.extracted _ _)) ==
+  [([], some false), ([], some true)]
+#guard (letI : LogSwitch := ⟨true⟩; run (choose_two_proof.ext.extracted _ _)) ==
+  [(["b = true", "c = false"], some false), (["b = false", "c = true"], some true)]
+
+#guard (letI : LogSwitch := ⟨false⟩; run (choose_if_proof.ext.extracted _ _)) ==
+  [([], some true)]
+#guard (letI : LogSwitch := ⟨true⟩; run (choose_if_proof.ext.extracted _ _)) ==
+  [(["b = true"], some true)]
+
+#guard (letI : LogSwitch := ⟨false⟩; run (choose_pair_proof.ext.extracted _ _)) ==
+  [([], some true), ([], some false)]
+#guard (letI : LogSwitch := ⟨true⟩; run (choose_pair_proof.ext.extracted _ _)) ==
+  [(["(b, c) = (true, false)"], some true), (["(b, c) = (false, true)"], some false)]
+
+#guard (letI : LogSwitch := ⟨false⟩; run (choose_some_proof.ext.extracted _ _)) ==
+  [([], some true), ([], some false)]
+#guard (letI : LogSwitch := ⟨true⟩; run (choose_some_proof.ext.extracted _ _)) ==
+  [(["m = some true"], some true), (["m = some false"], some false)]
+
+-- No candidate means no execution for a pick, or an unlogged else branch
+-- for a conditional pick. The failed witness must not leave a choice behind.
+#guard (letI : LogSwitch := ⟨false⟩; run (choose_none_proof.ext.extracted _ _)) == []
+#guard (letI : LogSwitch := ⟨true⟩; run (choose_none_proof.ext.extracted _ _)) == []
+#guard (letI : LogSwitch := ⟨false⟩; run (choose_if_none_proof.ext.extracted _ _)) ==
+  [([], some false)]
+#guard (letI : LogSwitch := ⟨true⟩; run (choose_if_none_proof.ext.extracted _ _)) ==
+  [([], some false)]
 
 end PickLogSwitch
