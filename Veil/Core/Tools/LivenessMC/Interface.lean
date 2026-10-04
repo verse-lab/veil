@@ -77,7 +77,7 @@ theorem LivenessProperty.isEdgeAtom_of_mem_edgeLabel (p : LivenessProperty ρ σ
                 | .taken _ isMatch => if isMatch lbl then a'.insert n else a'
                 | _ => a')).2,
         p.isEdgeAtom j = true by
-    exact hgen p.atoms 0 ∅ (by simp) (fun m hm => by simpa using (List.getElem?_eq_getElem hm)) i h
+    exact hgen p.atoms 0 ∅ (by simp) (fun m hm => by simp [List.getElem?_eq_getElem hm]) i h
   intro as
   induction as with
   | nil => intro k acc hacc _ j hj; exact hacc j hj
@@ -117,3 +117,5 @@ instance : Inhabited (LivenessProperty ρ σ l) where
     atoms := []
     φ := default
   }
+
+end Veil.LivenessMC
