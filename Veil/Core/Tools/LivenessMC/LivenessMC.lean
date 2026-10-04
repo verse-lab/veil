@@ -56,10 +56,8 @@ variable {ρ l : Type} [BEq l] [Hashable l] {th : ρ}
 
 def sysSucc
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) : σ → Array σ := fun st =>
-  ((sys.tr th st).filterMap fun (_, o) => match o with
-    | .success s' => some s'
-    | _ => none).toArray
+      (Veil.Transitions l Int σ) th) : σ → Array σ := fun st =>
+  ((sys.tr th st).successes.map Prod.snd).toArray
 
 /-- The labels (action instantiations) that can *fire* in `st`: those with a `.success` outcome.
 
@@ -68,15 +66,13 @@ holds at `s` exactly when some `T(a)`-step leaves `s`.
 Under the other reading `□(E(a) → ◇T(a))` would be unsatisfiable on a model whose action always faults,
 reporting a fairness violation where the real problem is the assertion failure. -/
 def enabledLabelsTr [BEq l] [Hashable l]
-    (tr : σ → List (l × Veil.ExecutionOutcome Int σ)) (st : σ) : List l :=
-  ((tr st).foldl (init := Std.HashSet.emptyWithCapacity) fun seen (lbl, o) =>
-    match o with
-    | .success _ => seen.insert lbl
-    | _ => seen).toList
+    (tr : σ → Veil.Transitions l Int σ) (st : σ) : List l :=
+  ((tr st).successes.foldl (init := Std.HashSet.emptyWithCapacity) fun seen (lbl, _) =>
+    seen.insert lbl).toList
 
 def enabledLabels [BEq l] [Hashable l]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (st : σ) : List l :=
+      (Veil.Transitions l Int σ) th) (st : σ) : List l :=
   enabledLabelsTr (sys.tr th) st
 
 /-- One shared empty letter as a nullary definition so it is a closed constant allocated once -/
@@ -88,22 +84,18 @@ def edgeLabelling (p : LivenessProperty ρ σ l) : Option (l → Std.HashSet Nat
 
 /-- The system as a *labelled* graph: each successful step paired with the atoms it contributes, which are
 the `T(a)` atoms its label matches. -/
-def sysStepsLabelledTr (tr : σ → List (l × Veil.ExecutionOutcome Int σ))
+def sysStepsLabelledTr (tr : σ → Veil.Transitions l Int σ)
     (edgeLabel? : Option (l → Std.HashSet Nat)) :
     σ → Array (LTLLib.LStep Nat σ) :=
   match edgeLabel? with
   | none => fun st =>
-    ((tr st).filterMap fun (_, o) => match o with
-      | .success s' => some (emptyLetter, s')
-      | _ => none).toArray
+    ((tr st).successes.map fun (_, s') => (emptyLetter, s')).toArray
   | some edgeLabel => fun st =>
-    ((tr st).filterMap fun (lbl, o) => match o with
-      | .success s' => some (edgeLabel lbl, s')
-      | _ => none).toArray
+    ((tr st).successes.map fun (lbl, s') => (edgeLabel lbl, s')).toArray
 
 def sysStepsLabelled
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th)
+      (Veil.Transitions l Int σ) th)
     (edgeLabel? : Option (l → Std.HashSet Nat)) :
     σ → Array (LTLLib.LStep Nat σ) :=
   sysStepsLabelledTr (sys.tr th) edgeLabel?
@@ -112,7 +104,7 @@ omit [BEq σ] [Hashable σ] [LawfulBEq σ] [BEq l] [Hashable l] in
 /-- Forgetting the letters gives back the unlabelled graph. -/
 theorem targets_sysStepsLabelled
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th)
+      (Veil.Transitions l Int σ) th)
     (edgeLabel? : Option (l → Std.HashSet Nat)) :
     LTLLib.LSys.targets (sysStepsLabelled sys edgeLabel?) = sysSucc sys := by
   funext st
@@ -120,22 +112,20 @@ theorem targets_sysStepsLabelled
     · show Array.map Prod.snd _ = _
       apply Array.ext'
       simp only [sysStepsLabelled, sysStepsLabelledTr, sysSucc, Array.toList_map,
-        List.toList_toArray, List.map_filterMap]
-      congr 1
-      funext x
-      cases x.2 <;> rfl
+        List.toList_toArray, List.map_map]
+      rfl
 
 /-- The state labelling: the `⌜ … ⌝` atoms, plus the `E(a)` atoms. The enabled set costs a `tr` call, so it
 is only computed when the property actually mentions an `E`. -/
 def sysLabelOfTr [BEq l] [Hashable l]
-    (tr : σ → List (l × Veil.ExecutionOutcome Int σ)) (p : LivenessProperty ρ σ l) (th' : ρ) :
+    (tr : σ → Veil.Transitions l Int σ) (p : LivenessProperty ρ σ l) (th' : ρ) :
     σ → Std.HashSet Nat :=
   if p.hasEnabledAtoms then fun st => p.stateLabel th' st (enabledLabelsTr tr st)
   else fun st => p.stateLabel th' st []
 
 def sysLabelOf [BEq l] [Hashable l]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l) (th' : ρ) :
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) (th' : ρ) :
     σ → Std.HashSet Nat :=
   sysLabelOfTr (sys.tr th) p th'
 
@@ -148,31 +138,25 @@ needs both at every state it visits.
 LTLLib's routes now take `LSys.StepFn`(a state's steps and its atoms from one call)
 so "one walk per state" is a property of the *type*. -/
 
-/-- The steps of an already-enumerated outcome list. `sysStepsLabelledTr` with the walk factored out. -/
-@[inline] def stepsOfOutcomes (outs : List (l × Veil.ExecutionOutcome Int σ))
+/-- The steps of already-enumerated transitions. `sysStepsLabelledTr` with the walk factored out. -/
+@[inline] def stepsOfOutcomes (outs : Veil.Transitions l Int σ)
     (edgeLabel? : Option (l → Std.HashSet Nat)) : Array (LTLLib.LStep Nat σ) :=
   match edgeLabel? with
   | none =>
-    (outs.filterMap fun (_, o) => match o with
-      | .success s' => some (emptyLetter, s')
-      | _ => none).toArray
+    (outs.successes.map fun (_, s') => (emptyLetter, s')).toArray
   | some edgeLabel =>
-    (outs.filterMap fun (lbl, o) => match o with
-      | .success s' => some (edgeLabel lbl, s')
-      | _ => none).toArray
+    (outs.successes.map fun (lbl, s') => (edgeLabel lbl, s')).toArray
 
-/-- The step-enabled labels of an already-enumerated outcome list. `enabledLabelsTr`, walk factored out. -/
+/-- The step-enabled labels of already-enumerated transitions. `enabledLabelsTr`, walk factored out. -/
 @[inline] def enabledOfOutcomes [BEq l] [Hashable l]
-    (outs : List (l × Veil.ExecutionOutcome Int σ)) : List l :=
-  (outs.foldl (init := Std.HashSet.emptyWithCapacity) fun seen (lbl, o) =>
-    match o with
-    | .success _ => seen.insert lbl
-    | _ => seen).toList
+    (outs : Veil.Transitions l Int σ) : List l :=
+  (outs.successes.foldl (init := Std.HashSet.emptyWithCapacity) fun seen (lbl, _) =>
+    seen.insert lbl).toList
 
 /-- The system callback: one `tr` walk gives a state's steps and its atoms. -/
 def sysStepOf [BEq l] [Hashable l]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l) (th' : ρ) :
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) (th' : ρ) :
     LTLLib.LSys.StepFn Nat σ :=
   let edgeLabel? := edgeLabelling p
   let hasE := p.hasEnabledAtoms
@@ -185,7 +169,7 @@ omit [BEq σ] [Hashable σ] [LawfulBEq σ] [BEq l] [Hashable l] in
 /-- It is the pair `sysStepsLabelled`/`sysLabelOf`, so every contract stated over those two transfers. -/
 theorem sysStepOf_eq [BEq l] [Hashable l]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l) (th' : ρ) :
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) (th' : ρ) :
     sysStepOf sys p th'
       = fun st => (sysStepsLabelled sys (edgeLabelling p) st, sysLabelOf sys p th' st) := by
   funext st
@@ -200,7 +184,7 @@ theorem sysStepOf_eq [BEq l] [Hashable l]
 /-- Run `LTLLib.modelCheck` for a `liveness`-declared property `p` -/
 def check
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
     (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
       (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true) :
@@ -212,7 +196,7 @@ def check
 /-- Run `LTLLib.modelCheckDijkstra` for a `liveness`-declared property `p` -/
 def checkDijkstra [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l) :
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult (σ × Nat) :=
   -- `LTLLib.modelCheckTGBA` reads a *labelled* system, where each step carries the atoms it itself
   -- contributes (for `T(a)`). The steps come from one pass over `tr`.
@@ -226,7 +210,7 @@ property `p`. Like `checkDijkstra` this route is labelled, so a `T(a)` atom is d
 carries it rather than on either endpoint. -/
 def checkNDFS [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
     (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
       (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true) :
@@ -244,7 +228,7 @@ property at its conjunctions, and every conjunct that is a fairness in the sense
 This route is *labelled*, so a hoisted fairness may mention `T(a)`. -/
 def checkUnderFairness [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l) :
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult ((σ × Nat) × Bool) :=
   LTLLib.modelCheckUnderFairness p.φ sys.initStates
     (sysStepsLabelled sys (edgeLabelling p)) (sysLabelOf sys p th)
@@ -267,7 +251,7 @@ omit [BEq σ] [Hashable σ] [LawfulBEq σ] [BEq l] [Hashable l] in
 The totalizing self-loop contributes none, and a real step contributes `edgeLabelOf p`'s output. -/
 theorem steps_edgeAtom
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l) :
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     ∀ s, ∀ st ∈ LTLLib.LSys.totalize (sysStepsLabelled sys (edgeLabelling p)) s,
       ∀ a ∈ st.1, p.isEdgeAtom a = true := by
   intro s st hst a ha
@@ -277,19 +261,11 @@ theorem steps_edgeAtom
     rcases LTLLib.LSys.mem_totalize.mp hst with h
     split at h
     · rw [h] at ha; simp at ha
-    · obtain ⟨lbl, o, -, heq⟩ :
-          ∃ lbl o, (lbl, o) ∈ sys.tr th s ∧
-            (match o with
-              | .success s' => some (emptyLetter, s')
-              | _ => none) = some st := by
+    · obtain ⟨lbl, s', -, heq⟩ :
+          ∃ lbl s', (lbl, s') ∈ (sys.tr th s).successes ∧ (emptyLetter, s') = st := by
           simpa [sysStepsLabelled, sysStepsLabelledTr] using h
-      cases o with
-      | assertionFailure _ _ => simp at heq
-      | divergence => simp at heq
-      | success s' =>
-        have hst1 : st.1 = emptyLetter := by
-          simp only [Option.some.injEq] at heq; rw [← heq]
-        rw [hst1] at ha; simp [emptyLetter] at ha
+      rw [← heq] at ha
+      simp [emptyLetter] at ha
   · -- otherwise `f = p.edgeLabel`, and `isEdgeAtom_of_mem_edgeLabel` pins its output down
     have hf : f = p.edgeLabel := by
       unfold edgeLabelling at hlab; split at hlab
@@ -300,20 +276,11 @@ theorem steps_edgeAtom
     rcases LTLLib.LSys.mem_totalize.mp hst with h
     split at h
     · rw [h] at ha; simp at ha
-    · obtain ⟨lbl, o, -, heq⟩ :
-          ∃ lbl o, (lbl, o) ∈ sys.tr th s ∧
-            (match o with
-              | .success s' => some (p.edgeLabel lbl, s')
-              | _ => none) = some st := by
+    · obtain ⟨lbl, s', -, heq⟩ :
+          ∃ lbl s', (lbl, s') ∈ (sys.tr th s).successes ∧ (p.edgeLabel lbl, s') = st := by
           simpa [sysStepsLabelled, sysStepsLabelledTr] using h
-      cases o with
-      | assertionFailure _ _ => simp at heq
-      | divergence => simp at heq
-      | success s' =>
-        have hst1 : st.1 = p.edgeLabel lbl := by
-          simp only [Option.some.injEq] at heq; rw [← heq]
-        rw [hst1] at ha
-        exact p.isEdgeAtom_of_mem_edgeLabel lbl ha
+      rw [← heq] at ha
+      exact p.isEdgeAtom_of_mem_edgeLabel lbl ha
 
 /-- The regions `modelCheckFair` hands the prune: the first split, the re-hoisted conjuncts, and the
 options each branch of the disjunctive hoist adds. -/
@@ -347,7 +314,7 @@ private theorem dropLatch_nonEmpty {α β} {r : LTLLib.EmptinessResult ((σ × �
 /-- `modelCheckFair`, the default and fastest route: every fairness conjunct hoisted and decided per SCC. -/
 def checkFair [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l) :
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult (σ × Nat) :=
   if pruneRegionsAvoidEdgeAtoms p then
     LTLLib.modelCheckFairOfStep p.φ sys.initStates (sysStepOf sys p th)
@@ -358,7 +325,7 @@ omit [BEq σ] [Hashable σ] [LawfulBEq σ] in
 /-- `StateOnly` for every region every branch hands the prune. -/
 theorem stateOnly_of_pruneRegionsAvoid
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (hprune : pruneRegionsAvoidEdgeAtoms p = true) :
     ∀ b ∈ LTLLib.branches (LTLLib.rehoist (LTLLib.hoistFairness (p.φ.toNNF false).splitConj).2).2,
       ∀ ds ∈ (LTLLib.hoistFairness (p.φ.toNNF false).splitConj).1 ++
@@ -372,7 +339,7 @@ theorem stateOnly_of_pruneRegionsAvoid
 /-- Soundness of `checkFair`: an `.empty` result means every labelled run of the system satisfies `p.φ`. -/
 theorem checkFair_empty_unsat [Inhabited σ] [LawfulHashable σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
     (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
       (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true)
@@ -399,7 +366,7 @@ theorem checkFair_empty_unsat [Inhabited σ] [LawfulHashable σ]
 /-- Completeness of `checkFair`: a `.nonEmpty` result yields a real labelled run violating `p.φ`. -/
 theorem checkFair_nonEmpty_sat [Inhabited σ] [LawfulHashable σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
     (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
       (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true)

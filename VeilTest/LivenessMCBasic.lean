@@ -1,4 +1,8 @@
-import Veil
+module
+
+public import Veil
+public import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.LivenessMC
 import LTLLib
 
 /-!
