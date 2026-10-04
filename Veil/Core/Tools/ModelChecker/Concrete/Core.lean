@@ -31,6 +31,17 @@ instance StateFingerprint.ofHash (σ : Type) [Hashable σ] : StateFingerprint σ
   hash_eq := LawfulHashable.hash_eq
   view := hash
 
+/-- The hash as a 63-bit natural number. On 64-bit platforms a `Nat` below 2⁶³ is a tagged scalar,
+so storing it in a polymorphic container (the log, the seen set, a queue item) allocates nothing,
+whereas a `UInt64` there is a separate heap object. The shift keeps the value below 2⁶³, above which
+`UInt64.toNat` allocates. (On 32-bit platforms only values below 2³¹ are scalars.) -/
+instance StateFingerprint.ofHashNat (σ : Type) [Hashable σ] : StateFingerprint σ Nat where
+  beq := BEq.beq
+  rfl := BEq.rfl
+  eq_of_beq := LawfulBEq.eq_of_beq
+  hash_eq := LawfulHashable.hash_eq
+  view s := (hash s >>> 1).toNat
+
 structure QueueItem (σₕ σ : Type) where
   fingerprint : σₕ
   state : σ
