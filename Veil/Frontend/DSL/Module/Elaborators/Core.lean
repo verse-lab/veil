@@ -444,6 +444,21 @@ def defaultThresholdToParallel : Nat := 20
 
 declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 
+/-- Frontend configuration for `#model_check`, retaining the fingerprint type as syntax. -/
+structure ModelCheckCommandConfig extends ModelCheckerConfig where
+  /-- Elaborated with the generated checker call; defaults to `Nat` (`StateFingerprint.ofHashNat`). -/
+  fingerprintType : Term := mkCIdent ``Nat
+
+declare_command_config_elab elabModelCheckCommandConfig ModelCheckCommandConfig where
+  option fingerprintType := fun cfg item => do
+    item.checkNotBool
+    return { cfg with fingerprintType := ⟨item.value⟩ }
+  -- A full ordinary configuration leaves the separately specified fingerprint type unchanged.
+  option config := fun cfg item => do
+    item.checkNotBool
+    let base : ModelCheckerConfig ← Lean.Elab.ConfigEval.evalExprWithElab ⟨item.value⟩
+    return { cfg with toModelCheckerConfig := base }
+
 declare_command_config_elab elabSimulateConfig ModelChecker.Simulation.SimulateConfig
 
 /--
@@ -668,7 +683,7 @@ where
     liftCoreM <| ModelChecker.Compilation.emitCWithRuntimeInitializers `main
 
   /-- Build the core model checker call syntax (without parallel config). -/
-  mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig)
+  mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig) (fingerprintType : Term)
       (instTerm theoryTerm : Term) : CommandElabM Term := do
     let inst := mkVeilImplementationDetailIdent `inst
     let th := mkVeilImplementationDetailIdent `th
@@ -678,10 +693,13 @@ where
     -- Note: findReachableThen takes parallelCfg, progressInstanceId, cancelToken, and the
     -- continuation for the result as the last four args
     -- `veil_dsimp_field_reads%` simplifies the field reads in the `Decidable` instances synthesized here
+    -- The fingerprint type comes from the `fingerprintType` option.
+    -- The checker is generic in it and gets specialized to it at this call site.
     `((veil_dsimp_field_reads% (let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
        $(mkIdent ``Veil.ModelChecker.Concrete.findReachableThen)
          ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
+         ($(mkIdent `σₕ) := $fingerprintType)
          ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
          $sp : _ → _ → _ → _ → IO _)))
 
@@ -916,7 +934,8 @@ where
     let theoryTerm ← getTheoryTerm "#model_check" theoryTermOpt mod instTerm
 
     warnAboutTransitions mod
-    let config ← elabModelCheckerConfig cfg
+    let commandCfg ← elabModelCheckCommandConfig cfg
+    let config := commandCfg.toModelCheckerConfig
     -- Optionally prove assumptions statically; the concrete model checker also
     -- evaluates them at runtime before BFS.
     if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
@@ -928,7 +947,7 @@ where
       | false, some cfg => pure (some cfg)
       | false, none => pure (some { numSubTasks := ← getNumCores, thresholdToParallel := defaultThresholdToParallel })
     let config := { config with parallelCfg := parallelCfg }
-    let callExpr ← mkModelCheckerCall mod config instTerm theoryTerm
+    let callExpr ← mkModelCheckerCall mod config commandCfg.fingerprintType instTerm theoryTerm
 
     -- In the online environment, force interpreted mode to avoid spawning compiled workers.
     let effectiveMode := if (← liftIO isVeilOnlineEnv) then .interpreted else mode

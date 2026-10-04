@@ -338,10 +338,19 @@ Example:
 #model_check { node := Fin 5 } {baaaa := fun _ _ => 0} (maxDepth := 10)
 #model_check { node := Fin 5 }  -- theory term can be omitted if there are no theory fields
 #model_check interpreted { node := Fin 5 } {}  -- interpreted only, no compilation
+#model_check { node := Fin 5 } {} (fingerprintType := UInt64)  -- 64-bit fingerprints
 ```
 
 This will check all invariants and terminate early if a violation is found or
 the maximum depth is reached.
+
+`fingerprintType` picks the type of the state fingerprints that the checker
+stores (default `Nat`: the state's hash cut to 63 bits, `StateFingerprint.ofHashNat`).
+Any type works that has a `StateFingerprint` instance for the state and a lawful
+`Ord` (`Std.TransOrd`, `Std.LawfulBEqOrd`), `Repr`, `Inhabited` and `ToJson`
+instances. `UInt64` keeps the full hash, but the checker stores each one as a
+separate heap object, so it uses more memory. As with the other options, write
+the theory term (`{}` if empty) before it, or the option is parsed as the theory.
 
 ## Important: the model checker is not complete!
 

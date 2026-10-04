@@ -77,14 +77,14 @@ This module provides the main entry point for model checking, dispatching to
 either the sequential or parallel implementation based on configuration. -/
 
 /-- The result of a finished search, with a trace for a violation. -/
-private def searchResult {ρ σ κ : Type} {m : Type → Type}
+private def searchResult {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [Inhabited σ] [ActionStatUpdate κ asm]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
-  [fp : StateFingerprint σ UInt64]
-  (ctx : BaseSearchContext σ κ UInt64 asm) (distinctCount : Nat)
-  : m (ModelCheckingResult ρ σ κ UInt64) := do
+  [fp : StateFingerprint σ σₕ] [Repr σₕ]
+  (ctx : BaseSearchContext σ κ σₕ asm) (distinctCount : Nat)
+  : m (ModelCheckingResult ρ σ κ σₕ) := do
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
     return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverTrace sys ctx fingerprint))
@@ -99,14 +99,14 @@ private def searchResult {ρ σ κ : Type} {m : Type → Type}
     -- Search was cancelled by the user
     return ModelCheckingResult.cancelled
   | some (.exploredAllReachableStates) => do
-    if !ctx.violatingStates.isEmpty then
-      let (fingerprint, violation) := ctx.violatingStates.head!
+    match ctx.violatingStates with
+    | (fingerprint, violation) :: _ =>
       -- For assertion failures, pass the exception ID to recover the failing step
       let assertionExId := match violation with
         | .assertionFailure exId => some exId
         | _ => none
       return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverTrace sys ctx fingerprint assertionExId))
-    else
+    | [] =>
       return ModelCheckingResult.noViolationFound distinctCount (.exploredAllReachableStates)
   | none => panic! s!"SearchContext.finished is none! This should never happen."
 
@@ -120,13 +120,13 @@ ignored `keep` would not work either, since the compiler drops unused parameters
 
 section
 
-variable {ρ σ κ α : Type} {m : Type → Type}
+variable {ρ σ κ σₕ α : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [inhabσ : Inhabited σ] [Repr κ]
   [ActionStatUpdate κ asm]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
-  [fp : StateFingerprint σ UInt64]
+  [fp : StateFingerprint σ σₕ] [Ord σₕ] [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ] [Repr σₕ] [Inhabited σₕ]
   (params : SearchParameters ρ σ)
   (parallelCfg : Option ParallelConfig)
   (progressInstanceId : Nat)
@@ -134,26 +134,26 @@ variable {ρ σ κ α : Type} {m : Type → Type}
 
 /-- `findReachable`, then `finish` on the result while the search's data structures (the seen
 set, the log for recovering traces) are still referenced; they are released only after `finish`
-returns. -/
-def findReachableThen (finish : ModelCheckingResult ρ σ κ UInt64 → m α) : m α := do
+returns. The caller picks the fingerprint type `σₕ` and its `StateFingerprint` instance. -/
+def findReachableThen (finish : ModelCheckingResult ρ σ κ σₕ → m α) : m α := do
   let assumptionViolations := params.violatedAssumptions th
   unless assumptionViolations.isEmpty do
     setViolationFound progressInstanceId
-    return ← finish (ModelCheckingResult.foundViolation 0 (.assumptionFailure assumptionViolations) none)
+    return ← finish (ModelCheckingResult.foundViolation default (.assumptionFailure assumptionViolations) none)
   -- Create a "filtered" version of the system
   let sys := Veil.ModelChecker.restrictSystemByStateConstraints sys params th
   match parallelCfg with
   | some cfg => do
-    let mctx ← breadthFirstSearchParallel (σₕ := UInt64) params sys cfg progressInstanceId cancelToken
+    let mctx ← breadthFirstSearchParallel (σₕ := σₕ) params sys cfg progressInstanceId cancelToken
     let result ← searchResult sys mctx.base mctx.globalSeen.size
     return (← keepingThen mctx (finish result)).1
   | none => do
-    let sctx ← breadthFirstSearchSequential (σₕ := UInt64) params sys 60000 progressInstanceId cancelToken
+    let sctx ← breadthFirstSearchSequential (σₕ := σₕ) params sys 60000 progressInstanceId cancelToken
     let result ← searchResult sys sctx.1 sctx.1.log.size
     return (← keepingThen sctx (finish result)).1
 
-def findReachable : m (ModelCheckingResult ρ σ κ UInt64) :=
-  findReachableThen sys params parallelCfg progressInstanceId cancelToken pure
+def findReachable : m (ModelCheckingResult ρ σ κ σₕ) :=
+  findReachableThen (σₕ := σₕ) sys params parallelCfg progressInstanceId cancelToken pure
 
 end
 
