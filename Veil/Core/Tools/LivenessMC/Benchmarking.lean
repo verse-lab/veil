@@ -1,4 +1,8 @@
-import Veil.Core.Tools.LivenessMC.LivenessMC
+module
+
+public import Veil.Core.Tools.LivenessMC.LivenessMC
+
+public section
 
 namespace Veil.LivenessMC
 
@@ -105,7 +109,7 @@ def readVeilTimers : IO VeilTimers := do
 that `readVeilTimers` reports the time spent computing successors and labels. -/
 def checkTimed
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
     (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
       (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true) :
@@ -121,7 +125,7 @@ Distinct from `checkTimed`, which benchmarks the legacy `LTLLib.modelCheck` (NNF
 so it cannot measure anything about edge labels. This one is the route `checkNDFS` ships. -/
 def checkNDFSTimed [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
     (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
       (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true) :
@@ -136,17 +140,10 @@ def checkNDFSTimed [Inhabited σ]
 /-- Instrumented `checkDijkstra` (Dijkstra SCC / TGBA): see `checkTimed`. -/
 def checkDijkstraTimed [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
-    (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
-    (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
-      (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true) :
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult (σ × Nat) :=
   LTLLib.modelCheckTGBA p.φ sys.initStates
     (timedSteps (sysStepsLabelled sys (edgeLabelling p))) (timedLabel (sysLabelOf sys p th))
-    (by show LTLLib.FiniteReach _ (LTLLib.LSys.targets (sysStepsLabelled sys (edgeLabelling p)))
-        rw [targets_sysStepsLabelled]
-        exact finiteReach_of_closed (sysSucc sys) sys.initStates
-          (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed)
 
 /-! ### Probe: The region scan's per-state callback cost -/
 private partial def productClosure (succs : (σ × Nat) → Array (σ × Nat))
@@ -165,7 +162,7 @@ where
 does not pollute the counters. -/
 def probeProductStates [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (tgba : LTLLib.TGBA Nat) : Array (σ × Nat) :=
   let ss := sysStepsLabelled sys (edgeLabelling p)
   let sl := sysLabelOf sys p th
@@ -176,7 +173,7 @@ def probeProductStates [Inhabited σ]
 caller can report mean out-degree. -/
 def probeFusedExpand [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (tgba : LTLLib.TGBA Nat) (states : Array (σ × Nat)) : Nat :=
   let ss := timedSteps (sysStepsLabelled sys (edgeLabelling p))
   let sl := timedLabel (sysLabelOf sys p th)
@@ -190,7 +187,7 @@ def probeFusedExpand [Inhabited σ]
 successor. `sccSuccs`'s state filter is omitted because it only drops elements and makes no callbacks. -/
 def probeRegionExpand [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (tgba : LTLLib.TGBA Nat) (states : Array (σ × Nat)) : Nat :=
   let ss := timedSteps (sysStepsLabelled sys (edgeLabelling p))
   let sl := timedLabel (sysLabelOf sys p th)
@@ -203,7 +200,7 @@ def probeRegionExpand [Inhabited σ]
 `Candidate.expand` now filters. Should read 1.0x on both callbacks, like the top-level scan. -/
 def probeKeptExpand [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (tgba : LTLLib.TGBA Nat) (states : Array (σ × Nat)) : Nat :=
   let ss := timedSteps (sysStepsLabelled sys (edgeLabelling p))
   let sl := timedLabel (sysLabelOf sys p th)
@@ -221,21 +218,21 @@ These three instrumented copies let the modes be compared on one system with cal
 /-- Instrumented `patOnly`: hoist only the syntactically flat conjuncts. -/
 def checkFairDirectTimed [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l) :
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult (σ × Nat) :=
   LTLLib.modelCheckFairDirectOfStep p.φ sys.initStates (timedStepFn (sysStepOf sys p th))
 
 /-- Instrumented `prune`: the fair-normal-form split, decided per SCC. -/
 def checkFairFNFPruneTimed [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l) :
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult (σ × Nat) :=
   LTLLib.modelCheckFairFNFPruneOfStep p.φ sys.initStates (timedStepFn (sysStepOf sys p th))
 
 /-- Instrumented `fair`: the prune plus the disjunctive hoist. The shipped default route. -/
 def checkFairTimed [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l) :
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult (σ × Nat) :=
   LTLLib.modelCheckFairOfStep p.φ sys.initStates (timedStepFn (sysStepOf sys p th))
 
@@ -250,7 +247,7 @@ the states the scan settled.
 `hoistFairness` + `rehoist`'s. -/
 def pruneScanOnly [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (kept : LTLLib.Formula Nat) (dss : List (List (LTLLib.NNF.FairDisjunct Nat))) : Nat × Nat :=
   match LTLLib.ltl3ba (kept.toNNF false) with
   | none => (0, 0)
@@ -271,7 +268,7 @@ def pruneScanOnly [Inhabited σ]
 The two should sum to the figure `pruneScanOnly` reports. -/
 def pruneScanSplit [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (kept : LTLLib.Formula Nat) (dss : List (List (LTLLib.NNF.FairDisjunct Nat)))
     (which : Nat) : Nat × Nat :=
   match LTLLib.ltl3ba (kept.toNNF false) with
@@ -299,7 +296,7 @@ callbacks are one `regionSuccs` per (edge, option) plus the option's mark predic
 is another. -/
 def specShape [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (kept : LTLLib.Formula Nat) (dss : List (List (LTLLib.NNF.FairDisjunct Nat))) :
     Nat × Nat × Nat :=
   match LTLLib.ltl3ba (kept.toNNF false) with
@@ -314,16 +311,9 @@ def specShape [Inhabited σ]
 `readVeilTimers` reports the time spent computing successors and labels. -/
 def checkUnderFairnessTimed [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
-    (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
-    (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
-      (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true) :
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult ((σ × Nat) × Bool) :=
   LTLLib.modelCheckUnderFairness p.φ sys.initStates
     (timedSteps (sysStepsLabelled sys (edgeLabelling p))) (timedLabel (sysLabelOf sys p th))
-    (by show LTLLib.FiniteReach _ (LTLLib.LSys.targets (sysStepsLabelled sys (edgeLabelling p)))
-        rw [targets_sysStepsLabelled]
-        exact finiteReach_of_closed (sysSucc sys) sys.initStates
-          (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed)
 
 end Veil.LivenessMC

@@ -1,4 +1,9 @@
-import Veil
+module
+
+public import Veil
+public import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.Report
 
 /-! # CAVA `BoolProgs` — "Dining Philosophers", with fairness.
     This test can have two failures:
@@ -106,7 +111,6 @@ liveness [phil0EventuallyEatsFair]
 #eval Veil.LivenessMC.printCheckResult "BoolProgPhilosophers" "(fairness for phil0) → □◇(eat0)"
   (Veil.LivenessMC.checkFair (enumerableTransitionSystem Taken_IndT {})
     (phil0EventuallyEatsFair (Theory Taken_IndT) (State (FieldConcreteType Taken_IndT))
-      Taken_IndT (FieldConcreteType Taken_IndT))
-    (by native_decide) (by native_decide))
+      Taken_IndT (FieldConcreteType Taken_IndT)))
 
 end BoolProgPhilosophers
