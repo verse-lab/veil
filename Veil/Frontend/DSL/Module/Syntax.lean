@@ -375,9 +375,6 @@ Repeated calls to this reuse existing declarations with definitionally equal typ
 a name collision with a different type is an error. -/
 scoped syntax (name := genTheorems) kw_gen_theorems : command
 
-/-- Generate the executable model checking definitions (`enumerableTransitionSystem`) -/
-scoped syntax (name := genExecutable) "#gen_executable" : command
-
 scoped syntax (name := checkInvariants) "#check_invariants" : command
 
 scoped syntax (name := checkAction) "#check_action" ident : command
