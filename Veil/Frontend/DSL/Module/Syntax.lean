@@ -353,9 +353,6 @@ scoped syntax (name := genExecutable) kw_gen_executable : command
 
 scoped syntax (name := genTheorems) kw_gen_theorems : command
 
-/-- Generate the executable model checking definitions (`enumerableTransitionSystem`) -/
-scoped syntax (name := genExecutable) "#gen_executable" : command
-
 scoped syntax (name := checkInvariants) "#check_invariants" : command
 
 scoped syntax (name := checkAction) "#check_action" ident : command
