@@ -82,9 +82,8 @@ def Module.defineGhostDefinition (mod : Module) (name : Name) (params : Option (
   -- create a definition without `stx`, use the relevant functions to get the
   -- binders, and then create the syntax.
   -- See NOTE(SUBTLE).
-  let attrs : Array Attribute := if isRelation
-    then (if justTheory then #[{name := `invSimp}] else #[]) ++ #[{name := `ghostRelSimp}, {name := `nextSimp}] ++ veilAbbrevAttrs
-    else #[]
+  let attrs : Array Attribute :=
+    (if justTheory then #[{name := `invSimp}] else #[]) ++ #[{name := `ghostRelSimp}, {name := `nextSimp}] ++ veilAbbrevAttrs
   let expr ← liftTermElabM <| cleanupVeilDefinitionExpr veilTerm.expr
   let _ ← liftTermElabM <| addVeilDefinition name expr (red := .abbrev) (attr := attrs)
   let ddef : DerivedDefinition := { name := name, kind := ddKind, params := params, extraParams := extraParams, derivedFrom := Std.HashSet.emptyWithCapacity 0, stx := .none }
