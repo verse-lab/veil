@@ -1,4 +1,8 @@
-import Veil
+module
+
+public import Veil
+public import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.LivenessMC
 
 /-! Edge and enabled atoms: `E(a)` is a state atom (some instantiation of `a` can fire here) and `T(a)` is
 an edge atom (the step taken here is an instantiation of `a`). Both are decided against the action *label*,
@@ -69,14 +73,11 @@ open Veil.LivenessMC in
   -- were lifted this route took an unlabelled successor function, so every `T(…)` would have read false.
   IO.println "action atoms (fairness route agrees):"
   expect "□◇T(up)"                true
-    (checkUnderFairness sys (upTaken Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkUnderFairness sys (upTaken Theory (State FieldConcreteType) FieldConcreteType))
   expect "□(E(reset) → ◇T(reset))" true
-    (checkUnderFairness sys (resetFair Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkUnderFairness sys (resetFair Theory (State FieldConcreteType) FieldConcreteType))
   expect "□¬(T(up) ∧ T(reset))"   true
-    (checkUnderFairness sys (notBoth Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkUnderFairness sys (notBoth Theory (State FieldConcreteType) FieldConcreteType))
 
 end ActionAtoms
 
@@ -147,17 +148,13 @@ open Veil.LivenessMC in
   -- an encoding that read the region off the pair would answer differently.
   IO.println "parallel edges (fairness route agrees):"
   expect "□◇T(toggle1)"                false
-    (checkUnderFairness sys (t1Recurs Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkUnderFairness sys (t1Recurs Theory (State FieldConcreteType) FieldConcreteType))
   expect "◇□T(toggle1)"                false
-    (checkUnderFairness sys (t1Forever Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkUnderFairness sys (t1Forever Theory (State FieldConcreteType) FieldConcreteType))
   expect "□(T(toggle1) ∨ T(toggle2))"  true
-    (checkUnderFairness sys (eitherStep Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkUnderFairness sys (eitherStep Theory (State FieldConcreteType) FieldConcreteType))
   expect "□¬(T(toggle1) ∧ T(toggle2))" true
-    (checkUnderFairness sys (notBothPar Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkUnderFairness sys (notBothPar Theory (State FieldConcreteType) FieldConcreteType))
 
 end ParallelEdges
 
@@ -211,23 +208,17 @@ open Veil.LivenessMC in
     else IO.println s!"  FAIL  {nm}: expected {if want then "holds" else "fails"}"
   IO.println "edge atoms inside a hoisted fairness:"
   expect "◇flag=1"                          false
-    (checkUnderFairness sys (reaches Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkUnderFairness sys (reaches Theory (State FieldConcreteType) FieldConcreteType))
   expect "□◇T(work) → ◇flag=1"              true
-    (checkUnderFairness sys (reachesFair Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkUnderFairness sys (reachesFair Theory (State FieldConcreteType) FieldConcreteType))
   expect "□◇E(work) → □◇T(work)"            false
-    (checkUnderFairness sys (sfWork Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkUnderFairness sys (sfWork Theory (State FieldConcreteType) FieldConcreteType))
   expect "SF(work) → ◇flag=1"               true
-    (checkUnderFairness sys (sfForces Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkUnderFairness sys (sfForces Theory (State FieldConcreteType) FieldConcreteType))
   expect "□◇T(idle) → ◇flag=1"              false
-    (checkUnderFairness sys (idleRecurs Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkUnderFairness sys (idleRecurs Theory (State FieldConcreteType) FieldConcreteType))
   expect "◇□T(idle) → ◇flag=1"              false
-    (checkUnderFairness sys (idleForever Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkUnderFairness sys (idleForever Theory (State FieldConcreteType) FieldConcreteType))
 
 /-! ### Which properties get the prune's free path
 
@@ -268,16 +259,12 @@ open Veil.LivenessMC in
   -- caller's. These agree with the crossing above.
   IO.println "the prune route, on every property, with no side condition:"
   expect "◇flag=1"                          false
-    (checkFair sys (reaches Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkFair sys (reaches Theory (State FieldConcreteType) FieldConcreteType))
   expect "□◇T(work) → ◇flag=1"              true
-    (checkFair sys (reachesFair Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkFair sys (reachesFair Theory (State FieldConcreteType) FieldConcreteType))
   expect "SF(work) → ◇flag=1"               true
-    (checkFair sys (sfForces Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkFair sys (sfForces Theory (State FieldConcreteType) FieldConcreteType))
   expect "□◇T(idle) → ◇flag=1"              false
-    (checkFair sys (idleRecurs Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide))
+    (checkFair sys (idleRecurs Theory (State FieldConcreteType) FieldConcreteType))
 
 end FairnessEdgeAtoms

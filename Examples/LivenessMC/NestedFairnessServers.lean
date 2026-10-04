@@ -1,4 +1,10 @@
-import Veil
+module
+
+public import Veil
+public import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.Report
+public meta import Veil.Core.Tools.LivenessMC.Benchmarking
 import LTLLib
 
 /-! # Nested fairness: a fairness assumption TLC has to build a tableau for
@@ -123,7 +129,6 @@ private def timeIt {α} (name : String) (f : Unit → LTLLib.EmptinessResult α)
   timeIt "nested assumption, hoisted" fun _ =>
     Veil.LivenessMC.checkUnderFairness (enumerableTransitionSystem {})
       (server0EmitsFair Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide)
 
 /-! ## Veil callbacks per product state
 
@@ -131,13 +136,11 @@ private def timeIt {α} (name : String) (f : Unit → LTLLib.EmptinessResult α)
 actually walks the *product* region latch — which `MCDijkstraPerf.lean`'s philosophers case never reaches.
 `1.0x` means a callback is entered once per product state, which is what LTLLib's fused `expand` buys;
 anything above means once per edge. See `EdgeLabels.md` §9. -/
--- `#eval!`: `checkUnderFairnessTimed` skips the `FiniteReach` witness, as every timed entry point does.
-#eval! show IO Unit from do
+#eval show IO Unit from do
   Veil.LivenessMC.resetVeilTimers
   let t0 ← IO.monoNanosNow
   let r := Veil.LivenessMC.checkUnderFairnessTimed (enumerableTransitionSystem {})
     (server0EmitsFair Theory (State FieldConcreteType) FieldConcreteType)
-    (by sorry) (by sorry)
   let (verdict, states) := match r with
     | .empty k => (s!"holds, {k} product states", k)
     | .nonEmpty stem loop => (s!"fails, cex {stem.length}+{loop.length}", 0)

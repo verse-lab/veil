@@ -1,4 +1,10 @@
+module
+
 import Veil
+import Veil.Core.Tools.LivenessMC.Benchmarking
+
+meta section
+
 /-! # What the shipped model-checking routes ask you to trust
 
 `#print axioms` is **not** enough to answer "is this route verified?". It reports the axioms a proof
@@ -86,4 +92,8 @@ def run : CoreM Unit := do
 
 end VeilTest.TrustAudit
 
-#eval! VeilTest.TrustAudit.run
+-- Load private bodies too: ordinary module imports would make the audit stop at opaque definitions.
+#eval show Lean.CoreM Unit from do
+  let env ← Lean.importModules #[{ «module» := `Veil.Core.Tools.LivenessMC.Benchmarking }] {}
+    (level := .private)
+  Lean.withEnv env VeilTest.TrustAudit.run

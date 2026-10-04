@@ -1,4 +1,9 @@
-import Veil
+module
+
+public import Veil
+public import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.Report
 
 -- CAVA_LTL_Modelchecker/BoolProgs/Programs/BoolProgs_Simple.thy, `simple` at n=4 (matches
 -- `demo_simple_chosen = chose_prog (STR ''S'') 4` in CAVA_Impl.thy). AFP entry:

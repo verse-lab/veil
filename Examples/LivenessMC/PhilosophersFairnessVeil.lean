@@ -1,4 +1,9 @@
-import Veil
+module
+
+public import Veil
+public import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.Report
 import LTLLib
 
 /-! # Veil-Style — "Dining Philosophers", with fairness
@@ -73,7 +78,6 @@ liveness [phil0EventuallyEatsFair]
 
 #eval Veil.LivenessMC.printCheckResult "Philosophers" "(fairness for phil0) → □◇(eat0)"
   (Veil.LivenessMC.checkFair (enumerableTransitionSystem {})
-    (phil0EventuallyEatsFair Theory (State FieldConcreteType) FieldConcreteType)
-    (by native_decide) (by native_decide))
+    (phil0EventuallyEatsFair Theory (State FieldConcreteType) FieldConcreteType))
 
 end Philosophers

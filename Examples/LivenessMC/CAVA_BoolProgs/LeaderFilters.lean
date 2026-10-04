@@ -1,4 +1,9 @@
-import Veil
+module
+
+public import Veil
+public import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.Report
 
 -- CAVA_LTL_Modelchecker/BoolProgs/Programs/BoolProgs_LeaderFilters.thy, `leader_filters` at
 -- n=3 (matches `demo_lf_chosen = chose_prog (STR ''LF'') 3` in CAVA_Impl.thy). AFP entry:
@@ -48,6 +53,8 @@ individual l8_2 : Bool
 individual l9_2 : Bool
 
 #gen_state
+
+set_option maxRecDepth 8192
 
 after_init {
   elected := false

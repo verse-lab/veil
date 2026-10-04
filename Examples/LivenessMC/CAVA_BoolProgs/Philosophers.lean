@@ -1,4 +1,9 @@
-import Veil
+module
+
+public import Veil
+public import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.Report
 
 -- CAVA_LTL_Modelchecker/BoolProgs/Programs/BoolProgs_Philosophers.thy, `dining` at n=3
 -- (matches `demo_phil_chosen = chose_prog (STR ''P'') 3` in CAVA_Impl.thy). AFP entry:

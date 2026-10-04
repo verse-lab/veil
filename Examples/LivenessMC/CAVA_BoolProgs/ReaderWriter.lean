@@ -1,4 +1,9 @@
-import Veil
+module
+
+public import Veil
+public import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.Report
 
 -- CAVA_LTL_Modelchecker/BoolProgs/Programs/BoolProgs_ReaderWriter.thy, `reader_writer` at
 -- r=w=2 (matches `demo_rw_chosen = chose_prog (STR ''RW'') 2` in CAVA_Impl.thy). AFP entry:

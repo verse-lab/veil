@@ -1,5 +1,9 @@
-import Veil.Core.Tools.LivenessMC.Interface
-import LTLLib
+module
+
+public import Veil.Core.Tools.LivenessMC.Interface
+public import LTLLib
+
+public section
 
 namespace Veil.LivenessMC
 

@@ -1,4 +1,9 @@
-import Veil
+module
+
+public import Veil
+public import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.LivenessMC
+public meta import Veil.Core.Tools.LivenessMC.Report
 
 -- https://github.com/tlaplus/Examples/blob/master/specifications/ewd426/TokenRing.tla
 -- Dijkstra's self-stabilizing token ring (EWD426).
@@ -78,7 +83,9 @@ def theory0 : Theory (Fin 6) :=
 
 #model_check { node := Fin 6 } theory0
 
-#eval Veil.LivenessMC.printCheckResult "TokenRing" "<>[]UniqueToken"
+#eval
+  letI : LogSwitch := ⟨false⟩
+  Veil.LivenessMC.printCheckResult "TokenRing" "<>[]UniqueToken"
   (Veil.LivenessMC.check (enumerableTransitionSystem (Fin 6) theory0)
     (stab (Theory (Fin 6)) (State (FieldConcreteType (Fin 6)))
       (Fin 6) (FieldConcreteType (Fin 6)))
