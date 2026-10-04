@@ -1,6 +1,7 @@
 module
 
 public import Veil.Core.Tools.LivenessMC.Interface
+public import LTLLib.TGBABased.ModelCheck
 public import LTLLib.ModelCheck
 
 public section
@@ -180,6 +181,7 @@ def sysStepOf [BEq l] [Hashable l]
     (stepsOfOutcomes outs edgeLabel?,
       p.stateLabel th' st (if hasE then enabledOfOutcomes outs else []))
 
+omit [BEq σ] [Hashable σ] [LawfulBEq σ] [BEq l] [Hashable l] in
 /-- It is the pair `sysStepsLabelled`/`sysLabelOf`, so every contract stated over those two transfers. -/
 theorem sysStepOf_eq [BEq l] [Hashable l]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
@@ -210,10 +212,7 @@ def check
 /-- Run `LTLLib.modelCheckDijkstra` for a `liveness`-declared property `p` -/
 def checkDijkstra [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
-    (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
-    (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
-      (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true) :
+      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult (σ × Nat) :=
   -- `LTLLib.modelCheckTGBA` reads a *labelled* system, where each step carries the atoms it itself
   -- contributes (for `T(a)`). The steps come from one pass over `tr`.
@@ -221,10 +220,6 @@ def checkDijkstra [Inhabited σ]
   -- PERF: `sysSucc` and `sysLabel` are each entered exactly once per product state, because LTLLib's search
   -- walks a fused `expand` callback whose result the DFS frame caches (`GenericDFS.DFSStep.succMarks`).
   LTLLib.modelCheckTGBAOfStep p.φ sys.initStates (sysStepOf sys p th)
-    (by simp only [sysStepOf_eq]
-        rw [targets_sysStepsLabelled]
-        exact finiteReach_of_closed (sysSucc sys) sys.initStates
-          (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed)
 
 /-- Run `LTLLib.modelCheckNDFS` (nested DFS over the degeneralized automaton) for a `liveness`-declared
 property `p`. Like `checkDijkstra` this route is labelled, so a `T(a)` atom is decided on the step that
@@ -249,17 +244,10 @@ property at its conjunctions, and every conjunct that is a fairness in the sense
 This route is *labelled*, so a hoisted fairness may mention `T(a)`. -/
 def checkUnderFairness [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
-    (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
-    (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
-      (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true) :
+      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult ((σ × Nat) × Bool) :=
   LTLLib.modelCheckUnderFairness p.φ sys.initStates
     (sysStepsLabelled sys (edgeLabelling p)) (sysLabelOf sys p th)
-    (by show LTLLib.FiniteReach _ (LTLLib.LSys.targets (sysStepsLabelled sys (edgeLabelling p)))
-        rw [targets_sysStepsLabelled]
-        exact finiteReach_of_closed (sysSucc sys) sys.initStates
-          (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed)
 
 /-! ## When the prune takes its fast path
 
@@ -274,6 +262,7 @@ that no region mentions one.
 This is the common case: written as an *assumption*, `SF(a)` and `WF(a)`
 hoist to regions `¬E(a)` and `⊤`, which are state atoms, so the motivating workload pays nothing. -/
 
+omit [BEq σ] [Hashable σ] [LawfulBEq σ] [BEq l] [Hashable l] in
 /-- Every atom a labelled step contributes is a `T(…)` index.
 The totalizing self-loop contributes none, and a real step contributes `edgeLabelOf p`'s output. -/
 theorem steps_edgeAtom
@@ -340,12 +329,14 @@ def dropLatch {α β} : LTLLib.EmptinessResult ((σ × α) × β) → LTLLib.Emp
   | .empty n => .empty n
   | .nonEmpty stem loop => .nonEmpty (stem.map Prod.fst) (loop.map Prod.fst)
 
+omit [BEq σ] [Hashable σ] [LawfulBEq σ] in
 private theorem dropLatch_empty {α β} {r : LTLLib.EmptinessResult ((σ × α) × β)} {n : Nat}
     (h : dropLatch r = .empty n) : r = .empty n := by
   cases r with
   | empty m => simpa [dropLatch] using h
   | nonEmpty s l => simp [dropLatch] at h
 
+omit [BEq σ] [Hashable σ] [LawfulBEq σ] in
 private theorem dropLatch_nonEmpty {α β} {r : LTLLib.EmptinessResult ((σ × α) × β)}
     {stem loop : List (σ × α)} (h : dropLatch r = .nonEmpty stem loop) :
     ∃ s' l', r = .nonEmpty s' l' := by
@@ -356,21 +347,14 @@ private theorem dropLatch_nonEmpty {α β} {r : LTLLib.EmptinessResult ((σ × �
 /-- `modelCheckFair`, the default and fastest route: every fairness conjunct hoisted and decided per SCC. -/
 def checkFair [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l)
-    (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
-    (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
-      (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true) :
+      (List (l × Veil.ExecutionOutcome Int σ)) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult (σ × Nat) :=
   if pruneRegionsAvoidEdgeAtoms p then
     LTLLib.modelCheckFairOfStep p.φ sys.initStates (sysStepOf sys p th)
   else
-    dropLatch (LTLLib.modelCheckFairFNFCrossOfStep p.φ sys.initStates (sysStepOf sys p th)
-      (by rw [sysStepOf_eq]
-          show LTLLib.FiniteReach _ (LTLLib.LSys.targets (sysStepsLabelled sys (edgeLabelling p)))
-          rw [targets_sysStepsLabelled]
-          exact finiteReach_of_closed (sysSucc sys) sys.initStates
-            (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed))
+    dropLatch (LTLLib.modelCheckFairFNFCrossOfStep p.φ sys.initStates (sysStepOf sys p th))
 
+omit [BEq σ] [Hashable σ] [LawfulBEq σ] in
 /-- `StateOnly` for every region every branch hands the prune. -/
 theorem stateOnly_of_pruneRegionsAvoid
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
@@ -392,7 +376,7 @@ theorem checkFair_empty_unsat [Inhabited σ] [LawfulHashable σ]
     (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
     (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
       (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true)
-    {n : Nat} (h : checkFair sys p hinit hclosed = .empty n) :
+    {n : Nat} (h : checkFair sys p = .empty n) :
     ∀ ρ' : Nat → LTLLib.LSys.Edge Nat σ,
       (LTLLib.LSys.toSpec (sysStepsLabelled sys (edgeLabelling p)) sys.initStates
         (sysLabelOf sys p th)).isRun ρ' →
@@ -408,7 +392,8 @@ theorem checkFair_empty_unsat [Inhabited σ] [LawfulHashable σ]
     exact LTLLib.modelCheckFair_empty_unsat p.φ sys.initStates _ _ hfr h
   · have h' := dropLatch_empty h
     have hx := LTLLib.modelCheckFairFNFCrossOfStep_empty_unsat
-      (φ := p.φ) (sysInit := sys.initStates) (sysStep := sysStepOf sys p th) _ h'
+      (φ := p.φ) (sysInit := sys.initStates) (sysStep := sysStepOf sys p th)
+      (by simpa only [sysStepOf_eq] using hfr) h'
     simpa only [sysStepOf_eq] using hx
 
 /-- Completeness of `checkFair`: a `.nonEmpty` result yields a real labelled run violating `p.φ`. -/
@@ -419,7 +404,7 @@ theorem checkFair_nonEmpty_sat [Inhabited σ] [LawfulHashable σ]
     (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
       (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true)
     {stem loop : List (σ × Nat)}
-    (h : checkFair sys p hinit hclosed = .nonEmpty stem loop) :
+    (h : checkFair sys p = .nonEmpty stem loop) :
     ∃ ρ' : Nat → LTLLib.LSys.Edge Nat σ,
       (LTLLib.LSys.toSpec (sysStepsLabelled sys (edgeLabelling p)) sys.initStates
         (sysLabelOf sys p th)).isRun ρ' ∧
@@ -432,7 +417,12 @@ theorem checkFair_nonEmpty_sat [Inhabited σ] [LawfulHashable σ]
       (stateOnly_of_pruneRegionsAvoid sys p hprune) h
   · obtain ⟨s', l', hx⟩ := dropLatch_nonEmpty h
     have hc := LTLLib.modelCheckFairFNFCrossOfStep_nonEmpty_sat
-      (φ := p.φ) (sysInit := sys.initStates) (sysStep := sysStepOf sys p th) _ hx
+      (φ := p.φ) (sysInit := sys.initStates) (sysStep := sysStepOf sys p th)
+      (by rw [sysStepOf_eq]
+          show LTLLib.FiniteReach _ (LTLLib.LSys.targets (sysStepsLabelled sys (edgeLabelling p)))
+          rw [targets_sysStepsLabelled]
+          exact finiteReach_of_closed (sysSucc sys) sys.initStates
+            (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed) hx
     simpa only [sysStepOf_eq] using hc
 
 end Veil.LivenessMC

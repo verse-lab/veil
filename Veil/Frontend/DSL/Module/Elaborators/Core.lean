@@ -18,6 +18,7 @@ public meta import Veil.Frontend.DSL.Module.Util.Enumeration
 public meta import Veil.Frontend.DSL.Module.Util.Instantiation
 public meta import Veil.Util.Multiprocessing
 public meta import Veil.Frontend.DSL.Module.AssertionInfo
+public import Veil.Core.Tools.LivenessMC.Interface
 
 public meta section
 
