@@ -31,9 +31,7 @@ type procSet
 instantiate pset : TSet process procSet
 -- instantiate thread : Fintype process
 
-
 enum PCState = { V0, V1, SE, AC }
-enum phase = { init, run }
 
 -- N: total number of processes
 -- T: upper bound on Byzantine processes
@@ -41,7 +39,10 @@ enum phase = { init, run }
 immutable individual N : Nat
 immutable individual T : Nat
 immutable individual F : Nat
-immutable individual Proc : procSet
+-- immutable individual Proc : procSet
+
+instantiate processEnumerable : Veil.Enumeration process
+
 -- State variables
 
 -- M == { "ECHO" }
@@ -53,7 +54,7 @@ immutable individual Proc : procSet
 -- individual Corr : Finset process    -- correct processes
 individual Corr : procSet
 individual Faulty : procSet             -- faulty processes
-relation pc (p : process) (st : PCState)  -- control state of each process
+function pc (p : process) : PCState  -- control state of each process
 -- relation pointer (ph : phase)             -- current phase of the protocol
 
 -- In TLA+: sent \subseteq Proc \times M
@@ -62,14 +63,15 @@ relation pc (p : process) (st : PCState)  -- control state of each process
 -- relation sent (p : process)
 individual sent : procSet
 function rcvd (receiver : process) : procSet
-#gen_state
 
+veil_set_field_representation function Veil.ArrayAsFinmap
+
+#gen_state
 
 -- Ghost definitions for readability
 ghost relation isCorrect (p : process) := pset.contains p Corr
 ghost relation isFaulty (p : process) := pset.contains p Faulty
 -- Initial state
-
 
 -- Init ==
 --   /\ sent = {}                          (* No messages sent initially *)
@@ -78,43 +80,34 @@ ghost relation isFaulty (p : process) := pset.contains p Faulty
 --   /\ Corr \in SUBSET Proc
 --   /\ Cardinality(Corr) = N - F          (* N - F processes are correct, but their identities are unknown*)
 --   /\ Faulty = Proc \ Corr               (* The rest (F) are faulty*)
-after_init  {
+after_init {
   sent := pset.empty
   rcvd P := pset.empty
   let V1Set ← pick procSet
-  pc P ST := if pset.contains P V1Set then ST == V1 else ST == V0
-  -- let t :| pset.count t == N - F
-  let corrSet :| pset.count corrSet == N - F
+  pc P := if pset.contains P V1Set then V1 else V0
+  let corrSet :| pset.count corrSet = N - F
   Corr := corrSet
-  Faulty := pset.diff Proc Corr
+  Faulty := pset.diff (pset.ofList processEnumerable.allValues) Corr
 }
 
-
 -- ByzMsgs == Faulty \X M
-
 
 -- Receive(self, includeByz) ==
 --   \E newMessages \in SUBSET ( sent \cup (IF includeByz THEN ByzMsgs ELSE {}) ) :
 --     rcvd' = [ i \in Proc |-> IF i # self THEN rcvd[i] ELSE rcvd[self] \cup newMessages ]
 -- ReceiveFromCorrectSender(self) == Receive(self, FALSE)
 -- ReceiveFromAnySender(self) == Receive(self, TRUE)
+procedure Receive (self : process) (includeByz : Bool) {
+  let superSet := if includeByz then pset.union sent Faulty else sent
+  let newMessages :| pset.isSubset newMessages superSet
+  rcvd self := pset.union (rcvd self) newMessages
+}
+
+-- NOTE: `ReceiveFromCorrectSender` is not used in the `Step` part
+
 procedure ReceiveFromAnySender (self : process) {
-  require isCorrect self
-  let includeByz := true
-  let superSet := if includeByz then pset.union sent Faulty else sent
-  let newMessages :| (∀ sender, pset.contains sender newMessages → pset.contains sender superSet)
-  rcvd self := pset.union (rcvd self) newMessages
+  Receive self true
 }
-
-
-procedure ReceiveFromCorrectSender (self : process) {
-  require isCorrect self
-  let includeByz := false
-  let superSet := if includeByz then pset.union sent Faulty else sent
-  let newMessages :| (∀ sender, pset.contains sender newMessages → pset.contains sender superSet)
-  rcvd self := pset.union (rcvd self) newMessages
-}
-
 
 /- This action is used to model the behavior of a process
 doing nothing (stuttering) in TLA+, which corresponding to Line 160:
@@ -126,7 +119,6 @@ action Stutter {
   pure ()
 }
 
-
 -- UponV1(self) ==
 --   /\ pc[self] = "V1"
 --   /\ pc' = [pc EXCEPT ![self] = "SE"]
@@ -134,13 +126,11 @@ action Stutter {
 --   /\ UNCHANGED << Corr, Faulty >>
 action Step_UponV1 (self : process) {
   require isCorrect self
-  require pc self V1
+  require pc self = V1
   ReceiveFromAnySender self
-  pc self ST := ST == SE
+  pc self := SE
   sent := pset.insert self sent
 }
-
-
 
 -- UponNonFaulty(self) ==
 --   /\ pc[self] \in { "V0", "V1" }
@@ -151,15 +141,13 @@ action Step_UponV1 (self : process) {
 --   /\ UNCHANGED << Corr, Faulty >>
 action Step_UponNonFaulty (self : process) {
   require isCorrect self
-  require pc self V0 ∨ pc self V1
+  require pc self ∈ [V0, V1]
   ReceiveFromAnySender self
-  assume pset.count (rcvd self) >= N - 2 * T
+  assume pset.count (rcvd self) ≥ N - 2 * T
   assume pset.count (rcvd self) < N - T
-  pc self ST := ST == SE
+  pc self := SE
   sent := pset.insert self sent
 }
-
-
 
 -- UponAcceptNotSentBefore(self) ==
 --   /\ pc[self] \in { "V0", "V1" }
@@ -169,13 +157,12 @@ action Step_UponNonFaulty (self : process) {
 --   /\ UNCHANGED << Corr, Faulty >>
 action Step_UponAcceptNotSentBefore (self : process) {
   require isCorrect self
-  require pc self V0 ∨ pc self V1
+  require pc self ∈ [V0, V1]
   ReceiveFromAnySender self
-  assume pset.count (rcvd self) >= N - T
-  pc self ST := ST == AC
+  assume pset.count (rcvd self) ≥ N - T
+  pc self := AC
   sent := pset.insert self sent
 }
-
 
 -- UponAcceptSentBefore(self) ==
 --   /\ pc[self] = "SE"
@@ -185,12 +172,11 @@ action Step_UponAcceptNotSentBefore (self : process) {
 --   /\ UNCHANGED << Corr, Faulty >>
 action Step_UponAcceptorSentBefore (self : process) {
   require isCorrect self
-  require pc self SE
+  require pc self = SE
   ReceiveFromAnySender self
-  assume pset.count (rcvd self) >= N - T
-  pc self ST := ST == AC
+  assume pset.count (rcvd self) ≥ N - T
+  pc self := AC
 }
-
 
 -- Step(self) ==
 --   /\ ReceiveFromAnySender(self)
@@ -208,20 +194,26 @@ action Step_UponAcceptorSentBefore (self : process) {
 -- procedure ByzMsgs {
 --   return pset.remove M Faulty
 -- }
-invariant [Corr_cup_faulty_eq_proc] pset.union Corr Faulty == Proc
-invariant [card_corr] pset.count Corr >= N - T
-invariant [typeOK] N > 3 * T ∧ T >= F ∧ N ≠ 0
-invariant [card_faulty] pset.count Faulty <= T
+
+invariant [Corr_cup_faulty_eq_proc] pset.union Corr Faulty == (pset.ofList processEnumerable.allValues)
+invariant [card_corr] pset.count Corr ≥ N - T
+invariant [card_faulty] pset.count Faulty ≤ T
 
 #gen_spec
 
 #model_check
 { process := (Fin 4),
-  procSet := (Std.ExtTreeSet (Fin 4) compare)}
+  procSet := OrdList (Fin 4) }
 { N := 4,
   T := 1,
-  F := 1,
-  Proc := (Std.ExtTreeSet.empty.insertMany (List.finRange 4))}
-  (maxDepth := 1) (sequential := true)
+  F := 1 }
+
+-- This takes more time
+-- #model_check compiled
+-- { process := (Fin 5),
+--   procSet := OrdList (Fin 5) }
+-- { N := 5,
+--   T := 1,
+--   F := 1 }
 
 end BcastByz
