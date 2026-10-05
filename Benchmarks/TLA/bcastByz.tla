@@ -164,11 +164,11 @@ Next ==
    forever enabled, then this step must eventually occur.      
  *)
 Spec == Init /\ [][Next]_vars 
-             /\ WF_vars(\E self \in Corr: /\ ReceiveFromCorrectSender(self)
-                                          /\ \/ UponV1(self)
-                                             \/ UponNonFaulty(self)
-                                             \/ UponAcceptNotSentBefore(self)
-                                             \/ UponAcceptSentBefore(self))
+            \*  /\ WF_vars(\E self \in Corr: /\ ReceiveFromCorrectSender(self)
+            \*                               /\ \/ UponV1(self)
+            \*                                  \/ UponNonFaulty(self)
+            \*                                  \/ UponAcceptNotSentBefore(self)
+            \*                                  \/ UponAcceptSentBefore(self))
 
 (* This formula SpecNoBcast is used to only check Unforgeability.
    No fairness is needed, as Unforgeability is a safety property.
@@ -193,17 +193,17 @@ TypeOK ==
    but these proofs will be longer.
  *)          
 FCConstraints == 
-  /\ Corr \subseteq Proc
-  /\ Faulty \subseteq Proc
-  /\ IsFiniteSet(Corr)
-  /\ IsFiniteSet(Faulty)
+  \* /\ Corr \subseteq Proc
+  \* /\ Faulty \subseteq Proc
+  \* /\ IsFiniteSet(Corr)
+  \* /\ IsFiniteSet(Faulty)
   /\ Corr \cup Faulty = Proc 
-  /\ Faulty = Proc \ Corr
+  \* /\ Faulty = Proc \ Corr
   /\ Cardinality(Corr) >= N - T
   /\ Cardinality(Faulty) <= T   
-  /\ ByzMsgs \subseteq Proc \X M     
-  /\ IsFiniteSet(ByzMsgs)
-  /\ Cardinality(ByzMsgs) = Cardinality(Faulty)        
+  \* /\ ByzMsgs \subseteq Proc \X M     
+  \* /\ IsFiniteSet(ByzMsgs)
+  \* /\ Cardinality(ByzMsgs) = Cardinality(Faulty)        
           
 (****************************** SPECIFICATION ******************************)
 
