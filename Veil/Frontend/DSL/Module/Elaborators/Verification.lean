@@ -256,12 +256,18 @@ def elabCheckAction : CommandElab := fun stx => do
     runFilteredInvariantCheck stx mod (isInductionForAction actionName)
 
 
+/-- Elaborate `#gen_theorems`, completing verification before making successful
+VC proof witnesses available as theorem declarations to subsequent commands. -/
 @[command_elab Veil.genTheorems]
 def elabGenTheorems : CommandElab := fun stx => do
   withTraceNode `veil.perf.elaborator.genTheorems (fun _ => return "#gen_theorems") do
     let mod ← getCurrentModule (errMsg := "You cannot #gen_theorems outside of a Veil module!")
     let _ ← mod.ensureVerificationSpec stx
+    -- Include every VC kind, including the `doesNotThrow` checks started by
+    -- `#gen_spec`, and wait for their proof witnesses.
     let _ ← Verifier.waitFilteredSync (fun _ => true)
+    -- Add declarations on the command elaboration thread, in dependency order
+    -- so each proof can refer to theorem constants for its upstream VCs.
     Verifier.addProvenTheoremsInDependencyOrder (fun _ => true)
 
 end Veil

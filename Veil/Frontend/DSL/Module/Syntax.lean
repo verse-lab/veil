@@ -310,6 +310,21 @@ scoped syntax (name := genSpec) kw_gen_spec : command
 Requires a finalized specification (`#gen_spec`). -/
 scoped syntax (name := genExecutable) kw_gen_executable : command
 
+/-- Run the current module's verification conditions (VCs) and add Lean theorem
+declarations for those with successful proof witnesses.
+
+Requires a finalized specification (`#gen_spec`). If `veil.deferVCGeneration`
+is enabled, generate the deferred verification definitions and VCs first.
+Starts any pending checks and blocks elaboration until all VCs have completed;
+no preceding `#check_invariants` is needed.
+
+Theorems use the VC names in the current namespace, e.g. `keep_excluded` for
+action `keep` and invariant `[excluded]`, or `keep_doesNotThrow` for its assertion
+check. VCs without a successful proof witness are skipped, including successful
+trace queries that do not produce proofs.
+
+Repeated calls to this reuse existing declarations with definitionally equal types;
+a name collision with a different type is an error. -/
 scoped syntax (name := genTheorems) kw_gen_theorems : command
 
 scoped syntax (name := checkInvariants) "#check_invariants" : command
