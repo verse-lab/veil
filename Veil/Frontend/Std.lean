@@ -547,6 +547,11 @@ class TSet (α : outParam (Type u)) (κ : Type v) where
     contains elem s = true ↔ elem ∈ toList s
   subsets_iff (s1 s2 : κ) :
     s1 ∈ subsets s2 ↔ (∀ elem, contains elem s1 = true → contains elem s2 = true)
+  contains_ofList (elem : α) (l : List α) :
+    contains elem (ofList l) = true ↔ elem ∈ l
+  count_eq_length_toList (s : κ) : count s = (toList s).length
+  toList_nodup (s : κ) : (toList s).Nodup
+  ext (s1 s2 : κ) (h : ∀ elem, contains elem s1 = contains elem s2) : s1 = s2
 
 @[inline]
 instance [TSet α κ] : Membership α κ where
@@ -567,6 +572,58 @@ instance [TSet α κ] (s1 s2 : κ) : Decidable (TSet.isSubset s1 s2) :=
     isTrue (fun elem hmem => by simp [← TSet.toList_contains_iff] at h ; exact h _ hmem)
   else
     isFalse (by simp [← TSet.toList_contains_iff] at h ; simp [TSet.isSubset] ; exact h)
+
+/-- Two duplicate-free lists with the same members have the same length, so
+the length of a list splits along membership in a sub-list. -/
+private theorem List.nodup_length_diff_add [DecidableEq α] (A B D : List α)
+    (hA : A.Nodup) (hB : B.Nodup) (hD : D.Nodup)
+    (hsub : ∀ x, x ∈ B → x ∈ A)
+    (hdiff : ∀ x, x ∈ D ↔ (x ∈ A ∧ x ∉ B)) :
+    D.length + B.length = A.length := by
+  have perm_of_nodup : ∀ (l₁ l₂ : List α), l₁.Nodup → l₂.Nodup →
+      (∀ x, x ∈ l₁ ↔ x ∈ l₂) → l₁.Perm l₂ := by
+    intro l₁ l₂ h₁ h₂ hmem
+    rw [List.perm_iff_count]
+    intro a
+    simp only [h₁.count, h₂.count, hmem a]
+  have hDperm : D.Perm (A.filter (fun x => decide (x ∉ B))) := by
+    apply perm_of_nodup D _ hD (hA.sublist List.filter_sublist)
+    intro x
+    rw [hdiff x, List.mem_filter]
+    simp
+  have hBperm : B.Perm (A.filter (fun x => decide (x ∈ B))) := by
+    apply perm_of_nodup B _ hB (hA.sublist List.filter_sublist)
+    intro x
+    rw [List.mem_filter]
+    simp only [decide_eq_true_eq]
+    exact ⟨fun h => ⟨hsub x h, h⟩, fun h => h.2⟩
+  rw [hDperm.length_eq, hBperm.length_eq, ← List.countP_eq_length_filter,
+    ← List.countP_eq_length_filter, Nat.add_comm]
+  have := List.length_eq_countP_add_countP (fun x => decide (x ∈ B)) (l := A)
+  simpa using this.symm
+
+/-- Removing a subset `s2` from `s1` drops exactly `count s2` elements. -/
+theorem TSet.count_diff_add_count_of_subset [DecidableEq α] [TSet α κ] (s1 s2 : κ)
+    (h : TSet.isSubset s2 s1) :
+    TSet.count (TSet.diff s1 s2) + TSet.count s2 = TSet.count s1 := by
+  simp only [TSet.count_eq_length_toList]
+  apply List.nodup_length_diff_add _ _ _ (TSet.toList_nodup _) (TSet.toList_nodup _)
+    (TSet.toList_nodup _)
+  · intro x hx
+    rw [← TSet.toList_contains_iff] at hx ⊢
+    exact h x hx
+  · intro x
+    simp only [← TSet.toList_contains_iff, TSet.contains_diff, Bool.and_eq_true,
+      Bool.not_eq_eq_eq_not, Bool.not_true]
+    constructor
+    · rintro ⟨h1, h2⟩; exact ⟨h1, by simp [h2]⟩
+    · rintro ⟨h1, h2⟩; exact ⟨h1, by simpa using h2⟩
+
+/-- `count` is monotone with respect to inclusion. -/
+theorem TSet.count_le_of_subset [DecidableEq α] [TSet α κ] (s1 s2 : κ)
+    (h : TSet.isSubset s1 s2) : TSet.count s1 ≤ TSet.count s2 := by
+  have := TSet.count_diff_add_count_of_subset s2 s1 h
+  omega
 
 instance (priority := high) instEnumerationTSetSubset [TSet α κ] (superSet : κ) : Veil.Enumeration ({ s : κ // TSet.isSubset s superSet }) where
   allValues := TSet.subsets superSet |>.attachWith _ (fun x => TSet.subsets_iff x superSet |>.mp)
@@ -665,6 +722,23 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
     constructor
     · grind
     · intro h ; exists s2.toList.filter (fun a => s1.contains a) ; simp at h ⊢ ; grind
+  contains_ofList := by
+    intros elem l
+    rw [Std.ExtTreeSet.contains_ofList, List.contains_iff_mem]
+  count_eq_length_toList := by
+    intros s
+    rw [Std.ExtTreeSet.length_toList]
+  toList_nodup := by
+    intros s
+    rw [List.nodup_iff_pairwise_ne]
+    refine List.Pairwise.imp (fun h heq => h ?_) Std.ExtTreeSet.distinct_toList
+    rw [heq]
+    exact Std.ReflCmp.compare_self
+  ext := by
+    intros s1 s2 h
+    apply Std.ExtTreeSet.ext_mem
+    intro k
+    rw [Std.ExtTreeSet.mem_iff_contains, Std.ExtTreeSet.mem_iff_contains, h k]
 
 open OrdList in
 instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
@@ -717,6 +791,16 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
     constructor
     · grind
     · apply OrdList.mem_contains_then_is_sublist <;> assumption
+  contains_ofList := by
+    intros elem l
+    show sortedContains elem (OrdList.ofList l).val = true ↔ elem ∈ l
+    rw [sortedContains_iff _ _ (OrdList.ofList l).property]
+    exact (ofList.inner_spec l).right elem
+  count_eq_length_toList := fun _ => rfl
+  toList_nodup := fun s => sorted_nodup s.property
+  ext := fun s1 s2 h => Subtype.ext <| sorted_unique s1.property s2.property fun x => by
+    rw [← sortedContains_iff _ _ s1.property, ← sortedContains_iff _ _ s2.property]
+    exact Bool.eq_iff_iff.mp (h x)
 
 open OrdList OrdArray in
 instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
@@ -793,6 +877,17 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
     · grind
     · intro h ; exists l1.toList ; simp ; apply OrdList.mem_contains_then_is_sublist <;> try assumption
       simp ; assumption
+  contains_ofList := by
+    intros elem l
+    show sortedContains elem (OrdList.ofList.inner l).toArray.toList = true ↔ elem ∈ l
+    rw [List.toList_toArray, sortedContains_iff _ _ (OrdList.ofList.inner_spec l).left]
+    exact (OrdList.ofList.inner_spec l).right elem
+  count_eq_length_toList := fun _ => Array.size_eq_length_toList
+  toList_nodup := fun s => sorted_nodup s.property
+  ext := fun s1 s2 h => Subtype.ext <| Array.toList_inj.mp <|
+    sorted_unique s1.property s2.property fun x => by
+      rw [← sortedContains_iff _ _ s1.property, ← sortedContains_iff _ _ s2.property]
+      exact Bool.eq_iff_iff.mp (h x)
 
 class TMultiset (α : outParam (Type u)) (κ : Type v) where
   empty : κ
