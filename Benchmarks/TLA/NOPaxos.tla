@@ -740,7 +740,7 @@ IvyInvariants ==
    /\ LeaderSMNGap
 
 \* To constrain search space (old approach)
-MsgCountLimit == Cardinality(messages) <= 14
+MsgCountLimit == Cardinality(messages) <= 16
 
 ConstrainedNext ==
     /\ MsgCountLimit
