@@ -341,7 +341,27 @@ instance
       PeDivM.prependAll_eq, PeDivM.prepend, pure, bind, Loom.Order.embed]
 
 open AngelicChoice TotalCorrectness in
-theorem VeilM.extract_list_eq_wp (s : VeilM m ρ σ α)
+/-- The same for the log under a `LogSwitch`, which is what extraction for the model checker uses.
+Whether picks are logged or not, the log is invisible to `wp`. -/
+instance [sw : LogSwitch]
+  {hd : ε → Prop}
+  [IsHandler hd]
+  : LawfulMonadPersistentLog κ (VeilMultiExecM κ ε ρ σ) (ρ → σ → Prop) where
+  log_sound := by
+    introv ; ext r st
+    rcases sw with ⟨_ | _⟩ <;>
+    simp +instances +unfoldPartialApp [Id, wp, liftM, monadLift, MAlg.lift, Functor.map,
+      MAlgOrdered.μ, OfHd, MAlgExcept, pointwiseSup,
+      ExceptT.map, ExceptT.mk, Except.getD, TsilTCore.op,
+      StateT.map, StateT.pure, StateT.bind,
+      MonadPersistentLog.log, Loom.instLogMonoidList,
+      PeDivM.prependAll_eq, PeDivM.prepend, pure, bind, Loom.Order.embed]
+
+/-! The theorems below are about the log under a `LogSwitch`, as the model checker runs extracted
+actions. With the switch on, that log is definitionally Loom's lifted one. -/
+
+open AngelicChoice TotalCorrectness in
+theorem VeilM.extract_list_eq_wp [LogSwitch] (s : VeilM m ρ σ α)
   (h : ExtractConstraint κ
     (VeilExecM m ρ σ)
     (VeilMultiExecM κ ExId ρ σ) (fun p (ec : ExtCandidates Candidates κ p) => ec.core.find) s s')
@@ -350,7 +370,7 @@ theorem VeilM.extract_list_eq_wp (s : VeilM m ρ σ α)
   apply MultiExtractor.AngelicChoice.extract_list_eq_wp κ ; assumption
 
 -- a state is in the extraction result iff it is a possible next state
-theorem important1
+theorem important1 [LogSwitch]
   (act : VeilM m ρ σ α)
   (h : ExtractConstraint κ
     (VeilExecM m ρ σ)
@@ -372,7 +392,7 @@ theorem important1
     subst_eqs ; exists a , k
 
 -- an exception is in the extraction result iff it can be raised
-theorem important2
+theorem important2 [LogSwitch]
   (e : ExId)
   (act : VeilM m ρ σ α)
   (h : ExtractConstraint κ

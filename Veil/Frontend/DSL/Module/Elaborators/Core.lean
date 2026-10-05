@@ -608,6 +608,13 @@ private def getTheoryTerm (cmdName : String) (theoryTermOpt : Option Term)
 private def mkIdentWithModName (mod : Module) (name : Name) : Ident :=
   Lean.mkIdent (mod.name ++ name)
 
+/-- The module's `enumerableTransitionSystem`, logging picks or not (`LogSwitch`). Only recovering
+a counterexample trace runs with the log; searches and simulations do not read it. -/
+private def mkTransitionSystemTerm (mod : Module) (instSortArgs : Array Term) (th : Ident)
+    (logPicks : Bool) : CommandElabM Term :=
+  `(letI : $(mkIdent ``LogSwitch) := ⟨$(quote logPicks)⟩
+    $(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
+
 /-- Build search parameters for model checking / simulation. -/
 private def mkSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
   let mkAssumption (sa : StateAssertion) : CommandElabM Term :=
@@ -689,6 +696,9 @@ where
     let th := mkVeilImplementationDetailIdent `th
     let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
     let sp ← mkSearchParameters mod config
+    -- The search does not log picks; a counterexample's trace is recovered in a system that does
+    let sys ← mkTransitionSystemTerm mod instSortArgs th (logPicks := false)
+    let traceSys ← mkTransitionSystemTerm mod instSortArgs th (logPicks := true)
     -- Model checker call with type annotation to help inference
     -- Note: findReachableThen takes parallelCfg, progressInstanceId, cancelToken, and the
     -- continuation for the result as the last four args
@@ -700,7 +710,7 @@ where
        $(mkIdent ``Veil.ModelChecker.Concrete.findReachableThen)
          ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
          ($(mkIdent `σₕ) := $fingerprintType)
-         ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
+         ($sys) (fun _ => $traceSys)
          $sp : _ → _ → _ → _ → IO _)))
 
   /-- Check that the provided theory satisfies all module assumptions by
@@ -1099,7 +1109,7 @@ private def mkSimulatorRuntimeCall (mod : Module) (instTerm theoryTerm : Term)
   `((veil_dsimp_field_reads% (let $inst : $instantiationType := $instTerm
       let $th : $theoryIdent $instSortArgs* := $theoryTerm
       $(mkIdent ``Veil.ModelChecker.Simulation.simulateWithProgress)
-        ($(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
+        ($(← mkTransitionSystemTerm mod instSortArgs th (logPicks := false)))
         $sp $th $cfgTerm : _ → _ → IO _)))
 
 /-- Build the simulator runtime call syntax with progress and cancellation hooks. -/
