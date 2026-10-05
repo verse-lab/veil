@@ -76,22 +76,22 @@ where
 This module provides the main entry point for model checking, dispatching to
 either the sequential or parallel implementation based on configuration. -/
 
-/-- The result of a finished search, with a trace for a violation. -/
+/-- The result of a finished search, with a trace for a violation, recovered in `traceSys ()`. -/
 private def searchResult {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [Inhabited σ] [ActionStatUpdate κ asm]
   {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
+  (traceSys : Unit → EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   [fp : StateFingerprint σ σₕ] [Repr σₕ]
   (ctx : BaseSearchContext σ κ σₕ asm) (distinctCount : Nat)
   : m (ModelCheckingResult ρ σ κ σₕ) := do
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
-    return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverTrace sys ctx fingerprint))
+    return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverTrace (traceSys ()) ctx fingerprint))
   | some (.earlyTermination (.deadlockOccurred fingerprint)) => do
-    return ModelCheckingResult.foundViolation fingerprint .deadlock (some (← recoverTrace sys ctx fingerprint))
+    return ModelCheckingResult.foundViolation fingerprint .deadlock (some (← recoverTrace (traceSys ()) ctx fingerprint))
   | some (.earlyTermination (.assertionFailed fingerprint exId)) => do
-    return ModelCheckingResult.foundViolation fingerprint (.assertionFailure exId) (some (← recoverTrace sys ctx fingerprint (some exId)))
+    return ModelCheckingResult.foundViolation fingerprint (.assertionFailure exId) (some (← recoverTrace (traceSys ()) ctx fingerprint (some exId)))
   | some (.earlyTermination (.reachedDepthBound _)) =>
     -- No violation found within depth bound; report number of states explored
     return ModelCheckingResult.noViolationFound distinctCount (.earlyTermination (.reachedDepthBound ctx.completedDepth))
@@ -105,7 +105,7 @@ private def searchResult {ρ σ κ σₕ : Type} {m : Type → Type}
       let assertionExId := match violation with
         | .assertionFailure exId => some exId
         | _ => none
-      return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverTrace sys ctx fingerprint assertionExId))
+      return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverTrace (traceSys ()) ctx fingerprint assertionExId))
     | [] =>
       return ModelCheckingResult.noViolationFound distinctCount (.exploredAllReachableStates)
   | none => panic! s!"SearchContext.finished is none! This should never happen."
@@ -126,6 +126,10 @@ variable {ρ σ κ σₕ α : Type} {m : Type → Type}
   [ActionStatUpdate κ asm]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
+  -- The system to recover counterexample traces in. It must have the transitions of `sys`, but may
+  -- do more bookkeeping: the frontend passes `sys` with picks logged (`LogSwitch`), which the search
+  -- does without. It is a thunk, so that it is built only when there is a trace to recover.
+  (traceSys : Unit → EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   [fp : StateFingerprint σ σₕ] [Ord σₕ] [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ] [Repr σₕ] [Inhabited σₕ]
   (params : SearchParameters ρ σ)
   (parallelCfg : Option ParallelConfig)
@@ -134,7 +138,8 @@ variable {ρ σ κ σₕ α : Type} {m : Type → Type}
 
 /-- `findReachable`, then `finish` on the result while the search's data structures (the seen
 set, the log for recovering traces) are still referenced; they are released only after `finish`
-returns. The caller picks the fingerprint type `σₕ` and its `StateFingerprint` instance. -/
+returns. The caller picks the fingerprint type `σₕ` and its `StateFingerprint` instance.
+Traces are recovered in `traceSys ()` rather than `sys`. -/
 def findReachableThen (finish : ModelCheckingResult ρ σ κ σₕ → m α) : m α := do
   let assumptionViolations := params.violatedAssumptions th
   unless assumptionViolations.isEmpty do
@@ -142,18 +147,19 @@ def findReachableThen (finish : ModelCheckingResult ρ σ κ σₕ → m α) : m
     return ← finish (ModelCheckingResult.foundViolation default (.assumptionFailure assumptionViolations) none)
   -- Create a "filtered" version of the system
   let sys := Veil.ModelChecker.restrictSystemByStateConstraints sys params th
+  let traceSys := fun _ => Veil.ModelChecker.restrictSystemByStateConstraints (traceSys ()) params th
   match parallelCfg with
   | some cfg => do
     let mctx ← breadthFirstSearchParallel (σₕ := σₕ) params sys cfg progressInstanceId cancelToken
-    let result ← searchResult sys mctx.base mctx.globalSeen.size
+    let result ← searchResult traceSys mctx.base mctx.globalSeen.size
     return (← keepingThen mctx (finish result)).1
   | none => do
     let sctx ← breadthFirstSearchSequential (σₕ := σₕ) params sys 60000 progressInstanceId cancelToken
-    let result ← searchResult sys sctx.1 sctx.1.log.size
+    let result ← searchResult traceSys sctx.1 sctx.1.log.size
     return (← keepingThen sctx (finish result)).1
 
 def findReachable : m (ModelCheckingResult ρ σ κ σₕ) :=
-  findReachableThen (σₕ := σₕ) sys params parallelCfg progressInstanceId cancelToken pure
+  findReachableThen (σₕ := σₕ) sys traceSys params parallelCfg progressInstanceId cancelToken pure
 
 end
 

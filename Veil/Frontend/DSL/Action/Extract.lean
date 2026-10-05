@@ -381,7 +381,9 @@ private def bindersToInjectForExecution [AddMessageContext m] [MonadOptions m] [
   let binders ← mod.assumeInstArgsWithConcreteRepConfig mod.mutableComponents repConfigs
     ConcreteRepConfig.domainLawfulFieldRepInstances ConcreteRepConfig.codomainLawfulFieldRepInstances
     #[``Repr, ``Enumeration] #[``Inhabited, ``DecidableEq] false
-  return binders
+  -- Whether picks are logged is up to the caller: the model checker searches with the log off,
+  -- and recovers traces with it on
+  return binders.push (← `(bracketedBinder| [$(mkCIdent ``LogSwitch)]))
 
 def runGenExtractCommand (mod : Veil.Module) : CommandElabM Unit := do
   let binders ← bindersToInjectForExecution mod
@@ -418,20 +420,30 @@ instance (priority := high) {α : Type u} (a : α) : Veil.Enumeration {x : α //
   allValues := [⟨a, rfl⟩]
   complete := by rintro ⟨x, h⟩ ; simp [Veil.eqWithoutSubst] at h ; simp [h]
 
+/- The rules below take the log instance as a parameter, as Loom's do, rather than fixing the one
+   found here: extraction for the model checker uses the one under a `LogSwitch` (`Definitions.lean`),
+   and Loom's lifted instance applies only where there is no switch. -/
+
+section
+
+variable {ρ σ} [inst4 : MonadPersistentLog Std.Format (VeilMultiExecM Std.Format ExId ρ σ)]
+
 def ConstrainedExtractResult.pickSuchThat_VeilM (p : τ → Prop) [∀ x, Decidable (p x)] [instec : ExtCandidates Candidates Std.Format p] :
   ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
   (findOfCandidates _) (VeilM.pickSuchThat τ p) := ConstrainedExtractResult.pickList _ _ _ _ p (instec := instec)
 
-def ConstrainedExtractResult.assume_VeilM {m ρ σ} (p : Prop) [decp : Decidable p] :
+def ConstrainedExtractResult.assume_VeilM {m} (p : Prop) [decp : Decidable p] :
   ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
   (findOfCandidates _) (@VeilM.assume m ρ σ p decp) := ConstrainedExtractResult.assume _ _ _ _ p (decp := decp)
 
-def ConstrainedExtractResult.require_VeilM {m ρ σ ex} (p : Prop) [decp : Decidable p] :
+def ConstrainedExtractResult.require_VeilM {m ex} (p : Prop) [decp : Decidable p] :
   ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
   (findOfCandidates _) (@VeilM.require m ρ σ p decp ex) :=
   match m with
   | .external => ConstrainedExtractResult.assume_VeilM p (decp := decp)
   | .internal => ConstrainedExtractResult.liftM _ _ _ _ (@VeilExecM.assert m ρ σ p decp ex)
+
+end
 
 /-- The computation without results: the empty choice. -/
 @[inline]
@@ -528,7 +540,14 @@ depend on its binder. -/
 @[multiExtractSimp] theorem pure_bind (x : β) (k : β → VeilMultiExecM κ ε ρ σ α) :
     ((pure x : VeilMultiExecM κ ε ρ σ β) >>= k) = (let y := x ; k y) := rfl
 
-/-- A pick's per-candidate computation: log the candidate, then return it. -/
+/-- A pick's per-candidate computation: log the candidate, then return it.
+
+Only for Loom's log instance, which always logs. Under a `LogSwitch` the log is
+`if sw.enabled then [w] else []`: whether it is empty depends on the switch, which is unknown
+here, so the `bind` does not reduce and there is no `rfl` form. The `bind` then stays in the
+extracted term, and the compiler inlines it: what it compiles to is the result above with the
+switch tested at run time, `[(if sw.enabled then [w] else [], DivM.res (Except.ok x, s))]`, with
+`w` only computed when the switch is on. -/
 @[multiExtractSimp] theorem log_bind_pure (w : κ) (x : β) :
     ((MonadPersistentLog.log w : VeilMultiExecM κ ε ρ σ PUnit) >>= fun _ => pure x)
       = fun _ s => [([w], DivM.res (Except.ok x, s))] := rfl
@@ -550,7 +569,8 @@ over the whole action's results once more. Loom's rules for these two shapes avo
   `MonadFlatMap'.opMap candidates fun x => log (rep x) >>= fun _ => f' x`. On `VeilMultiExecM`,
   `opMap` passes the theory and the state down to `TsilT`, where it is one `List.flatMap` over
   the candidates, and each candidate's `bind` compiles to prefixing its log entry to the
-  results of `f' x` (of which there are none, most often, when a `require` fails).
+  results of `f' x` (of which there are none, most often, when a `require` fails), or to nothing
+  when the log is off (`LogSwitch`).
 - `act >>= fun _ => pure ()` becomes `act'` itself (`bind_pure_unit`).
 
 They are registered with a high priority (below), so that `extract_list_use_extracted` tries
@@ -558,7 +578,7 @@ them before the generic `bind`, which matches the same goals. -/
 
 section PicksAndTrailingPure
 
-variable {ρ σ τ β : Type} {mode : Mode}
+variable {ρ σ τ β : Type} {mode : Mode} [inst4 : MonadPersistentLog Std.Format (VeilMultiExecM Std.Format ExId ρ σ)]
 
 open MultiExtractor
 
