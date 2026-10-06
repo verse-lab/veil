@@ -225,6 +225,24 @@ private def Module.actsToCheck (mod : Module) : Array ProcedureSpecification :=
     | .action _ _ | .initializer => true
     | .procedure _ => false)
 
+-- NOTE: This function could be the private helper of `elabProveVeilInvariantGoal`,
+-- but it's here to use the `private` definitions in this module.
+/-- Rebuild an interactive goal from the specification in the current environment,
+using the same builders as automatic verification, rather than the mutable manager. -/
+def Module.mkInvariantGoalVC (mod : Module) (actionId propertyId : Ident)
+    (style : VCStyle) : CommandElabM (VCData VCMetadata) := do
+  let some act := mod.actsToCheck.find? (·.name == actionId.getId)
+    | throwErrorAt actionId "unknown action or initializer `{actionId.getId}`"
+  if propertyId.getId == `doesNotThrow then
+    unless style == .wp do
+      throwErrorAt propertyId "`doesNotThrow` only supports `using wp`"
+    return ← mkDoesNotThrowVC mod act.name act.declarationKind .primary
+  unless mod.checkableInvariants.any (·.name == propertyId.getId) do
+    throwErrorAt propertyId "unknown invariant `{propertyId.getId}`"
+  match style with
+  | .wp => mkMeetsSpecificationIfSuccessfulClauseVC mod act.name act.declarationKind propertyId.getId .primary
+  | .tr => mkMeetsSpecificationIfSuccessfulClauseTrVC mod act.name act.declarationKind propertyId.getId .primary
+
 /-- Generate doesNotThrow VCs for all actions.
     These VCs check that actions don't throw exceptions assuming the invariants hold. -/
 def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do

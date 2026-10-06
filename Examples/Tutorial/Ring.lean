@@ -377,10 +377,11 @@ chasing CTIs for an unprovable invariant.
 
 TIP: if the SMT solver cannot prove a verification condition, you can
 Command+Click on its name in the InfoView widget (or press the "Insert"
-button) to insert the corresponding theorem statement into the editor buffer,
-and prove it interactively using Lean tactics. The inserted theorem is tagged
-with the `@[veil]` attribute, which makes `#check_invariants` pick it up and
-use it to discharge the corresponding verification condition. -/
+button) to insert a `prove_veil_invariant_goal` proof stub into the editor
+buffer, and prove it interactively using Lean tactics. The command generates
+the theorem statement, runs `unveil`, and registers the theorem with `@[veil]`,
+which makes `#check_invariants` use it to discharge the corresponding
+verification condition. -/
 #check_invariants
 
 end Ring

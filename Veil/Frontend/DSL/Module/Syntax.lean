@@ -331,6 +331,11 @@ scoped syntax (name := checkInvariants) "#check_invariants" : command
 
 scoped syntax (name := checkAction) "#check_action" ident : command
 
+/-- Prove an action/invariant VC after automatically running `unveil`.
+The VC style is `wp` or `tr`; `doesNotThrow` selects the WP exception VC. -/
+scoped syntax (name := proveVeilInvariantGoal)
+  "prove_veil_invariant_goal " ident ident " using " (&"wp" <|> &"tr") " by " Tactic.tacticSeqIndentGt : command
+
 /-- Run the explicit state model checker on the current module with the given
 type instantiation and theory. The optional `maxDepth` parameter limits how
 deep the breadth-first search will go before terminating.

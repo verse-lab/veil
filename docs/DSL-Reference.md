@@ -379,9 +379,30 @@ discover an inductive invariant.
 
 If the solver cannot discharge a verification condition, Command + Click on
 its name in the widget (or the "Insert" button) inserts the corresponding
-theorem statement into the editor, where you can prove it interactively using
-Lean tactics. The inserted theorem is tagged `@[veil]`, which makes
+proof stub into the editor, where you can prove it interactively using Lean
+tactics. The resulting theorem is registered with `@[veil]`, which makes
 `#check_invariants` use it to discharge that verification condition.
+
+For induction VCs, inserted stubs use a compact proof command:
+
+```lean
+prove_veil_invariant_goal keep inv using wp by
+  -- Prove the goal already simplified by `unveil`.
+  sorry
+```
+
+The arguments select the action (or `initializer`), invariant, and VC style
+(`wp` or `tr`). Use `doesNotThrow` in place of the invariant to prove the
+exception VC with `using wp`. The command creates and registers the same
+`@[veil]` theorem as an explicit signature: `keep_inv` for WP,
+`keep_inv_tr` for TR, or `keep_doesNotThrow` for exception freedom.
+It requires `#gen_spec`; if `veil.deferVCGeneration` is enabled, it generates
+the deferred VCs on demand.
+
+The complete statement is generated from the current specification, and
+`unveil` runs before the user tactics. Proof edits reuse Lean's tactic
+snapshots, including the initial simplification and unchanged proof prefix.
+Existing explicit `@[veil] theorem` declarations remain supported.
 
 To check a single action, use `#check_action <name>`.
 

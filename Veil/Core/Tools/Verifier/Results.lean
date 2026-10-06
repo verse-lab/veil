@@ -228,9 +228,13 @@ def VCManager.findPrimaryVC (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Op
       return some primaryId
   return none
 
-/-- Generate theorem text from a VC using proper pretty-printing.
-    Format: `@[veil] theorem <name> <params> : <statement> := by sorry` -/
-def mkTheoremText (vc : VerificationCondition VCMetaT ResultT) : CoreM String := do
+/-- Generate an interactive proof stub, or the successful discharger's theorem. -/
+def mkTheoremText (vc : VerificationCondition VCMetadata ResultT) : CoreM String := do
+  if vc.successful.isNone then
+    if let .induction metadata := vc.metadata then
+      let action ← Lean.PrettyPrinter.ppTerm (mkIdent metadata.action)
+      let property ← Lean.PrettyPrinter.ppTerm (mkIdent metadata.property)
+      return s!"prove_veil_invariant_goal {action.pretty} {property.pretty} using {metadata.style} by\n  sorry"
   let cmd ← vc.theoremStx
   let fmt ← Lean.PrettyPrinter.ppCommand cmd
   return s!"@[veil]\n{fmt.pretty}"
@@ -239,7 +243,7 @@ def mkTheoremText (vc : VerificationCondition VCMetaT ResultT) : CoreM String :=
 the theorem statement is pretty-printed (needed for click-to-insert stubs);
 callers that render repeatedly while verification is running should pass
 `false`, since pretty-printing every VC is expensive. -/
-def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT CoreM m] (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (includeTheoremText : Bool := true) : m (VCResult VCMetaT ResultT) := do
+def mkVCResult [Monad m] [MonadError m] [MonadLiftT BaseIO m] [MonadLiftT CoreM m] (mgr : VCManager VCMetadata ResultT) (vcId : VCId) (includeTheoremText : Bool := true) : m (VCResult VCMetadata ResultT) := do
   let .some vc := mgr.nodes[vcId]? | throwError s!"mkVCResult: VC {vcId} not found in manager"
   let timing ← mkTimingData mgr vc
   let theoremText ← if includeTheoremText then some <$> liftM (mkTheoremText vc) else pure none

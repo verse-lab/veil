@@ -6,6 +6,7 @@ public meta import Veil.Core.UI.Verifier.AssertionErrors
 public meta import Veil.Frontend.DSL.Module.VCGen
 public meta import Veil.Core.Tools.Verifier.Server
 public meta import Veil.Core.Tools.Verifier.Results
+meta import Veil.Core.Tools.Verifier.TheoremDischarger
 public meta import Veil.Core.UI.Verifier.VerificationResults
 
 public meta section
@@ -145,6 +146,48 @@ def Module.ensureVerificationSpec (mod : Module) (stx : Syntax) : CommandElabM M
   let mod := { mod with _vcGenerationDeferred := false }
   localEnv.modifyModule (fun _ => mod)
   return mod
+
+-- NOTE: Taking some inspiration from how incrementality was done in Velvet
+/-- Generate a theorem whose proof starts with `unveil`. `@[incremental]` keeps
+the command's snapshot bundle available for Lean's theorem/tactic elaborators;
+stable generated syntax lets them reuse the unchanged proof prefix. -/
+@[command_elab Veil.proveVeilInvariantGoal, incremental]
+def elabProveVeilInvariantGoal : CommandElab := fun stx => do
+  let (actionId, propertyId, style, byTk, proof) ← match stx with
+    | `(command| prove_veil_invariant_goal $actionId $propertyId using wp by%$byTk $proof:tacticSeq) =>
+      pure (actionId, propertyId, VCStyle.wp, byTk, proof)
+    | `(command| prove_veil_invariant_goal $actionId $propertyId using tr by%$byTk $proof:tacticSeq) =>
+      pure (actionId, propertyId, VCStyle.tr, byTk, proof)
+    | _ => throwUnsupportedSyntax
+  let mod ← getCurrentModule (errMsg := "You cannot prove a Veil invariant goal outside of a Veil module!")
+  mod.throwIfSpecNotFinalized
+  -- Key quotation hygiene by the goal identity. The default seed includes the
+  -- whole command's text, so editing a tactic would change generated names.
+  withInitQuotContext (some (hash (← getCurrNamespace, actionId.getId, propertyId.getId, style))) do
+    -- Anchor generated syntax to the selector: the whole command's end position
+    -- moves on proof edits. The antiquoted user proof retains its own positions.
+    withRef actionId do
+      -- Deferred preparation elaborates multiple helper declarations. Hide the
+      -- outer snapshot bundle from them, then restore it for the theorem below.
+      -- Do not use `withoutCommandIncrementality true`: it also cancels the old
+      -- snapshot tree, including in-flight tactics the theorem may still reuse.
+      let mod ← withReader (fun ctx => { ctx with snap? := none }) <|
+        mod.ensureVerificationSpec actionId
+      let vc ← mod.mkInvariantGoalVC actionId propertyId style
+      let thmId := mkIdentFrom actionId vc.name
+      -- The visible `by` token should show the simplified goal, including when
+      -- the user has not written any tactics yet.
+      let entry : TSyntax `tactic := ⟨(← `(tactic| skip)).raw.setInfo byTk.getHeadInfo⟩
+      let cmd ← `(command|
+        @[veil] theorem $thmId $(vc.params)* : $(vc.statement) := by
+          unveil
+          $entry:tactic
+          ($proof:tacticSeq))
+      -- Delegate directly to Lean's theorem/tactic elaborators so their snapshot
+      -- tree can reuse `unveil` and the unchanged prefix of the user's proof.
+      -- They compare the generated syntax and cancel the parts invalidated by
+      -- edits to the selected goal or proof; we must not cancel them beforehand.
+      elabCommand cmd
 
 @[command_elab Veil.genSpec]
 def elabGenSpec : CommandElab := fun stx => do
