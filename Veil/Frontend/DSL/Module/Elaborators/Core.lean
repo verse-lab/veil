@@ -444,16 +444,24 @@ def defaultThresholdToParallel : Nat := 20
 
 declare_command_config_elab elabModelCheckerConfig ModelCheckerConfig
 
-/-- Frontend configuration for `#model_check`, retaining the fingerprint type as syntax. -/
+/-- Frontend configuration for `#model_check`, retaining the fingerprint type and the seen set's
+shard type as syntax. -/
 structure ModelCheckCommandConfig extends ModelCheckerConfig where
   /-- Elaborated with the generated checker call; defaults to `Nat` (`StateFingerprint.ofHashNat`). -/
   fingerprintType : Term := mkCIdent ``Nat
+  /-- Applied to the fingerprint type, the set type of the shards of the parallel search's seen set;
+  defaults to `TreeSetShard` (`Std.TreeSet`). -/
+  seenSet : Term := mkCIdent ``TreeSetShard
 
 declare_command_config_elab elabModelCheckCommandConfig ModelCheckCommandConfig where
   option fingerprintType := fun cfg item => do
     item.checkNotBool
     return { cfg with fingerprintType := ⟨item.value⟩ }
-  -- A full ordinary configuration leaves the separately specified fingerprint type unchanged.
+  option seenSet := fun cfg item => do
+    item.checkNotBool
+    return { cfg with seenSet := ⟨item.value⟩ }
+  -- A full ordinary configuration leaves the separately specified fingerprint type and seen set
+  -- unchanged.
   option config := fun cfg item => do
     item.checkNotBool
     let base : ModelCheckerConfig ← Lean.Elab.ConfigEval.evalExprWithElab ⟨item.value⟩
@@ -690,7 +698,7 @@ where
     liftCoreM <| ModelChecker.Compilation.emitCWithRuntimeInitializers `main
 
   /-- Build the core model checker call syntax (without parallel config). -/
-  mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig) (fingerprintType : Term)
+  mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig) (fingerprintType seenSet : Term)
       (instTerm theoryTerm : Term) : CommandElabM Term := do
     let inst := mkVeilImplementationDetailIdent `inst
     let th := mkVeilImplementationDetailIdent `th
@@ -703,13 +711,14 @@ where
     -- Note: findReachableThen takes parallelCfg, progressInstanceId, cancelToken, and the
     -- continuation for the result as the last four args
     -- `veil_dsimp_field_reads%` simplifies the field reads in the `Decidable` instances synthesized here
-    -- The fingerprint type comes from the `fingerprintType` option.
-    -- The checker is generic in it and gets specialized to it at this call site.
+    -- The fingerprint type comes from the `fingerprintType` option, the seen set's shard type from
+    -- `seenSet`. The checker is generic in both and gets specialized to them at this call site.
     `((veil_dsimp_field_reads% (let $inst : $instantiationType := $instTerm
        let $th : $theoryIdent $instSortArgs* := $theoryTerm
        $(mkIdent ``Veil.ModelChecker.Concrete.findReachableThen)
          ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
          ($(mkIdent `σₕ) := $fingerprintType)
+         ($(mkIdent `Shard) := $seenSet $fingerprintType)
          ($sys) (fun _ => $traceSys)
          $sp : _ → _ → _ → _ → IO _)))
 
@@ -957,7 +966,7 @@ where
       | false, some cfg => pure (some cfg)
       | false, none => pure (some { numSubTasks := ← getNumCores, thresholdToParallel := defaultThresholdToParallel })
     let config := { config with parallelCfg := parallelCfg }
-    let callExpr ← mkModelCheckerCall mod config commandCfg.fingerprintType instTerm theoryTerm
+    let callExpr ← mkModelCheckerCall mod config commandCfg.fingerprintType commandCfg.seenSet instTerm theoryTerm
 
     -- In the online environment, force interpreted mode to avoid spawning compiled workers.
     let effectiveMode := if (← liftIO isVeilOnlineEnv) then .interpreted else mode

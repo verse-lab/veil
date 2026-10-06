@@ -137,55 +137,78 @@ def umodifyViaHash [Hashable β] (v : VectorUSize α n) (x : β) (f : α → α)
 
 end VectorUSize
 
-/-- A sharded set implementation using `TreeSet` as the underlying shard type,
-with `USize`-based sharding. -/
-structure ShardedTreeSetUSize (α : Type u) (cmp : α → α → Ordering := by exact compare) where
+/-! ## Shards -/
+
+/-- The operations, and their specifications, that a `ShardedSetUSize` needs from the set type `S`
+of its shards. `insertMany` adds a whole `HashSet`: the parallel search collects the new states of
+a BFS level per shard and then adds them to each shard in one go. -/
+class SetShard (α : Type u) (S : Type v) [BEq α] [Hashable α] [Membership α S] where
+  /-- A shard holding the elements of a list. -/
+  ofList : List α → S
+  contains : S → α → Bool
+  insertMany : S → HashSet α → S
+  size : S → Nat
+  contains_iff_mem {s : S} {k : α} : contains s k = true ↔ k ∈ s
+  mem_ofList {l : List α} {k : α} : k ∈ ofList l ↔ k ∈ l
+  mem_insertMany {s : S} {hs : HashSet α} {k : α} : k ∈ insertMany s hs ↔ k ∈ s ∨ k ∈ hs
+
+/-- `Std.TreeSet` ordered by `compare`, as the set type of shards: the default for the parallel search's
+seen set, and the one that takes the least memory (`HAMTKeysShard` and `HAMTShard` are faster). -/
+abbrev TreeSetShard (α : Type u) [Ord α] := TreeSet α compare
+
+instance [Ord α] [TransOrd α] [BEq α] [LawfulBEqOrd α] [LawfulBEq α] [Hashable α] :
+    SetShard α (TreeSetShard α) where
+  ofList l := TreeSet.ofListFast l compare
+  contains := TreeSet.contains
+  insertMany s hs := s.insertManyFast hs
+  size := TreeSet.size
+  contains_iff_mem := TreeSet.mem_iff_contains.symm
+  mem_ofList := by simp [TreeSet.mem_ofListFast]
+  mem_insertMany := by intros ; simp only [TreeSet.mem_insertManyFast_hashset, HashSet.mem_iff_contains]
+
+/-- A set split into shards of type `S` by the hash of each key, with `USize`-based sharding. -/
+structure ShardedSetUSize (α : Type u) (S : Type v) where
   numShards : USize
   h_numShards_pos : 0 < (numShards : USize)
-  shards : VectorUSize (TreeSet α cmp) numShards
+  shards : VectorUSize S numShards
 
-namespace ShardedTreeSetUSize
+namespace ShardedSetUSize
 
 open ShardedSetUInt
 
-variable {α : Type u} {cmp : α → α → Ordering}
+variable {α : Type u} {S : Type v}
 
 /-! ## Basic operations -/
 
-omit cmp in
-def empty (numShards : Nat)
-  -- NOTE: It seems that the ordinary `decide` does not work for such goals
-  (h_pos : 0 < USize.ofNat numShards := by native_decide)
-  (h_small : numShards < USize.size := by native_decide)
-  (cmp : α → α → Ordering := by exact compare) : ShardedTreeSetUSize α cmp where
-  numShards := USize.ofNat numShards
-  h_numShards_pos := h_pos
-  shards := .replicate h_small ∅
-
 /-- Get the shard for a given key. -/
 @[inline]
-def getShard [Hashable α] (st : ShardedTreeSetUSize α cmp) (k : α) : TreeSet α cmp :=
+def getShard [Hashable α] (st : ShardedSetUSize α S) (k : α) : S :=
   st.shards.ugetViaHash k st.h_numShards_pos
 
-@[inline]
-def contains [Hashable α] (st : ShardedTreeSetUSize α cmp) (k : α) : Bool :=
-  (st.getShard k).contains k
-
-/-- Total number of elements across all shards. -/
-def size (st : ShardedTreeSetUSize α cmp) : Nat :=
-  st.shards.val.foldl (init := 0) fun acc shard => acc + shard.size
-
 -- NOTE: `Membership.mem` has signature `γ → α → Prop` (container first, element second)
-@[inline]
-instance instMembership [Hashable α] : Membership α (ShardedTreeSetUSize α cmp) where
-  mem st k := st.contains k
+instance instMembership [Hashable α] [Membership α S] : Membership α (ShardedSetUSize α S) where
+  mem st k := k ∈ st.getShard k
 
-theorem mem_def [Hashable α] {st : ShardedTreeSetUSize α cmp} {k : α} :
+theorem mem_def [Hashable α] [Membership α S] {st : ShardedSetUSize α S} {k : α} :
     k ∈ st ↔ k ∈ st.getShard k := Iff.rfl
 
-theorem contains_iff_mem [Hashable α] {st : ShardedTreeSetUSize α cmp} {k : α} :
+section
+
+variable [BEq α] [Hashable α] [Membership α S] [SetShard α S]
+
+@[inline]
+def contains (st : ShardedSetUSize α S) (k : α) : Bool :=
+  SetShard.contains (st.getShard k) k
+
+/-- Total number of elements across all shards. -/
+def size (st : ShardedSetUSize α S) : Nat :=
+  st.shards.val.foldl (init := 0) fun acc shard => acc + SetShard.size (α := α) shard
+
+theorem contains_iff_mem {st : ShardedSetUSize α S} {k : α} :
     st.contains k ↔ k ∈ st := by
-  unfold contains ; rw [mem_def, TreeSet.mem_iff_contains]
+  unfold contains ; rw [mem_def, SetShard.contains_iff_mem]
+
+end
 
 /-! ## Distribute: single-pass bucketing -/
 
@@ -214,74 +237,71 @@ theorem distributeByHash_mem [Hashable α] [BEq α] [LawfulBEq α]
     simp only [VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.uset, VectorUSize.uget, Array.uget, Array.uset, Array.getElem_set]
     split <;> grind
 
+variable [BEq α] [Hashable α] [Membership α S] [SetShard α S]
+
 /-! ## Parallel construction from list -/
 
-omit cmp in
-/-- Build a `ShardedTreeSetUSize` from a list by distributing elements into shards by hash,
-    then building each shard's `TreeSet` in parallel using `Task.spawn`. -/
+/-- Build a `ShardedSetUSize` from a list by distributing elements into shards by hash,
+    then building each shard in parallel using `Task.spawn`. -/
 @[specialize]
-def ofListFastByHash [Hashable α]
+def ofListByHash
   (l : List α) (numShards : Nat)
   (h_pos : 0 < USize.ofNat numShards := by native_decide)
-  (h_small : numShards < USize.size := by native_decide)
-  (cmp : α → α → Ordering := by exact compare) : ShardedTreeSetUSize α cmp :=
+  (h_small : numShards < USize.size := by native_decide) : ShardedSetUSize α S :=
   let ⟨buckets, h_buckets⟩ := distributeByHash l numShards h_pos h_small
   let tasks := buckets.toList.map fun bucket =>
-    Task.spawn fun () => TreeSet.ofListFast bucket cmp
+    Task.spawn fun () => SetShard.ofList (S := S) bucket
   let shardArr := tasks.map Task.get
   ⟨USize.ofNat numShards, h_pos, ⟨shardArr.toArray, by grind⟩⟩
 
-private theorem ofListFastByHash_getShard [Hashable α]
+private theorem ofListByHash_getShard
     {numShards : Nat} {h_pos} {h_small} {l : List α} (k : α) :
-    (ofListFastByHash l numShards h_pos h_small cmp).getShard k =
-      TreeSet.ofListFast ((distributeByHash l numShards h_pos h_small).ugetViaHash k h_pos) cmp := by
-  simp [ofListFastByHash, getShard, Task.spawn, VectorUSize.ugetViaHash, VectorUSize.uget]
+    (ofListByHash (S := S) l numShards h_pos h_small).getShard k =
+      SetShard.ofList ((distributeByHash l numShards h_pos h_small).ugetViaHash k h_pos) := by
+  simp [ofListByHash, getShard, Task.spawn, VectorUSize.ugetViaHash, VectorUSize.uget]
 
-theorem mem_ofListFastByHash [Hashable α] [BEq α] [LawfulBEq α]
-    [TransCmp cmp] [LawfulBEqCmp cmp]
+theorem mem_ofListByHash [LawfulBEq α]
     {numShards : Nat} {h_pos} {h_small} {l : List α} {k : α} :
-    k ∈ ofListFastByHash l numShards h_pos h_small cmp ↔ l.contains k = true := by
-  simp only [mem_def, ofListFastByHash_getShard, TreeSet.mem_ofListFast]
-  grind [distributeByHash_mem]
+    k ∈ ofListByHash (S := S) l numShards h_pos h_small ↔ k ∈ l := by
+  simp only [mem_def, ofListByHash_getShard, SetShard.mem_ofList]
+  exact distributeByHash_mem
 
 /-! ## Sharded insertion -/
 
 -- NOTE: The IR of this function seems to contain a lot of things, but
 -- should be fine after specialization?
-/-- Insert elements from a sharded `HashSet` vector into corresponding `TreeSet` shards,
+/-- Insert elements from a sharded `HashSet` vector into corresponding shards,
     parallelized via `Task.spawn`. -/
 @[specialize]
-def insertManyFastSharded [Hashable α] [BEq α]
-    (st : ShardedTreeSetUSize α cmp)
+def insertManySharded
+    (st : ShardedSetUSize α S)
     (items : VectorUSize (HashSet α) st.numShards) :
-    ShardedTreeSetUSize α cmp :=
+    ShardedSetUSize α S :=
   let pairs := st.shards.val.zip items.val |>.toList
   let tasks := pairs.map fun (shard, hs) =>
-    Task.spawn fun () => shard.insertManyFast hs
+    Task.spawn fun () => SetShard.insertMany shard hs
   let shardArr := tasks.map Task.get
   let newShards := ⟨shardArr.toArray, by simp [shardArr, tasks, pairs, st.shards.property, items.property]⟩
   { st with shards := newShards }
 
-private theorem insertManyFastSharded_getShard [Hashable α] [BEq α]
-    {st : ShardedTreeSetUSize α cmp}
+private theorem insertManySharded_getShard
+    {st : ShardedSetUSize α S}
     {items : VectorUSize (HashSet α) st.numShards}
     (k : α) :
-    (st.insertManyFastSharded items).getShard k =
-      (st.getShard k).insertManyFast (items.ugetViaHash k st.h_numShards_pos) := by
-  simp [insertManyFastSharded, getShard, Task.spawn,
+    (st.insertManySharded items).getShard k =
+      SetShard.insertMany (st.getShard k) (items.ugetViaHash k st.h_numShards_pos) := by
+  simp [insertManySharded, getShard, Task.spawn,
     VectorUSize.ugetViaHash, VectorUSize.uget]
 
-theorem mem_insertManyFastSharded [Hashable α] [BEq α] [LawfulBEq α]
-    [TransCmp cmp] [LawfulBEqCmp cmp]
-    {st : ShardedTreeSetUSize α cmp}
+theorem mem_insertManySharded
+    {st : ShardedSetUSize α S}
     {items : VectorUSize (HashSet α) st.numShards}
     {k : α} :
-    k ∈ st.insertManyFastSharded items ↔
+    k ∈ st.insertManySharded items ↔
       k ∈ st ∨ k ∈ (items.ugetViaHash k st.h_numShards_pos) := by
-  simp only [mem_def, insertManyFastSharded_getShard, TreeSet.mem_insertManyFast_hashset]
-  grind
+  simp only [mem_def, insertManySharded_getShard, SetShard.mem_insertMany]
 
-end ShardedTreeSetUSize
+end ShardedSetUSize
 
 /-- A sharded set implementation using `HashSet` as the underlying shard type,
 with `USize`-based sharding. -/
@@ -469,22 +489,22 @@ theorem mem_insert [LawfulBEq α] [LawfulHashable α]
 
 end ShardedHashSetUSize
 
-namespace ShardedTreeSetUSize
+namespace ShardedSetUSize
 
 open ShardedHashSetUSize
 
 /-! ## Sharded insertion from ShardedHashSet -/
 
+variable {α : Type u} {S : Type v} [BEq α] [Hashable α] [Membership α S] [SetShard α S]
+
 @[inline]
-def insertManyFastSHS [Hashable α] [BEq α]
-    (st : ShardedTreeSetUSize α cmp) (shs : ShardedHashSetUSize α st.numShards) :
-    ShardedTreeSetUSize α cmp :=
-  st.insertManyFastSharded shs.shards
+def insertManySHS (st : ShardedSetUSize α S) (shs : ShardedHashSetUSize α st.numShards) :
+    ShardedSetUSize α S :=
+  st.insertManySharded shs.shards
 
-theorem mem_insertManyFastSHS [Hashable α] [BEq α] [LawfulBEq α]
-    [TransCmp cmp] [LawfulBEqCmp cmp]
-    {st : ShardedTreeSetUSize α cmp} {shs : ShardedHashSetUSize α st.numShards} {k : α} :
-    k ∈ st.insertManyFastSHS shs ↔ k ∈ st ∨ k ∈ shs := by
-  simp only [insertManyFastSHS, mem_insertManyFastSharded, ShardedHashSetUSize.mem_def, ShardedHashSetUSize.getShard]
+theorem mem_insertManySHS
+    {st : ShardedSetUSize α S} {shs : ShardedHashSetUSize α st.numShards} {k : α} :
+    k ∈ st.insertManySHS shs ↔ k ∈ st ∨ k ∈ shs := by
+  simp only [insertManySHS, mem_insertManySharded, ShardedHashSetUSize.mem_def, ShardedHashSetUSize.getShard]
 
-end ShardedTreeSetUSize
+end ShardedSetUSize
