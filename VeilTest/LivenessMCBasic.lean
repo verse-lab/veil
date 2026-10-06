@@ -1,14 +1,13 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.LivenessMC
-import LTLLib
 
 /-!
 # Basic liveness model checking
 
-Verifies that `Veil.LivenessMC.check` accepts `□ ⊤` and finds a counterexample to `◇ ⊥`.
+`#liveness_check` accepts `□ ⊤` and finds a counterexample to `◇ ⊥`. Properties are checked in
+declaration order and the first counterexample is reported, so a wrong verdict on either property
+changes the message below.
 -/
 
 veil module Live
@@ -30,20 +29,20 @@ liveness [eventuallyFalse] ◇ ⊥
 
 #gen_spec
 
-#gen_executable
-
-#eval show IO Unit from do
-  match Veil.LivenessMC.check (enumerableTransitionSystem {})
-      (alwaysTrue Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide) with
-  | .empty _ => pure ()
-  | .nonEmpty .. => throw (IO.userError "expected `alwaysTrue` to hold")
-
-#eval show IO Unit from do
-  match Veil.LivenessMC.check (enumerableTransitionSystem {})
-      (eventuallyFalse Theory (State FieldConcreteType) FieldConcreteType)
-      (by native_decide) (by native_decide) with
-  | .nonEmpty .. => pure ()
-  | .empty _ => throw (IO.userError "expected `eventuallyFalse` to be violated")
+/--
+error: ❌ Violation: liveness_failure (violates: eventuallyFalse)
+  Stem:
+    State 0:
+      chosen = 0
+    State 1:
+      chosen = 1
+  Loop (repeats):
+    State 0:
+      chosen = 1
+    State 1:
+      chosen = 1
+-/
+#guard_msgs in
+#liveness_check interpreted {}
 
 end Live

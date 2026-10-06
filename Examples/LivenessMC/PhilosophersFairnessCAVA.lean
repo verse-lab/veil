@@ -1,9 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.Report
 
 /-! # CAVA `BoolProgs` — "Dining Philosophers", with fairness.
     This test can have two failures:
@@ -11,8 +8,10 @@ public meta import Veil.Core.Tools.LivenessMC.Report
     - Phil. 0 starves because of deadlock: All 3 pick up their left fork at the same time,
         none can put it down before eating
 
-    Writing it this "CAVA BoolProgs" style surfaces the first
-    error as a counter-example (since it finds it first).
+    Written in the CAVA `BoolProgs` style: one `individual` per program variable, plus an
+    `action_taken` field so the fairness assumption can refer to the last action taken.
+    `#liveness_check` reports the deadlock, the counterexample its search reaches first.
+    See `PhilosophersFairnessVeil.lean` for the same system over relations.
 -/
 
 veil module BoolProgPhilosophers
@@ -89,8 +88,8 @@ safety [mutex01] ¬(eat0 = true ∧ eat1 = true)
 safety [mutex12] ¬(eat1 = true ∧ eat2 = true)
 safety [mutex20] ¬(eat2 = true ∧ eat0 = true)
 
--- False without fairness: philosophers 1 and 2 can trade forks 1/2 forever, starving philosopher 0.
-liveness [phil0EventuallyEats] □ ◇ ⌜ eat0 = true ⌝
+-- `#liveness_check` checks the properties in declaration order and stops at the first
+-- counterexample, so the property that holds comes first.
 
 -- (fairness assumption) → phil0EventuallyEats.
 liveness [phil0EventuallyEatsFair]
@@ -98,19 +97,13 @@ liveness [phil0EventuallyEatsFair]
    ∧ (□ (◇ (¬ ⌜ one0 = true ∧ eat0 = false ⌝) ∨ ◇ ⌜ action_taken = pickup2_0_T ⌝)))
   → □ ◇ ⌜ eat0 = true ⌝
 
+-- False without fairness: all three can pick up their left fork and deadlock, and philosophers 1
+-- and 2 can also trade forks 1/2 forever; either way philosopher 0 starves. The deadlock is reported.
+liveness [phil0EventuallyEats] □ ◇ ⌜ eat0 = true ⌝
+
 #gen_spec
 
-#gen_executable
-
-#eval Veil.LivenessMC.printCheckResult "BoolProgPhilosophers" "□◇(eat0)"
-  (Veil.LivenessMC.check (enumerableTransitionSystem Taken_IndT {})
-    (phil0EventuallyEats (Theory Taken_IndT) (State (FieldConcreteType Taken_IndT))
-      Taken_IndT (FieldConcreteType Taken_IndT))
-    (by native_decide) (by native_decide))
-
-#eval Veil.LivenessMC.printCheckResult "BoolProgPhilosophers" "(fairness for phil0) → □◇(eat0)"
-  (Veil.LivenessMC.checkFair (enumerableTransitionSystem Taken_IndT {})
-    (phil0EventuallyEatsFair (Theory Taken_IndT) (State (FieldConcreteType Taken_IndT))
-      Taken_IndT (FieldConcreteType Taken_IndT)))
+set_option veil.violationIsError false in
+#liveness_check {}
 
 end BoolProgPhilosophers
