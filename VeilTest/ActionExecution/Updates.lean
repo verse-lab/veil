@@ -59,6 +59,20 @@ procedure arrow_write_then_read {
   return funField true
 }
 
+/- `lhs ← act` is `lhs := (← act)`: the target's index terms are evaluated on
+the post-call state. `produce_for_arrow` sets `marker`, so the write below
+lands at `rel true false` (initially `true`), not at `rel false false`. -/
+procedure arrow_index_reads_post_call_state {
+  rel marker false ← produce_for_arrow
+}
+
+-- The same for an indexed `let mut` local.
+procedure local_arrow_index_reads_post_call_state {
+  let mut m := fun _ : Bool => true
+  m marker ← produce_for_arrow
+  return (m false, m true)
+}
+
 procedure fixed_havoc {
   rel true false := *
   return rel true false
@@ -134,6 +148,24 @@ def arrowResult := __veil_exec_action% {} {} initial arrow_write_then_read
   !value && state.marker && !readFunField state true &&
   readFunField state false == readFunField initial false &&
   readRel state true false
+
+def arrowIndexResult :=
+  __veil_exec_action% {} {} initial arrow_index_reads_post_call_state
+#guard exactlyOneSuccess arrowIndexResult fun _ state =>
+  let rel := readRel state
+  let initialRel := readRel initial
+  state.marker &&
+  -- written at the post-call index `true` ...
+  !rel true false &&
+  -- ... and nowhere else
+  rel false false == initialRel false false &&
+  rel false true == initialRel false true &&
+  rel true true == initialRel true true
+
+def localArrowIndexResult :=
+  __veil_exec_action% {} {} initial local_arrow_index_reads_post_call_state
+#guard exactlyOneSuccess localArrowIndexResult fun value state =>
+  value == (true, false) && state.marker
 
 def fixedHavocResult := __veil_exec_action% {} {} initial fixed_havoc
 #guard exactlyNSuccesses 2 fixedHavocResult fun value state =>

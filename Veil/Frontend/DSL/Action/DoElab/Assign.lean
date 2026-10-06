@@ -443,33 +443,73 @@ def elabStateReassign : DoElab := fun stx dec => do
       openStateAround ctx.mod <| Lean.Elab.Do.elabDoReassign stx dec
   openStateAround ctx.mod <| elabPureAssignment ctx target type? rhs stx dec
 
-private def withArrowResult (target : Target) (type? : Option Term)
+/-- Bind the result of the arrow's right-hand side `rhs` to a fresh local and
+hand it to `k`. A plain-expression `rhs` is elaborated under the statement's
+opening (see `internalIfPlainTerm?`): the statement reads the pre-call state
+for the call's arguments, and `k` opens the post-call state for the write. -/
+private def withArrowResult (ctx : Context) (target : Target) (type? : Option Term)
     (rhs : DoElem) (ref : Syntax)
     (k : Term → DoElabM Expr) : DoElabM Expr := do
   let name ← mkFreshUserName
     (mkVeilImplementationDetailName <| Name.mkSimple s!"arrow_{target.componentName}")
+  let rhs := (← internalIfPlainTerm? ctx rhs).getD rhs
   /- `r x : τ ← action` becomes `let tmp : τ ← action; r x := tmp`:
   the annotation constrains the action's result, which is the value written at
   the complete target. -/
   elabDoIdDecl (mkIdentFrom ref name) type? rhs (k (mkIdent name))
 
+/-- The counterpart of `rhsUnderStatementOpening` (`DoElab/Statements.lean`)
+for the reassignments Lean elaborates itself, `x ← rhs` and `pat ← rhs`: a
+plain-expression `rhs` is elaborated under this statement's opening instead
+of opening the state once more. -/
+private def reassignArrowRhsUnderStatementOpening (ctx : Context) (stx : DoElem) :
+    DoElabM DoElem := do
+  match stx with
+  | `(doReassignArrow| $decl:doIdDecl) =>
+    match decl with
+    | `(doIdDecl| $x:ident $[: $ty?]? ← $rhs) =>
+      let some rhs ← internalIfPlainTerm? ctx rhs | return stx
+      let decl ← `(doIdDecl| $x:ident $[: $ty?]? ← $rhs)
+      return ⟨(← `(doReassignArrow| $decl:doIdDecl)).raw⟩
+    | _ => return stx
+  | `(doReassignArrow| $decl:doPatDecl) =>
+    match decl with
+    | `(doPatDecl| $pat:term $[: $ty?]? ← $rhs $[| $otherwise? $(rest?)?]?) =>
+      let some rhs ← internalIfPlainTerm? ctx rhs | return stx
+      let decl ← `(doPatDecl| $pat:term $[: $ty?]? ← $rhs $[| $otherwise? $(rest?)?]?)
+      return ⟨(← `(doReassignArrow| $decl:doPatDecl)).raw⟩
+    | _ => return stx
+  | _ => return stx
+
+/- NOTE: `lhs ← rhs` means `lhs := (← rhs)`. The RHS and its
+arguments, like a type ascription on the target, are elaborated under this
+statement's opening, that is, on the pre-call state. The target's
+index terms (e.g., `a` in `r a ← f x`), as well as the `_conc` view the written value is built from, are
+compiled under a fresh opening of the post-call state (`withArrowResult`),
+since the call may have modified the component or a component an index
+depends on. This is the order Lean's lifting of `(← rhs)` out of a statement
+produces, and Ivy's: `a(i) := f(x)` is `local tmp { call tmp := f(x); a(i) := tmp }`. -/
+/-- Targets resolve under the same local-precedence rule as `:=`: a `let mut`
+local goes to Lean's reassignment handler (plain) or to the tuple-update
+path (indexed), a state component through `elabStateAssignment`. -/
 @[doElem_elab Lean.Parser.Term.doReassignArrow]
 def elabStateReassignArrow : DoElab := fun stx dec => do
   let ctx ← requireVeilDoBlock
+  let stx' := reassignArrowRhsUnderStatementOpening ctx stx
   let some { target, type?, rhs, hasFallback } ← catchUnsupported? (parseReassignArrow stx)
     | -- Pattern-shaped targets are Lean's business, inside a fresh opening
       -- (see `elabStateReassign`).
-      openStateAround ctx.mod <| Lean.Elab.Do.elabDoReassignArrow stx dec
+      openStateAround ctx.mod <| Lean.Elab.Do.elabDoReassignArrow (← stx') dec
   openStateAround ctx.mod do
     match ← resolveAssignmentTarget ctx target with
     | .local =>
       if hasFallback then
         if target.args.isEmpty then
-          return ← Lean.Elab.Do.elabDoReassignArrow stx dec
+          return ← Lean.Elab.Do.elabDoReassignArrow (← stx') dec
         throwErrorAt stx "fallback branches are not supported on indexed Veil assignments"
       if target.args.isEmpty then
-        return ← Lean.Elab.Do.elabDoReassignArrow stx dec
-      withArrowResult target type? rhs stx fun value =>
+        return ← Lean.Elab.Do.elabDoReassignArrow (← stx') dec
+      withArrowResult ctx target type? rhs stx fun value =>
         -- The index terms must read post-call state (as in `.state` below).
         openStateAround ctx.mod <|
           elabLocalAssignment ctx target value stx dec
@@ -477,7 +517,7 @@ def elabStateReassignArrow : DoElab := fun stx dec => do
       if hasFallback then
         throwErrorAt stx "fallback branches are not supported on Veil state arrow assignments"
       checkStateTargetTypeAscription component target type?
-      withArrowResult target type? rhs stx fun value =>
+      withArrowResult ctx target type? rhs stx fun value =>
         openStateAround ctx.mod <|
           elabStateAssignment ctx component target value stx dec
 
@@ -499,7 +539,9 @@ private def withFreshPick (target : Target) (pickType : Term)
     (Name.mkSimple s!"pick_{target.componentName}")
   let fresh := mkIdentFrom target.head freshName
   let pickTerm ← `($(mkIdent ``MonadNonDet.pick) $pickType)
-  let pickElem ← `(doElem| $pickTerm:term)
+  -- Internal, so the pick is elaborated under the statement's opening rather
+  -- than through `elabVeilExpr`, which would open the state once more.
+  let pickElem ← `(doElem| veil_do_internal_expr% $pickTerm:term)
   elabDoIdDecl fresh none pickElem do
     k (Syntax.mkApp fresh appliedArgs)
 
@@ -544,7 +586,9 @@ private def elabLocalHavoc (decl : LocalDecl) (target : Target)
 
 /-- Havoc is a narrowed pick followed by an ordinary assignment. Targets
 resolve under the same local-precedence rule as `:=`, and the capital
-analysis runs exactly once. -/
+analysis runs exactly once. The pick does not modify the state
+(`VeilM.wp_pick`), so the assignment is compiled under the statement's own
+opening; in particular the `_conc` view it writes through is still current. -/
 @[doElem_elab havocAssignment]
 def elabHavoc : DoElab := fun stx dec => do
   let ctx ← requireVeilDoBlock
@@ -560,8 +604,7 @@ def elabHavoc : DoElab := fun stx dec => do
       elabLocalHavoc decl target caps stx dec
     | .state component =>
       withHavocPick component target caps fun rhs =>
-        openStateAround ctx.mod do
-          elabAnalyzedStateAssignment ctx.mod component target caps rhs stx dec
+        elabAnalyzedStateAssignment ctx.mod component target caps rhs stx dec
 
 end Action.DoElab
 end Veil

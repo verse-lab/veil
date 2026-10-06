@@ -187,25 +187,32 @@ macro_rules
   | `(pick $(t)?) => do
     `($(mkIdent `MonadNonDet.pick) $(← t.getDM `(_)))
   | `(doElem| let $x:term $[: $ty:term]? :| $p) => do
-    `(doElem| let $x:term ← $(mkIdent `VeilM.pickSuchThat):ident $(← ty.getDM `(_)) (fun $x => $p))
+    let rhs ← `(doElem| $(mkIdent `VeilM.pickSuchThat):ident $(← ty.getDM `(_)) (fun $x => $p))
+    /- An identifier binder is bound directly. If spelled as a pattern, then Lean's
+    `let`-arrow handler would bind a fresh `__x` and emit `let x := __x` as a
+    separate statement, which Veil's `let` handler opens the state for again. -/
+    if x.raw.isIdent then
+      let x : Ident := ⟨x.raw⟩
+      `(doElem| let $x:ident ← $rhs:doElem)
+    else
+      `(doElem| let $x:term ← $rhs:doElem)
 
 def veilVarType := withForbidden "veil_var" termParser
 
 /--
 `veil_var x : τ` declares an Ivy-style uninitialized mutable local by picking
 an arbitrary initial value of type `τ`.
-It expands like:
+It expands to:
 
 ```
-let x ← pick τ
-let mut x := x
+let mut x ← pick τ
 ```
 -/
 scoped syntax (name := veilVarDo) kw_veil_var ident " : " veilVarType : doElem
 
 macro_rules
   | `(doElem| veil_var $x:ident : $ty:term) =>
-    `(doElem| do let $x:ident ← pick ($ty:term); let mut $x:ident := $x:ident)
+    `(doElem| let mut $x:ident ← pick ($ty:term))
   | `(doElem| veil_let $decl:letDecl) => do
     let effect? := Action.findOutsideQuotations? decl.raw fun s =>
       if s.isOfKind ``Lean.Parser.Term.nestedAction then some s else none
