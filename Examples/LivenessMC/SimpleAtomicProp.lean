@@ -1,9 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.Report
 
 veil module Live
 
@@ -32,15 +29,12 @@ action stutter {
 safety [myexample]
   chosen = 0 ∨ chosen = 1
 
+-- Fails: the run that only ever takes `noChoose` never sets `chosen`.
 liveness [chosenEqOne] □ ◇ ⌜ chosen = 1 ⌝
 
 #gen_spec
 
-#gen_executable
-
-#eval Veil.LivenessMC.printCheckResult "Live" "□◇(chosen = 1)"
-  (Veil.LivenessMC.check (enumerableTransitionSystem {})
-    (chosenEqOne Theory (State FieldConcreteType) FieldConcreteType)
-    (by native_decide) (by native_decide))
+set_option veil.violationIsError false in
+#liveness_check {}
 
 end Live

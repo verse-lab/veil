@@ -1,9 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.Report
 
 veil module Live
 
@@ -22,21 +19,14 @@ action choose {
 safety [myexample]
   chosen = 0 ∨ chosen = 1
 
+-- Checked in declaration order: `alwaysTrue` holds, and `eventuallyFalse` is then reported
+-- together with a counterexample lasso.
 liveness [alwaysTrue] □ ⊤
 liveness [eventuallyFalse] ◇ ⊥
 
 #gen_spec
 
-#gen_executable
-
-#eval Veil.LivenessMC.printCheckResult "Live" "□⊤"
-  (Veil.LivenessMC.check (enumerableTransitionSystem {})
-    (alwaysTrue Theory (State FieldConcreteType) FieldConcreteType)
-    (by native_decide) (by native_decide))
-
-#eval Veil.LivenessMC.printCheckResult "Live" "◇⊥"
-  (Veil.LivenessMC.check (enumerableTransitionSystem {})
-    (eventuallyFalse Theory (State FieldConcreteType) FieldConcreteType)
-    (by native_decide) (by native_decide))
+set_option veil.violationIsError false in
+#liveness_check {}
 
 end Live
