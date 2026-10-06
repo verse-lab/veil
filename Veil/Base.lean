@@ -163,7 +163,7 @@ register_option veil.deferVCGeneration : Bool := {
   and `#gen_spec` run while it is set generates no verification conditions, so it also skips the assertion-failure (`doesNotThrow`) checks. \
   The first verification command (e.g. `#check_invariants`) generates the definitions and runs the checks. \
   If the option is turned off within a module, the next declaration or `#gen_spec` first generates the definitions deferred so far. \
-  `#model_check` and `#simulate` need neither."
+  `#model_check`, `#simulate`, and `#liveness_check` need neither."
 }
 
 register_option veil.simulate.numTraces : Nat := {
@@ -178,7 +178,7 @@ register_option veil.simulate.maxSteps : Nat := {
 
 register_option veil.modelChecker.maxStoredBuilds : Nat := {
   defValue := 1
-  descr := "Maximum number of compiled builds of `#model_check` and `#simulate` stored in \
+  descr := "Maximum number of compiled builds of `#model_check`, `#simulate`, and `#liveness_check` stored in \
   `.lake/model_checker_builds`; 0 means no limit, so builds are never deleted. When a run ends, \
   cleanup keeps the most recently compiled builds up to this limit, allowing later runs to reuse \
   them. Builds that running checks use are never deleted, even beyond the limit. Cleanup is \

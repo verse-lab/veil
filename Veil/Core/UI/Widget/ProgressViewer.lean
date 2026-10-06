@@ -538,6 +538,12 @@ private def depthHistogramHtml (h : Veil.Histogram) : Html := Id.run do
 def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html := Id.run do
   let (progressRows, metricsHistory, actionCoverage) : Array Html × Html × Html :=
     match p.details with
+    | .liveness live =>
+        (#[
+          statRow "Properties Checked:" s!"{live.propertiesChecked}/{live.numProperties}",
+          statRow "Current Property:" live.currentProperty,
+          statRow "System Expansions:" (toString live.expansions)
+        ], .text "", .text "")
     | .simulation sim =>
         (#[
           statRow "Traces Run:" (toString sim.tracesRun),
@@ -612,6 +618,7 @@ private def resultKindOf (p : Progress) : Veil.TraceDisplay.ResultKind :=
   match p.details with
   | .modelCheck .. => .modelCheck
   | .simulation .. => .simulate
+  | .liveness .. => .liveness
 
 private def noResultData : Html :=
   <div style={json% {"color": "#cc6600"}}><i>No result data available</i></div>

@@ -92,9 +92,26 @@ structure ModelCheckProgress where
   history : Array ProgressHistoryPoint := #[]
   deriving ToJson, FromJson, Inhabited, Repr
 
+structure LivenessProgress where
+  /-- Number of properties whose searches completed without a counterexample in this run.
+  A failing or cancelled property is not counted. Preserved at handoff so the compiled
+  run can skip the completed prefix. -/
+  propertiesChecked : Nat := 0
+  /-- Total number of declared liveness properties to check, including those not yet started. -/
+  numProperties : Nat := 0
+  /-- Name of the property being checked, retained after its search finishes.
+  Empty before the first property starts, including immediately after handoff. -/
+  currentProperty : String := ""
+  /-- Cumulative calls to the system step callback across all properties in this run.
+  Repeated calls for the same state count separately; this is not a distinct-state count.
+  Resets to zero at handoff to the compiled run. -/
+  expansions : Nat := 0
+  deriving ToJson, FromJson, Inhabited, Repr
+
 inductive ProgressDetails where
   | modelCheck (metrics : ModelCheckProgress)
   | simulation (metrics : SimulationProgress)
+  | liveness (metrics : LivenessProgress)
   deriving ToJson, FromJson, Inhabited, Repr
 
 /-- Progress of a running `#model_check` or `#simulate`. -/
@@ -114,6 +131,11 @@ structure Progress where
 structure ProgressRefs where
   progressRef : IO.Ref Progress
   resultRef : IO.Ref (Option Lean.Json)
+  /-- Runner-specific checkpoint *passed to the compiled binary* to resume execution.
+  Published at resumable boundaries and read for handoff only after the interpreted task stops.
+  `resetProgressForHandoff` does not use this checkpoint to restore the display;
+  it currently derives the displayed progress from `progressRef` separately. -/
+  handoffStateRef : IO.Ref (Option Lean.Json)
   /-- Cancellation token for this instance. -/
   cancelToken : IO.CancelToken
   /-- Cancellation token for background compilation, when default handoff is active. -/
@@ -139,8 +161,14 @@ initialize compiledModeEnabled : IO.Ref Bool ← IO.mkRef false
 /-- Start time for compiled mode progress tracking. -/
 initialize compiledModeStartTime : IO.Ref Nat ← IO.mkRef 0
 
+/-- Checkpoint *received* by the compiled binary via `--handoff-state`, originating from
+the parent process's `handoffStateRef`. Populated at startup by `enableCompiledModeProgress`
+and read by the runner through `getHandoffState`. Remains `none` for standalone compiled runs. -/
+private initialize compiledHandoffState : IO.Ref (Option Json) ← IO.mkRef none
+
 /-- Enable compiled mode progress reporting. Call this at the start of the compiled executable. -/
-def enableCompiledModeProgress : IO Unit := do
+def enableCompiledModeProgress (handoffState : Option Json := none) : IO Unit := do
+  compiledHandoffState.set handoffState
   compiledModeEnabled.set true
   compiledModeStartTime.set (← IO.monoMsNow)
 
@@ -153,6 +181,7 @@ def allocProgressInstance (details : ProgressDetails) : IO (Nat × IO.CancelToke
     progressRef := ← IO.mkRef
       { startTimeMs := ← IO.monoMsNow, status := "Running...", isRunning := true, details }
     resultRef := ← IO.mkRef none
+    handoffStateRef := ← IO.mkRef none
     cancelToken := cancelTk
     compilationCancelTokenRef := ← IO.mkRef none
     handoffRequested := ← IO.mkRef false
@@ -169,6 +198,25 @@ def getProgressRefs (instanceId : Nat) : IO (Option ProgressRefs) := do
 private def withRefs (instanceId : Nat) (f : ProgressRefs → IO Unit) : IO Unit := do
   if let some refs ← getProgressRefs instanceId then f refs
 
+/-- Publish a checkpoint for restarting this same command snapshot in a compiled worker.
+Only completed work may be included; cancellation must leave the last checkpoint intact. -/
+def saveHandoffState (instanceId : Nat) (state : Json) : IO Unit :=
+  withRefs instanceId fun refs => refs.handoffStateRef.set (some state)
+
+/-- Read the runner's checkpoint, supplied as a runtime argument in a compiled worker.
+Fresh instances and standalone compiled runs have no checkpoint.
+
+NOTE: Both the parent workflow and the runner call this function. The parent reads
+the instance's `handoffStateRef` after the interpreted task stops, to send it to the binary.
+At startup, the compiled runner reads the received `compiledHandoffState`; an interpreted
+runner reads its instance's `handoffStateRef` (normally `none` on first execution).
+`compiledModeEnabled` selects which source is read. -/
+def getHandoffState (instanceId : Nat) : IO (Option Json) := do
+  if ← compiledModeEnabled.get then return ← compiledHandoffState.get
+  match ← getProgressRefs instanceId with
+  | some refs => refs.handoffStateRef.get
+  | none => return none
+
 /-- Update progress for a `#model_check` instance.
     In compiled mode, also outputs progress to stderr as JSON.
     Also accumulates history for time-series charting. -/
@@ -180,7 +228,6 @@ def updateModelCheckProgress (instanceId : Nat)
   if let some refs ← getProgressRefs instanceId then
     refs.progressRef.modify fun p =>
       match p.details with
-      | .simulation .. => p
       | .modelCheck m =>
         let elapsed := now - p.startTimeMs
         let historyPoint : ProgressHistoryPoint := {
@@ -191,6 +238,7 @@ def updateModelCheckProgress (instanceId : Nat)
           details := .modelCheck { m with
             diameter, statesFound, distinctStates, queue, actionStats
             history := m.history.push historyPoint } }
+        | _ => p
   -- Output to stderr if in compiled mode
   if ← compiledModeEnabled.get then
     let startTime ← compiledModeStartTime.get
@@ -224,6 +272,21 @@ def updateSimulationProgress (instanceId : Nat) (status : String)
       startTimeMs := startTime
       elapsedMs := now - startTime
       details := .simulation { tracesRun, numTraces, depthHistogram }
+    }
+    IO.eprintln (toJson p).compress
+
+/-- Report progress from a liveness search, in the interpreter or a compiled worker. -/
+def updateLivenessProgress (instanceId : Nat) (metrics : LivenessProgress) : IO Unit := do
+  let now ← IO.monoMsNow
+  let status := s!"Checking liveness: {metrics.currentProperty}"
+  if let some refs ← getProgressRefs instanceId then
+    refs.progressRef.modify fun p =>
+      { p with status, elapsedMs := now - p.startTimeMs, details := .liveness metrics }
+  if ← compiledModeEnabled.get then
+    let startTime ← compiledModeStartTime.get
+    let p : Progress := {
+      status, startTimeMs := startTime, elapsedMs := now - startTime,
+      details := .liveness metrics
     }
     IO.eprintln (toJson p).compress
 
@@ -331,6 +394,7 @@ def resetProgressForHandoff (instanceId : Nat) : IO (Option IO.CancelToken) := d
   let details : ProgressDetails := match oldProgress.details with
     | .modelCheck m => .modelCheck { allActionLabels := m.allActionLabels }
     | .simulation m => .simulation { numTraces := m.numTraces }
+    | .liveness m => .liveness { m with currentProperty := "", expansions := 0 }
   refs.progressRef.set {
     status := "Restarting with compiled binary...", startTimeMs := now,
     compilationStatus := .succeeded, details

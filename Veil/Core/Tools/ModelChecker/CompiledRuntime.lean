@@ -8,13 +8,25 @@ namespace Veil.ModelChecker.Compilation
 
 open Lean
 
+/-- Separate the optional handoff payload from the existing positional parallel settings.
+The payload travels at launch time, so it does not change the compiled program's cache key. -/
+private def parseHandoffArgs : List String → Except String (List String × Option Json)
+  | [] => pure ([], none)
+  | "--handoff-state" :: rest => do
+    let [state] := rest | throw "expected one JSON argument after --handoff-state"
+    return ([], some (← Json.parse state))
+  | arg :: rest => do
+    let (args, state) ← parseHandoffArgs rest
+    return (arg :: args, state)
+
 /-- Entry point shared by the generated model checker executables. `check` runs the model check and
 passes the result to its last argument. -/
 def runMain (check : Option ModelChecker.ParallelConfig → Nat → IO.CancelToken → (Json → IO Unit) → IO Unit)
     (args : List String) : IO Unit := do
+  let (args, handoffState) ← IO.ofExcept (parseHandoffArgs args)
   let _ ← IO.asTask (prio := .dedicated) exitWhenParentDies
   -- Enable progress reporting to stderr for the IDE to read
-  Veil.ModelChecker.Concrete.enableCompiledModeProgress
+  Veil.ModelChecker.Concrete.enableCompiledModeProgress handoffState
   let pcfg : Option Veil.ModelChecker.ParallelConfig :=
     match args with
     | a :: b :: args' =>

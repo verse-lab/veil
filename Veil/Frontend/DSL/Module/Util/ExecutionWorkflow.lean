@@ -243,6 +243,7 @@ private def allocExecutionContext (mod : Module) (stx : Syntax)
   let details : ModelChecker.Concrete.ProgressDetails ← do
     match resultKind with
     | .simulate => pure <| .simulation {}
+    | .liveness => pure <| .liveness { numProperties := mod.livenessProperties.size }
     | _ =>
       let actionLabels ← getActionLabelNames mod
       pure <|.modelCheck { allActionLabels := actionLabels }
@@ -271,9 +272,12 @@ private def finishWithResult (ctx : ExecutionContext) (json : Json) : CommandEla
 /-- Run the compiled binary and log the result. -/
 private def runBinaryAndLogResult (ctx : ExecutionContext) (buildFolder : System.FilePath)
     (sourceFile : String) (command : ModelChecker.Compilation.CompiledCommandSpec)
-    (commandId : String) : CommandElabM Unit := do
+    (commandId : String) (handoffState : Option Json := none) : CommandElabM Unit := do
   let some binPath ← verifyBinaryExists buildFolder ctx.instanceId | return
   let args := ctx.parallelCfg.map (fun p => #[s!"{p.numSubTasks}", s!"{p.thresholdToParallel}", s!"{p.numSubSteps}"]) |>.getD #[]
+  let args := match handoffState with
+    | some state => args ++ #["--handoff-state", state.compress]
+    | none => args
   let some json ← runBinaryForJson binPath args ctx.instanceId ctx.cancelToken | return
   ModelChecker.Compilation.markRegistryFinished sourceFile command commandId buildFolder
   finishWithResult ctx json
@@ -425,6 +429,8 @@ private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSp
         ModelChecker.Concrete.cancelProgress ctx.instanceId
         finishCompilation buildFolder
         return
+      -- The interpreted task has stopped: its last completed checkpoint is now stable.
+      let handoffState ← ModelChecker.Concrete.getHandoffState ctx.instanceId
       let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | do
         ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
         return
@@ -436,7 +442,7 @@ private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSp
       ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
       let ctxWithNewToken := { ctx with cancelToken := newCancelToken }
       try
-        runBinaryAndLogResult ctxWithNewToken buildFolder sourceFile command commandId
+        runBinaryAndLogResult ctxWithNewToken buildFolder sourceFile command commandId handoffState
       catch e : Exception =>
         handleModelCheckError ctxWithNewToken e
       finally
@@ -454,7 +460,7 @@ private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSp
 
   ModelChecker.displayStreamingProgress stx ctx.instanceId
 
-/-- Shared execution workflow for safety checking and simulation.
+/-- Shared execution workflow for safety checking, simulation, and liveness checking.
 `callExpr` takes parallel configuration, progress ID, cancellation token, and a result
 continuation, in that order. Its result must have a `ToJson` instance. -/
 def run (command : ModelChecker.Compilation.CompiledCommandSpec)

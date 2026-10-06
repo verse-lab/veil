@@ -19,6 +19,7 @@ public meta import Veil.Frontend.DSL.Module.Util.Instantiation
 public meta import Veil.Util.Multiprocessing
 public meta import Veil.Frontend.DSL.Module.AssertionInfo
 public import Veil.Core.Tools.LivenessMC.Interface
+public meta import Veil.Core.Tools.LivenessMC.Runtime
 
 public meta section
 
@@ -710,8 +711,13 @@ private def mkPickSourceTerm (mod : Module) (instSortArgs : Array Term) (th : Id
   `(letI : $(mkIdent ``LogSwitch) := ⟨true⟩
     $(mkIdentWithModName mod `pickSource) $instSortArgs* $th)
 
-/-- Build search parameters for model checking / simulation. -/
-private def mkSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
+/-- Build search parameters for model checking, simulation, or liveness checking. -/
+private def mkSearchParameters (mod : Module) (config : ModelCheckerConfig)
+    /- NOTE: For liveness, `includeSafetyAndDeadlock := false` avoids elaborating unrelated invariant/termination
+    expressions and synthesizing their `Decidable` instances. This is a temporary workaround
+    for reusing `SearchParameters`: liveness only needs assumptions and state constraints,
+    which should eventually have a separate shared construction interface.-/
+    (includeSafetyAndDeadlock : Bool := true) : CommandElabM Term := do
   let mkAssumption (sa : StateAssertion) : CommandElabM Term :=
     `($(mkIdent ``Veil.ModelChecker.TheoryProperty.mk)
         ($(mkIdent `name) := $(quote sa.name))
@@ -722,9 +728,9 @@ private def mkSearchParameters (mod : Module) (config : ModelCheckerConfig) : Co
         ($(mkIdent `name) := $(quote sa.name))
         ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName mod sa.name) $(mkIdent `th) $(mkIdent `st)))
   let assumptionList ← `([$((← mod.assumptions.mapM mkAssumption)),*])
-  let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
+  let safetyList ← `([$((← (if includeSafetyAndDeadlock then mod.invariants else #[]).mapM mkProp)),*])
   -- FIXME: Only recognizing the first termination property might confuse users
-  let terminatingProp ← match mod.terminations[0]? with
+  let terminatingProp ← match if includeSafetyAndDeadlock then mod.terminations[0]? else none with
     | some t => mkProp t
     | none => `($(mkIdent `default))
   let constraintList ← `([$((← mod.stateConstraints.mapM mkProp)),*])
@@ -895,5 +901,45 @@ def elabSimulate : CommandElab :=
   elabExecutionCommand "simulate" `veil.perf.elaborator.simulate .simulate
     (fun stx => elabSimulateCommandConfig stx[4]) 5 fun ecctx => do
     return (← mkSimulateCall ecctx.mod ecctx.instantiation ecctx.theory ecctx.config, none)
+
+/-- Build a liveness call with the same continuation interface as the other runners. -/
+private def mkLivenessCheckerCall (mod : Module) (instTerm theoryTerm : Term) : CommandElabM Term := do
+  let inst := mkVeilImplementationDetailIdent `inst
+  let th := mkVeilImplementationDetailIdent `th
+  let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
+  let sp ← mkSearchParameters mod {} (includeSafetyAndDeadlock := false)
+  let sys ← mkTransitionSystemTerm mod instSortArgs th (logPicks := false)
+  let props ← mod.livenessProperties.mapM fun lp =>
+    `($(mkIdentWithModName mod lp.name)
+      ($theoryIdent $instSortArgs*) ($stateIdent ($fieldConcreteDispatcher $instSortArgs*))
+      $instSortArgs* ($fieldConcreteDispatcher $instSortArgs*))
+  `((veil_dsimp_field_reads% (let $inst : $instantiationType := $instTerm
+      let $th : $theoryIdent $instSortArgs* := $theoryTerm
+      fun (_ : Option Veil.ModelChecker.ParallelConfig) (progressInstanceId : Nat)
+          (cancelToken : IO.CancelToken) (finish : Lean.Json → IO _) => do
+        let result ← $(mkIdent ``Veil.LivenessMC.checkAllWithProgress):ident
+          $sys
+          $sp [$props,*] progressInstanceId cancelToken
+        finish result)))
+
+@[command_elab Veil.livenessCheck]
+def elabLivenessCheck : CommandElab := fun stx => do
+  withTraceNode `veil.perf.elaborator.livenessCheck (fun _ => return "#liveness_check") do
+    let mode := getModelCheckingMode stx[1]
+    let instTerm : Term := ⟨stx[2]⟩
+    let theoryTermOpt : Option Term := if stx[3].isNone then none else some ⟨stx[3][0]⟩
+    let assumptionsHoldBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq) :=
+      if stx[4].isNone then none else some ⟨stx[4][0][1]⟩
+    let mod ← getCurrentModule (errMsg := "You cannot #liveness_check outside of a Veil module!")
+    mod.throwIfSpecNotFinalized
+    if mod.livenessProperties.isEmpty then
+      throwError "No liveness properties declared in this module. Declare a `liveness` property first."
+    let theoryTerm ← getTheoryTerm "#liveness_check" theoryTermOpt mod instTerm
+    warnAboutTransitions mod
+    if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
+      checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
+    mod.ensureExecutableModelCheckerDefinitions
+    let callExpr ← mkLivenessCheckerCall mod instTerm theoryTerm
+    ExecutionWorkflow.run { name := "liveness_check" } .liveness mod stx mode callExpr
 
 end Veil
