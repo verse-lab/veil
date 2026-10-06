@@ -3,6 +3,7 @@ module
 public import Veil.Core.Tools.ModelChecker.CompiledRuntime
 public import Veil.Core.Tools.ModelChecker.Concrete.Checker
 public import Veil.Core.Tools.ModelChecker.Simulation
+public import Veil.Core.Tools.LivenessMC.Runtime
 public import Veil.Frontend.DSL.Action.Extract
 public import Veil.Frontend.Std
 -- Generated checks and counterexamples evaluate the standard instances,
