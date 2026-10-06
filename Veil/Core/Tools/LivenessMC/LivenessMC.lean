@@ -235,15 +235,17 @@ def checkUnderFairness [Inhabited σ]
 
 /-! ## When the prune takes its fast path
 
-The prune is the faster route and the default.
-What the test below still says is not whether the route is *sound* but whether it
-is *free*: a hoisted `◇□` region that mentions an edge atom has to be committed before a report, which
-costs an extra search level over the accepting SCC, while a region that does not is committable on the
-first pass and nothing changes.
+The prune is the faster route and the default. What the test below says is not whether the route is
+*sound* but whether it is *free*: a hoisted `◇□` region that mentions an edge atom has to be committed
+before a report, which costs an extra search level over the accepting SCC, while a region that does not is
+committable on the first pass and nothing changes.
 
-The detection is syntactic. Veil knows which atom indices are `T(…)`, and `LTLLib.regionsAvoid` checks
-that no region mentions one.
-This is the common case: written as an *assumption*, `SF(a)` and `WF(a)`
+The decision itself is `LTLLib.modelCheckFairRoutedOfStep`, which tests the regions its own hoisting
+produced. All Veil owes it is the classification — which atom indices are `T(…)` (`isEdgeAtom`) and the
+proof that a step contributes nothing else (`steps_edgeAtom` below). That is the whole of the Veil side:
+nothing here reproduces LTLLib's hoisting, so a change to how a route hoists cannot leave this stale.
+
+The detection is syntactic, and the common case passes: written as an *assumption*, `SF(a)` and `WF(a)`
 hoist to regions `¬E(a)` and `⊤`, which are state atoms, so the motivating workload pays nothing. -/
 
 omit [BEq σ] [Hashable σ] [LawfulBEq σ] [BEq l] [Hashable l] in
@@ -282,59 +284,22 @@ theorem steps_edgeAtom
       rw [← heq] at ha
       exact p.isEdgeAtom_of_mem_edgeLabel lbl ha
 
-/-- The regions `modelCheckFair` hands the prune: the first split, the re-hoisted conjuncts, and the
-options each branch of the disjunctive hoist adds. -/
+/-- Does every region the prune would receive avoid the `T(…)` atoms? `LTLLib.pruneApplicable` tests the
+regions `modelCheckFair` actually hands the prune — the first split, the re-hoisted conjuncts, and the
+options each branch of the disjunctive hoist adds — so this stays correct as the route's hoisting changes.
+Veil supplies only the classification; `LTLLib.modelCheckFairRoutedOfStep` makes the choice. -/
 def pruneRegionsAvoidEdgeAtoms (p : LivenessProperty ρ σ l) : Bool :=
-  let split := LTLLib.hoistFairness (p.φ.toNNF false).splitConj
-  let rehoisted := LTLLib.rehoist split.2
-  (LTLLib.branches rehoisted.2).all fun b =>
-    LTLLib.regionsAvoid p.isEdgeAtom (split.1 ++ rehoisted.1 ++ b.1)
+  LTLLib.pruneApplicable p.isEdgeAtom p.φ
 
-/-- Drop the region latch's Bool: the crossing reports in `(σ × Nat) × Bool` and the prune in `σ × Nat`,
-so `checkFair` projects the latch away and both routes report in the same product. -/
-def dropLatch {α β} : LTLLib.EmptinessResult ((σ × α) × β) → LTLLib.EmptinessResult (σ × α)
-  | .empty n => .empty n
-  | .nonEmpty stem loop => .nonEmpty (stem.map Prod.fst) (loop.map Prod.fst)
-
-omit [BEq σ] [Hashable σ] [LawfulBEq σ] in
-private theorem dropLatch_empty {α β} {r : LTLLib.EmptinessResult ((σ × α) × β)} {n : Nat}
-    (h : dropLatch r = .empty n) : r = .empty n := by
-  cases r with
-  | empty m => simpa [dropLatch] using h
-  | nonEmpty s l => simp [dropLatch] at h
-
-omit [BEq σ] [Hashable σ] [LawfulBEq σ] in
-private theorem dropLatch_nonEmpty {α β} {r : LTLLib.EmptinessResult ((σ × α) × β)}
-    {stem loop : List (σ × α)} (h : dropLatch r = .nonEmpty stem loop) :
-    ∃ s' l', r = .nonEmpty s' l' := by
-  cases r with
-  | empty n => simp [dropLatch] at h
-  | nonEmpty s' l' => exact ⟨s', l', rfl⟩
-
-/-- `modelCheckFair`, the default and fastest route: every fairness conjunct hoisted and decided per SCC. -/
+/-- The default route: `LTLLib.modelCheckFairRoutedOfStep`, which takes the prune (every fairness conjunct
+hoisted and decided per SCC) and falls back to the crossing when a hoisted region mentions a `T(…)` atom.
+Veil's whole contribution is `p.isEdgeAtom`, the classification of which atom indices a *step* can
+contribute; the choice, and the proof that it discharges the prune's witness contract, are LTLLib's. -/
 def checkFair [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult (σ × Nat) :=
-  if pruneRegionsAvoidEdgeAtoms p then
-    LTLLib.modelCheckFairOfStep p.φ sys.initStates (sysStepOf sys p th)
-  else
-    dropLatch (LTLLib.modelCheckFairFNFCrossOfStep p.φ sys.initStates (sysStepOf sys p th))
-
-omit [BEq σ] [Hashable σ] [LawfulBEq σ] in
-/-- `StateOnly` for every region every branch hands the prune. -/
-theorem stateOnly_of_pruneRegionsAvoid
-    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
-    (hprune : pruneRegionsAvoidEdgeAtoms p = true) :
-    ∀ b ∈ LTLLib.branches (LTLLib.rehoist (LTLLib.hoistFairness (p.φ.toNNF false).splitConj).2).2,
-      ∀ ds ∈ (LTLLib.hoistFairness (p.φ.toNNF false).splitConj).1 ++
-          (LTLLib.rehoist (LTLLib.hoistFairness (p.φ.toNNF false).splitConj).2).1 ++ b.1,
-      ∀ d ∈ ds, LTLLib.LSys.StateOnly (sysStepsLabelled sys (edgeLabelling p))
-        (sysLabelOf sys p th) d.1.eval := by
-  intro b hb
-  exact LTLLib.stateOnly_of_regionsAvoid (steps_edgeAtom sys p)
-    (List.all_eq_true.mp hprune b hb)
+  LTLLib.modelCheckFairRoutedOfStep p.φ sys.initStates (sysStepOf sys p th) p.isEdgeAtom
 
 /-- Soundness of `checkFair`: an `.empty` result means every labelled run of the system satisfies `p.φ`. -/
 theorem checkFair_empty_unsat [Inhabited σ] [LawfulHashable σ]
@@ -354,14 +319,10 @@ theorem checkFair_empty_unsat [Inhabited σ] [LawfulHashable σ]
     exact finiteReach_of_closed (sysSucc sys) sys.initStates
       (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed
   rw [checkFair] at h
-  split at h
-  · rw [sysStepOf_eq] at h
-    exact LTLLib.modelCheckFair_empty_unsat p.φ sys.initStates _ _ hfr h
-  · have h' := dropLatch_empty h
-    have hx := LTLLib.modelCheckFairFNFCrossOfStep_empty_unsat
-      (φ := p.φ) (sysInit := sys.initStates) (sysStep := sysStepOf sys p th)
-      (by simpa only [sysStepOf_eq] using hfr) h'
-    simpa only [sysStepOf_eq] using hx
+  have hx := LTLLib.modelCheckFairRoutedOfStep_empty_unsat
+    (φ := p.φ) (sysInit := sys.initStates) (sysStep := sysStepOf sys p th)
+    (edgeAtom := p.isEdgeAtom) (by simpa only [sysStepOf_eq] using hfr) h
+  simpa only [sysStepOf_eq] using hx
 
 /-- Completeness of `checkFair`: a `.nonEmpty` result yields a real labelled run violating `p.φ`. -/
 theorem checkFair_nonEmpty_sat [Inhabited σ] [LawfulHashable σ]
@@ -376,20 +337,20 @@ theorem checkFair_nonEmpty_sat [Inhabited σ] [LawfulHashable σ]
       (LTLLib.LSys.toSpec (sysStepsLabelled sys (edgeLabelling p)) sys.initStates
         (sysLabelOf sys p th)).isRun ρ' ∧
       ¬ LTLLib.Formula.directSatisfies (LTLLib.LSys.valuation (sysLabelOf sys p th) ρ') p.φ := by
+  have hfr : LTLLib.FiniteReach sys.initStates
+      (LTLLib.LSys.targets (sysStepsLabelled sys (edgeLabelling p))) := by
+    rw [targets_sysStepsLabelled]
+    exact finiteReach_of_closed (sysSucc sys) sys.initStates
+      (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed
   rw [checkFair] at h
-  split at h
-  · rename_i hprune
-    rw [sysStepOf_eq] at h
-    exact LTLLib.modelCheckFair_nonEmpty_sat p.φ sys.initStates _ _
-      (stateOnly_of_pruneRegionsAvoid sys p hprune) h
-  · obtain ⟨s', l', hx⟩ := dropLatch_nonEmpty h
-    have hc := LTLLib.modelCheckFairFNFCrossOfStep_nonEmpty_sat
-      (φ := p.φ) (sysInit := sys.initStates) (sysStep := sysStepOf sys p th)
-      (by rw [sysStepOf_eq]
-          show LTLLib.FiniteReach _ (LTLLib.LSys.targets (sysStepsLabelled sys (edgeLabelling p)))
-          rw [targets_sysStepsLabelled]
-          exact finiteReach_of_closed (sysSucc sys) sys.initStates
-            (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed) hx
-    simpa only [sysStepOf_eq] using hc
+  -- `steps_edgeAtom` is the premise the routed theorem asks of `p.isEdgeAtom`: every atom a step
+  -- contributes is one it marks. Whichever route then ran, the witness is a real run.
+  have hc := LTLLib.modelCheckFairRoutedOfStep_nonEmpty_sat
+    (φ := p.φ) (sysInit := sys.initStates) (sysStep := sysStepOf sys p th)
+    (edgeAtom := p.isEdgeAtom)
+    (by simpa only [sysStepOf_eq] using steps_edgeAtom sys p)
+    -- finiteness is owed only on the fallback branch, so the prune-routed case never reads `hfr`
+    (fun _ => by simpa only [sysStepOf_eq] using hfr) h
+  simpa only [sysStepOf_eq] using hc
 
 end Veil.LivenessMC
