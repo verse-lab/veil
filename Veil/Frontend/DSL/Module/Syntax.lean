@@ -486,6 +486,27 @@ The `veil.modelChecker.maxStoredCheckers` most recent copies are kept. -/
 -- `atomic` lets options follow a left-out theory, instead of being parsed as one
 syntax (name := modelCheckBuild) "#mc_config " ident ppSpace term:max (ppSpace atomic(term:max))? Parser.Tactic.optConfig : command
 
+/-- Check all declared `liveness` properties on the instantiated system.
+Requires `#gen_spec`; executable definitions are generated automatically. Like `#model_check`,
+the default runs interpreted while compiling in the background and switches to the native
+binary if the interpreted search has not finished. Already passed properties are skipped;
+the first unfinished property restarts its search. `interpreted` and `compiled` select one
+mode only. Compiled execution requires a `module` header and `public import Veil`.
+
+Assumptions are evaluated at runtime; `assumptions_hold_by` optionally proves them statically.
+State constraints restrict the graph. There is no depth bound: checking finite reachable
+systems is exhaustive. Deadlocks are not implicitly extended with stuttering steps;
+use `#model_check` to check safety invariants, assertion failures, and deadlocks separately.
+Violations display the state projections of a counterexample stem and repeating loop.
+
+```
+#liveness_check interpreted { node := Fin 3 } {}
+#liveness_check compiled { node := Fin 3 } {}
+#liveness_check { node := Fin 3 } {}
+```
+-/
+scoped syntax (name := livenessCheck) "#liveness_check " (modelCheckMode)? term:max (term:max)? (assumptionsHoldBy)? : command
+
 /-- Execute a concrete Veil action/procedure term using the same nondeterministic
 extraction machinery as `#model_check`, and print every possible return value
 and final state. Intended for internal regression tests. -/
