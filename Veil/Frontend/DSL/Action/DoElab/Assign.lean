@@ -481,6 +481,17 @@ private def reassignArrowRhsUnderStatementOpening (ctx : Context) (stx : DoElem)
     | _ => return stx
   | _ => return stx
 
+/- NOTE: `lhs ← rhs` means `lhs := (← rhs)`. The RHS and its
+arguments, like a type ascription on the target, are elaborated under this
+statement's opening, that is, on the pre-call state. The target's
+index terms (e.g., `a` in `r a ← f x`), as well as the `_conc` view the written value is built from, are
+compiled under a fresh opening of the post-call state (`withArrowResult`),
+since the call may have modified the component or a component an index
+depends on. This is the order Lean's lifting of `(← rhs)` out of a statement
+produces, and Ivy's: `a(i) := f(x)` is `local tmp { call tmp := f(x); a(i) := tmp }`. -/
+/-- Targets resolve under the same local-precedence rule as `:=`: a `let mut`
+local goes to Lean's reassignment handler (plain) or to the tuple-update
+path (indexed), a state component through `elabStateAssignment`. -/
 @[doElem_elab Lean.Parser.Term.doReassignArrow]
 def elabStateReassignArrow : DoElab := fun stx dec => do
   let ctx ← requireVeilDoBlock

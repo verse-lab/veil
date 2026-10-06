@@ -284,6 +284,7 @@ generates the two-state relation equivalent for every imperative action.
 | `let x :\| P` | Non-deterministic choice satisfying `P` (Hilbert choice) |
 | `let x <- pick T` | Pick arbitrary value of type `T` |
 | `x := e` | State update |
+| `x ← act` | Call `act` and store its result in `x` (see below) |
 | `x := *` | Non-deterministic (unconstrained) state update |
 | `if P then ... else ...` | Conditional |
 | `return e` | Return value from procedure |
@@ -298,6 +299,13 @@ For constrained non-deterministic choice, prefer `let x :| P` over
 `pick` + `assume`: it has more efficient execution semantics, as it filters
 out invalid values before continuing execution rather than discarding
 executions after the fact.
+
+`lhs ← act`, where `lhs` is a state component, a `let mut` local, or an
+indexed form of either (`r a ← act`), means `lhs := (← act)`: the call `act` and
+its arguments are evaluated on the state *before* the call; then the target's
+index terms (e.g., `a` in `r a ← act`) are evaluated and the result is stored on the state *after* the
+call. For example, if `bump` increments `k` and returns a value, `r k ← bump`
+stores that value at the incremented index.
 
 ### 9. Properties
 
