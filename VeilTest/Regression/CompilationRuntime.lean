@@ -21,14 +21,19 @@ private def simulateCommand : CompiledCommandSpec := {
   name := "simulate"
 }
 
+private def livenessCommand : CompiledCommandSpec := { name := "liveness_check" }
+
 private def registryKeySourceFile := "compilation-registry-key.lean"
 
 -- Build folders distinguish command kinds, even for identical generated inputs.
 #eval do
   let modelCheckFolder ← generateBuildFolderName registryKeySourceFile modelCheckCommand "/* C */" #[`Veil]
   let simulateFolder ← generateBuildFolderName registryKeySourceFile simulateCommand "/* C */" #[`Veil]
+  let livenessFolder ← generateBuildFolderName registryKeySourceFile livenessCommand "/* C */" #[`Veil]
   expect "#model_check and #simulate must not share a build folder"
     (toString modelCheckFolder != toString simulateFolder)
+  expect "liveness must have its own build folder"
+    (livenessFolder != modelCheckFolder && livenessFolder != simulateFolder)
 
 -- Build folders are keyed by the generated program: an unchanged check reuses its folder so Lake
 -- can skip the build, while a change to the program or linked modules gets a folder of its own.
@@ -48,7 +53,9 @@ private def registryKeySourceFile := "compilation-registry-key.lean"
     (modelCheckCommand, "model-check-b", 2),
     (simulateCommand, "simulate-a", 3),
     (simulateCommand, "simulate-b", 4),
-    (simulateCommand, "simulate-c", 5)
+    (simulateCommand, "simulate-c", 5),
+    (livenessCommand, "liveness-a", 6),
+    (livenessCommand, "liveness-b", 7)
   ]
   for (command, commandId, instanceId) in entries do
     markRegistryInProgress registryKeySourceFile command commandId instanceId

@@ -542,7 +542,6 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html := I
         (#[
           statRow "Properties Checked:" s!"{live.propertiesChecked}/{live.numProperties}",
           statRow "Current Property:" live.currentProperty,
-          statRow "System Expansions:" (toString live.expansions)
         ], .text "", .text "")
     | .simulation sim =>
         (#[

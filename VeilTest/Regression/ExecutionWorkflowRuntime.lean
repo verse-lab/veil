@@ -8,7 +8,7 @@ import all Veil.Frontend.DSL.Module.Util.ExecutionWorkflow
 public meta section
 
 /-!
-Runtime regressions shared by model checking and simulation: elaboration,
+Runtime regressions shared by safety checking, simulation, and liveness checking: elaboration,
 handoff, cancellation, result publication, compilation diagnostics, and subprocess
 boundaries. Direct helper checks and controlled workers avoid depending on search
 speed or native compilation timing.
@@ -52,7 +52,7 @@ run_cmd do
   expect "handoff must not turn a simulation into a model check" <|
     match after.details with
     | .simulation m => m.numTraces == 50 && m.tracesRun == 0
-    | .modelCheck .. => false
+    | _ => false
 
 -- A model check instance stays a model check, keeping the action labels it needs
 -- to report never-enabled actions.
@@ -64,7 +64,7 @@ run_cmd do
   expect "handoff must not turn a model check into a simulation" <|
     match after.details with
     | .modelCheck m => m.allActionLabels == ["Label.a", "Label.b"] && m.diameter == 0
-    | .simulation .. => false
+    | _ => false
 
 -- The Stop button must kill the background compilation too, not just the
 -- interpreted search. Before `compilationCancelTokenRef` existed, the compilation
@@ -113,7 +113,7 @@ run_cmd do
 -- handoff failures must leave interpreted execution running.
 open Lean.Elab.Command in
 private def checkCompilationFailure (handoff : Bool) : Lean.Elab.Command.CommandElabM Unit := do
-  for details in [ProgressDetails.simulation {}, .modelCheck {}] do
+  for details in [ProgressDetails.simulation {}, .modelCheck {}, .liveness {}] do
     let (id, _) ← allocProgressInstance details
     let result ← ExecutionWorkflow.withCompilationDiagnostics (← Lean.getRef) id handoff
       (liftIO <| throw <| IO.userError "Compilation failed (test compiler)")
@@ -134,11 +134,15 @@ set_option veil.violationIsError false in
 error: Compilation failed (test compiler)
 ---
 error: Compilation failed (test compiler)
+---
+error: Compilation failed (test compiler)
 -/
 #guard_msgs in
 run_cmd checkCompilationFailure false
 
 /--
+warning: Compilation failed (test compiler)
+---
 warning: Compilation failed (test compiler)
 ---
 warning: Compilation failed (test compiler)
@@ -199,11 +203,11 @@ run_cmd do
   expect "a late Stop must not replace a verdict" ((← getResultJson finished) == some verdict)
 
 -- Cancellation can land between computing a real verdict and publishing it.
--- Cover both kinds of runs, including a violation that must not be logged.
+-- Cover all command kinds, including a violation that must not be logged.
 #guard_msgs in
 run_cmd do
-  for kind in [TraceDisplay.ResultKind.modelCheck, .simulate] do
-    let details := if kind matches .simulate then ProgressDetails.simulation {} else .modelCheck {}
+  for (kind, details) in [(TraceDisplay.ResultKind.modelCheck, ProgressDetails.modelCheck {}),
+      (.simulate, .simulation {}), (.liveness, .liveness {})] do
     for result in [verdict, Json.mkObj [("result", "found_violation")]] do
       let (id, token) ← allocProgressInstance details
       let ctx : ExecutionWorkflow.ExecutionContext := {
@@ -234,14 +238,16 @@ run_cmd do
     ((← getResultJson id) == some verdict && !(← getProgress id).isCancelled)
 
 -- Worker progress omits the parent's compilation state. Model-check metrics
--- also omit action labels and history; simulation metrics have no BFS history.
+-- also omit action labels and history; simulation and liveness metrics have no BFS history.
 #eval do
-  for details in [ProgressDetails.modelCheck { allActionLabels := ["Label.toggle"] }, .simulation {}] do
+  for details in [ProgressDetails.modelCheck { allActionLabels := ["Label.toggle"] },
+      .simulation {}, .liveness {}] do
     let (id, token) ← allocProgressInstance details
     updateCompilationStatus id .succeeded
     let workerDetails := match details with
       | .modelCheck _ => ProgressDetails.modelCheck { diameter := 2, statesFound := 7, distinctStates := 5, queue := 3 }
       | .simulation _ => .simulation { tracesRun := 4, numTraces := 9 }
+      | .liveness _ => .liveness { propertiesChecked := 1, numProperties := 3, currentProperty := "progress" }
     let first : Progress := { details := workerDetails, elapsedMs := 10 }
     let last : Progress := { first with elapsedMs := 20 }
     let result ← ExecutionWorkflow.runBinaryForJson "/bin/sh"
@@ -260,6 +266,7 @@ run_cmd do
           m.queue == 3 && m.allActionLabels == ["Label.toggle"] &&
           m.history.map (fun (p : ProgressHistoryPoint) => p.timestamp) == #[10, 20]
       | .simulation m => m.tracesRun == 4 && m.numTraces == 9
+      | .liveness m => m.propertiesChecked == 1 && m.numProperties == 3 && m.currentProperty == "progress"
 
 -- A worker's nonzero exit must reach the caller's error handler, including its
 -- stderr diagnostic, rather than silently setting a result and returning `none`.

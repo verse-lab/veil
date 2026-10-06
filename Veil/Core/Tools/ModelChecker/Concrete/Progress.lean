@@ -102,10 +102,6 @@ structure LivenessProgress where
   /-- Name of the property being checked, retained after its search finishes.
   Empty before the first property starts, including immediately after handoff. -/
   currentProperty : String := ""
-  /-- Cumulative calls to the system step callback across all properties in this run.
-  Repeated calls for the same state count separately; this is not a distinct-state count.
-  Resets to zero at handoff to the compiled run. -/
-  expansions : Nat := 0
   deriving ToJson, FromJson, Inhabited, Repr
 
 inductive ProgressDetails where
@@ -394,7 +390,7 @@ def resetProgressForHandoff (instanceId : Nat) : IO (Option IO.CancelToken) := d
   let details : ProgressDetails := match oldProgress.details with
     | .modelCheck m => .modelCheck { allActionLabels := m.allActionLabels }
     | .simulation m => .simulation { numTraces := m.numTraces }
-    | .liveness m => .liveness { m with currentProperty := "", expansions := 0 }
+    | .liveness m => .liveness { m with currentProperty := "" }
   refs.progressRef.set {
     status := "Restarting with compiled binary...", startTimeMs := now,
     compilationStatus := .succeeded, details
