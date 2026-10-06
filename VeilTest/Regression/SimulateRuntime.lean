@@ -1,7 +1,7 @@
 module
 
 public meta import Veil
-import all Veil.Frontend.DSL.Module.Elaborators.Core
+import all Veil.Frontend.DSL.Module.Util.ExecutionWorkflow
 
 public meta section
 
@@ -302,7 +302,7 @@ run_cmd do
       createIdleBuild base folder
       let (id, _) ← allocProgressInstance (.modelCheck {})
       discard <| withBuildLock base (← IO.CancelToken.new) (useBuildFolder id folder)
-      elabModelCheck.releaseBuild id
+      ExecutionWorkflow.releaseBuild id
       liftIO <| expect "default cleanup must retain the completed build for reuse" (← folder.pathExists)
       -- Once released it must remain eligible for a later eviction.
       pruneBuildFolders base 0
@@ -316,18 +316,18 @@ run_cmd do
 #eval do
   let (stopped, stoppedToken) ← allocProgressInstance (.modelCheck {})
   stoppedToken.set
-  elabModelCheck.endRunIfCancelled stoppedToken stopped
+  ExecutionWorkflow.endRunIfCancelled stoppedToken stopped
   let progress ← getProgress stopped
   expect "a run stopped during compilation must end as cancelled"
     (!progress.isRunning && progress.isCancelled)
   let (running, runningToken) ← allocProgressInstance (.modelCheck {})
-  elabModelCheck.endRunIfCancelled runningToken running
+  ExecutionWorkflow.endRunIfCancelled runningToken running
   expect "a run that was not stopped must keep running" (← getProgress running).isRunning
   let (finished, finishedToken) ← allocProgressInstance (.modelCheck {})
   let verdict := Lean.Json.mkObj [("result", "no_violation")]
   finishProgress finished verdict
   finishedToken.set
-  elabModelCheck.endRunIfCancelled finishedToken finished
+  ExecutionWorkflow.endRunIfCancelled finishedToken finished
   expect "a late Stop must not replace a verdict" ((← getResultJson finished) == some verdict)
 
 -- Exercise the shared compilation boundary with a failing compiler, independent
@@ -337,7 +337,7 @@ open Lean.Elab.Command in
 private def checkCompilationFailure (handoff : Bool) : Lean.Elab.Command.CommandElabM Unit := do
   for details in [ProgressDetails.simulation {}, .modelCheck {}] do
     let (id, _) ← allocProgressInstance details
-    let result ← withCompilationDiagnostics (← Lean.getRef) id handoff
+    let result ← ExecutionWorkflow.withCompilationDiagnostics (← Lean.getRef) id handoff
       (liftIO <| throw <| IO.userError "Compilation failed (test compiler)")
     liftIO <| expect "failed compilation must not return a build folder" result.isNone
     let progress ← getProgress id
@@ -383,19 +383,19 @@ open Lean.Elab.Command in
 run_cmd do
   for handoff in [false, true] do
     let (id, _) ← allocProgressInstance (.simulation {})
-    let interrupted ← withCompilationDiagnostics (← Lean.getRef) id handoff (pure none)
+    let interrupted ← ExecutionWorkflow.withCompilationDiagnostics (← Lean.getRef) id handoff (pure none)
     liftIO <| expect "interruption must return no folder" interrupted.isNone
     -- Generating C elaborates under the command's cancellation token, so Stop can also arrive
     -- as an interrupt. `catch` rethrows it instead of reporting a failure, which is why compiled
     -- runs are ended in a `finally` (see `endRunIfCancelled`).
     let escaped ← throwsInterrupt do
-      discard <| withCompilationDiagnostics (← Lean.getRef) id handoff Lean.throwInterruptException
+      discard <| ExecutionWorkflow.withCompilationDiagnostics (← Lean.getRef) id handoff Lean.throwInterruptException
     liftIO <| expect "an interrupt must escape compilation diagnostics" escaped
     liftIO <| expect "an interrupt must not be reported as a compilation failure" <|
       match (← getProgress id).compilationStatus with
       | .failed _ => false
       | _ => true
     let folder := System.FilePath.mk "compiled-model"
-    let succeeded ← withCompilationDiagnostics (← Lean.getRef) id handoff (pure (some folder))
+    let succeeded ← ExecutionWorkflow.withCompilationDiagnostics (← Lean.getRef) id handoff (pure (some folder))
     liftIO <| expect "success must return the build folder" (succeeded == some folder)
     liftIO <| expect "interruption must not finish the run" (← getProgress id).isRunning
