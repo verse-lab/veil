@@ -2,6 +2,7 @@ module
 
 public import Veil.Core.Tools.ModelChecker.Concrete.Sequential
 public import Veil.Core.Tools.ModelChecker.Concrete.MapReduce
+public import Veil.Util.HAMTShard
 
 public section
 
@@ -130,7 +131,7 @@ variable {ρ σ κ σₕ α : Type} {m : Type → Type}
   -- do more bookkeeping: the frontend passes `sys` with picks logged (`LogSwitch`), which the search
   -- does without. It is a thunk, so that it is built only when there is a trace to recover.
   (traceSys : Unit → EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
-  [fp : StateFingerprint σ σₕ] [Ord σₕ] [Std.TransOrd σₕ] [Std.LawfulBEqOrd σₕ] [Repr σₕ] [Inhabited σₕ]
+  [fp : StateFingerprint σ σₕ] {Shard : Type} [Membership σₕ Shard] [SetShard σₕ Shard] [Repr σₕ] [Inhabited σₕ]
   (params : SearchParameters ρ σ)
   (parallelCfg : Option ParallelConfig)
   (progressInstanceId : Nat)
@@ -138,8 +139,9 @@ variable {ρ σ κ σₕ α : Type} {m : Type → Type}
 
 /-- `findReachable`, then `finish` on the result while the search's data structures (the seen
 set, the log for recovering traces) are still referenced; they are released only after `finish`
-returns. The caller picks the fingerprint type `σₕ` and its `StateFingerprint` instance.
-Traces are recovered in `traceSys ()` rather than `sys`. -/
+returns. The caller picks the fingerprint type `σₕ` and its `StateFingerprint` instance, and the
+set type `Shard` of the shards of the parallel search's seen set. Traces are recovered in
+`traceSys ()` rather than `sys`. -/
 def findReachableThen (finish : ModelCheckingResult ρ σ κ σₕ → m α) : m α := do
   let assumptionViolations := params.violatedAssumptions th
   unless assumptionViolations.isEmpty do
@@ -150,7 +152,7 @@ def findReachableThen (finish : ModelCheckingResult ρ σ κ σₕ → m α) : m
   let traceSys := fun _ => Veil.ModelChecker.restrictSystemByStateConstraints (traceSys ()) params th
   match parallelCfg with
   | some cfg => do
-    let mctx ← breadthFirstSearchParallel (σₕ := σₕ) params sys cfg progressInstanceId cancelToken
+    let mctx ← breadthFirstSearchParallel (σₕ := σₕ) (Shard := Shard) params sys cfg progressInstanceId cancelToken
     let result ← searchResult traceSys mctx.base mctx.globalSeen.size
     return (← keepingThen mctx (finish result)).1
   | none => do
@@ -159,7 +161,7 @@ def findReachableThen (finish : ModelCheckingResult ρ σ κ σₕ → m α) : m
     return (← keepingThen sctx (finish result)).1
 
 def findReachable : m (ModelCheckingResult ρ σ κ σₕ) :=
-  findReachableThen (σₕ := σₕ) sys traceSys params parallelCfg progressInstanceId cancelToken pure
+  findReachableThen (σₕ := σₕ) (Shard := Shard) sys traceSys params parallelCfg progressInstanceId cancelToken pure
 
 end
 

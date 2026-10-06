@@ -339,6 +339,7 @@ Example:
 #model_check { node := Fin 5 }  -- theory term can be omitted if there are no theory fields
 #model_check interpreted { node := Fin 5 } {}  -- interpreted only, no compilation
 #model_check { node := Fin 5 } {} (fingerprintType := UInt64)  -- 64-bit fingerprints
+#model_check { node := Fin 5 } {} (seenSet := HAMTShard)  -- faster parallel search, more memory
 ```
 
 This will check all invariants and terminate early if a violation is found or
@@ -346,11 +347,26 @@ the maximum depth is reached.
 
 `fingerprintType` picks the type of the state fingerprints that the checker
 stores (default `Nat`: the state's hash cut to 63 bits, `StateFingerprint.ofHashNat`).
-Any type works that has a `StateFingerprint` instance for the state and a lawful
-`Ord` (`Std.TransOrd`, `Std.LawfulBEqOrd`), `Repr`, `Inhabited` and `ToJson`
-instances. `UInt64` keeps the full hash, but the checker stores each one as a
-separate heap object, so it uses more memory. As with the other options, write
-the theory term (`{}` if empty) before it, or the option is parsed as the theory.
+Any type works that has a `StateFingerprint` instance for the state, `Repr`,
+`Inhabited` and `ToJson` instances, and what the seen set needs (see `seenSet`).
+`UInt64` keeps the full hash, but the checker stores each one as a separate heap
+object, so it uses more memory.
+
+`seenSet` picks the set type of the shards of the parallel search's seen set, as a
+function of the fingerprint type: the checker uses `seenSet σₕ` for fingerprints
+of type `σₕ`, which needs a `SetShard` instance. Choose it by how much memory the
+search can spare:
+* `TreeSetShard` (the default), a `Std.TreeSet`, usually takes the least memory. It needs
+  a lawful `Ord` on fingerprints (`Std.TransOrd`, `Std.LawfulBEqOrd`).
+* `HAMTKeysShard`, a verified HAMT storing only keys, makes the parallel search
+  faster but takes tens of bytes more per state. Use it when the states fit in
+  memory with room to spare: close to the limit, the system compresses or pages
+  out the checker's memory, and the search becomes slower than with the default.
+
+The sequential search does not use this set.
+
+As with the other options, write the theory term (`{}` if empty) before these
+options, or the first one is parsed as the theory.
 
 ## Important: the model checker is not complete!
 

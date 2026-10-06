@@ -53,11 +53,11 @@ end Sequential
 
 section MapReduce
 
-structure MapReduceSearchContextMain (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [Ord σₕ] [ActionStatUpdate κ asm] where
+structure MapReduceSearchContextMain (σ κ σₕ asm Shard : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] where
   base : BaseSearchContext σ κ σₕ asm
   tovisitLen : Nat
   tovisit : List (MapReduceQueueItem σₕ σ)
-  globalSeen : ShardedTreeSetUSize σₕ
+  globalSeen : ShardedSetUSize σₕ Shard
   /-- Collected local logs per BFS round (not yet merged into base.log). Merged at search end iff violations exist.
       Each inner list contains per-shard logs from one BFS iteration; the outer list groups by iteration. -/
   accumulatedLogs : List (List (Std.HashMap σₕ (Option (σₕ × κ)))) := []
@@ -73,7 +73,7 @@ structure MapReduceSearchContextTemp (σ κ σₕ asm : Type) [fp : StateFingerp
 variable {ρ σ κ σₕ asm : Type}
   [fp : StateFingerprint σ σₕ]
   [ActionStatUpdate κ asm]
-  [Ord σₕ]
+  {Shard : Type} [Membership σₕ Shard]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
@@ -81,7 +81,7 @@ variable {ρ σ κ σₕ asm : Type}
 /-- A map-reduce main context is stable closed if for any state `u` that
 has been seen (in globalSeen) and has been fully processed (i.e., not in the
 frontier array), then all its successfully reachable states have also been seen. -/
-abbrev MapReduceSearchContextMain.isStableClosed (mctx : MapReduceSearchContextMain σ κ σₕ asm) : Prop :=
+abbrev MapReduceSearchContextMain.isStableClosed (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard) : Prop :=
   Function.Injective fp.view →
     (mctx.base.finished = some (.exploredAllReachableStates) ∨ mctx.base.finished = none) →
       ∀ u, (fp.view u) ∈ mctx.globalSeen →
@@ -90,7 +90,7 @@ abbrev MapReduceSearchContextMain.isStableClosed (mctx : MapReduceSearchContextM
             (fp.view v) ∈ mctx.globalSeen
 
 structure MapReduceSearchContextMainInvariants
-  (mctx : MapReduceSearchContextMain σ κ σₕ asm)
+  (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard)
 extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ⟨x, st⟩ ∈ mctx.tovisit) (· ∈ mctx.globalSeen)
 where
   init_states_included : ∀ s ∈ sys.initStates, (fp.view s) ∈ mctx.globalSeen
@@ -99,10 +99,10 @@ where
   tovisit_len : mctx.tovisitLen = mctx.tovisit.length
 
 abbrev LawfulMapReduceSearchContextMain : Type :=
-  Subtype (α := MapReduceSearchContextMain σ κ σₕ asm) (MapReduceSearchContextMainInvariants sys params)
+  Subtype (α := MapReduceSearchContextMain σ κ σₕ asm Shard) (MapReduceSearchContextMainInvariants sys params)
 
 structure MapReduceSearchContextLocalInvariants
-  (globalSeen : ShardedTreeSetUSize σₕ)
+  (globalSeen : ShardedSetUSize σₕ Shard)
   (visited : MapReduceQueueItem σₕ σ → Prop)
   (lctx : MapReduceSearchContextLocal σ κ σₕ asm)
 extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ⟨x, st⟩ ∈ lctx.2) (fun h => ∃ s, ⟨h, s⟩ ∈ lctx.2)
@@ -117,7 +117,7 @@ where
         fp.view v ∈ lctx.1.log)
 
 abbrev LawfulMapReduceSearchContextLocal
-  (globalSeen : ShardedTreeSetUSize σₕ)
+  (globalSeen : ShardedSetUSize σₕ Shard)
   (visited : MapReduceQueueItem σₕ σ → Prop) : Type :=
   Subtype (α := MapReduceSearchContextLocal σ κ σₕ asm) (MapReduceSearchContextLocalInvariants sys params globalSeen visited)
 
