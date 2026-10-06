@@ -1,9 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.Report
 
 -- CAVA_LTL_Modelchecker/BoolProgs/Programs/BoolProgs_ReaderWriter.thy, `reader_writer` at
 -- r=w=2 (matches `demo_rw_chosen = chose_prog (STR ''RW'') 2` in CAVA_Impl.thy). AFP entry:
@@ -127,24 +124,14 @@ safety [noQError] qError = false
 -- Same property as the CAVA/Isabelle `demo_reader_writer` binary: G (not q_error).
 liveness [φNoQError] □ ¬ ⌜ qError = true ⌝
 
--- Not checked in the corresponding Isabelle demo.
+-- Not checked in the corresponding Isabelle demo. Fails: the readers can keep taking turns forever
+-- and the writers never become active, so this is the property reported below, with its counterexample.
 liveness [φWriterEventuallyActive] ◇ ⌜ writersActive = true ⌝
 
 #gen_spec
 
-#gen_executable
-
-#eval Veil.LivenessMC.printCheckResult "BoolProgReaderWriter" "□(¬q_error)"
-  (Veil.LivenessMC.check (enumerableTransitionSystem {})
-    (φNoQError Theory (State FieldConcreteType) FieldConcreteType)
-    (by native_decide) (by native_decide))
-
--- Not checked in Isabelle; left commented out, uncomment as a sanity check only.
-/-
-#eval Veil.LivenessMC.printCheckResult "BoolProgReaderWriter" "◇(writersActive)"
-  (Veil.LivenessMC.check (enumerableTransitionSystem {})
-    (φWriterEventuallyActive Theory (State FieldConcreteType) FieldConcreteType)
-    (by native_decide) (by native_decide))
--/
+-- Checks every `liveness` property above in declaration order, stopping at the first counterexample.
+set_option veil.violationIsError false in
+#liveness_check {}
 
 end BoolProgReaderWriter

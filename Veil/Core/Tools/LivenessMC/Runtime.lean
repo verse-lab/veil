@@ -20,8 +20,8 @@ variable {ρ σ l : Type} [beqσ : BEq σ] [hashσ : Hashable σ] [lawfulσ : La
 
 /-- Check declared properties in order with `checkFair`, stopping at the first
 counterexample. Assumptions and state constraints match the safety checker.
-Dead ends have no infinite runs (no implicit stuttering); assertion failures and
-safety invariants are checked separately by `#model_check`.
+A dead end stutters: LTLLib gives it a self-loop, so a run may end there. Assertion
+failures and safety invariants are checked separately by `#model_check`.
 
 Cancellation is honoured between properties only. LTLLib's search is pure, so the
 property being checked always runs to completion; it is recorded in the checkpoint

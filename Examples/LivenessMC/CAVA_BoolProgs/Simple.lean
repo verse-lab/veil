@@ -1,9 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.Report
 
 -- CAVA_LTL_Modelchecker/BoolProgs/Programs/BoolProgs_Simple.thy, `simple` at n=4 (matches
 -- `demo_simple_chosen = chose_prog (STR ''S'') 4` in CAVA_Impl.thy). AFP entry:
@@ -36,35 +33,17 @@ safety [boolsAreBools] (v0 = true ∨ v0 = false)
 -- Same property as the CAVA/Isabelle `demo_simple` binary: F (G (not (var 0))).
 liveness [φV0EventuallyStaysOff] ◇ □ ⌜ v0 = false ⌝
 
--- Not checked in the corresponding Isabelle demo.
+-- Not checked in the corresponding Isabelle demo; holds.
 liveness [φTerminates] ◇ □ ⌜ ¬v0 ∧ ¬v1 ∧ ¬v2 ∧ ¬v3 ⌝
 
--- Not checked in the corresponding Isabelle demo.
+-- Not checked in the corresponding Isabelle demo. Fails: every run clears `v0` for good, so this
+-- is the property reported below, with its counterexample.
 liveness [φInfinitelyOn] □ ◇ ⌜ v0 = true ⌝
 
 #gen_spec
 
-#gen_executable
-
-#eval Veil.LivenessMC.printCheckResult "BoolProgSimple" "◇□(¬v0)"
-  (Veil.LivenessMC.check (enumerableTransitionSystem {})
-    (φV0EventuallyStaysOff Theory (State FieldConcreteType) FieldConcreteType)
-    (by native_decide) (by native_decide))
-
--- Not checked in Isabelle; left commented out, uncomment as a sanity check only.
-/-
-#eval Veil.LivenessMC.printCheckResult "BoolProgSimple" "◇□(allOff)"
-  (Veil.LivenessMC.check (enumerableTransitionSystem {})
-    (φTerminates Theory (State FieldConcreteType) FieldConcreteType)
-    (by native_decide) (by native_decide))
--/
-
--- Not checked in Isabelle; left commented out, uncomment as a sanity check only.
-/-
-#eval Veil.LivenessMC.printCheckResult "BoolProgSimple" "□◇(v0On)"
-  (Veil.LivenessMC.check (enumerableTransitionSystem {})
-    (φInfinitelyOn Theory (State FieldConcreteType) FieldConcreteType)
-    (by native_decide) (by native_decide))
--/
+-- Checks every `liveness` property above in declaration order, stopping at the first counterexample.
+set_option veil.violationIsError false in
+#liveness_check {}
 
 end BoolProgSimple

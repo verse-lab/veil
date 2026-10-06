@@ -1,10 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.Report
-import LTLLib
 
 /-! # Veil-Style — "Dining Philosophers", with fairness
     This test can have two failures:
@@ -12,8 +8,8 @@ import LTLLib
     - Phil. 0 starves because of deadlock: All 3 pick up their left fork at the same time,
         none can put it down before eating
 
-    This style surfaces the second error as a counter-example (since it finds it first).
-    See "PhilosophersFairness" for an example surfacing the first counter-example.
+    `#liveness_check` reports the second error, the deadlock, which its search reaches first.
+    See `PhilosophersFairnessCAVA.lean` for the same system in the CAVA `BoolProgs` style.
 -/
 
 veil module Philosophers
@@ -58,8 +54,8 @@ safety [mutex01] ¬(eat 0 = true ∧ eat 1 = true)
 safety [mutex12] ¬(eat 1 = true ∧ eat 2 = true)
 safety [mutex20] ¬(eat 2 = true ∧ eat 0 = true)
 
--- False without fairness: Deadlock on all 3 philosophers holding a single fork.
-liveness [phil0EventuallyEats] □ ◇ ⌜ eat 0 = true ⌝
+-- `#liveness_check` checks the properties in declaration order and stops at the first
+-- counterexample, so the property that holds comes first.
 
 -- (fairness assumption) → phil0EventuallyEats.
 liveness [phil0EventuallyEatsFair]
@@ -67,17 +63,12 @@ liveness [phil0EventuallyEatsFair]
    ∧ (□ (◇ (¬ ⌜ eat 0 = false ∧ one 0 = true ⌝) ∨ ◇ ⌜ eat 0 ⌝)))
   → □ ◇ ⌜ eat 0 = true ⌝
 
+-- False without fairness: Deadlock on all 3 philosophers holding a single fork.
+liveness [phil0EventuallyEats] □ ◇ ⌜ eat 0 = true ⌝
+
 #gen_spec
 
-#gen_executable
-
-#eval Veil.LivenessMC.printCheckResult "Philosophers" "□◇(eat 0)"
-  (Veil.LivenessMC.check (enumerableTransitionSystem {})
-    (phil0EventuallyEats Theory (State FieldConcreteType) FieldConcreteType)
-    (by native_decide) (by native_decide))
-
-#eval Veil.LivenessMC.printCheckResult "Philosophers" "(fairness for phil0) → □◇(eat0)"
-  (Veil.LivenessMC.checkFair (enumerableTransitionSystem {})
-    (phil0EventuallyEatsFair Theory (State FieldConcreteType) FieldConcreteType))
+set_option veil.violationIsError false in
+#liveness_check {}
 
 end Philosophers

@@ -1,9 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.Report
 
 -- CAVA_LTL_Modelchecker/BoolProgs/Programs/BoolProgs_Philosophers.thy, `dining` at n=3
 -- (matches `demo_phil_chosen = chose_prog (STR ''P'') 3` in CAVA_Impl.thy). AFP entry:
@@ -56,38 +53,21 @@ safety [mutex12] ¬(eat1 = true ∧ eat2 = true)
 safety [mutex20] ¬(eat2 = true ∧ eat0 = true)
 
 -- Same property as the CAVA/Isabelle `demo_philosophers` binary: G (F (eat 0)).
--- Counterexample: philosophers 1 and 2 trade their shared fork forever, starving philosopher 0.
+-- Counterexample: the deadlock in which every philosopher holds one fork and nobody eats.
+-- Philosophers 1 and 2 trading their shared fork forever, starving philosopher 0, is another.
 liveness [φPhil0EventuallyEats] □ ◇ ⌜ eat0 = true ⌝
 
--- Not checked in the corresponding Isabelle demo.
+-- Not checked in the corresponding Isabelle demo, nor here: `#liveness_check` stops at the
+-- counterexample to `φPhil0EventuallyEats` before reaching the properties below.
 liveness [φMutex] □ (¬ (⌜ eat0 = true ⌝ ∧ ⌜ eat1 = true ⌝) ∧ ¬ (⌜ eat1 = true ⌝ ∧ ⌜ eat2 = true ⌝) ∧ ¬ (⌜ eat2 = true ⌝ ∧ ⌜ eat0 = true ⌝))
 
--- Not checked in the corresponding Isabelle demo.
+-- Not checked in the corresponding Isabelle demo, nor here (see above).
 liveness [φSomeoneEats] ◇ (⌜ eat0 = true ⌝ ∨ ⌜ eat1 = true ⌝ ∨ ⌜ eat2 = true ⌝)
 
 #gen_spec
 
-#gen_executable
-
-#eval Veil.LivenessMC.printCheckResult "BoolProgPhilosophers" "□◇(eat0)"
-  (Veil.LivenessMC.check (enumerableTransitionSystem {})
-    (φPhil0EventuallyEats Theory (State FieldConcreteType) FieldConcreteType)
-    (by native_decide) (by native_decide))
-
--- Not checked in Isabelle; left commented out, uncomment as a sanity check only.
-/-
-#eval Veil.LivenessMC.printCheckResult "BoolProgPhilosophers" "□(mutual exclusion)"
-  (Veil.LivenessMC.check (enumerableTransitionSystem {})
-    (φMutex Theory (State FieldConcreteType) FieldConcreteType)
-    (by native_decide) (by native_decide))
--/
-
--- Not checked in Isabelle; left commented out, uncomment as a sanity check only.
-/-
-#eval Veil.LivenessMC.printCheckResult "BoolProgPhilosophers" "◇(someone eats)"
-  (Veil.LivenessMC.check (enumerableTransitionSystem {})
-    (φSomeoneEats Theory (State FieldConcreteType) FieldConcreteType)
-    (by native_decide) (by native_decide))
--/
+-- Checks every `liveness` property above in declaration order, stopping at the first counterexample.
+set_option veil.violationIsError false in
+#liveness_check {}
 
 end BoolProgPhilosophers
