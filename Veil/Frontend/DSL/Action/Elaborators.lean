@@ -445,10 +445,10 @@ where
             |>.andThen (evalOpenClassical ∘ Simp.simp #[`wpCompactIteSimp])
             |>.andThen (evalOpenClassical ∘ Simp.simp #[`wpCompactStateSimp])
             |>.andThen (Simp.simp #[``ite_self])
-            |>.andThen (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType])
+            |>.andThen (Simp.simp #[``Veil.Util.neutralizeDecidableInstWithExpectedType])
         else
           finalSimpBase
-            |>.andThen (Simp.simp #[``Veil.Util.neutralizeDecidableInstGeneralWithExpectedType])
+            |>.andThen (Simp.simp #[``Veil.Util.neutralizeDecidableInstWithExpectedType])
       let genericResult ← finalSimp genericTarget
       let predArgs ← filterArgsByParams allParams vs fun p v => do
         pure <| !(isAbstractStateLocalParam p) && !(← isDecidableDefParameter p v)
@@ -888,8 +888,7 @@ where
     -- pointwise result to the pre-simplified `.wp_local_eq.pred` as well.
     let wpEqProof ← `(term| by intros ; rw [$(mkIdent wpEqThm):ident, $(mkIdent wpEqLocalThm):ident])
     -- NOTE: Below, `h` is not `applied` because `__veil_neutralize_decidable_inst` might
-    -- unexpectedly simplify away certain things. Also, using `__veil_neutralize_decidable_inst !`
-    -- since the instances might not be fully applied
+    -- unexpectedly simplify away certain things.
     let tac ← `(term| by
       classical
       have $h := @$transitionWeakeningLemma $modArgs* $rssIdents*
@@ -899,7 +898,7 @@ where
         ($trDerivedEq := by intros; rw [$(mkIdent derivedEqThm):ident])
         ($wpLocalEq := by intros; rw [$(mkIdent wpLocalEqThm):ident])
         ($wpEq := $wpEqProof)
-      __veil_neutralize_decidable_inst ! at *
+      __veil_neutralize_decidable_inst at *
       exact $h
       )
     proveAndCheck tac goal nm "source → target (via transitionWeakeningLemma)"
@@ -999,7 +998,7 @@ def Module.defineTransitionAbstractForNext (mod : Module) : TermElabM (Option Co
           -- be very careful here
           let thm ← `(@$(mkIdent <| toTransitionAbstractName <| toExtName s.name) $allArgs* $r₀ $s₀ $s₁)
           let tmp := mkIdent `tmp   -- using `mkVeilImplementationDetailIdent` here causes some problem
-          `(tactic| (revert $h:ident ; have $tmp := $thm ; __veil_neutralize_decidable_inst ! at * ; exact $tmp) )
+          `(tactic| (revert $h:ident ; have $tmp := $thm ; __veil_neutralize_decidable_inst at * ; exact $tmp) )
         pure #[pathFindingTac, existsTac, revertAndApplyTac]
       pure res.flatten
     `(term| by

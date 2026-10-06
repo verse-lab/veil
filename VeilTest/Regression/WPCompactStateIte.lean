@@ -146,7 +146,7 @@ example {node : Type} [DecidableEq node] [Inhabited node]
                   st.f x,
               a := if b_1 = true then st.a else if b = true then st.a else true } := by
   unfold compact_verify.ext.wp_local_eq.pred
-  __veil_neutralize_decidable_inst !
+  __veil_neutralize_decidable_inst
 
 invariant [r_refl] r N → r N
 invariant [f_refl] f N = f N
@@ -205,7 +205,7 @@ example {node : Type} [DecidableEq node] [Inhabited node]
               a := st.a,
               c := if b = true then true else st.c } := by
   unfold compact_seq.ext.wp_local_eq.pred
-  __veil_neutralize_decidable_inst !
+  __veil_neutralize_decidable_inst
 
 end WPCompactSequentialIte
 
@@ -252,7 +252,7 @@ example {node : Type} [DecidableEq node] [Inhabited node]
                       st.f x,
                   a := if b_1 = true then st.a else if b = true then st.a else true } := by
       unfold compact_disabled.ext.wp_local_eq.pred
-      __veil_neutralize_decidable_inst !
+      __veil_neutralize_decidable_inst
   trivial
 
 end WPCompactDisabled
