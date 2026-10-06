@@ -111,7 +111,7 @@ lean_lib Examples {
   globs := #[.submodules `Examples]
 }
 
-/-- Compile C emitted by `#model_check` using this workspace's native dependencies. -/
+/-- Compile C emitted by Veil's execution commands using this workspace's native dependencies. -/
 script veilModelCheckBuild args do
   let [sourceFile, buildDir] := args
     | throw <| IO.userError "usage: lake script run veilModelCheckBuild <source.lean> <build-directory>"
