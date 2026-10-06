@@ -31,4 +31,4 @@ open Veil Veil.ModelChecker.Simulation Veil.ModelChecker.Concrete
   expect "a simulation instance must report simulation metrics" <|
     match before.details with
     | .simulation m => m.tracesRun == 7 && m.numTraces == 50 && m.depthHistogram.counts == h.counts
-    | .modelCheck .. => false
+    | _ => false
