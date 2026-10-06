@@ -57,9 +57,10 @@ def LivenessProperty.edgeLabel (p : LivenessProperty ρ σ l) (lbl : l) : Std.Ha
       | .taken _ isMatch => if isMatch lbl then acc.insert i else acc
       | _ => acc)).2
 
-/-- Is atom index `i` a `T(…)`, i.e. one a *step* can contribute? This is the classification LTLLib's
-`regionsAvoid` is instantiated at: a hoisted `◇□` region mentioning one of these cannot be decided by the
-source state, which is the condition the prune routes need. -/
+/-- Is atom index `i` a `T(…)`, i.e. one a *step* can contribute? This is the `edgeAtom` predicate
+LTLLib's `modelCheckFairRoutedOfStep` takes, and the whole of what Veil tells it: a hoisted `◇□` region
+mentioning one of these cannot be decided by the source state, which is the condition the prune needs, so
+a property that has one is routed to the crossing instead. -/
 def LivenessProperty.isEdgeAtom (p : LivenessProperty ρ σ l) (i : Nat) : Bool :=
   match p.atoms[i]? with
   | some (.taken _ _) => true

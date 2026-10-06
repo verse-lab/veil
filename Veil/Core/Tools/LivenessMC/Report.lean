@@ -1,6 +1,6 @@
 module
 
-public import Veil.Core.Tools.LivenessMC.Interface
+public import Veil.Core.Tools.LivenessMC.LivenessMC
 public import LTLLib
 
 public section
@@ -24,9 +24,26 @@ private def showNNF (nm : Nat → String) : LTLLib.NNF Nat → String
   | .release .ff ψ => s!"□{showNNF nm ψ}"
   | .release φ ψ => s!"({showNNF nm φ} R {showNNF nm ψ})"
 
+/-- The total acceptance marks a hoisted split carries, over every option of every conjunct. -/
+private def markCount (dss : List (List (LTLLib.NNF.FairDisjunct Nat))) : Nat :=
+  dss.foldl (init := 0) fun n ds =>
+    ds.foldl (init := n) fun m (d : LTLLib.NNF.FairDisjunct Nat) => m + d.2.length
+
+/-- The options a hoisted split offers, summed over its conjuncts. -/
+private def optionCount (dss : List (List (LTLLib.NNF.FairDisjunct Nat))) : Nat :=
+  dss.foldl (init := 0) fun n ds => n + ds.length
+
+/-- What the translator ends up seeing, given the conjuncts a route kept. -/
+private def keptDesc (nm : Nat → String) (cs : List (LTLLib.NNF Nat)) : String :=
+  if cs.isEmpty then "the tableau gets ⊤"
+  else s!"the tableau gets {String.intercalate " ∧ " (cs.map (showNNF nm))}"
+
 /-- Explain how a `liveness` property written as `fairness → property` is routed: which conjuncts of the
-assumption are hoisted onto the product, which stay in the property, and what the hoisted ones cost. Nothing
-here affects checking, it only reports what `checkUnderFairness` would do. -/
+assumption are hoisted onto the product, which stay in the property, and what the hoisted ones cost.
+Nothing here affects checking.
+
+The route is read off LTLLib's own split (`fairPruneSplits`, `fairCrossSplit`, `pruneApplicable`), not
+re-derived here, so what this prints is what `checkFair` will actually run. -/
 def explainFairness (p : LivenessProperty ρ σ l) : IO Unit := do
   let nm := fun i => match p.atoms[i]? with
     | some a => toString a.name
@@ -45,11 +62,19 @@ def explainFairness (p : LivenessProperty ρ σ l) : IO Unit := do
       | none => "kept, goes to the tableau"
     IO.println s!"    {showNNF nm c}"
     IO.println s!"      {route}, {cost}"
-  let hoisted := LTLLib.hoistFairness conjuncts
-  let ds := LTLLib.NNF.crossAllDNF hoisted.1
-  let left := if hoisted.2.isEmpty then "nothing left, the tableau gets ⊤" else s!"{hoisted.2.length} conjunct(s) left for the tableau"
-  IO.println s!"  total      {ds.length} emptiness check(s), \
-{ds.foldl (fun n (d : LTLLib.NNF.FairDisjunct Nat) => n + d.2.length) 0} extra mark(s), {left}"
+  -- Which route `checkFair` takes, and what that route will run.
+  if pruneRegionsAvoidEdgeAtoms p then
+    let splits := LTLLib.fairPruneSplits p.φ
+    IO.println s!"  route      prune, {splits.length} run(s); no hoisted region mentions a T(…) atom"
+    for (kept, dss) in splits do
+      IO.println s!"    run      {dss.length} hoisted conjunct(s), {optionCount dss} option(s), \
+{markCount dss} mark(s); {keptDesc nm kept}"
+  else
+    let (kept, ds) := LTLLib.fairCrossSplit p.φ
+    IO.println s!"  route      crossing, {ds.length} latched check(s), \
+{ds.foldl (fun n (d : LTLLib.NNF.FairDisjunct Nat) => n + d.2.length) 0} extra mark(s); a hoisted ◇□ \
+region mentions a T(…) atom, which the prune cannot decide per SCC"
+    IO.println s!"    kept     {keptDesc nm kept}"
 
 def printCheckResult {α} [Repr σ] (sysName propName : String) :
     LTLLib.EmptinessResult (σ × α) → IO Unit
