@@ -83,21 +83,6 @@ private def delegate (builtin : DoElab)
   before ctx stx
   openStateAround ctx.mod do after ctx (← builtin stx dec)
 
-private def doExprHeadName? (stx : DoElem) : Option Name :=
-  match stx with
-  | `(doExpr| $term:term) =>
-    if term.raw.isIdent then
-      some term.raw.getId
-    else
-      term.isApp?.map (fun (head, _) => head.getId)
-  | _ => none
-
-private def rejectDirectRecursion (ctx : Context) (stx : DoElem) : DoElabM Unit := do
-  if doExprHeadName? stx == some ctx.proc &&
-      (← findUserLocal? ctx.proc).isNone then
-    throwErrorAt stx
-      "recursive Veil action calls are not supported; action bodies must terminate structurally"
-
 @[doElem_elab Lean.Parser.Term.doExpr]
 def elabVeilExpr : DoElab :=
   delegate Lean.Elab.Do.elabDoExpr (before := rejectDirectRecursion)
@@ -113,30 +98,45 @@ def elabVeilLet : DoElab :=
 def elabVeilHave : DoElab :=
   delegate Lean.Elab.Do.elabDoHave (before := warnShadowingBinders)
 
-/-- In `let x ← rhs`, Lean elaborates the type of `x` under this statement's
-state opening but elaborates `rhs` as a `do` element of its own. A plain
-expression `rhs` would then go through `elabVeilExpr`, whose second opening
-binds fresh field views that are out of scope of `x`'s type, so a type
-mentioning mutable state (e.g. `let i ← pick { i // i ∈ s }`) could not be
-assigned to `x`. Since Lean lifts nested actions `(← …)` out of the whole
-statement before any handler runs, the statement's own opening is already
-current for `rhs`: mark `rhs` internal so it is elaborated under that opening. -/
+/-- Keep a plain-expression RHS of `let x ← rhs` under the enclosing
+statement's state opening.
+
+For example, suppose `bound` is a mutable state field and the statement is
+`let i ← pick { n : Nat // n < bound }`. Without the internal RHS wrapper:
+
+1. `elabVeilLetArrow` opens the state, introducing `state₁ ← get` and field
+   bindings. Call the logical view of `state₁`'s `bound` field `bound₁`; the
+   source name `bound` resolves to this binding.
+2. Lean's `elabDoIdDecl` creates a type metavariable `?T` for `i` before
+   elaborating the RHS. Its creation context contains `state₁` and `bound₁`,
+   but does not contain the `state₂` and `bound₂` introduced next.
+3. The RHS is elaborated as a separate `doExpr`, entering `elabVeilExpr`.
+   This opens the state again, introducing `state₂ ← get` and a new field
+   view `bound₂` that shadows the source name `bound`.
+4. The RHS now picks a value of type `{ n : Nat // n < bound₂ }`. Inferring
+   `i`'s type requires `?T := { n : Nat // n < bound₂ }`, but `bound₂` is
+   absent from `?T`'s creation context, so this assignment is invalid.
+   Unfolding the field aliases still leaves a reference to `state₂`, which
+   is absent too. Renaming the shadowing bindings cannot fix this scope escape.
+
+Wrapping the RHS in `veil_do_internal_expr%` sends it directly to Lean's
+`elabDoExpr`, skipping step 3's second opening. The subtype then uses `bound₁`,
+so `?T := { n : Nat // n < bound₁ }` only refers to locals already present
+when `?T` was created. Other RHS forms retain their normal handlers.
+Nested actions `(← …)` that Lean lifts out of the statement run before its
+handler's state opening, so that opening already reflects their effects. -/
 private def rhsUnderStatementOpening (ctx : Context) (stx : DoElem) : DoElabM DoElem := do
-  let internal? (rhs : DoElem) : DoElabM (Option DoElem) := do
-    let `(doElem| $e:term) := rhs | return none
-    rejectDirectRecursion ctx rhs
-    some <$> withRef rhs `(doElem| veil_do_internal_expr% $e)
   -- NOTE: It would also be possible to write the following through
   -- indices of `stx` and `decl` (e.g., let `decl` being `stx[3]`),
   -- but using the concrete syntax matching should be more readable and maintainable.
   let `(doLetArrow| let%$tk $[mut%$mutTk?]? $cfg:letConfig $decl) := stx | return stx
   match decl with
   | `(doIdDecl| $x:ident $[: $ty?]? ← $rhs) =>
-    let some rhs ← internal? rhs | return stx
+    let some rhs ← internalIfPlainTerm? ctx rhs | return stx
     let decl ← `(doIdDecl| $x:ident $[: $ty?]? ← $rhs)
     `(doElem| let%$tk $[mut%$mutTk?]? $cfg:letConfig $decl:doIdDecl)
   | `(doPatDecl| $pat:term $[: $ty?]? ← $rhs $[| $otherwise? $(rest?)?]?) =>
-    let some rhs ← internal? rhs | return stx
+    let some rhs ← internalIfPlainTerm? ctx rhs | return stx
     let decl ← `(doPatDecl| $pat:term $[: $ty?]? ← $rhs $[| $otherwise? $(rest?)?]?)
     `(doElem| let%$tk $[mut%$mutTk?]? $cfg:letConfig $decl:doPatDecl)
   | _ => return stx

@@ -243,6 +243,34 @@ def elabInternalExpr : DoElab := fun stx dec => do
     | throwUnsupportedSyntax
   Lean.Elab.Do.elabDoExpr (← `(doElem| $rhs:term)) dec
 
+/-- The head of an expression statement: `f` in `f x y`, or the identifier
+itself. -/
+private def doExprHeadName? (stx : DoElem) : Option Name :=
+  match stx with
+  | `(Lean.Parser.Term.doExpr| $term:term) =>
+    if term.raw.isIdent then
+      some term.raw.getId
+    else
+      term.isApp?.map (fun (head, _) => head.getId)
+  | _ => none
+
+def rejectDirectRecursion (ctx : Context) (stx : DoElem) : DoElabM Unit := do
+  if doExprHeadName? stx == some ctx.proc &&
+      (← findUserLocal? ctx.proc).isNone then
+    throwErrorAt stx
+      "recursive Veil action calls are not supported; action bodies must terminate structurally"
+
+/-- If `rhs` is a plain expression, mark it internal, so that it is elaborated
+under the enclosing statement's opening rather than through `elabVeilExpr`,
+which would open the state **once more** for the same program point. Direct
+recursion is rejected here, as `elabVeilExpr` would have done. Other
+right-hand sides (`if`, `match`, nested `do`) are left alone: their handlers
+open the state for themselves. -/
+def internalIfPlainTerm? (ctx : Context) (rhs : DoElem) : DoElabM (Option DoElem) := do
+  let `(doElem| $e:term) := rhs | return none
+  rejectDirectRecursion ctx rhs
+  some <$> withRef rhs `(doElem| veil_do_internal_expr% $e)
+
 private def bindInternalResult (ref : Syntax) (hint operation : Name)
     (k : Name → DoElabM Expr) : DoElabM Expr := do
   let name ← mkFreshUserName (mkVeilImplementationDetailName hint)
