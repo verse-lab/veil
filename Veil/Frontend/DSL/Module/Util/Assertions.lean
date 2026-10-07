@@ -70,8 +70,9 @@ syntax (name := veil_exact_theory) "veil_exact_theory" : tactic
 syntax (name := veil_exact_state) "veil_exact_state" : tactic
 
 /-- Find the newest implementation-detail binding with `userName`. Generated
-field views reuse their descriptive names at successive state openings, so
-reverse lookup selects the view derived from the most recent `get`. -/
+bindings, such as theory field views and the state binding of each action
+statement, reuse their names at successive openings, so reverse lookup selects
+the one from the most recent opening. -/
 private def findImplementationDetail? (lctx : LocalContext)
     (userName : Name) : Option LocalDecl :=
   lctx.findDeclRev? fun decl =>
@@ -98,13 +99,22 @@ def elabExactState : TacticM Unit := withMainContext do
   let comp := mod.mutableComponents.map (·.name)
   -- find all available state components in the local context
   let lctx ← getLCtx
-  -- Find the concrete field from the values of `ldecls`, or from the
-  -- `fieldname_conc` local declarations.
+  -- Inside an action, every statement binds the state it executes in (see
+  -- `openStateAround`); read each field from it.
+  let currentState? := findImplementationDetail? lctx currentStateBindingName
+  -- Elsewhere, find the concrete field from the value of the `fieldname` local
+  -- declaration, or else from the `fieldname_conc` local declaration.
+  -- NOTE: Keep the
+  -- `fieldname_conc` fallback: terms built with `withTheoryAndState` or
+  -- `withTheoryAndStateFn` (invariants, ghost definitions, ...) still need it.
+  -- There `fieldname` is an ordinary `let` of `get fieldname_conc`, and a user
+  -- binder of the same name (e.g. `∀ fieldname, ...`) shadows it, leaving the
+  -- `casesOn` binder `fieldname_conc` as the only way to the field. See the
+  -- `ghost_under_shadowing_binder` invariant in
+  -- `VeilTest/Tactics/VeilExactState.lean`.
   let actualFields : Array Term ← comp.mapM fun nm => do
-    let implementationDetailConc :=
-      (mkVeilImplementationDetailName nm).appendAfter "_conc"
-    if let some ldecl := findImplementationDetail? lctx implementationDetailConc then
-      `(term| $(mkIdent ldecl.userName) )
+    if let some st := currentState? then
+      `(term| $(mkIdent st.userName).$(mkIdent nm))
     else try
       let some ldecl := lctx.findFromUserName? nm
         | throwError "state component {nm} is not available in the local context"

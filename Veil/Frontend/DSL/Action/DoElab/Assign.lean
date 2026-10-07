@@ -343,8 +343,9 @@ The target's arguments are split at the component's arity into domain
 coordinates and a codomain residue, from which the two halves of the update
 are built: `mkAssignmentPattern` (which entries change) and
 `mkAssignmentReplacement` (the value they receive). The field's new value,
-`(fieldRepresentation _).setSingle pattern replacement f_conc`, is computed
-from the statement's current concrete field view `f_conc` and bound once as an
+`(fieldRepresentation _).setSingle pattern replacement __veil_state.f`, is
+computed from the concrete value of `f` in the state the statement executes in
+(`currentStateField`) and bound once as an
 implementation-detail `let`, so the write itself stays a trivial structure
 update the WP simplifier can digest (via `VeilM.wp_modify`/`wp_modify'`):
 `modify fun st => { st with f := __veil_bind_f }`.
@@ -362,7 +363,7 @@ private def elabPinnedStateAssignment (mod : Module) (component : StateComponent
     (target.args.drop domainSize) (caps.take domainSize) rhs
   let pattern ← mkAssignmentPattern mod component domainArgs (caps.take domainSize)
 
-  let concrete := currentConcreteFieldIdent component.name
+  let concrete := currentStateField component.name
   let setTerm ←
     `(($fieldRepresentation _).$(mkIdent `setSingle) ($pattern) ($replacement) $concrete)
   let setValue ← Term.elabTerm setTerm none
@@ -484,8 +485,8 @@ private def reassignArrowRhsUnderStatementOpening (ctx : Context) (stx : DoElem)
 /- NOTE: `lhs ← rhs` means `lhs := (← rhs)`. The RHS and its
 arguments, like a type ascription on the target, are elaborated under this
 statement's opening, that is, on the pre-call state. The target's
-index terms (e.g., `a` in `r a ← f x`), as well as the `_conc` view the written value is built from, are
-compiled under a fresh opening of the post-call state (`withArrowResult`),
+index terms (e.g., `a` in `r a ← f x`), as well as the concrete value the written value is built
+from (`currentStateField`), are compiled under a fresh opening of the post-call state (`withArrowResult`),
 since the call may have modified the component or a component an index
 depends on. This is the order Lean's lifting of `(← rhs)` out of a statement
 produces, and Ivy's: `a(i) := f(x)` is `local tmp { call tmp := f(x); a(i) := tmp }`. -/
@@ -588,7 +589,7 @@ private def elabLocalHavoc (decl : LocalDecl) (target : Target)
 resolve under the same local-precedence rule as `:=`, and the capital
 analysis runs exactly once. The pick does not modify the state
 (`VeilM.wp_pick`), so the assignment is compiled under the statement's own
-opening; in particular the `_conc` view it writes through is still current. -/
+opening; in particular the state it writes through is still current. -/
 @[doElem_elab havocAssignment]
 def elabHavoc : DoElab := fun stx dec => do
   let ctx ← requireVeilDoBlock

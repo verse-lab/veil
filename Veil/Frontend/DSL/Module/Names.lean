@@ -167,4 +167,10 @@ def localTransitionMeetsSpecificationIfSuccessfulAssumingName : Name :=
 def localTransitionMeetsSpecificationIfSuccessfulAssuming : Ident :=
   mkIdent localTransitionMeetsSpecificationIfSuccessfulAssumingName
 
+/-- The name under which every statement of a Veil action binds, with a fresh
+`get`, the state it executes in (see `Veil.Action.DoElab.openStateAround`).
+Each statement's binding shadows the previous one, so the newest binding of
+this name in a local context is the current state. -/
+def currentStateBindingName : Name := mkVeilImplementationDetailName `state
+
 end Veil
