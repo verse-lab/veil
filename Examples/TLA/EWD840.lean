@@ -6,28 +6,18 @@ public import Veil
 
 veil module EWD840
 
-type node
-type nodesSet
+param n : Nat
 enum Color = {white, black}
 
-relation active: node → Bool
-function colormap: node → Color
-individual tpos: node
+relation active: (Fin n.succ) → Bool
+function colormap: (Fin n.succ) → Color
+individual tpos: (Fin n.succ)
 individual tcolor : Color
 
-instantiate seq : TotalOrderWithZero node
-instantiate nSet : TSet node nodesSet
-immutable individual one : node
-immutable individual max_node : node
+veil_set_field_representation relation Veil.ArrayAsFinset
+veil_set_field_representation function Veil.ArrayAsFinmap
 
 #gen_state
-
-theory ghost relation lt (x y : node) := (seq.le x y ∧ x ≠ y)
-theory ghost relation next (x y : node) := (lt x y ∧ ∀ z, lt x z → seq.le y z)
-
-assumption [zero_one] next seq.zero one
-assumption [max_seq_prop] ∀n, seq.le n max_node
-
 
 -- Init ==
 --   /\ active \in [Node -> BOOLEAN]
@@ -36,10 +26,8 @@ assumption [max_seq_prop] ∀n, seq.le n max_node
 --   /\ tcolor = "black"
 /- Has the same num of states as TLA+ version. -/
 after_init {
-  let S1 ← pick nodesSet
-  let S2 ← pick nodesSet
-  active N := if nSet.contains N S1 then true else false
-  colormap N := if nSet.contains N S2 then white else black
+  active := *
+  colormap := *
   tpos := *
   tcolor := black
 }
@@ -53,18 +41,12 @@ after_init {
 --   /\ active' = active
 --   /\ color' = [color EXCEPT ![0] = "white"]
 action InitStateProbe {
-  require tpos = seq.zero
-  require tcolor = black ∨ colormap seq.zero = black
-  tpos := max_node
+  let zero := ⟨0, Nat.zero_lt_succ n⟩
+  require tpos = zero
+  require tcolor = black ∨ colormap zero = black
+  tpos := Fin.last n
   tcolor := white
-  colormap seq.zero := white
-}
-
-
-procedure pred (n : node) {
-  let k ← pick node
-  assume next k n
-  return k
+  colormap zero := white
 }
 
 -- System == InitiateProbe \/ \E i \in Node \ {0} : PassToken(i)
@@ -75,11 +57,12 @@ procedure pred (n : node) {
 --   /\ tcolor' = IF color[i] = "black" THEN "black" ELSE tcolor
 --   /\ active' = active
 --   /\ color' = [color EXCEPT ![i] = "white"]
-action PassToken(i : node) {
-  require i ≠ seq.zero
-  require tpos = i;
+action PassToken {
+  let zero := ⟨0, Nat.zero_lt_succ n⟩
+  let i := tpos
+  require i ≠ zero
   require ¬active i ∨ colormap i = black ∨ tcolor = black
-  tpos := ← pred i
+  tpos := i - 1     -- FIXME: If the first `require` can introduce a hypothesis, then we can use `Fin.pred`
   tcolor := if colormap i = black then black else tcolor
   colormap i := white
 }
@@ -93,43 +76,40 @@ action PassToken(i : node) {
 --         /\ active' = [active EXCEPT ![j] = TRUE]
 --         /\ color' = [color EXCEPT ![i] = IF j>i THEN "black" ELSE @]
 --   /\ UNCHANGED <<tpos, tcolor>>
-action SendMsg (i : node) (j : node) {
+action SendMsg (i : Fin n.succ) {
   require active i
-  require j ≠ i
+  let j :| j ≠ i
   active j := true
-  colormap i := if lt i j then black else colormap i
+  if j > i then
+    colormap i := black
 }
 
 -- Deactivate(i) ==
 --   /\ active[i]
 --   /\ active' = [active EXCEPT ![i] = FALSE]
 --   /\ UNCHANGED <<color, tpos, tcolor>>
-action Deactivate (i : node) {
+action Deactivate (i : Fin n.succ) {
   require active i
   active i := false
 }
 
 
-termination [allDeactive] ∀i, ¬ active i
 ghost relation terminated := ∀i, ¬ active i
+termination [allDeactive] terminated
 ghost relation terminationDetected :=
-  tpos = seq.zero ∧ tcolor = white ∧ colormap seq.zero = white ∧ ¬ active seq.zero
+  let zero := ⟨0, Nat.zero_lt_succ n⟩
+  tpos = zero ∧ tcolor = white ∧ colormap zero = white ∧ ¬ active zero
 
 invariant [TerminationDetection] (terminationDetected → terminated)
 
--- ghost relation P0 := ∀i, lt tpos i → ¬ active i
-ghost relation P1 := ∃j, (seq.le seq.zero j) ∧ (seq.le j tpos) ∧ colormap j = black
+ghost relation P0 := ∀ i > tpos, ¬ active i
+ghost relation P1 := ∃ j ≤ tpos, colormap j = black
 ghost relation P2 := tcolor = black
-invariant [Inv] (∀i, lt tpos i → ¬ active i)
-∨ (∃j, (seq.le seq.zero j) ∧ (seq.le j tpos) ∧ colormap j = black)
-∨ (tcolor = black)
+invariant [Inv] P0 ∨ P1 ∨ P2
 
-#time #gen_spec
+#gen_spec
 
-#model_check
-{ node := Fin 3,
-  nodesSet := Std.ExtTreeSet (Fin 3),
-  Color := Color_IndT }
-{ one := 1, max_node := 2  }
+#model_check compiled
+{ n := 3 }
 
 end EWD840
