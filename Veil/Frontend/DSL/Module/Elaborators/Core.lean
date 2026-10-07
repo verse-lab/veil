@@ -15,6 +15,7 @@ public meta import Veil.Core.Tools.ModelChecker.Concrete.Checker
 public meta import Veil.Core.Tools.ModelChecker.Simulation
 public meta import Veil.Frontend.DSL.Action.Extract
 public meta import Veil.Frontend.DSL.Module.Util.Enumeration
+public meta import Veil.Frontend.DSL.Module.Util.Instantiation
 public meta import Veil.Util.Multiprocessing
 public meta import Veil.Frontend.DSL.Module.AssertionInfo
 
@@ -514,7 +515,7 @@ def mkVeilExecActionResultTerm [Monad m] [MonadQuotation m]
   let actionTy ← `($(mkIdent ``VeilM) _ $theoryTy $stateTy _)
   let execTy ← `($(mkIdent ``VeilMultiExecM) $(mkIdent ``Std.Format) $(mkIdent ``Int) $theoryTy $stateTy _)
   `(term|
-    let $inst : $instantiationType := $instTerm
+    let $inst : $instantiationType := __veil_instantiation% $instTerm
     let $th : $theoryTy := $theoryTerm
     let $st : $stateTy := $stateTerm
     let $act : $actionTy := $actionTerm
@@ -617,7 +618,7 @@ def checkTheorySatisfiesAssumptions (mod : Module) (instTerm theoryTerm : Term)
   let ρArg := mkIdent `ρ
   let theoryT ← `($theoryIdent $instSortArgs*)
   let proofCmd ← `(command|
-    example : (let $inst : $instantiationType := $instTerm
+    example : (let $inst : $instantiationType := __veil_instantiation% $instTerm
                let $th : $theoryIdent $instSortArgs* := $theoryTerm
                $assembledAssumptions ($ρArg := $theoryT) $instSortArgs* $th) := by
       dsimp only [$assembledAssumptions:ident]
@@ -648,7 +649,7 @@ private def mkExecutionCall (mod : Module) (config : ModelCheckerConfig)
   }
   -- `veil_dsimp_field_reads%` simplifies the field reads in the `Decidable` instances synthesized here
   `(veil_dsimp_field_reads% (
-      let $inst : $instantiationType := $instTerm
+      let $inst : $instantiationType := __veil_instantiation% $instTerm
       let $th : $theoryIdent $instSortArgs* := $theoryTerm
       $call))
 

@@ -620,7 +620,7 @@ theorem extTreeSet_fold_insert
 
 
 -- https://github.com/leanprover-community/mathlib4/blob/v4.19.0/Mathlib/Tactic/Linarith/Oracle/FourierMotzkin.lean#L41
-instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
+instance instTSetExtTreeSet [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   : TSet α (ExtTreeSet α) where
   count := ExtTreeSet.size
   contains := fun a s => s.contains a
@@ -667,7 +667,7 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
     · intro h ; exists s2.toList.filter (fun a => s1.contains a) ; simp at h ⊢ ; grind
 
 open OrdList in
-instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
+instance instTSetOrdList [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   : TSet α (OrdList α) where
   count := fun s => s.val.length
   contains := fun a s => sortedContains a s.val
@@ -719,7 +719,7 @@ instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
     · apply OrdList.mem_contains_then_is_sublist <;> assumption
 
 open OrdList OrdArray in
-instance [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
+instance instTSetOrdArray [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   : TSet α (OrdArray α) where
   count := fun s => s.val.size
   contains := fun a s => sortedContains a s.val.toList
@@ -892,7 +892,7 @@ class TMap (α : Type) (β : Type) (κ : Type) where
   equal : κ → κ → Bool
 
 
-instance [BEq α] [BEq β] [Ord α] [TransOrd α] [LawfulEqOrd α]
+instance instTMapExtTreeMap [BEq α] [BEq β] [Ord α] [TransOrd α] [LawfulEqOrd α]
   : TMap α β (ExtTreeMap α β) where
   count := fun m => m.inner.size
   contains := fun k m => m.inner.contains k
@@ -905,3 +905,14 @@ instance [BEq α] [BEq β] [Ord α] [TransOrd α] [LawfulEqOrd α]
   values := fun m => m.toList.map Prod.snd
   filter := fun m p => ⟨m.inner.filter p⟩
   equal := fun m1 m2 => m1.toList == m2.toList
+
+/-! ## Default container instances
+
+The container instances are `@[default_instance]`s so that a concrete instantiation
+can leave the element type to the module's `instantiate` constraints, e.g.
+`#model_check { node := Fin 4, nodeSet := OrdList _ }` (see `Module.elabInstantiation`).
+The priorities only matter for a bare hole (`nodeSet := _`), which then picks `OrdList`. -/
+
+attribute [default_instance high] instTSetOrdList
+attribute [default_instance] instTSetExtTreeSet instTMultiSetWithExtTreeMap instTMapExtTreeMap
+attribute [default_instance low] instTSetOrdArray
