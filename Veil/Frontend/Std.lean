@@ -905,14 +905,3 @@ instance instTMapExtTreeMap [BEq α] [BEq β] [Ord α] [TransOrd α] [LawfulEqOr
   values := fun m => m.toList.map Prod.snd
   filter := fun m p => ⟨m.inner.filter p⟩
   equal := fun m1 m2 => m1.toList == m2.toList
-
-/-! ## Default container instances
-
-The container instances are `@[default_instance]`s so that a concrete instantiation
-can leave the element type to the module's `instantiate` constraints, e.g.
-`#model_check { node := Fin 4, nodeSet := OrdList _ }` (see `Module.elabInstantiation`).
-The priorities only matter for a bare hole (`nodeSet := _`), which then picks `OrdList`. -/
-
-attribute [default_instance high] instTSetOrdList
-attribute [default_instance] instTSetExtTreeSet instTMultiSetWithExtTreeMap instTMapExtTreeMap
-attribute [default_instance low] instTSetOrdArray

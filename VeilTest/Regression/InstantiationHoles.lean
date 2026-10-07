@@ -94,6 +94,12 @@ example : inferredAutoParam.NodeSet = Std.ExtTreeSet (Fin 2) := rfl
 example : inferredAutoParam.Map = Std.ExtTreeMap (Fin 2) Bool := rfl
 example : inferredAutoParam.MessageSet = Std.ExtTreeSet (Envelope (Fin 2) Bool 1) := rfl
 
+-- Successful concrete inference must not change ordinary default-instance selection.
+run_meta do
+  for cls in [``TSet, ``TMultiset, ``TMap] do
+    unless (← Lean.Meta.getDefaultInstances cls).isEmpty do
+      throwError "container defaults leaked after successful instantiation: {cls}"
+
 end InstantiationHolesContainers
 
 -- The default tried first may assign a hole before failing on the output parameter.
@@ -240,6 +246,11 @@ individual data : Buffer
 example : Instantiation := __veil_instantiation%
   { node := Fin 1, Buffer := Array _, size := 1 }
 
+run_meta do
+  for cls in [``TSet, ``TMultiset, ``TMap] do
+    unless (← Lean.Meta.getDefaultInstances cls).isEmpty do
+      throwError "container defaults leaked after failed instantiation: {cls}"
+
 -- Numerals may have pending synthesis, but fully specified types keep the
 -- original Instantiation behavior, including unused class assumptions.
 example : Instantiation := __veil_instantiation%
@@ -306,3 +317,24 @@ def executions := __veil_exec_action%
   (seed := 1) (numTraces := 1) (maxSteps := 1)
 
 end InstantiationHolesExecution
+
+-- Regression: a ghost carries the module's abstract `ProcessSet` implicitly even
+-- when its body does not use it. Global `TSet` defaults used to infer `OrdList` here,
+-- leaving unresolved metavariables in both action and assertion elaboration.
+veil module InstantiationHolesGhostParameters
+
+param bound : Nat
+type ProcessSet
+instantiate pSet : TSet (Fin (bound + 1)) ProcessSet
+individual count : Nat
+#gen_state
+
+ghost relation less (i j : Fin (bound + 1)) := i < j
+
+action step (i j : Fin (bound + 1)) {
+  require less i j
+}
+
+ghost relation bothLess (i j : Fin (bound + 1)) := less i j ∧ less j i
+
+end InstantiationHolesGhostParameters
