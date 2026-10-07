@@ -2,7 +2,7 @@ module
 
 public import Veil
 
-veil module TwoPhaseCommitTLA
+veil module TwoPhaseCommit
 -- ------------------------------- MODULE TwoPhase -----------------------------
 -- (***************************************************************************)
 -- (* This specification describes the Two-Phase Commit protocol, in which a  *)
@@ -66,6 +66,9 @@ relation tmPrepared (r : RM) : Bool
 relation msgPrepared (r : RM) : Bool
 individual msgCommit : Bool
 individual msgAbort : Bool
+
+veil_set_field_representation relation Veil.ArrayAsFinset
+veil_set_field_representation function Veil.ArrayAsFinmap
 
 #gen_state
 
@@ -218,7 +221,7 @@ invariant [TCConsistency] ¬ (∃ rm1 rm2 : RM,
 
 #gen_spec
 
-#model_check { RM := Fin 3 }
+#model_check interpreted { RM := Fin 3 }
   {} (sequential := true)
 
-end TwoPhaseCommitTLA
+end TwoPhaseCommit
