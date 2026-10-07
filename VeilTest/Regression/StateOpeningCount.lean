@@ -13,6 +13,10 @@ opening is exactly one `get` in the elaborated `.do` term, so this test pins
 the number of `get`s per statement kind. A count that grows means a handler
 started opening the state twice for the same program point; every opening
 binds views of the state's fields, so this also multiplies elaboration cost.
+
+The last section pins the number of `let`s an opening leaves behind, which
+shows that each opened field is bound once and that writes read the state
+directly.
 -/
 
 set_option linter.unusedVariables false
@@ -30,6 +34,18 @@ elab "#count_gets " id:ident : command => liftTermElabM do
   let n ← resolveGlobalConstNoOverload id
   let ci ← getConstInfoDefn n
   logInfo m!"{id.getId}: {countGets ci.value}"
+
+open Lean in
+meta partial def countLets (e : Expr) : Nat := Id.run do
+  let here := if e.isLet then 1 else 0
+  e.foldlM (init := here) fun n child => pure (n + countLets child)
+
+open Lean Elab Command in
+/-- `#count_lets act.do` reports the number of `let`s in the value of `act.do`. -/
+elab "#count_lets " id:ident : command => liftTermElabM do
+  let n ← resolveGlobalConstNoOverload id
+  let ci ← getConstInfoDefn n
+  logInfo m!"{id.getId}: {countLets ci.value}"
 
 veil module StateOpeningCount
 
@@ -147,5 +163,26 @@ procedure pattern_pick {
 }
 /-- info: pattern_pick.do: 3 -/
 #guard_msgs in #count_gets pattern_pick.do
+
+/-! ## One `let` per opened field
+
+An opening binds the state once (`__veil_state ← get`) and each opened field
+once, as `let X := (χ_rep _).get __veil_state.X`; a write reads the value it
+updates from `__veil_state.X` directly. These count the `let`s left in `.do`
+after unused ones are erased. A read keeps its field view and the user's
+`let`; a write keeps only the binding of the field's new value. With the
+former three-binding views (`__veil_X_conc`, `__veil_X`, `X`), these counts
+were 4 and 2. -/
+
+procedure read_field {
+  let v := x
+  return v
+}
+/-- info: read_field.do: 2 -/
+#guard_msgs in #count_lets read_field.do
+
+procedure write_field { x := true }
+/-- info: write_field.do: 1 -/
+#guard_msgs in #count_lets write_field.do
 
 end StateOpeningCount
