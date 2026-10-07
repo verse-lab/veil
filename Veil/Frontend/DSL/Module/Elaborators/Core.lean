@@ -624,121 +624,136 @@ def checkTheorySatisfiesAssumptions (mod : Module) (instTerm theoryTerm : Term)
       $userTac:tactic)
   elabVeilCommand proofCmd
 
-/-- Build the core model checker call syntax (without parallel config). -/
-private def mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig) (fingerprintType seenSet : Term)
-    (instTerm theoryTerm : Term) : CommandElabM Term := do
+private structure ExecutionCallContext where
+  instSortArgs : Array Term
+  theoryArg : Ident
+  searchParams : Term
+  sysWithoutLog : Term
+
+/-- Bind the concrete instantiation and theory around a command-specific call.
+Simplify field reads in the `Decidable` instances synthesized by the call. -/
+private def mkExecutionCall (mod : Module) (config : ModelCheckerConfig)
+    (instTerm theoryTerm : Term)
+    (mkCall : ExecutionCallContext → CommandElabM Term) : CommandElabM Term := do
   let inst := mkVeilImplementationDetailIdent `inst
   let th := mkVeilImplementationDetailIdent `th
   let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
   let sp ← mkSearchParameters mod config
-  -- The search does not log picks; a counterexample's trace is recovered in a system that does
-  let sys ← mkTransitionSystemTerm mod instSortArgs th (logPicks := false)
-  let traceSys ← mkTransitionSystemTerm mod instSortArgs th (logPicks := true)
+  let sysWithoutLog ← mkTransitionSystemTerm mod instSortArgs th (logPicks := false)
+  let call ← mkCall {
+    instSortArgs := instSortArgs
+    theoryArg := th
+    searchParams := sp
+    sysWithoutLog := sysWithoutLog
+  }
+  -- `veil_dsimp_field_reads%` simplifies the field reads in the `Decidable` instances synthesized here
+  `(veil_dsimp_field_reads% (
+      let $inst : $instantiationType := $instTerm
+      let $th : $theoryIdent $instSortArgs* := $theoryTerm
+      $call))
+
+/-- Build the core model checker call syntax (without parallel config). -/
+private def mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig) (fingerprintType seenSet : Term)
+    (instTerm theoryTerm : Term) : CommandElabM Term :=
+  mkExecutionCall mod config instTerm theoryTerm fun ectx => do
+  -- A counterexample's trace is recovered in a system that logs picks.
+  let traceSys ← mkTransitionSystemTerm mod ectx.instSortArgs ectx.theoryArg (logPicks := true)
   -- Model checker call with type annotation to help inference
   -- Note: findReachableThen takes parallelCfg, progressInstanceId, cancelToken, and the
   -- continuation for the result as the last four args
-  -- `veil_dsimp_field_reads%` simplifies the field reads in the `Decidable` instances synthesized here
   -- The fingerprint type comes from the `fingerprintType` option, the seen set's shard type from
   -- `seenSet`. The checker is generic in both and gets specialized to them at this call site.
-  `((veil_dsimp_field_reads% (let $inst : $instantiationType := $instTerm
-     let $th : $theoryIdent $instSortArgs* := $theoryTerm
-     $(mkIdent ``Veil.ModelChecker.Concrete.findReachableThen)
+  `(($(mkIdent ``Veil.ModelChecker.Concrete.findReachableThen)
        ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
        ($(mkIdent `σₕ) := $fingerprintType)
        ($(mkIdent `Shard) := $seenSet $fingerprintType)
-       ($sys) (fun _ => $traceSys)
-       $sp : _ → _ → _ → _ → IO _)))
-
-/-- Core elaboration logic shared by all model checking modes. -/
-private def elabModelCheckCore (stx : Syntax) (mode : ModelCheckingMode) (instTerm : Term)
-    (theoryTermOpt : Option Term)
-    (assumptionsHoldBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq))
-    (cfg : Syntax) : CommandElabM Unit := do
-  let mod ← getCurrentModule (errMsg := "You cannot #model_check outside of a Veil module!")
-  mod.throwIfSpecNotFinalized
-
-  let theoryTerm ← getTheoryTerm "#model_check" theoryTermOpt mod instTerm
-
-  warnAboutTransitions mod
-  let commandCfg ← elabModelCheckCommandConfig cfg
-  let config := commandCfg.toModelCheckerConfig
-  -- Optionally prove assumptions statically; the concrete model checker also
-  -- evaluates them at runtime before BFS.
-  if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
-    checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
-  mod.ensureExecutableModelCheckerDefinitions
-  -- Resolve parallelCfg: sequential flag takes precedence, otherwise default to parallel
-  let parallelCfg ← match config.sequential, config.parallelCfg with
-    | true, _ => pure none
-    | false, some cfg => pure (some cfg)
-    | false, none => pure (some { numSubTasks := ← getNumCores, thresholdToParallel := defaultThresholdToParallel })
-  let config := { config with parallelCfg := parallelCfg }
-  let callExpr ← mkModelCheckerCall mod config commandCfg.fingerprintType commandCfg.seenSet instTerm theoryTerm
-
-  ExecutionWorkflow.run { name := "model_check" } .modelCheck mod stx mode callExpr parallelCfg
-
-@[command_elab Veil.modelCheck]
-def elabModelCheck : CommandElab := fun stx => do
-  -- Use dynamic trace class name for detailed profiling
-  withTraceNode `veil.perf.elaborator.modelCheck (fun _ => return "#model_check") do
-    -- stx[1] is the optional mode, stx[2] is instTerm, stx[3] is optional theory,
-    -- stx[4] is config, stx[5] is optional `assumptions_hold_by`
-    let mode := getModelCheckingMode stx[1]
-    let instTerm : Term := ⟨stx[2]⟩
-    let theoryTermOpt : Option Term := if stx[3].isNone then none else some ⟨stx[3][0]⟩
-    let assumptionsHoldBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq) :=
-      if stx[5].isNone then none else some ⟨stx[5][0][1]⟩
-    let cfg := stx[4]
-    elabModelCheckCore stx mode instTerm theoryTermOpt assumptionsHoldBy cfg
+       ($(ectx.sysWithoutLog)) (fun _ => $traceSys)
+       $(ectx.searchParams) : _ → _ → _ → _ → IO _))
 
 /-- Build the simulator call for the shared execution workflow, including display JSON conversion. -/
 private def mkSimulateCall (mod : Module) (instTerm theoryTerm : Term)
-    (sp : Term) (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Term := do
-  let inst := mkVeilImplementationDetailIdent `inst
-  let th := mkVeilImplementationDetailIdent `th
-  let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
+    (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Term := do
   let cfgTerm ← `($(mkIdent ``Veil.ModelChecker.Simulation.SimulateConfig.mk)
       $(quote cfg.numTraces) $(quote cfg.maxSteps) $(quote cfg.seed))
-  -- See `mkModelCheckerCall` for `veil_dsimp_field_reads%`
-  let runtimeCallExpr ← `((veil_dsimp_field_reads% (let $inst : $instantiationType := $instTerm
-      let $th : $theoryIdent $instSortArgs* := $theoryTerm
-      $(mkIdent ``Veil.ModelChecker.Simulation.simulateWithProgress)
-        ($(← mkTransitionSystemTerm mod instSortArgs th (logPicks := false)))
-        $sp $th $cfgTerm : _ → _ → IO _)))
+  let runtimeCallExpr ← mkExecutionCall mod {} instTerm theoryTerm fun ectx =>
+    `(($(mkIdent ``Veil.ModelChecker.Simulation.simulateWithProgress)
+        $(ectx.sysWithoutLog) $(ectx.searchParams) $(ectx.theoryArg) $cfgTerm : _ → _ → IO _))
   let resultIdent := mkVeilImplementationDetailIdent `simulateRuntimeResult
   `(fun (_ : Option Veil.ModelChecker.ParallelConfig)
       (progressInstanceId : Nat) (cancelToken : IO.CancelToken) (finish : Lean.Json → IO _) => do
     let $resultIdent ← ($runtimeCallExpr progressInstanceId cancelToken)
     finish ($(mkIdent ``Veil.ModelChecker.Simulation.SimulateResult.toDisplayJson) $resultIdent))
 
-@[command_elab Veil.simulate]
-def elabSimulate : CommandElab := fun stx => do
-  withTraceNode `veil.perf.elaborator.simulate (fun _ => return "#simulate") do
+private structure ExecutionCallCommandContext (Config : Type) where
+  mod : Module
+  config : Config
+  instantiation : Term
+  «theory» : Term
+
+/-- Shared elaboration for execution commands with command-specific configuration and calls. -/
+private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Name)
+    (kind : TraceDisplay.ResultKind) (elabConfig : Syntax → CommandElabM α)
+    (assumptionsHoldByIndex : Nat)
+    (mkCall : ExecutionCallCommandContext α → CommandElabM (Term × Option ModelChecker.ParallelConfig))
+    : CommandElab := fun stx => do
+  -- Use dynamic trace class name for detailed profiling
+  withTraceNode traceClass (fun _ => return s!"#{cmdName}") do
+    -- All commands through this interface use the same syntax layout for the first three arguments:
+    -- stx[1] is the optional mode, stx[2] is instTerm, stx[3] is optional theory
     let mode := getModelCheckingMode stx[1]
     let instTerm : Term := ⟨stx[2]⟩
     let theoryTermOpt : Option Term := if stx[3].isNone then none else some ⟨stx[3][0]⟩
     let assumptionsHoldBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq) :=
-      if stx[5].isNone then none else some ⟨stx[5][0][1]⟩
-    let mod ← getCurrentModule (errMsg := "You cannot #simulate outside of a Veil module!")
+      if stx[assumptionsHoldByIndex].isNone then none else some ⟨stx[assumptionsHoldByIndex][0][1]⟩
+    let mod ← getCurrentModule (errMsg := s!"You cannot #{cmdName} outside of a Veil module!")
     mod.throwIfSpecNotFinalized
-    let theoryTerm ← getTheoryTerm "#simulate" theoryTermOpt mod instTerm
+    let theoryTerm ← getTheoryTerm s!"#{cmdName}" theoryTermOpt mod instTerm
     warnAboutTransitions mod
-    let simulateCfgStx := stx[4]
-    let cfg0 ← elabSimulateConfig simulateCfgStx
-    let opts ← getOptions
-    let (hasNumTraces, hasMaxSteps) := simulateTraceBoundFieldsExplicit simulateCfgStx
-    let optionNumTraces := veil.simulate.numTraces.get opts
-    let optionMaxSteps := veil.simulate.maxSteps.get opts
-    let (numTraces, maxSteps) := resolveSimulateTraceBounds cfg0 hasNumTraces hasMaxSteps
-      optionNumTraces optionMaxSteps
-    let seed ← liftIO <| if cfg0.seed == 0 then IO.rand 0 0xFFFFFFFFFFFFFFFF else pure cfg0.seed
-    let cfg : ModelChecker.Simulation.SimulateConfig := { cfg0 with numTraces, maxSteps, seed }
-    let mcCfg : ModelCheckerConfig := { maxDepth := 0, sequential := false, parallelCfg := none }
+    -- Let `elabConfig` choose which part should be the configuration.
+    let cfg ← elabConfig stx
+    -- Optionally prove assumptions statically; both algorithms also evaluate them at runtime.
     if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
       checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
     mod.ensureExecutableModelCheckerDefinitions
-    let sp ← mkSearchParameters mod mcCfg
-    let callExpr ← mkSimulateCall mod instTerm theoryTerm sp cfg
-    ExecutionWorkflow.run { name := "simulate" } .simulate mod stx mode callExpr
+    let (callExpr, parallelCfg) ← mkCall {
+      mod := mod
+      config := cfg
+      instantiation := instTerm
+      «theory» := theoryTerm
+    }
+    ExecutionWorkflow.run { name := cmdName } kind mod stx mode callExpr parallelCfg
+
+@[command_elab Veil.modelCheck]
+def elabModelCheck : CommandElab :=
+  elabExecutionCommand "model_check" `veil.perf.elaborator.modelCheck .modelCheck
+    (fun stx => elabModelCheckCommandConfig stx[4]) 5 fun ecctx => do
+    let commandCfg := ecctx.config
+    let config := commandCfg.toModelCheckerConfig
+    -- Resolve parallelCfg: sequential flag takes precedence, otherwise default to parallel
+    let parallelCfg ← match config.sequential, config.parallelCfg with
+      | true, _ => pure none
+      | false, some cfg => pure (some cfg)
+      | false, none => pure (some { numSubTasks := ← getNumCores, thresholdToParallel := defaultThresholdToParallel })
+    let callExpr ← mkModelCheckerCall ecctx.mod config commandCfg.fingerprintType commandCfg.seenSet ecctx.instantiation ecctx.theory
+    return (callExpr, parallelCfg)
+
+/-- Resolve simulation bounds from command syntax and options, and choose a seed. -/
+private def elabSimulateCommandConfig (cfgStx : Syntax)
+    : CommandElabM ModelChecker.Simulation.SimulateConfig := do
+  let cfg0 ← elabSimulateConfig cfgStx
+  let opts ← getOptions
+  let (hasNumTraces, hasMaxSteps) := simulateTraceBoundFieldsExplicit cfgStx
+  let optionNumTraces := veil.simulate.numTraces.get opts
+  let optionMaxSteps := veil.simulate.maxSteps.get opts
+  let (numTraces, maxSteps) := resolveSimulateTraceBounds cfg0 hasNumTraces hasMaxSteps
+    optionNumTraces optionMaxSteps
+  let seed ← liftIO <| if cfg0.seed == 0 then IO.rand 0 0xFFFFFFFFFFFFFFFF else pure cfg0.seed
+  return { cfg0 with numTraces, maxSteps, seed }
+
+@[command_elab Veil.simulate]
+def elabSimulate : CommandElab :=
+  elabExecutionCommand "simulate" `veil.perf.elaborator.simulate .simulate
+    (fun stx => elabSimulateCommandConfig stx[4]) 5 fun ecctx => do
+    return (← mkSimulateCall ecctx.mod ecctx.instantiation ecctx.theory ecctx.config, none)
 
 end Veil
