@@ -11,3 +11,6 @@ as user-typed `sorry`, i.e. non-synthetic. We use this to check that a
 definition was correctly elaborated. -/
 def isElaboratedCorrectly (n : Name) : MetaM Bool :=
   return !Expr.hasSyntheticSorry (← Meta.reduceAll $ ← Meta.mkConstWithFreshMVarLevels n)
+
+def expect (message : String) (cond : Bool) : IO Unit :=
+  unless cond do throw (IO.userError message)

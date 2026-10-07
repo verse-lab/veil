@@ -77,7 +77,10 @@ private def getCompiledCommandId (cmdName : String) (stx : Syntax) : CommandElab
 /-- Compile a temporary entry point in the current snapshot, then emit its C module
 with runtime initialization. -/
 private def generateCCode (command : ModelChecker.Compilation.CompiledCommandSpec) (callExpr : Term) : CommandElabM String := withoutModifyingEnv do
-  if (← getEnv).contains `main then
+  -- In a `module` file, a plain `def main` is private. A Veil namespace exports
+  -- generated definitions, so also leave exporting mode when looking for it.
+  let env := (← getEnv).setExporting false
+  if env.contains `main || env.contains (mkPrivateNameCore env.mainModule `main) then
     throwError "Cannot compile #{command.name}: the file already declares `main`, \
       which the generated binary needs as its entry point. \
       Move the `main` declaration into another file, or use `#{command.name} interpreted`."
@@ -91,7 +94,7 @@ private def generateCCode (command : ModelChecker.Compilation.CompiledCommandSpe
   -- elaboration would go on to build a binary that panics on `sorry` instead of stopping
   -- in `withCompilationDiagnostics`. It would also leave messages and info trees behind,
   -- which `withoutModifyingEnv` does not roll back.
-  liftTermElabM <| withOptions (·.setBool `compiler.postponeCompile false) do
+  liftTermElabM <| Term.withoutErrToSorry <| withOptions (·.setBool `compiler.postponeCompile false) do
     let entry ← `(ModelChecker.Compilation.runMain
       (fun pcfg progressInstanceId cancelToken finish =>
         $callExpr pcfg progressInstanceId cancelToken (fun result => finish (Lean.toJson result))))
@@ -159,21 +162,23 @@ private def runBinaryForJson (binPath : System.FilePath) (args : Array String)
     stdin := .piped, stdout := .piped, stderr := .piped }
   -- Read stderr for progress updates
   let stderrAccum ← IO.mkRef ""
-  let _ ← IO.asTask (prio := .dedicated) do
+  let stderrTask ← IO.asTask (prio := .dedicated) do
     while true do
       let line ← child.stderr.getLine
       if line.isEmpty then break
       match Json.parse line >>= FromJson.fromJson? (α := ModelChecker.Concrete.Progress) with
       | .ok p => if let some refs ← ModelChecker.Concrete.getProgressRefs instanceId then
           refs.progressRef.modify fun old =>
+            -- Compilation status belongs to the parent; worker progress defaults to `.none`.
+            -- Preserve it when replacing the progress reported by the worker.
+            let p := { p with compilationStatus := old.compilationStatus }
             match p.details with
-            -- Simulation reports no time series, so the incoming value stands as is.
-            | .simulation .. => p
+            -- Only the BFS checker reports a time series.
             | .modelCheck m =>
               let oldMetrics : ModelChecker.Concrete.ModelCheckProgress :=
                 match old.details with
                 | .modelCheck om => om
-                | .simulation .. => default
+                | _ => default
               let historyPoint : ModelChecker.Concrete.ProgressHistoryPoint := {
                 timestamp := p.elapsedMs
                 diameter := m.diameter
@@ -184,19 +189,30 @@ private def runBinaryForJson (binPath : System.FilePath) (args : Array String)
               { p with details := .modelCheck { m with
                   allActionLabels := oldMetrics.allActionLabels
                   history := oldMetrics.history.push historyPoint } }
+            | _ => p
       | .error _ => stderrAccum.modify (· ++ line)
   let stdoutTask ← IO.asTask (prio := .dedicated) child.stdout.readToEnd
   let waitTask ← IO.asTask (prio := .dedicated) child.wait
   -- Monitor for cancellation
   while !(← IO.hasFinished waitTask) do
-    if ← checkCancelled cancelToken instanceId then child.kill; return none
+    if ← checkCancelled cancelToken instanceId then
+      child.kill
+      -- Wait for the process and both readers before ending cancellation: a late
+      -- stderr progress update could otherwise overwrite the cancelled state.
+      -- Cancellation takes precedence over errors returned by these tasks.
+      discard <| IO.wait waitTask
+      discard <| IO.wait stdoutTask
+      discard <| IO.wait stderrTask
+      return none
     IO.sleep 100
   let stdout ← IO.ofExcept (← IO.wait stdoutTask)
   let exitCode ← IO.ofExcept (← IO.wait waitTask)
+  -- Process exit does not imply stderr has been drained. Join the reader before
+  -- consuming diagnostics or publishing a final result; propagate reader failures.
+  IO.ofExcept (← IO.wait stderrTask)
   let stderr ← stderrAccum.get
   if exitCode != 0 then
-    ModelChecker.Concrete.finishProgress instanceId (errorJson s!"Binary exited with code {exitCode}{if stderr.isEmpty then "" else s!"\n{stderr}"}")
-    return none
+    throw <| IO.userError s!"Binary exited with code {exitCode}{if stderr.isEmpty then "" else s!"\n{stderr}"}"
   return some (Json.parse stdout |>.toOption.getD (errorJson s!"Failed to parse output: {stdout.take 500}"))
 
 /-- Elaborate the interpreted mode computation. Must be called synchronously. -/
@@ -206,7 +222,7 @@ private def elaborateInterpretedComputation (instanceId : Nat) (callExpr : Term)
     let some refs ← Veil.ModelChecker.Concrete.getProgressRefs $(quote instanceId) | pure Lean.Json.null
     Lean.toJson <$> $callExpr ($(quote parallelCfg)) ($(quote instanceId)) refs.cancelToken pure)
   trace[veil.desugar] "{resultExpr}"
-  liftTermElabM do
+  liftTermElabM <| Term.withoutErrToSorry do
     let expr ← Term.elabTerm resultExpr none
     Term.synthesizeSyntheticMVarsNoPostponing
     ModelChecker.Compilation.evalJsonComputation (← instantiateMVars expr)
@@ -245,6 +261,9 @@ private def finishWithResult (ctx : ExecutionContext) (json : Json) : CommandEla
   if resultWasCancelled json then
     ModelChecker.Concrete.cancelProgress ctx.instanceId json
     return
+  -- Cancellation can arrive after the computation returns. Honor it before
+  -- publishing a verdict; `checkCancelled` still permits a verdict during handoff.
+  if ← checkCancelled ctx.cancelToken ctx.instanceId then return
   let json := enrichJsonWithAssertions json ctx.assertionSources
   logModelCheckResult ctx.resultKind ctx.stx json
   ModelChecker.Concrete.finishProgress ctx.instanceId json
@@ -409,10 +428,21 @@ private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSp
       let some newCancelToken ← ModelChecker.Concrete.resetProgressForHandoff ctx.instanceId | do
         ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
         return
+      -- The editor owns the compilation snapshot's token even after handoff.
+      -- Without this forwarding, cancelling the old snapshot in the editor does not
+      -- reach the binary's fresh token, so the binary continues running.
+      compilationCancelTk.onSet newCancelToken.set
       -- Compilation is done; the binary run is guarded by the fresh token instead.
       ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
       let ctxWithNewToken := { ctx with cancelToken := newCancelToken }
-      runBinaryAndLogResult ctxWithNewToken buildFolder sourceFile command commandId
+      try
+        runBinaryAndLogResult ctxWithNewToken buildFolder sourceFile command commandId
+      catch e : Exception =>
+        handleModelCheckError ctxWithNewToken e
+      finally
+        -- If cancellation interrupts the native run before it reports a result,
+        -- finalize it using the fresh token; completed verdicts remain untouched.
+        endRunIfCancelled newCancelToken ctx.instanceId
     catch e : Exception =>
       ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
       ModelChecker.Concrete.updateCompilationStatus ctx.instanceId (.failed s!"{← e.toMessageData.toString}")
