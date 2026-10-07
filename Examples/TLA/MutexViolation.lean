@@ -40,13 +40,11 @@ enum states = { pre_check_lock,
                 cs,
                 Done }
 
+individual wait_queue_wakers : fQueue process
 
-individual wait_queue_wakers : List process
-
-relation has_woken (th: process)
-relation pc (self: process) (st: states)
+relation has_woken (th : process)
+function pc : process → states
 immutable individual NONE : process
-
 
 @[veil_decl]
 structure Cell (states process : Type) where
@@ -57,9 +55,10 @@ function stack : process → List (Cell states process)
 
 function waker : process → process
 
+veil_set_field_representation relation Veil.ArrayAsFinset
+veil_set_field_representation function Veil.ArrayAsFinmap
 
 #gen_state
-
 
 -- Init == (* Global variables *)
 --         /\ locked = FALSE
@@ -72,15 +71,13 @@ function waker : process → process
 --         /\ pc = [self \in ProcSet |-> "start"]
 after_init {
   locked := false
-  wait_queue_wakers := []
+  wait_queue_wakers := fQueue.empty
   has_woken P := false
   /- Procedure unlock -/
   waker P := NONE
   stack P := []
-  pc P S := S == start
+  pc P := start
 }
-
-
 
 -- pre_check_lock(self) == /\ pc[self] = "pre_check_lock"
 --                         /\ IF locked = FALSE
@@ -93,16 +90,14 @@ after_init {
 --                                         wait_queue_wakers, has_woken, waker >>
 action _pre_check_lock (self : process) {
   require self ≠ NONE
-  require pc self pre_check_lock
-  if locked == false then
+  require pc self = pre_check_lock
+  if !locked then
     locked := true
-    let head_stack_pc_state := (stack self).head!.pc
-    pc self S := S == head_stack_pc_state
+    pc self := (stack self).head!.pc
     stack self := (stack self).tail
   else
-    pc self S := S == prepare_wait_util
+    pc self := prepare_wait_util
 }
-
 
 -- prepare_wait_util(self) == /\ pc[self] = "prepare_wait_util"
 --              /\ locked' = FALSE
@@ -111,12 +106,10 @@ action _pre_check_lock (self : process) {
 --                              has_woken, stack, waker >>
 action _prepare_wait_util (self : process) {
   require self ≠ NONE
-  require pc self prepare_wait_util
+  require pc self = prepare_wait_util
   locked := false -- BUG: releases lock it doesn't own
-  pc self S := S == wait_until
+  pc self := wait_until
 }
-
-
 
 -- wait_until(self) == /\ pc[self] = "wait_until"
 --                     /\ pc' = [pc EXCEPT ![self] = "enqueue_waker"]
@@ -124,10 +117,9 @@ action _prepare_wait_util (self : process) {
 --                                     wait_queue_wakers, has_woken, stack, waker >>
 action _wait_until (self : process) {
   require self ≠ NONE
-  require pc self wait_until
-  pc self S := S == enqueue_waker
+  require pc self = wait_until
+  pc self := enqueue_waker
 }
-
 
 -- enqueue_waker(self) == /\ pc[self] = "enqueue_waker"
 --                        /\ wait_queue_num_wakers' = wait_queue_num_wakers + 1
@@ -136,11 +128,10 @@ action _wait_until (self : process) {
 --                        /\ UNCHANGED << locked, has_woken, stack, waker >>
 action _enqueue_waker (self : process) {
   require self ≠ NONE
-  require pc self enqueue_waker
-  wait_queue_wakers := wait_queue_wakers.append [self]
-  pc self S := S == check_lock
+  require pc self = enqueue_waker
+  wait_queue_wakers := wait_queue_wakers.enqueue self
+  pc self := check_lock
 }
-
 
 -- check_lock(self) == /\ pc[self] = "check_lock"
 --                     /\ IF locked = FALSE
@@ -154,17 +145,15 @@ action _enqueue_waker (self : process) {
 --                                     waker >>
 action _check_lock (self : process) {
   require self ≠ NONE
-  require pc self check_lock
+  require pc self = check_lock
   if locked == false then
     locked := true
     has_woken self := true
-    let head_stack_pc_state := (stack self).head!.pc
-    pc self S := S == head_stack_pc_state
+    pc self := (stack self).head!.pc
     stack self := (stack self).tail
   else
-    pc self S := S == check_has_woken
+    pc self := check_has_woken
 }
-
 
 -- check_has_woken(self) == /\ pc[self] = "check_has_woken"
 --                          /\ has_woken[self]
@@ -174,18 +163,15 @@ action _check_lock (self : process) {
 --                                          wait_queue_wakers, stack, waker >>
 action _check_has_woken (self : process) {
   require self ≠ NONE
-  require pc self check_has_woken
+  require pc self = check_has_woken
   require has_woken self
   has_woken self := false
-  pc self S := S == wait_until
+  pc self := wait_until
 }
-
 
 -- lock(self) == pre_check_lock(self) \/ prepare_wait_util(self) \/ wait_until(self)
 --                  \/ enqueue_waker(self) \/ check_lock(self)
 --                  \/ check_has_woken(self)
-
-
 
 -- release_lock(self) == /\ pc[self] = "release_lock"
 --                       /\ locked' = FALSE
@@ -194,13 +180,10 @@ action _check_has_woken (self : process) {
 --                                       has_woken, stack, waker >>
 action _release_lock (self : process) {
   require self ≠ NONE
-  require pc self release_lock
+  require pc self = release_lock
   locked := false
-  pc self S := S == wake_one
+  pc self := wake_one
 }
-
-
-
 
 -- wake_one(self) == /\ pc[self] = "wake_one"
 --                   /\ IF wait_queue_num_wakers = 0
@@ -213,18 +196,15 @@ action _release_lock (self : process) {
 --                                   wait_queue_wakers, has_woken >>
 action _wake_one (self : process) {
   require self ≠ NONE
-  require pc self wake_one
-  if wait_queue_wakers.length == 0 then
-    let head_stack_pc_state := (stack self).head!.pc
-    pc self S := S == head_stack_pc_state
-    let headwaker_stack_waker := (stack self).head!.waker
-    waker self := headwaker_stack_waker
+  require pc self = wake_one
+  if wait_queue_wakers.isEmpty then
+    let headCell := (stack self).head!
+    pc self := headCell.pc
+    waker self := headCell.waker
     stack self := (stack self).tail
   else
-    pc self S := S == wake_one_loop
+    pc self := wake_one_loop
 }
-
-
 
 -- wake_one_loop(self) == /\ pc[self] = "wake_one_loop"
 --                        /\ IF wait_queue_num_wakers /= 0
@@ -241,22 +221,18 @@ action _wake_one (self : process) {
 --                        /\ UNCHANGED << locked, has_woken >>
 action _wake_one_loop (self : process) {
   require self ≠ NONE
-  require pc self wake_one_loop
-  if wait_queue_wakers.length != 0 then
-    let head_waker := wait_queue_wakers.head!
-    waker self := head_waker
-    wait_queue_wakers := wait_queue_wakers.tail
-    pc self S := S == wake_up
+  require pc self = wake_one_loop
+  if !wait_queue_wakers.isEmpty then
+    let (hd, tl) := wait_queue_wakers.dequeueD
+    waker self := hd
+    wait_queue_wakers := tl
+    pc self := wake_up
   else
-    let head_stack := (stack self).head!
-    let head_stack_pc_state := head_stack.pc
-    pc self S := S == head_stack_pc_state
-    let headwaker_stack_waker := head_stack.waker
-    waker self := headwaker_stack_waker
+    let headCell := (stack self).head!
+    pc self := headCell.pc
+    waker self := headCell.waker
     stack self := (stack self).tail
 }
-
-
 
 -- wake_up(self) == /\ pc[self] = "wake_up"
 --                  /\ IF has_woken[waker[self]] = FALSE
@@ -270,24 +246,20 @@ action _wake_one_loop (self : process) {
 --                                  wait_queue_wakers >>
 action _wake_up (self : process) {
   require self ≠ NONE
-  require pc self wake_up
-  -- if ∃t, waker self t then
-    -- let waker_self :| waker self waker_self
+  require pc self = wake_up
   let waker_self := waker self
   if !has_woken waker_self then
     has_woken waker_self := true
-    let head_stack_pc_state := (stack self).head!.pc
-    pc self S := S == head_stack_pc_state
-    let headwaker_stack_waker := (stack self).head!.waker
-    waker self := headwaker_stack_waker
+    let headCell := (stack self).head!
+    pc self := headCell.pc
+    waker self := headCell.waker
     stack self := (stack self).tail
   else
-    pc self S := S == wake_one_loop
+    pc self := wake_one_loop
 
 }
 
 -- unlock(self) == release_lock(self) \/ wake_one(self) \/ wake_one_loop(self)
-
 
 -- start(self) == /\ pc[self] = "start"
 --                /\ stack' = [stack EXCEPT ![self] = << [ procedure |->  "lock",
@@ -298,12 +270,10 @@ action _wake_up (self : process) {
 --                                wait_queue_wakers, has_woken, waker >>
 action _start (self : process) {
   require self ≠ NONE
-  require pc self start
+  require pc self = start
   stack self := { pc := cs, waker := default } :: (stack self)
-  pc self S := S == pre_check_lock
+  pc self := pre_check_lock
 }
-
-
 
 -- cs(self) == /\ pc[self] = "cs"
 --             /\ TRUE
@@ -317,13 +287,12 @@ action _start (self : process) {
 --                             has_woken >>
 action _cs (self : process) {
   require self ≠ NONE
-  require pc self cs
+  require pc self = cs
   let waker_self := waker self
   stack self := { pc := Done, waker := waker_self } :: (stack self)
   waker self := NONE
-  pc self S := S == release_lock
+  pc self := release_lock
 }
-
 
 /- Output log of TLC: <Terminating line 225, col 1 to line 225, col 11 of module MutexViolation>: 0:7
 In TLA+, we specify the termination condition as follows:
@@ -333,7 +302,7 @@ naturally, whose require condition is `∀p ≠ NONE, pc p Done`.
 We gave this empty action here to align the number `Found states` with TLC.
 -/
 action Terminating {
-  require ∀p ≠ NONE, pc p Done
+  require ∀p ≠ NONE, pc p = Done
 }
 
 -- proc(self) == start(self) \/ cs(self)
@@ -341,14 +310,15 @@ action Terminating {
 --            \/ (\E self \in Procs: proc(self))
 --            \/ Terminating
 
-invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I cs ∧ pc J cs)
-termination [AllDone] ∀s ≠ NONE, pc s Done = true
+invariant [mutual_exclusion] ∀ I J, I ≠ J → ¬ (pc I = cs ∧ pc J = cs)
+termination [AllDone] ∀s ≠ NONE, pc s = Done
 
-#time #gen_spec
+#gen_spec
 #gen_executable
 -- NOTE: comment out the line containing `BUG:` to fix the violation
 
 -- set_option veil.violationIsError false in
--- #model_check { process := Fin 3 } { NONE := 0 }
+/- `Fin n` means `n-1` valid threads.-/
+-- #model_check compiled { process := Fin 4 } { NONE := 0 }
 
 end MutexViolation
