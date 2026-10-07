@@ -414,7 +414,8 @@ typeclass inference for the concrete instantiation (the model checker does
 _not_ enumerate all possible instances or theories, so treat it as a testing
 tool). Progress and action-coverage statistics are displayed live in an
 InfoView widget; if a violation is found, Veil shows a concrete counterexample
-trace.
+trace. See the [Model Checker Guide](ModelChecker-Guide.md) for execution modes,
+options, deadlocks, state constraints, and performance tuning.
 
 ##### Random Simulation
 
