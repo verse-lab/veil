@@ -24,7 +24,21 @@ def Module.elabInstantiation (mod : Module) (stx : Term) : TermElabM Expr := do
   let inst ← elabTermEnsuringType stx instType
   let hasTypeHole ← (← getMVars inst).anyM fun hole => do
     return (← whnf (← inferType (mkMVar hole))).isSort
-  unless hasTypeHole do return inst
+  unless hasTypeHole do
+    -- In this case, there is nothing to infer, but the term may still carry non-type mvars:
+    -- for example, `NodeSet := Std.ExtTreeSet X`
+    -- elaborates to `@ExtTreeSet X ?cmp`, where `?cmp` is the `autoParam` comparator, a pending
+    -- tactic goal (`by exact compare`) that Lean normally runs at the end of the enclosing term,
+    -- *after trying default instances*.
+    -- Settle such problems here instead of at the end. If we left them pending,
+    -- `?cmp` would end up inside the model
+    -- checker's obligation `TSet X (ExtTreeSet X ?cmp)`; that problem is stuck, and Lean's
+    -- final loop tries default instances before tactic blocks, under
+    -- `withAssignableSyntheticOpaque`, so `instTSetExtTreeSet` would assign `?cmp := compare`
+    -- itself and the tactic would then fail with "no goals". Running the tactic now makes
+    -- `inst` fully concrete before any obligation can mention it.
+    synthesizeSyntheticMVarsNoPostponing
+    return ← instantiateMVars inst
   -- The module's parameter binders as a `∀`-template: instantiating it with the concrete
   -- values yields the obligations, with the dependencies between them already in place.
   -- NOTE: `elabBinders` (used elsewhere in Veil) is deliberately avoided here. It introduces

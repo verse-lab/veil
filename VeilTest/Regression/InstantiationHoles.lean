@@ -290,6 +290,15 @@ def executions := __veil_exec_action%
   (maxDepth := 1)
   (sequential := true)
 
+-- No hole, but the comparator is left to its `autoParam`: its tactic must run before the
+-- model checker's `TSet` obligation meets the default instances.
+#model_check interpreted
+  { node := Fin 1, NodeSet := Std.ExtTreeSet (Fin 1) }
+  { limit := 1 }
+  (maxDepth := 1)
+  (sequential := true)
+  assumptions_hold_by decide
+
 #guard_msgs(drop info) in
 #simulate interpreted
   { node := Fin 1, NodeSet := OrdList _ }
