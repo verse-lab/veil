@@ -1,6 +1,7 @@
 module
 
 public meta import Veil.Frontend.DSL.Module.Util.Basic
+meta import Veil.Frontend.Std
 
 public meta section
 
@@ -14,11 +15,11 @@ constraints.
 
 Each `instantiate` declaration becomes an ordinary typeclass obligation on the concrete
 instantiation. Lean postpones an obligation whose type still has holes and, once nothing
-else makes progress, tries the class's `@[default_instance]`s: unifying such an instance
-head with the obligation assigns the holes. So holes are only filled for classes whose
-instances are marked `@[default_instance]` (Veil's own containers are); for any other
-class the hole stays stuck and is reported at the `instantiate` declaration. Fully
-specified instantiations take the ordinary elaboration path and are not checked here. -/
+else makes progress, tries the class's default instances: unifying such an instance
+head with the obligation assigns the holes. Veil's container defaults are enabled only
+while solving these concrete constraints; other classes opt in with `@[default_instance]`.
+Without a default, the hole stays stuck and is reported at the `instantiate` declaration.
+Fully specified instantiations take the ordinary elaboration path and are not checked here. -/
 def Module.elabInstantiation (mod : Module) (stx : Term) : TermElabM Expr := do
   let instType ← elabTerm instantiationType none
   let inst ← elabTermEnsuringType stx instType
@@ -32,11 +33,11 @@ def Module.elabInstantiation (mod : Module) (stx : Term) : TermElabM Expr := do
     -- *after trying default instances*.
     -- Settle such problems here instead of at the end. If we left them pending,
     -- `?cmp` would end up inside the model
-    -- checker's obligation `TSet X (ExtTreeSet X ?cmp)`; that problem is stuck, and Lean's
-    -- final loop tries default instances before tactic blocks, under
-    -- `withAssignableSyntheticOpaque`, so `instTSetExtTreeSet` would assign `?cmp := compare`
-    -- itself and the tactic would then fail with "no goals". Running the tactic now makes
-    -- `inst` fully concrete before any obligation can mention it.
+    -- checker's obligation `TSet X (ExtTreeSet X ?cmp)`; that problem is stuck.
+    -- If a matching default instance is enabled, Lean's final loop tries it before
+    -- tactic blocks, under `withAssignableSyntheticOpaque`, so e.g. `instTSetExtTreeSet`
+    -- could assign `?cmp := compare` itself and the tactic would then fail with "no goals".
+    -- Running the tactic now makes `inst` fully concrete before any obligation can mention it.
     synthesizeSyntheticMVarsNoPostponing
     return ← instantiateMVars inst
   -- The module's parameter binders as a `∀`-template: instantiating it with the concrete
@@ -93,7 +94,23 @@ def Module.elabInstantiation (mod : Module) (stx : Term) : TermElabM Expr := do
   -- the first one whose premises are then fully solvable. The remaining problems, e.g. the
   -- `Ord ?α` pending since `OrdList _` was elaborated above, follow in later rounds of Lean's
   -- own loop inside this call (`elabInstantiation` itself does not iterate).
-  synthesizeSyntheticMVarsNoPostponing
+  --
+  -- Container defaults must not infer concrete types for the implicit parameters of
+  -- ordinary ghost calls. Change only the extension's state, so these temporary
+  -- defaults are not exported and elaboration's other environment changes survive.
+  let savedDefaults := defaultInstanceExtension.getState (← getEnv)
+  let containerDefaults : Array DefaultInstanceEntry := #[
+    { className := ``TSet, instanceName := ``instTSetOrdList, priority := eval_prio high },
+    { className := ``TSet, instanceName := ``instTSetExtTreeSet, priority := eval_prio default },
+    { className := ``TSet, instanceName := ``instTSetOrdArray, priority := eval_prio low },
+    { className := ``TMultiset, instanceName := ``instTMultiSetWithExtTreeMap, priority := eval_prio default },
+    { className := ``TMap, instanceName := ``instTMapExtTreeMap, priority := eval_prio default }]
+  try
+    modifyEnv fun env => defaultInstanceExtension.setState env
+      (containerDefaults.foldl addDefaultInstanceEntry savedDefaults)
+    synthesizeSyntheticMVarsNoPostponing
+  finally
+    modifyEnv fun env => defaultInstanceExtension.setState env savedDefaults
   for (hole, decl) in detached do
     unless ← hole.isAssigned do
       -- Back to a tactic goal: only its tactic may fill it, not a passing unification.

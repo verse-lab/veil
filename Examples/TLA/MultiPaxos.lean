@@ -2,7 +2,7 @@ module
 
 public import Veil
 
-open Std
+-- source: https://github.com/sachand/HistVar/blob/master/Multi-Paxos/MultiPaxosUs.tla
 -- ------------------------------- MODULE MultiPaxosUs -------------------------------
 -- (***************************************************************************)
 -- (* This is a TLA+ specification of the MultiPaxos Consensus algorithm,     *)
@@ -14,17 +14,27 @@ open Std
 -- (* and a TLAPS-checked proof of its correctness. This is an extension of   *)
 -- (* the proof of Basic Paxos found in TLAPS examples directory.             *)
 -- (***************************************************************************)
--- EXTENDS Integers, TLAPS
+-- EXTENDS Integers, FiniteSets
+
+public class PaxosMember (acceptor : outParam Type) (quorum : Type) where
+  member : acceptor → quorum → Bool
+
+public instance : PaxosMember (Fin 3) (Fin 3) where
+  member a q :=
+    match a.val, q.val with
+    | 0, 0 => true
+    | 1, 0 => true
+    | 0, 1 => true
+    | 2, 1 => true
+    | 1, 2 => true
+    | 2, 2 => true
+    | _, _ => false
 
 veil module MultiPaxos
--- CONSTANTS Acceptors, Values, Quorums, Proposers
-type ballot
-type slot
-type value
-type acceptor
-type proposer
-type quorum
 
+-- Ballot type: Fin (maxBallot + 1), encoding TLA+'s Ballots == 0..MaxBallot
+-- (Unlike Paxos, MultiPaxos has no "no ballot" sentinel)
+abbrev BallotTy (maxBallot : Nat) := Fin (maxBallot + 1)
 
 @[veil_decl]
 structure Voted (bl slt vl : Type) where
@@ -39,83 +49,78 @@ structure Decree (slt vl : Type) where
   val  : vl
 deriving instance Veil.Enumeration for Decree
 
-/-
-Messages ==
-[type : {"1a"}, bal : Ballots, from : Proposers] \ cup
-[ type : {"1b"}, bal : Ballots,
-  voted : SUBSET [bal : Ballots,
-  slot : Slots,
-  val : Values],
-  from : Acceptors]
-[type : {"2a"}, bal : Ballots, decrees : SUBSET [slot : Slots, val : Values], from : Proposers]
-[type : {"2b"}, bal : Ballots, slot : Slots, val : Values, from : Acceptors]
--/
-type SlotSet
+-- Messages ==
+--   [type : {"1a"}, bal : Ballots, from : Proposers]
+--   \cup [type : {"1b"}, bal : Ballots, voted : SUBSET [...], from : Acceptors]
+--   \cup [type : {"2a"}, bal : Ballots, decrees : SUBSET [...], from : Proposers]
+--   \cup [type : {"2b"}, bal : Ballots, slot : Slots, val : Values, from : Acceptors]
+@[veil_decl]
+inductive Msg (prp ac vl blt slt vcont dcont : Type) where
+  | phase1a (src : prp) (bal : blt) : Msg prp ac vl blt slt vcont dcont
+  | phase1b (src : ac) (bal : blt) (voted : vcont) : Msg prp ac vl blt slt vcont dcont
+  | phase2a (src : prp) (bal : blt) (decrees : dcont) : Msg prp ac vl blt slt vcont dcont
+  | phase2b (src : ac) (bal : blt) (slot : slt) (val : vl) : Msg prp ac vl blt slt vcont dcont
+deriving instance Veil.Enumeration for Msg
+
+abbrev Msg.ballot (m : Msg prp ac vl blt slt vcont dcont) : blt :=
+  match m with
+  | .phase1a _ bal => bal
+  | .phase1b _ bal _ => bal
+  | .phase2a _ bal _ => bal
+  | .phase2b _ bal _ _ => bal
+
+abbrev MultiPaxosMsg (prp ac vl : Type) (maxBallot : Nat) (slt vcont dcont : Type) :=
+  Msg prp ac vl (BallotTy maxBallot) slt vcont dcont
+
+abbrev MultiPaxosVoted (maxBallot : Nat) (slot value : Type) :=
+  Voted (BallotTy maxBallot) slot value
+
+-- CONSTANTS Acceptors, Values, Quorums, Proposers, MaxBallot, MaxSlot
+type acceptor
+type proposer
+type value
+type quorum
+type slot
+
+param maxBallot : Nat
+
 type VotedSet
 type DecreeSet
 type MsgSet
 type AcceptorSet
 
-@[veil_decl]
-inductive MsgType where
-  | Phase1a
-  | Phase1b
-  | Phase2a
-  | Phase2b
-deriving instance Veil.Enumeration for MsgType
+instantiate voteSet : TSet (MultiPaxosVoted maxBallot slot value) VotedSet
+instantiate decSet : TSet (Decree slot value) DecreeSet
+instantiate msgSet : TSet (MultiPaxosMsg proposer acceptor value maxBallot slot VotedSet DecreeSet) MsgSet
+instantiate acSet : TSet acceptor AcceptorSet
 
+-- ASSUME QuorumAssumption
+instantiate pm : PaxosMember acceptor quorum
 
-@[veil_decl]
-inductive MsgSrc (prop acc : Type) where
-  | fromProposer : prop → MsgSrc prop acc
-  | fromAcceptor : acc → MsgSrc prop acc
-deriving instance Veil.Enumeration for MsgSrc
+-- immutable relation member (A : acceptor) (Q : quorum)
+-- PaxosMember acceptor quorum
+open PaxosMember
 
-@[veil_decl]
-structure Msg (prop acc val blt slt vcont dcont : Type) where
-  msgType : MsgType
-  src : MsgSrc prop acc
-  val : val
-  bal : blt
-  slot : slt
-  decrees : dcont
-  voted : vcont
-deriving instance Veil.Enumeration for Msg
-
-
-instantiate tot : TotalOrderWithZero ballot
-instantiate voteTset : TSet (Voted ballot slot value) VotedSet
-instantiate slotTset : TSet slot SlotSet
-instantiate decreeSet : TSet (Decree slot value) DecreeSet
-instantiate msgTset : TSet (Msg proposer acceptor value ballot slot VotedSet DecreeSet) MsgSet
-instantiate acceptorTset : TSet acceptor AcceptorSet
-
-immutable individual one : ballot
-immutable relation member (A : acceptor) (Q : quorum)
-
+-- VARIABLES sent
 individual sent : MsgSet
-immutable individual SlotsUNIV : List slot
-immutable individual AcceptorsUNIV : List acceptor
+
+-- Slots == 0..MaxSlot (provided as a list for iteration in FreeSlots)
+-- immutable individual SlotsUNIV : List slot
+instantiate slotEnumerable : Veil.Enumeration slot
 
 #gen_state
 
-
-theory ghost relation lt (x y : ballot) := (tot.le x y ∧ x ≠ y)
-theory ghost relation next (x y : ballot) := (lt x y ∧ ∀ z, lt x z → tot.le y z)
-assumption [zero_one] next tot.zero one
--- ASSUME QuorumAssumption ==
---           /\ Quorums \subseteq SUBSET Acceptors
---           /\ \A Q1, Q2 \in Quorums : Q1 \cap Q2 # {}
 assumption [quorum_intersection]
   ∀ (q1 q2 : quorum), ∃ (r : acceptor), member r q1 ∧ member r q2
 
+-- Init == /\ sent = {}
 after_init {
-  sent := msgTset.empty
+  sent := msgSet.empty
 }
 
-
+-- Send(m) == sent' = sent \cup m
 procedure Send (m : MsgSet) {
-  sent := msgTset.toList m |>.foldl (fun acc msg => msgTset.insert msg acc) sent
+  sent := msgSet.union m sent
 }
 
 -- (***************************************************************************)
@@ -126,20 +131,13 @@ procedure Send (m : MsgSet) {
 -- (* Acceptors would suffice. For liveness, a subset containing at least one *)
 -- (* Quorum is needed.                                                       *)
 -- (***************************************************************************)
--- Phase1a(p) == \E b \in Ballots:
---   Send({[type |-> "1a", from |-> p, bal |-> b]})
+
+-- TODO need singleton
+
+-- Phase1a(p) == \E b \in Ballots: Send({[type |-> "1a", from |-> p, bal |-> b]})
 action Phase1a (p : proposer) {
-  -- require msgTset.count sent < 8
-  let b ← pick ballot
-  let sentMsg : Msg proposer acceptor value ballot slot VotedSet DecreeSet := {
-    msgType := MsgType.Phase1a,
-    src := MsgSrc.fromProposer p,
-    val := default,
-    bal := b,
-    slot := default,
-    decrees := default,
-    voted := default}
-  Send (msgTset.insert sentMsg msgTset.empty)
+  let b ← pick (BallotTy maxBallot)
+  Send (msgSet.ofList [(.phase1a p b)])
 }
 
 -- (***************************************************************************)
@@ -153,54 +151,42 @@ action Phase1a (p : proposer) {
 -- (* most recently (i.e., highest ballot) voted on, if any.                  *)
 -- (***************************************************************************)
 
--- voteds(a) == {[bal |-> m.bal, slot |-> m.slot, val |-> m.val]: m \in {m \in sent: m.type = "2b" /\ m.from = a}}
--- set_option trace.veil.desugar true
-procedure voteds (a : acceptor) {
-  let voteSet' : VotedSet :=
-    msgTset.map (msgTset.filter sent (fun m => m.msgType = MsgType.Phase2b ∧ m.src = MsgSrc.fromAcceptor a))
-     (fun m =>
-      { bal    := m.bal,
-        slot   := m.slot,
-        val    := m.val : Voted ballot slot value })
-  return voteSet'
-}
+-- voteds(a) == {[bal |-> m.bal, slot |-> m.slot, val |-> m.val]:
+--               m \in {m \in sent: m.type = "2b" /\ m.from = a}}
+ghost function voteds (a : acceptor) : VotedSet :=
+  msgSet.filterMap sent fun m =>
+    match m with
+    | .phase2b src bal slot val => if src = a then some { bal := bal, slot := slot, val := val } else none
+    | _ => none
 
 -- PartialBmax(T) ==
 --   {t \in T : \A t1 \in T : t1.slot = t.slot => t1.bal =< t.bal}
-procedure PartialBmax (T : VotedSet) {
-  let partialBmaxSet' := voteTset.filter T (fun t =>
-    voteTset.toList T |>.all (fun t1 =>
-      decide $ t1.slot = t.slot → (tot.le t1.bal t.bal) ))
-  return partialBmaxSet'
-}
+ghost function PartialBmax (T : VotedSet) : VotedSet :=
+  voteSet.filter T fun t =>
+    decide <|
+      ∀ t1 : { t1 // t1 ∈ T }, t1.val.slot = t.slot → t1.val.bal ≤ t.bal
 
+-- Ghost relation: all previous 1b/2b messages from acceptor a have ballot < b
+-- Encodes: \A m2 \in {m2 \in sent: m2.type \in {"1b", "2b"} /\ m2.from = a}: b > m2.bal
+ghost relation allPrevBallotsLower (a : acceptor) (b : BallotTy maxBallot) :=
+  ∀ m : { m // m ∈ sent }, (match m.val with
+    | .phase1b src bal _ => decide $ src = a → bal < b
+    | .phase2b src bal _ _ => decide $ src = a → bal < b
+    | _ => true) = true
 
 -- Phase1b(a) == \E m \in sent:
 --   /\ m.type = "1a"
 --   /\ \A m2 \in {m2 \in sent: m2.type \in {"1b", "2b"} /\ m2.from = a}: m.bal > m2.bal
 --   /\ Send({[type |-> "1b", from |-> a, bal |-> m.bal, voted |-> PartialBmax(voteds(a))]})
 action Phase1b (a : acceptor) {
-  -- require msgTset.count sent < 8
-  let phase1aMsgs := msgTset.filter sent (fun m => m.msgType = MsgType.Phase1a)
-  let m :| m ∈ phase1aMsgs
-  let prevMsgsFromA := msgTset.filter sent (fun m2 =>
-    (m2.msgType = MsgType.Phase1b ∨ m2.msgType = MsgType.Phase2b)
-    ∧ m2.src = MsgSrc.fromAcceptor a)
-  /- `/\ \A m2 \in {m2 \in sent: m2.type \in {"1b", "2b"} /\ m2.from = a}: m.bal > m2.bal` -/
-  let allPrevBallotsLower := msgTset.toList prevMsgsFromA |>.all (fun m2 => decide (lt m2.bal m.bal))
-  require allPrevBallotsLower
-  let votedSet ← voteds a
-  let partialBmaxSet ← PartialBmax votedSet
-  let replyMsg : Msg proposer acceptor value ballot slot VotedSet DecreeSet := {
-    msgType := MsgType.Phase1b,
-    src := MsgSrc.fromAcceptor a,
-    bal := m.bal,
-    voted := partialBmaxSet,
-    /- Unused fields -/
-    val := default,
-    slot := default,
-    decrees := default }
-  Send (msgTset.insert replyMsg msgTset.empty)
+  let m : { m // m ∈ sent } :| (match m.val with
+    | .phase1a _ _ => true
+    | _ => false) = true
+  let b := m.val.ballot
+  require allPrevBallotsLower a b
+  let votedSet := voteds a
+  let partialBmaxSet := PartialBmax votedSet
+  Send (msgSet.ofList [(.phase1b a b partialBmaxSet)])
 }
 
 -- (***************************************************************************)
@@ -215,222 +201,184 @@ action Phase1b (a : acceptor) {
 -- (* Bmax            creates the desired mapping from received replies.      *)
 -- (* NewProposals    instructs how new slots are entered in the system.      *)
 -- (***************************************************************************)
+
 -- Bmax(T) ==
 --   {[slot |-> t.slot, val |-> t.val] : t \in PartialBmax(T)}
-procedure Bmax (T : VotedSet) {
-  let partialBmaxSet ← PartialBmax T
-  let result : DecreeSet :=
-    voteTset.map partialBmaxSet (fun t =>
-    { slot := t.slot,
-      val := t.val : Decree slot value })
-  return result
-}
+ghost function Bmax (T : VotedSet) : DecreeSet :=
+  voteSet.map (PartialBmax T) fun t =>
+    { slot := t.slot, val := t.val : Decree slot value }
 
 -- FreeSlots(T) ==
 --   {s \in Slots : ~ \E t \in T : t.slot = s}
-procedure FreeSlots (T : VotedSet) {
-  let result := SlotsUNIV |>.filter (fun s =>
-    voteTset.toList T |>.all (fun t => decide (t.slot ≠ s)) )
-  return result
-}
-
+ghost function FreeSlots (T : VotedSet) : List slot :=
+  slotEnumerable.allValues.filter fun s =>
+    decide <| ¬ ∃ t : { t // t ∈ T }, t.val.slot = s
 
 -- NewProposals(T) ==
 --   (CHOOSE D \in SUBSET [slot : FreeSlots(T), val : Values] \ {}:
 --     \A d1, d2 \in D : d1.slot = d2.slot => d1 = d2)
-procedure NewProposals (T : VotedSet) {
-  let freeSlotList ← FreeSlots T
+ghost function NewProposals (T : VotedSet) : DecreeSet :=
+  let freeSlotList := FreeSlots T
   /- TLA+ `CHOOSE` is deterministic. See https://www.learntla.com/core/operators.html.
   "_TLC will always choose the `lowest` value that matches the set_",
   Here simulate `CHOOSE` by picking only the FIRST free slot with default value. -/
-  let result := match freeSlotList with
-    | [] => decreeSet.empty
-    | s :: _ => decreeSet.insert { slot := s, val := default } decreeSet.empty
-  return result
-}
-
+  match freeSlotList with
+  | [] => decSet.empty
+  | s :: _ => decSet.ofList [{ slot := s, val := default }]
 
 -- ProposeDecrees(T) ==
 --   Bmax(T) \cup NewProposals(T)
-procedure ProposeDecrees (T : VotedSet) {
-  let bmaxSet ← Bmax T
-  let newProposalsSet ← NewProposals T
-  let proposeDecreesSet := decreeSet.union bmaxSet newProposalsSet
-  return proposeDecreesSet
-}
+ghost function ProposeDecrees (T : VotedSet) : DecreeSet :=
+  decSet.union (Bmax T) (NewProposals T)
 
+-- TODO need iterated union
 
 -- VS(S, Q) == UNION {m.voted: m \in {m \in S: m.from \in Q}}
-procedure VS (S : MsgSet) (Q : quorum) {
-  let filteredMsgs := msgTset.filter S (fun m =>
-    match m.src with
-    | MsgSrc.fromAcceptor a => member a Q
-    | MsgSrc.fromProposer _ => false)
-  let result := msgTset.toList filteredMsgs
-    |>.foldl (fun acc m => voteTset.union acc m.voted) voteTset.empty
-  return result
-}
+ghost function VS (S : MsgSet) (Q : quorum) : VotedSet :=
+  -- NOTE: Here we implicitly require that S only contains `1b` messages,
+  -- due to some typing issue
+  let sub := msgSet.filter S fun m =>
+    match m with
+    | .phase1b src _ _ => member src Q
+    | _ => false
+  msgSet.toList sub |>.foldl (init := voteSet.empty) fun acc m =>
+    match m with
+    | .phase1b _ _ voted => voteSet.union acc voted
+    | _ => acc
 
+-- Ghost relation: quorum Q is covered by 1b messages in S
+-- Encodes: \A a \in Q: \E m \in S: m.from = a
+ghost relation quorumCovered (Q : quorum) (S : MsgSet) :=
+  ∀ a, member a Q → ∃ m : { m // m ∈ S }, (match m.val with
+    | .phase1b src .. => decide $ src = a
+    | _ => false) = true
 
 -- Phase2a(p) == \E b \in Ballots:
 --   /\ ~\E m \in sent: (m.type = "2a") /\ (m.bal = b)
 --   /\ \E Q \in Quorums, S \in SUBSET {m \in sent: (m.type = "1b") /\ (m.bal = b)}:
 --        /\ \A a \in Q: \E m \in S: m.from = a
 --        /\ Send({[type |-> "2a", from |-> p, bal |-> b, decrees |-> ProposeDecrees(VS(S, Q))]})
--- Optimization: instead of picking MsgSet (huge), pick AcceptorSet (only 2^n possibilities)
--- Then construct S by filtering 1b messages from selected acceptors
-action Phase2a (p : proposer) {
-  -- require msgTset.count sent < 8
-  let b ← pick ballot
-  let existing2a := msgTset.filter sent (fun m => m.msgType = MsgType.Phase2a ∧ m.bal = b)
-  require msgTset.count existing2a = 0
-  let Q ← pick quorum
-  -- Get all 1b messages with this ballot
-  -- Non-deterministically pick a subset of acceptors (only 2^n possibilities, much smaller than MsgSet)
-  -- Construct S: filter 1b messages from selected acceptors
-  let all1bMsgs := msgTset.filter sent (fun m => m.msgType = MsgType.Phase1b ∧ m.bal = b)
-  let selectedAcceptors ← pick AcceptorSet
-  let S := msgTset.filter all1bMsgs (fun m =>
-    match m.src with
-    | .fromAcceptor a => acceptorTset.contains a selectedAcceptors
-    | _ => false)
-  -- Check: every acceptor in Q has a 1b message in S
-  let quorumCovered := AcceptorsUNIV |>.all (fun a =>
-    !member a Q || (msgTset.toList S |>.any (fun m =>
-      decide (m.src = MsgSrc.fromAcceptor a))))
-  require quorumCovered
-  let sentMsg := {
-    msgType := MsgType.Phase2a,
-    src := MsgSrc.fromProposer p,
-    bal := b,
-    decrees := ← ProposeDecrees (← VS S Q),
-    /- Unused fields -/
-    val := default,
-    slot := default,
-    voted := default }
-  Send (msgTset.insert sentMsg msgTset.empty)
-}
 
+/-
+-- Optimization: instead of picking MsgSet (huge), pick AcceptorSet (only 2^n possibilities)
+action Phase2a (p : proposer) {
+  let b ← pick (BallotTy maxBallot)
+
+  -- ~\E m \in sent: (m.type = "2a") /\ (m.bal = b)
+  require ¬ ∃ msg : { m // m ∈ sent },
+    (match msg.val with
+      | .phase2a _ bal _ => decide $ bal = b
+      | _ => false) = true
+
+  let Q ← pick quorum
+
+  /- Instead of picking S from the set of all subsets of messages,
+    we pick a subset of acceptors, and construct S by filtering messages from those
+    acceptors. As we only care about condition `m.from = a`.
+    This reduces the non-deterministic choices to 2^|acceptors|.  -/
+  let selectedAcceptors ← pick AcceptorSet
+  let S := msgSet.filter sent (fun m =>
+    match m with
+    | .phase1b src bal _ => bal == b && acSet.contains src selectedAcceptors
+    | _ => false)
+
+  require quorumCovered Q S
+
+  let proposeDecreesSet := ProposeDecrees (VS S Q)
+  Send (msgSet.ofList [(.phase2a p b proposeDecreesSet)])
+}
+-/
+
+-- Authentic translation: pick S directly from SUBSET of filtered 1b messages
+action Phase2a (p : proposer) {
+  let b ← pick (BallotTy maxBallot)
+
+  -- ~\E m \in sent: (m.type = "2a") /\ (m.bal = b)
+  require ¬ ∃ msg : { m // m ∈ sent },
+    (match msg.val with
+      | .phase2a _ bal _ => decide $ bal = b
+      | _ => false) = true
+
+  let Q ← pick quorum
+
+  -- S \in SUBSET {m \in sent: (m.type = "1b") /\ (m.bal = b)}
+  let filtered1b := msgSet.filter sent fun m =>
+    match m with
+    | .phase1b _ bal _ => decide $ bal = b
+    | _ => false
+  let S :| msgSet.isSubset S filtered1b
+
+  -- \A a \in Q: \E m \in S: m.from = a
+  require quorumCovered Q S
+
+  let proposeDecreesSet := ProposeDecrees (VS S Q)
+  Send (msgSet.insert (.phase2a p b proposeDecreesSet) msgSet.empty)
+}
 
 -- (***************************************************************************)
 -- (* Phase 2b: If an acceptor receives a 2a message for a ballot which is    *)
--- (* the highest that it has seen, it votes for the all the message's values *)
+-- (* the highest that it has seen, it votes for all the message's values     *)
 -- (* in ballot b.                                                            *)
 -- (***************************************************************************)
+
+-- Ghost relation: all previous 1b/2b messages from acceptor a have ballot ≤ b
+-- Encodes: \A m2 \in {m2 \in sent: m2.type \in {"1b", "2b"} /\ m2.from = a}: b >= m2.bal
+ghost relation allPrevBallotsLeq (a : acceptor) (b : BallotTy maxBallot) :=
+  ∀ m : { m // m ∈ sent }, (match m.val with
+    | .phase1b src bal _ => decide $ src = a → bal ≤ b
+    | .phase2b src bal _ _ => decide $ src = a → bal ≤ b
+    | _ => true) = true
+
 -- Phase2b(a) == \E m \in sent:
 --   /\ m.type = "2a"
 --   /\ \A m2 \in {m2 \in sent: m2.type \in {"1b", "2b"} /\ m2.from = a}: m.bal >= m2.bal
 --   /\ Send({[type |-> "2b", from |-> a, bal |-> m.bal, slot |-> d.slot, val |-> d.val]: d \in m.decrees})
 action Phase2b (a : acceptor) {
-  -- require msgTset.count sent < 8
-  let phase2aMsgs := msgTset.filter sent (fun m => m.msgType = MsgType.Phase2a)
-  let m :| m ∈ phase2aMsgs
-  let prevMsgsFromA := msgTset.filter sent (fun m2 =>
-    (m2.msgType = MsgType.Phase1b ∨ m2.msgType = MsgType.Phase2b) ∧ m2.src = MsgSrc.fromAcceptor a)
-  /- `/\ \A m2 \in {m2 \in sent: m2.type \in {"1b", "2b"} /\ m2.from = a}: m.bal >= m2.bal` -/
-  let allPrevBallotsLeq := msgTset.toList prevMsgsFromA |>.all (fun m2 => decide (tot.le m2.bal m.bal))
-  require allPrevBallotsLeq
-  let replyMsgSet := decreeSet.map m.decrees (fun d =>
-      { msgType := MsgType.Phase2b,
-        src := MsgSrc.fromAcceptor a,
-        val := d.val,
-        bal := m.bal,
-        slot := d.slot,
-        decrees := default,
-        voted := default } )
+  let m : { m // m ∈ sent } :| (match m.val with
+    | .phase2a .. => true
+    | _ => false) = true
+  let b := m.val.ballot
+  require allPrevBallotsLeq a b
+  let decrees := match m.val with
+    | .phase2a _ _ d => d
+    | _ => default  -- dead branch
+  let replyMsgSet := decSet.map decrees fun d =>
+    Msg.phase2b a b d.slot d.val
   Send replyMsgSet
 }
 
-
-
 -- VotedForIn(a, b, s, v) ==
---   \E m \in sent : /\ m.type = "2b"
---                   /\ m.bal = b
---                   /\ m.slot = s
---                   /\ m.val = v
---                   /\ m.from = a
-ghost relation VotedForIn (a : acceptor) (b : ballot) (s : slot) (v : value) :=
-  ∃ (m : {m // m ∈ sent}),
-    m.val.msgType = .Phase2b ∧
-    m.val.bal = b ∧
-    m.val.slot = s ∧
-    m.val.val = v ∧
-    m.val.src = .fromAcceptor a
--- ChosenIn(b, s, v) == \E Q \in Quorums :
---                      \A a \in Q : VotedForIn(a, b, s, v)
-ghost relation ChosenIn (b : ballot) (s : slot) (v : value) :=
-  ∃ (Q : quorum),
-    ∀ (a : acceptor),
-      member a Q → VotedForIn a b s v
+--   \E m \in sent : /\ m.type = "2b" /\ m.bal = b /\ m.slot = s /\ m.val = v /\ m.from = a
+ghost relation VotedForIn (a : acceptor) (b : BallotTy maxBallot) (s : slot) (v : value) :=
+  msgSet.contains (.phase2b a b s v) sent
+
+-- ChosenIn(b, s, v) == \E Q \in Quorums : \A a \in Q : VotedForIn(a, b, s, v)
+ghost relation ChosenIn (b : BallotTy maxBallot) (s : slot) (v : value) :=
+  ∃ (Q : quorum), ∀ a, member a Q → VotedForIn a b s v
+
 -- Chosen(v, s) == \E b \in Ballots : ChosenIn(b, s, v)
 ghost relation Chosen (v : value) (s : slot) :=
-  ∃ (b : ballot), ChosenIn b s v
+  ∃ b, ChosenIn b s v
+
 -- Consistency == \A v1, v2 \in Values, s \in Slots : Chosen(v1, s) /\ Chosen(v2, s) => (v1 = v2)
 invariant [consistency]
-  ∀ (v1 v2 : value) (s : slot),
-    (Chosen v1 s ∧ Chosen v2 s) → (v1 = v2)
-
+  ∀ (v1 v2 : value) (s : slot), (Chosen v1 s ∧ Chosen v2 s) → (v1 = v2)
 
 #gen_spec
 #gen_executable
 
-/- To compare the efficiency with TLA+ model, here we use
-`quorum := Fin 3` and `member relation` to concretize the parameters.
-As `Quorum n` would provide the complete set of quorums,
-which is larger than the configuration used in TLA+ model.
-
-`Quroum n` can be taken as an optimization for UX, which is easy
-to use and avoids defining `member` relation manually. But it would
-introduce more `States Found`, making the model checking take longer time.
-
-A rough comparison:
-- Using `quorum := Fin 3` and `member` relation:
-  Diameter: 28
-  States Found: 124437823
-  Distinct States: 11431369
-  Time: 10min 46.3s
-- Using `quorum := Quorum 3` without `member` relation:
-  Diameter: 28
-  States Found: 125347633
-  Distinct States: 11431369
-  Time: 16min 59.1s
--/
--- #model_check
+-- #model_check compiled
 -- {
--- -- Based on MultiPaxosUs.cfg:
--- -- Acceptors = {a1, a2, a3}        -> Fin 3
--- -- Proposers = {p1, p2}            -> Fin 2
--- -- Values = {v1, v2}               -> Fin 2
--- -- Quorums = {{a1,a2},{a1,a3},{a2,a3}} -> Fin 3
--- -- MaxBallot = 2                   -> 0..2, Fin 3
--- -- MaxSlot = 1                     -> 0..1, Fin 2
---   ballot := Fin 3,
---   slot := Fin 2,
+--   slot := Fin 3,
 --   value := Fin 2,
 --   acceptor := Fin 3,
 --   proposer := Fin 2,
 --   quorum := Fin 3,
---   SlotSet := ExtTreeSet (Fin 2) compare,
---   VotedSet := ExtTreeSet (Voted (Fin 3) (Fin 2) (Fin 2)) compare,
---   DecreeSet := ExtTreeSet (Decree (Fin 2) (Fin 2)) compare,
---   MsgSet := ExtTreeSet (Msg (Fin 2) (Fin 3) (Fin 2) (Fin 3) (Fin 2) (ExtTreeSet (Voted (Fin 3) (Fin 2) (Fin 2)) compare) (ExtTreeSet (Decree (Fin 2) (Fin 2)) compare)) compare,
---   AcceptorSet := ExtTreeSet (Fin 3) compare
+--   maxBallot := 2,
+--   VotedSet := OrdList _,
+--   DecreeSet := OrdList _,
+--   MsgSet := OrdList _,
+--   AcceptorSet := OrdList _
 -- }
--- {
---   one := 1,
---   AcceptorsUNIV := [0, 1, 2],  -- a0, a1, a2
---   -- Quorums: q0 = {a0, a1}, q1 = {a0, a2}, q2 = {a1, a2}
---   member := fun a q =>
---     match a.val, q.val with
---     | 0, 0 => true
---     | 1, 0 => true
---     | 0, 1 => true
---     | 2, 1 => true
---     | 1, 2 => true
---     | 2, 2 => true
---     | _, _ => false
---   SlotsUNIV := [0, 1]  -- slot 0, 1
--- }
---   (maxDepth := 1) (sequential := true)
 
 end MultiPaxos
