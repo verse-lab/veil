@@ -213,6 +213,32 @@ theorem IteratedProd.foldMap_eq_cartesianProduct {α : Type} {ts : List Type}
     | nil => rfl
     | cons x lis' ih => simp [List.product, ih, List.foldl_map, ← eq] ; rfl
 
+def IteratedProd.allComplete {ts : List Type} (elements : IteratedProd (ts.map (Unit → List ·))) : Prop :=
+  elements.fold True (fun lis acc => (∀ a, a ∈ lis ()) ∧ acc)
+
+theorem IteratedProd.cartesianProduct_complete {ts : List Type}
+    {elements : IteratedProd (ts.map (Unit → List ·))}
+    (h : elements.allComplete) (p : IteratedProd ts) : p ∈ elements.cartesianProduct := by
+  induction ts with
+  | nil => cases p; exact List.mem_cons_self
+  | cons t ts ih =>
+    rcases elements with ⟨e, rest⟩
+    rcases p with ⟨a, p⟩
+    change (a, p) ∈ (e ()).product (IteratedProd.cartesianProduct rest)
+    simp only [List.product, List.mem_flatMap, List.mem_map]
+    exact ⟨a, h.1 a, p, ih h.2 p, rfl⟩
+
+theorem IteratedProd.foldMap_complete {α : Type} {ts : List Type}
+    {f : IteratedArrow (List α → List α) ts}
+    {elements : IteratedProd (ts.map (Unit → List ·))}
+    {mk : IteratedProd ts → α}
+    (hf : ∀ (p : IteratedProd ts) (acc : List α), f.uncurry p acc = mk p :: acc)
+    (hcomplete : elements.allComplete) (p : IteratedProd ts) :
+    mk p ∈ IteratedProd.foldMap ([] : List α) f elements := by
+  rw [IteratedProd.foldMap_eq_cartesianProduct _ _ (fun acc p => mk p :: acc) (by intro a p; rw [hf])]
+  simp only [List.foldl_flip_cons_eq_append, List.append_nil, List.mem_reverse, List.mem_map]
+  exact ⟨p, cartesianProduct_complete hcomplete p, rfl⟩
+
 -- TODO any existing way to define this kind of shortcutting comparison function?
 -- maybe something like `fold₂`? or use thunks?
 def IteratedProd.patCmp {ts : List Type} {T : Type → Type}
@@ -373,16 +399,18 @@ theorem exists_mapped_candidate {f : α → β} {p : α → Prop} {q : β → Pr
   ⟨fun ⟨_, ⟨a, ha, hab⟩, hb⟩ => ⟨a, ha, hab.symm ▸ hb⟩,
    fun ⟨a, hp, hq⟩ => ⟨f a, ⟨a, hp, rfl⟩, hq⟩⟩
 
-@[no_expose] private def mkAllValuesFromHeader (header : Header) (localInsts fieldNames : Array Name) : TermElabM Term := do
+@[no_expose] private def mkAllValuesAndCompleteFromHeader (header : Header) (localInsts fieldNames : Array Name) :
+    TermElabM (Term × Term) := do
   -- for the types, knowing the length of `ts` should be enough
+  -- Part 1: build `allValues` with `IteratedProd.foldMap`
   let ts ← do
     let hole ← `(_)
     let holes := Array.replicate fieldNames.size hole
     `([$holes:term,*])
   let init ← `(([] : List $(header.targetType)))
+  let fieldIdents ← fieldNames.mapM (mkIdent <$> mkFreshUserName ·)
   let f ← do
     let res ← mkIdent <$> mkFreshUserName `res
-    let fieldIdents ← fieldNames.mapM (mkIdent <$> mkFreshUserName ·)
     `(fun $fieldIdents* $res => ⟨$fieldIdents,*⟩ :: $res)
   let enums ← do
     let arr ← localInsts.mapM fun inst => `(fun (_ : $(mkIdent ``Unit)) => $(mkIdent inst).$(mkIdent `allValues))
@@ -391,15 +419,32 @@ theorem exists_mapped_candidate {f : α → β} {p : α → Prop} {q : β → Pr
     else
       let arr := arr.push (← `($(mkIdent ``PUnit.unit)))
       `(⟨$arr,*⟩)
-  `(@$(mkIdent ``IteratedProd.foldMap) _ $ts $init $f $enums)
+  let allValues ← `(@$(mkIdent ``IteratedProd.foldMap) _ $ts $init $f $enums)
+  -- Part 2: build `complete` proof. Package each field's complete function into
+  -- `allComplete`, leaving Cartesian-product recursion to the generic theorem.
+  -- In the explicit theorem applications below, `_` supplies the `mk` argument.
+  let completeProof ← do
+    let allCompleteProof ← localInsts.foldrM (init := mkIdent ``True.intro) fun inst acc =>
+      `(⟨$(mkIdent inst).$(mkIdent `complete), $acc⟩)
+    if fieldNames.isEmpty then
+      let a := mkIdent `a
+      `(by
+        intro $a:ident ; cases $a:ident
+        exact @$(mkIdent ``IteratedProd.foldMap_complete) $(header.targetType) $ts $f $enums _ (fun _ _ => rfl)
+          $allCompleteProof ())
+    else
+      let fieldPats ← fieldIdents.mapM fun id => `(rcasesPat| $id:ident)
+      let tupleArgs := fieldIdents.map (fun id => (⟨id.raw⟩ : Term)) |>.push (← `($(mkIdent ``Unit.unit)))
+      `(by
+        rintro ⟨$fieldPats,*⟩
+        exact @$(mkIdent ``IteratedProd.foldMap_complete) $(header.targetType) $ts $f $enums _ (fun _ _ => rfl)
+          $allCompleteProof ⟨$tupleArgs,*⟩)
+  return (allValues, completeProof)
 
 @[no_expose] def mkEnumerationInstCmdForStructure (declName : Name) : CommandElabM Bool := ForStructure.mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
   let (localInsts, binders') ← mkInstImplicitBindersForFields ``Enumeration indVal header.argNames fieldNames
-  let allValues ← mkAllValuesFromHeader header localInsts fieldNames
-  let completeProof ← do
-    let aIdent ← mkIdent <$> mkFreshUserName `a
-    `(by intro $aIdent:ident ; cases $aIdent:ident ; try (simp [$(mkIdent ``IteratedProd.foldMap):ident, $(mkIdent ``exists_mapped_candidate):ident] ; try grind))
+  let (allValues, completeProof) ← mkAllValuesAndCompleteFromHeader header localInsts fieldNames
   `(instance $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
       $(mkIdent ``Enumeration) $(header.targetType) where
     $(mkIdent `allValues):ident := $allValues
