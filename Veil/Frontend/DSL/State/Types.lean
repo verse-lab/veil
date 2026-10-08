@@ -846,26 +846,6 @@ meta section FinEncodableInjOnlyDerivingHandler
 open Lean Meta Elab Term Command Deriving
 open Lean.Parser.Term (matchAltExpr matchDiscr matchAlt)
 
-/-- Convert a simple type `Expr` to `Syntax`, mapping parameter fvars to `header.argNames`.
-    Handles `const`, `app`, `fvar`, `sort`, `bvar`, and `mdata`. Sufficient for field types
-    of simple (non-indexed, non-recursive) inductive types. -/
-@[no_expose] private partial def typeExprToSyntax (paramFvars : Array Expr) (argNames : Array Name) (e : Expr) : TermElabM Term := do
-  -- Check if it's a parameter fvar
-  for i in [:paramFvars.size] do
-    if paramFvars[i]! == e then return ⟨mkIdent argNames[i]!⟩
-  match e with
-  | .const name lvls =>
-    if lvls.isEmpty then `($(mkCIdent name))
-    else `($(mkCIdent name))  -- universe levels are inferred
-  | .app f a => do
-    let fStx ← typeExprToSyntax paramFvars argNames f
-    let aStx ← typeExprToSyntax paramFvars argNames a
-    `($fStx $aStx)
-  | .fvar id => `($(mkIdent (← id.getUserName)))
-  | .mdata _ e' => typeExprToSyntax paramFvars argNames e'
-  | .sort .. => `(Type _)
-  | _ => throwError "typeExprToSyntax: unsupported expression kind {e}"
-
 /-- Generate the cardinality expression for a constructor's fields, matching
     the right-nested Sigma structure that `veil_proxy_equiv%` generates.
     - 0 fields → `(1 : Nat)` (Unit card)
@@ -907,61 +887,72 @@ where
     let inner ← mkFullEncodeSyntax rest localEncode
     `($card + $inner)
 
+scoped syntax (name := finEncodableInjOnlyTerm) "veil_fin_encodable_inj_only% " term : term
+
+/-- Elaborate the encoder inside the generated instance's parameter context.
+    `exprToSyntax` embeds field types without delaboration, preserving binders, implicit
+    arguments, and universe levels. Its assigned metavariables must be consumed here,
+    in the same term elaboration, rather than in a later command elaboration. -/
+@[term_elab finEncodableInjOnlyTerm, no_expose]
+def elabFinEncodableInjOnly : TermElab := fun stx _ => do
+  let `(veil_fin_encodable_inj_only% $type) := stx | throwUnsupportedSyntax
+  let (targetType, indVal) ← ProxyType.elabProxyEquiv type none
+  let config := ProxyType.ProxyEquivConfig.default indVal
+  ProxyType.ensureProxyEquiv config indVal
+  let some (_, levels) := targetType.getAppFn.const? | throwUnsupportedSyntax
+  let params := targetType.getAppArgs
+  let equiv ← exprToSyntax (← mkAppM ``Equiv.symm
+    #[mkAppN (Lean.mkConst config.proxyEquivName levels) params])
+  -- Collect match arms and constructor cardinalities
+  let mut allMatchAlts : Array (TSyntax ``matchAltExpr) := #[]
+  let mut prevCtorCards : List Term := []
+  for ctorName in indVal.ctors do
+    let ctorInfo ← getConstInfoCtor ctorName
+    let ctorExpr := mkAppN (Lean.mkConst ctorName levels) params
+    let ctorType ← inferType ctorExpr
+    let fieldData? ← forallBoundedTelescope ctorType ctorInfo.numFields fun fields _ => do
+      let mut names : Array Ident := #[]
+      let mut types : Array Term := #[]
+      for i in [:fields.size] do
+        let field := fields[i]!
+        let fieldType ← inferType field
+        -- A dependent Sigma does not have a fixed product of field cardinalities.
+        -- Use its generic encoding instead, if the corresponding instance exists.
+        if fields.any (·.occurs fieldType) then return none
+        names := names.push (mkIdent (← mkFreshUserName `_f))
+        types := types.push (← exprToSyntax fieldType)
+      return some (names, types)
+    let some (fieldNameIdents, fieldTypeSyntaxes) := fieldData?
+      | return ← elabTerm (← `($(mkIdent ``FinEncodableInjOnly.ofEquiv) $equiv)) none
+    -- Compute local encoding for this constructor's fields
+    let localEncode ← mkLocalEncodeSyntax (fieldNameIdents.zip fieldTypeSyntaxes).toList
+    -- Build full encoding with right-nested offset
+    let fullEncode ← mkFullEncodeSyntax prevCtorCards localEncode
+    -- Explicit patterns also bind implicit constructor fields.
+    let places := Array.replicate indVal.numParams (← `(term| _))
+    let fieldTerms : Array Term := fieldNameIdents.map (⟨·.raw⟩)
+    let arm ← `(matchAltExpr| | @$(mkCIdent ctorName) $places* $fieldTerms* => $fullEncode)
+    allMatchAlts := allMatchAlts.push arm
+    -- Compute this constructor's cardinality for subsequent offsets
+    let ctorCard ← mkCtorCardSyntax fieldTypeSyntaxes.toList
+    prevCtorCards := prevCtorCards ++ [ctorCard]
+  -- Build the encode function using match
+  let alts : Array (TSyntax ``matchAlt) := allMatchAlts.map (⟨·.raw⟩)
+  let xIdent := mkIdent (← mkFreshUserName `x)
+  let discr ← `(matchDiscr| $xIdent:ident)
+  let discrs := #[discr]
+  let matchExpr ← `(match $[$discrs],* with $alts:matchAlt*)
+  let encFn ← `(fun $xIdent => $matchExpr)
+  elabTerm (← `($(mkIdent ``FinEncodableInjOnly.ofEquivWithEnc) $equiv $encFn
+    (by intro x; cases x <;> rfl))) none
+
 @[no_expose] def mkFinEncodableInjOnlyInstCmdDeforested (declName : Name) : CommandElabM Bool := do
   let indVal ← getConstInfoInduct declName
   let cmd ← liftTermElabM do
     let instName ← mkInstName ``FinEncodableInjOnly declName
     let header ← mkHeader ``FinEncodableInjOnly 0 indVal
-    let levels := indVal.levelParams.map mkLevelParam
-    -- Collect match arms and constructor cardinalities
-    let mut allMatchAlts : Array (TSyntax ``matchAltExpr) := #[]
-    let mut prevCtorCards : List Term := []
-    for ctorName in indVal.ctors do
-      let ctorExpr := Lean.mkConst ctorName levels
-      let ctorType ← inferType ctorExpr
-      -- Extract field names and field type syntaxes (for offset cardinalities).
-      -- Uses typeExprToSyntax to map parameter fvars → header.argNames (no `delab`).
-      let (fieldNameIdents, fieldTypeSyntaxes) ← forallTelescopeReducing ctorType fun xs _ => do
-        let paramFvars := xs[:indVal.numParams]
-        let fields := xs[indVal.numParams:]
-        let mut names : Array Ident := #[]
-        let mut types : Array Term := #[]
-        for i in [:fields.size] do
-          let field := fields[i]!
-          let fieldType ← inferType field
-          let fieldTypeSyntax ← typeExprToSyntax paramFvars header.argNames fieldType
-          names := names.push (mkIdent (Name.mkSimple s!"_f{i}"))
-          types := types.push fieldTypeSyntax
-        return (names, types)
-      -- Compute local encoding for this constructor's fields
-      let localEncode ← mkLocalEncodeSyntax (fieldNameIdents.zip fieldTypeSyntaxes).toList
-      -- Build full encoding with right-nested offset
-      let fullEncode ← mkFullEncodeSyntax prevCtorCards localEncode
-      -- Build match arm: | .ctorName f0 f1 ... => fullEncode
-      let ctorShortName := ctorName.replacePrefix declName .anonymous
-      let ctorIdent := mkIdent ctorShortName
-      let fieldTerms : Array Term := fieldNameIdents.map (⟨·.raw⟩)
-      let arm ←
-        if fieldTerms.isEmpty then
-          `(matchAltExpr| | .$ctorIdent => $fullEncode)
-        else
-          `(matchAltExpr| | .$ctorIdent $fieldTerms:term* => $fullEncode)
-      allMatchAlts := allMatchAlts.push arm
-      -- Compute this constructor's cardinality for subsequent offsets
-      let ctorCard ← mkCtorCardSyntax fieldTypeSyntaxes.toList
-      prevCtorCards := prevCtorCards ++ [ctorCard]
-    -- Build the encode function using match
-    let alts : Array (TSyntax ``matchAlt) := allMatchAlts.map (⟨·.raw⟩)
-    let xIdent : Ident := mkIdent `__x
-    let discr ← `(matchDiscr| $xIdent:ident)
-    let discrs := #[discr]
-    let matchExpr ← `(match $[$discrs],* with $alts:matchAlt*)
-    let encFn ← `(fun $xIdent => $matchExpr)
-    -- Build the full instance definition
     let funBinders ← header.binders.mapM bracketedBinderToFunBinder
-    let target ← `((FinEncodableInjOnly.ofEquivWithEnc (veil_proxy_equiv% $header.targetType).symm
-      $encFn
-      (by intro x; cases x <;> rfl) :
+    let target ← `((veil_fin_encodable_inj_only% $header.targetType :
       FinEncodableInjOnly $header.targetType))
     let defBody ← mkFunSyntax funBinders target
     `(command|@[implicit_reducible, instance] def $(mkIdent instName) := remove_unused_args% $defBody)
