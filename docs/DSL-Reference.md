@@ -159,6 +159,12 @@ immutable function nextNode : node -> node  -- ring topology is fixed
 mutable relation pending : node -> node -> Bool  -- messages can change
 ```
 
+A constant function or relation can also be a `param` or a type-class field
+introduced by `instantiate`. These are parameters of the module rather than
+run-time theory values, so the compiled model checker calls them directly and
+*might* runs faster; see
+[ModelChecker-Guide.md](ModelChecker-Guide.md#constant-functions-and-relations).
+
 ### 5. State Generation
 
 After declaring state components, generate the state type:
@@ -332,9 +338,9 @@ invariant pending L L → le N L
 
 #### Assumptions
 
-Axioms about the background theory. Assumptions can only refer to `immutable`
-state components (to assume facts about `mutable` components, use
-`trusted invariant`):
+Axioms about the background theory. Assumptions can refer to `immutable`
+state components, `param`s, and type-class fields, but not to `mutable`
+components (to assume facts about those, use `trusted invariant`):
 
 ```lean
 assumption [ring_topology] ∀ n, nextNode (nextNode n) ≠ n
