@@ -106,3 +106,34 @@ error: ❌ Violation: safety_failure (violates: safe)
   (fingerprintType := UInt64) (maxDepth := 1)
 
 end FingerprintType
+
+/-!
+A state with a single field hashes to that field's own hash, without `mixHash`; for an enum that
+is the constructor's index (0, 1, 2 below). The default `Nat` fingerprint must keep the low bits:
+shifting the hash right by one bit gave `a` and `b` the same fingerprint, and the search stopped
+after 2 states.
+-/
+
+veil module FingerprintSingleField
+
+enum E = {a, b, c}
+individual x : E
+
+#gen_state
+
+after_init { x := a }
+action step (i : E) { x := i }
+
+invariant true
+
+#gen_spec
+
+/-- info: ✅ No violation (explored 3 states) -/
+#guard_msgs in
+#model_check interpreted {} {}
+
+/-- info: ✅ No violation (explored 3 states) -/
+#guard_msgs in
+#model_check interpreted {} {} (fingerprintType := UInt64)
+
+end FingerprintSingleField
