@@ -3,7 +3,7 @@ open Lake DSL System
 
 require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.32.0-veil-no-mathlib"
 require Loom from git "https://github.com/verse-lab/loom.git" @ "v4.32.0-for-veil"
-require VerifiedHAMT from git "https://github.com/verse-lab/VerifiedHAMT.git" @ "cf6ee753ee223be0d23ba82e21feecbd0833819f"
+require VerifiedHAMT from git "https://github.com/verse-lab/VerifiedHAMT.git" @ "24bbc61c6ca37ef38f984566399461c9afa2b0d3"
 
 require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.32.0"
 require aesop from git "https://github.com/leanprover-community/aesop" @ "v4.32.0"
