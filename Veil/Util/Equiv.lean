@@ -20,6 +20,11 @@ namespace Veil
 
 namespace Function
 abbrev Injective (f : α → β) := ∀ ⦃a b⦄, f a = f b → a = b
+abbrev InjectiveOn (f : α → β) (p : α → Prop) := ∀ ⦃x₁ : α⦄, p x₁ → ∀ ⦃x₂ : α⦄, p x₂ → f x₁ = f x₂ → x₁ = x₂
+
+theorem InjectiveOn_of_Injective {f : α → β} (hf : Function.Injective f) (p : α → Prop) : Function.InjectiveOn f p := by
+  unfold Function.InjectiveOn Function.Injective at * ; grind
+
 abbrev LeftInverse (g : β → α) (f : α → β) := ∀ a, g (f a) = a
 abbrev RightInverse (g : β → α) (f : α → β) := LeftInverse f g
 end Function

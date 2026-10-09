@@ -459,7 +459,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
     rcases h_local_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_not_explored_all, h_dj, h_same_dom, h_succ_coll⟩ ; dsimp only at *
     grind
   · simp
-    intro hinj x hh ; rcases hh with hh | hh
+    intro x hh ; rcases hh with hh | hh
     · grind
     · rw [h_fps] at hh ; rcases hh with ⟨⟨fpSt, curr⟩, hh, heq⟩ ; dsimp at heq ; subst fpSt
       -- NOTE: This is repeating
@@ -475,7 +475,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   · simp ; grind
   · simp ; grind
   · whnf ; simp
-    intro hinj hor u hh h_not_in_pfx
+    intro hinj hor u h_reachable hh h_not_in_pfx
     rcases hor with _ | h_not_finished_mbase
     on_goal 1=> grind
     rcases hh with hh | hh
@@ -484,7 +484,8 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
       · clear h_closed
         simp at h_in_tovisit? ; rcases h_in_tovisit? with ⟨⟨fpSt, curr⟩, h_in_tovisit, heq⟩
         dsimp at heq ; subst fpSt
-        have := hinj (h_q_sound _ _ h_in_tovisit |>.right.right) ; subst curr -- unify `curr` with `u`
+        have := hinj h_reachable (h_q_sound _ _ h_in_tovisit |>.left)
+          (h_q_sound _ _ h_in_tovisit |>.right.right) ; subst curr -- unify `curr` with `u`
         -- here, need the split covering theorem
         obtain ⟨chunk, h_chunk_in, h_in_chunk⟩ := ListSplit.splitList_mem numSplits chunkSize numLarge tovisit ⟨fp.view u, u⟩ h_in_tovisit
         rw [List.mem_iff_getElem] at h_chunk_in

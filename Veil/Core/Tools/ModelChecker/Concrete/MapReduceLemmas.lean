@@ -66,7 +66,7 @@ theorem MapReduceSearchContextMainInvariants.bfs_completeness
   {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard}
   (mctx_invs : MapReduceSearchContextMainInvariants sys params mctx)
   (h_explore_all : mctx.base.finished = some (.exploredAllReachableStates))
-  (h_view_inj : Function.Injective fp.view) :
+  (h_view_inj : Function.InjectiveOn fp.view sys.reachable) :
   ∀ s : σ, sys.reachable s → (fp.view s) ∈ mctx.globalSeen := by
   rcases mctx with ⟨ctx, mlen, q, gs⟩ ; rcases mctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed, h_len⟩ ; dsimp only at *
   intro s h_reachable

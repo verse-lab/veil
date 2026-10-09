@@ -184,7 +184,9 @@ structure SearchContextInvariants {ρ σ κ σₕ : Type}
   (seen : σₕ → Prop) : Prop
 where
   queue_sound        : ∀ x st, inQueue x st → sys.reachable st ∧ seen x ∧ x = fp.view st
-  visited_sound      : Function.Injective fp.view → ∀ x, seen (fp.view x) → sys.reachable x
+  /-- Every seen fingerprint comes from a reachable state. Unreachable states may
+      share its fingerprint even when the view is injective on reachable states. -/
+  visited_sound      : ∀ x, seen x → ∃ st, sys.reachable st ∧ x = fp.view st
 
 variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
   (params : SearchParameters ρ σ) (th : ρ) (fpSt : σₕ) (curr : σ)
