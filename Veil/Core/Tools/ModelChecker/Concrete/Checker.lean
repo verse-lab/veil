@@ -17,14 +17,14 @@ either the sequential or parallel implementation based on configuration. -/
 step when the violation is an assertion failure with exception `assertionFailureExId`. -/
 private def recoverViolationTrace {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT IO m]
-  [fp : StateFingerprint σ σₕ] [Repr σₕ]
+  [StateFingerprint σ σₕ] [Repr σₕ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
-  (log : Std.HashMap σₕ (LogEntry σₕ κ))
+  (look : LogLookup σₕ κ)
   (fingerprint : σₕ)
   (assertionFailureExId : Option Int := none)
   : m (Trace ρ σ κ) := do
-  match recoverTrace? sys log fingerprint with
+  match recoverTrace? sys look fingerprint with
   | some trace =>
     let failingStep := assertionFailureExId.bind fun exId =>
       (sys.tr th trace.lastState).failures.find? (·.error == exId) |>.map fun f =>
@@ -43,11 +43,11 @@ private def searchResult {ρ σ κ σₕ : Type} {m : Type → Type}
   : m (ModelCheckingResult ρ σ κ σₕ) := do
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
-    return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverViolationTrace (traceSys ()) ctx.log fingerprint))
+    return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverViolationTrace (traceSys ()) (logLookup ctx.log) fingerprint))
   | some (.earlyTermination (.deadlockOccurred fingerprint)) => do
-    return ModelCheckingResult.foundViolation fingerprint .deadlock (some (← recoverViolationTrace (traceSys ()) ctx.log fingerprint))
+    return ModelCheckingResult.foundViolation fingerprint .deadlock (some (← recoverViolationTrace (traceSys ()) (logLookup ctx.log) fingerprint))
   | some (.earlyTermination (.assertionFailed fingerprint exId)) => do
-    return ModelCheckingResult.foundViolation fingerprint (.assertionFailure exId) (some (← recoverViolationTrace (traceSys ()) ctx.log fingerprint (some exId)))
+    return ModelCheckingResult.foundViolation fingerprint (.assertionFailure exId) (some (← recoverViolationTrace (traceSys ()) (logLookup ctx.log) fingerprint (some exId)))
   | some (.earlyTermination (.reachedDepthBound _)) =>
     -- No violation found within depth bound; report number of states explored
     return ModelCheckingResult.noViolationFound distinctCount (.earlyTermination (.reachedDepthBound ctx.completedDepth))
@@ -61,7 +61,7 @@ private def searchResult {ρ σ κ σₕ : Type} {m : Type → Type}
       let assertionExId := match violation with
         | .assertionFailure exId => some exId
         | _ => none
-      return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverViolationTrace (traceSys ()) ctx.log fingerprint assertionExId))
+      return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverViolationTrace (traceSys ()) (logLookup ctx.log) fingerprint assertionExId))
     | [] =>
       return ModelCheckingResult.noViolationFound distinctCount (.exploredAllReachableStates)
   | none => panic! s!"SearchContext.finished is none! This should never happen."

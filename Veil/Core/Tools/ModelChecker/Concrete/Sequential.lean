@@ -231,14 +231,14 @@ theorem SequentialSearchContext.processSuccessors_log_sound
       dsimp only at *
       simp at hnotseen
       have hle : ∀ x s, rep x = some s → repUpdate rep (fp.view succ) succ x = some s := by
-        unfold repUpdate ; grind [LogInvariants.rep_mem]
+        unfold repUpdate ; grind [LogInvariants.mem_of_rep_isSome]
       apply ih (rep := repUpdate rep (fp.view succ) succ)
         (dep := depUpdate dep (fp.view succ) (dep fpSt + 1))
-      on_goal 2=> unfold repUpdate ; grind [LogInvariants.rep_mem]
+      on_goal 2=> unfold repUpdate ; grind [LogInvariants.mem_of_rep_isSome]
       constructor
-      · apply hlog.insert_step <;> try trivial
-        grind [List.mem_zipIdx_iff_getElem?]
-      · intro item hi ; rw [fQueue.mem_enqueue_iff] at hi ; unfold repUpdate ; grind [LogInvariants.rep_mem]
+      · rw [logLookup_insert] ; apply hlog.update_step <;> try trivial
+        all_goals grind [List.mem_zipIdx_iff_getElem?]
+      · intro item hi ; rw [fQueue.mem_enqueue_iff] at hi ; unfold repUpdate ; grind [LogInvariants.mem_of_rep_isSome]
       · intro v hv' ; exact (hv v hv').mono sys hle
       · exact hf.mono sys hle
 

@@ -9,14 +9,48 @@ namespace Veil.ModelChecker.Concrete
 /-! ## Trace recovery
 
 The search records, for each fingerprint it sees, how it first reached a state of that
-fingerprint (`LogEntry`). `retrace` walks these entries back to an initial state, and `rebuild`
-re-executes the system along the positions they record. `LogInvariants` is what the search
-guarantees about its log, stated in terms of the representative state `rep x` it explored for
-each fingerprint `x` and a depth `dep x` that decreases along parent links
-(*the search never stores either; they exist only in the proofs*): it makes recovery total,
-and the recovered trace end at `rep x`. None of
-this assumes `fp.view` to be injective; a collision costs the search completeness (it drops a
-state), never the soundness of the trace it reports. -/
+fingerprint (`LogEntry`). Recovery reads the log as a function from fingerprints to entries
+(`LogLookup`), so it does not depend on how a search stores its log. `retrace` walks the entries
+back to an initial state, and `rebuild` re-executes the system along the positions they record.
+`LogInvariants` is what the search guarantees about its log, stated in terms of the
+representative state `rep x` it explored for each fingerprint `x` and a depth `dep x` that
+decreases along parent links (*the search never stores either; they exist only in the proofs*):
+it makes recovery total, and the recovered trace end at `rep x`. None of this assumes `fp.view`
+to be injective; a collision costs the search completeness (it drops a state), never the
+soundness of the trace it reports. -/
+
+section Helpers
+
+variable {σ κ σₕ : Type}
+
+/-- A log as recovery reads it: what was recorded for a fingerprint, if anything. -/
+abbrev LogLookup (σₕ κ : Type) := σₕ → Option (LogEntry σₕ κ)
+
+/-- The log held in a hash map. -/
+def logLookup [BEq σₕ] [Hashable σₕ] (m : Std.HashMap σₕ (LogEntry σₕ κ)) : LogLookup σₕ κ :=
+  fun y => m[y]?
+
+@[simp, grind =] theorem logLookup_apply [BEq σₕ] [Hashable σₕ]
+    {m : Std.HashMap σₕ (LogEntry σₕ κ)} {y : σₕ} : logLookup m y = m[y]? := rfl
+
+/-- `look` with `x` mapped to `e`. -/
+def lookUpdate [BEq σₕ] (look : LogLookup σₕ κ) (x : σₕ) (e : LogEntry σₕ κ) : LogLookup σₕ κ :=
+  fun y => if x == y then some e else look y
+
+theorem logLookup_insert [BEq σₕ] [Hashable σₕ] [LawfulBEq σₕ] [LawfulHashable σₕ]
+    {m : Std.HashMap σₕ (LogEntry σₕ κ)} {x : σₕ} {e : LogEntry σₕ κ} :
+    logLookup (m.insert x e) = lookUpdate (logLookup m) x e := by
+  funext y ; simp [logLookup, lookUpdate, Std.HashMap.getElem?_insert]
+
+/-- `rep` with `x` mapped to `s`. -/
+def repUpdate [BEq σₕ] (rep : σₕ → Option σ) (x : σₕ) (s : σ) : σₕ → Option σ :=
+  fun y => if y == x then some s else rep y
+
+/-- `dep` with `x` mapped to `n`. -/
+def depUpdate [BEq σₕ] (dep : σₕ → Nat) (x : σₕ) (n : Nat) : σₕ → Nat :=
+  fun y => if y == x then n else dep y
+
+end Helpers
 
 variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
@@ -34,11 +68,11 @@ deriving Repr
 initial state in `sys.initStates`, then one step per transition, in path order. Looks only at
 the log, and needs no bound on the length of the path: `retrace_rebuild` shows it terminates on
 a log that satisfies the invariant. -/
-def retrace (log : Std.HashMap σₕ (LogEntry σₕ κ)) (x : σₕ) (acc : List (RetracedStep σₕ κ)) :
+def retrace (look : LogLookup σₕ κ) (x : σₕ) (acc : List (RetracedStep σₕ κ)) :
     Option (Nat × List (RetracedStep σₕ κ)) :=
-  match log[x]? with
+  match look x with
   | some (.init i) => some (i, acc)
-  | some (.step p l i) => retrace log p (⟨x, l, i⟩ :: acc)
+  | some (.step p l i) => retrace look p (⟨x, l, i⟩ :: acc)
   | none => none
 partial_fixpoint
 
@@ -55,8 +89,8 @@ def rebuild (initIdx : Nat) (path : List (RetracedStep σₕ κ)) : Option (Trac
 
 /-- The trace from an initial state to the state the search explored for `x`, as the log
 records it. Pure; `recoverTrace` is the version that cannot fail. -/
-def recoverTrace? (log : Std.HashMap σₕ (LogEntry σₕ κ)) (x : σₕ) : Option (Trace ρ σ κ) :=
-  (retrace log x []).bind fun (i, path) => rebuild sys i path
+def recoverTrace? (look : LogLookup σₕ κ) (x : σₕ) : Option (Trace ρ σ κ) :=
+  (retrace look x []).bind fun (i, path) => rebuild sys i path
 
 /-! ### Validity of rebuilt traces, unconditionally -/
 
@@ -84,8 +118,9 @@ theorem rebuild_isValid {initIdx : Nat} {path : List (RetracedStep σₕ κ)} {t
   apply rebuildFrom_isValid sys _ _ _ rfl _ h
   apply Trace.isValid_empty <;> grind
 
-theorem recoverTrace?_isValid {log : Std.HashMap σₕ (LogEntry σₕ κ)} {x : σₕ} {t : Trace ρ σ κ}
-    (h : recoverTrace? sys log x = some t) : t.isValid sys.toRelational ∧ t.theory = th := by
+omit fp in
+theorem recoverTrace?_isValid {look : LogLookup σₕ κ} {x : σₕ} {t : Trace ρ σ κ}
+    (h : recoverTrace? sys look x = some t) : t.isValid sys.toRelational ∧ t.theory = th := by
   unfold recoverTrace? at h
   simp only [Option.bind_eq_some_iff] at h
   obtain ⟨⟨i, path⟩, _, h⟩ := h
@@ -98,35 +133,40 @@ fingerprint (`none` for fingerprints it has not seen), and `dep`, a depth that d
 state to its parent. Every entry is a true record about these representatives: the parent of a
 `step` entry is in the log, nearer to an initial state, and re-executing the recorded transition
 from the parent's representative yields the entry's own representative, with the recorded label. -/
-structure LogInvariants (log : Std.HashMap σₕ (LogEntry σₕ κ)) (rep : σₕ → Option σ) (dep : σₕ → Nat) : Prop where
+structure LogInvariants (look : LogLookup σₕ κ) (rep : σₕ → Option σ) (dep : σₕ → Nat) : Prop where
   rep_fp : ∀ x s, rep x = some s → fp.view s = x
-  rep_mem : ∀ x, (rep x).isSome → x ∈ log
-  init_ok : ∀ x i, log[x]? = some (.init i) → ∃ s, rep x = some s ∧ sys.initStates[i]? = some s
-  step_ok : ∀ x p l i, log[x]? = some (.step p l i) →
+  rep_mem : ∀ x, (rep x).isSome → (look x).isSome
+  init_ok : ∀ x i, look x = some (.init i) → ∃ s, rep x = some s ∧ sys.initStates[i]? = some s
+  step_ok : ∀ x p l i, look x = some (.step p l i) →
     dep p < dep x ∧
     ∃ sp s, rep p = some sp ∧ rep x = some s ∧ (sys.tr th sp).successes[i]? = some (l, s)
 
-theorem LogInvariants.rep_isSome_iff {log : Std.HashMap σₕ (LogEntry σₕ κ)} {rep : σₕ → Option σ} {dep : σₕ → Nat}
-    (h : LogInvariants sys log rep dep) {x : σₕ} : x ∈ log ↔ (rep x).isSome := by
+theorem LogInvariants.rep_isSome_iff {look : LogLookup σₕ κ} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+    (h : LogInvariants sys look rep dep) {x : σₕ} : (look x).isSome ↔ (rep x).isSome := by
   constructor
   on_goal 2=> apply h.rep_mem
   intro hx
-  rw [Std.HashMap.mem_iff_isSome_getElem?, Option.isSome_iff_exists] at hx
+  rw [Option.isSome_iff_exists] at hx
   obtain ⟨e, he⟩ := hx
   cases e with
   | init i => obtain ⟨s, hs, _⟩ := h.init_ok x i he ; grind
   | step p l i => obtain ⟨_, _, s, _, hs, _⟩ := h.step_ok x p l i he ; grind
 
+/-- For a log held in a hash map: every fingerprint with a representative is in the map. -/
+theorem LogInvariants.mem_of_rep_isSome {m : Std.HashMap σₕ (LogEntry σₕ κ)} {rep : σₕ → Option σ}
+    {dep : σₕ → Nat} (h : LogInvariants sys (logLookup m) rep dep) : ∀ x, (rep x).isSome → x ∈ m := by
+  intro x hx ; exact Std.HashMap.mem_iff_isSome_getElem?.mpr (h.rep_mem x hx)
+
 /-! ### Completeness of recovery under the invariant -/
 
 /-- Under the invariant, retracing `x` succeeds, and rebuilding the path ends at the
 representative of `x`. By induction on a bound on `dep x`. -/
-theorem retrace_rebuild {log : Std.HashMap σₕ (LogEntry σₕ κ)} {rep : σₕ → Option σ} {dep : σₕ → Nat}
-    (h : LogInvariants sys log rep dep) :
+theorem retrace_rebuild {look : LogLookup σₕ κ} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+    (h : LogInvariants sys look rep dep) :
     ∀ (e : LogEntry σₕ κ) (x : σₕ) (acc : List (RetracedStep σₕ κ)),
-      log[x]? = some e →
+      look x = some e →
       ∃ i path t s,
-        retrace log x acc = some (i, path ++ acc) ∧
+        retrace look x acc = some (i, path ++ acc) ∧
         rebuild sys i path = some t ∧
         rep x = some s ∧ t.lastState = s := by
   rcases h with ⟨rep_fp, rep_mem, init_ok, step_ok⟩
@@ -142,7 +182,7 @@ theorem retrace_rebuild {log : Std.HashMap σₕ (LogEntry σₕ κ)} {rep : σ�
   revert x hd ; induction d using Nat.strongRecOn generalizing p l i
   rename_i d ih ; intro x hd acc hx ; subst d
   obtain ⟨hlt, sp, s, hsp, hs, hi⟩ := step_ok x p l i hx
-  rcases hp : log[p]? with _ | (i' | ⟨p', l', i'⟩)
+  rcases hp : look p with _ | (i' | ⟨p', l', i'⟩)
   · grind [rep_mem p]
   · obtain ⟨sp_, hsp_, hi'⟩ := init_ok _ _ hp
     simp [hsp] at hsp_ ; subst sp_
@@ -162,56 +202,48 @@ theorem retrace_rebuild {log : Std.HashMap σₕ (LogEntry σₕ κ)} {rep : σ�
       rw [List.foldlM_append, hreb]
       grind
 
-theorem recoverTrace?_complete {log : Std.HashMap σₕ (LogEntry σₕ κ)} {rep : σₕ → Option σ} {dep : σₕ → Nat}
-    (h : LogInvariants sys log rep dep) {x : σₕ} (hx : x ∈ log) :
-    ∃ t s, recoverTrace? sys log x = some t ∧ rep x = some s ∧ t.lastState = s := by
-  rw [Std.HashMap.mem_iff_isSome_getElem?, Option.isSome_iff_exists] at hx
+theorem recoverTrace?_complete {look : LogLookup σₕ κ} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+    (h : LogInvariants sys look rep dep) {x : σₕ} (hx : (look x).isSome) :
+    ∃ t s, recoverTrace? sys look x = some t ∧ rep x = some s ∧ t.lastState = s := by
+  rw [Option.isSome_iff_exists] at hx
   obtain ⟨e, he⟩ := hx
   obtain ⟨i, path, t, s, hret, hreb, hs, hlast⟩ := retrace_rebuild sys h e x [] he
   exact ⟨t, s, by simp [recoverTrace?, hret, hreb], hs, hlast⟩
 
 /-- The trace from an initial state to the state the search explored for `x`. Total: the
 invariant says the log records such a trace. -/
-def recoverTrace (log : Std.HashMap σₕ (LogEntry σₕ κ)) (x : σₕ)
-    (h : ∃ rep dep, LogInvariants sys log rep dep) (hx : x ∈ log) : Trace ρ σ κ :=
-  (recoverTrace? sys log x).get (by
+def recoverTrace (look : LogLookup σₕ κ) (x : σₕ)
+    (h : ∃ rep dep, LogInvariants sys look rep dep) (hx : (look x).isSome) : Trace ρ σ κ :=
+  (recoverTrace? sys look x).get (by
     obtain ⟨rep, dep, h⟩ := h
     obtain ⟨t, _, ht, _⟩ := recoverTrace?_complete sys h hx
     simp [ht])
 
-theorem recoverTrace_isValid {log : Std.HashMap σₕ (LogEntry σₕ κ)} {x : σₕ}
-    {h : ∃ rep dep, LogInvariants sys log rep dep} {hx : x ∈ log} :
-    (recoverTrace sys log x h hx).isValid sys.toRelational ∧ (recoverTrace sys log x h hx).theory = th := by
+theorem recoverTrace_isValid {look : LogLookup σₕ κ} {x : σₕ}
+    {h : ∃ rep dep, LogInvariants sys look rep dep} {hx : (look x).isSome} :
+    (recoverTrace sys look x h hx).isValid sys.toRelational ∧ (recoverTrace sys look x h hx).theory = th := by
   unfold recoverTrace ; exact recoverTrace?_isValid sys (Option.some_get _).symm
 
-theorem recoverTrace_lastState {log : Std.HashMap σₕ (LogEntry σₕ κ)} {rep : σₕ → Option σ} {dep : σₕ → Nat}
-    (hrep : LogInvariants sys log rep dep) {x : σₕ} {s : σ} (hs : rep x = some s)
-    {h : ∃ rep dep, LogInvariants sys log rep dep} {hx : x ∈ log} :
-    (recoverTrace sys log x h hx).lastState = s := by
+theorem recoverTrace_lastState {look : LogLookup σₕ κ} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+    (hrep : LogInvariants sys look rep dep) {x : σₕ} {s : σ} (hs : rep x = some s)
+    {h : ∃ rep dep, LogInvariants sys look rep dep} {hx : (look x).isSome} :
+    (recoverTrace sys look x h hx).lastState = s := by
   obtain ⟨t, s', ht, hs', hlast⟩ := recoverTrace?_complete sys hrep hx
   rw [hs] at hs' ; injection hs' with hs' ; subst hs'
   simp [recoverTrace, ht, hlast]
 
 /-! ### Preservation of the invariant -/
 
-/-- `rep` with `x` mapped to `s`. -/
-def repUpdate (rep : σₕ → Option σ) (x : σₕ) (s : σ) : σₕ → Option σ :=
-  fun y => if y == x then some s else rep y
-
-/-- `dep` with `x` mapped to `n`. -/
-def depUpdate [BEq σₕ] (dep : σₕ → Nat) (x : σₕ) (n : Nat) : σₕ → Nat :=
-  fun y => if y == x then n else dep y
-
 /-- Recording a fresh fingerprint `x` as reached from `p`, whose representative `sp` has
 `(l, s)` as its `i`-th success, where `x` is the fingerprint of `s`. -/
-theorem LogInvariants.insert_step {log : Std.HashMap σₕ (LogEntry σₕ κ)} {rep : σₕ → Option σ} {dep : σₕ → Nat}
-    (h : LogInvariants sys log rep dep) {x p : σₕ} {l : κ} {i : Nat} {sp s : σ}
-    (hx : x ∉ log) (hrp : rep p = some sp)
+theorem LogInvariants.update_step {look : LogLookup σₕ κ} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+    (h : LogInvariants sys look rep dep) {x p : σₕ} {l : κ} {i : Nat} {sp s : σ}
+    (hx : look x = none) (hrp : rep p = some sp)
     (hi : (sys.tr th sp).successes[i]? = some (l, s)) (hfp : fp.view s = x) :
-    LogInvariants sys (log.insert x (.step p l i)) (repUpdate rep x s) (depUpdate dep x (dep p + 1)) := by
+    LogInvariants sys (lookUpdate look x (.step p l i)) (repUpdate rep x s) (depUpdate dep x (dep p + 1)) := by
   rcases h with ⟨rep_fp, rep_mem, init_ok, step_ok⟩
   have hpx : p ≠ x := by grind
-  constructor <;> unfold repUpdate <;> (try unfold depUpdate) <;> grind
+  constructor <;> (try unfold lookUpdate) <;> unfold repUpdate <;> (try unfold depUpdate) <;> grind
 
 /-! ### The initial log -/
 

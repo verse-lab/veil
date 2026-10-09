@@ -52,7 +52,7 @@ the search has queued and the violations it has recorded. Kept apart from
 `SequentialSearchContextInvariants`, since it is preserved for a growing `rep`. -/
 structure SequentialSearchContext.LogSound (sctx : SequentialSearchContext σ κ σₕ asm)
     (rep : σₕ → Option σ) (dep : σₕ → Nat) : Prop where
-  log_invs : LogInvariants sys sctx.1.log rep dep
+  log_invs : LogInvariants sys (logLookup sctx.1.log) rep dep
   queue_rep : ∀ item ∈ sctx.2, rep item.fingerprint = some item.state
   violations_sound : ∀ v ∈ sctx.1.violatingStates, ViolationSound sys params rep v
   termination_sound : TerminationSound sys params rep sctx.1.finished
