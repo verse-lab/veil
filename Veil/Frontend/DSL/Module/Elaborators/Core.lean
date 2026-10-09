@@ -665,7 +665,6 @@ private def mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig) (fin
   -- The fingerprint type comes from the `fingerprintType` option, the seen set's shard type from
   -- `seenSet`. The checker is generic in both and gets specialized to them at this call site.
   `(($(mkIdent ``Veil.ModelChecker.Concrete.findReachableThen)
-       ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
        ($(mkIdent `σₕ) := $fingerprintType)
        ($(mkIdent `Shard) := $seenSet $fingerprintType)
        ($(ectx.sysWithoutLog)) (fun _ => $traceSys)

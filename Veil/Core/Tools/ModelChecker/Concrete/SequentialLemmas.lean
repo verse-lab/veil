@@ -14,13 +14,52 @@ variable {ρ σ κ σₕ asm : Type}
   (params : SearchParameters ρ σ)
 
 @[expose] def SequentialSearchContext.initial : SequentialSearchContext σ κ σₕ asm :=
-  let iss := sys.initStates
-  (BaseSearchContext.initial iss, fQueue.ofList (iss.map (fun s => ⟨fp.view s, s, 0⟩)))
+  let (ctx, reps) := BaseSearchContext.initial (κ := κ) (asm := asm) sys.initStates
+  (ctx, fQueue.ofList (reps.map fun (s, _) => ⟨fp.view s, s, 0⟩))
 
-theorem SequentialSearchContextInvariants.initial :
-  SequentialSearchContextInvariants sys params .none (SequentialSearchContext.initial (fp := fp) sys) := by
-  constructor ; on_goal 1=> constructor
-  all_goals simp [SequentialSearchContext.isStableClosed, SequentialSearchContext.initial, BaseSearchContext.initial, ← fQueue.mem_ofList] ; (try solve | intros ; grind)
+theorem SequentialSearchContext.initial_invs :
+  SequentialSearchContextInvariants sys params .none (SequentialSearchContext.initial (fp := fp) sys) ∧
+    ∃ rep dep, (SequentialSearchContext.initial (fp := fp) sys).LogSound sys params rep dep := by
+  unfold SequentialSearchContext.initial BaseSearchContext.initial
+  have h := initialLogAndRepresentatives_description (κ := κ) (fp := fp) sys.initStates
+  generalize (initialLogAndRepresentatives (κ := κ) (fp := fp) sys.initStates) = res at h ⊢
+  rcases h with ⟨h1, h2, h3, h4⟩ ; rcases res with ⟨reps, log⟩
+  dsimp only at * ; simp at h3 h4
+  constructor ; on_goal 1=> constructor ; on_goal 1=> constructor
+  -- CHECK Hoist the use of `[Std.HashMap.mem_iff_isSome_getElem?, Option.isSome_iff_exists]` to `initialLogAndRepresentatives_description`?
+  all_goals (try simp [SequentialSearchContext.isStableClosed, ← fQueue.mem_ofList]) ; (try solve | intros ; grind)
+  · intros ; subst_vars ; simp
+    rename_i hh ; obtain ⟨h31, h32⟩ := h3 _ _ hh ; constructor ; grind
+    simp only [Std.HashMap.mem_iff_isSome_getElem?, Option.isSome_iff_exists, h4]
+    grind
+  · grind [Std.HashMap.mem_iff_isSome_getElem?, Option.isSome_iff_exists]
+  · intros s hin ; simp only [Std.HashMap.mem_iff_isSome_getElem?, Option.isSome_iff_exists, h4]
+    simp at h2
+    specialize h2 _ hin ; aesop
+  · simp only [Std.HashMap.mem_iff_isSome_getElem?, Option.isSome_iff_exists, h4]
+    grind
+  · let rep (a : σₕ) := (log[a]?).bind fun
+      | .init j => sys.initStates[j]?
+      | .step .. => none
+    exists rep, fun _ => 0 ; dsimp [rep]
+    constructor ; on_goal 1=> constructor
+    all_goals (try simp [← fQueue.mem_ofList, Option.bind_eq_some_iff]) ; try grind
+    · intros ; subst_vars ; simp [h4] ; grind
+    · constructor
+
+theorem SequentialSearchContextInvariants.setCancelled
+  {ctx : BaseSearchContext σ κ σₕ asm} {sq : fQueue (QueueItem σₕ σ)}
+  (h : SequentialSearchContextInvariants sys params .none (ctx, sq)) :
+  SequentialSearchContextInvariants sys params .none ({ ctx with finished := some (.earlyTermination .cancelled) }, sq) := by
+  rcases h with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩
+  constructor ; on_goal 1 => constructor
+  all_goals dsimp only at * ; try solve | assumption | grind
+
+theorem SequentialSearchContext.LogSound.setCancelled
+  {ctx : BaseSearchContext σ κ σₕ asm} {sq : fQueue (QueueItem σₕ σ)} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+  (h : SequentialSearchContext.LogSound sys params (ctx, sq) rep dep) :
+  SequentialSearchContext.LogSound sys params ({ ctx with finished := some (.earlyTermination .cancelled) }, sq) rep dep := by
+  rcases h with ⟨h1, h2, h3, _⟩ ; exact ⟨h1, h2, h3, by simp [TerminationSound]⟩
 
 /-- When finishing processing a state, we move from having that state `curr`
 in transit to having no state in transit, provided that all successfully

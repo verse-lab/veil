@@ -8,15 +8,21 @@ namespace Veil.ModelChecker.Concrete
 variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
   {Shard : Type} [Membership σₕ Shard] {th : ρ}
 
+/-- The frontier of a search before any state is processed: the kept initial states, each with
+its `init` entry. -/
+@[expose] def initialFrontier (reps : List (σ × Nat)) : List (MapReduceQueueItem σₕ σ κ) :=
+  reps.map fun p => ⟨fp.view p.1, p.1, .init p.2⟩
+
 @[expose] def MapReduceSearchContextMain.initial [SetShard σₕ Shard] (initStates : List σ) (numShards : Nat)
   (h_pos : 0 < USize.ofNat numShards := by native_decide)
   (h_small : numShards < USize.size := by native_decide) : MapReduceSearchContextMain σ κ σₕ asm Shard :=
-  let fps := initStates.map fp.view
-  let tovisit := fps.zipWith (fun fp s => ⟨fp, s⟩) initStates
-  { base := BaseSearchContext.initial initStates,
+  -- CHECK There might be some very bad performance regression here, if `initStates` are many
+  let (ctx, reps) := BaseSearchContext.initial (κ := κ) (asm := asm) initStates
+  let tovisit := initialFrontier (σₕ := σₕ) (κ := κ) reps
+  { base := ctx,
     tovisitLen := tovisit.length,
     tovisit := tovisit,
-    globalSeen := ShardedSetUSize.ofListByHash fps numShards h_pos h_small }
+    globalSeen := ShardedSetUSize.ofListByHash (tovisit.map (·.fingerprint)) numShards h_pos h_small }
 
 /-- Create an empty local context with the given `completedDepth`. -/
 @[expose] def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ asm :=
@@ -32,10 +38,16 @@ theorem MapReduceSearchContextMainInvariants.initial [SetShard σₕ Shard]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ) (numShards : Nat) {h_pos} {h_small} :
   MapReduceSearchContextMainInvariants sys params (MapReduceSearchContextMain.initial (fp := fp) (Shard := Shard) sys.initStates numShards h_pos h_small) := by
-  simp [MapReduceSearchContextMain.initial, BaseSearchContext.initial]
+  unfold MapReduceSearchContextMain.initial BaseSearchContext.initial
+  have h := initialLogAndRepresentatives_description (κ := κ) (fp := fp) sys.initStates
+  generalize initialLogAndRepresentatives (κ := κ) (fp := fp) sys.initStates = res at h ⊢
+  rcases h with ⟨_, h2, h3, _⟩ ; rcases res with ⟨reps, log⟩
+  dsimp only at * ; simp at h2 h3
   constructor ; on_goal 1=> constructor
-  all_goals simp [MapReduceSearchContextMain.isStableClosed,
-    ← List.map_uncurry_zip_eq_zipWith, ← List.map_prod_right_eq_zip, ShardedSetUSize.mem_ofListByHash] ; (try solve | intros ; grind)
+  all_goals
+    simp [MapReduceSearchContextMain.isStableClosed, initialFrontier,
+      ShardedSetUSize.mem_ofListByHash] <;>
+      intros <;> grind
 
 theorem MapReduceSearchContextLocalInvariants.initial
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
@@ -74,7 +86,7 @@ theorem MapReduceSearchContextMainInvariants.bfs_completeness
 
 theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_invs
   {globalSeen : ShardedSetUSize σₕ Shard}
-  {p q : MapReduceQueueItem σₕ σ → Prop}
+  {p q : MapReduceQueueItem σₕ σ κ → Prop}
   {lctx : MapReduceSearchContextLocal σ κ σₕ asm}
   (h_finished : lctx.1.hasFinished = true)
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx) :
@@ -86,11 +98,11 @@ theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_in
 
 theorem MapReduceSearchContextLocalInvariants.progress_by_one_state
   {globalSeen : ShardedSetUSize σₕ Shard}
-  {p q : MapReduceQueueItem σₕ σ → Prop}
-  {lctx : MapReduceSearchContextLocal σ κ σₕ asm}
+  {p q : MapReduceQueueItem σₕ σ κ → Prop}
+  {lctx : MapReduceSearchContextLocal σ κ σₕ asm} {e : LogEntry σₕ κ}
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx)
   (h : ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th curr → ((fp.view v) ∈ globalSeen ∨ (fp.view v) ∈ lctx.1.log))
-  (hpq : ∀ item, q item ↔ p item ∨ item = ⟨fpSt, curr⟩) :
+  (hpq : ∀ item, q item ↔ p item ∨ item = ⟨fpSt, curr, e⟩) :
   MapReduceSearchContextLocalInvariants sys params globalSeen q lctx := by
   rcases lctx with ⟨ctx, q⟩ ; rcases lctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_not_explored_all, h_dj, h_same_dom, h_succ_coll⟩ ; dsimp only at *
   constructor ; on_goal 1=> constructor

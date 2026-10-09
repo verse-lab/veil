@@ -54,13 +54,29 @@ deriving BEq, DecidableEq, Repr
 theorem QueueItem.fold_unfold {σₕ σ : Type} (item : QueueItem σₕ σ) :
   item = ⟨item.fingerprint, item.state, item.depth⟩ := rfl
 
+/-- How the search first reached a state, recorded against the state's fingerprint. Trace
+recovery re-executes the system along these entries, so they hold positions in `sys.initStates`
+and in the successes of `sys.tr` rather than fingerprints of post-states: the position does not
+depend on fingerprints being injective. The label is redundant with the position, but lets a
+path be displayed from the log alone. -/
+inductive LogEntry (σₕ κ : Type) where
+  /-- The state is `sys.initStates[idx]`. -/
+  | init (idx : Nat)
+  /-- The state is the post-state of `(sys.tr th parent).successes[idx]`, a transition labelled
+  `label`. -/
+  | step (parent : σₕ) (label : κ) (idx : Nat)
+deriving Repr, Inhabited
+
 /-- A queue item for the MapReduce checker, without the depth field.
     In MapReduce BFS, all items in the frontier share the same depth,
-    tracked externally via `completedDepth`. -/
-structure MapReduceQueueItem (σₕ σ : Type) where
+    tracked externally via `completedDepth`. The item carries the log entry of its state, so
+    that the merge of a BFS round keeps, for each fingerprint, the entry of the very state it
+    keeps in the frontier. -/
+structure MapReduceQueueItem (σₕ σ κ : Type) where
   fingerprint : σₕ
   state : σ
-deriving BEq, DecidableEq, Repr
+  entry : LogEntry σₕ κ
+deriving Repr
 
 structure ActionStat where
   statesGenerated : Nat
@@ -158,9 +174,9 @@ structure BaseSearchContext (σ κ σₕ asm : Type)
   [fp : StateFingerprint σ σₕ]
   [ActionStatUpdate κ asm]
 where
-  /- We use a `HashMap σ_post (σ_pre × κ)` to store the log of transitions, which
-  will make it easier to reconstruct counterexample trace. -/
-  log                : Std.HashMap σₕ (Option (σₕ × κ))
+  /-- How each seen state was first reached, by fingerprint; `recoverTrace` rebuilds a
+  counterexample trace from it. -/
+  log                : Std.HashMap σₕ (LogEntry σₕ κ)
   violatingStates    : List (σₕ × ViolationKind)
   /-- Have we finished the search? If so, why? -/
   finished           : Option (TerminationReason σₕ)
@@ -195,17 +211,29 @@ variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionSta
 def BaseSearchContext.hasFinished (ctx : BaseSearchContext σ κ σₕ asm) : Bool := ctx.finished.isSome
 
 @[inline]
-def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ κ σₕ asm :=
-  let initStates := initialStates.map fun x => (fp.view x, Option.none)
-  {
-    log := Std.HashMap.ofList initStates,
+def initialLogAndRepresentativesCore (i : Nat) (acc : (List (σ × Nat)) × Std.HashMap σₕ (LogEntry σₕ κ)) (s : σ) :=
+  let (a, l) := acc
+  let x := fp.view s
+  if l.contains x then (a, l) else ((s, i) :: a, l.insert x (.init i))
+
+@[inline]
+def initialLogAndRepresentatives (initialStates : List σ) : (List (σ × Nat)) × Std.HashMap σₕ (LogEntry σₕ κ) :=
+  initialStates.foldlIdx (init := ([], ∅)) initialLogAndRepresentativesCore
+
+/-- The context of a search before any state is processed, with the initial states it has to
+process: the first initial state of each fingerprint, with its position in `initialStates`. -/
+@[inline]
+def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ κ σₕ asm × List (σ × Nat) :=
+  let (reps, log) := initialLogAndRepresentatives initialStates
+  ({
+    log := log,
     violatingStates := [],
     finished := none,
     completedDepth := 0,
     currentFrontierDepth := 0,
-    statesFound := initStates.length,
+    statesFound := initialStates.length,
     actionStatsMap := ActionStatUpdate.empty (κ := κ)
-  }
+  }, reps)
 
 -- NOTE: Hopefully, if `outcomes` does not have any other reference, then
 -- Lean should be able to reuse constructors inside it? Can we somehow
