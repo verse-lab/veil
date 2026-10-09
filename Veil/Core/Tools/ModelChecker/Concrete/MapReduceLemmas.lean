@@ -21,7 +21,7 @@ variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionSta
 theorem MapReduceSearchContextLocalInvariants.initial
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
-  (globalSeen : ShardedSetUSize σₕ Shard) (completedDepth : Nat) :
+  (globalSeen : MapReduceGlobalSeen σₕ κ Shard) (completedDepth : Nat) :
   MapReduceSearchContextLocalInvariants sys params globalSeen (fun _ => False)
     (MapReduceSearchContextLocal.initial (fp := fp) completedDepth) := by
   simp [MapReduceSearchContextLocal.initial]
@@ -54,7 +54,7 @@ theorem MapReduceSearchContextMainInvariants.bfs_completeness
   induction h_reachable <;> grind
 
 theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_invs
-  {globalSeen : ShardedSetUSize σₕ Shard}
+  {globalSeen : MapReduceGlobalSeen σₕ κ Shard}
   {p q : MapReduceQueueItem σₕ σ κ → Prop}
   {lctx : MapReduceSearchContextLocal σ κ σₕ asm}
   (h_finished : lctx.base.hasFinished = true)
@@ -66,7 +66,7 @@ theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_in
   all_goals dsimp only ; try solve | assumption | grind
 
 theorem MapReduceSearchContextLocalInvariants.progress_by_one_state
-  {globalSeen : ShardedSetUSize σₕ Shard}
+  {globalSeen : MapReduceGlobalSeen σₕ κ Shard}
   {p q : MapReduceQueueItem σₕ σ κ → Prop}
   {lctx : MapReduceSearchContextLocal σ κ σₕ asm} {e : LogEntry σₕ κ}
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx)

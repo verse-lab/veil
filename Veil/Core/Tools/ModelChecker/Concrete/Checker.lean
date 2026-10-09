@@ -32,22 +32,23 @@ private def recoverViolationTrace {ρ σ κ σₕ : Type} {m : Type → Type}
     return { trace with failingStep := failingStep }
   | none => IO.ofExcept <| Except.error s!"Could not recover a trace for the state {repr fingerprint}!"
 
-/-- The result of a finished search, with a trace for a violation, recovered in `traceSys ()`. -/
+/-- The result of a finished search, with a trace for a violation, recovered in `traceSys ()` from
+the search's log `look`. -/
 private def searchResult {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [ActionStatUpdate κ asm]
   {th : ρ}
   (traceSys : Unit → EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   [fp : StateFingerprint σ σₕ] [Repr σₕ]
-  (ctx : BaseSearchContext σ κ σₕ asm) (distinctCount : Nat)
+  (ctx : BaseSearchContext σ κ σₕ asm) (look : LogLookup σₕ κ) (distinctCount : Nat)
   : m (ModelCheckingResult ρ σ κ σₕ) := do
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
-    return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverViolationTrace (traceSys ()) (logLookup ctx.log) fingerprint))
+    return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverViolationTrace (traceSys ()) look fingerprint))
   | some (.earlyTermination (.deadlockOccurred fingerprint)) => do
-    return ModelCheckingResult.foundViolation fingerprint .deadlock (some (← recoverViolationTrace (traceSys ()) (logLookup ctx.log) fingerprint))
+    return ModelCheckingResult.foundViolation fingerprint .deadlock (some (← recoverViolationTrace (traceSys ()) look fingerprint))
   | some (.earlyTermination (.assertionFailed fingerprint exId)) => do
-    return ModelCheckingResult.foundViolation fingerprint (.assertionFailure exId) (some (← recoverViolationTrace (traceSys ()) (logLookup ctx.log) fingerprint (some exId)))
+    return ModelCheckingResult.foundViolation fingerprint (.assertionFailure exId) (some (← recoverViolationTrace (traceSys ()) look fingerprint (some exId)))
   | some (.earlyTermination (.reachedDepthBound _)) =>
     -- No violation found within depth bound; report number of states explored
     return ModelCheckingResult.noViolationFound distinctCount (.earlyTermination (.reachedDepthBound ctx.completedDepth))
@@ -61,7 +62,7 @@ private def searchResult {ρ σ κ σₕ : Type} {m : Type → Type}
       let assertionExId := match violation with
         | .assertionFailure exId => some exId
         | _ => none
-      return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverViolationTrace (traceSys ()) (logLookup ctx.log) fingerprint assertionExId))
+      return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverViolationTrace (traceSys ()) look fingerprint assertionExId))
     | [] =>
       return ModelCheckingResult.noViolationFound distinctCount (.exploredAllReachableStates)
   | none => panic! s!"SearchContext.finished is none! This should never happen."
@@ -87,7 +88,8 @@ variable {ρ σ κ σₕ α : Type} {m : Type → Type}
   -- with picks logged (`LogSwitch`), which the search does without. It is a thunk, so that it is
   -- built only when there is a trace to recover.
   (traceSys : Unit → EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
-  [fp : StateFingerprint σ σₕ] {Shard : Type} [Membership σₕ Shard] [SetShard σₕ Shard] [Repr σₕ] [Inhabited σₕ]
+  [fp : StateFingerprint σ σₕ] {ShardOf : Type → Type} [Membership σₕ (ShardOf (LogEntry σₕ κ))]
+  [MapShard σₕ (LogEntry σₕ κ) (ShardOf (LogEntry σₕ κ))] [Repr σₕ] [Inhabited σₕ]
   (params : SearchParameters ρ σ)
   (parallelCfg : Option ParallelConfig)
   (progressInstanceId : Nat)
@@ -96,8 +98,8 @@ variable {ρ σ κ σₕ α : Type} {m : Type → Type}
 /-- `findReachable`, then `finish` on the result while the search's data structures (the seen
 set, the log for recovering traces) are still referenced; they are released only after `finish`
 returns. The caller picks the fingerprint type `σₕ` and its `StateFingerprint` instance, and the
-set type `Shard` of the shards of the parallel search's seen set. Traces are recovered in
-`traceSys ()` rather than `sys`. -/
+map type of the shards of the parallel search's seen set, which also holds its log, as a function
+`ShardOf` of the type of the values. Traces are recovered in `traceSys ()` rather than `sys`. -/
 def findReachableThen (finish : ModelCheckingResult ρ σ κ σₕ → m α) : m α := do
   let assumptionViolations := params.violatedAssumptions th
   unless assumptionViolations.isEmpty do
@@ -108,16 +110,17 @@ def findReachableThen (finish : ModelCheckingResult ρ σ κ σₕ → m α) : m
   let traceSys := fun _ => Veil.ModelChecker.restrictSystemByStateConstraints (traceSys ()) params th
   match parallelCfg with
   | some cfg => do
-    let mctx ← breadthFirstSearchParallel (σₕ := σₕ) (Shard := Shard) params sys cfg progressInstanceId cancelToken
-    let result ← searchResult traceSys mctx.base mctx.globalSeen.size
+    let mctx ← breadthFirstSearchParallel (σₕ := σₕ) (Shard := ShardOf (LogEntry σₕ κ)) params sys cfg
+      progressInstanceId cancelToken
+    let result ← searchResult traceSys mctx.base mctx.globalSeen.get? mctx.globalSeen.size
     return (← keepingThen mctx (finish result)).1
   | none => do
     let sctx ← breadthFirstSearchSequential (σₕ := σₕ) params sys 60000 progressInstanceId cancelToken
-    let result ← searchResult traceSys sctx.val.1 sctx.val.1.log.size
+    let result ← searchResult traceSys sctx.val.1 (logLookup sctx.val.1.log) sctx.val.1.log.size
     return (← keepingThen sctx (finish result)).1
 
 def findReachable : m (ModelCheckingResult ρ σ κ σₕ) :=
-  findReachableThen (σₕ := σₕ) (Shard := Shard) sys traceSys params parallelCfg progressInstanceId cancelToken pure
+  findReachableThen (σₕ := σₕ) (ShardOf := ShardOf) sys traceSys params parallelCfg progressInstanceId cancelToken pure
 
 end
 

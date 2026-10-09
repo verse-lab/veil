@@ -4,6 +4,7 @@ public import Veil.Core.Tools.ModelChecker.Concrete.Core
 public import Veil.Core.Tools.ModelChecker.Concrete.Subtypes
 public import Veil.Core.Tools.ModelChecker.Concrete.Containers
 public import Veil.Core.Tools.ModelChecker.Concrete.TraceRecovery
+public import Veil.Util.ShardedMapUInt
 
 public section
 
@@ -65,23 +66,17 @@ end Sequential
 
 section MapReduce
 
+/-- The seen set of the parallel search, which is also its log: for each fingerprint it has seen,
+how the search first reached a state of that fingerprint, in shards of type `Shard`. -/
+abbrev MapReduceGlobalSeen (σₕ κ Shard : Type) : Type := ShardedMapUSize σₕ (LogEntry σₕ κ) Shard
+
 structure MapReduceSearchContextMain (σ κ σₕ asm Shard : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] where
   base : BaseSearchContext σ κ σₕ asm
   tovisitLen : Nat
   tovisit : List (MapReduceQueueItem σₕ σ κ)
-  globalSeen : ShardedSetUSize σₕ Shard
-  /-- The log entries of the states kept by each BFS layer, *newest layer first*; not yet in
-  `base.log`, which holds only the initial states. They are merged into a map only when a trace
-  has to be recovered (`fullLog`). -/
-  accumulatedLogs : List (List (σₕ × LogEntry σₕ κ)) := []
-
--- FIXME: It should not be necessary to maintain these kinds of logs ...
--- Probably, just rollback by depth?
-/-- The whole log of the search: the entries of the initial states, then those of every round.
-Built only when a trace has to be recovered. -/
-def MapReduceSearchContextMain.fullLog [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] {Shard : Type}
-    (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard) : Std.HashMap σₕ (LogEntry σₕ κ) :=
-  mctx.accumulatedLogs.foldr (fun entries acc => entries.foldl (fun acc (x, e) => acc.insert x e) acc) mctx.base.log
+  /-- The seen set, which is also the log: how the search first reached each state it has seen,
+  by fingerprint; `recoverTrace` rebuilds a counterexample trace from it. -/
+  globalSeen : MapReduceGlobalSeen σₕ κ Shard
 
 /-- The state of a worker of the parallel search. -/
 structure MapReduceSearchContextLocal (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] where
@@ -123,7 +118,7 @@ abbrev LawfulMapReduceSearchContextMain : Type :=
   Subtype (α := MapReduceSearchContextMain σ κ σₕ asm Shard) (MapReduceSearchContextMainInvariants sys params)
 
 structure MapReduceSearchContextLocalInvariants
-  (globalSeen : ShardedSetUSize σₕ Shard)
+  (globalSeen : MapReduceGlobalSeen σₕ κ Shard)
   (visited : MapReduceQueueItem σₕ σ κ → Prop)
   (lctx : MapReduceSearchContextLocal σ κ σₕ asm)
 extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ∃ e, ⟨x, st, e⟩ ∈ lctx.queue) (fun h => ∃ s e, ⟨h, s, e⟩ ∈ lctx.queue)
@@ -138,7 +133,7 @@ where
         fp.view v ∈ lctx.seen)
 
 abbrev LawfulMapReduceSearchContextLocal
-  (globalSeen : ShardedSetUSize σₕ Shard)
+  (globalSeen : MapReduceGlobalSeen σₕ κ Shard)
   (visited : MapReduceQueueItem σₕ σ κ → Prop) : Type :=
   Subtype (α := MapReduceSearchContextLocal σ κ σₕ asm) (MapReduceSearchContextLocalInvariants sys params globalSeen visited)
 

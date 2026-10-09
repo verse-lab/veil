@@ -451,9 +451,9 @@ shard type as syntax. -/
 structure ModelCheckCommandConfig extends ModelCheckerConfig where
   /-- Elaborated with the generated checker call; defaults to `Nat` (`StateFingerprint.ofHashNat`). -/
   fingerprintType : Term := mkCIdent ``Nat
-  /-- Applied to the fingerprint type, the set type of the shards of the parallel search's seen set;
-  defaults to `TreeSetShard` (`Std.TreeSet`). -/
-  seenSet : Term := mkCIdent ``TreeSetShard
+  /-- Applied to the fingerprint type, the map type of the shards of the parallel search's seen set,
+  as a function of the type of its values; defaults to `TreeMapShard` (`Std.TreeMap`). -/
+  seenSet : Term := mkCIdent ``TreeMapShard
 
 declare_command_config_elab elabModelCheckCommandConfig ModelCheckCommandConfig where
   option fingerprintType := fun cfg item => do
@@ -662,11 +662,12 @@ private def mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig) (fin
   -- Model checker call with type annotation to help inference
   -- Note: findReachableThen takes parallelCfg, progressInstanceId, cancelToken, and the
   -- continuation for the result as the last four args
-  -- The fingerprint type comes from the `fingerprintType` option, the seen set's shard type from
-  -- `seenSet`. The checker is generic in both and gets specialized to them at this call site.
+  -- The fingerprint type comes from the `fingerprintType` option, the map type of the seen set's
+  -- shards, as a function of the type of its values, from `seenSet`. The checker is generic in both
+  -- and gets specialized to them at this call site.
   `(($(mkIdent ``Veil.ModelChecker.Concrete.findReachableThen)
        ($(mkIdent `σₕ) := $fingerprintType)
-       ($(mkIdent `Shard) := $seenSet $fingerprintType)
+       ($(mkIdent `ShardOf) := $seenSet $fingerprintType)
        ($(ectx.sysWithoutLog)) (fun _ => $traceSys)
        $(ectx.searchParams) : _ → _ → _ → _ → IO _))
 

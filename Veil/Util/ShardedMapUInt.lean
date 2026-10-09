@@ -84,8 +84,9 @@ theorem mem_insertMany [LawfulBEq α] [LawfulHashable α] {s : S} {m : HashMap �
 
 end MapShard
 
-/-- `Std.TreeMap` ordered by `compare`, as the map type of shards. -/
-abbrev TreeMapShard (α : Type u) (β : Type v) [Ord α] := TreeMap α β compare
+/-- `Std.TreeMap` ordered by `compare`, as the map type of shards. The value type comes last, so
+that `TreeMapShard σₕ` is the map type as a function of the value type. -/
+abbrev TreeMapShard (α : Type u) [Ord α] (β : Type v) := TreeMap α β compare
 
 instance [Ord α] [TransOrd α] [BEq α] [LawfulBEqOrd α] [Hashable α] :
     MapShard α β (TreeMapShard α β) where
@@ -100,8 +101,9 @@ instance [Ord α] [TransOrd α] [BEq α] [LawfulBEqOrd α] [Hashable α] :
   get?_insert := by intros ; rw [TreeMap.getElem?_insert] ; simp only [LawfulBEqCmp.compare_eq_iff_beq]
 
 /-- A verified HAMT map (`VerifiedHAMT.Map`) as the map type of shards. It hashes with
-`HAMTShard.hashable`, for the reason given there. -/
-abbrev HAMTMapShard (α : Type u) (β : Type v) [BEq α] [Hashable α] : Type (max u v) :=
+`HAMTShard.hashable`, for the reason given there. The value type comes last, as for
+`TreeMapShard`. -/
+abbrev HAMTMapShard (α : Type u) [BEq α] [Hashable α] (β : Type v) : Type (max u v) :=
   @VerifiedHAMT.Map α β _ (HAMTShard.hashable α)
 
 namespace HAMTMapShard
