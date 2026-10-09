@@ -137,10 +137,25 @@ where
       ((fp.view v) ∈ globalSeen ∨
         fp.view v ∈ lctx.seen)
 
+/-- What a worker's results say through the representatives `rep`: the entry of each item it has
+queued is a transition from the representative of the entry's parent, and each violation it has
+recorded is exhibited by the representative of its fingerprint. -/
+structure MapReduceSearchContextLocal.LogSound (lctx : MapReduceSearchContextLocal σ κ σₕ asm)
+    (rep : σₕ → Option σ) : Prop where
+  entries_sound : ∀ item ∈ lctx.queue, ∃ p l i sp, item.entry = .step p l i ∧ rep p = some sp ∧
+    (sys.tr th sp).successes[i]? = some (l, item.state)
+  violations_sound : ∀ v ∈ lctx.base.violatingStates, ViolationSound sys params rep v
+  termination_sound : TerminationSound sys params rep lctx.base.finished
+
+/-- A worker's context with its invariants, and its `LogSound` for any `rep` that maps the items
+it has processed (`visited`) to their states, so that the merge can apply it to the
+representatives of the main context. -/
 abbrev LawfulMapReduceSearchContextLocal
   (globalSeen : MapReduceGlobalSeen σₕ κ Shard)
   (visited : MapReduceQueueItem σₕ σ κ → Prop) : Type :=
-  Subtype (α := MapReduceSearchContextLocal σ κ σₕ asm) (MapReduceSearchContextLocalInvariants sys params globalSeen visited)
+  Subtype (α := MapReduceSearchContextLocal σ κ σₕ asm) fun lctx =>
+    MapReduceSearchContextLocalInvariants sys params globalSeen visited lctx ∧
+    ∀ rep : σₕ → Option σ, (∀ c, visited c → rep c.fingerprint = some c.state) → lctx.LogSound sys params rep
 
 end MapReduce
 

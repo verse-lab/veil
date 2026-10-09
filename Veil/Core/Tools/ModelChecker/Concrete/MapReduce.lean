@@ -170,6 +170,45 @@ theorem MapReduceSearchContextLocalInvariants.processState_progress
     exact MapReduceSearchContextLocalInvariants.processSuccessors_successors_collected l v (.inl (Transitions.mem_success_iff.mp h1))
   · simp
 
+/-! ### What a worker's results say -/
+
+theorem MapReduceSearchContextLocal.processSuccessors_log_sound {rep : σₕ → Option σ}
+  (hls : lctx.LogSound sys params rep) {fpSt : σₕ} {curr : σ} (hrep : rep fpSt = some curr) :
+  (lctx.processSuccessors globalSeen fpSt 0 (sys.tr th curr).successes).LogSound sys params rep := by
+  unfold MapReduceSearchContextLocal.processSuccessors
+  rw [List.foldlIdx_eq_foldl_zipIdx, ← List.foldl_attach]
+  generalize (sys.tr th curr).successes.zipIdx.attach = succs
+  induction succs generalizing lctx with
+  | nil => exact hls
+  | cons x succs ih =>
+    rcases x with ⟨⟨⟨label, succ⟩, idx⟩, hmem⟩
+    dsimp [List.foldl] ; apply ih
+    fun_cases MapReduceSearchContextLocal.tryExploreNeighbor
+    · cases hls ; constructor <;> assumption    -- `hls` is not affected by the changed fields
+    · rename_i ctx seen q fingerprint _ ; subst fingerprint
+      rcases hls with ⟨hent, hv, hf⟩
+      refine ⟨?_, hv, hf⟩
+      intro item hi ; rcases List.mem_cons.mp hi with rfl | hi
+      · exact ⟨fpSt, label, idx, curr, rfl, hrep, by grind [List.mem_zipIdx_iff_getElem?]⟩
+      · exact hent item hi
+
+theorem MapReduceSearchContextLocal.processState_log_sound {rep : σₕ → Option σ}
+  (hls : lctx.LogSound sys params rep) {fpSt : σₕ} {curr : σ} (hrep : rep fpSt = some curr) :
+  (lctx.processState globalSeen params th fpSt curr (sys.tr th curr)).LogSound sys params rep := by
+  rcases lctx with ⟨ctx, seen, q⟩
+  rcases hls with ⟨hent, hv, hf⟩ ; dsimp only at *
+  have hsound := BaseSearchContext.processState_sound sys params (fpSt := fpSt) (curr := curr) ctx hrep hv hf
+  have hsnd := BaseSearchContext.processState_snd params th fpSt curr (sys.tr th curr) ctx
+  unfold MapReduceSearchContextLocal.processState ; dsimp only
+  generalize ctx.processState params th fpSt curr (sys.tr th curr) = pr at hsound hsnd ⊢
+  rcases pr with ⟨ctx', outcomesOpt⟩
+  dsimp only at *
+  obtain ⟨hv', hf'⟩ := hsound
+  rcases outcomesOpt with _ | succs
+  · exact ⟨hent, hv', hf'⟩
+  · obtain rfl := hsnd _ rfl
+    exact processSuccessors_log_sound ⟨hent, hv', hf'⟩ hrep
+
 end
 
 namespace LawfulMapReduceSearchContextLocal
@@ -216,7 +255,8 @@ def processWorkQueue
   | [] => ⟨v, by simpa [← processWorkQueue.subproof1 h] using hl⟩
   | item :: rest =>
     if h_finished : v.hasFinished
-    then ⟨v, hl.finished_change_visited_pred_in_invs h_finished⟩
+    then ⟨v, hl.1.finished_change_visited_pred_in_invs h_finished,
+      fun rep hrep => hl.2 rep fun c hc => hrep c ((h c).mpr (.inl hc))⟩
     else
       let ⟨fpSt, curr, entry⟩ := item
       let v' := v.processState globalSeen params th fpSt curr (sys.tr th curr)
@@ -224,9 +264,11 @@ def processWorkQueue
       processWorkQueue rest
         (by exact processWorkQueue.subproof2 h)
         (by exact processWorkQueue.subproof4 h_inqueue_reachable)
-        <| Subtype.mk v' <| hl.processState_progress fpSt curr entry
+        <| Subtype.mk v' ⟨hl.1.processState_progress fpSt curr entry
           (by exact processWorkQueue.subproof5 (α := MapReduceQueueItem σₕ σ κ) h_inqueue_reachable)
-          (by exact processWorkQueue.subproof3 h_finished)
+          (by exact processWorkQueue.subproof3 h_finished),
+          fun rep hrep => MapReduceSearchContextLocal.processState_log_sound
+            (hl.2 rep fun c hc => hrep c (.inl hc)) (hrep ⟨fpSt, curr, entry⟩ (.inr rfl))⟩
 
 /-- Main worker entry point. Creates a neutral context and processes the work queue.
     This function is called by each parallel task. -/
@@ -240,7 +282,9 @@ def bfsBigStep
   (h_inqueue_reachable : ∀ item ∈ queue, sys.reachable item.state) :
   m (LawfulMapReduceSearchContextLocal (κ := κ) sys params globalSeen (· ∈ queue)) :=
   let lctx : LawfulMapReduceSearchContextLocal sys params globalSeen (fun _ => False) :=
-    ⟨MapReduceSearchContextLocal.initial completedDepth, MapReduceSearchContextLocalInvariants.initial sys params globalSeen completedDepth⟩
+    ⟨MapReduceSearchContextLocal.initial completedDepth,
+      MapReduceSearchContextLocalInvariants.initial sys params globalSeen completedDepth,
+      fun rep _ => MapReduceSearchContextLocal.LogSound.initial sys params completedDepth rep⟩
   let res := lctx.processWorkQueue queue (by exact processWorkQueue.subproof6) h_inqueue_reachable
   pure res
 
@@ -475,6 +519,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   dsimp ; unfold mergeWithLocalOnes ; dsimp only
   have h_local_invs := IteratedProd.externalize_proofs lctxs ; dsimp at h_local_invs
   rcases h_local_invs with ⟨h_length_eq, h_local_invs⟩
+  replace h_local_invs := fun x b h => (h_local_invs x b h).1
   generalize IteratedProd.subtypesToList lctxs = lctxs' at *
   -- the merge of the bases
   have h_base_desc := BaseSearchContext.mergeWithoutDepthChange_foldl_description ctx' (lctxs'.map (·.base))
