@@ -426,16 +426,9 @@ empty seen set and an empty log, so that each kept item and the log share its en
     (h_pos : 0 < USize.ofNat numShards := by native_decide)
     (h_small : numShards < USize.size := by native_decide) : MapReduceSearchContextMain σ κ σₕ asm Shard :=
   -- CHECK There might be some very bad performance regression here, if `initStates` are many
-  let base : BaseSearchContext σ κ σₕ asm :=
-    { log := ∅,
-      violatingStates := [],
-      finished := none,
-      completedDepth := 0,
-      currentFrontierDepth := 0,
-      statesFound := initStates.length,
-      actionStatsMap := ActionStatUpdate.empty (κ := κ) }
   MapReduceSearchContextMain.mergeLayer
-    ⟨base, 0, [], ShardedSetUSize.ofListByHash [] numShards h_pos h_small, []⟩ [initialMapReduceQueueItems initStates]
+    ⟨BaseSearchContext.initial initStates.length ∅, 0, [], ShardedSetUSize.ofListByHash [] numShards h_pos h_small, []⟩
+    [initialMapReduceQueueItems initStates]
 
 /-- Merging the initial items into a context that has seen nothing yet establishes the invariants. -/
 theorem MapReduceSearchContextMainInvariants.of_mergeLayer_initialMapReduceQueueItems
@@ -464,7 +457,7 @@ theorem MapReduceSearchContextMainInvariants.initial
     (params : SearchParameters ρ σ) (numShards : Nat) {h_pos} {h_small} :
     MapReduceSearchContextMainInvariants sys params
       (MapReduceSearchContextMain.initial (fp := fp) (Shard := Shard) (asm := asm) sys.initStates numShards h_pos h_small) := by
-  unfold MapReduceSearchContextMain.initial ; dsimp only
+  unfold MapReduceSearchContextMain.initial
   apply MapReduceSearchContextMainInvariants.of_mergeLayer_initialMapReduceQueueItems <;> try rfl
   intro x ; simp [ShardedSetUSize.mem_ofListByHash]
 

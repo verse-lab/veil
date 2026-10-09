@@ -247,11 +247,11 @@ theorem LogInvariants.update_step {look : LogLookup σₕ κ} {rep : σₕ → O
 
 /-! ### The initial log -/
 
-theorem initialLogAndRepresentativesCore_description (initStates : List (σ × Nat)) (acc : (List (σ × Nat)) × Std.HashMap σₕ (LogEntry σₕ κ)) :
+theorem initialLogAndRepresentativesCore_description (initStates : List (σ × Nat)) (acc : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ)) :
     letI res := initStates.foldl (init := acc) fun a (s, i) => initialLogAndRepresentativesCore i a s
     ∃ pfx : List (σ × Nat),
       letI fps := pfx.map fun x => fp.view x.1
-      res.1 = pfx ++ acc.1 ∧
+      res.1 = pfx.map Prod.fst ++ acc.1 ∧
       fps.Nodup ∧
       (∀ a, (∃ item ∈ initStates, fp.view item.1 = a) → a ∉ acc.2 → a ∈ fps) ∧
       (∀ item ∈ pfx, item ∈ initStates ∧ fp.view item.1 ∉ acc.2) ∧
@@ -268,36 +268,31 @@ theorem initialLogAndRepresentativesCore_description (initStates : List (σ × N
     · intro ih ; dsimp only at ih ; rcases ih with ⟨pfx, h_pfx, h_nodup, h_subseq, h_fps, h_mem_iff⟩
       rename_i a b c d ; simp at *
       exists (pfx ++ [(s, i)]) ; simp ; split_ands <;> try grind
+      -- `σₕ` has no `DecidableEq`, so the condition of the insertion's `if` stays a `==`
+      intro a1 b1 ; open Classical in simp [h_mem_iff, Std.HashMap.getElem?_insert, beq_iff_eq]
+      aesop
 
+/-- The representatives are the first initial state of each fingerprint; `reps` pairs each one with
+its position in `initStates`, which the log records. -/
 theorem initialLogAndRepresentatives_description (initStates : List σ) :
     letI res := initialLogAndRepresentatives (κ := κ) (fp := fp) initStates
-    letI fps := res.1.map fun x => fp.view x.1
+    ∃ reps : List (σ × Nat), res.1 = reps.map Prod.fst ∧
+    letI fps := reps.map fun x => fp.view x.1
     fps.Nodup ∧
     (∀ a, (∃ item ∈ initStates, fp.view item = a) → a ∈ fps) ∧
-    (∀ item ∈ res.1, item.1 ∈ initStates ∧ initStates[item.2]? = some item.1) ∧
-    (∀ a b, res.2[a]? = some b ↔ (a, b) ∈ res.1.map fun x => (fp.view x.1, LogEntry.init x.2)) := by
+    (∀ item ∈ reps, item.1 ∈ initStates ∧ initStates[item.2]? = some item.1) ∧
+    (∀ a b, res.2[a]? = some b ↔ (a, b) ∈ reps.map fun x => (fp.view x.1, LogEntry.init x.2)) := by
   obtain ⟨pfx, h⟩ := initialLogAndRepresentativesCore_description (κ := κ) (fp := fp) (initStates.zipIdx) ([], ∅)
   have heq := List.foldlIdx_eq_foldl_zipIdx (f := initialLogAndRepresentativesCore (κ := κ) (fp := fp)) (s := 0) (i := ([], ∅)) (xs := initStates)
   rw [← initialLogAndRepresentatives.eq_def] at heq
   rw [← heq] at h
   rcases h with ⟨h1, h2, h3, h4, h5⟩
-  simp at * ; subst_vars
+  exists pfx
+  simp at *
   split_ands <;> try assumption
   · intro a hin ; obtain ⟨i, hin⟩ := List.getElem?_of_mem hin ; rw [← List.mk_mem_zipIdx_iff_getElem?] at hin
     grind
   · grind [List.mk_mem_zipIdx_iff_getElem?]
-
-/-- Dropping the indices from the representatives preserves both their order and the log. -/
-theorem initialLogAndRepresentatives'_eq (initStates : List σ) :
-    let res := initialLogAndRepresentatives (κ := κ) (fp := fp) initStates
-    initialLogAndRepresentatives' (κ := κ) (fp := fp) initStates = (res.1.map Prod.fst, res.2) := by
-  unfold initialLogAndRepresentatives' initialLogAndRepresentatives
-  simp only [List.foldlIdx_eq_foldl_zipIdx]
-  apply List.foldl_hom (fun acc : List (σ × Nat) × Std.HashMap σₕ (LogEntry σₕ κ) =>
-    (acc.1.map Prod.fst, acc.2)) (init := ([], ∅))
-  intro acc item
-  simp only [initialLogAndRepresentativesCore', initialLogAndRepresentativesCore]
-  split <;> simp
 
 /-! ### Violations recorded by the search -/
 

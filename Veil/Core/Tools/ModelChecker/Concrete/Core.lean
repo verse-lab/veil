@@ -211,53 +211,27 @@ variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionSta
 def BaseSearchContext.hasFinished (ctx : BaseSearchContext σ κ σₕ asm) : Bool := ctx.finished.isSome
 
 @[inline]
-def initialLogAndRepresentativesCore (i : Nat) (acc : (List (σ × Nat)) × Std.HashMap σₕ (LogEntry σₕ κ)) (s : σ) :=
-  let (a, l) := acc
-  let x := fp.view s
-  if l.contains x then (a, l) else ((s, i) :: a, l.insert x (.init i))
-
-@[inline]
-def initialLogAndRepresentatives (initialStates : List σ) : (List (σ × Nat)) × Std.HashMap σₕ (LogEntry σₕ κ) :=
-  initialStates.foldlIdx (init := ([], ∅)) initialLogAndRepresentativesCore
-
-/-- The context of a search before any state is processed, with the initial states it has to
-process: the first initial state of each fingerprint, with its position in `initialStates`. -/
-@[inline]
-def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ κ σₕ asm × List (σ × Nat) :=
-  let (reps, log) := initialLogAndRepresentatives initialStates
-  ({
-    log := log,
-    violatingStates := [],
-    finished := none,
-    completedDepth := 0,
-    currentFrontierDepth := 0,
-    statesFound := initialStates.length,
-    actionStatsMap := ActionStatUpdate.empty (κ := κ)
-  }, reps)
-
--- FIXME: For now, just duplicate the definitions
-@[inline]
-def initialLogAndRepresentativesCore' (i : Nat) (acc : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ)) (s : σ) :=
+def initialLogAndRepresentativesCore (i : Nat) (acc : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ)) (s : σ) :=
   let (a, l) := acc
   let x := fp.view s
   if l.contains x then (a, l) else (s :: a, l.insert x (.init i))
 
 @[inline]
-def initialLogAndRepresentatives' (initialStates : List σ) : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ) :=
-  initialStates.foldlIdx (init := ([], ∅)) initialLogAndRepresentativesCore'
+def initialLogAndRepresentatives (initialStates : List σ) : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ) :=
+  initialStates.foldlIdx (init := ([], ∅)) initialLogAndRepresentativesCore
 
+/-- The context of a search before any state is processed: the `numInitialStates` initial states
+are all it has found, and `log` is its log. -/
 @[inline]
-def BaseSearchContext.initial' (initialStates : List σ) : BaseSearchContext σ κ σₕ asm × List σ :=
-  let (reps, log) := initialLogAndRepresentatives' initialStates
-  ({
-    log := log,
+def BaseSearchContext.initial (numInitialStates : Nat) (log : Std.HashMap σₕ (LogEntry σₕ κ)) :
+    BaseSearchContext σ κ σₕ asm :=
+  { log := log,
     violatingStates := [],
     finished := none,
     completedDepth := 0,
     currentFrontierDepth := 0,
-    statesFound := initialStates.length,
-    actionStatsMap := ActionStatUpdate.empty (κ := κ)
-  }, reps)
+    statesFound := numInitialStates,
+    actionStatsMap := ActionStatUpdate.empty (κ := κ) }
 
 -- NOTE: Hopefully, if `outcomes` does not have any other reference, then
 -- Lean should be able to reuse constructors inside it? Can we somehow

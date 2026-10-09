@@ -297,8 +297,8 @@ def breadthFirstSearchSequential {m : Type → Type}
   (cancelToken : IO.CancelToken) :
   m (LawfulSequentialSearchContext (fp := fp) sys params) := do
   let mut sctx : LawfulSequentialSearchContext (fp := fp) sys params :=
-    Subtype.mk (SequentialSearchContext.initial' sys)
-      (SequentialSearchContext.initial'_invs sys params)
+    Subtype.mk (SequentialSearchContext.initial sys)
+      (SequentialSearchContext.initial_invs sys params)
   let mut lastUpdateTime : Nat := 0
   let mut cancelled := false
   while h_not_finished : sctx.val.1.hasFinished = false do
