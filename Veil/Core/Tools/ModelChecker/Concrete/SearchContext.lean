@@ -19,6 +19,15 @@ structure SequentialSearchContext (σ κ σₕ asm : Type) [fp : StateFingerprin
   counterexample trace from it. -/
   log : Std.HashMap σₕ (LogEntry σₕ κ)
   queue : fQueue (QueueItem σₕ σ)
+  /-- The depth of the current BFS frontier being processed -/
+  currentFrontierDepth : Nat
+
+/-- The depth up to which ALL states have been fully explored (successors enqueued): the one before
+the frontier's, and `0` while the frontier is at depth `0`. -/
+@[inline]
+def SequentialSearchContext.completedDepth {σ κ σₕ asm : Type} [StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
+    (sctx : SequentialSearchContext σ κ σₕ asm) : Nat :=
+  sctx.currentFrontierDepth - 1
 
 variable {ρ σ κ σₕ asm : Type}
   [fp : StateFingerprint σ σₕ]
@@ -81,6 +90,15 @@ structure MapReduceSearchContextMain (σ κ σₕ asm Shard : Type) [fp : StateF
   /-- The seen set, which is also the log: how the search first reached each state it has seen,
   by fingerprint; `recoverTrace` rebuilds a counterexample trace from it. -/
   globalSeen : MapReduceGlobalSeen σₕ κ Shard
+  /-- The depth of the states in `tovisit` -/
+  currentFrontierDepth : Nat
+
+/-- The depth up to which ALL states have been fully explored (successors enqueued): the one before
+the frontier's, and `0` while the frontier is at depth `0`. -/
+@[inline]
+def MapReduceSearchContextMain.completedDepth {σ κ σₕ asm Shard : Type} [StateFingerprint σ σₕ]
+    [ActionStatUpdate κ asm] (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard) : Nat :=
+  mctx.currentFrontierDepth - 1
 
 /-- The state of a worker of the parallel search. -/
 structure MapReduceSearchContextLocal (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] where

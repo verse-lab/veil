@@ -16,7 +16,7 @@ variable {ρ σ κ σₕ asm : Type}
 /-- Sequential initialization keeps the initial-state indices only in the log. -/
 @[expose] def SequentialSearchContext.initial : SequentialSearchContext σ κ σₕ asm :=
   let (reps, log) := initialLogAndRepresentatives (κ := κ) sys.initStates
-  ⟨BaseSearchContext.initial sys.initStates.length, log, fQueue.ofList (reps.map fun s => ⟨fp.view s, s, 0⟩)⟩
+  ⟨BaseSearchContext.initial sys.initStates.length, log, fQueue.ofList (reps.map fun s => ⟨fp.view s, s, 0⟩), 0⟩
 
 theorem SequentialSearchContext.initial_invs :
   SequentialSearchContextInvariants sys params .none (SequentialSearchContext.initial (fp := fp) sys) ∧
@@ -49,18 +49,18 @@ theorem SequentialSearchContext.initial_invs :
     · intros ; subst_vars ; simp [h4] ; grind
 
 theorem SequentialSearchContextInvariants.setCancelled
-  {ctx : BaseSearchContext σ κ σₕ asm} {log : Std.HashMap σₕ (LogEntry σₕ κ)} {sq : fQueue (QueueItem σₕ σ)}
-  (h : SequentialSearchContextInvariants sys params .none ⟨ctx, log, sq⟩) :
-  SequentialSearchContextInvariants sys params .none ⟨{ ctx with finished := some (.earlyTermination .cancelled) }, log, sq⟩ := by
+  {ctx : BaseSearchContext σ κ σₕ asm} {log : Std.HashMap σₕ (LogEntry σₕ κ)} {sq : fQueue (QueueItem σₕ σ)} {fd : Nat}
+  (h : SequentialSearchContextInvariants sys params .none ⟨ctx, log, sq, fd⟩) :
+  SequentialSearchContextInvariants sys params .none ⟨{ ctx with finished := some (.earlyTermination .cancelled) }, log, sq, fd⟩ := by
   rcases h with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩
   constructor ; on_goal 1 => constructor
   all_goals dsimp only at * ; try solve | assumption | grind
 
 theorem SequentialSearchContext.LogSound.setCancelled
-  {ctx : BaseSearchContext σ κ σₕ asm} {log : Std.HashMap σₕ (LogEntry σₕ κ)} {sq : fQueue (QueueItem σₕ σ)}
+  {ctx : BaseSearchContext σ κ σₕ asm} {log : Std.HashMap σₕ (LogEntry σₕ κ)} {sq : fQueue (QueueItem σₕ σ)} {fd : Nat}
   {rep : σₕ → Option σ} {dep : σₕ → Nat}
-  (h : SequentialSearchContext.LogSound sys params ⟨ctx, log, sq⟩ rep dep) :
-  SequentialSearchContext.LogSound sys params ⟨{ ctx with finished := some (.earlyTermination .cancelled) }, log, sq⟩ rep dep := by
+  (h : SequentialSearchContext.LogSound sys params ⟨ctx, log, sq, fd⟩ rep dep) :
+  SequentialSearchContext.LogSound sys params ⟨{ ctx with finished := some (.earlyTermination .cancelled) }, log, sq, fd⟩ rep dep := by
   rcases h with ⟨⟨hv, _⟩, hlog, hq⟩ ; exact ⟨⟨hv, by simp [TerminationSound]⟩, hlog, hq⟩
 
 /-- When finishing processing a state, we move from having that state `curr`
@@ -73,7 +73,7 @@ theorem SequentialSearchContextInvariants.finish_stateInTransit
   (h_neighbors_seen : ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th curr →
     (fp.view v) ∈ sctx.log) :
   SequentialSearchContextInvariants sys params .none sctx := by
-  rcases sctx with ⟨ctx, log, sq⟩ ; rcases sctx_invs with ⟨h1, h2, h3, h_closed⟩ ; dsimp only at *
+  rcases sctx with ⟨ctx, log, sq, _⟩ ; rcases sctx_invs with ⟨h1, h2, h3, h_closed⟩ ; dsimp only at *
   constructor <;> try assumption
   simp [SequentialSearchContext.isStableClosed] at h_closed ⊢
   intro ha hb u h_reachable hc hd l v hin
@@ -87,7 +87,7 @@ theorem SequentialSearchContext.bfs_completeness
   (h_explore_all : sctx.base.finished = some (.exploredAllReachableStates))
   (h_view_inj : Function.InjectiveOn fp.view sys.reachable) :
   ∀ s : σ, sys.reachable s → (fp.view s) ∈ sctx.log := by
-  rcases sctx with ⟨ctx, log, sq⟩ ; rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at *
+  rcases sctx with ⟨ctx, log, sq, _⟩ ; rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at *
   intro s h_reachable
   induction h_reachable with
   | init s h_s_in_initStates => grind   -- using the initial seen set

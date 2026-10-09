@@ -8,28 +8,27 @@ namespace Veil.ModelChecker.Concrete
 variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
   {Shard : Type} [Membership σₕ Shard] {th : ρ}
 
-/-- Create an empty local context with the given `completedDepth`. -/
-@[expose] def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ asm :=
+/-- An empty local context. -/
+@[expose] def MapReduceSearchContextLocal.initial : MapReduceSearchContextLocal σ κ σₕ asm :=
   ⟨{ violatingStates := [],
      finished := none,
-     currentFrontierDepth := completedDepth + 1,
      statesFound := 0,
      actionStatsMap := ActionStatUpdate.empty (κ := κ) }, Std.HashSet.emptyWithCapacity, []⟩
 
 theorem MapReduceSearchContextLocalInvariants.initial
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
-  (globalSeen : MapReduceGlobalSeen σₕ κ Shard) (completedDepth : Nat) :
+  (globalSeen : MapReduceGlobalSeen σₕ κ Shard) :
   MapReduceSearchContextLocalInvariants sys params globalSeen (fun _ => False)
-    (MapReduceSearchContextLocal.initial (fp := fp) completedDepth) := by
+    (MapReduceSearchContextLocal.initial (fp := fp)) := by
   simp [MapReduceSearchContextLocal.initial]
   constructor ; on_goal 1=> constructor
   all_goals (try solve | intros ; grind)
 
 theorem MapReduceSearchContextLocal.LogSound.initial
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
-  (params : SearchParameters ρ σ) (completedDepth : Nat) (rep : σₕ → Option σ) :
-  (MapReduceSearchContextLocal.initial (fp := fp) (κ := κ) (asm := asm) completedDepth).LogSound sys params rep := by
+  (params : SearchParameters ρ σ) (rep : σₕ → Option σ) :
+  (MapReduceSearchContextLocal.initial (fp := fp) (κ := κ) (asm := asm)).LogSound sys params rep := by
   constructor ; on_goal 1=> constructor
   all_goals simp [MapReduceSearchContextLocal.initial, TerminationSound]
 
@@ -43,7 +42,7 @@ theorem MapReduceSearchContextMainInvariants.setExploredAll_preserves_invs
   (mctx_invs : MapReduceSearchContextMainInvariants sys params mctx) :
   MapReduceSearchContextMainInvariants sys params
     { mctx with base := { mctx.base with finished := some (.exploredAllReachableStates) } } := by
-  rcases mctx with ⟨ctx, mlen, q, gs⟩ ; rcases mctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed, h_len⟩ ; dsimp only at *
+  rcases mctx with ⟨ctx, mlen, q, gs, _⟩ ; rcases mctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed, h_len⟩ ; dsimp only at *
   simp [BaseSearchContext.hasFinished] at h_not_finished
   constructor ; on_goal 1=> constructor
   all_goals (try dsimp only) ; try solve | assumption | grind
@@ -54,7 +53,7 @@ theorem MapReduceSearchContextMainInvariants.bfs_completeness
   (h_explore_all : mctx.base.finished = some (.exploredAllReachableStates))
   (h_view_inj : Function.InjectiveOn fp.view sys.reachable) :
   ∀ s : σ, sys.reachable s → (fp.view s) ∈ mctx.globalSeen := by
-  rcases mctx with ⟨ctx, mlen, q, gs⟩ ; rcases mctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed, h_len⟩ ; dsimp only at *
+  rcases mctx with ⟨ctx, mlen, q, gs, _⟩ ; rcases mctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed, h_len⟩ ; dsimp only at *
   intro s h_reachable
   induction h_reachable <;> grind
 

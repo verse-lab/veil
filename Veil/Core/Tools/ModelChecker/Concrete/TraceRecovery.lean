@@ -360,21 +360,21 @@ theorem checkViolationsAndMaybeTerminate_sound (params : SearchParameters ρ σ)
 -- FIXME: Why is this thing here?
 omit fp in
 theorem BaseSearchContext.processState_snd {asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
-    (params : SearchParameters ρ σ) (th : ρ) (fpSt : σₕ) (curr : σ) (trs : Transitions κ Int σ)
-    (ctx : BaseSearchContext σ κ σₕ asm) :
-    ∀ succs, (ctx.processState params th fpSt curr trs).2 = some succs → succs = trs.successes := by
+    (params : SearchParameters ρ σ) (th : ρ) (fpSt : σₕ) (curr : σ) (completedDepth : Nat)
+    (trs : Transitions κ Int σ) (ctx : BaseSearchContext σ κ σₕ asm) :
+    ∀ succs, (ctx.processState params th fpSt curr completedDepth trs).2 = some succs → succs = trs.successes := by
   unfold BaseSearchContext.processState ; grind
 
 /-- Processing a state records only violations that it exhibits. -/
 theorem BaseSearchContext.processState_sound {asm : Type} [ActionStatUpdate κ asm]
-    (params : SearchParameters ρ σ) {fpSt : σₕ} {curr : σ}
+    (params : SearchParameters ρ σ) {fpSt : σₕ} {curr : σ} (completedDepth : Nat)
     (ctx : BaseSearchContext σ κ σₕ asm) {rep : σₕ → Option σ} (hrep : rep fpSt = some curr)
     (hv : ∀ v ∈ ctx.violatingStates, ViolationSound sys params rep v)
     (hf : TerminationSound sys params rep ctx.finished) :
-    letI res := ctx.processState params th fpSt curr (sys.tr th curr)
+    letI res := ctx.processState params th fpSt curr completedDepth (sys.tr th curr)
     (∀ v ∈ res.1.violatingStates, ViolationSound sys params rep v) ∧
       TerminationSound sys params rep res.1.finished := by
-  have hchk := checkViolationsAndMaybeTerminate_sound sys params (fpSt := fpSt) (curr := curr) ctx.completedDepth hrep
+  have hchk := checkViolationsAndMaybeTerminate_sound sys params (fpSt := fpSt) (curr := curr) completedDepth hrep
   dsimp only at hchk ⊢
   unfold BaseSearchContext.processState
   grind

@@ -33,14 +33,14 @@ private def recoverViolationTrace {ρ σ κ σₕ : Type} {m : Type → Type}
   | none => IO.ofExcept <| Except.error s!"Could not recover a trace for the state {repr fingerprint}!"
 
 /-- The result of a finished search, with a trace for a violation, recovered in `traceSys ()` from
-the search's log `look`. -/
+the search's log `look`. `completedDepth` is the depth the search has completed. -/
 private def searchResult {ρ σ κ σₕ : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   [ActionStatUpdate κ asm]
   {th : ρ}
   (traceSys : Unit → EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   [fp : StateFingerprint σ σₕ] [Repr σₕ]
-  (ctx : BaseSearchContext σ κ σₕ asm) (look : LogLookup σₕ κ) (distinctCount : Nat)
+  (ctx : BaseSearchContext σ κ σₕ asm) (completedDepth : Nat) (look : LogLookup σₕ κ) (distinctCount : Nat)
   : m (ModelCheckingResult ρ σ κ σₕ) := do
   match ctx.finished with
   | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
@@ -51,7 +51,7 @@ private def searchResult {ρ σ κ σₕ : Type} {m : Type → Type}
     return ModelCheckingResult.foundViolation fingerprint (.assertionFailure exId) (some (← recoverViolationTrace (traceSys ()) look fingerprint (some exId)))
   | some (.earlyTermination (.reachedDepthBound _)) =>
     -- No violation found within depth bound; report number of states explored
-    return ModelCheckingResult.noViolationFound distinctCount (.earlyTermination (.reachedDepthBound ctx.completedDepth))
+    return ModelCheckingResult.noViolationFound distinctCount (.earlyTermination (.reachedDepthBound completedDepth))
   | some (.earlyTermination .cancelled) =>
     -- Search was cancelled by the user
     return ModelCheckingResult.cancelled
@@ -112,11 +112,11 @@ def findReachableThen (finish : ModelCheckingResult ρ σ κ σₕ → m α) : m
   | some cfg => do
     let mctx ← breadthFirstSearchParallel (σₕ := σₕ) (Shard := ShardOf (LogEntry σₕ κ)) params sys cfg
       progressInstanceId cancelToken
-    let result ← searchResult traceSys mctx.base mctx.globalSeen.get? mctx.globalSeen.size
+    let result ← searchResult traceSys mctx.base mctx.completedDepth mctx.globalSeen.get? mctx.globalSeen.size
     return (← keepingThen mctx (finish result)).1
   | none => do
     let sctx ← breadthFirstSearchSequential (σₕ := σₕ) params sys 60000 progressInstanceId cancelToken
-    let result ← searchResult traceSys sctx.val.base (logLookup sctx.val.log) sctx.val.log.size
+    let result ← searchResult traceSys sctx.val.base sctx.val.completedDepth (logLookup sctx.val.log) sctx.val.log.size
     return (← keepingThen sctx (finish result)).1
 
 def findReachable : m (ModelCheckingResult ρ σ κ σₕ) :=

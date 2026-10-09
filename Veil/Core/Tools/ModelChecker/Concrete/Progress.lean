@@ -344,10 +344,10 @@ variable {σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [inst : Actio
   (progressInstanceId : Nat)
 
 @[inline]
-def updateProgressDuringBFS (ctx : BaseSearchContext σ κ σₕ asm) (qSize : Nat)
+def updateProgressDuringBFS (ctx : BaseSearchContext σ κ σₕ asm) (frontierDepth : Nat) (qSize : Nat)
     (distinctNumState : Nat) : m Unit := do
   updateModelCheckProgress progressInstanceId
-    ctx.currentFrontierDepth ctx.statesFound distinctNumState qSize
+    frontierDepth ctx.statesFound distinctNumState qSize
     (inst.dump ctx.actionStatsMap)
 
 -- NOTE: Any attempt to inline these functions might lead to **significant** performance
@@ -360,9 +360,9 @@ def trySetViolationFound (ctx : BaseSearchContext σ κ σₕ asm) : m Unit := d
     if EarlyTerminationReason.isViolation cond then setViolationFound progressInstanceId
 
 def tryUpdateProgressWithNewFrontierDepth (oldFrontierDepth : Nat) (ctx : BaseSearchContext σ κ σₕ asm)
-    (qSize distinctNumState : Nat) : m Unit := do
-  if ctx.currentFrontierDepth > oldFrontierDepth then
-    updateProgressDuringBFS progressInstanceId ctx qSize distinctNumState
+    (frontierDepth qSize distinctNumState : Nat) : m Unit := do
+  if frontierDepth > oldFrontierDepth then
+    updateProgressDuringBFS progressInstanceId ctx frontierDepth qSize distinctNumState
 
 inductive SearchPeriodicProgressUpdate where
   | searchCancelled
@@ -371,14 +371,14 @@ inductive SearchPeriodicProgressUpdate where
 
 -- FIXME: Use `Option` to unify the two functions?
 def checkCancellationWithPeriodicUpdate (lastUpdateTime updateTimeInterval : Nat)
-  (cancelToken : IO.CancelToken) (ctx : BaseSearchContext σ κ σₕ asm) (qSize distinctNumState : Nat) :
+  (cancelToken : IO.CancelToken) (ctx : BaseSearchContext σ κ σₕ asm) (frontierDepth qSize distinctNumState : Nat) :
     m SearchPeriodicProgressUpdate := do
   let now ← IO.monoMsNow
   if now - lastUpdateTime ≥ updateTimeInterval then
     if ← shouldStop cancelToken progressInstanceId then
       return .searchCancelled
     else
-      updateProgressDuringBFS progressInstanceId ctx qSize distinctNumState
+      updateProgressDuringBFS progressInstanceId ctx frontierDepth qSize distinctNumState
       return .updateTime now
   else
     return .noUpdate
