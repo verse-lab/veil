@@ -223,9 +223,9 @@ theorem SequentialSearchContext.processSuccessors_log_sound
     dsimp [List.foldl]
     fun_cases tryExploreNeighbor
     · apply ih <;> try assumption
-      cases hls ; constructor <;> assumption    -- `hls` is not affected by the changed fields
+      rcases hls with ⟨⟨hv, hf⟩, hlog, hq⟩ ; exact ⟨⟨hv, hf⟩, hlog, hq⟩    -- `hls` is not affected by the changed fields
     · rename_i ctx log sq fingerprint hnotseen ; subst fingerprint
-      rcases hls with ⟨hlog, hq, hv, hf⟩
+      rcases hls with ⟨⟨hv, hf⟩, hlog, hq⟩
       dsimp only at *
       simp at hnotseen
       have hle : ∀ x s, rep x = some s → repUpdate rep (fp.view succ) succ x = some s := by
@@ -234,11 +234,10 @@ theorem SequentialSearchContext.processSuccessors_log_sound
         (dep := depUpdate dep (fp.view succ) (dep fpSt + 1))
       on_goal 2=> unfold repUpdate ; grind [LogInvariants.mem_of_rep_isSome]
       constructor
+      · exact ⟨fun v hv' => (hv v hv').mono sys hle, hf.mono sys hle⟩
       · rw [logLookup_insert] ; apply hlog.update_step <;> try trivial
         all_goals grind [List.mem_zipIdx_iff_getElem?]
       · intro item hi ; rw [fQueue.mem_enqueue_iff] at hi ; unfold repUpdate ; grind [LogInvariants.mem_of_rep_isSome]
-      · intro v hv' ; exact (hv v hv').mono sys hle
-      · exact hf.mono sys hle
 
 theorem SequentialSearchContext.processState_log_sound
   {sctx : SequentialSearchContext σ κ σₕ asm} {rep : σₕ → Option σ} {dep : σₕ → Nat}
@@ -249,7 +248,7 @@ theorem SequentialSearchContext.processState_log_sound
   ∃ rep' dep', SequentialSearchContext.LogSound sys params
     (sctx.processState params th fpSt depth curr (sys.tr th curr) newCompletedDepth newFrontierDepth) rep' dep' := by
   rcases sctx with ⟨ctx, log, sq⟩
-  rcases hls with ⟨hlog, hq, hv, hf⟩ ; dsimp only at *
+  rcases hls with ⟨⟨hv, hf⟩, hlog, hq⟩ ; dsimp only at *
   have hsound := BaseSearchContext.processState_sound sys params (fpSt := fpSt) (curr := curr) ctx hrep hv hf
   have hsnd := BaseSearchContext.processState_snd params th fpSt curr (sys.tr th curr) ctx
   unfold SequentialSearchContext.processState ; dsimp only
@@ -258,9 +257,9 @@ theorem SequentialSearchContext.processState_log_sound
   dsimp only at *
   obtain ⟨hv', hf'⟩ := hsound
   rcases outcomesOpt with _ | succs
-  · exact ⟨rep, dep, hlog, hq, hv', hf'⟩
+  · exact ⟨rep, dep, ⟨hv', hf'⟩, hlog, hq⟩
   · obtain rfl := hsnd _ rfl
-    exact processSuccessors_log_sound params th ⟨hlog, hq, hv', hf'⟩ hrep
+    exact processSuccessors_log_sound params th ⟨⟨hv', hf'⟩, hlog, hq⟩ hrep
 
 theorem SequentialSearchContext.bfsStep_log_sound
   {sctx : SequentialSearchContext σ κ σₕ asm}
@@ -270,13 +269,13 @@ theorem SequentialSearchContext.bfsStep_log_sound
   rcases sctx with ⟨ctx, log, sq⟩
   unfold bfsStep ; dsimp only
   rcases hdeq : sq.dequeue? with _ | ⟨⟨fpSt, curr, depth⟩, q_tail⟩ <;> dsimp only
-  · rcases hls with ⟨hlog, hq, hv, _⟩ ; dsimp only at *
-    exact ⟨rep, dep, hlog, hq, hv, by simp [TerminationSound]⟩
+  · rcases hls with ⟨⟨hv, _⟩, hlog, hq⟩ ; dsimp only at *
+    exact ⟨rep, dep, ⟨hv, by simp [TerminationSound]⟩, hlog, hq⟩
   · have hmem : (⟨fpSt, curr, depth⟩ : QueueItem σₕ σ) ∈ sq := fQueue.mem_of_dequeue _ _ _ hdeq
     have hrep := hls.queue_rep _ hmem
     have hls' : SequentialSearchContext.LogSound sys params ⟨ctx, log, q_tail⟩ rep dep :=
-      ⟨hls.log_invs, fun item hitem => hls.queue_rep item (fQueue.mem_of_mem_dequeue_tail _ _ _ _ hdeq hitem),
-        hls.violations_sound, hls.termination_sound⟩
+      ⟨hls.toViolationTerminationSound, hls.log_invs,
+        fun item hitem => hls.queue_rep item (fQueue.mem_of_mem_dequeue_tail _ _ _ _ hdeq hitem)⟩
     generalize (if depth > ctx.currentFrontierDepth then (depth - 1, depth) else (ctx.completedDepth, ctx.currentFrontierDepth)) = nd
     rcases nd with ⟨ncd, nfd⟩ ; dsimp only
     exact processState_log_sound params th hls' hrep

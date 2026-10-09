@@ -43,10 +43,10 @@ theorem SequentialSearchContext.initial_invs :
       | .init j => sys.initStates[j]?
       | .step .. => none
     exists rep, fun _ => 0 ; dsimp [rep]
-    constructor ; on_goal 1=> constructor
+    refine ⟨⟨by simp, by simp [TerminationSound]⟩, ?_, ?_⟩    -- nothing recorded yet
+    on_goal 1=> constructor
     all_goals (try simp [← fQueue.mem_ofList, Option.bind_eq_some_iff]) ; try grind
     · intros ; subst_vars ; simp [h4] ; grind
-    · constructor
 
 theorem SequentialSearchContextInvariants.setCancelled
   {ctx : BaseSearchContext σ κ σₕ asm} {log : Std.HashMap σₕ (LogEntry σₕ κ)} {sq : fQueue (QueueItem σₕ σ)}
@@ -61,7 +61,7 @@ theorem SequentialSearchContext.LogSound.setCancelled
   {rep : σₕ → Option σ} {dep : σₕ → Nat}
   (h : SequentialSearchContext.LogSound sys params ⟨ctx, log, sq⟩ rep dep) :
   SequentialSearchContext.LogSound sys params ⟨{ ctx with finished := some (.earlyTermination .cancelled) }, log, sq⟩ rep dep := by
-  rcases h with ⟨h1, h2, h3, _⟩ ; exact ⟨h1, h2, h3, by simp [TerminationSound]⟩
+  rcases h with ⟨⟨hv, _⟩, hlog, hq⟩ ; exact ⟨⟨hv, by simp [TerminationSound]⟩, hlog, hq⟩
 
 /-- When finishing processing a state, we move from having that state `curr`
 in transit to having no state in transit, provided that all successfully

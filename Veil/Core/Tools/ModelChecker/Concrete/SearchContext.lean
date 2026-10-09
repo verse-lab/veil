@@ -57,11 +57,10 @@ where
 the search has queued and the violations it has recorded. Kept apart from
 `SequentialSearchContextInvariants`, since it is preserved for a growing `rep`. -/
 structure SequentialSearchContext.LogSound (sctx : SequentialSearchContext σ κ σₕ asm)
-    (rep : σₕ → Option σ) (dep : σₕ → Nat) : Prop where
+    (rep : σₕ → Option σ) (dep : σₕ → Nat) : Prop
+    extends BaseSearchContext.ViolationTerminationSound sys params sctx.base rep where
   log_invs : LogInvariants sys (logLookup sctx.log) rep dep
   queue_rep : ∀ item ∈ sctx.queue, rep item.fingerprint = some item.state
-  violations_sound : ∀ v ∈ sctx.base.violatingStates, ViolationSound sys params rep v
-  termination_sound : TerminationSound sys params rep sctx.base.finished
 
 abbrev LawfulSequentialSearchContext (stateInTransit : Option σ := .none) : Type :=
   Subtype (α := SequentialSearchContext σ κ σₕ asm) fun sctx =>
@@ -141,11 +140,10 @@ where
 queued is a transition from the representative of the entry's parent, and each violation it has
 recorded is exhibited by the representative of its fingerprint. -/
 structure MapReduceSearchContextLocal.LogSound (lctx : MapReduceSearchContextLocal σ κ σₕ asm)
-    (rep : σₕ → Option σ) : Prop where
+    (rep : σₕ → Option σ) : Prop
+    extends BaseSearchContext.ViolationTerminationSound sys params lctx.base rep where
   entries_sound : ∀ item ∈ lctx.queue, ∃ p l i sp, item.entry = .step p l i ∧ rep p = some sp ∧
     (sys.tr th sp).successes[i]? = some (l, item.state)
-  violations_sound : ∀ v ∈ lctx.base.violatingStates, ViolationSound sys params rep v
-  termination_sound : TerminationSound sys params rep lctx.base.finished
 
 /-- A worker's context with its invariants, and its `LogSound` for any `rep` that maps the items
 it has processed (`visited`) to their states, so that the merge can apply it to the

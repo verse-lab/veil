@@ -184,10 +184,10 @@ theorem MapReduceSearchContextLocal.processSuccessors_log_sound {rep : σₕ →
     rcases x with ⟨⟨⟨label, succ⟩, idx⟩, hmem⟩
     dsimp [List.foldl] ; apply ih
     fun_cases MapReduceSearchContextLocal.tryExploreNeighbor
-    · cases hls ; constructor <;> assumption    -- `hls` is not affected by the changed fields
+    · rcases hls with ⟨⟨hv, hf⟩, hent⟩ ; exact ⟨⟨hv, hf⟩, hent⟩    -- `hls` is not affected by the changed fields
     · rename_i ctx seen q fingerprint _ ; subst fingerprint
-      rcases hls with ⟨hent, hv, hf⟩
-      refine ⟨?_, hv, hf⟩
+      rcases hls with ⟨⟨hv, hf⟩, hent⟩
+      refine ⟨⟨hv, hf⟩, ?_⟩
       intro item hi ; rcases List.mem_cons.mp hi with rfl | hi
       · exact ⟨fpSt, label, idx, curr, rfl, hrep, by grind [List.mem_zipIdx_iff_getElem?]⟩
       · exact hent item hi
@@ -196,7 +196,7 @@ theorem MapReduceSearchContextLocal.processState_log_sound {rep : σₕ → Opti
   (hls : lctx.LogSound sys params rep) {fpSt : σₕ} {curr : σ} (hrep : rep fpSt = some curr) :
   (lctx.processState globalSeen params th fpSt curr (sys.tr th curr)).LogSound sys params rep := by
   rcases lctx with ⟨ctx, seen, q⟩
-  rcases hls with ⟨hent, hv, hf⟩ ; dsimp only at *
+  rcases hls with ⟨⟨hv, hf⟩, hent⟩ ; dsimp only at *
   have hsound := BaseSearchContext.processState_sound sys params (fpSt := fpSt) (curr := curr) ctx hrep hv hf
   have hsnd := BaseSearchContext.processState_snd params th fpSt curr (sys.tr th curr) ctx
   unfold MapReduceSearchContextLocal.processState ; dsimp only
@@ -205,9 +205,9 @@ theorem MapReduceSearchContextLocal.processState_log_sound {rep : σₕ → Opti
   dsimp only at *
   obtain ⟨hv', hf'⟩ := hsound
   rcases outcomesOpt with _ | succs
-  · exact ⟨hent, hv', hf'⟩
+  · exact ⟨⟨hv', hf'⟩, hent⟩
   · obtain rfl := hsnd _ rfl
-    exact processSuccessors_log_sound ⟨hent, hv', hf'⟩ hrep
+    exact processSuccessors_log_sound ⟨⟨hv', hf'⟩, hent⟩ hrep
 
 end
 

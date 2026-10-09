@@ -329,6 +329,13 @@ theorem TerminationSound.mono {params : SearchParameters ρ σ} {rep rep' : σ�
   rcases r with _ | ⟨_ | ⟨x, names⟩ | x | ⟨x, e⟩ | _ | _⟩ <;> simp only [TerminationSound] at h ⊢ <;>
     try exact ViolationSound.mono sys hle h
 
+/-- The violations that `ctx` has recorded, and the one that its early termination reports, if any,
+are exhibited by the representatives `rep`. -/
+structure BaseSearchContext.ViolationTerminationSound {asm : Type} [ActionStatUpdate κ asm]
+    (params : SearchParameters ρ σ) (ctx : BaseSearchContext σ κ σₕ asm) (rep : σₕ → Option σ) : Prop where
+  violations_sound : ∀ v ∈ ctx.violatingStates, ViolationSound sys params rep v
+  termination_sound : TerminationSound sys params rep ctx.finished
+
 omit fp in
 /-- Checking a state records only violations that it exhibits. -/
 theorem checkViolationsAndMaybeTerminate_sound (params : SearchParameters ρ σ) {fpSt : σₕ} {curr : σ}

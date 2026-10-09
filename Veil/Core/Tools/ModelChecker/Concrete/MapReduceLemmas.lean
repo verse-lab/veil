@@ -31,7 +31,8 @@ theorem MapReduceSearchContextLocal.LogSound.initial
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ) (completedDepth : Nat) (rep : σₕ → Option σ) :
   (MapReduceSearchContextLocal.initial (fp := fp) (κ := κ) (asm := asm) completedDepth).LogSound sys params rep := by
-  constructor <;> simp [MapReduceSearchContextLocal.initial, TerminationSound]
+  constructor ; on_goal 1=> constructor
+  all_goals simp [MapReduceSearchContextLocal.initial, TerminationSound]
 
 variable {params : SearchParameters ρ σ}
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
