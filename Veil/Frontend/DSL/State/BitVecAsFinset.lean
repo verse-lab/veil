@@ -22,6 +22,14 @@ open Veil
 /-- Number of set bits. -/
 def BitVec.popCount (bv : BitVec n) : Nat := bv.cpopNatRec n 0
 
+/-- `x.getLsbD i` with `Nat.testBit` unfolded. `Nat.testBit` is an ordinary function of `Init`, so
+`x[i]` and `x.getLsbD i` compile to a call into the runtime library for every test; the shift, mask
+and comparison here are compiler primitives that the C backend inlines. -/
+@[inline] def BitVec.getLsbInline (x : BitVec w) (i : Nat) : Bool := 1 &&& (x.toNat >>> i) != 0
+
+@[simp] theorem BitVec.getLsbInline_eq_getLsbD (x : BitVec w) (i : Nat) :
+    x.getLsbInline i = x.getLsbD i := rfl
+
 /-- The bit vector of width `n` whose lowest `k` bits are set. -/
 def BitVec.lowOnes (n k : Nat) : BitVec n := BitVec.setWidth n (BitVec.allOnes k)
 
@@ -89,15 +97,19 @@ instance : Membership α (BitVecAsFinset α) where
 
 theorem mem_def {a : α} {s : BitVecAsFinset α} : a ∈ s ↔ s.bits[inst.equiv a] = true := Iff.rfl
 
--- `macro_inline`: an instance is never inlined by the compiler, and `decide (a ∈ s)` must
--- compile to the bit test itself (otherwise the `FinEncodable` dictionary is passed at run
--- time and `equiv` is a closure call).
-@[macro_inline] instance (a : α) (s : BitVecAsFinset α) : Decidable (a ∈ s) :=
-  inferInstanceAs (Decidable (s.bits[inst.equiv a] = true))
-
 theorem mem_iff_getLsbD {a : α} {s : BitVecAsFinset α} :
     a ∈ s ↔ s.bits.getLsbD (inst.equiv a).val = true := by
   rw [mem_def, Fin.getElem_fin, BitVec.getLsbD_eq_getElem]
+
+-- `decide (a ∈ s)` must compile to the bit test itself, inside the caller's loop:
+-- * `macro_inline`: an instance is never inlined by the compiler, and otherwise the `FinEncodable`
+--   dictionary is passed at run time and `equiv` is a closure call;
+-- * `getLsbInline` rather than `s.bits[_]`, which is a call to `Nat.testBit`;
+-- * the term itself (`a ∈ s` is definitionally `s.bits.getLsbInline _ = true`): `inferInstanceAs`
+--   puts the body into an auxiliary definition that is not inlined, and `decidable_of_iff` leaves a
+--   redundant branch.
+@[macro_inline] instance (a : α) (s : BitVecAsFinset α) : Decidable (a ∈ s) :=
+  instDecidableEqBool (s.bits.getLsbInline (inst.equiv a).val) true
 
 /-- Number of elements. -/
 def card (s : BitVecAsFinset α) : Nat := s.bits.popCount

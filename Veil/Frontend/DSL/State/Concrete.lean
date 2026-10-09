@@ -235,7 +235,7 @@ section ConcreteInstances
 
 -- `BitVecAsFinset` itself is defined in `BitVecAsFinset.lean`.
 instance [FinEncodable α] : FinmapLike α Bool (BitVecAsFinset α) where
-  get mp a := mp.bits[FinEncodable.equiv a]
+  get mp a := mp.bits.getLsbInline (FinEncodable.equiv a).val  -- not `mp.bits[_]`, see `getLsbInline`
   insert a b mp := if b then mp.insert a else mp.erase a
 
 instance [BEq α] [Hashable α] : FinmapLike α Bool (Std.HashSet α) where
@@ -252,7 +252,8 @@ instance {cmp : α → α → Ordering} [Std.TransCmp cmp] : FinmapLike α Bool 
 
 instance [FinEncodable α] [DecidableEq α] : LawfulFinmapLike (BitVecAsFinset α) where
   insert_get a a' b mp := by
-    simp only [FinmapLike.get, FinmapLike.insert, BitVecAsFinset.insert, BitVecAsFinset.erase]
+    simp only [FinmapLike.get, FinmapLike.insert, BitVecAsFinset.insert, BitVecAsFinset.erase,
+      BitVec.getLsbInline_eq_getLsbD]
     have := FinEncodable.equiv (α := α) |>.injective
     split_ifs <;> simp_all <;> grind [Fin.val_inj]
 
