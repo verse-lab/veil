@@ -152,6 +152,20 @@ veil_set_field_representation function Veil.ArrayAsFinmap
 | `Veil.BitVecAsFinset` / `Veil.BitVecAsFinmap` | Packed bit vectors; the map version also needs a finitely encodable codomain |
 | `Veil.CanonicalField` | Plain functions; a simple baseline |
 
+For a custom array index type, derive `Veil.FinEncodable` directly:
+
+```lean
+inductive Key (node : Type) where
+  | local (n : node)
+  | pair (src dst : node)
+  | global
+deriving Veil.FinEncodable
+```
+
+`Key node` requires `[Veil.FinEncodable node]`. Deriving also supports structures
+and empty types; recursive and indexed inductives are unsupported. Non-deterministic choices and
+field updates still need `Enumeration`.
+
 A representation changes how states are stored, not which states are
 reachable, so the explored-state count stays the same. It does not affect
 `TSet` carriers. See `VeilTest/SetFieldRepresentation.lean` for examples.

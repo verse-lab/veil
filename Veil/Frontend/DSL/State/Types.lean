@@ -503,6 +503,31 @@ class FinEncodable (α : Type u) where
   card : Nat
   equiv : α ≃ Fin card
 
+/-- Transfer a finite encoding across an equivalence, preserving its cardinality
+and using the existing encoder and decoder. -/
+@[inline, implicit_reducible]
+def FinEncodable.ofEquiv {α : Type u} {β : Type v} [inst : FinEncodable β]
+    (e : α ≃ β) : FinEncodable α where
+  card := inst.card
+  equiv := e.trans inst.equiv
+
+/-- Transfer a full finite encoding across an equivalence with a direct encoding
+function. Its agreement with the proxy encoder proves both inverse laws; decoding
+uses the proxy's existing inverse. Only the direct encoder survives on the forward
+path at runtime. -/
+@[inline, implicit_reducible]
+def FinEncodable.ofEquivWithEnc {α : Type u} {β : Type v} [inst : FinEncodable β]
+    (e : α ≃ β) (enc : α → Nat) (h_enc : ∀ a, enc a = (inst.equiv (e a)).val)
+    : FinEncodable α where
+  card := inst.card
+  equiv :=
+    let encode (a : α) : Fin inst.card := ⟨enc a, h_enc a ▸ (inst.equiv (e a)).isLt⟩
+    have h_encode : ∀ a, encode a = inst.equiv (e a) := fun a => Fin.ext (h_enc a)
+    { toFun := encode
+      invFun := fun i => e.symm (inst.equiv.symm i)
+      left_inv := by intro a; rw [h_encode]; simp
+      right_inv := by intro i; rw [h_encode]; simp }
+
 @[implicit_reducible]
 def Ord.ofFinEncodable (α : Type u) [inst : FinEncodable α] : Ord α where
   compare a b := compare (inst.equiv a) (inst.equiv b)
@@ -739,6 +764,24 @@ open Lean Meta Elab Term Command Deriving
 theorem enumList_getElem?_ctorIdx_eq_implies_ctorIdx_lt {α : Type u} {l : List α}
   {f : α → Nat} (h : ∀ a : α, l[f a]? = some a) : ∀ a : α, f a < l.length := by grind
 
+scoped syntax (name := finEncodableTerm) "veil_fin_encodable% " term : term
+
+/-- Derive a full encoding using the shared deforested encoder. Dependent fields
+require an encoding of their dependent Sigma. Recursive and indexed inductives
+are rejected by the proxy machinery. -/
+@[no_expose] def mkFinEncodableInstCmdGeneralCase (declName : Name) : CommandElabM Bool := do
+  let indVal ← getConstInfoInduct declName
+  let cmd ← liftTermElabM do
+    let instName ← mkInstName ``FinEncodable declName
+    let header ← mkHeader ``FinEncodable 0 indVal
+    let funBinders ← header.binders.mapM bracketedBinderToFunBinder
+    let target ← `((veil_fin_encodable% $header.targetType :
+      $(mkIdent ``FinEncodable) $header.targetType))
+    let defBody ← mkFunSyntax funBinders target
+    `(command|@[inline, implicit_reducible, instance] def $(mkIdent instName) := remove_unused_args% $defBody)
+  elabVeilCommand cmd
+  return true
+
 @[no_expose] def mkFinEncodableInstCmd (declName : Name) : CommandElabM Bool := do
   if ← isEnumType declName then
     -- Generate the constructor list and its lookup/uniqueness proofs.
@@ -763,8 +806,7 @@ theorem enumList_getElem?_ctorIdx_eq_implies_ctorIdx_lt {α : Type u} {l : List 
           })
     elabVeilCommand cmd
     return true
-  -- orM (mkFinEncodableInstCmdForStructure declName) (mkFinEncodableInstCmdGeneralCase declName)
-  return false
+  mkFinEncodableInstCmdGeneralCase declName
 
 @[no_expose] def mkFinEncodableHandler := onlyHandleOne mkFinEncodableInstCmd
 
@@ -841,42 +883,51 @@ def FinEncodableInjOnly.ofEquivWithEnc {β : Type u} [inst : FinEncodableInjOnly
       Fin.ext (by simp only [Fin.mk.injEq] at heq; rw [← h_enc, ← h_enc]; exact heq)
     have hh := inst.encode_inj h ; simp at hh ; exact hh
 
-meta section FinEncodableInjOnlyDerivingHandler
+meta section FinEncodingDerivingHandler
 
 open Lean Meta Elab Term Command Deriving
 open Lean.Parser.Term (matchAltExpr matchDiscr matchAlt)
+
+private structure FinEncodingDerivingConfig where
+  cardName : Name
+  encodeName : Name
+  ofEquivName : Name
+  ofEquivWithEncName : Name
+
+private def fullEncodingConfig : FinEncodingDerivingConfig :=
+  ⟨``FinEncodable.card, ``FinEncodable.equiv,
+    ``FinEncodable.ofEquiv, ``FinEncodable.ofEquivWithEnc⟩
+
+private def injectionEncodingConfig : FinEncodingDerivingConfig :=
+  ⟨``FinEncodableInjOnly.card, ``FinEncodableInjOnly.encode,
+    ``FinEncodableInjOnly.ofEquiv, ``FinEncodableInjOnly.ofEquivWithEnc⟩
 
 /-- Generate the cardinality expression for a constructor's fields, matching
     the right-nested Sigma structure that `veil_proxy_equiv%` generates.
     - 0 fields → `(1 : Nat)` (Unit card)
     - 1 field  → `FinEncodableInjOnly.card (κ := τ)`
     - k fields → `card τ₁ * (card τ₂ * (... * card τₖ))` (right-associated) -/
-@[no_expose] private def mkCtorCardSyntax : List Term → TermElabM Term
+@[no_expose] private def mkCtorCardSyntax (config : FinEncodingDerivingConfig) :
+    List Term → TermElabM Term
   | [] => `((1 : Nat))
-  | [t] => `(FinEncodableInjOnly.card (κ := $t))
+  | [t] => `(@$(mkIdent config.cardName) $t inferInstance)
   | t :: rest => do
-    let restCard ← mkCtorCardSyntax rest
-    `(FinEncodableInjOnly.card (κ := $t) * $restCard)
+    let restCard ← mkCtorCardSyntax config rest
+    `(@$(mkIdent config.cardName) $t inferInstance * $restCard)
 
 /-- Generate the local encoding expression for a constructor's fields.
     Takes paired (fieldIdent, fieldTypeSyntax) to avoid needing to infer types from values.
     - 0 fields → `(0 : Nat)`
-    - 1 field  → `(FinEncodableInjOnly.encode f).val`
+    - 1 field  → `(encode f).val`
     - k fields → `encode(f₁).val * tailCard + (encode(f₂).val * ... + encode(fₖ).val)` -/
-@[no_expose] private def mkLocalEncodeSyntax : List (Ident × Term) → TermElabM Term
+@[no_expose] private def mkLocalEncodeSyntax (config : FinEncodingDerivingConfig) :
+    List (Ident × Term) → TermElabM Term
   | [] => `((0 : Nat))
-  | [(f, _)] => `((FinEncodableInjOnly.encode ($f)).val)
+  | [(f, _)] => `(($(mkIdent config.encodeName) ($f)).val)
   | (f, _) :: rest => do
-    let tailCard ← mkTailCardFromPairs rest
-    let restEnc ← mkLocalEncodeSyntax rest
-    `((FinEncodableInjOnly.encode ($f)).val * $tailCard + $restEnc)
-where
-  mkTailCardFromPairs : List (Ident × Term) → TermElabM Term
-    | [] => `((1 : Nat))
-    | [(_, t)] => `(FinEncodableInjOnly.card (κ := $t))
-    | (_, t) :: rest => do
-      let restCard ← mkTailCardFromPairs rest
-      `(FinEncodableInjOnly.card (κ := $t) * $restCard)
+    let tailCard ← mkCtorCardSyntax config (rest.map Prod.snd)
+    let restEnc ← mkLocalEncodeSyntax config rest
+    `(($(mkIdent config.encodeName) ($f)).val * $tailCard + $restEnc)
 
 /-- Generate the full encoding with right-nested offset structure, matching
     the right-nested Sum encoding that `veil_proxy_equiv%` generates.
@@ -893,16 +944,15 @@ scoped syntax (name := finEncodableInjOnlyTerm) "veil_fin_encodable_inj_only% " 
     `exprToSyntax` embeds field types without delaboration, preserving binders, implicit
     arguments, and universe levels. Its assigned metavariables must be consumed here,
     in the same term elaboration, rather than in a later command elaboration. -/
-@[term_elab finEncodableInjOnlyTerm, no_expose]
-def elabFinEncodableInjOnly : TermElab := fun stx _ => do
-  let `(veil_fin_encodable_inj_only% $type) := stx | throwUnsupportedSyntax
+@[no_expose] private def elabFinEncoding (config : FinEncodingDerivingConfig)
+    (type : Term) : TermElabM Expr := do
   let (targetType, indVal) ← ProxyType.elabProxyEquiv type none
-  let config := ProxyType.ProxyEquivConfig.default indVal
-  ProxyType.ensureProxyEquiv config indVal
+  let proxyConfig := ProxyType.ProxyEquivConfig.default indVal
+  ProxyType.ensureProxyEquiv proxyConfig indVal
   let some (_, levels) := targetType.getAppFn.const? | throwUnsupportedSyntax
   let params := targetType.getAppArgs
   let equiv ← exprToSyntax (← mkAppM ``Equiv.symm
-    #[mkAppN (Lean.mkConst config.proxyEquivName levels) params])
+    #[mkAppN (Lean.mkConst proxyConfig.proxyEquivName levels) params])
   -- Collect match arms and constructor cardinalities
   let mut allMatchAlts : Array (TSyntax ``matchAltExpr) := #[]
   let mut prevCtorCards : List Term := []
@@ -923,9 +973,9 @@ def elabFinEncodableInjOnly : TermElab := fun stx _ => do
         types := types.push (← exprToSyntax fieldType)
       return some (names, types)
     let some (fieldNameIdents, fieldTypeSyntaxes) := fieldData?
-      | return ← elabTerm (← `($(mkIdent ``FinEncodableInjOnly.ofEquiv) $equiv)) none
+      | return ← elabTerm (← `($(mkIdent config.ofEquivName) $equiv)) none
     -- Compute local encoding for this constructor's fields
-    let localEncode ← mkLocalEncodeSyntax (fieldNameIdents.zip fieldTypeSyntaxes).toList
+    let localEncode ← mkLocalEncodeSyntax config (fieldNameIdents.zip fieldTypeSyntaxes).toList
     -- Build full encoding with right-nested offset
     let fullEncode ← mkFullEncodeSyntax prevCtorCards localEncode
     -- Explicit patterns also bind implicit constructor fields.
@@ -934,7 +984,7 @@ def elabFinEncodableInjOnly : TermElab := fun stx _ => do
     let arm ← `(matchAltExpr| | @$(mkCIdent ctorName) $places* $fieldTerms* => $fullEncode)
     allMatchAlts := allMatchAlts.push arm
     -- Compute this constructor's cardinality for subsequent offsets
-    let ctorCard ← mkCtorCardSyntax fieldTypeSyntaxes.toList
+    let ctorCard ← mkCtorCardSyntax config fieldTypeSyntaxes.toList
     prevCtorCards := prevCtorCards ++ [ctorCard]
   -- Build the encode function using match
   let alts : Array (TSyntax ``matchAlt) := allMatchAlts.map (⟨·.raw⟩)
@@ -943,8 +993,22 @@ def elabFinEncodableInjOnly : TermElab := fun stx _ => do
   let discrs := #[discr]
   let matchExpr ← `(match $[$discrs],* with $alts:matchAlt*)
   let encFn ← `(fun $xIdent => $matchExpr)
-  elabTerm (← `($(mkIdent ``FinEncodableInjOnly.ofEquivWithEnc) $equiv $encFn
+  let result ← elabTerm (← `($(mkIdent config.ofEquivWithEncName) $equiv $encFn
     (by intro x; cases x <;> rfl))) none
+  -- Resolve the proof's synthetic metavariables before `remove_unused_args%`
+  -- checks which instance binders are actually needed (including phantom types).
+  synthesizeSyntheticMVarsNoPostponing
+  instantiateMVars result
+
+@[term_elab finEncodableTerm, no_expose]
+def elabFinEncodable : TermElab := fun stx _ => do
+  let `(veil_fin_encodable% $type) := stx | throwUnsupportedSyntax
+  elabFinEncoding fullEncodingConfig type
+
+@[term_elab finEncodableInjOnlyTerm, no_expose]
+def elabFinEncodableInjOnly : TermElab := fun stx _ => do
+  let `(veil_fin_encodable_inj_only% $type) := stx | throwUnsupportedSyntax
+  elabFinEncoding injectionEncodingConfig type
 
 @[no_expose] def mkFinEncodableInjOnlyInstCmdDeforested (declName : Name) : CommandElabM Bool := do
   let indVal ← getConstInfoInduct declName
@@ -966,7 +1030,7 @@ def elabFinEncodableInjOnly : TermElab := fun stx _ => do
 
 initialize registerDerivingHandler ``FinEncodableInjOnly mkFinEncodableInjOnlyHandler
 
-end FinEncodableInjOnlyDerivingHandler
+end FinEncodingDerivingHandler
 
 end FinEncodableInjOnly
 

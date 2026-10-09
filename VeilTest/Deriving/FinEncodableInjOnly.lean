@@ -1,13 +1,67 @@
 module
 
-public import Veil
+public import Veil.Frontend.DSL.State.Types
+public meta import Veil.Frontend.DSL.State.Types
 
-/-! Regression tests for A03: field types must retain their elaborated expressions. -/
+/-! Tests for deforested finite encoding and field type elaboration. -/
 
 open Veil
 
 namespace VeilTest.Deriving.FinEncodableInjOnly
 
+private def checkEncodings [inst : FinEncodableInjOnly α] (values : List α) : IO Unit := do
+  let encodings := values.map (inst.encode · |>.val)
+  assert! encodings.eraseDups.length == values.length
+  assert! encodings.all (· < inst.card)
+
+-- Nullary constructors and the single-constructor proxy cases.
+inductive Color where
+  | red | green | blue
+deriving FinEncodableInjOnly
+
+#guard FinEncodableInjOnly.card (κ := Color) == 3
+#guard (FinEncodableInjOnly.encode Color.red).val == 0
+#guard (FinEncodableInjOnly.encode Color.green).val == 1
+#guard (FinEncodableInjOnly.encode Color.blue).val == 2
+
+inductive Singleton where
+  | only
+deriving FinEncodableInjOnly
+
+#guard FinEncodableInjOnly.card (κ := Singleton) == 1
+#guard (FinEncodableInjOnly.encode Singleton.only).val == 0
+
+inductive Wrapper (α : Type u) where
+  | wrap (value : α)
+deriving FinEncodableInjOnly
+
+#guard FinEncodableInjOnly.card (κ := Wrapper (Fin 5)) == 5
+#guard (FinEncodableInjOnly.encode (Wrapper.wrap (3 : Fin 5))).val == 3
+
+-- One parameter, mixed arities, and deeply nested Sigma encoding.
+inductive Action (node : Type u) where
+  | send (a b c d : node)
+  | recv (x : node)
+  | timeout
+deriving FinEncodableInjOnly
+
+example [FinEncodableInjOnly α] : FinEncodableInjOnly (Action α) := inferInstance
+
+#guard FinEncodableInjOnly.card (κ := Action (Fin 2)) == 19
+#guard (FinEncodableInjOnly.encode (Action.send (0 : Fin 2) 0 0 0)).val == 0
+#guard (FinEncodableInjOnly.encode (Action.send (1 : Fin 2) 0 1 0)).val == 10
+#guard (FinEncodableInjOnly.encode (Action.send (1 : Fin 2) 1 1 1)).val == 15
+#guard (FinEncodableInjOnly.encode (Action.recv (0 : Fin 2))).val == 16
+#guard (FinEncodableInjOnly.encode (Action.recv (1 : Fin 2))).val == 17
+#guard (FinEncodableInjOnly.encode (Action.timeout (node := Fin 2))).val == 18
+
+#eval do
+  let nodes := List.finRange 2
+  let sends := nodes.flatMap fun a => nodes.flatMap fun b =>
+    nodes.flatMap fun c => nodes.map (Action.send a b c)
+  checkEncodings (sends ++ nodes.map Action.recv ++ [Action.timeout])
+
+-- Literal field types and cumulative constructor offsets.
 inductive Literal where
   | item (x : Fin 3)
   | pair (x : Fin 2) (y : Fin 3)
@@ -44,9 +98,7 @@ example (f : Pred) (x : Three) :
   let functions : List Pred := [fun _ => false, fun _ => true,
     fun i => i.val == 0, fun i => i.val == 1]
   let values := functions.flatMap fun f => [0, 1, 2].map (FunctionField.item f)
-  let encodings := (values ++ [FunctionField.stop]).map (FinEncodableInjOnly.encode · |>.val)
-  assert! encodings.eraseDups.length == 13
-  assert! encodings.all (· < 13)
+  checkEncodings (values ++ [FunctionField.stop])
 
 -- Literal, lambda, let, and dependent function binders inside field types.
 inductive Compound where
@@ -82,6 +134,8 @@ inductive Hidden {α : Type u} (n : Nat) where
 deriving FinEncodableInjOnly
 
 inductive Generic (α : Type u) (β : Type v) (n : Nat) where
+  | left (a : α)
+  | right (b : β)
   | item (α : Hidden (α := α) n) (b : β)
   | stop
 deriving FinEncodableInjOnly
@@ -89,10 +143,12 @@ deriving FinEncodableInjOnly
 example {α : Type u} {β : Type v} [FinEncodableInjOnly α] [FinEncodableInjOnly β]
     (n : Nat) : FinEncodableInjOnly (Generic α β n) := inferInstance
 
-#guard FinEncodableInjOnly.card (κ := Generic (Fin 2) (Fin 3) 2) == 13
+#guard FinEncodableInjOnly.card (κ := Generic (Fin 2) (Fin 3) 2) == 18
+#guard (FinEncodableInjOnly.encode (Generic.left (β := Fin 3) (n := 2) (1 : Fin 2))).val == 1
+#guard (FinEncodableInjOnly.encode (Generic.right (α := Fin 2) (n := 2) (2 : Fin 3))).val == 4
 #guard (FinEncodableInjOnly.encode (Generic.item (Hidden.item (α := Fin 2) (n := 2) 1 1)
-  (2 : Fin 3))).val == 11
-#guard (FinEncodableInjOnly.encode (Generic.stop (α := Fin 2) (β := Fin 3) (n := 2))).val == 12
+  (2 : Fin 3))).val == 16
+#guard (FinEncodableInjOnly.encode (Generic.stop (α := Fin 2) (β := Fin 3) (n := 2))).val == 17
 
 -- A parameter occurring under a function binder must refer to this instance's n.
 inductive ParameterFunction (n : Nat) where
@@ -127,8 +183,6 @@ deriving FinEncodableInjOnly
 #eval do
   let values : List DependentFields :=
     [.item 0 0, .item 1 0, .item 1 1, .item 2 0, .item 2 1, .item 2 2, .stop]
-  let encodings := values.map (FinEncodableInjOnly.encode · |>.val)
-  assert! encodings.eraseDups.length == 7
-  assert! encodings.all (· < 7)
+  checkEncodings values
 
 end VeilTest.Deriving.FinEncodableInjOnly
