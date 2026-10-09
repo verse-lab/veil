@@ -53,7 +53,6 @@ def SequentialSearchContext.processState
   (trs : Transitions κ Int σ)
   (sctx : SequentialSearchContext σ κ σₕ asm)
   -- Depth tracking information computed by caller
-  (newCompletedDepth : Nat)
   (newFrontierDepth : Nat) :
   SequentialSearchContext σ κ σₕ asm :=
   let ⟨ctx, log, sq⟩ := sctx
@@ -63,14 +62,12 @@ def SequentialSearchContext.processState
     -- Early termination case: processState returned none, meaning we're terminating early
     -- CHECK What does this update mean?
     ⟨{ ctx' with
-      completedDepth := newCompletedDepth,
       currentFrontierDepth := newFrontierDepth
     }, log, sq⟩
   | some successfulTransitions =>
     -- CHECK Is it useful/possible to remove the call to `successfulTransitions.length`?
     let newStatesFound := ctx'.statesFound + successfulTransitions.length
     let ctx'' := { ctx' with
-      completedDepth := newCompletedDepth,
       currentFrontierDepth := newFrontierDepth
       statesFound := newStatesFound
     }
@@ -87,16 +84,16 @@ def SequentialSearchContext.bfsStep
     -- Queue is empty: finished searching
     ⟨{ ctx with finished := some (.exploredAllReachableStates) }, log, sq⟩
   | some (⟨fpSt, curr, depth⟩, q_tail) =>
-    -- Update completed depth when we move to a new frontier level
-    let (newCompletedDepth, newFrontierDepth) :=
+    -- Update the frontier depth when we move to a new frontier level
+    let newFrontierDepth :=
       if depth > ctx.currentFrontierDepth then
-        (depth - 1, depth)  -- All states at previous depth are now fully explored
+        depth  -- All states at previous depth are now fully explored
       else
-        (ctx.completedDepth, ctx.currentFrontierDepth)
+        ctx.currentFrontierDepth
     -- Process curr: add successors to seen, enqueue them, and dequeue curr
     -- processState handles the complete lifecycle of processing a state
     SequentialSearchContext.processState params th fpSt depth curr (outcomesComputer th curr)
-      ⟨ctx, log, q_tail⟩ newCompletedDepth newFrontierDepth
+      ⟨ctx, log, q_tail⟩ newFrontierDepth
 
 /-! ### The search invariants -/
 
@@ -163,11 +160,7 @@ theorem SequentialSearchContext.bfsStep_preserves_invs
     constructor ; on_goal 1=> constructor
     all_goals (try dsimp only) ; try solve | assumption | grind
   -- simplify the depth expression
-  generalize h_eq_ncd : (if depth > ctx.currentFrontierDepth then depth - 1 else ctx.completedDepth) = newCompleteDepth
   generalize h_eq_nfd : (if depth > ctx.currentFrontierDepth then depth else ctx.currentFrontierDepth) = newFrontierDepth
-  have tmp : (if depth > ctx.currentFrontierDepth then (depth - 1, depth) else (ctx.completedDepth, ctx.currentFrontierDepth))
-    = (newCompleteDepth, newFrontierDepth) := by grind
-  rw [tmp] ; clear tmp
   -- now process the state
   dsimp [SequentialSearchContext.processState]
   fun_cases BaseSearchContext.processState params th fpSt curr (sys.tr th curr) ctx
@@ -244,9 +237,9 @@ theorem SequentialSearchContext.processState_log_sound
   (hls : SequentialSearchContext.LogSound sys params sctx rep dep)
   {fpSt : σₕ} {depth : Nat} {curr : σ}
   (hrep : rep fpSt = some curr)
-  {newCompletedDepth newFrontierDepth : Nat} :
+  {newFrontierDepth : Nat} :
   ∃ rep' dep', SequentialSearchContext.LogSound sys params
-    (sctx.processState params th fpSt depth curr (sys.tr th curr) newCompletedDepth newFrontierDepth) rep' dep' := by
+    (sctx.processState params th fpSt depth curr (sys.tr th curr) newFrontierDepth) rep' dep' := by
   rcases sctx with ⟨ctx, log, sq⟩
   rcases hls with ⟨⟨hv, hf⟩, hlog, hq⟩ ; dsimp only at *
   have hsound := BaseSearchContext.processState_sound sys params (fpSt := fpSt) (curr := curr) ctx hrep hv hf
@@ -276,8 +269,6 @@ theorem SequentialSearchContext.bfsStep_log_sound
     have hls' : SequentialSearchContext.LogSound sys params ⟨ctx, log, q_tail⟩ rep dep :=
       ⟨hls.toViolationTerminationSound, hls.log_invs,
         fun item hitem => hls.queue_rep item (fQueue.mem_of_mem_dequeue_tail _ _ _ _ hdeq hitem)⟩
-    generalize (if depth > ctx.currentFrontierDepth then (depth - 1, depth) else (ctx.completedDepth, ctx.currentFrontierDepth)) = nd
-    rcases nd with ⟨ncd, nfd⟩ ; dsimp only
     exact processState_log_sound params th hls' hrep
 
 end LogSound

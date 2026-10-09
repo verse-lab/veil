@@ -511,11 +511,11 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
     let preds := (ListSplit.splitList numSplits chunkSize numLarge mctx.tovisit).map fun a item => item ∈ a
     IteratedProd (preds.map fun P => LawfulMapReduceSearchContextLocal (κ := κ) sys params mctx.globalSeen P)) :
   let mctx' := MapReduceSearchContextMain.mergeWithLocalOnes
-    ⟨{ mctx.base with completedDepth := mctx.base.currentFrontierDepth, currentFrontierDepth := mctx.base.currentFrontierDepth + 1 }, 0, [], mctx.globalSeen⟩ lctxs
+    ⟨{ mctx.base with currentFrontierDepth := mctx.base.currentFrontierDepth + 1 }, 0, [], mctx.globalSeen⟩ lctxs
   MapReduceSearchContextMainInvariants sys params mctx' := by
   rcases mctx with ⟨ctx, mlen_orig, tovisit, gs⟩
   let ctx' : BaseSearchContext σ κ σₕ asm :=
-    { ctx with completedDepth := ctx.currentFrontierDepth, currentFrontierDepth := ctx.currentFrontierDepth + 1 }
+    { ctx with currentFrontierDepth := ctx.currentFrontierDepth + 1 }
   dsimp ; unfold mergeWithLocalOnes ; dsimp only
   have h_local_invs := IteratedProd.externalize_proofs lctxs ; dsimp at h_local_invs
   rcases h_local_invs with ⟨h_length_eq, h_local_invs⟩
@@ -711,7 +711,7 @@ def breadthFirstSearchParallel {m : Type → Type}
       -- CHECK Ideally, `tovisit` should not be involved in any computational part from this point on
       -- Reduce step
       let mctxValForMerge : MapReduceSearchContextMain σ κ σₕ asm Shard :=
-        { base := { base with completedDepth := base.currentFrontierDepth, currentFrontierDepth := base.currentFrontierDepth + 1 } , tovisitLen := 0, tovisit := [], globalSeen := globalSeen }
+        { base := { base with currentFrontierDepth := base.currentFrontierDepth + 1 } , tovisitLen := 0, tovisit := [], globalSeen := globalSeen }
       let mctxVal' := mctxValForMerge.mergeWithLocalOnes (preds := preds) results
       have h_mctx' : MapReduceSearchContextMainInvariants sys params mctxVal' :=
         MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs h_not_finished_val h_mctx results
@@ -728,10 +728,13 @@ def breadthFirstSearchParallel {m : Type → Type}
         | .updateTime t => lastUpdateTime := t
         | .searchCancelled => cancelled := true ; break
         | .noUpdate => pure ()
-  -- Final update to ensure stats reflect finished state
+  -- Final update to ensure stats reflect finished state, with the depth of the last frontier
+  -- explored rather than of the next one. Only the display shows that depth: setting it as the
+  -- frontier depth of the context would change its `completedDepth` too.
   let ⟨mctxVal, _⟩ := mctx
-  let mctxVal := { mctxVal with base := { mctxVal.base with currentFrontierDepth := mctxVal.base.completedDepth } }
-  updateProgressDuringBFS progressInstanceId mctxVal.base mctxVal.tovisitLen mctxVal.globalSeen.size
+  let displayBase : BaseSearchContext σ κ σₕ asm :=
+    { mctxVal.base with currentFrontierDepth := mctxVal.base.completedDepth }
+  updateProgressDuringBFS progressInstanceId displayBase mctxVal.tovisitLen mctxVal.globalSeen.size
   if cancelled then
     return { mctxVal with base := { mctxVal.base with finished := some (.earlyTermination .cancelled) } }
   else

@@ -69,7 +69,7 @@ deriving Repr, Inhabited
 
 /-- A queue item for the MapReduce checker, without the depth field.
     In MapReduce BFS, all items in the frontier share the same depth,
-    tracked externally via `completedDepth`. The item carries the log entry of its state, so
+    tracked externally via `currentFrontierDepth`. The item carries the log entry of its state, so
     that the merge of a BFS round keeps, for each fingerprint, the entry of the very state it
     keeps in the frontier. -/
 structure MapReduceQueueItem (σₕ σ κ : Type) where
@@ -177,8 +177,6 @@ where
   violatingStates    : List (σₕ × ViolationKind)
   /-- Have we finished the search? If so, why? -/
   finished           : Option (TerminationReason σₕ)
-  /-- The depth up to which ALL states have been fully explored (successors enqueued) -/
-  completedDepth     : Nat
   /-- The depth of the current BFS frontier being processed -/
   currentFrontierDepth : Nat
   /-- Total number of post-states generated (before deduplication) -/
@@ -207,6 +205,11 @@ variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionSta
 @[inline]
 def BaseSearchContext.hasFinished (ctx : BaseSearchContext σ κ σₕ asm) : Bool := ctx.finished.isSome
 
+/-- The depth up to which ALL states have been fully explored (successors enqueued): the one before
+the frontier's, and `0` while the frontier is at depth `0`. -/
+@[inline]
+def BaseSearchContext.completedDepth (ctx : BaseSearchContext σ κ σₕ asm) : Nat := ctx.currentFrontierDepth - 1
+
 @[inline]
 def initialLogAndRepresentativesCore (i : Nat) (acc : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ)) (s : σ) :=
   let (a, l) := acc
@@ -223,7 +226,6 @@ are all it has found. -/
 def BaseSearchContext.initial (numInitialStates : Nat) : BaseSearchContext σ κ σₕ asm :=
   { violatingStates := [],
     finished := none,
-    completedDepth := 0,
     currentFrontierDepth := 0,
     statesFound := numInitialStates,
     actionStatsMap := ActionStatUpdate.empty (κ := κ) }
@@ -285,7 +287,6 @@ def BaseSearchContext.processState
 def BaseSearchContext.mergeWithoutDepthChange (ctx1 ctx2 : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm :=
   { violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
     finished := ctx1.finished.or ctx2.finished,
-    completedDepth := ctx1.completedDepth,
     currentFrontierDepth := ctx1.currentFrontierDepth,
     statesFound := ctx1.statesFound + ctx2.statesFound,
     actionStatsMap := ActionStatUpdate.merge (κ := κ) ctx1.actionStatsMap ctx2.actionStatsMap }
