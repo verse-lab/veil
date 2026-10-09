@@ -61,11 +61,11 @@ def initial : SequentialSearchContext State Unit Bool Stats :=
   SequentialSearchContext.initial sys
 
 example : SequentialSearchContextInvariants sys params .none initial :=
-  SequentialSearchContextInvariants.initial sys params
+  (SequentialSearchContext.initial_invs sys params).1
 
 -- The unreachable state has a seen fingerprint, but is still unreachable.
 example : fingerprint.view State.unreachable ∈ initial.1.log := by
-  exact (SequentialSearchContextInvariants.initial (asm := Stats) sys params).init_states_included
+  exact (SequentialSearchContext.initial_invs (asm := Stats) sys params).1.init_states_included
     .initial (by simp [sys])
 
 example : ¬ sys.reachable .unreachable := fun h => reachable_ne_unreachable h rfl
