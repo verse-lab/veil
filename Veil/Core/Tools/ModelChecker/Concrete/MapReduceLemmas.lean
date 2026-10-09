@@ -26,13 +26,13 @@ its `init` entry. -/
 
 /-- Create an empty local context with the given `completedDepth`. -/
 @[expose] def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ asm :=
-  ({ log := Std.HashMap.emptyWithCapacity,
+  ⟨{ log := Std.HashMap.emptyWithCapacity,
      violatingStates := [],
      finished := none,
      completedDepth := completedDepth,
      currentFrontierDepth := completedDepth + 1,
      statesFound := 0,
-     actionStatsMap := ActionStatUpdate.empty (κ := κ) }, [])
+     actionStatsMap := ActionStatUpdate.empty (κ := κ) }, Std.HashSet.emptyWithCapacity, []⟩
 
 theorem MapReduceSearchContextMainInvariants.initial [SetShard σₕ Shard]
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
@@ -88,10 +88,10 @@ theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_in
   {globalSeen : ShardedSetUSize σₕ Shard}
   {p q : MapReduceQueueItem σₕ σ κ → Prop}
   {lctx : MapReduceSearchContextLocal σ κ σₕ asm}
-  (h_finished : lctx.1.hasFinished = true)
+  (h_finished : lctx.base.hasFinished = true)
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx) :
   MapReduceSearchContextLocalInvariants sys params globalSeen q lctx := by
-  rcases lctx with ⟨ctx, q⟩ ; rcases lctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_not_explored_all, h_dj, h_same_dom, h_succ_coll⟩ ; dsimp only at *
+  rcases lctx with ⟨ctx, seen, q⟩ ; rcases lctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_not_explored_all, h_dj, h_same_dom, h_succ_coll⟩ ; dsimp only at *
   simp [BaseSearchContext.hasFinished] at h_finished
   constructor ; on_goal 1=> constructor
   all_goals dsimp only ; try solve | assumption | grind
@@ -101,10 +101,10 @@ theorem MapReduceSearchContextLocalInvariants.progress_by_one_state
   {p q : MapReduceQueueItem σₕ σ κ → Prop}
   {lctx : MapReduceSearchContextLocal σ κ σₕ asm} {e : LogEntry σₕ κ}
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx)
-  (h : ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th curr → ((fp.view v) ∈ globalSeen ∨ (fp.view v) ∈ lctx.1.log))
+  (h : ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th curr → ((fp.view v) ∈ globalSeen ∨ (fp.view v) ∈ lctx.seen))
   (hpq : ∀ item, q item ↔ p item ∨ item = ⟨fpSt, curr, e⟩) :
   MapReduceSearchContextLocalInvariants sys params globalSeen q lctx := by
-  rcases lctx with ⟨ctx, q⟩ ; rcases lctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_not_explored_all, h_dj, h_same_dom, h_succ_coll⟩ ; dsimp only at *
+  rcases lctx with ⟨ctx, seen, q⟩ ; rcases lctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_not_explored_all, h_dj, h_same_dom, h_succ_coll⟩ ; dsimp only at *
   constructor ; on_goal 1=> constructor
   all_goals dsimp only ; try solve | assumption | grind
 

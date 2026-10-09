@@ -83,8 +83,13 @@ def MapReduceSearchContextMain.fullLog [fp : StateFingerprint σ σₕ] [ActionS
     (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard) : Std.HashMap σₕ (LogEntry σₕ κ) :=
   mctx.accumulatedLogs.foldr (fun entries acc => entries.foldl (fun acc (x, e) => acc.insert x e) acc) mctx.base.log
 
-abbrev MapReduceSearchContextLocal (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] :=
-  BaseSearchContext σ κ σₕ asm × List (MapReduceQueueItem σₕ σ κ)
+/-- The state of a worker of the parallel search. -/
+structure MapReduceSearchContextLocal (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] where
+  base : BaseSearchContext σ κ σₕ asm
+  /-- The fingerprints of the states in `queue`, to deduplicate within the worker. -/
+  seen : Std.HashSet σₕ
+  /-- The states the worker found new, each with its log entry. -/
+  queue : List (MapReduceQueueItem σₕ σ κ)
 
 structure MapReduceSearchContextTemp (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] (n : USize) where
   base : BaseSearchContext σ κ σₕ asm
@@ -126,16 +131,16 @@ structure MapReduceSearchContextLocalInvariants
   (globalSeen : ShardedSetUSize σₕ Shard)
   (visited : MapReduceQueueItem σₕ σ κ → Prop)
   (lctx : MapReduceSearchContextLocal σ κ σₕ asm)
-extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ∃ e, ⟨x, st, e⟩ ∈ lctx.2) (fun h => ∃ s e, ⟨h, s, e⟩ ∈ lctx.2)
+extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ∃ e, ⟨x, st, e⟩ ∈ lctx.queue) (fun h => ∃ s e, ⟨h, s, e⟩ ∈ lctx.queue)
 where
-  not_explored_all : lctx.1.finished ≠ some (.exploredAllReachableStates)   -- OK, but why?
-  tovisit_globalSeen_disjoint : ∀ item ∈ lctx.2, item.fingerprint ∉ globalSeen
+  not_explored_all : lctx.base.finished ≠ some (.exploredAllReachableStates)   -- OK, but why?
+  tovisit_globalSeen_disjoint : ∀ item ∈ lctx.queue, item.fingerprint ∉ globalSeen
   -- NOTE: This might be eventually removed
-  tovisit_log_same_domain : ∀ fpSt, fpSt ∈ lctx.1.log ↔ ∃ item ∈ lctx.2, item.fingerprint = fpSt
-  successor_collected : lctx.1.finished = none → ∀ fingerprint st e, visited ⟨fingerprint, st, e⟩ →
+  tovisit_seen_same_domain : ∀ fpSt, fpSt ∈ lctx.seen ↔ ∃ item ∈ lctx.queue, item.fingerprint = fpSt
+  successor_collected : lctx.base.finished = none → ∀ fingerprint st e, visited ⟨fingerprint, st, e⟩ →
     ∀ (l : κ) (v : σ), (l, .success v) ∈ sys.tr th st →
       ((fp.view v) ∈ globalSeen ∨
-        fp.view v ∈ lctx.1.log)
+        fp.view v ∈ lctx.seen)
 
 abbrev LawfulMapReduceSearchContextLocal
   (globalSeen : ShardedSetUSize σₕ Shard)
