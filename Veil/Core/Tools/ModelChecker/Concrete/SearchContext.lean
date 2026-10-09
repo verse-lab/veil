@@ -91,11 +91,6 @@ structure MapReduceSearchContextLocal (σ κ σₕ asm : Type) [fp : StateFinger
   /-- The states the worker found new, each with its log entry. -/
   queue : List (MapReduceQueueItem σₕ σ κ)
 
-structure MapReduceSearchContextTemp (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] (n : USize) where
-  base : BaseSearchContext σ κ σₕ asm
-  tovisit : List (MapReduceQueueItem σₕ σ κ)
-  tempSeen : ShardedHashSetUSize σₕ n
-
 variable {ρ σ κ σₕ asm : Type}
   [fp : StateFingerprint σ σₕ]
   [ActionStatUpdate κ asm]
