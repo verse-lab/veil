@@ -352,12 +352,10 @@ theorem checkViolationsAndMaybeTerminate_sound (params : SearchParameters ρ σ)
 
 -- FIXME: Why is this thing here?
 omit fp in
-theorem BaseSearchContext.processState_log_snd {asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
+theorem BaseSearchContext.processState_snd {asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
     (params : SearchParameters ρ σ) (th : ρ) (fpSt : σₕ) (curr : σ) (trs : Transitions κ Int σ)
     (ctx : BaseSearchContext σ κ σₕ asm) :
-    letI res := ctx.processState params th fpSt curr trs
-    res.1.log = ctx.log ∧
-    ∀ succs, res.2 = some succs → succs = trs.successes := by
+    ∀ succs, (ctx.processState params th fpSt curr trs).2 = some succs → succs = trs.successes := by
   unfold BaseSearchContext.processState ; grind
 
 /-- Processing a state records only violations that it exhibits. -/

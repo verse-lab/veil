@@ -10,8 +10,7 @@ variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionSta
 
 /-- Create an empty local context with the given `completedDepth`. -/
 @[expose] def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ asm :=
-  ⟨{ log := Std.HashMap.emptyWithCapacity,
-     violatingStates := [],
+  ⟨{ violatingStates := [],
      finished := none,
      completedDepth := completedDepth,
      currentFrontierDepth := completedDepth + 1,

@@ -345,7 +345,7 @@ variable {σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [inst : Actio
 
 @[inline]
 def updateProgressDuringBFS (ctx : BaseSearchContext σ κ σₕ asm) (qSize : Nat)
-    (distinctNumState : Nat := ctx.log.size) : m Unit := do
+    (distinctNumState : Nat) : m Unit := do
   updateModelCheckProgress progressInstanceId
     ctx.currentFrontierDepth ctx.statesFound distinctNumState qSize
     (inst.dump ctx.actionStatsMap)
@@ -359,9 +359,10 @@ def trySetViolationFound (ctx : BaseSearchContext σ κ σₕ asm) : m Unit := d
   if let some (.earlyTermination cond) := ctx.finished then
     if EarlyTerminationReason.isViolation cond then setViolationFound progressInstanceId
 
-def tryUpdateProgressWithNewFrontierDepth (oldFrontierDepth : Nat) (ctx : BaseSearchContext σ κ σₕ asm) (qSize : Nat) : m Unit := do
+def tryUpdateProgressWithNewFrontierDepth (oldFrontierDepth : Nat) (ctx : BaseSearchContext σ κ σₕ asm)
+    (qSize distinctNumState : Nat) : m Unit := do
   if ctx.currentFrontierDepth > oldFrontierDepth then
-    updateProgressDuringBFS progressInstanceId ctx qSize
+    updateProgressDuringBFS progressInstanceId ctx qSize distinctNumState
 
 inductive SearchPeriodicProgressUpdate where
   | searchCancelled
@@ -370,13 +371,14 @@ inductive SearchPeriodicProgressUpdate where
 
 -- FIXME: Use `Option` to unify the two functions?
 def checkCancellationWithPeriodicUpdate (lastUpdateTime updateTimeInterval : Nat)
-  (cancelToken : IO.CancelToken) (ctx : BaseSearchContext σ κ σₕ asm) (qSize : Nat) : m SearchPeriodicProgressUpdate := do
+  (cancelToken : IO.CancelToken) (ctx : BaseSearchContext σ κ σₕ asm) (qSize distinctNumState : Nat) :
+    m SearchPeriodicProgressUpdate := do
   let now ← IO.monoMsNow
   if now - lastUpdateTime ≥ updateTimeInterval then
     if ← shouldStop cancelToken progressInstanceId then
       return .searchCancelled
     else
-      updateProgressDuringBFS progressInstanceId ctx qSize
+      updateProgressDuringBFS progressInstanceId ctx qSize distinctNumState
       return .updateTime now
   else
     return .noUpdate

@@ -174,9 +174,6 @@ structure BaseSearchContext (σ κ σₕ asm : Type)
   [fp : StateFingerprint σ σₕ]
   [ActionStatUpdate κ asm]
 where
-  /-- How each seen state was first reached, by fingerprint; `recoverTrace` rebuilds a
-  counterexample trace from it. -/
-  log                : Std.HashMap σₕ (LogEntry σₕ κ)
   violatingStates    : List (σₕ × ViolationKind)
   /-- Have we finished the search? If so, why? -/
   finished           : Option (TerminationReason σₕ)
@@ -221,12 +218,10 @@ def initialLogAndRepresentatives (initialStates : List σ) : (List σ) × Std.Ha
   initialStates.foldlIdx (init := ([], ∅)) initialLogAndRepresentativesCore
 
 /-- The context of a search before any state is processed: the `numInitialStates` initial states
-are all it has found, and `log` is its log. -/
+are all it has found. -/
 @[inline]
-def BaseSearchContext.initial (numInitialStates : Nat) (log : Std.HashMap σₕ (LogEntry σₕ κ)) :
-    BaseSearchContext σ κ σₕ asm :=
-  { log := log,
-    violatingStates := [],
+def BaseSearchContext.initial (numInitialStates : Nat) : BaseSearchContext σ κ σₕ asm :=
+  { violatingStates := [],
     finished := none,
     completedDepth := 0,
     currentFrontierDepth := 0,
@@ -286,20 +281,9 @@ def BaseSearchContext.processState
     | none => ctx
   (ctx, if earlyTermination.isSome then none else some trs.successes)
 
+/-- Merge the violations and the statistics of `ctx2` into `ctx1`, keeping the depths of `ctx1`. -/
 def BaseSearchContext.mergeWithoutDepthChange (ctx1 ctx2 : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm :=
-  { log := ctx1.log.union ctx2.log,
-    violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
-    finished := ctx1.finished.or ctx2.finished,
-    completedDepth := ctx1.completedDepth,    -- no change
-    currentFrontierDepth := ctx1.currentFrontierDepth,    -- no change
-    statesFound := ctx1.statesFound + ctx2.statesFound,
-    actionStatsMap := ActionStatUpdate.merge (κ := κ) ctx1.actionStatsMap ctx2.actionStatsMap }
-
-/-- Like `mergeWithoutDepthChange` but does NOT merge the `log` field.
-    Used in the MapReduce path to delay log merging until trace recovery is needed. -/
-def BaseSearchContext.mergeWithoutDepthChangeNoLog (ctx1 ctx2 : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm :=
-  { log := ctx1.log,
-    violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
+  { violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
     finished := ctx1.finished.or ctx2.finished,
     completedDepth := ctx1.completedDepth,
     currentFrontierDepth := ctx1.currentFrontierDepth,

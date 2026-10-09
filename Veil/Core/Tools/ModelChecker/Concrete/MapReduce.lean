@@ -325,23 +325,6 @@ theorem BaseSearchContext.mergeWithoutDepthChange_foldl_description
     on_goal 2=> grind
     dsimp ; rfl
 
-theorem BaseSearchContext.mergeWithoutDepthChangeNoLog_foldl_description
-  (acc : BaseSearchContext σ κ σₕ asm) (ctxs : List (BaseSearchContext σ κ σₕ asm)) :
-  let res := ctxs.foldl (init := acc) BaseSearchContext.mergeWithoutDepthChangeNoLog
-  res.finished = acc.finished.or ((ctxs.find? (·.hasFinished)).bind (fun x => x.finished)) := by
-  dsimp only
-  induction ctxs generalizing acc with
-  | nil => simp [List.foldl]
-  | cons ctx ctxs ih =>
-    dsimp [List.foldl, List.find?, BaseSearchContext.hasFinished]
-    rw [ih] ; clear ih
-    unfold mergeWithoutDepthChangeNoLog ; dsimp
-    rcases acc.finished with _ | _
-    on_goal 2=> rfl
-    dsimp ; rcases h : ctx.finished with _ | _
-    on_goal 2=> grind
-    dsimp ; rfl
-
 /-- Deduplicate the items of `lists`, keeping the first of each fingerprint, and add the kept
 ones to the frontier, and their fingerprints with their log entries to the seen set: the merge of a
 BFS layer (`mergeWithLocalOnes`) and of the initial states (`MapReduceSearchContextMain.initial`). -/
@@ -393,7 +376,7 @@ theorem MapReduceSearchContextMain.mergeLayer_description
 @[inline]
 def BaseSearchContext.mergeWorker (acc : BaseSearchContext σ κ σₕ asm) (lctx : MapReduceSearchContextLocal σ κ σₕ asm) :
     BaseSearchContext σ κ σₕ asm :=
-  acc.mergeWithoutDepthChangeNoLog lctx.base
+  acc.mergeWithoutDepthChange lctx.base
 
 /-- Merge the workers' results into the main context: their statistics into the base context,
 and their new states into the frontier, the seen set and the log (`mergeLayer`). -/
@@ -422,7 +405,7 @@ empty seen set, so that each kept item and the seen set share its entry. -/
     (h_pos : 0 < USize.ofNat numShards := by native_decide) : MapReduceSearchContextMain σ κ σₕ asm Shard :=
   -- CHECK There might be some very bad performance regression here, if `initStates` are many
   MapReduceSearchContextMain.mergeLayer
-    ⟨BaseSearchContext.initial initStates.length ∅, 0, [], ShardedMapUSize.empty (USize.ofNat numShards) h_pos⟩
+    ⟨BaseSearchContext.initial initStates.length, 0, [], ShardedMapUSize.empty (USize.ofNat numShards) h_pos⟩
     [initialMapReduceQueueItems initStates]
 
 /-- Merging the initial items into a context that has seen nothing yet establishes the invariants. -/
@@ -494,7 +477,7 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   rcases h_local_invs with ⟨h_length_eq, h_local_invs⟩
   generalize IteratedProd.subtypesToList lctxs = lctxs' at *
   -- the merge of the bases
-  have h_base_desc := BaseSearchContext.mergeWithoutDepthChangeNoLog_foldl_description ctx' (lctxs'.map (·.base))
+  have h_base_desc := BaseSearchContext.mergeWithoutDepthChange_foldl_description ctx' (lctxs'.map (·.base))
   rw [List.foldl_map] at h_base_desc
   change (lctxs'.foldl BaseSearchContext.mergeWorker ctx').finished = _ at h_base_desc
   simp [BaseSearchContext.hasFinished] at h_not_finished

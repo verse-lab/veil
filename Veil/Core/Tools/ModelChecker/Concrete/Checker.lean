@@ -116,7 +116,7 @@ def findReachableThen (finish : ModelCheckingResult ρ σ κ σₕ → m α) : m
     return (← keepingThen mctx (finish result)).1
   | none => do
     let sctx ← breadthFirstSearchSequential (σₕ := σₕ) params sys 60000 progressInstanceId cancelToken
-    let result ← searchResult traceSys sctx.val.1 (logLookup sctx.val.1.log) sctx.val.1.log.size
+    let result ← searchResult traceSys sctx.val.base (logLookup sctx.val.log) sctx.val.log.size
     return (← keepingThen sctx (finish result)).1
 
 def findReachable : m (ModelCheckingResult ρ σ κ σₕ) :=

@@ -12,8 +12,13 @@ namespace Veil.ModelChecker.Concrete
 
 section Sequential
 
-abbrev SequentialSearchContext (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] :=
-  BaseSearchContext σ κ σₕ asm × fQueue (QueueItem σₕ σ)
+/-- The state of a sequential search. Its log doubles as its seen set. -/
+structure SequentialSearchContext (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] where
+  base : BaseSearchContext σ κ σₕ asm
+  /-- The seen set, with how each seen state was first reached; `recoverTrace` rebuilds a
+  counterexample trace from it. -/
+  log : Std.HashMap σₕ (LogEntry σₕ κ)
+  queue : fQueue (QueueItem σₕ σ)
 
 variable {ρ σ κ σₕ asm : Type}
   [fp : StateFingerprint σ σₕ]
@@ -29,23 +34,23 @@ abbrev SequentialSearchContext.isStableClosed (sctx : SequentialSearchContext σ
   -- (Optional) state that is currently being processed
   (stateInTransit : Option σ) : Prop :=
   Function.InjectiveOn fp.view sys.reachable →
-    (sctx.1.finished = some (.exploredAllReachableStates) ∨ sctx.1.finished = none) →
-      ∀ u, sys.reachable u → u ∉ stateInTransit → (fp.view u) ∈ sctx.1.log →
-        (∀ d : Nat, ⟨fp.view u, u, d⟩ ∉ sctx.2) →
+    (sctx.base.finished = some (.exploredAllReachableStates) ∨ sctx.base.finished = none) →
+      ∀ u, sys.reachable u → u ∉ stateInTransit → (fp.view u) ∈ sctx.log →
+        (∀ d : Nat, ⟨fp.view u, u, d⟩ ∉ sctx.queue) →
           ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th u →
-            (fp.view v) ∈ sctx.1.log
+            (fp.view v) ∈ sctx.log
 
 -- TODO conjecture: executable things should not become part of this structure
 -- (e.g., arguments), otherwise some reference counting will boom?
 structure SequentialSearchContextInvariants
   (stateInTransit : Option σ)
   (sctx : SequentialSearchContext σ κ σₕ asm)
-extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun (x : σₕ) (st : σ) => ∃ d, ⟨x, st, d⟩ ∈ sctx.2) (· ∈ sctx.1.log)
+extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun (x : σₕ) (st : σ) => ∃ d, ⟨x, st, d⟩ ∈ sctx.queue) (· ∈ sctx.log)
 where
   -- NOTE: should be strengthened to talk about depth, with this
   -- being a special case
-  init_states_included : ∀ s ∈ sys.initStates, (fp.view s) ∈ sctx.1.log
-  terminate_empty_queue : sctx.1.finished = some (.exploredAllReachableStates) → sctx.2.isEmpty
+  init_states_included : ∀ s ∈ sys.initStates, (fp.view s) ∈ sctx.log
+  terminate_empty_queue : sctx.base.finished = some (.exploredAllReachableStates) → sctx.queue.isEmpty
   stable_closed : sctx.isStableClosed sys stateInTransit
 
 /-- The log of a sequential search describes, through the representatives `rep`, the states
@@ -53,10 +58,10 @@ the search has queued and the violations it has recorded. Kept apart from
 `SequentialSearchContextInvariants`, since it is preserved for a growing `rep`. -/
 structure SequentialSearchContext.LogSound (sctx : SequentialSearchContext σ κ σₕ asm)
     (rep : σₕ → Option σ) (dep : σₕ → Nat) : Prop where
-  log_invs : LogInvariants sys (logLookup sctx.1.log) rep dep
-  queue_rep : ∀ item ∈ sctx.2, rep item.fingerprint = some item.state
-  violations_sound : ∀ v ∈ sctx.1.violatingStates, ViolationSound sys params rep v
-  termination_sound : TerminationSound sys params rep sctx.1.finished
+  log_invs : LogInvariants sys (logLookup sctx.log) rep dep
+  queue_rep : ∀ item ∈ sctx.queue, rep item.fingerprint = some item.state
+  violations_sound : ∀ v ∈ sctx.base.violatingStates, ViolationSound sys params rep v
+  termination_sound : TerminationSound sys params rep sctx.base.finished
 
 abbrev LawfulSequentialSearchContext (stateInTransit : Option σ := .none) : Type :=
   Subtype (α := SequentialSearchContext σ κ σₕ asm) fun sctx =>
