@@ -108,7 +108,7 @@ theorem mem_iff_getLsbD {a : α} {s : BitVecAsFinset α} :
 -- * the term itself (`a ∈ s` is definitionally `s.bits.getLsbInline _ = true`): `inferInstanceAs`
 --   puts the body into an auxiliary definition that is not inlined, and `decidable_of_iff` leaves a
 --   redundant branch.
-@[macro_inline] instance (a : α) (s : BitVecAsFinset α) : Decidable (a ∈ s) :=
+@[macro_inline] instance instDecidableMem (a : α) (s : BitVecAsFinset α) : Decidable (a ∈ s) :=
   instDecidableEqBool (s.bits.getLsbInline (inst.equiv a).val) true
 
 /-- Number of elements. -/
@@ -204,49 +204,35 @@ instance : FinEncodable (BitVecAsFinset α) where
              left_inv := fun _ => rfl
              right_inv := fun _ => rfl }
 
-/-! ## Subsets of a given size -/
+/-! ## Subsets -/
 
 /-- The subsets of `α` whose number of elements satisfies `p`. `Quorum` and `MinQuorum`
-(`Veil/Frontend/Std.lean`) are instances of it, and share everything below.
+(`Veil/Frontend/Std.lean`) are instances of it.
 
-As an `abbrev` of `Subtype`, it takes `DecidableEq`, `Hashable`, `Ord`, `Repr`, `ToJson` and
-`Enumeration` from the generic `Subtype` instances, which act on `.val`; the instances below
-are the ones without a generic counterpart. -/
+As an `abbrev` of `Subtype`, it takes `DecidableEq`, `Hashable`, `Ord` with its laws (`Std.TransOrd`,
+`Std.LawfulEqOrd`, ...), `Repr`, `ToJson` and `Enumeration` from the generic `Subtype` instances,
+which act on `.val`. -/
 abbrev Sized (α : Type u) [FinEncodable α] (p : Nat → Prop) := { s : BitVecAsFinset α // p s.card }
 
-namespace Sized
+/-! Membership, which has no generic `Subtype` counterpart, is stated for every subtype of
+`BitVecAsFinset α`, not for `Sized α p`: type class resolution may see the type fully unfolded
+(`#model_check` reduces `__veil_inst.quorum` to `{ s // (fun k => …) s.card }`), which
+`Sized ?α ?p` does not unify with (`?p s.card` is not a pattern), while `Subtype ?P` does. -/
 
-variable {p : Nat → Prop}
+section Subtype
 
-instance : Membership α (Sized α p) where
+variable {P : BitVecAsFinset α → Prop}
+
+instance instMembershipSubtype : Membership α { s : BitVecAsFinset α // P s } where
   mem q a := a ∈ q.val
 
-theorem mem_def {a : α} {q : Sized α p} : a ∈ q ↔ a ∈ q.val := Iff.rfl
+theorem mem_val {a : α} {q : { s : BitVecAsFinset α // P s }} : a ∈ q ↔ a ∈ q.val := Iff.rfl
 
-@[macro_inline] instance (a : α) (q : Sized α p) : Decidable (a ∈ q) :=
-  inferInstanceAs (Decidable (a ∈ q.val))
+@[macro_inline] instance instDecidableMemSubtype (a : α) (q : { s : BitVecAsFinset α // P s }) :
+    Decidable (a ∈ q) :=
+  instDecidableMem a q.val
 
-instance : Std.ReflOrd (Sized α p) where
-  compare_self := by
-    have tmp : Std.ReflOrd (BitVecAsFinset α) := inferInstance
-    intros ; dsimp [compare] ; apply tmp.compare_self
-
-instance : Std.LawfulEqOrd (Sized α p) where
-  eq_of_compare := by
-    have tmp : Std.LawfulEqOrd (BitVecAsFinset α) := inferInstance
-    intros ; dsimp [compare] at * ; ext1 ; apply tmp.eq_of_compare ; assumption
-
-instance : Std.OrientedOrd (Sized α p) where
-  eq_swap := by
-    have tmp : Std.OrientedOrd (BitVecAsFinset α) := inferInstance
-    intros ; dsimp [compare] at * ; apply tmp.eq_swap
-
-instance : Std.TransOrd (Sized α p) where
-  isLE_trans := by
-    have tmp : Std.TransOrd (BitVecAsFinset α) := inferInstance
-    intros ; dsimp [compare] at * ; apply tmp.isLE_trans <;> assumption
-
-end Sized
+end Subtype
 
 end BitVecAsFinset
 

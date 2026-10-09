@@ -56,6 +56,16 @@ inductive Choice where
   BitVecAsFinset.ofList [0, 2]
 example (a b : Quorum (Fin 3)) : ∃ i, i ∈ a ∧ i ∈ b := Quorum.quorum_intersection a b
 example (a b : MinQuorum (Fin 3)) : ∃ i, i ∈ a ∧ i ∈ b := MinQuorum.quorum_intersection a b
+-- Instances of `Quorum`/`MinQuorum` must also be found when the type is fully unfolded, as
+-- `#model_check` presents a module's `quorum := MinQuorum _` to type class resolution.
+example : Membership (Fin 3) { s : BitVecAsFinset (Fin 3) // (fun k => k = 2) s.card } := inferInstance
+example (a : Fin 3) (q : { s : BitVecAsFinset (Fin 3) // (fun k => k = 2) s.card }) : Decidable (a ∈ q) :=
+  inferInstance
+example : Std.TransOrd { s : BitVecAsFinset (Fin 3) // (fun k => k = 2) s.card } := inferInstance
+example : Std.LawfulEqOrd { s : BitVecAsFinset (Fin 3) // (fun k => k = 2) s.card } := inferInstance
+-- Lawful orders lift to every subtype (the generic instances in `Veil/Frontend/DSL/State/Types.lean`).
+example : Std.TransOrd { x : Fin 4 // x.val < 2 } := inferInstance
+example : Std.LawfulEqOrd { x : Fin 4 // x.val < 2 } := inferInstance
 
 #guard Veil.List.permutations ([] : List Nat) == [[]]
 #guard Veil.List.permutations [1, 2, 3] ==

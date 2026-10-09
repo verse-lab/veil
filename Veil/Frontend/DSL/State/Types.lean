@@ -335,6 +335,23 @@ instance [inst : Enumeration α] (p : α → Prop) [DecidablePred p] : Enumerati
   allValues := inst.allValues.filterMap fun x => if h : p x then some ⟨x, h⟩ else none
   complete := by simp ; grind
 
+/-! Lawful-order instances for `Subtype`, lifted through `.val` like core's `Ord (Subtype P)`
+(`Init/Data/Subtype/OrderExtra.lean`).
+
+NOTE: Lean does not provide them (checked up to 4.34): delete these four once it does. -/
+
+instance {α : Type u} {P : α → Prop} [Ord α] [Std.ReflOrd α] : Std.ReflOrd (Subtype P) where
+  compare_self {a} := Std.ReflOrd.compare_self (a := a.val)
+
+instance {α : Type u} {P : α → Prop} [Ord α] [Std.OrientedOrd α] : Std.OrientedOrd (Subtype P) where
+  eq_swap {a b} := Std.OrientedOrd.eq_swap (a := a.val) (b := b.val)
+
+instance {α : Type u} {P : α → Prop} [Ord α] [Std.TransOrd α] : Std.TransOrd (Subtype P) where
+  isLE_trans {a b c} := Std.TransOrd.isLE_trans (a := a.val) (b := b.val) (c := c.val)
+
+instance {α : Type u} {P : α → Prop} [Ord α] [Std.LawfulEqOrd α] : Std.LawfulEqOrd (Subtype P) where
+  eq_of_compare h := Subtype.ext (Std.LawfulEqOrd.eq_of_compare h)
+
 instance {β : α → Type v} [insta : Enumeration α] [instb : ∀ a, Enumeration (β a)] : Enumeration (Sigma β) where
   allValues := insta.allValues.flatMap fun a => (instb a).allValues.map <| Sigma.mk a
   complete := by simp ; grind

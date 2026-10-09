@@ -35,19 +35,14 @@ def q01 : Quorum (Fin 3) := ⟨BitVecAsFinset.ofList [0, 1], by decide⟩
 #guard_msgs in
 #eval IO.println (Lean.toJson q01).compress
 
-public class QuorumOf (acceptor : outParam Type) (quorum : Type) where
-  member : acceptor → quorum → Bool
-
-public instance : QuorumOf (Fin 3) (Quorum (Fin 3)) where
-  member a q := decide (a ∈ q)
-
 veil module QuorumRepr
 
 type acceptor
 type quorum
 
-instantiate qm : QuorumOf acceptor quorum
-open QuorumOf
+-- `quorum := Quorum (Fin 3)` below: the model check must find this instance (and the
+-- `Decidable` one for `a ∈ q`) for the fully unfolded `Quorum (Fin 3)`.
+instantiate mem : Membership acceptor quorum
 
 relation voted (a : acceptor)
 individual decided : Bool
@@ -64,7 +59,7 @@ action vote (a : acceptor) {
 }
 
 action decide (q : quorum) {
-  require ∀ a, member a q → voted a
+  require ∀ a ∈ q, voted a
   decided := true
 }
 
