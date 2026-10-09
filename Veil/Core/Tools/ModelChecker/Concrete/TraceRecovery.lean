@@ -255,6 +255,18 @@ theorem initialLogAndRepresentatives_description (initStates : List σ) :
     grind
   · grind [List.mk_mem_zipIdx_iff_getElem?]
 
+/-- Dropping the indices from the representatives preserves both their order and the log. -/
+theorem initialLogAndRepresentatives'_eq (initStates : List σ) :
+    let res := initialLogAndRepresentatives (κ := κ) (fp := fp) initStates
+    initialLogAndRepresentatives' (κ := κ) (fp := fp) initStates = (res.1.map Prod.fst, res.2) := by
+  unfold initialLogAndRepresentatives' initialLogAndRepresentatives
+  simp only [List.foldlIdx_eq_foldl_zipIdx]
+  apply List.foldl_hom (fun acc : List (σ × Nat) × Std.HashMap σₕ (LogEntry σₕ κ) =>
+    (acc.1.map Prod.fst, acc.2)) (init := ([], ∅))
+  intro acc item
+  simp only [initialLogAndRepresentativesCore', initialLogAndRepresentativesCore]
+  split <;> simp
+
 /-! ### Violations recorded by the search -/
 
 /-- The violation recorded against fingerprint `x` is exhibited by the representative of `x`. -/

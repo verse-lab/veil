@@ -17,6 +17,11 @@ variable {ρ σ κ σₕ asm : Type}
   let (ctx, reps) := BaseSearchContext.initial (κ := κ) (asm := asm) sys.initStates
   (ctx, fQueue.ofList (reps.map fun (s, _) => ⟨fp.view s, s, 0⟩))
 
+/-- Sequential initialization keeps the initial-state indices only in the log. -/
+@[expose] def SequentialSearchContext.initial' : SequentialSearchContext σ κ σₕ asm :=
+  let (ctx, reps) := BaseSearchContext.initial' (κ := κ) (asm := asm) sys.initStates
+  (ctx, fQueue.ofList (reps.map fun s => ⟨fp.view s, s, 0⟩))
+
 theorem SequentialSearchContext.initial_invs :
   SequentialSearchContextInvariants sys params .none (SequentialSearchContext.initial (fp := fp) sys) ∧
     ∃ rep dep, (SequentialSearchContext.initial (fp := fp) sys).LogSound sys params rep dep := by
@@ -46,6 +51,20 @@ theorem SequentialSearchContext.initial_invs :
     all_goals (try simp [← fQueue.mem_ofList, Option.bind_eq_some_iff]) ; try grind
     · intros ; subst_vars ; simp [h4] ; grind
     · constructor
+
+theorem SequentialSearchContext.initial'_eq_initial :
+    SequentialSearchContext.initial' (fp := fp) (asm := asm) sys = SequentialSearchContext.initial sys := by
+  unfold SequentialSearchContext.initial' SequentialSearchContext.initial
+    BaseSearchContext.initial' BaseSearchContext.initial
+  rw [initialLogAndRepresentatives'_eq]
+  simp only [List.map_map]
+  rfl
+
+theorem SequentialSearchContext.initial'_invs :
+    SequentialSearchContextInvariants sys params .none (SequentialSearchContext.initial' (fp := fp) sys) ∧
+      ∃ rep dep, (SequentialSearchContext.initial' (fp := fp) sys).LogSound sys params rep dep := by
+  rw [SequentialSearchContext.initial'_eq_initial]
+  exact SequentialSearchContext.initial_invs sys params
 
 theorem SequentialSearchContextInvariants.setCancelled
   {ctx : BaseSearchContext σ κ σₕ asm} {sq : fQueue (QueueItem σₕ σ)}

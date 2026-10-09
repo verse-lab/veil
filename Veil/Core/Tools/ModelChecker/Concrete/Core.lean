@@ -235,6 +235,30 @@ def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ �
     actionStatsMap := ActionStatUpdate.empty (κ := κ)
   }, reps)
 
+-- FIXME: For now, just duplicate the definitions
+@[inline]
+def initialLogAndRepresentativesCore' (i : Nat) (acc : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ)) (s : σ) :=
+  let (a, l) := acc
+  let x := fp.view s
+  if l.contains x then (a, l) else (s :: a, l.insert x (.init i))
+
+@[inline]
+def initialLogAndRepresentatives' (initialStates : List σ) : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ) :=
+  initialStates.foldlIdx (init := ([], ∅)) initialLogAndRepresentativesCore'
+
+@[inline]
+def BaseSearchContext.initial' (initialStates : List σ) : BaseSearchContext σ κ σₕ asm × List σ :=
+  let (reps, log) := initialLogAndRepresentatives' initialStates
+  ({
+    log := log,
+    violatingStates := [],
+    finished := none,
+    completedDepth := 0,
+    currentFrontierDepth := 0,
+    statesFound := initialStates.length,
+    actionStatsMap := ActionStatUpdate.empty (κ := κ)
+  }, reps)
+
 -- NOTE: Hopefully, if `outcomes` does not have any other reference, then
 -- Lean should be able to reuse constructors inside it? Can we somehow
 -- achieve zero additional memory allocation here?
