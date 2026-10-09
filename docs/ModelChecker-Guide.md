@@ -201,6 +201,10 @@ assumptions (see [DSL-Reference.md](DSL-Reference.md)); `assumption`s may refer
 to either. This only concerns the model checker: for verification, all three
 are uninterpreted symbols constrained by the module's assumptions.
 
+For quorums in particular, `Veil/Frontend/Std.lean` provides `Quorum α` (every
+majority of `α`) and `MinQuorum α` (the majorities of minimal size) as bit-vector sets, with `a ∈ q` as membership
+and the usual set-like notation (e.g., `{0, 1}`) as display. 
+
 ## Keeping Searches Small and Fast
 
 - Start with `#model_check interpreted` on the smallest interesting instance;

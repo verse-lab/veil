@@ -204,7 +204,7 @@ invariant [honest_non_conflicting_votes]
 #check_invariants
 
 -- #model_check
---   { nodeset := ByzNSet (3 * 1 + 1)
+--   { nodeset := ByzNSet (Fin (3 * 1 + 1))
 --     address := Fin (3 * 1 + 1)
 --     round := Fin 3
 --     value := Fin 3   }

@@ -309,6 +309,16 @@ instance {n : Nat} : Enumeration (Fin n) where
   allValues := List.finRange n
   complete := by simp
 
+-- NOTE: There is an enumration of `BitVec` in Lean 4.32, but prefer `finRange` here for runtime enumeration:
+-- `((0 : BitVec n)...*).toList` recomputes 2^n and performs modular arithmetic at each step.
+-- Here 2^n is computed once, and the compiler erases the `BitVec.ofFin` conversion.
+instance (n : Nat) : Enumeration (BitVec n) where
+  allValues := (List.finRange (2 ^ n)).map BitVec.ofFin
+  complete := by
+    intro bv
+    simp only [List.mem_map, List.mem_finRange, true_and]
+    exact ⟨bv.toFin, BitVec.ofFin_toFin bv⟩
+
 instance [inst : Enumeration α] : Enumeration (Option α) where
   allValues := none :: inst.allValues.map some
   complete := by intro x ; rcases x <;> grind
@@ -575,6 +585,15 @@ instance : FinEncodable Empty where
 instance {n : Nat} : FinEncodable (Fin n) where
   card := n
   equiv := delta% Equiv.refl _
+
+/-- `BitVec n` is encoded by its value (`BitVec.toFin`), the same order as its `Enumeration`. -/
+@[always_inline]
+instance {n : Nat} : FinEncodable (BitVec n) where
+  card := 2 ^ n
+  equiv := { toFun := BitVec.toFin
+             invFun := BitVec.ofFin
+             left_inv := fun _ => rfl
+             right_inv := fun _ => rfl }
 
 @[always_inline]
 instance : FinEncodable Bool where

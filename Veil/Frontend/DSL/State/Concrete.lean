@@ -3,6 +3,7 @@ module
 public import Std
 public meta import Veil.Util.Tactics
 public import Veil.Frontend.DSL.State.Interface
+public import Veil.Frontend.DSL.State.BitVecAsFinset
 public meta import Veil.Frontend.DSL.Module.Names
 
 @[expose] public section
@@ -232,20 +233,10 @@ end ConcreteUpdates
 
 section ConcreteInstances
 
--- CHECK maybe ultimately, `Nat` is enough?
-abbrev BitVecAsFinset (α) [FinEncodable α] := BitVec (FinEncodable.card α)
-
-instance [FinEncodable α] : Membership α (BitVecAsFinset α) where
-  mem a b := a[FinEncodable.equiv b]
-
-instance [FinEncodable α] : DecidableRel (Membership.mem (γ := BitVecAsFinset α)) := by
-  dsimp only [Membership.mem] ; infer_instance
-
+-- `BitVecAsFinset` itself is defined in `BitVecAsFinset.lean`.
 instance [FinEncodable α] : FinmapLike α Bool (BitVecAsFinset α) where
-  get mp a := mp[FinEncodable.equiv a]
-  insert a b mp :=
-    let mask := BitVec.twoPow _ (FinEncodable.equiv a)
-    if b then mp ||| mask else mp &&& ~~~mask
+  get mp a := mp.bits[FinEncodable.equiv a]
+  insert a b mp := if b then mp.insert a else mp.erase a
 
 instance [BEq α] [Hashable α] : FinmapLike α Bool (Std.HashSet α) where
   get mp a := mp.contains a
@@ -261,7 +252,7 @@ instance {cmp : α → α → Ordering} [Std.TransCmp cmp] : FinmapLike α Bool 
 
 instance [FinEncodable α] [DecidableEq α] : LawfulFinmapLike (BitVecAsFinset α) where
   insert_get a a' b mp := by
-    simp only [FinmapLike.get, FinmapLike.insert]
+    simp only [FinmapLike.get, FinmapLike.insert, BitVecAsFinset.insert, BitVecAsFinset.erase]
     have := FinEncodable.equiv (α := α) |>.injective
     split_ifs <;> simp_all <;> grind [Fin.val_inj]
 

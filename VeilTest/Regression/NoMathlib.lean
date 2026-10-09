@@ -45,10 +45,17 @@ inductive Choice where
   deriving Enumeration
 #guard (Enumeration.allValues (α := Choice)).length == 7
 
-#guard Enumeration.allValues (α := Quorum 0) |>.isEmpty
-#guard (Enumeration.allValues (α := Quorum 3)).length == 4
-#guard (Enumeration.allValues (α := ByzNSet 3)).length == 8
-example (a b : Quorum 3) : ∃ i, i ∈ a ∧ i ∈ b := Quorum.quorum_intersection a b
+#guard Enumeration.allValues (α := Quorum (Fin 0)) |>.isEmpty
+#guard (Enumeration.allValues (α := Quorum (Fin 3))).length == 4
+#guard (Enumeration.allValues (α := MinQuorum (Fin 3))).length == 3
+#guard (Enumeration.allValues (α := ByzNSet (Fin 3))).length == 8
+#guard FinEncodable.card (BitVec 3) == 8
+#guard FinEncodable.card (BitVecAsFinset (Fin 3)) == 8
+#guard (FinEncodable.equiv (BitVecAsFinset.ofList [0, 2] : BitVecAsFinset (Fin 3))).val == 5
+#guard (FinEncodable.equiv (α := BitVecAsFinset (Fin 3))).symm ⟨5, by decide⟩ ==
+  BitVecAsFinset.ofList [0, 2]
+example (a b : Quorum (Fin 3)) : ∃ i, i ∈ a ∧ i ∈ b := Quorum.quorum_intersection a b
+example (a b : MinQuorum (Fin 3)) : ∃ i, i ∈ a ∧ i ∈ b := MinQuorum.quorum_intersection a b
 
 #guard Veil.List.permutations ([] : List Nat) == [[]]
 #guard Veil.List.permutations [1, 2, 3] ==
