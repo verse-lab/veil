@@ -20,15 +20,15 @@ variable {ρ σ κ σₕ asm : Type}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
 
-/-- A sequential search context is stable closed if for any state `u` that
-has been seen and has been fully processed (i.e., not in the queue, not being
-processed), then all its successfully reachable have also been seen. -/
+/-- A sequential search context is stable closed if for any reachable state `u`
+that has been seen and has been fully processed (i.e., not in the queue, not being
+processed), then all its successful successors have also been seen. -/
 abbrev SequentialSearchContext.isStableClosed (sctx : SequentialSearchContext σ κ σₕ asm)
   -- (Optional) state that is currently being processed
   (stateInTransit : Option σ) : Prop :=
-  Function.Injective fp.view →
+  Function.InjectiveOn fp.view sys.reachable →
     (sctx.1.finished = some (.exploredAllReachableStates) ∨ sctx.1.finished = none) →
-      ∀ u ∉ stateInTransit, (fp.view u) ∈ sctx.1.log →
+      ∀ u, sys.reachable u → u ∉ stateInTransit → (fp.view u) ∈ sctx.1.log →
         (∀ d : Nat, ⟨fp.view u, u, d⟩ ∉ sctx.2) →
           ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th u →
             (fp.view v) ∈ sctx.1.log
@@ -78,13 +78,13 @@ variable {ρ σ κ σₕ asm : Type}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
 
-/-- A map-reduce main context is stable closed if for any state `u` that
-has been seen (in globalSeen) and has been fully processed (i.e., not in the
-frontier array), then all its successfully reachable states have also been seen. -/
+/-- A map-reduce main context is stable closed if for any reachable state `u`
+that has been seen (in globalSeen) and has been fully processed (i.e., not in the
+frontier array), then all its successful successors have also been seen. -/
 abbrev MapReduceSearchContextMain.isStableClosed (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard) : Prop :=
-  Function.Injective fp.view →
+  Function.InjectiveOn fp.view sys.reachable →
     (mctx.base.finished = some (.exploredAllReachableStates) ∨ mctx.base.finished = none) →
-      ∀ u, (fp.view u) ∈ mctx.globalSeen →
+      ∀ u, sys.reachable u → (fp.view u) ∈ mctx.globalSeen →
         (∀ item ∈ mctx.tovisit, item.fingerprint ≠ fp.view u) →
           ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th u →
             (fp.view v) ∈ mctx.globalSeen

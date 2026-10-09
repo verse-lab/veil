@@ -127,6 +127,8 @@ theorem SequentialSearchContext.processSuccessors_preserves_invs
       rename_i ctx sq fingerprint h_not_seen ; subst fingerprint
       simp at h_not_seen h_not_finished
       rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; simp at h_q_sound
+      have h_post_reachable : sys.reachable postState :=
+        .step curr postState h_reachable ⟨label, h⟩
       constructor ; on_goal 1=> constructor
       all_goals dsimp only at * ; grind
 

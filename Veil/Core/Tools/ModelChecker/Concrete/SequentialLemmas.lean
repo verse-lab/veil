@@ -35,7 +35,7 @@ theorem SequentialSearchContextInvariants.finish_stateInTransit
   rcases sctx with ⟨ctx, sq⟩ ; rcases sctx_invs with ⟨h1, h2, h3, h_closed⟩ ; dsimp only at *
   constructor <;> try assumption
   simp [SequentialSearchContext.isStableClosed] at h_closed ⊢
-  intro ha hb u hc hd l v hin
+  intro ha hb u h_reachable hc hd l v hin
   by_cases heq : curr = u
   on_goal 2=> grind
   subst u ; eapply h_neighbors_seen ; assumption
@@ -44,7 +44,7 @@ theorem SequentialSearchContext.bfs_completeness
   {sctx : SequentialSearchContext σ κ σₕ asm}
   (sctx_invs : SequentialSearchContextInvariants sys params .none sctx)
   (h_explore_all : sctx.1.finished = some (.exploredAllReachableStates))
-  (h_view_inj : Function.Injective fp.view) :
+  (h_view_inj : Function.InjectiveOn fp.view sys.reachable) :
   ∀ s : σ, sys.reachable s → (fp.view s) ∈ sctx.1.log := by
   rcases sctx with ⟨ctx, sq⟩ ; rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at *
   intro s h_reachable
