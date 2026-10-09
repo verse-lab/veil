@@ -203,7 +203,23 @@ are uninterpreted symbols constrained by the module's assumptions.
 
 For quorums in particular, `Veil/Frontend/Std.lean` provides `Quorum α` (every
 majority of `α`) and `MinQuorum α` (the majorities of minimal size) as bit-vector sets, with `a ∈ q` as membership
-and the usual set-like notation (e.g., `{0, 1}`) as display. 
+and the usual set-like notation (e.g., `{0, 1}`) as display. To use them, declare
+the quorum type abstractly and assume only membership, then pick the concrete type
+when model checking:
+
+```lean
+type acceptor
+type quorum
+instantiate mem : Membership acceptor quorum
+
+assumption [quorum_intersection] ∀ (q1 q2 : quorum), ∃ a, a ∈ q1 ∧ a ∈ q2
+
+-- ... `∀ a ∈ Q, ...` in actions and properties ...
+
+#model_check { acceptor := Fin 3, quorum := MinQuorum (Fin 3), ... }
+```
+
+`Examples/TLA/Paxos.lean` and `Examples/TLA/MultiPaxos.lean` are written this way.
 
 ## Keeping Searches Small and Fast
 

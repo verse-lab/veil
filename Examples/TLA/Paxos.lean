@@ -16,20 +16,6 @@ public import Veil
 -- (***************************************************************************)
 -- EXTENDS Integers, TLAPS, TLC
 
-public class PaxosMember (acceptor : outParam Type) (quorum : Type) where
-  member : acceptor → quorum → Bool
-
-public instance : PaxosMember (Fin 3) (Fin 3) where
-  member a q :=
-    match a.val, q.val with
-    | 0, 0 => true
-    | 1, 0 => true
-    | 0, 1 => true
-    | 2, 1 => true
-    | 1, 2 => true
-    | 2, 2 => true
-    | _, _ => false
-
 veil module Paxos
 
 -- Ballot type: Fin (MaxBallot + 2), where 0 = "no ballot" (TLA+'s -1)
@@ -48,11 +34,7 @@ param maxBallot : Nat
 --           /\ Quorums \subseteq SUBSET Acceptors
 --           /\ \A Q1, Q2 \in Quorums : Q1 \cap Q2 # {}
 
-instantiate pm : PaxosMember acceptor quorum
-
--- immutable relation member (A : acceptor) (Q : quorum)
--- PaxosMember acceptor quorum
-open PaxosMember
+instantiate mem : Membership acceptor quorum
 -- None == CHOOSE v : v \notin Values
 -- We use Option value instead: none = None, some v = v ∈ Values
 
@@ -104,7 +86,7 @@ function maxVal (a : acceptor) : Option value
 #gen_state
 
 assumption [quorum_intersection]
-  ∀ (q1 q2 : quorum), ∃ (r : acceptor), member r q1 ∧ member r q2
+  ∀ (q1 q2 : quorum), ∃ (r : acceptor), r ∈ q1 ∧ r ∈ q2
 
 -- Init == /\ msgs = {}
 --         /\ maxVBal = [a \in Acceptors |-> -1]
@@ -195,7 +177,7 @@ action Phase1b (a : acceptor) {
 
 ghost relation quorumCovered (Q : quorum) (S : MsgSet) :=
 -- ghost relation quorumCovered (Q : quorum) (S : List (PaxosMsg acceptor value maxBallot)) :=
-  ∀ a, member a Q → ∃ m : { m // m ∈ S }, (match m.val with
+  ∀ a ∈ Q, ∃ m : { m // m ∈ S }, (match m.val with
     | .phase1b acc .. => decide $ acc = a
     | _ => false) = true
 
@@ -305,7 +287,7 @@ action Phase2b (a : acceptor) {
 ghost relation VotedForIn (a : acceptor) (v : value) (b : BallotTy maxBallot) :=
   msgSet.contains (.phase2b a b v) msgs
 ghost relation ChosenIn (v : value) (b : BallotTy maxBallot) :=
-  ∃ (Q : quorum), ∀ a, member a Q → VotedForIn a v b
+  ∃ (Q : quorum), ∀ a ∈ Q, VotedForIn a v b
 ghost relation Chosen (v : value) :=
   ∃ b, ChosenIn v b
 -- (***************************************************************************)
@@ -322,7 +304,7 @@ invariant [Consistency] ∀ v1 v2, Chosen v1 ∧ Chosen v2 → v1 = v2
 -- {
 --   acceptor := Fin 3,
 --   value := Fin 2,
---   quorum := Fin 3,
+--   quorum := MinQuorum (Fin 3),
 --   maxBallot := 3,
 --   MsgSet := OrdList (PaxosMsg (Fin 3) (Fin 2) 3),
 --   AcceptorSet := OrdList (Fin 3)
