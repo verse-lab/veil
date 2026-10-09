@@ -177,6 +177,8 @@ where
   violatingStates    : List (σₕ × ViolationKind)
   /-- Have we finished the search? If so, why? -/
   finished           : Option (TerminationReason σₕ)
+  /-- The depth of the current BFS frontier being processed -/
+  currentFrontierDepth : Nat
   /-- Total number of post-states generated (before deduplication) -/
   statesFound : Nat
   /-- Per-action statistics (only `statesGenerated`) -/
@@ -203,6 +205,11 @@ variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionSta
 @[inline]
 def BaseSearchContext.hasFinished (ctx : BaseSearchContext σ κ σₕ asm) : Bool := ctx.finished.isSome
 
+/-- The depth up to which ALL states have been fully explored (successors enqueued): the one before
+the frontier's, and `0` while the frontier is at depth `0`. -/
+@[inline]
+def BaseSearchContext.completedDepth (ctx : BaseSearchContext σ κ σₕ asm) : Nat := ctx.currentFrontierDepth - 1
+
 @[inline]
 def initialLogAndRepresentativesCore (i : Nat) (acc : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ)) (s : σ) :=
   let (a, l) := acc
@@ -219,6 +226,7 @@ are all it has found. -/
 def BaseSearchContext.initial (numInitialStates : Nat) : BaseSearchContext σ κ σₕ asm :=
   { violatingStates := [],
     finished := none,
+    currentFrontierDepth := 0,
     statesFound := numInitialStates,
     actionStatsMap := ActionStatUpdate.empty (κ := κ) }
 
@@ -253,14 +261,13 @@ def checkViolationsAndMaybeTerminate
     | .cancelled => none  -- Cancellation is handled externally via cancel token, not through early termination conditions
   (newViolations, earlyTermination)
 
-/-- Process the current state, queuing its successors. `trs` is `sys.tr th curr`, and
-`completedDepth` the depth up to which all states have been fully explored, for the depth bound. -/
+/-- Process the current state, queuing its successors. `trs` is `sys.tr th curr`. -/
 -- @[inline, specialize]
 def BaseSearchContext.processState
-  (completedDepth : Nat)
   (trs : Transitions κ Int σ)
   (ctx : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm × Option (List (κ × σ)) :=
   let hasSuccessfulTransition := !trs.successes.isEmpty
+  let completedDepth := ctx.completedDepth
   let (newViolations, earlyTermination) :=
     checkViolationsAndMaybeTerminate params th fpSt curr completedDepth hasSuccessfulTransition trs.failures
   let ctx := {ctx with violatingStates := newViolations ++ ctx.violatingStates}
@@ -276,10 +283,11 @@ def BaseSearchContext.processState
     | none => ctx
   (ctx, if earlyTermination.isSome then none else some trs.successes)
 
-/-- Merge the violations and the statistics of `ctx2` into `ctx1`. -/
+/-- Merge the violations and the statistics of `ctx2` into `ctx1`, keeping the depths of `ctx1`. -/
 def BaseSearchContext.mergeWithoutDepthChange (ctx1 ctx2 : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm :=
   { violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
     finished := ctx1.finished.or ctx2.finished,
+    currentFrontierDepth := ctx1.currentFrontierDepth,
     statesFound := ctx1.statesFound + ctx2.statesFound,
     actionStatsMap := ActionStatUpdate.merge (κ := κ) ctx1.actionStatsMap ctx2.actionStatsMap }
 

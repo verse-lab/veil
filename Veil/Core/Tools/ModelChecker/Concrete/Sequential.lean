@@ -26,13 +26,13 @@ def SequentialSearchContext.tryExploreNeighbor
   (label : κ)
   (succ : σ)
   : SequentialSearchContext σ κ σₕ asm :=
-  let ⟨ctx, log, sq, fd⟩ := sctx
+  let ⟨ctx, log, sq⟩ := sctx
   let fingerprint := fp.view succ
   if log.contains fingerprint then
-    ⟨{ ctx with actionStatsMap := ActionStatUpdate.increment label false ctx.actionStatsMap }, log, sq, fd⟩
+    ⟨{ ctx with actionStatsMap := ActionStatUpdate.increment label false ctx.actionStatsMap }, log, sq⟩
   else
     ⟨{ ctx with actionStatsMap := ActionStatUpdate.increment label true ctx.actionStatsMap },
-      log.insert fingerprint (.step fpSt label idx), sq.enqueue ⟨fingerprint, succ, nextDepth⟩, fd⟩
+      log.insert fingerprint (.step fpSt label idx), sq.enqueue ⟨fingerprint, succ, nextDepth⟩⟩
 
 -- CHECK inline this later? seems a good target to inline
 -- @[inline, specialize]
@@ -55,41 +55,45 @@ def SequentialSearchContext.processState
   -- Depth tracking information computed by caller
   (newFrontierDepth : Nat) :
   SequentialSearchContext σ κ σₕ asm :=
-  let ⟨ctx, log, sq, fd⟩ := sctx
-  -- `fd - 1` is the completed depth, `sctx.completedDepth`
-  let (ctx', outcomesOpt) := ctx.processState params th fpSt curr (fd - 1) trs
+  let ⟨ctx, log, sq⟩ := sctx
+  let (ctx', outcomesOpt) := ctx.processState params th fpSt curr trs
   match outcomesOpt with
   | none =>
     -- Early termination case: processState returned none, meaning we're terminating early
     -- CHECK What does this update mean?
-    ⟨ctx', log, sq, newFrontierDepth⟩
+    ⟨{ ctx' with
+      currentFrontierDepth := newFrontierDepth
+    }, log, sq⟩
   | some successfulTransitions =>
     -- CHECK Is it useful/possible to remove the call to `successfulTransitions.length`?
     let newStatesFound := ctx'.statesFound + successfulTransitions.length
-    let ctx'' := { ctx' with statesFound := newStatesFound }
-    SequentialSearchContext.processSuccessors fpSt depth 0 successfulTransitions ⟨ctx'', log, sq, newFrontierDepth⟩
+    let ctx'' := { ctx' with
+      currentFrontierDepth := newFrontierDepth
+      statesFound := newStatesFound
+    }
+    SequentialSearchContext.processSuccessors fpSt depth 0 successfulTransitions ⟨ctx'', log, sq⟩
 
 /-- Perform one step of BFS. -/
 -- @[inline, specialize]
 def SequentialSearchContext.bfsStep
   (outcomesComputer : ρ → σ → Transitions κ Int σ)
   (sctx : SequentialSearchContext σ κ σₕ asm) : SequentialSearchContext σ κ σₕ asm :=
-  let ⟨ctx, log, sq, fd⟩ := sctx
+  let ⟨ctx, log, sq⟩ := sctx
   match sq.dequeue? with
   | none =>
     -- Queue is empty: finished searching
-    ⟨{ ctx with finished := some (.exploredAllReachableStates) }, log, sq, fd⟩
+    ⟨{ ctx with finished := some (.exploredAllReachableStates) }, log, sq⟩
   | some (⟨fpSt, curr, depth⟩, q_tail) =>
     -- Update the frontier depth when we move to a new frontier level
     let newFrontierDepth :=
-      if depth > fd then
+      if depth > ctx.currentFrontierDepth then
         depth  -- All states at previous depth are now fully explored
       else
-        fd
+        ctx.currentFrontierDepth
     -- Process curr: add successors to seen, enqueue them, and dequeue curr
     -- processState handles the complete lifecycle of processing a state
     SequentialSearchContext.processState params th fpSt depth curr (outcomesComputer th curr)
-      ⟨ctx, log, q_tail, fd⟩ newFrontierDepth
+      ⟨ctx, log, q_tail⟩ newFrontierDepth
 
 /-! ### The search invariants -/
 
@@ -118,7 +122,7 @@ theorem SequentialSearchContext.processSuccessors_preserves_invs
       fun_cases tryExploreNeighbor
       on_goal 1=> cases sctx_invs ; constructor <;> assumption
       -- enqueue case
-      rename_i ctx log sq fd fingerprint h_not_seen ; subst fingerprint
+      rename_i ctx log sq fingerprint h_not_seen ; subst fingerprint
       simp at h_not_seen h_not_finished
       rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; simp at h_q_sound
       have h_post_reachable : sys.reachable postState :=
@@ -147,7 +151,7 @@ theorem SequentialSearchContext.bfsStep_preserves_invs
   (h_not_finished : sctx.base.hasFinished = false)
   (sctx_invs : SequentialSearchContextInvariants sys params .none sctx) :
   SequentialSearchContextInvariants sys params .none (sctx.bfsStep params th sys.tr) := by
-  rcases sctx with ⟨ctx, log, sq, fd⟩ ; rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at * ; simp at h_q_sound
+  rcases sctx with ⟨ctx, log, sq⟩ ; rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at * ; simp at h_q_sound
   simp [BaseSearchContext.hasFinished] at h_not_finished
   unfold SequentialSearchContext.bfsStep ; dsimp only
   rcases h_deq : sq.dequeue? with _ | ⟨⟨fpSt, curr, depth⟩, q_tail⟩ <;> dsimp only
@@ -156,14 +160,14 @@ theorem SequentialSearchContext.bfsStep_preserves_invs
     constructor ; on_goal 1=> constructor
     all_goals (try dsimp only) ; try solve | assumption | grind
   -- simplify the depth expression
-  generalize h_eq_nfd : (if depth > fd then depth else fd) = newFrontierDepth
+  generalize h_eq_nfd : (if depth > ctx.currentFrontierDepth then depth else ctx.currentFrontierDepth) = newFrontierDepth
   -- now process the state
   dsimp [SequentialSearchContext.processState]
-  fun_cases BaseSearchContext.processState params th fpSt curr (fd - 1) (sys.tr th curr) ctx
-  rename_i hasSuccessfulTransition newViolations
+  fun_cases BaseSearchContext.processState params th fpSt curr (sys.tr th curr) ctx
+  rename_i hasSuccessfulTransition completedDepth newViolations
     earlyTermination h_eq_checkvio ctx' ctx''
-  dsimp only
-  revert h_eq_checkvio ; fun_cases checkViolationsAndMaybeTerminate params th fpSt curr (fd - 1) hasSuccessfulTransition (sys.tr th curr).failures
+  subst completedDepth ; dsimp only
+  revert h_eq_checkvio ; fun_cases checkViolationsAndMaybeTerminate params th fpSt curr ctx.completedDepth hasSuccessfulTransition (sys.tr th curr).failures
   rename_i safetyViolations safetyViolation deadlock tmp1 tmp2
   intro htmp ; injection htmp with h_eq_newvio h_eq_earlyterm ; subst tmp1 tmp2
   -- see if early termination happened
@@ -213,7 +217,7 @@ theorem SequentialSearchContext.processSuccessors_log_sound
     fun_cases tryExploreNeighbor
     · apply ih <;> try assumption
       rcases hls with ⟨⟨hv, hf⟩, hlog, hq⟩ ; exact ⟨⟨hv, hf⟩, hlog, hq⟩    -- `hls` is not affected by the changed fields
-    · rename_i ctx log sq fd fingerprint hnotseen ; subst fingerprint
+    · rename_i ctx log sq fingerprint hnotseen ; subst fingerprint
       rcases hls with ⟨⟨hv, hf⟩, hlog, hq⟩
       dsimp only at *
       simp at hnotseen
@@ -236,12 +240,12 @@ theorem SequentialSearchContext.processState_log_sound
   {newFrontierDepth : Nat} :
   ∃ rep' dep', SequentialSearchContext.LogSound sys params
     (sctx.processState params th fpSt depth curr (sys.tr th curr) newFrontierDepth) rep' dep' := by
-  rcases sctx with ⟨ctx, log, sq, fd⟩
+  rcases sctx with ⟨ctx, log, sq⟩
   rcases hls with ⟨⟨hv, hf⟩, hlog, hq⟩ ; dsimp only at *
-  have hsound := BaseSearchContext.processState_sound sys params (fpSt := fpSt) (curr := curr) (fd - 1) ctx hrep hv hf
-  have hsnd := BaseSearchContext.processState_snd params th fpSt curr (fd - 1) (sys.tr th curr) ctx
+  have hsound := BaseSearchContext.processState_sound sys params (fpSt := fpSt) (curr := curr) ctx hrep hv hf
+  have hsnd := BaseSearchContext.processState_snd params th fpSt curr (sys.tr th curr) ctx
   unfold SequentialSearchContext.processState ; dsimp only
-  generalize ctx.processState params th fpSt curr (fd - 1) (sys.tr th curr) = pr at hsound hsnd ⊢
+  generalize ctx.processState params th fpSt curr (sys.tr th curr) = pr at hsound hsnd ⊢
   rcases pr with ⟨ctx', outcomesOpt⟩
   dsimp only at *
   obtain ⟨hv', hf'⟩ := hsound
@@ -255,14 +259,14 @@ theorem SequentialSearchContext.bfsStep_log_sound
   (h : ∃ rep dep, SequentialSearchContext.LogSound sys params sctx rep dep) :
   ∃ rep dep, SequentialSearchContext.LogSound sys params (sctx.bfsStep params th sys.tr) rep dep := by
   obtain ⟨rep, dep, hls⟩ := h
-  rcases sctx with ⟨ctx, log, sq, fd⟩
+  rcases sctx with ⟨ctx, log, sq⟩
   unfold bfsStep ; dsimp only
   rcases hdeq : sq.dequeue? with _ | ⟨⟨fpSt, curr, depth⟩, q_tail⟩ <;> dsimp only
   · rcases hls with ⟨⟨hv, _⟩, hlog, hq⟩ ; dsimp only at *
     exact ⟨rep, dep, ⟨hv, by simp [TerminationSound]⟩, hlog, hq⟩
   · have hmem : (⟨fpSt, curr, depth⟩ : QueueItem σₕ σ) ∈ sq := fQueue.mem_of_dequeue _ _ _ hdeq
     have hrep := hls.queue_rep _ hmem
-    have hls' : SequentialSearchContext.LogSound sys params ⟨ctx, log, q_tail, fd⟩ rep dep :=
+    have hls' : SequentialSearchContext.LogSound sys params ⟨ctx, log, q_tail⟩ rep dep :=
       ⟨hls.toViolationTerminationSound, hls.log_invs,
         fun item hitem => hls.queue_rep item (fQueue.mem_of_mem_dequeue_tail _ _ _ _ hdeq hitem)⟩
     exact processState_log_sound params th hls' hrep
@@ -287,30 +291,30 @@ def breadthFirstSearchSequential {m : Type → Type}
   while h_not_finished : sctx.val.base.hasFinished = false do
     let sctx_val := sctx.val
     have h_sctx := sctx.property
-    let oldFrontierDepth := sctx_val.currentFrontierDepth
+    let oldFrontierDepth := sctx_val.base.currentFrontierDepth
     let sctx' := sctx_val.bfsStep params th sys.tr
     have h_sctx' : SequentialSearchContextInvariants sys params .none sctx' ∧
         ∃ rep dep, SequentialSearchContext.LogSound sys params sctx' rep dep :=
       ⟨SequentialSearchContext.bfsStep_preserves_invs params th h_not_finished h_sctx.1,
         SequentialSearchContext.bfsStep_log_sound params th h_sctx.2⟩
     match heq : sctx' with
-    | ⟨ctx', log', sq', fd'⟩ =>
+    | ⟨ctx', log', sq'⟩ =>
       -- If we found a violation, mark it so handoff is prevented
       trySetViolationFound progressInstanceId ctx'
-      tryUpdateProgressWithNewFrontierDepth progressInstanceId oldFrontierDepth ctx' fd' sq'.size log'.size
-      let newtime? ← checkCancellationWithPeriodicUpdate progressInstanceId lastUpdateTime updateTimeInterval cancelToken ctx' fd' sq'.size log'.size
-      sctx := Subtype.mk ⟨ctx', log', sq', fd'⟩ (heq.symm ▸ h_sctx')
+      tryUpdateProgressWithNewFrontierDepth progressInstanceId oldFrontierDepth ctx' sq'.size log'.size
+      let newtime? ← checkCancellationWithPeriodicUpdate progressInstanceId lastUpdateTime updateTimeInterval cancelToken ctx' sq'.size log'.size
+      sctx := Subtype.mk ⟨ctx', log', sq'⟩ (heq.symm ▸ h_sctx')
       match newtime? with
       | .updateTime t => lastUpdateTime := t
       | .searchCancelled => cancelled := true ; break
       | .noUpdate => pure ()
-  let ⟨⟨ctx, log, sq, fd⟩, h_sctx⟩ := sctx
-  updateProgressDuringBFS progressInstanceId ctx fd sq.size log.size
+  let ⟨⟨ctx, log, sq⟩, h_sctx⟩ := sctx
+  updateProgressDuringBFS progressInstanceId ctx sq.size log.size
   if cancelled then
-    return ⟨⟨{ ctx with finished := some (.earlyTermination .cancelled) }, log, sq, fd⟩,
+    return ⟨⟨{ ctx with finished := some (.earlyTermination .cancelled) }, log, sq⟩,
       ⟨SequentialSearchContextInvariants.setCancelled sys params h_sctx.1,
         h_sctx.2.elim fun rep h => h.elim fun dep h => ⟨rep, dep, SequentialSearchContext.LogSound.setCancelled sys params h⟩⟩⟩
   else
-    return ⟨⟨ctx, log, sq, fd⟩, h_sctx⟩
+    return ⟨⟨ctx, log, sq⟩, h_sctx⟩
 
 end Veil.ModelChecker.Concrete
