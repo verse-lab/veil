@@ -142,8 +142,8 @@ structure LogInvariants (look : LogLookup σₕ κ) (rep : σₕ → Option σ) 
     ∃ sp s, rep p = some sp ∧ rep x = some s ∧ (sys.tr th sp).successes[i]? = some (l, s)
 
 theorem LogInvariants.rep_isSome_iff {look : LogLookup σₕ κ} {rep : σₕ → Option σ} {dep : σₕ → Nat}
-    (h : LogInvariants sys look rep dep) {x : σₕ} : (look x).isSome ↔ (rep x).isSome := by
-  constructor
+    (h : LogInvariants sys look rep dep) {x : σₕ} : (look x).isSome = (rep x).isSome := by
+  rw [Bool.eq_iff_iff] ; constructor
   on_goal 2=> apply h.rep_mem
   intro hx
   rw [Option.isSome_iff_exists] at hx
@@ -244,6 +244,49 @@ theorem LogInvariants.update_step {look : LogLookup σₕ κ} {rep : σₕ → O
   rcases h with ⟨rep_fp, rep_mem, init_ok, step_ok⟩
   have hpx : p ≠ x := by grind
   constructor <;> (try unfold lookUpdate) <;> unfold repUpdate <;> (try unfold depUpdate) <;> grind
+
+/-- Recording a layer of fresh fingerprints at once, as the parallel search does: `items` have
+pairwise distinct fingerprints that the log does not know, each reached from a representative
+the log knows, and `look'` is the log with their entries on top. -/
+theorem LogInvariants.update_layer {look : LogLookup σₕ κ} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+    (h : LogInvariants sys look rep dep) (items : List (MapReduceQueueItem σₕ σ κ))
+    (hnodup : (items.map MapReduceQueueItem.fingerprint).Nodup)
+    (hfresh : ∀ item ∈ items, look item.fingerprint = none)
+    (hfp : ∀ item ∈ items, fp.view item.state = item.fingerprint)
+    (hstep : ∀ item ∈ items, ∃ p l i sp, item.entry = .step p l i ∧ rep p = some sp ∧
+      (sys.tr th sp).successes[i]? = some (l, item.state))
+    {look' : LogLookup σₕ κ}    -- The updated log after recording the new items
+    (hl1 : ∀ item ∈ items, look' item.fingerprint = some item.entry)
+    (hl2 : ∀ x, (∀ item ∈ items, item.fingerprint ≠ x) → look' x = look x) :
+    ∃ rep' dep', LogInvariants sys look' rep' dep' ∧
+      (∀ item ∈ items, rep' item.fingerprint = some item.state) ∧
+      (∀ x s, rep x = some s → rep' x = some s) := by
+  induction items generalizing look rep dep with
+  | nil =>
+    exists rep, dep
+    obtain rfl : look' = look := funext fun x => hl2 x (by simp)
+    grind
+  | cons item rest ih =>
+    obtain ⟨p, l, i, sp, hentry, hrp, hi⟩ := hstep item (List.mem_cons_self ..)
+    have hx : look item.fingerprint = none := hfresh item (List.mem_cons_self ..)
+    -- a fingerprint the log knows is not the one being recorded
+    have hknown : ∀ y, (rep y).isSome → y ≠ item.fingerprint := by
+      intro y ; rw [← h.rep_isSome_iff] ; grind
+    rw [List.map_cons, List.nodup_cons] at hnodup
+    have h' := h.update_step sys hx hrp hi (hfp item (List.mem_cons_self ..))
+    rw [← hentry] at h'
+    obtain ⟨rep', dep', hinv, hitems, hmono⟩ := ih h' hnodup.2
+      (fun it hit => by unfold lookUpdate ; grind)
+      (fun it hit => by grind)
+      (fun it hit => by unfold repUpdate ; grind)
+      (fun it hit => by grind)
+      (fun x hx' => by unfold lookUpdate ; grind)
+    refine ⟨rep', dep', hinv, ?_, ?_⟩
+    · simp ; constructor
+      · apply hmono ; simp [repUpdate]
+      · grind
+    · intro x s hs ; apply hmono
+      simp [repUpdate, hknown x (by simp [hs]), hs]
 
 /-! ### Deduplicating folds
 
@@ -393,5 +436,20 @@ theorem BaseSearchContext.processState_sound {asm : Type} [ActionStatUpdate κ a
   dsimp only at hchk ⊢
   unfold BaseSearchContext.processState
   grind
+
+/-- Merging base contexts keeps what their violations say. -/
+theorem BaseSearchContext.mergeWithoutDepthChange_foldl_sound {asm : Type} [ActionStatUpdate κ asm]
+    (params : SearchParameters ρ σ) {rep : σₕ → Option σ}
+    {acc : BaseSearchContext σ κ σₕ asm} {ctxs : List (BaseSearchContext σ κ σₕ asm)}
+    (h_acc : acc.ViolationTerminationSound sys params rep)
+    (h_ctxs : ∀ ctx ∈ ctxs, ctx.ViolationTerminationSound sys params rep) :
+    (ctxs.foldl (init := acc) BaseSearchContext.mergeWithoutDepthChange).ViolationTerminationSound sys params rep := by
+  induction ctxs generalizing acc with
+  | nil => exact h_acc
+  | cons ctx ctxs ih =>
+    apply ih _ fun ctx' h => h_ctxs ctx' (List.mem_cons_of_mem _ h)
+    obtain ⟨hv1, hf1⟩ := h_acc ; obtain ⟨hv2, hf2⟩ := h_ctxs ctx List.mem_cons_self
+    constructor <;> simp only [BaseSearchContext.mergeWithoutDepthChange] <;> try grind
+    rcases h : acc.finished with _ | r <;> simp only [h, Option.none_or, Option.some_or] at hf1 ⊢ <;> assumption
 
 end Veil.ModelChecker.Concrete
