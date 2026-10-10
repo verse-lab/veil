@@ -25,6 +25,7 @@ interface ParsedState {
   tag?: string; // Optional tag associated with this state (e.g. transition/action label)
   fields: Record<string, unknown>;
   failing?: boolean; // True if an assertion failed while executing the transition to this state
+  choices?: string[]; // The non-deterministic choices (picks) that led to this state, if known
 }
 type Trace = ParsedState[];
 
@@ -61,6 +62,7 @@ interface TraceData {
     fields: Record<string, unknown>;
     transition: unknown;
     failing?: boolean;
+    choices?: string[];
   }>;
   instantiation?: Record<string, unknown>;
   extraVals?: Record<string, unknown>;
@@ -254,6 +256,11 @@ const StateCard: React.FC<{
           {st.tag || '(no action)'}
         </span>
         {isFailing && <span className="failing-badge">FAILED</span>}
+        {st.choices && st.choices.length > 0 && (
+          <span className="choice-chips" title="Non-deterministic choices that led to this state">
+            {st.choices.map((c, i) => <code key={i} className="choice-chip">{c}</code>)}
+          </span>
+        )}
         <span className="state-id">(index: {st.index})</span>
         <div className="state-toggle">{open ? "▼" : "▶"}</div>
       </div>
@@ -441,6 +448,7 @@ function traceDataToStates(traceData: TraceData): ParsedState[] {
     tag: formatActionLabel(st.transition),
     fields: st.fields,
     failing: st.failing,
+    choices: st.choices,
   }));
 }
 
@@ -666,6 +674,20 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     }
     .kv-content { display: block; }
     .action-chip { cursor: help; }
+    .choice-chips {
+      display: inline-flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .choice-chip {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: normal;
+      background: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      border-radius: 3px;
+      padding: 1px 5px;
+    }
     .result-header {
       display: flex;
       align-items: center;

@@ -34,6 +34,7 @@ error: ❌ Violation: assertion_failure
   State 0 (via init):
     pending = []
   State 1 (via send(n=0, next=0)):
+    choices: true
     pending = []
 -/
 #guard_msgs in

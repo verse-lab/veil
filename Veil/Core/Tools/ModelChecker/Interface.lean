@@ -102,10 +102,10 @@ deriving Inhabited, Repr
 
 instance [ToJson ρ] [ToJson σ] [ToJson κ] [ToJson σₕ] : ToJson (ModelCheckingResult ρ σ κ σₕ) where
   toJson
-    | .foundViolation fp violation trace _ => Json.mkObj
+    | .foundViolation fp violation trace picks => Json.mkObj
         [ ("result", "found_violation"),
           ("violation", toJson violation),
-          ("trace", toJson trace),
+          ("trace", toJson (trace.map (·.toJsonWithPicks picks))),
           ("state_fingerprint", toJson fp) ]
     | .noViolationFound exploredStates reason => Json.mkObj
         [ ("result", "no_violation_found"),
