@@ -141,6 +141,9 @@ def enumComplete : Ident := mkIdent enumCompleteName
 def enumerableTransitionSystemName : Name := `enumerableTransitionSystem
 def enumerableTransitionSystem : Ident := mkIdent enumerableTransitionSystemName
 
+def pickSourceName : Name := `pickSource
+def pickSource : Ident := mkIdent pickSourceName
+
 def assembledInitName : Name := `Init
 def assembledInit : Ident := mkIdent assembledInitName
 

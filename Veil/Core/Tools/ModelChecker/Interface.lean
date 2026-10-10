@@ -92,14 +92,17 @@ instance [ToJson σₕ] : ToJson (TerminationReason σₕ) where
     | .earlyTermination condition => Json.mkObj [("kind", "early_termination"), ("condition", toJson condition)]
 
 inductive ModelCheckingResult (ρ σ κ σₕ : Type) where
+  /-- A violation, with the trace that leads to it, if any, and beside it the picks of the states of
+  that trace, where they are known. -/
   | foundViolation (fp : σₕ) (violation : ViolationKind) (viaTrace : Option (Trace ρ σ κ))
+      (picks : TracePicks)
   | noViolationFound (exploredStates : Nat) (terminationReason : TerminationReason σₕ)
   | cancelled
 deriving Inhabited, Repr
 
 instance [ToJson ρ] [ToJson σ] [ToJson κ] [ToJson σₕ] : ToJson (ModelCheckingResult ρ σ κ σₕ) where
   toJson
-    | .foundViolation fp violation trace => Json.mkObj
+    | .foundViolation fp violation trace _ => Json.mkObj
         [ ("result", "found_violation"),
           ("violation", toJson violation),
           ("trace", toJson trace),
@@ -280,6 +283,19 @@ def restrictSystemByStateConstraints {ρ σ κ : Type} {th₀ : ρ}
       let ts := sys.tr th' st
       { successes := ts.successes.filter fun (_, st') => params.satisfiesConstraints th st',
         -- Assertion failures should satisfy constraints to be considered.
+        failures := ts.failures.filter fun f => params.satisfiesConstraints th f.state }
+  }
+
+/-- `src` restricted as `restrictSystemByStateConstraints` restricts the system whose picks it
+gives, so that its initial states and transitions stay in the positions of the restricted system's. -/
+@[inline]
+def PickSource.restrictByStateConstraints {ρ σ κ : Type} (src : PickSource σ κ)
+  (params : SearchParameters ρ σ) (th : ρ) : PickSource σ κ :=
+  if params.stateConstraints.isEmpty then src else {
+    initStates := src.initStates.filter fun (st, _) => params.satisfiesConstraints th st
+    tr := fun st =>
+      let ts := src.tr st
+      { successes := ts.successes.filter fun (_, st') => params.satisfiesConstraints th st',
         failures := ts.failures.filter fun f => params.satisfiesConstraints th f.state }
   }
 

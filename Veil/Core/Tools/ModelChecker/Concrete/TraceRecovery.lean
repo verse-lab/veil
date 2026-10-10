@@ -411,26 +411,67 @@ def failingStepOf (s : σ) (e : Int) (h : ∃ f ∈ (sys.tr th s).failures, f.er
   let f := ((sys.tr th s).failures.find? (·.error == e)).get (by simpa [List.find?_isSome] using h)
   { transitionLabel := f.label, nextState := f.state }
 
+/-! ### The picks of a recovered trace
+
+The search runs `sys`, which does not log picks; `src` gives the initial states and transitions of
+the same system computed with the picks logged, each with the picks that led to it. Nothing in the
+proofs relates the two, so the picks of a trace recovered in `sys` are best effort: the initial
+state of the trace looks up the initial state at the same position in `src`, and each step the
+transition at the same position from the same pre-state; the picks are taken only if the state
+found there has the fingerprint that the trace has. -/
+
+variable (src : PickSource σ κ)
+
+/-- The picks of the `idx`-th initial state in `src`, if it has fingerprint `x`. -/
+def picksOfInit (idx : Nat) (x : σₕ) : Option (List String) := do
+  let (s, picks) ← src.initStates[idx]?
+  if fp.view s == x then some (picks.map toString) else none
+
+/-- The picks of the `idx`-th success of `s` in `src`, if it leads to a state of fingerprint `x`. -/
+def picksOfSuccess (s : σ) (idx : Nat) (x : σₕ) : Option (List String) := do
+  let (l, s') ← (src.tr s).successes[idx]?
+  if fp.view s' == x then some (l.picks.map toString) else none
+
+/-- The picks of the first assertion failure of `s` with exception `e` in `src`, if it leads to a
+state of fingerprint `x`. -/
+def picksOfFailure (s : σ) (e : Int) (x : σₕ) : Option (List String) := do
+  let f ← (src.tr s).failures.find? (·.error == e)
+  if fp.view f.state == x then some (f.label.picks.map toString) else none
+
+/-- The picks of the steps of `t`, which follows `path`: each step is at the position that `path`
+records among the successes of its pre-state, and leads to the fingerprint that `path` records. -/
+def stepPicksOf (t : Trace ρ σ κ) (path : List (RetracedStep σₕ κ)) : Array (Option (List String)) :=
+  let pres := t.initialState :: t.steps.toList.map (·.nextState)
+  (pres.zip path).toArray.map fun (s, p) => picksOfSuccess src s p.idx p.fingerprint
+
 /-- The trace to the state recorded against `x`, recovered in `sys` from the log `look`, with the
-failing step when the violation is an assertion failure. Total: the log is sound for some
-representatives, and the representative of `x` exhibits the violation `kind`. -/
+failing step when the violation is an assertion failure, and beside it the picks of its states from
+`src`. Total: the log is sound for some representatives, and the representative of `x` exhibits
+the violation `kind`. -/
 def recoverViolationTrace (params : SearchParameters ρ σ) (look : LogLookup σₕ κ) (x : σₕ)
     (kind : ViolationKind)
     (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ViolationSound sys params rep (x, kind)) :
-    Trace ρ σ κ :=
+    Trace ρ σ κ × TracePicks :=
   let r := recoverTrace sys look x (h.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.1⟩) (by
     obtain ⟨rep, dep, hinv, s, hs, -⟩ := h ; exact hinv.rep_mem x (by simp [hs]))
-  { r.trace with failingStep := match kind, h with
+  let failingStep := match kind, h with
     | .assertionFailure e, h => some (failingStepOf sys r.trace.lastState e (by
         obtain ⟨rep, dep, hinv, hv⟩ := h ; exact r.exhibitsViolation sys hinv hv))
-    | _, _ => none }
+    | _, _ => none
+  ({ r.trace with failingStep := failingStep },
+   { initialState := picksOfInit src r.initIdx (fp.view r.trace.initialState)
+     steps := stepPicksOf src r.trace r.path
+     failingStep := match kind, failingStep with
+       | .assertionFailure e, some step => picksOfFailure src r.trace.lastState e (fp.view step.nextState)
+       | _, _ => none })
 
+variable {src} in
 /-- The recovered trace of a violation is valid in `sys`, and ends at a state that exhibits the
 violation. -/
 theorem recoverViolationTrace_sound {params : SearchParameters ρ σ} {look : LogLookup σₕ κ}
     {x : σₕ} {kind : ViolationKind}
     (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ViolationSound sys params rep (x, kind)) :
-    letI t := recoverViolationTrace sys params look x kind h
+    letI t := (recoverViolationTrace sys src params look x kind h).1
     t.isValid sys.toRelational ∧ t.theory = th ∧ ExhibitsViolation sys params t.lastState kind := by
   have ⟨rep, dep, hinv, hv⟩ := h
   have ⟨s, hs, _⟩ := hv
@@ -443,7 +484,7 @@ and ends at a state that exhibits it, except for an `assumptionFailure`, which c
 names the assumptions that the theory violates. Nothing is claimed about a search that found no
 violation, or was cancelled. -/
 def ResultSound (params : SearchParameters ρ σ) : ModelCheckingResult ρ σ κ σₕ → Prop
-  | .foundViolation _ kind trace? =>
+  | .foundViolation _ kind trace? _ =>
     match trace? with
     | some t => t.isValid sys.toRelational ∧ t.theory = th ∧ ExhibitsViolation sys params t.lastState kind
     | none => ∃ names, kind = .assumptionFailure names ∧ names = params.violatedAssumptions th ∧ names ≠ []

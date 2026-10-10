@@ -14,6 +14,32 @@ structure Step (σ : Type) (l : Type) where
   nextState : σ
 deriving Repr, Inhabited
 
+/-- A transition label with the picks that led to the transition, as `PickSource` gives them. -/
+structure LabelWithPicks (l : Type) where
+  label : l
+  picks : List Std.Format
+
+/-- Where the picks of a counterexample trace come from: a system's initial states and transitions,
+for a fixed theory, computed with the picks logged and in the same positions as the system's. It is
+not a transition system: nothing is proved about it, and recovery checks the states it gives
+against the fingerprints of the trace before taking their picks. -/
+structure PickSource (σ l : Type) where
+  /-- The initial states, each with the picks that led to it. -/
+  initStates : List (σ × List Std.Format)
+  /-- The transitions out of a state, each labelled with the picks that led to it. -/
+  tr : σ → Transitions (LabelWithPicks l) Int σ
+
+/-- The picks of the states of a trace, where they are known, in the shape of the trace. They are
+recovered best effort and kept beside the trace, since they are not part of what makes it valid. -/
+structure TracePicks where
+  /-- The picks that led to the initial state. -/
+  initialState : Option (List String) := none
+  /-- The picks of each step, in order; empty when they are not recovered at all. -/
+  steps : Array (Option (List String)) := #[]
+  /-- The picks of the failing step. -/
+  failingStep : Option (List String) := none
+deriving Repr, Inhabited
+
 /-- This supports cheap appends. -/
 abbrev Steps (σ : Type) (l : Type) := Array (Step σ l)
 abbrev StepList (σ : Type) (l : Type) := List (Step σ l)

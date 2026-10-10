@@ -667,6 +667,12 @@ def getAllPostStates (c : List (DivM ((Except ε α) × σ))) : List (Option σ)
 def extractValidStates (exec : Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : ρ) (st : σ) : List (Option σ) :=
   exec rd st |>.map Prod.snd |> getAllPostStates
 
+/-- The valid states of a VeilMultiExecM computation, in the order of `extractValidStates`, each with
+the log of the execution that reached it. -/
+def extractValidStatesWithLog (exec : Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : ρ) (st : σ) :
+    List (σ × List κᵣ) :=
+  exec rd st |>.filterMap fun (log, r) => (getPostState r).map (·, log)
+
 /-- The transitions of all labels, in label order, built in one pass and already split into the
 successful ones and the assertion failures, which is how the model checker consumes them
 (`EnumerableTransitionSystem.tr`). `next` is specialized in, so there is no closure per label, and
@@ -674,24 +680,27 @@ only the results that exist are allocated: no intermediate `(label, outcome)` li
 afterwards. The model checker runs this on every state, and most labels fail their `require`, so
 the per-label cost matters more than the per-result cost.
 
+Each transition is labelled with `mk` of its label and the log of its result: the system labels it
+with its label alone, and the pick source (`PickSource`) with the picks in the log as well.
+
 The labels are traversed last to first and each label's results are pushed in front of `acc`,
 which keeps the loop tail recursive and the order unchanged; the caller passes the reversed label
 list, computed once rather than per state. -/
 @[specialize]
-def transitionsOfLabelsRev (next : κ → Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (rd : ρ) (st : σ) :
-    List κ → Veil.Transitions κ Int σ → Veil.Transitions κ Int σ
+def transitionsOfLabelsRev (next : κ → Veil.VeilMultiExecM κᵣ Int ρ σ Unit) (mk : κ → List κᵣ → κ')
+    (rd : ρ) (st : σ) : List κ → Veil.Transitions κ' Int σ → Veil.Transitions κ' Int σ
   | [], acc => acc
   | l :: ls, acc =>
     match next l rd st with
     -- the usual case: `require` failed
-    | [] => transitionsOfLabelsRev next rd st ls acc
+    | [] => transitionsOfLabelsRev next mk rd st ls acc
     -- a deterministic step
-    | [(_, r)] => transitionsOfLabelsRev next rd st ls (prependResult l r acc)
-    | rs => transitionsOfLabelsRev next rd st ls (prependResults l rs acc)
+    | [(log, r)] => transitionsOfLabelsRev next mk rd st ls (prependResult (mk l log) r acc)
+    | rs => transitionsOfLabelsRev next mk rd st ls (prependResults l rs acc)
 where
   /-- One result in front of the transitions. -/
-  @[inline] prependResult (l : κ) (r : DivM ((Except Int Unit) × σ)) (acc : Veil.Transitions κ Int σ) :
-      Veil.Transitions κ Int σ :=
+  @[inline] prependResult (l : κ') (r : DivM ((Except Int Unit) × σ)) (acc : Veil.Transitions κ' Int σ) :
+      Veil.Transitions κ' Int σ :=
     match r with
     | .res (.ok _, s) => { acc with successes := (l, s) :: acc.successes }
     | .res (.error e, s) => { acc with failures := ⟨l, e, s⟩ :: acc.failures }
@@ -699,10 +708,10 @@ where
   /-- Several results (a pick) in front of the transitions, in their order, with one allocation per
   result; `map` and `++` would cost four (`map` compiles to `mapTR`, `++` to `appendTR`). Only
   labels with two or more results get here. -/
-  prependResults (l : κ) : List (List κᵣ × DivM ((Except Int Unit) × σ)) → Veil.Transitions κ Int σ →
-      Veil.Transitions κ Int σ
+  @[specialize] prependResults (l : κ) : List (List κᵣ × DivM ((Except Int Unit) × σ)) →
+      Veil.Transitions κ' Int σ → Veil.Transitions κ' Int σ
     | [], acc => acc
-    | (_, r) :: rs, acc => prependResult l r (prependResults l rs acc)
+    | (log, r) :: rs, acc => prependResult (mk l log) r (prependResults l rs acc)
 
 /-- Extract all execution results, preserving successful return values. -/
 def extractAllResults (exec : Veil.VeilMultiExecM κᵣ ε ρ σ α) (rd : ρ) (st : σ) : List (ExecutionResult ε σ α) :=
@@ -710,8 +719,13 @@ def extractAllResults (exec : Veil.VeilMultiExecM κᵣ ε ρ σ α) (rd : ρ) (
 
 end RuntimeExtraction
 
-meta def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadTrace m] [MonadEnv m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m Command := do
+/-- The executable model of the module, as two definitions that take the same arguments:
+`enumerableTransitionSystem`, which labels each transition with its label alone, and `pickSource`,
+the same initial states and transitions with the picks that led to them, from which recovery takes
+the picks of a counterexample trace. -/
+meta def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadTrace m] [MonadEnv m] [MonadOptions m] [AddMessageContext m] (mod : Module) : m (Array Command) := do
   mod.throwIfAlreadyDeclared enumerableTransitionSystemName
+  mod.throwIfAlreadyDeclared pickSourceName
 
   -- Step 1: Use mkDerivedDefinitionsParamsMapFn pattern (like specializeActionsCore)
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
@@ -738,8 +752,8 @@ meta def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] 
   let theoryBinder ← `(bracketedBinder| ($theoryId : $theoryStx))
   let injectedBinders := nextAct'Binders ++ #[labelsBinder, theoryBinder]
 
-  -- Step 3: Build finalBody as struct literal
-  let finalBody ← do
+  -- Step 3: Build the bodies as struct literals
+  let (sysBody, pickSourceBody) ← do
     let fieldConcrete ← `($fieldConcreteDispatcher $(← mod.uninterpretedParamIdents)*)
     let stateStx ← `($stateIdent $fieldConcrete)
     let labelStx ← mod.labelTypeStx
@@ -749,13 +763,16 @@ meta def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] 
     let filterMap ← `($(mkIdent ``List.filterMap) $(mkIdent ``id))
 
     -- NOTE: Use the `ext` version of `initializer` below!!!
-    `({
+    let initExec ← `($(mkIdent <| toExtractedName <| toExtName initializerName) $theoryStx $stateStx $(← mod.uninterpretedParamIdents)*)
+    let nextExec ← `($(mkIdent <| toExtractedName assembledNextActName) $theoryStx $stateStx $(← mod.uninterpretedParamIdents)*)
+    let labelsRev ← `($(mkIdent ``List.reverse) (@$(mkIdent ``Veil.Enumeration.allValues) _ $labelsId))
+    let sysBody ← `({
       $(mkIdent `initStates):ident :=
-        let $CInit := $(mkIdent <| toExtractedName <| toExtName initializerName) $theoryStx $stateStx $(← mod.uninterpretedParamIdents)*
+        let $CInit := $initExec
         $(mkIdent ``extractValidStates) $CInit $theoryId $(mkIdent ``default) |> $filterMap
-      $(mkIdent `tr):ident := let $lbls := $(mkIdent ``List.reverse) (@$(mkIdent ``Veil.Enumeration.allValues) _ $labelsId) ; fun $th $st =>
-        let $CNext := $(mkIdent <| toExtractedName assembledNextActName) $theoryStx $stateStx $(← mod.uninterpretedParamIdents)*
-        $(mkIdent ``transitionsOfLabelsRev) $CNext $th $st $lbls ⟨[], []⟩
+      $(mkIdent `tr):ident := let $lbls := $labelsRev ; fun $th $st =>
+        let $CNext := $nextExec
+        $(mkIdent ``transitionsOfLabelsRev) $CNext (fun l _ => l) $th $st $lbls ⟨[], []⟩
       : $(mkIdent ``Veil.EnumerableTransitionSystem)
         $theoryStx ($(mkIdent ``List) $theoryStx)
         $stateStx ($(mkIdent ``List) $stateStx)
@@ -763,12 +780,23 @@ meta def Module.assembleEnumerableTransitionSystem [Monad m] [MonadQuotation m] 
         $labelStx ($(mkIdent ``Veil.Transitions) $labelStx $(mkIdent ``Int) $stateStx)
         $theoryId
      })
+    -- The same initial states and transitions, for the same theory, with the picks that led to them
+    let pickSourceBody ← `({
+      $(mkIdent `initStates):ident :=
+        let $CInit := $initExec
+        $(mkIdent ``extractValidStatesWithLog) $CInit $theoryId $(mkIdent ``default)
+      $(mkIdent `tr):ident := let $lbls := $labelsRev ; fun $st =>
+        let $CNext := $nextExec
+        $(mkIdent ``transitionsOfLabelsRev) $CNext $(mkIdent ``Veil.ModelChecker.LabelWithPicks.mk) $theoryId $st $lbls ⟨[], []⟩
+      : $(mkIdent ``Veil.ModelChecker.PickSource) $stateStx $labelStx
+     })
+    pure (sysBody, pickSourceBody)
 
-  -- Step 4: Specialize `χ`, `χ_rep`, `χ_rep_lawful` and build the term
-  let enumerableTransitionSystemTerm ← buildingTermWithDefaultχSpecialized baseParams (others ++ extraParams)
-    injectedBinders finalBody mod specializeToOther
-
-  -- Step 5: Add @[specialize] attribute
-  `(command| @[inline] def $enumerableTransitionSystem:ident := $(enumerableTransitionSystemTerm.body))
+  -- Step 4: Specialize `χ`, `χ_rep`, `χ_rep_lawful` and build the definitions
+  let mkDef (name : Ident) (body : Term) : m Command := do
+    let term ← buildingTermWithDefaultχSpecialized baseParams (others ++ extraParams)
+      injectedBinders body mod specializeToOther
+    `(command| @[inline] def $name:ident := $(term.body))
+  return #[← mkDef enumerableTransitionSystem sysBody, ← mkDef pickSource pickSourceBody]
 
 end Veil.Extract
