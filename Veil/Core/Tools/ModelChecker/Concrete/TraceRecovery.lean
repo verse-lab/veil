@@ -210,27 +210,48 @@ theorem recoverTrace?_complete {look : LogLookup σₕ κ} {rep : σₕ → Opti
   obtain ⟨i, path, t, s, hret, hreb, hs, hlast⟩ := retrace_rebuild sys h e x [] he
   exact ⟨t, s, by simp [recoverTrace?, hret, hreb], hs, hlast⟩
 
-/-- The trace from an initial state to the state the search explored for `x`. Total: the
-invariant says the log records such a trace. -/
+/-- A trace recovered from the log: the path that the log records for `x`, from the initial state
+at position `initIdx` of `sys.initStates`, and the trace that re-executing it in `sys` builds. The
+path places each step of the trace among the successes of its pre-state. -/
+structure RecoveredTrace (look : LogLookup σₕ κ) (x : σₕ) where
+  initIdx : Nat
+  path : List (RetracedStep σₕ κ)
+  trace : Trace ρ σ κ
+  retrace_eq : retrace look x [] = some (initIdx, path)
+  rebuild_eq : rebuild sys initIdx path = some trace
+
+/-- The trace from an initial state to the state the search explored for `x`, with the path that
+the log records. Total: the invariant says the log records such a trace. -/
 def recoverTrace (look : LogLookup σₕ κ) (x : σₕ)
-    (h : ∃ rep dep, LogInvariants sys look rep dep) (hx : (look x).isSome) : Trace ρ σ κ :=
-  (recoverTrace? sys look x).get (by
-    obtain ⟨rep, dep, h⟩ := h
-    obtain ⟨t, _, ht, _⟩ := recoverTrace?_complete sys h hx
-    simp [ht])
+    (h : ∃ rep dep, LogInvariants sys look rep dep) (hx : (look x).isSome) : RecoveredTrace sys look x :=
+  match hret : retrace look x [] with
+  | some (i, path) =>
+    match hreb : rebuild sys i path with
+    | some t => ⟨i, path, t, hret, hreb⟩
+    | none => False.elim (by
+        obtain ⟨rep, dep, h⟩ := h ; obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hx
+        obtain ⟨i', path', t, _, hret', hreb', -⟩ := retrace_rebuild sys h e x [] he
+        grind)
+  | none => False.elim (by
+      obtain ⟨rep, dep, h⟩ := h ; obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hx
+      obtain ⟨_, _, _, _, hret', -⟩ := retrace_rebuild sys h e x [] he
+      simp [hret] at hret')
 
-theorem recoverTrace_isValid {look : LogLookup σₕ κ} {x : σₕ}
-    {h : ∃ rep dep, LogInvariants sys look rep dep} {hx : (look x).isSome} :
-    (recoverTrace sys look x h hx).isValid sys.toRelational ∧ (recoverTrace sys look x h hx).theory = th := by
-  unfold recoverTrace ; exact recoverTrace?_isValid sys (Option.some_get _).symm
+omit fp in
+theorem RecoveredTrace.isValid {look : LogLookup σₕ κ} {x : σₕ} (r : RecoveredTrace sys look x) :
+    r.trace.isValid sys.toRelational ∧ r.trace.theory = th :=
+  rebuild_isValid sys r.rebuild_eq
 
-theorem recoverTrace_lastState {look : LogLookup σₕ κ} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+/-- The recovered trace ends at the representative of `x`, for any representatives that the log
+is sound for. -/
+theorem RecoveredTrace.lastState {look : LogLookup σₕ κ} {rep : σₕ → Option σ} {dep : σₕ → Nat}
     (hrep : LogInvariants sys look rep dep) {x : σₕ} {s : σ} (hs : rep x = some s)
-    {h : ∃ rep dep, LogInvariants sys look rep dep} {hx : (look x).isSome} :
-    (recoverTrace sys look x h hx).lastState = s := by
-  obtain ⟨t, s', ht, hs', hlast⟩ := recoverTrace?_complete sys hrep hx
-  rw [hs] at hs' ; injection hs' with hs' ; subst hs'
-  simp [recoverTrace, ht, hlast]
+    (r : RecoveredTrace sys look x) : r.trace.lastState = s := by
+  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp (hrep.rep_mem x (by simp [hs]))
+  obtain ⟨i, path, t, s', hret, hreb, hs', hlast⟩ := retrace_rebuild sys hrep e x [] he
+  rw [r.retrace_eq, List.append_nil] at hret ; cases hret
+  rw [r.rebuild_eq] at hreb ; cases hreb
+  rw [hs] at hs' ; cases hs' ; exact hlast
 
 /-! ### Preservation of the invariant -/
 
@@ -354,15 +375,19 @@ theorem DedupFoldDescriptionWithAcc.of_foldl [BEq K] [LawfulBEq K]
 
 /-! ### Violations recorded by the search -/
 
+/-- `s` exhibits the violation `kind`: it violates exactly the invariants `names` of a
+`safetyFailure names`, has no successor and is not terminating for a `deadlock`, has an
+assertion failure with exception `e` for an `assertionFailure e`. No state exhibits an
+`assumptionFailure`, which is about the theory, not a state. -/
+def ExhibitsViolation (params : SearchParameters ρ σ) (s : σ) : ViolationKind → Prop
+  | .safetyFailure names => violatedInvariantNames params th s = names ∧ names ≠ []
+  | .deadlock => (sys.tr th s).successes = [] ∧ params.terminating.holdsOn th s = false
+  | .assertionFailure e => ∃ f ∈ (sys.tr th s).failures, f.error = e
+  | .assumptionFailure _ => False
+
 /-- The violation recorded against fingerprint `x` is exhibited by the representative of `x`. -/
 def ViolationSound (params : SearchParameters ρ σ) (rep : σₕ → Option σ) : σₕ × ViolationKind → Prop
-  | (x, .safetyFailure names) =>
-    ∃ s, rep x = some s ∧ violatedInvariantNames params th s = names ∧ names ≠ []
-  | (x, .deadlock) =>
-    ∃ s, rep x = some s ∧ (sys.tr th s).successes = [] ∧ params.terminating.holdsOn th s = false
-  | (x, .assertionFailure e) =>
-    ∃ s, rep x = some s ∧ ∃ f ∈ (sys.tr th s).failures, f.error = e
-  | (_, .assumptionFailure _) => False
+  | (x, kind) => ∃ s, rep x = some s ∧ ExhibitsViolation sys params s kind
 
 /-- The violation that an early termination reports, if any, is exhibited by the representative
 of its fingerprint. -/
@@ -372,6 +397,19 @@ def TerminationSound (params : SearchParameters ρ σ) (rep : σₕ → Option �
   | some (.earlyTermination (.deadlockOccurred x)) => ViolationSound sys params rep (x, .deadlock)
   | some (.earlyTermination (.assertionFailed x e)) => ViolationSound sys params rep (x, .assertionFailure e)
   | _ => True
+
+/-- The recovered trace ends at a state that exhibits the violation recorded against `x`. -/
+theorem RecoveredTrace.exhibitsViolation {params : SearchParameters ρ σ} {look : LogLookup σₕ κ}
+    {rep : σₕ → Option σ} {dep : σₕ → Nat} (hrep : LogInvariants sys look rep dep)
+    {x : σₕ} {kind : ViolationKind} (hv : ViolationSound sys params rep (x, kind))
+    (r : RecoveredTrace sys look x) : ExhibitsViolation sys params r.trace.lastState kind := by
+  obtain ⟨s, hs, hex⟩ := hv
+  rw [r.lastState sys hrep hs] ; exact hex
+
+/-- The failing step of an assertion failure with exception `e` at `s`: total, since `s` has one. -/
+def failingStepOf (s : σ) (e : Int) (h : ∃ f ∈ (sys.tr th s).failures, f.error = e) : Step σ κ :=
+  let f := ((sys.tr th s).failures.find? (·.error == e)).get (by simpa [List.find?_isSome] using h)
+  { transitionLabel := f.label, nextState := f.state }
 
 omit fp in
 theorem ViolationSound.mono {params : SearchParameters ρ σ} {rep rep' : σₕ → Option σ}
@@ -406,11 +444,11 @@ theorem checkViolationsAndMaybeTerminate_sound (params : SearchParameters ρ σ)
   rename_i safetyViolations safetyViolation deadlock tmp1 tmp2
   dsimp ; constructor
   · dsimp [tmp1] ; split_ifs
-    all_goals simp [ViolationSound] ; grind
+    all_goals simp [ViolationSound, ExhibitsViolation] ; grind
   · dsimp [tmp2] ; simp-- ; split_ifs
     intro r hr ; rw [List.findSome?_eq_some_iff] at hr
     rcases hr with ⟨pre, a, suf, heq, ha, -⟩
-    dsimp [TerminationSound, ViolationSound] ; cases a <;> dsimp at ha
+    dsimp [TerminationSound, ViolationSound, ExhibitsViolation] ; cases a <;> dsimp at ha
     all_goals (try split at ha) <;> simp at ha <;> subst_vars <;> try grind
     rcases ha with ⟨a, ha, rfl⟩ ; simp ; have ha := List.mem_of_head? ha
     exists curr ; apply And.intro hrep ; exists a
