@@ -229,123 +229,43 @@ def ordered_ring (node : Type) (rank : node → Nat) (rank_inj : ∀ n1 n2, n1 �
 instance between_fin_dec (n : Nat) : ∀ a b c, Decidable (Between.btw (node := Fin n) a b c) := by
   dsimp [Between.btw]; apply inferInstance
 
-/-! ## Normal quorum -/
+/-! ## Quorums -/
 
-/-! ### Instances -/
+/-- Majority subsets of `α` (at least `⌊|α| / 2⌋ + 1` elements); any two intersect. -/
+abbrev Quorum (α : Type u) [FinEncodable α] :=
+  BitVecAsFinset.Sized α fun k => FinEncodable.card α / 2 + 1 ≤ k
 
-/-- Convert a BitVec to the list of indices where bits are set -/
-@[inline] def BitVec.toFinList (bv : BitVec n) : List (Fin n) :=
-  List.finRange n |>.filter (bv[·])
+/-- Majority subsets of `α` of minimal size (exactly `⌊|α| / 2⌋ + 1` elements). -/
+abbrev MinQuorum (α : Type u) [FinEncodable α] :=
+  BitVecAsFinset.Sized α fun k => k = FinEncodable.card α / 2 + 1
 
-/-- Count the number of set bits in a BitVec -/
-@[inline] def BitVec.popCount (bv : BitVec n) : Nat := bv.toFinList.length
+section
 
-/-- Enumerate all BitVecs of size n -/
-def BitVec.allBitVecs (n : Nat) : List (BitVec n) :=
-  List.finRange (2 ^ n) |>.map (BitVec.ofFin)
+variable {α : Type u} [inst : FinEncodable α]
 
-theorem BitVec.allBitVecs_complete {n : Nat} : ∀ (bv : BitVec n), bv ∈ BitVec.allBitVecs n := by
-  intro bv
-  simp only [BitVec.allBitVecs, List.mem_map, List.mem_finRange, true_and]
-  exact ⟨bv.toFin, BitVec.ofFin_toFin bv⟩
+theorem Quorum.quorum_intersection (q1 q2 : Quorum α) : ∃ a, a ∈ q1 ∧ a ∈ q2 :=
+  BitVecAsFinset.exists_mem_of_card_lt_add q1.val q2.val (by grind)
 
-instance (n : Nat) : Veil.Enumeration (BitVec n) where
-  allValues := BitVec.allBitVecs n
-  complete := BitVec.allBitVecs_complete
+theorem MinQuorum.quorum_intersection (q1 q2 : MinQuorum α) : ∃ a, a ∈ q1 ∧ a ∈ q2 :=
+  BitVecAsFinset.exists_mem_of_card_lt_add q1.val q2.val (by grind)
 
--- NOTE: the original design is based on `Finset`, but the `Repr`
--- instance of `Finset` is marked as `unsafe`, so we use `BitVec` instead,
--- which saves space and also has `O(1)` membership test.
-abbrev Quorum (n : Nat) : Type :=
-  { fs : BitVec n // (n / 2 + 1) ≤ fs.popCount }
+instance [Inhabited α] : Inhabited (Quorum α) :=
+  ⟨⟨BitVecAsFinset.full, by
+    have := FinEncodable.card_ne_0_if_Inhabited (α := α)
+    show inst.card / 2 + 1 ≤ BitVecAsFinset.full.card
+    rw [BitVecAsFinset.card_full] ; omega⟩⟩
 
-instance : Membership (Fin n) (Quorum n) where
-  mem q a := q.val[a] = true
+instance [Inhabited α] : Inhabited (MinQuorum α) :=
+  ⟨⟨⟨BitVec.lowOnes _ (inst.card / 2 + 1)⟩, by
+    have := FinEncodable.card_ne_0_if_Inhabited (α := α)
+    show (BitVec.lowOnes _ _).popCount = _
+    rw [BitVec.popCount_lowOnes (by omega)]⟩⟩
 
-theorem Quorum.quorum_intersection {n : Nat} (q1 q2 : Quorum n) :
-  ∃ a, a ∈ q1 ∧ a ∈ q2 := by
-  rcases q1 with ⟨bv1, hq1⟩ ; rcases q2 with ⟨bv2, hq2⟩
-  simp only [Membership.mem]
-  have hcount := Veil.List.filter_count_overlap (List.finRange n) (fun i => bv1[i]) (fun i => bv2[i])
-  have hpos : 0 < ((List.finRange n).filter (fun i => bv1[i] && bv2[i])).length := by
-    simp only [List.length_finRange] at hcount
-    change n / 2 + 1 ≤ ((List.finRange n).filter (fun i => bv1[i])).length at hq1
-    change n / 2 + 1 ≤ ((List.finRange n).filter (fun i => bv2[i])).length at hq2
-    omega
-  obtain ⟨a, ha⟩ := List.exists_mem_of_ne_nil _ (List.ne_nil_of_length_pos hpos)
-  exact ⟨a, (by simpa using ha)⟩
-
-instance (n : Nat) : Inhabited (Quorum n.succ) where
-  default := ⟨BitVec.allOnes (n + 1), by
-    have h : ∀ i : Fin (n + 1), (BitVec.allOnes (n + 1))[i] = true := by
-      intro i ; simp [BitVec.allOnes, BitVec.getElem_eq_testBit_toNat]
-    have hfilter : (List.filter (fun x => (BitVec.allOnes (n + 1))[x]) (List.finRange (n + 1))) =
-                   List.finRange (n + 1) := by
-      apply List.filter_eq_self.mpr
-      intro i _
-      exact h i
-    simp only [Nat.succ_eq_add_one, BitVec.popCount, BitVec.toFinList, hfilter, List.length_finRange]
-    omega⟩
-
-def allQuorums (n : Nat) : List (Quorum n) :=
-  let res := BitVec.allBitVecs n |>.filter (fun bv => n / 2 + 1 ≤ bv.popCount)
-  res.attachWith _ (by
-    intro bv hmem
-    have h := (List.mem_filter.mp hmem).2
-    simp only [BitVec.popCount, decide_eq_true_eq] at h
-    exact h)
-
-set_option backward.isDefEq.respectTransparency false in
-theorem allQuorums_complete {n : Nat} : ∀ (q : Quorum n), q ∈ allQuorums n := by
-  intro ⟨bv, hbv⟩
-  simp only [allQuorums, List.mem_attachWith, List.mem_filter, BitVec.popCount]
-  exact ⟨BitVec.allBitVecs_complete bv, decide_eq_true hbv⟩
-
-instance (n : Nat) : Veil.Enumeration (Quorum n) where
-  allValues := allQuorums n
-  complete := allQuorums_complete
-
-instance (n : Nat) : Std.ReflOrd (Quorum n) where
-  compare_self := by
-    have tmp : Std.ReflOrd (BitVec n) := by infer_instance
-    intros ; dsimp [compare] ; apply tmp.compare_self
-
-instance (n : Nat) : Std.LawfulEqOrd (Quorum n) where
-  eq_of_compare := by
-    have tmp : Std.LawfulEqOrd (BitVec n) := by infer_instance
-    intros ; dsimp [compare] at * ; ext1 ; apply tmp.eq_of_compare ; assumption
-
-instance (n : Nat) : Std.OrientedOrd (Quorum n) where
-  eq_swap := by
-    have tmp : Std.OrientedOrd (BitVec n) := by infer_instance
-    intros ; dsimp [compare] at * ; apply tmp.eq_swap
-
-instance (n : Nat) : Std.TransOrd (Quorum n) where
-  isLE_trans := by
-    have tmp : Std.TransOrd (BitVec n) := by infer_instance
-    intros ; dsimp [compare] at * ; apply tmp.isLE_trans <;> assumption
-
-/-! ### Decidability -/
-
-/-- Membership test on `Quorum` is decidable. -/
-instance quorum_mem_dec (n : Nat) : ∀ a (q : Quorum n), Decidable (a ∈ q) :=
-  fun a q => inferInstanceAs (Decidable (q.val[a] = true))
-
-/-! ### Repr -/
-
-/-- Display a Quorum as a set of numbers (the indices where bits are set) -/
-instance (n : Nat) : Repr (Quorum n) where
-  reprPrec q _ :=
-    let indices := q.val.toFinList
-    "{" ++ String.intercalate ", " (indices.map toString) ++ "}"
-
--- NOTE: It seems that because of `abbrev`, without this explicit instance,
--- Lean will get stuck when trying to find `Lean.ToJson (Quorum n)`.
-instance (n : Nat) : Lean.ToJson (Quorum n) := Veil.jsonOfRepr
+end
 
 /-! ## Byzantine node set -/
 
-class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset : outParam Type) where
+class ByzNodeSet (node : Type u) /- (is_byz : outParam (node → Bool)) -/ (nset : outParam Type) where
   is_byz : node → Bool
   member (a : node) (s : nset) : Bool
   is_empty (s : nset) : Prop
@@ -365,144 +285,85 @@ class ByzNodeSet (node : Type) /- (is_byz : outParam (node → Bool)) -/ (nset :
 
 /-! ### Instances -/
 
-/-- A sorted list of nodes, representing a set in Byzantine fault tolerance. -/
-abbrev ByzNSet (n : Nat) : Type :=
-  { fs : List (Fin n) // fs.Pairwise (· < ·) }
-
-/-- All possible ByzNSets (all sorted sublists of [0..n-1]). -/
-def allByzNSets (n : Nat) : List (ByzNSet n) :=
-  (List.finRange n).sublists.attachWith _ (by
-    intro s hs
-    exact (List.pairwise_lt_finRange n).sublist (Veil.List.mem_sublists.mp hs))
-
-theorem allByzNSets_complete {n : Nat} : ∀ (s : ByzNSet n), s ∈ allByzNSets n := by
-  intro ⟨s, hs⟩
-  simp only [allByzNSets, List.mem_attachWith, Veil.List.mem_sublists]
-  exact Veil.List.sublist_of_subperm_of_pairwise
-    (List.subperm_of_subset (Veil.List.nodup_of_pairwise hs) (by intro a _; exact List.mem_finRange a)) hs (List.pairwise_lt_finRange n)
-
-private theorem byzNSet_count {n : Nat} (s : ByzNSet n) :
-    ((List.finRange n).filter (fun a => a ∈ s.val)).length = s.val.length := by
-  apply List.Perm.length_eq
-  apply (List.perm_ext_iff_of_nodup (Veil.List.nodup_filter _ (List.nodup_finRange n)) (Veil.List.nodup_of_pairwise s.property)).mpr
-  simp
-
-instance (n : Nat) : Veil.Enumeration (ByzNSet n) where
-  allValues := allByzNSets n
-  complete := allByzNSets_complete
-
-instance (n : Nat) : Inhabited (ByzNSet n) where
-  default := ⟨[], List.Pairwise.nil⟩
-
-instance (n : Nat) : @Std.ReflCmp (ByzNSet n) compare where
-  compare_self := List.instReflCmpCompareLex.compare_self
-
-instance (n : Nat) : @Std.LawfulEqCmp (ByzNSet n) compare where
-  eq_of_compare h := Subtype.ext <| List.instLawfulEqCmpCompareLex.eq_of_compare h
-
-instance (n : Nat) : @Std.OrientedCmp (ByzNSet n) compare where
-  eq_swap := List.instOrientedCmpCompareLex.eq_swap
-
-instance (n : Nat) : @Std.TransCmp (ByzNSet n) compare where
-  isLE_trans := List.instTransCmpCompareLex.isLE_trans
+/-- The node sets of a Byzantine protocol: all subsets of the node type, as bit vectors. -/
+abbrev ByzNSet (α : Type u) [FinEncodable α] := BitVecAsFinset α
 
 section
 
-variable (n f : Nat) (hf : n = 3 * f + 1)
-  (is_byz : Fin n → Prop) [DecidablePred is_byz]
-  (hbyz : (List.ofFn (n := n) id |>.filter (fun i => decide (is_byz i))).length ≤ f)
+variable (α : Type u) [inst : FinEncodable α] (f : Nat) (hf : inst.card = 3 * f + 1)
+  (byz : BitVecAsFinset α) (hbyz : byz.card ≤ f)
 
 include hf hbyz
 
-/-- ByzNodeSet instance for `Fin n` with at most `f` Byzantine nodes.
-    Assumes `n = 3 * f + 1` (standard Byzantine fault tolerance assumption). -/
+/-- `ByzNodeSet` instance for a type of `3 * f + 1` nodes, of which the ones in `byz` (at
+most `f`) are Byzantine. -/
 @[implicit_reducible]
-def byzNodeSetFin : ByzNodeSet (Fin n) (ByzNSet n) where
-  is_byz := is_byz
-  member a s := a ∈ s.val
-  is_empty s := s.val = []
-  supermajority s := 2 * f + 1 ≤ s.val.length
-  greater_than_third s := f + 1 ≤ s.val.length
+def byzNodeSetOf : ByzNodeSet α (ByzNSet α) where
+  is_byz a := decide (a ∈ byz)
+  member a s := decide (a ∈ s)
+  is_empty s := s.card = 0
+  supermajority s := 2 * f + 1 ≤ s.card
+  greater_than_third s := f + 1 ≤ s.card
   supermajorities_intersect_in_honest := by
-    intro ⟨s1, hs1_sorted⟩ ⟨s2, hs2_sorted⟩ hsup1 hsup2
-    simp only at hsup1 hsup2
-    have hc1 := byzNSet_count (⟨s1, hs1_sorted⟩ : ByzNSet n)
-    have hc2 := byzNSet_count (⟨s2, hs2_sorted⟩ : ByzNSet n)
-    have hc := Veil.List.filter_count_overlap (List.finRange n)
-      (fun a => a ∈ s1) (fun a => a ∈ s2)
+    intro s1 s2 h1 h2
+    change 2 * f + 1 ≤ s1.card at h1
+    change 2 * f + 1 ≤ s2.card at h2
+    show ∃ a, decide (a ∈ s1) = true ∧ decide (a ∈ s2) = true ∧ ¬ decide (a ∈ byz) = true
+    simp only [decide_eq_true_eq]
     by_contra h
-    have hall : ∀ a, a ∈ s1 → a ∈ s2 → is_byz a := by
-      intro a ha hb
-      by_contra hn
-      exact h ⟨a, by simpa using ha, by simpa using hb, (by simpa using hn)⟩
-    have hm := Veil.List.filter_count_mono (List.finRange n)
-      (fun a => decide (a ∈ s1) && decide (a ∈ s2)) (fun a => decide (is_byz a)) (by
-        intro a _ ha
-        simp only [Bool.and_eq_true, decide_eq_true_eq] at ha ⊢
-        exact hall a ha.1 ha.2)
-    simp only [List.length_finRange] at hc
-    change ((List.finRange n).filter (fun i => decide (is_byz i))).length ≤ f at hbyz
-    dsimp only at hc1 hc2
+    have hall : ∀ a, a ∈ s1.inter s2 → a ∈ byz := by
+      intro a ha
+      rw [BitVecAsFinset.mem_inter] at ha
+      by_contra hb
+      exact h ⟨a, ha.1, ha.2, hb⟩
+    have h3 := BitVecAsFinset.card_le_card hall
+    have h4 := BitVecAsFinset.card_add_card_le s1 s2
     omega
   greater_than_third_one_honest := by
-    intro ⟨s, hs⟩ hgt
-    have hc := byzNSet_count (⟨s, hs⟩ : ByzNSet n)
+    intro s hs
+    change f + 1 ≤ s.card at hs
+    show ∃ a, decide (a ∈ s) = true ∧ ¬ decide (a ∈ byz) = true
+    simp only [decide_eq_true_eq]
     by_contra h
-    have hall : ∀ a, a ∈ s → is_byz a := by
-      intro a ha
-      by_contra hn
-      exact h ⟨a, by simpa using ha, (by simpa using hn)⟩
-    have hm := Veil.List.filter_count_mono (List.finRange n)
-      (fun a => a ∈ s) (fun a => decide (is_byz a)) (by
-        intro a _ ha; exact decide_eq_true (hall a (by simpa using ha)))
-    change ((List.finRange n).filter (fun i => decide (is_byz i))).length ≤ f at hbyz
-    dsimp only at hc hgt
+    have hall : ∀ a, a ∈ s → a ∈ byz := fun a ha => by
+      by_contra hb
+      exact h ⟨a, ha, hb⟩
+    have := BitVecAsFinset.card_le_card hall
     omega
-  supermajority_greater_than_third := by
-    intro _ hs ; omega
-  greater_than_third_nonempty := by
-    intro s hs heq ; simp_all
+  supermajority_greater_than_third := by grind
+  greater_than_third_nonempty := by grind
 
--- These instances are required, even after setting `byzNodeSetFin` to be `abbrev`
-instance byzNodeSetFin_is_byz_dec :
-  ∀ a, Decidable (ByzNodeSet.is_byz (self := byzNodeSetFin n f hf is_byz hbyz) a) := by
-  dsimp +instances [byzNodeSetFin] ; intros ; infer_instance
+-- These instances are required, even though `byzNodeSetOf` is `implicit_reducible`
+instance byzNodeSetOf_is_byz_dec :
+  ∀ a, Decidable (ByzNodeSet.is_byz (self := byzNodeSetOf α f hf byz hbyz) a) := by
+  dsimp +instances [byzNodeSetOf] ; intros ; infer_instance
 
-instance byzNodeSetFin_member_dec :
-  ∀ a b, Decidable (ByzNodeSet.member (self := byzNodeSetFin n f hf is_byz hbyz) a b) := by
-  dsimp +instances [byzNodeSetFin] ; intros ; infer_instance
+instance byzNodeSetOf_member_dec :
+  ∀ a b, Decidable (ByzNodeSet.member (self := byzNodeSetOf α f hf byz hbyz) a b) := by
+  dsimp +instances [byzNodeSetOf] ; intros ; infer_instance
 
-instance byzNodeSetFin_supermajority_dec :
-  ∀ a, Decidable (ByzNodeSet.supermajority _ (self := byzNodeSetFin n f hf is_byz hbyz) a) := by
-  dsimp +instances [byzNodeSetFin] ; intros ; infer_instance
+instance byzNodeSetOf_is_empty_dec :
+  ∀ a, Decidable (ByzNodeSet.is_empty _ (self := byzNodeSetOf α f hf byz hbyz) a) := by
+  dsimp +instances [byzNodeSetOf] ; intros ; infer_instance
 
-instance byzNodeSetFin_greater_than_third_dec :
-  ∀ a, Decidable (ByzNodeSet.greater_than_third _ (self := byzNodeSetFin n f hf is_byz hbyz) a) := by
-  dsimp +instances [byzNodeSetFin] ; intros ; infer_instance
+instance byzNodeSetOf_supermajority_dec :
+  ∀ a, Decidable (ByzNodeSet.supermajority _ (self := byzNodeSetOf α f hf byz hbyz) a) := by
+  dsimp +instances [byzNodeSetOf] ; intros ; infer_instance
+
+instance byzNodeSetOf_greater_than_third_dec :
+  ∀ a, Decidable (ByzNodeSet.greater_than_third _ (self := byzNodeSetOf α f hf byz hbyz) a) := by
+  dsimp +instances [byzNodeSetOf] ; intros ; infer_instance
 
 end
 
-/-- A simple case of ByzNodeSet for `Fin (3 * f + 1)` with exactly `f`
-Byzantine nodes, whose indices are in `[0, f)`. Note that when using
-this instance, `f` must be given explicitly (e.g., write
-`#synth ByzNodeSet (Fin (3 * 1 + 1)) (ByzNSet (3 * 1 + 1))` instead of
-`#synth ByzNodeSet (Fin 4) (ByzNSet 4)`. -/
-instance insByzNodeSetFinSimple : ByzNodeSet (Fin (3 * f + 1)) (ByzNSet (3 * f + 1)) :=
-  byzNodeSetFin (3 * f + 1) f rfl (fun i => i.val < f) (by
-    apply Nat.le_of_eq
-    rw [← List.take_append_drop f (List.ofFn id), List.filter_append, List.length_append]
-    conv => rhs ; rw [← Nat.add_zero f]
-    congr
-    · trans ; rw [List.length_filter_eq_length_iff]
-      · simp only [List.mem_iff_getElem?, List.getElem?_take, List.getElem?_ofFn]
-        simp
-        rintro ⟨a, ha⟩ ; simp ; intros ; omega
-      · simp ; omega
-    · simp only [List.length_eq_zero_iff, List.filter_eq_nil_iff, decide_eq_true_eq, Nat.not_lt]
-      simp only [List.mem_iff_getElem?, List.getElem?_drop, List.getElem?_ofFn]
-      simp
-      rintro ⟨a, ha⟩ ; simp ; intros ; omega
-    )
+/-- A simple case of `ByzNodeSet` for `Fin (3 * f + 1)` with exactly `f` Byzantine nodes,
+whose indices are in `[0, f)`. Note that when using this instance, `f` must be given
+explicitly (e.g., write `#synth ByzNodeSet (Fin (3 * 1 + 1)) (ByzNSet (Fin (3 * 1 + 1)))`
+instead of `#synth ByzNodeSet (Fin 4) (ByzNSet (Fin 4))`). -/
+instance insByzNodeSetFinSimple : ByzNodeSet (Fin (3 * f + 1)) (ByzNSet (Fin (3 * f + 1))) :=
+  byzNodeSetOf (Fin (3 * f + 1)) f rfl ⟨BitVec.lowOnes (3 * f + 1) f⟩ (by
+    show (BitVec.lowOnes (3 * f + 1) f).popCount ≤ f
+    exact Nat.le_of_eq (BitVec.popCount_lowOnes (by omega)))
 
 /-! ## Set -/
 

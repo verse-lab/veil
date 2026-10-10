@@ -16,20 +16,6 @@ public import Veil
 -- (***************************************************************************)
 -- EXTENDS Integers, FiniteSets
 
-public class PaxosMember (acceptor : outParam Type) (quorum : Type) where
-  member : acceptor → quorum → Bool
-
-public instance : PaxosMember (Fin 3) (Fin 3) where
-  member a q :=
-    match a.val, q.val with
-    | 0, 0 => true
-    | 1, 0 => true
-    | 0, 1 => true
-    | 2, 1 => true
-    | 1, 2 => true
-    | 2, 2 => true
-    | _, _ => false
-
 veil module MultiPaxos
 
 -- Ballot type: Fin (maxBallot + 1), encoding TLA+'s Ballots == 0..MaxBallot
@@ -95,11 +81,7 @@ instantiate msgSet : TSet (MultiPaxosMsg proposer acceptor value maxBallot slot 
 instantiate acSet : TSet acceptor AcceptorSet
 
 -- ASSUME QuorumAssumption
-instantiate pm : PaxosMember acceptor quorum
-
--- immutable relation member (A : acceptor) (Q : quorum)
--- PaxosMember acceptor quorum
-open PaxosMember
+instantiate mem : Membership acceptor quorum
 
 -- VARIABLES sent
 individual sent : MsgSet
@@ -111,7 +93,7 @@ instantiate slotEnumerable : Veil.Enumeration slot
 #gen_state
 
 assumption [quorum_intersection]
-  ∀ (q1 q2 : quorum), ∃ (r : acceptor), member r q1 ∧ member r q2
+  ∀ (q1 q2 : quorum), ∃ (r : acceptor), r ∈ q1 ∧ r ∈ q2
 
 -- Init == /\ sent = {}
 after_init {
@@ -239,7 +221,7 @@ ghost function VS (S : MsgSet) (Q : quorum) : VotedSet :=
   -- due to some typing issue
   let sub := msgSet.filter S fun m =>
     match m with
-    | .phase1b src _ _ => member src Q
+    | .phase1b src _ _ => decide (src ∈ Q)
     | _ => false
   msgSet.toList sub |>.foldl (init := voteSet.empty) fun acc m =>
     match m with
@@ -249,7 +231,7 @@ ghost function VS (S : MsgSet) (Q : quorum) : VotedSet :=
 -- Ghost relation: quorum Q is covered by 1b messages in S
 -- Encodes: \A a \in Q: \E m \in S: m.from = a
 ghost relation quorumCovered (Q : quorum) (S : MsgSet) :=
-  ∀ a, member a Q → ∃ m : { m // m ∈ S }, (match m.val with
+  ∀ a ∈ Q, ∃ m : { m // m ∈ S }, (match m.val with
     | .phase1b src .. => decide $ src = a
     | _ => false) = true
 
@@ -354,7 +336,7 @@ ghost relation VotedForIn (a : acceptor) (b : BallotTy maxBallot) (s : slot) (v 
 
 -- ChosenIn(b, s, v) == \E Q \in Quorums : \A a \in Q : VotedForIn(a, b, s, v)
 ghost relation ChosenIn (b : BallotTy maxBallot) (s : slot) (v : value) :=
-  ∃ (Q : quorum), ∀ a, member a Q → VotedForIn a b s v
+  ∃ (Q : quorum), ∀ a ∈ Q, VotedForIn a b s v
 
 -- Chosen(v, s) == \E b \in Ballots : ChosenIn(b, s, v)
 ghost relation Chosen (v : value) (s : slot) :=
@@ -373,7 +355,7 @@ invariant [consistency]
 --   value := Fin 2,
 --   acceptor := Fin 3,
 --   proposer := Fin 2,
---   quorum := Fin 3,
+--   quorum := MinQuorum (Fin 3),
 --   maxBallot := 2,
 --   VotedSet := OrdList _,
 --   DecreeSet := OrdList _,

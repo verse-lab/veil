@@ -170,6 +170,57 @@ A representation changes how states are stored, not which states are
 reachable, so the explored-state count stays the same. It does not affect
 `TSet` carriers. See `VeilTest/SetFieldRepresentation.lean` for examples.
 
+## Constant Functions and Relations
+
+A function or relation that never changes, such as quorum membership in Paxos,
+can be declared in three ways:
+
+```lean
+immutable relation member (a : acceptor) (q : quorum)  -- theory field
+param member : acceptor → quorum → Bool                -- module parameter
+instantiate pm : PaxosMember acceptor quorum           -- type-class field
+```
+
+The compiled checker treats them differently. An `immutable` field is part of
+the theory value, which the checker receives at run time: actions read it from
+the theory and call it through a closure, which the compiler can neither
+inline nor simplify. A `param` or a type-class field is a parameter of the
+module's definitions that is fixed when `#model_check` is elaborated, so the
+generated code calls the concrete function directly. A condition built only
+from such constants, with no state and no action parameter in it, e.g.
+`∀ q1 q2, ∃ a, member a q1 ∧ member a q2` where `member` is a constant, is then evaluated once for the whole
+search instead of once per state.
+
+When actions and invariants evaluate the constant many times per state, as
+Paxos does in `∀ a, member a Q → …`, calling the constant through closures costs more search time.
+The gap is larger when a `require`, invariant, or `state_constraint` mentions
+only constants, since `immutable` re-evaluates that condition in every state.
+
+Prefer `param` for a plain constant and `instantiate` for one that comes with
+assumptions (see [DSL-Reference.md](DSL-Reference.md)); `assumption`s may refer
+to either. This only concerns the model checker: for verification, all three
+are uninterpreted symbols constrained by the module's assumptions.
+
+For quorums in particular, `Veil/Frontend/Std.lean` provides `Quorum α` (every
+majority of `α`) and `MinQuorum α` (the majorities of minimal size) as bit-vector sets, with `a ∈ q` as membership
+and the usual set-like notation (e.g., `{0, 1}`) as display. To use them, declare
+the quorum type abstractly and assume only membership, then pick the concrete type
+when model checking:
+
+```lean
+type acceptor
+type quorum
+instantiate mem : Membership acceptor quorum
+
+assumption [quorum_intersection] ∀ (q1 q2 : quorum), ∃ a, a ∈ q1 ∧ a ∈ q2
+
+-- ... `∀ a ∈ Q, ...` in actions and properties ...
+
+#model_check { acceptor := Fin 3, quorum := MinQuorum (Fin 3), ... }
+```
+
+`Examples/TLA/Paxos.lean` and `Examples/TLA/MultiPaxos.lean` are written this way.
+
 ## Keeping Searches Small and Fast
 
 - Start with `#model_check interpreted` on the smallest interesting instance;
@@ -177,6 +228,8 @@ reachable, so the explored-state count stays the same. It does not affect
 - Choose from the actual collection (`{ x // x ∈ s }`) rather than a whole
   type, and prefer `let x :| P` over `pick` followed by `assume`.
 - Prefer imperative actions to `transition`s, which are much slower to execute.
+- Declare constant functions and relations as `param`s or type-class fields
+  rather than `immutable` components (see above).
 - Bound otherwise unbounded models with `state_constraint`.
 - When time or memory is the bottleneck, try other field representations,
   `fingerprintType`, or `seenSet`. Compare settings on the same instance and

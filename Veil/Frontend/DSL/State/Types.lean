@@ -309,6 +309,16 @@ instance {n : Nat} : Enumeration (Fin n) where
   allValues := List.finRange n
   complete := by simp
 
+-- NOTE: There is an enumration of `BitVec` in Lean 4.32, but prefer `finRange` here for runtime enumeration:
+-- `((0 : BitVec n)...*).toList` recomputes 2^n and performs modular arithmetic at each step.
+-- Here 2^n is computed once, and the compiler erases the `BitVec.ofFin` conversion.
+instance (n : Nat) : Enumeration (BitVec n) where
+  allValues := (List.finRange (2 ^ n)).map BitVec.ofFin
+  complete := by
+    intro bv
+    simp only [List.mem_map, List.mem_finRange, true_and]
+    exact ⟨bv.toFin, BitVec.ofFin_toFin bv⟩
+
 instance [inst : Enumeration α] : Enumeration (Option α) where
   allValues := none :: inst.allValues.map some
   complete := by intro x ; rcases x <;> grind
@@ -324,6 +334,23 @@ instance {α β} [insta : Enumeration α] [instb : Enumeration β] : Enumeration
 instance [inst : Enumeration α] (p : α → Prop) [DecidablePred p] : Enumeration { x // p x } where
   allValues := inst.allValues.filterMap fun x => if h : p x then some ⟨x, h⟩ else none
   complete := by simp ; grind
+
+/-! Lawful-order instances for `Subtype`, lifted through `.val` like core's `Ord (Subtype P)`
+(`Init/Data/Subtype/OrderExtra.lean`).
+
+NOTE: Lean does not provide them (checked up to 4.34): delete these four once it does. -/
+
+instance {α : Type u} {P : α → Prop} [Ord α] [Std.ReflOrd α] : Std.ReflOrd (Subtype P) where
+  compare_self {a} := Std.ReflOrd.compare_self (a := a.val)
+
+instance {α : Type u} {P : α → Prop} [Ord α] [Std.OrientedOrd α] : Std.OrientedOrd (Subtype P) where
+  eq_swap {a b} := Std.OrientedOrd.eq_swap (a := a.val) (b := b.val)
+
+instance {α : Type u} {P : α → Prop} [Ord α] [Std.TransOrd α] : Std.TransOrd (Subtype P) where
+  isLE_trans {a b c} := Std.TransOrd.isLE_trans (a := a.val) (b := b.val) (c := c.val)
+
+instance {α : Type u} {P : α → Prop} [Ord α] [Std.LawfulEqOrd α] : Std.LawfulEqOrd (Subtype P) where
+  eq_of_compare h := Subtype.ext (Std.LawfulEqOrd.eq_of_compare h)
 
 instance {β : α → Type v} [insta : Enumeration α] [instb : ∀ a, Enumeration (β a)] : Enumeration (Sigma β) where
   allValues := insta.allValues.flatMap fun a => (instb a).allValues.map <| Sigma.mk a
@@ -575,6 +602,15 @@ instance : FinEncodable Empty where
 instance {n : Nat} : FinEncodable (Fin n) where
   card := n
   equiv := delta% Equiv.refl _
+
+/-- `BitVec n` is encoded by its value (`BitVec.toFin`), the same order as its `Enumeration`. -/
+@[always_inline]
+instance {n : Nat} : FinEncodable (BitVec n) where
+  card := 2 ^ n
+  equiv := { toFun := BitVec.toFin
+             invFun := BitVec.ofFin
+             left_inv := fun _ => rfl
+             right_inv := fun _ => rfl }
 
 @[always_inline]
 instance : FinEncodable Bool where
