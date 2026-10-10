@@ -245,54 +245,69 @@ theorem LogInvariants.update_step {look : LogLookup σₕ κ} {rep : σₕ → O
   have hpx : p ≠ x := by grind
   constructor <;> (try unfold lookUpdate) <;> unfold repUpdate <;> (try unfold depUpdate) <;> grind
 
-/-! ### The initial log -/
+/-! ### Deduplicating folds
 
-theorem initialLogAndRepresentativesCore_description (initStates : List (σ × Nat)) (acc : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ)) :
-    letI res := initStates.foldl (init := acc) fun a (s, i) => initialLogAndRepresentativesCore i a s
-    ∃ pfx : List (σ × Nat),
-      letI fps := pfx.map fun x => fp.view x.1
-      res.1 = pfx.map Prod.fst ++ acc.1 ∧
-      fps.Nodup ∧
-      (∀ a, (∃ item ∈ initStates, fp.view item.1 = a) → a ∉ acc.2 → a ∈ fps) ∧
-      (∀ item ∈ pfx, item ∈ initStates ∧ fp.view item.1 ∉ acc.2) ∧
-      (∀ a b, res.2[a]? = some b ↔ acc.2[a]? = some b ∨ (a, b) ∈ pfx.map fun x => (fp.view x.1, .init x.2)) := by
-  induction initStates generalizing acc with
-  | nil => exists [] ; simp [List.foldl]
-  | cons item states ih =>
-    rcases item with ⟨s, i⟩
-    dsimp [List.foldl] ; dsimp only at *
-    specialize ih (initialLogAndRepresentativesCore i acc s)
-    revert ih ; fun_cases initialLogAndRepresentativesCore i acc s
-    · intro ih ; rcases ih with ⟨pfx, h_pfx, h_nodup, h_subseq, h_fps, h_mem_iff⟩
-      exists pfx ; split_ands <;> grind
-    · intro ih ; dsimp only at ih ; rcases ih with ⟨pfx, h_pfx, h_nodup, h_subseq, h_fps, h_mem_iff⟩
-      rename_i a b c d ; simp at *
-      exists (pfx ++ [(s, i)]) ; simp ; split_ands <;> try grind
-      -- `σₕ` has no `DecidableEq`, so the condition of the insertion's `if` stays a `==`
-      intro a1 b1 ; open Classical in simp [h_mem_iff, Std.HashMap.getElem?_insert, beq_iff_eq]
-      aesop
+The initial log of the sequential search and the merge of a round of the parallel search are both
+folds that keep an item only when its key is new: they put the kept items in front of a list, and
+map their keys to values. -/
 
-/-- The representatives are the first initial state of each fingerprint; `reps` pairs each one with
-its position in `initStates`, which the log records. -/
-theorem initialLogAndRepresentatives_description (initStates : List σ) :
-    letI res := initialLogAndRepresentatives (κ := κ) (fp := fp) initStates
-    ∃ reps : List (σ × Nat), res.1 = reps.map Prod.fst ∧
-    letI fps := reps.map fun x => fp.view x.1
-    fps.Nodup ∧
-    (∀ a, (∃ item ∈ initStates, fp.view item = a) → a ∈ fps) ∧
-    (∀ item ∈ reps, item.1 ∈ initStates ∧ initStates[item.2]? = some item.1) ∧
-    (∀ a b, res.2[a]? = some b ↔ (a, b) ∈ reps.map fun x => (fp.view x.1, LogEntry.init x.2)) := by
-  obtain ⟨pfx, h⟩ := initialLogAndRepresentativesCore_description (κ := κ) (fp := fp) (initStates.zipIdx) ([], ∅)
-  have heq := List.foldlIdx_eq_foldl_zipIdx (f := initialLogAndRepresentativesCore (κ := κ) (fp := fp)) (s := 0) (i := ([], ∅)) (xs := initStates)
-  rw [← initialLogAndRepresentatives.eq_def] at heq
-  rw [← heq] at h
-  rcases h with ⟨h1, h2, h3, h4, h5⟩
-  exists pfx
-  simp at *
-  split_ands <;> try assumption
-  · intro a hin ; obtain ⟨i, hin⟩ := List.getElem?_of_mem hin ; rw [← List.mk_mem_zipIdx_iff_getElem?] at hin
-    grind
-  · grind [List.mk_mem_zipIdx_iff_getElem?]
+/-- What a deduplicating fold over `l` does from `acc` to `res`. Think `l` as the input list of key-value
+pairs (`K × V`), and `γ` being the type of the container that also holds `K × V` pairs,
+but in an abstract way that requires `lst` to view the elements and `look` to find them by key.
+`proj` is applied to `α` during folding. -/
+def DedupFoldDescriptionWithAcc (key : α → K) (val : α → V) (proj : α → β)
+    (lst : γ → List β) (look : γ → K → Option V)
+    (l : List α) (acc res : γ) : Prop :=
+  ∃ pfx : List α,
+    lst res = pfx.map proj ++ lst acc ∧
+    (pfx.map key).Nodup ∧
+    (∀ a ∈ l, look acc (key a) = none → key a ∈ pfx.map key) ∧
+    (∀ a ∈ pfx, a ∈ l ∧ look acc (key a) = none) ∧
+    (∀ k v, look res k = some v ↔ look acc k = some v ∨ (k, v) ∈ pfx.map fun a => (key a, val a))
+
+def DedupFoldDescription (key : α → K) (val : α → V) (proj : α → β)
+    (lst : γ → List β) (look : γ → K → Option V)
+    (l : List α) (res : γ) : Prop :=
+  ∃ pfx : List α,
+    lst res = pfx.map proj ∧
+    (pfx.map key).Nodup ∧
+    (∀ a ∈ l, key a ∈ pfx.map key) ∧
+    (∀ a ∈ pfx, a ∈ l) ∧
+    (∀ k v, look res k = some v ↔ (k, v) ∈ pfx.map fun a => (key a, val a))
+
+/-- A deduplicating fold from an empty accumulator describes just the kept items. -/
+theorem DedupFoldDescription.ofDedupFoldDescriptionWithAcc
+    {key : α → K} {val : α → V} {proj : α → β} {lst : γ → List β} {look : γ → K → Option V}
+    {l : List α} {acc res : γ}
+    (h : DedupFoldDescriptionWithAcc key val proj lst look l acc res)
+    (h_lst : lst acc = []) (h_look : ∀ k, look acc k = none) :
+    DedupFoldDescription key val proj lst look l res := by
+  simpa [DedupFoldDescriptionWithAcc, DedupFoldDescription, h_lst, h_look] using h
+
+/-- Folding a step that keeps an item exactly when the map does not have its key yet, and then puts
+`proj` of it in front of the list and maps its key to `val` of it. -/
+theorem DedupFoldDescriptionWithAcc.of_foldl [BEq K] [LawfulBEq K]
+    {key : α → K} {val : α → V} {proj : α → β} {lst : γ → List β} {look : γ → K → Option V}
+    (f : γ → α → γ)
+    -- If `a` is already in the accumulator (its key is present), it is not added again.
+    (h_old : ∀ acc a, (look acc (key a)).isSome → f acc a = acc)
+    -- Otherwise, `a` is added to the accumulator.
+    (h_new : ∀ acc a, look acc (key a) = none →
+      lst (f acc a) = proj a :: lst acc ∧
+      ∀ k, look (f acc a) k = if key a == k then some (val a) else look acc k)
+    (l : List α) (acc : γ) :
+    DedupFoldDescriptionWithAcc key val proj lst look l acc (l.foldl f acc) := by
+  induction l generalizing acc with
+  | nil => exists [] ; simp
+  | cons a l ih =>
+    rw [List.foldl_cons]
+    rcases h : look acc (key a) with _ | v
+    · obtain ⟨h_lst, h_look⟩ := h_new acc a h
+      obtain ⟨pfx, h1, h2, h3, h4, h5⟩ := ih (f acc a)
+      exists pfx ++ [a] ; grind
+    · rw [h_old acc a (by simp [h])]
+      obtain ⟨pfx, h1, h2, h3, h4, h5⟩ := ih acc
+      exists pfx ; grind
 
 /-! ### Violations recorded by the search -/
 
