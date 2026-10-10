@@ -8,7 +8,8 @@ meta import Veil.Util.Tactics
 
 /-! # Sharded Set
 
-    Using `USize`-based sharding to skip the conversion from and to `Nat`.
+    Using `USize`-based sharding to skip the conversion from and to `Nat`. The sharded sets are all
+    `ShardedUSize`, for different types of shards.
 -/
 
 open Std
@@ -137,18 +138,202 @@ def umodifyViaHash [Hashable β] (v : VectorUSize α n) (x : β) (f : α → α)
 
 end VectorUSize
 
-/-! ## Shards -/
+/-! ## Sharded collections -/
 
-/-- The operations, and their specifications, that a `ShardedSetUSize` needs from the set type `S`
-of its shards. `insertMany` adds a whole `HashSet`: the parallel search collects the new states of
-a BFS level per shard and then adds them to each shard in one go. -/
-class SetShard (α : Type u) (S : Type v) [BEq α] [Hashable α] [Membership α S] where
-  /-- A shard holding the elements of a list. -/
-  ofList : List α → S
+/-- The operations, and their specifications, that every sharded collection needs from the type `S`
+of its shards. `SetShard` extends it with what the sharded sets need. -/
+class KeyShard (α : Type u) (S : Type v) [Membership α S] where
   contains : S → α → Bool
-  insertMany : S → HashSet α → S
   size : S → Nat
   contains_iff_mem {s : S} {k : α} : contains s k = true ↔ k ∈ s
+
+/-- Keys of type `α` split into `numShards` shards of type `S` by their hash: each key is in the
+shard at index `shardIdxOfUSize numShards k`. The sharded sets are this structure, for different
+types of shards. Since `numShards` is a parameter, it is just the array of shards at run time. -/
+structure ShardedUSize (α : Type u) (S : Type v) [Hashable α] [Membership α S] (numShards : USize) where
+  h_numShards_pos : 0 < (numShards : USize)
+  shards : VectorUSize S numShards
+  h_in_correct_shard : ∀ (i : USize) (h : i < numShards), ∀ k ∈ shards.uget i h,
+    ShardedSetUInt.shardIdxOfUSize numShards k = i
+
+namespace ShardedUSize
+
+open ShardedSetUInt
+
+variable {α : Type u} {S : Type v} {T : Type w} [Hashable α] [Membership α S] [Membership α T]
+  {numShards : USize}
+
+/-! ### Basic operations -/
+
+/-- Get the shard for a given key. -/
+@[inline]
+def getShard (st : ShardedUSize α S numShards) (k : α) : S :=
+  st.shards.ugetViaHash k st.h_numShards_pos
+
+-- NOTE: `Membership.mem` has signature `γ → α → Prop` (container first, element second)
+instance instMembership : Membership α (ShardedUSize α S numShards) where
+  mem st k := k ∈ st.getShard k
+
+theorem mem_def {st : ShardedUSize α S numShards} {k : α} :
+    k ∈ st ↔ k ∈ st.getShard k := Iff.rfl
+
+/-- The shard at index `i` is the shard of each of its keys. -/
+theorem shardIdx_toNat_of_mem {st : ShardedUSize α S numShards} {i : Nat}
+    (hi' : i < st.shards.val.size) {k : α} (hk : k ∈ st.shards.val[i]) :
+    (shardIdxOfUSize numShards k).toNat = i := by
+  have hi_ns : i < numShards.toNat := by rw [← st.shards.property]; exact hi'
+  have hiU : i < USize.size := Nat.lt_trans hi_ns (USize.toNat_lt_size numShards)
+  have h_toNat_i : (USize.ofNat i).toNat = i := Nat.mod_eq_of_lt hiU
+  have h_lt : USize.ofNat i < numShards := by
+    rw [USize.lt_iff_toNat_lt, h_toNat_i]; exact hi_ns
+  have h_idx := st.h_in_correct_shard (USize.ofNat i) h_lt k (by
+    simp only [VectorUSize.uget, Array.uget, h_toNat_i]; exact hk)
+  exact (congrArg USize.toNat h_idx).trans h_toNat_i
+
+theorem mem_iff_exists_shard {st : ShardedUSize α S numShards} {k : α} :
+    k ∈ st ↔ ∃ shard ∈ st.shards.val.toList, k ∈ shard := by
+  simp only [mem_def, getShard, VectorUSize.ugetViaHash, VectorUSize.uget, Array.uget]
+  constructor
+  · intro hk
+    exact ⟨_, Array.mem_toList_iff.mpr (Array.getElem_mem ..), hk⟩
+  · rintro ⟨shard, hshard, hk⟩
+    rw [List.mem_iff_getElem] at hshard
+    obtain ⟨i, hi, rfl⟩ := hshard
+    simp only [Array.getElem_toList] at hk
+    have hi' : i < st.shards.val.size := by simpa using hi
+    have h_eq := shardIdx_toNat_of_mem hi' hk
+    simp only [h_eq]; exact hk
+
+/-- No key is listed twice if each shard lists its keys with `keys` without duplicates. -/
+theorem nodup_flatMap {st : ShardedUSize α S numShards} {keys : S → List α}
+    (h_mem : ∀ s k, k ∈ keys s ↔ k ∈ s) (h_nodup : ∀ s, (keys s).Nodup) :
+    (st.shards.val.toList.flatMap keys).Nodup := by
+  simp [Veil.List.nodup_flatMap] ; constructor
+  · intros ; apply h_nodup
+  · rw [List.pairwise_iff_getElem] ; intros i j hi hj hne
+    whnf ; simp [h_mem] ; intro a hini hinj
+    simp at hi hj
+    have h1 := shardIdx_toNat_of_mem hi hini
+    have h2 := shardIdx_toNat_of_mem hj hinj
+    grind
+
+section KeyShard
+
+variable [KeyShard α S]
+
+@[inline]
+def contains (st : ShardedUSize α S numShards) (k : α) : Bool :=
+  KeyShard.contains (st.getShard k) k
+
+/-- Total number of keys across all shards. -/
+def size (st : ShardedUSize α S numShards) : Nat :=
+  st.shards.val.foldl (init := 0) fun acc shard => acc + KeyShard.size (α := α) shard
+
+theorem contains_iff_mem {st : ShardedUSize α S numShards} {k : α} :
+    st.contains k = true ↔ k ∈ st := by
+  unfold contains ; rw [mem_def, KeyShard.contains_iff_mem]
+
+theorem not_contains_iff_not_mem {st : ShardedUSize α S numShards} {k : α} :
+    st.contains k = false ↔ k ∉ st := by
+  rw [← contains_iff_mem] ; grind
+
+/-- The size is the number of keys of all shards, listed by `keys`. -/
+theorem size_eq_length_flatMap {st : ShardedUSize α S numShards} {keys : S → List α}
+    (h : ∀ s, KeyShard.size (α := α) s = (keys s).length) :
+    st.size = (st.shards.val.toList.flatMap keys).length := by
+  simp [size, ← Array.foldl_toList, h, List.sum_eq_foldl, List.foldl_map]
+
+end KeyShard
+
+/-! ### Building and updating shards
+
+Each operation states what it may do to the keys of a shard, so that the keys stay in their
+shards. -/
+
+/-- `numShards` copies of a shard without keys. -/
+@[inline]
+def replicate (h_pos : 0 < numShards) (s : S) (h : ∀ k : α, k ∉ s) : ShardedUSize α S numShards where
+  h_numShards_pos := h_pos
+  shards := .replicateUSize numShards s
+  h_in_correct_shard := by
+    simp only [VectorUSize.replicateUSize, VectorUSize.uget, Array.uget]
+    intros ; simp_all
+
+theorem not_mem_replicate {h_pos : 0 < numShards} {s : S} {h : ∀ k : α, k ∉ s} {k : α} :
+    k ∉ replicate h_pos s h := by
+  simp [mem_def, replicate, getShard, VectorUSize.ugetViaHash, VectorUSize.uget,
+    VectorUSize.replicateUSize, Array.uget, Array.getElem_replicate, h]
+
+/-- Apply `f` to the shard of `k`, in place if that shard is not shared. `f` may add only keys of
+that shard. -/
+@[inline]
+def modifyShard (st : ShardedUSize α S numShards) (k : α) (f : S → S)
+    (hf : ∀ s q, q ∈ f s → q ∈ s ∨ shardIdxOfUSize numShards q = shardIdxOfUSize numShards k) :
+    ShardedUSize α S numShards where
+  h_numShards_pos := st.h_numShards_pos
+  shards := st.shards.umodifyViaHash k f st.h_numShards_pos
+  h_in_correct_shard := by
+    intro j hj q hq
+    simp only [VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.uget, VectorUSize.uset,
+      Array.uget, Array.uset, Array.getElem_set] at hq
+    split at hq
+    · -- j.toNat = idx.toNat (modified shard)
+      rename_i heq ; rw [USize.toNat_inj] at heq
+      simp [heq] at hq
+      rcases hf _ _ hq with hq | hq
+      · apply st.h_in_correct_shard ; apply hq ; assumption
+      · grind
+    · -- j.toNat ≠ idx.toNat (unchanged shard)
+      apply st.h_in_correct_shard ; apply hq ; assumption
+
+/-- Apply `f` to each shard, each in a task of its own. `f` may not add keys. -/
+@[specialize]
+def mapShardsPar (st : ShardedUSize α S numShards) (f : S → T) (hf : ∀ s k, k ∈ f s → k ∈ s) :
+    ShardedUSize α T numShards :=
+  let tasks := st.shards.val.toList.map fun s => Task.spawn fun () => f s
+  let shardArr := tasks.map Task.get
+  { h_numShards_pos := st.h_numShards_pos
+    shards := ⟨shardArr.toArray, by simp [shardArr, tasks, st.shards.property]⟩
+    h_in_correct_shard := by
+      intro i hi k hk
+      simp [shardArr, tasks, VectorUSize.uget, Array.uget, Task.spawn] at hk
+      exact st.h_in_correct_shard i hi k (hf _ _ hk) }
+
+-- NOTE: The IR of this function seems to contain a lot of things, but
+-- should be fine after specialization?
+/-- Combine each shard with the shard of `other` at the same index, each pair in a task of its
+own. `f` may add only keys of either.
+
+NOTE: `Array.toList` takes the array of `st`, so that this function owns it and frees it before
+spawning the tasks: each shard is then unshared and `f` can update it in place. Zipping the arrays
+directly would only borrow it, keeping the shards shared until all tasks are done. -/
+@[specialize]
+def zipShardsPar (st : ShardedUSize α S numShards) (other : ShardedUSize α T numShards)
+    (f : S → T → S) (hf : ∀ s t k, k ∈ f s t → k ∈ s ∨ k ∈ t) : ShardedUSize α S numShards :=
+  let pairs := st.shards.val.toList.zip other.shards.val.toList
+  let tasks := pairs.map fun (s, t) => Task.spawn fun () => f s t
+  let shardArr := tasks.map Task.get
+  { h_numShards_pos := st.h_numShards_pos
+    shards := ⟨shardArr.toArray, by
+      simp [shardArr, tasks, pairs, st.shards.property, other.shards.property]⟩
+    h_in_correct_shard := by
+      intro i hi k hk
+      simp [shardArr, tasks, pairs, VectorUSize.uget, Array.uget, Task.spawn] at hk
+      rcases hf _ _ _ hk with hk | hk
+      · exact st.h_in_correct_shard i hi k hk
+      · exact other.h_in_correct_shard i hi k hk }
+
+end ShardedUSize
+
+/-! ## Sharded sets -/
+
+/-- The operations, and their specifications, that a `ShardedSetUSize` needs from the set type `S`
+of its shards, beyond those of `KeyShard`. `insertMany` adds a whole `HashSet`: the parallel search
+collects the new states of a BFS level per shard and then adds them to each shard in one go. -/
+class SetShard (α : Type u) (S : Type v) [BEq α] [Hashable α] [Membership α S] extends KeyShard α S where
+  /-- A shard holding the elements of a list. -/
+  ofList : List α → S
+  insertMany : S → HashSet α → S
   mem_ofList {l : List α} {k : α} : k ∈ ofList l ↔ k ∈ l
   mem_insertMany {s : S} {hs : HashSet α} {k : α} : k ∈ insertMany s hs ↔ k ∈ s ∨ k ∈ hs
 
@@ -166,312 +351,130 @@ instance [Ord α] [TransOrd α] [BEq α] [LawfulBEqOrd α] [LawfulBEq α] [Hasha
   mem_ofList := by simp [TreeSet.mem_ofListFast]
   mem_insertMany := by intros ; simp only [TreeSet.mem_insertManyFast_hashset, HashSet.mem_iff_contains]
 
+instance [BEq α] [Hashable α] : KeyShard α (HashSet α) where
+  contains := HashSet.contains
+  size := HashSet.size
+  contains_iff_mem := HashSet.mem_iff_contains.symm
+
 /-- A set split into shards of type `S` by the hash of each key, with `USize`-based sharding. -/
-structure ShardedSetUSize (α : Type u) (S : Type v) where
-  numShards : USize
-  h_numShards_pos : 0 < (numShards : USize)
-  shards : VectorUSize S numShards
+abbrev ShardedSetUSize (α : Type u) (S : Type v) [Hashable α] [Membership α S] (numShards : USize) :=
+  ShardedUSize α S numShards
+
+/-- A sharded set with `HashSet` shards. -/
+abbrev ShardedHashSetUSize (α : Type u) [BEq α] [Hashable α] (numShards : USize) :=
+  ShardedSetUSize α (HashSet α) numShards
 
 namespace ShardedSetUSize
 
 open ShardedSetUInt
 
-variable {α : Type u} {S : Type v}
+variable {α : Type u} {S : Type v} [Hashable α] {numShards : USize}
 
-/-! ## Basic operations -/
+/-! ### Distribute: single-pass bucketing -/
 
-/-- Get the shard for a given key. -/
-@[inline]
-def getShard [Hashable α] (st : ShardedSetUSize α S) (k : α) : S :=
-  st.shards.ugetViaHash k st.h_numShards_pos
+/-- Consing a key onto a bucket adds only a key of its shard. -/
+theorem mem_cons_shardIdx (x : α) (s : List α) (q : α) (h : q ∈ x :: s) :
+    q ∈ s ∨ shardIdxOfUSize numShards q = shardIdxOfUSize numShards x := by
+  rcases List.mem_cons.mp h with rfl | h
+  · exact .inr rfl
+  · exact .inl h
 
--- NOTE: `Membership.mem` has signature `γ → α → Prop` (container first, element second)
-instance instMembership [Hashable α] [Membership α S] : Membership α (ShardedSetUSize α S) where
-  mem st k := k ∈ st.getShard k
-
-theorem mem_def [Hashable α] [Membership α S] {st : ShardedSetUSize α S} {k : α} :
-    k ∈ st ↔ k ∈ st.getShard k := Iff.rfl
-
-section
-
-variable [BEq α] [Hashable α] [Membership α S] [SetShard α S]
-
-@[inline]
-def contains (st : ShardedSetUSize α S) (k : α) : Bool :=
-  SetShard.contains (st.getShard k) k
-
-/-- Total number of elements across all shards. -/
-def size (st : ShardedSetUSize α S) : Nat :=
-  st.shards.val.foldl (init := 0) fun acc shard => acc + SetShard.size (α := α) shard
-
-theorem contains_iff_mem {st : ShardedSetUSize α S} {k : α} :
-    st.contains k ↔ k ∈ st := by
-  unfold contains ; rw [mem_def, SetShard.contains_iff_mem]
-
-end
-
-/-! ## Distribute: single-pass bucketing -/
-
+/-- The keys of `l`, bucketed by shard. -/
 @[specialize]
-def distributeByHash [Hashable α] (l : List α) (numShards : Nat)
-  (h_pos : 0 < USize.ofNat numShards := by native_decide)
-  (h_small : numShards < USize.size := by native_decide) : VectorUSize (List α) numShards.toUSize :=
-  l.foldl (init := VectorUSize.replicate h_small []) fun vec x =>
-    vec.umodifyViaHash x (List.cons x) h_pos
+def distributeByHash (l : List α) (h_pos : 0 < numShards) : ShardedUSize α (List α) numShards :=
+  l.foldl (init := .replicate h_pos [] fun _ => List.not_mem_nil) fun st x =>
+    st.modifyShard x (List.cons x) (mem_cons_shardIdx x)
 
--- Key membership theorem for distributeByHash
-theorem distributeByHash_mem [Hashable α] [BEq α] [LawfulBEq α]
-    {numShards : Nat} {h_pos} {h_small}
-    {l : List α} {k : α} :
-    let d := distributeByHash l numShards h_pos h_small
-    k ∈ d.ugetViaHash (β := α) k h_pos ↔ k ∈ l := by
-  simp only [distributeByHash, VectorUSize.ugetViaHash]
+theorem mem_distributeByHash {l : List α} {h_pos : 0 < numShards} {k : α} :
+    k ∈ distributeByHash l h_pos ↔ k ∈ l := by
+  simp only [ShardedUSize.mem_def, ShardedUSize.getShard, distributeByHash, VectorUSize.ugetViaHash]
   rw [List.foldl_eq_foldr_reverse]
   rewrite (occs := .neg [1]) [← List.mem_reverse]
   generalize l.reverse = l' ; clear l
   induction l' with
-  | nil => simp [VectorUSize.replicate, VectorUSize.uget]
+  | nil => simp [ShardedUSize.replicate, VectorUSize.replicateUSize, VectorUSize.uget]
   | cons x l' ih =>
     simp only [List.foldr, List.mem_cons, ← ih]
-    generalize (List.foldr _ _ l') = acc ; clear ih l'
-    simp only [VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.uset, VectorUSize.uget, Array.uget, Array.uset, Array.getElem_set]
+    generalize (List.foldr _ _ l') = acc ; clear ih
+    simp only [ShardedUSize.modifyShard, VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.uset, VectorUSize.uget, Array.uget, Array.uset, Array.getElem_set]
     split <;> grind
 
-variable [BEq α] [Hashable α] [Membership α S] [SetShard α S]
+variable [BEq α] [Membership α S] [SetShard α S]
 
-/-! ## Parallel construction from list -/
+/-! ### Parallel construction from list -/
 
 /-- Build a `ShardedSetUSize` from a list by distributing elements into shards by hash,
     then building each shard in parallel using `Task.spawn`. -/
 @[specialize]
-def ofListByHash
-  (l : List α) (numShards : Nat)
-  (h_pos : 0 < USize.ofNat numShards := by native_decide)
-  (h_small : numShards < USize.size := by native_decide) : ShardedSetUSize α S :=
-  let ⟨buckets, h_buckets⟩ := distributeByHash l numShards h_pos h_small
-  let tasks := buckets.toList.map fun bucket =>
-    Task.spawn fun () => SetShard.ofList (S := S) bucket
-  let shardArr := tasks.map Task.get
-  ⟨USize.ofNat numShards, h_pos, ⟨shardArr.toArray, by grind⟩⟩
+def ofListByHash (l : List α) (h_pos : 0 < numShards) : ShardedSetUSize α S numShards :=
+  (distributeByHash l h_pos).mapShardsPar SetShard.ofList fun _ _ h => SetShard.mem_ofList.mp h
 
-theorem mem_ofListByHash [LawfulBEq α]
-    {numShards : Nat} {h_pos} {h_small} {l : List α} {k : α} :
-    k ∈ ofListByHash (S := S) l numShards h_pos h_small ↔ k ∈ l := by
-  simp [mem_def, ofListByHash, getShard, Task.spawn, VectorUSize.ugetViaHash,
-    VectorUSize.uget, SetShard.mem_ofList]
-  exact distributeByHash_mem
+theorem mem_ofListByHash {l : List α} {h_pos : 0 < numShards} {k : α} :
+    k ∈ ofListByHash (S := S) l h_pos ↔ k ∈ l := by
+  simp [ShardedUSize.mem_def, ofListByHash, ShardedUSize.mapShardsPar, ShardedUSize.getShard, Task.spawn,
+    VectorUSize.ugetViaHash, VectorUSize.uget, SetShard.mem_ofList]
+  exact mem_distributeByHash
 
-/-! ## Sharded insertion -/
+/-! ### Sharded insertion -/
 
--- NOTE: The IR of this function seems to contain a lot of things, but
--- should be fine after specialization?
-/-- Insert elements from a sharded `HashSet` vector into corresponding shards,
-    parallelized via `Task.spawn`. -/
-@[specialize]
-def insertManySharded
-    (st : ShardedSetUSize α S)
-    (items : VectorUSize (HashSet α) st.numShards) :
-    ShardedSetUSize α S :=
-  let pairs := st.shards.val.zip items.val |>.toList
-  let tasks := pairs.map fun (shard, hs) =>
-    Task.spawn fun () => SetShard.insertMany shard hs
-  let shardArr := tasks.map Task.get
-  let newShards := ⟨shardArr.toArray, by simp [shardArr, tasks, pairs, st.shards.property, items.property]⟩
-  { st with shards := newShards }
+/-- Insert the keys of a sharded `HashSet` shard by shard, each shard in a task of its own. -/
+@[inline]
+def insertMany (st : ShardedSetUSize α S numShards) (items : ShardedHashSetUSize α numShards) :
+    ShardedSetUSize α S numShards :=
+  st.zipShardsPar items SetShard.insertMany fun _ _ _ h => SetShard.mem_insertMany.mp h
 
-theorem mem_insertManySharded
-    {st : ShardedSetUSize α S}
-    {items : VectorUSize (HashSet α) st.numShards}
-    {k : α} :
-    k ∈ st.insertManySharded items ↔
-      k ∈ st ∨ k ∈ (items.ugetViaHash k st.h_numShards_pos) := by
-  simp [mem_def, insertManySharded, getShard, Task.spawn,
+theorem mem_insertMany {st : ShardedSetUSize α S numShards} {items : ShardedHashSetUSize α numShards}
+    {k : α} : k ∈ st.insertMany items ↔ k ∈ st ∨ k ∈ items := by
+  simp [ShardedUSize.mem_def, insertMany, ShardedUSize.zipShardsPar, ShardedUSize.getShard, Task.spawn,
     VectorUSize.ugetViaHash, VectorUSize.uget, SetShard.mem_insertMany]
 
 end ShardedSetUSize
 
-/-- A sharded set implementation using `HashSet` as the underlying shard type,
-with `USize`-based sharding. -/
-structure ShardedHashSetUSize (α : Type u) [BEq α] [Hashable α] (numShards : USize) where
-  h_numShards_pos : 0 < (numShards : USize)
-  shards : VectorUSize (HashSet α) numShards
-  h_in_correct_shard : ∀ (i : USize) (h : i < numShards), ∀ k ∈ shards.uget i h,
-    ShardedSetUInt.shardIdxOfUSize numShards k = i
-
 namespace ShardedHashSetUSize
-
-open ShardedSetUInt
 
 variable {α : Type u} [BEq α] [Hashable α] {numShards : USize}
 
-set_option compiler.extract_closed false in
-def empty (n : Nat)
-  (h_pos : 0 < USize.ofNat n := by native_decide)
-  (h_small : n < USize.size := by native_decide) : ShardedHashSetUSize α n.toUSize where
-  h_numShards_pos := h_pos
-  shards := .replicate h_small (Std.HashSet.emptyWithCapacity 8)
-  h_in_correct_shard := by
-    simp only [VectorUSize.replicate, VectorUSize.uget, Array.uget]
-    intros ; simp at *
+/-- The empty set with `numShards` shards. -/
+def empty (h_pos : 0 < numShards) : ShardedHashSetUSize α numShards :=
+  .replicate h_pos (HashSet.emptyWithCapacity 8) fun _ => HashSet.not_mem_emptyWithCapacity
 
-set_option compiler.extract_closed false in
-def emptyUSize (n : USize) (h_pos : 0 < (n : USize)) : ShardedHashSetUSize α n where
-  h_numShards_pos := h_pos
-  shards := .replicateUSize n (Std.HashSet.emptyWithCapacity 8)
-  h_in_correct_shard := by
-    simp only [VectorUSize.replicateUSize, VectorUSize.uget, Array.uget]
-    intros ; simp at *
-
-theorem empty_eq_emptyUSize (n : Nat) (h_pos : 0 < USize.ofNat n) (h_small : n < USize.size) :
-  empty n h_pos h_small = emptyUSize (α := α) n.toUSize h_pos := by
-  simp [empty, emptyUSize] ; apply VectorUSize.replicate_eq_replicateUSize
-
-def size (shs : ShardedHashSetUSize α numShards) : Nat :=
-  shs.shards.val.foldl (init := 0) fun acc shard => acc + shard.size
-
-@[inline]
-def getShard (shs : ShardedHashSetUSize α numShards) (x : α) : HashSet α :=
-  shs.shards.ugetViaHash x shs.h_numShards_pos
-
-@[inline]
-def contains (shs : ShardedHashSetUSize α numShards) (x : α) : Bool :=
-  (shs.getShard x).contains x
-
-@[inline]
-def toList (shs : ShardedHashSetUSize α numShards) : List α :=
-  shs.shards.val.toList.flatMap (·.toList)
-
-@[inline]
-instance instMembership : Membership α (ShardedHashSetUSize α numShards) where
-  mem shs x := shs.getShard x |>.contains x
-
-theorem mem_def {shs : ShardedHashSetUSize α numShards} {x : α} :
-    x ∈ shs ↔ x ∈ shs.getShard x := Iff.rfl
-
-theorem mem_iff_exists_shard {shs : ShardedHashSetUSize α numShards} {x : α} :
-    x ∈ shs ↔ ∃ shard ∈ shs.shards.val.toList, x ∈ shard := by
-  simp only [mem_def, getShard, VectorUSize.ugetViaHash, VectorUSize.uget, Array.uget]
-  constructor
-  · intro hx
-    exact ⟨_, Array.mem_toList_iff.mpr (Array.getElem_mem ..), hx⟩
-  · rintro ⟨shard, hshard, hx⟩
-    rw [List.mem_iff_getElem] at hshard
-    obtain ⟨i, hi, rfl⟩ := hshard
-    simp only [Array.getElem_toList] at hx
-    have hi' : i < shs.shards.val.size := by simpa using hi
-    have hi_ns : i < numShards.toNat := by rw [← shs.shards.property]; exact hi'
-    have hiU : i < USize.size := Nat.lt_trans hi_ns (USize.toNat_lt_size numShards)
-    have h_toNat_i : (USize.ofNat i).toNat = i := Nat.mod_eq_of_lt hiU
-    have h_lt : USize.ofNat i < numShards := by
-      rw [USize.lt_iff_toNat_lt, h_toNat_i]; exact hi_ns
-    have h_idx := shs.h_in_correct_shard (USize.ofNat i) h_lt x (by
-      simp only [VectorUSize.uget, Array.uget, h_toNat_i]; exact hx)
-    have h_eq : (shardIdxOfUSize numShards x).toNat = i :=
-      (congrArg USize.toNat h_idx).trans h_toNat_i
-    simp only [h_eq]; exact hx
-
-theorem contains_iff_mem {shs : ShardedHashSetUSize α numShards} {x : α} :
-    shs.contains x = true ↔ x ∈ shs := by
-  unfold contains ; rw [mem_def, HashSet.mem_iff_contains]
-
-theorem not_mem_empty {n : Nat} {h_pos} {h_small} {x : α} :
-    x ∉ ShardedHashSetUSize.empty n h_pos h_small (α := α) := by
-  simp [mem_def, empty, getShard, VectorUSize.ugetViaHash, VectorUSize.uget,
-    VectorUSize.replicate, Array.uget, Array.getElem_replicate]
-
-theorem not_mem_emptyUSize {n : USize} {h_pos} {x : α} :
-    x ∉ ShardedHashSetUSize.emptyUSize n h_pos (α := α) := by
-  simp [mem_def, emptyUSize, getShard, VectorUSize.ugetViaHash, VectorUSize.uget,
-    VectorUSize.replicateUSize, Array.uget, Array.getElem_replicate]
+theorem not_mem_empty {h_pos : 0 < numShards} {x : α} : x ∉ empty (α := α) h_pos :=
+  ShardedUSize.not_mem_replicate
 
 /-- Unconditionally insert an element into the sharded hash set. -/
 @[specialize 1 2 3]
-def insert [LawfulBEq α] [LawfulHashable α]
-    (shs : ShardedHashSetUSize α numShards) (x : α) :
+def insert [LawfulBEq α] [LawfulHashable α] (shs : ShardedHashSetUSize α numShards) (x : α) :
     ShardedHashSetUSize α numShards :=
-  { h_numShards_pos := shs.h_numShards_pos,
-    shards := shs.shards.umodifyViaHash x (fun shard => shard.insert x) shs.h_numShards_pos,
-    h_in_correct_shard := by
-      intro j hj k hk
-      simp only [VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.uget, VectorUSize.uset,
-        Array.uget, Array.uset, Array.getElem_set] at hk
-      split at hk
-      · -- j.toNat = idx.toNat (modified shard)
-        rename_i heq ; rw [USize.toNat_inj] at heq
-        simp [HashSet.mem_insert, heq] at hk
-        rcases hk with hk | hk
-        · grind
-        · apply shs.h_in_correct_shard ; apply hk ; assumption
-      · -- j.toNat ≠ idx.toNat (unchanged shard)
-        apply shs.h_in_correct_shard ; apply hk ; assumption
-    }
-
-theorem length_toList [EquivBEq α] [LawfulHashable α]
-    {shs : ShardedHashSetUSize α numShards} :
-    shs.size = shs.toList.length := by
-  rcases shs with ⟨h_pos, ⟨shards, h_n⟩, h_ics⟩
-  simp [size, ← Array.foldl_toList, toList, Std.HashSet.length_toList]
-  rw [← Nat.add_zero (List.sum _)]
-  generalize shards.toList = l
-  generalize (0 : Nat) = acc
-  clear h_pos h_n h_ics
-  induction l generalizing acc with
-  | nil => simp
-  | cons x l ih => simp ; grind
-
-theorem nodup_elements [LawfulBEq α] [LawfulHashable α]
-    {shs : ShardedHashSetUSize α numShards} :
-    shs.toList.Nodup := by
-  simp [toList, Veil.List.nodup_flatMap] ; constructor
-  · intros ; apply Std.HashMap.nodup_keys
-  · rw [List.pairwise_iff_getElem] ; intros i j hi hj hne
-    whnf ; simp ; intro a hini hinj
-    simp at hi hj
-    have hi_ns : i < numShards.toNat := by rw [← shs.shards.property]; exact hi
-    have hj_ns : j < numShards.toNat := by rw [← shs.shards.property]; exact hj
-    have hiU : i < USize.size := Nat.lt_trans hi_ns (USize.toNat_lt_size numShards)
-    have hjU : j < USize.size := Nat.lt_trans hj_ns (USize.toNat_lt_size numShards)
-    have h_toNat_i : (USize.ofNat i).toNat = i := Nat.mod_eq_of_lt hiU
-    have h_toNat_j : (USize.ofNat j).toNat = j := Nat.mod_eq_of_lt hjU
-    have h_lt_i : USize.ofNat i < numShards := by
-      rw [USize.lt_iff_toNat_lt, h_toNat_i]; exact hi_ns
-    have h_lt_j : USize.ofNat j < numShards := by
-      rw [USize.lt_iff_toNat_lt, h_toNat_j]; exact hj_ns
-    have h1 := shs.h_in_correct_shard (USize.ofNat i) h_lt_i a (by
-      simp only [VectorUSize.uget, Array.uget, h_toNat_i]; exact hini)
-    have h2 := shs.h_in_correct_shard (USize.ofNat j) h_lt_j a (by
-      simp only [VectorUSize.uget, Array.uget, h_toNat_j]; exact hinj)
-    grind
+  shs.modifyShard x (·.insert x) fun _ k hk => by
+    simp [HashSet.mem_insert] at hk
+    rcases hk with hk | hk
+    · grind
+    · exact .inl hk
 
 @[simp]
 theorem mem_insert [LawfulBEq α] [LawfulHashable α]
     {shs : ShardedHashSetUSize α numShards} {x y : α} :
     x ∈ shs.insert y ↔ (y == x) = true ∨ x ∈ shs := by
-  unfold insert
-  rw [mem_def, mem_def]
-  unfold getShard
+  unfold insert ShardedUSize.modifyShard
+  rw [ShardedUSize.mem_def, ShardedUSize.mem_def]
+  unfold ShardedUSize.getShard
   simp [VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.ugetViaHash, VectorUSize.uget, VectorUSize.uset,
     Array.uget, Array.uset, Array.getElem_set]
   grind
 
-end ShardedHashSetUSize
-
-namespace ShardedSetUSize
-
-open ShardedHashSetUSize
-
-/-! ## Sharded insertion from ShardedHashSet -/
-
-variable {α : Type u} {S : Type v} [BEq α] [Hashable α] [Membership α S] [SetShard α S]
-
+/-- The keys. -/
 @[inline]
-def insertManySHS (st : ShardedSetUSize α S) (shs : ShardedHashSetUSize α st.numShards) :
-    ShardedSetUSize α S :=
-  st.insertManySharded shs.shards
+def toList (shs : ShardedHashSetUSize α numShards) : List α :=
+  shs.shards.val.toList.flatMap (·.toList)
 
-theorem mem_insertManySHS
-    {st : ShardedSetUSize α S} {shs : ShardedHashSetUSize α st.numShards} {k : α} :
-    k ∈ st.insertManySHS shs ↔ k ∈ st ∨ k ∈ shs := by
-  simp only [insertManySHS, mem_insertManySharded, ShardedHashSetUSize.mem_def, ShardedHashSetUSize.getShard]
+theorem length_toList [EquivBEq α] [LawfulHashable α]
+    {shs : ShardedHashSetUSize α numShards} :
+    shs.size = shs.toList.length :=
+  ShardedUSize.size_eq_length_flatMap fun _ => HashSet.length_toList.symm
 
-end ShardedSetUSize
+theorem nodup_elements [LawfulBEq α] [LawfulHashable α]
+    {shs : ShardedHashSetUSize α numShards} :
+    shs.toList.Nodup :=
+  ShardedUSize.nodup_flatMap (fun _ _ => HashSet.mem_toList) fun _ => HashMap.nodup_keys
+
+end ShardedHashSetUSize
