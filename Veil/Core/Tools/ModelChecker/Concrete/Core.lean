@@ -281,4 +281,21 @@ def BaseSearchContext.mergeWithoutDepthChange (ctx1 ctx2 : BaseSearchContext σ 
     statesFound := ctx1.statesFound + ctx2.statesFound,
     actionStatsMap := ActionStatUpdate.merge (κ := κ) ctx1.actionStatsMap ctx2.actionStatsMap }
 
+theorem BaseSearchContext.mergeWithoutDepthChange_foldl_description
+  (acc : BaseSearchContext σ κ σₕ asm) (ctxs : List (BaseSearchContext σ κ σₕ asm)) :
+  let res := ctxs.foldl (init := acc) BaseSearchContext.mergeWithoutDepthChange
+  res.finished = acc.finished.or ((ctxs.find? (·.hasFinished)).bind (fun x => x.finished)) := by
+  dsimp only
+  induction ctxs generalizing acc with
+  | nil => simp [List.foldl]
+  | cons ctx ctxs ih =>
+    dsimp [List.foldl, List.find?, BaseSearchContext.hasFinished]
+    rw [ih] ; clear ih
+    unfold mergeWithoutDepthChange ; dsimp
+    rcases acc.finished with _ | _
+    on_goal 2=> rfl
+    dsimp ; rcases h : ctx.finished with _ | _
+    on_goal 2=> grind
+    dsimp ; rfl
+
 end Veil.ModelChecker.Concrete

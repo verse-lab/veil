@@ -328,6 +328,12 @@ theorem not_mem_emptyUSize {n : USize} {h_pos} {x : α} :
   simp [mem_def, emptyUSize, getShard, VectorUSize.ugetViaHash, VectorUSize.uget,
     VectorUSize.replicateUSize, Array.uget, Array.getElem_replicate]
 
+-- NOTE: This doesn't require `[EquivBEq α] [LawfulHashable α]`
+theorem emptyUSize_get?_none {n : USize} {h_pos} {x : α} :
+    (ShardedHashMapUSize.emptyUSize n h_pos (α := α) (β := β)).get? x = none := by
+  simp [emptyUSize, get?, getShard, VectorUSize.ugetViaHash, VectorUSize.uget,
+    VectorUSize.replicateUSize, Array.uget, Array.getElem_replicate]
+
 /-- Unconditionally insert a key with its value into the sharded hash map. -/
 @[specialize 1 2 3]
 def insert [LawfulBEq α] [LawfulHashable α]
