@@ -731,24 +731,37 @@ private theorem breadthFirstSearchParallel.subproof1 {ρ σₕ σ : Type}
   intro sublist h_sublist_in item h_item_in
   exact (h item.fingerprint item.state ⟨item.entry, h_mem_inv _ ⟨sublist, h_sublist_in, h_item_in⟩⟩).1
 
-def breadthFirstSearchParallel {m : Type → Type}
+/-- `mctx` marked as cancelled, which finishes it. -/
+def LawfulMapReduceSearchContextMain.setCancelled {params : SearchParameters ρ σ} {th : ρ}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
+  (mctx : LawfulMapReduceSearchContextMain (fp := fp) (Shard := Shard) (numShards := numShards) sys params) :
+  { mctx : LawfulMapReduceSearchContextMain (fp := fp) (Shard := Shard) (numShards := numShards) sys params //
+    mctx.val.base.finished.isSome } :=
+  ⟨⟨{ mctx.val with base := { mctx.val.base with finished := some (.earlyTermination .cancelled) } },
+    ⟨mctx.property.1.setCancelled, mctx.property.2.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.setCancelled⟩⟩⟩,
+    rfl⟩
+
+/-- The search loop of `breadthFirstSearchParallel`, from `mctx`. It returns only once the search
+has finished, so the context it returns records why. -/
+def breadthFirstSearchParallel.loop {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
+  [∀ α, Lean.Order.CCPO (m α)] [Lean.Order.MonoBind m]
   (params : SearchParameters ρ σ)
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (parallelCfg : ParallelConfig)
   (progressInstanceId : Nat)
-  (cancelToken : IO.CancelToken) :
-  m (LawfulMapReduceSearchContextMain (fp := fp) (Shard := Shard) (numShards := parallelCfg.numShards) sys params) := do
-  let mut mctx : LawfulMapReduceSearchContextMain (fp := fp) (Shard := Shard) (numShards := parallelCfg.numShards)
-      sys params :=
-    Subtype.mk (MapReduceSearchContextMain.initial sys.initStates)
-      ⟨MapReduceSearchContextMainInvariants.initial sys params, MapReduceSearchContextMain.LogSound.initial sys params⟩
-  let mut lastUpdateTime : Nat := 0
-  let mut cancelled := false
-  while h_not_finished : mctx.val.base.hasFinished = false do
+  (cancelToken : IO.CancelToken)
+  (mctx : LawfulMapReduceSearchContextMain (fp := fp) (Shard := Shard) (numShards := parallelCfg.numShards) sys params)
+  (lastUpdateTime : Nat) :
+  m { mctx : LawfulMapReduceSearchContextMain (fp := fp) (Shard := Shard) (numShards := parallelCfg.numShards)
+        sys params // mctx.val.base.finished.isSome } := do
+  if h_finished : mctx.val.base.finished.isSome then
+    return ⟨mctx, h_finished⟩
+  else
     let mctxVal := mctx.val
-    have h_not_finished_val : mctxVal.base.hasFinished = false := h_not_finished
+    have h_not_finished_val : mctxVal.base.hasFinished = false := by
+      simpa [BaseSearchContext.hasFinished] using h_finished
     have h_mctx : MapReduceSearchContextMainInvariants sys params mctxVal := mctx.property.1
     have h_ls : ∃ rep dep, mctxVal.LogSound sys params rep dep := mctx.property.2
     let base := mctxVal.base
@@ -757,10 +770,9 @@ def breadthFirstSearchParallel {m : Type → Type}
     let globalSeen := mctxVal.globalSeen
     -- Check if the frontier is empty
     if h_empty : tovisit.isEmpty then
-      mctx := Subtype.mk ⟨{ base with finished := some (.exploredAllReachableStates) }, tovisitLen, tovisit, globalSeen⟩
+      return ⟨Subtype.mk ⟨{ base with finished := some (.exploredAllReachableStates) }, tovisitLen, tovisit, globalSeen⟩
         ⟨h_mctx.setExploredAll_preserves_invs h_not_finished_val h_empty,
-          h_ls.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.setExploredAll⟩⟩
-      break
+          h_ls.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.setExploredAll⟩⟩, rfl⟩
     else
       -- FIXME: Need to add a proper sequential fallback if the frontier is too small
       -- Split the queue into sub-lists; fall back to 1 split (sequential) if frontier is too small
@@ -806,24 +818,37 @@ def breadthFirstSearchParallel {m : Type → Type}
         -- Update progress on every diameter change
         updateProgressDuringBFS progressInstanceId base' tovisitLen' globalSeen'.size
         -- Prove invariants are preserved using local invariants from `lawfulResults`
-        mctx := Subtype.mk ⟨base', tovisitLen', tovisit', globalSeen'⟩ (heq.symm ▸ h_mctx')
+        let mctx : LawfulMapReduceSearchContextMain (fp := fp) (Shard := Shard) (numShards := parallelCfg.numShards)
+            sys params := Subtype.mk ⟨base', tovisitLen', tovisit', globalSeen'⟩ (heq.symm ▸ h_mctx')
         -- Check for cancellation/handoff at most once per second
         let newtime? ← checkCancellationWithoutPeriodicUpdate progressInstanceId lastUpdateTime 1000 cancelToken
         match newtime? with
-        | .updateTime t => lastUpdateTime := t
-        | .searchCancelled => cancelled := true ; break
-        | .noUpdate => pure ()
+        | .updateTime t => breadthFirstSearchParallel.loop params sys parallelCfg progressInstanceId cancelToken mctx t
+        | .searchCancelled => return mctx.setCancelled
+        | .noUpdate => breadthFirstSearchParallel.loop params sys parallelCfg progressInstanceId cancelToken mctx lastUpdateTime
+partial_fixpoint
+
+def breadthFirstSearchParallel {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
+  [∀ α, Lean.Order.CCPO (m α)] [Lean.Order.MonoBind m]
+  (params : SearchParameters ρ σ)
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
+  (parallelCfg : ParallelConfig)
+  (progressInstanceId : Nat)
+  (cancelToken : IO.CancelToken) :
+  m { mctx : LawfulMapReduceSearchContextMain (fp := fp) (Shard := Shard) (numShards := parallelCfg.numShards)
+        sys params // mctx.val.base.finished.isSome } := do
+  let res ← breadthFirstSearchParallel.loop (fp := fp) params sys parallelCfg progressInstanceId cancelToken
+    (Subtype.mk (MapReduceSearchContextMain.initial sys.initStates)
+      ⟨MapReduceSearchContextMainInvariants.initial sys params, MapReduceSearchContextMain.LogSound.initial sys params⟩) 0
   -- Final update to ensure stats reflect finished state, with the depth of the last frontier
   -- explored rather than of the next one. Only the display shows that depth: setting it as the
   -- frontier depth of the context would change its `completedDepth` too.
-  let ⟨mctxVal, h_mctx⟩ := mctx
+  let mctxVal := res.val.val
   let displayBase : BaseSearchContext σ κ σₕ asm :=
     { mctxVal.base with currentFrontierDepth := mctxVal.base.completedDepth }
   updateProgressDuringBFS progressInstanceId displayBase mctxVal.tovisitLen mctxVal.globalSeen.size
-  if cancelled then
-    return ⟨{ mctxVal with base := { mctxVal.base with finished := some (.earlyTermination .cancelled) } },
-      ⟨h_mctx.1.setCancelled, h_mctx.2.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.setCancelled⟩⟩⟩
-  else
-    return ⟨mctxVal, h_mctx⟩
+  return res
 
 end Veil.ModelChecker.Concrete

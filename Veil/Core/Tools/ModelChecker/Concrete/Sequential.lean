@@ -273,22 +273,37 @@ theorem SequentialSearchContext.bfsStep_log_sound
 
 end LogSound
 
--- @[specialize]
 omit th in
-def breadthFirstSearchSequential {m : Type → Type}
+/-- `sctx` marked as cancelled, which finishes it. -/
+def LawfulSequentialSearchContext.setCancelled {th : ρ}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
+  (sctx : LawfulSequentialSearchContext (fp := fp) sys params) :
+  { sctx : LawfulSequentialSearchContext (fp := fp) sys params // sctx.val.base.finished.isSome } :=
+  let ⟨⟨ctx, log, sq⟩, h_sctx⟩ := sctx
+  ⟨⟨⟨{ ctx with finished := some (.earlyTermination .cancelled) }, log, sq⟩,
+    ⟨SequentialSearchContextInvariants.setCancelled sys params h_sctx.1,
+      h_sctx.2.elim fun rep h => h.elim fun dep h => ⟨rep, dep, SequentialSearchContext.LogSound.setCancelled sys params h⟩⟩⟩,
+    rfl⟩
+
+omit th in
+/-- The search loop of `breadthFirstSearchSequential`, from `sctx`. It returns only once the search
+has finished, so the context it returns records why. -/
+def breadthFirstSearchSequential.loop {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
+  [∀ α, Lean.Order.CCPO (m α)] [Lean.Order.MonoBind m]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (updateTimeInterval : Nat)
   (progressInstanceId : Nat)
-  (cancelToken : IO.CancelToken) :
-  m (LawfulSequentialSearchContext (fp := fp) sys params) := do
-  let mut sctx : LawfulSequentialSearchContext (fp := fp) sys params :=
-    Subtype.mk (SequentialSearchContext.initial sys)
-      (SequentialSearchContext.initial_invs sys params)
-  let mut lastUpdateTime : Nat := 0
-  let mut cancelled := false
-  while h_not_finished : sctx.val.base.hasFinished = false do
+  (cancelToken : IO.CancelToken)
+  (sctx : LawfulSequentialSearchContext (fp := fp) sys params)
+  (lastUpdateTime : Nat) :
+  m { sctx : LawfulSequentialSearchContext (fp := fp) sys params // sctx.val.base.finished.isSome } := do
+  if h_finished : sctx.val.base.finished.isSome then
+    return ⟨sctx, h_finished⟩
+  else
+    have h_not_finished : sctx.val.base.hasFinished = false := by
+      simpa [BaseSearchContext.hasFinished] using h_finished
     let sctx_val := sctx.val
     have h_sctx := sctx.property
     let oldFrontierDepth := sctx_val.base.currentFrontierDepth
@@ -303,18 +318,28 @@ def breadthFirstSearchSequential {m : Type → Type}
       trySetViolationFound progressInstanceId ctx'
       tryUpdateProgressWithNewFrontierDepth progressInstanceId oldFrontierDepth ctx' sq'.size log'.size
       let newtime? ← checkCancellationWithPeriodicUpdate progressInstanceId lastUpdateTime updateTimeInterval cancelToken ctx' sq'.size log'.size
-      sctx := Subtype.mk ⟨ctx', log', sq'⟩ (heq.symm ▸ h_sctx')
+      let sctx : LawfulSequentialSearchContext (fp := fp) sys params := Subtype.mk ⟨ctx', log', sq'⟩ (heq.symm ▸ h_sctx')
       match newtime? with
-      | .updateTime t => lastUpdateTime := t
-      | .searchCancelled => cancelled := true ; break
-      | .noUpdate => pure ()
-  let ⟨⟨ctx, log, sq⟩, h_sctx⟩ := sctx
+      | .updateTime t => breadthFirstSearchSequential.loop sys updateTimeInterval progressInstanceId cancelToken sctx t
+      | .searchCancelled => return sctx.setCancelled params
+      | .noUpdate => breadthFirstSearchSequential.loop sys updateTimeInterval progressInstanceId cancelToken sctx lastUpdateTime
+partial_fixpoint
+
+-- @[specialize]
+omit th in
+def breadthFirstSearchSequential {m : Type → Type}
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
+  [∀ α, Lean.Order.CCPO (m α)] [Lean.Order.MonoBind m]
+  {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
+  (updateTimeInterval : Nat)
+  (progressInstanceId : Nat)
+  (cancelToken : IO.CancelToken) :
+  m { sctx : LawfulSequentialSearchContext (fp := fp) sys params // sctx.val.base.finished.isSome } := do
+  let res ← breadthFirstSearchSequential.loop (fp := fp) params sys updateTimeInterval progressInstanceId cancelToken
+    (Subtype.mk (SequentialSearchContext.initial sys) (SequentialSearchContext.initial_invs sys params)) 0
+  let ⟨⟨⟨ctx, log, sq⟩, _⟩, _⟩ := res
   updateProgressDuringBFS progressInstanceId ctx sq.size log.size
-  if cancelled then
-    return ⟨⟨{ ctx with finished := some (.earlyTermination .cancelled) }, log, sq⟩,
-      ⟨SequentialSearchContextInvariants.setCancelled sys params h_sctx.1,
-        h_sctx.2.elim fun rep h => h.elim fun dep h => ⟨rep, dep, SequentialSearchContext.LogSound.setCancelled sys params h⟩⟩⟩
-  else
-    return ⟨⟨ctx, log, sq⟩, h_sctx⟩
+  return res
 
 end Veil.ModelChecker.Concrete

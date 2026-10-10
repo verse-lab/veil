@@ -15,13 +15,15 @@ either the sequential or parallel implementation based on configuration. -/
 
 /-- The result of a finished search, with a trace for a violation, recovered in `sys` from the
 search's log `look`: the log is sound for some representatives, which exhibit the violations that
-`ctx` records. The picks of the trace come from `pickSource`, which is built only for a trace. -/
+`ctx` records. The picks of the trace come from `pickSource`, which is built only for a trace.
+The search has finished, so `ctx` records why. -/
 def searchResult {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (pickSource : Unit → PickSource σ κ)
   (params : SearchParameters ρ σ) [fp : StateFingerprint σ σₕ]
   (ctx : BaseSearchContext σ κ σₕ asm) (look : LogLookup σₕ κ) (distinctCount : Nat)
-  (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ctx.ViolationTerminationSound sys params rep) :
+  (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ctx.ViolationTerminationSound sys params rep)
+  (h_fin : ctx.finished.isSome) :
   ModelCheckingResult ρ σ κ σₕ :=
   match hf : ctx.finished with
   | some (.earlyTermination (.foundViolatingState x names)) =>
@@ -50,7 +52,7 @@ def searchResult {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th : ρ}
         exact ⟨rep, dep, hinv, hviol _ (by rw [hv] ; exact List.mem_cons_self)⟩)
       .foundViolation x violation (some r.1) r.2
     | [] => .noViolationFound distinctCount .exploredAllReachableStates
-  | none => panic! s!"SearchContext.finished is none! This should never happen."
+  | none => absurd h_fin (by simp [hf])
 
 /-- The result of a search is sound: each violation it reports comes with a trace that is valid in
 `sys`, ends at a state that exhibits the violation, and has the failing step of an assertion
@@ -60,10 +62,12 @@ theorem searchResult_sound {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th
   (pickSource : Unit → PickSource σ κ)
   (params : SearchParameters ρ σ) [fp : StateFingerprint σ σₕ]
   (ctx : BaseSearchContext σ κ σₕ asm) (look : LogLookup σₕ κ) (distinctCount : Nat)
-  (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ctx.ViolationTerminationSound sys params rep) :
-  ResultSound sys params (searchResult sys pickSource params ctx look distinctCount h) := by
+  (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ctx.ViolationTerminationSound sys params rep)
+  (h_fin : ctx.finished.isSome) :
+  ResultSound sys params (searchResult sys pickSource params ctx look distinctCount h h_fin) := by
   unfold searchResult
-  split <;> (try split) <;> first | exact recoverViolationTrace_sound sys _ | trivial
+  split <;> (try split) <;>
+    first | exact recoverViolationTrace_sound sys _ | trivial | (rename_i hnone ; simp [hnone] at h_fin)
 
 /-- Run `act`, and only then let go of `keep`, which is part of the result. If inlined, the caller
 would take the pair apart right away and release `keep` before `act` runs; a function that just
@@ -77,6 +81,8 @@ section
 
 variable {ρ σ κ σₕ α : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
+  -- The search loops are defined by `partial_fixpoint`, which needs these; `IO` has them
+  [∀ α, Lean.Order.CCPO (m α)] [Lean.Order.MonoBind m]
   [Repr κ]
   [ActionStatUpdate κ asm]
   {th : ρ}
@@ -108,15 +114,15 @@ def findReachableThen (finish : ModelCheckingResult ρ σ κ σₕ → m α) : m
   let pickSource := fun _ => (pickSource ()).restrictByStateConstraints params th
   match parallelCfg with
   | some cfg => do
-    let mctx ← breadthFirstSearchParallel (σₕ := σₕ) (Shard := ShardOf (LogEntry σₕ κ)) params sys cfg
+    let ⟨mctx, h_fin⟩ ← breadthFirstSearchParallel (σₕ := σₕ) (Shard := ShardOf (LogEntry σₕ κ)) params sys cfg
       progressInstanceId cancelToken
     let result := searchResult sys pickSource params mctx.val.base mctx.val.globalSeen.get? mctx.val.globalSeen.size
-      (mctx.property.2.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.log_invs, h.toViolationTerminationSound⟩)
+      (mctx.property.2.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.log_invs, h.toViolationTerminationSound⟩) h_fin
     return (← keepingThen mctx (finish result)).1
   | none => do
-    let sctx ← breadthFirstSearchSequential (σₕ := σₕ) params sys 60000 progressInstanceId cancelToken
+    let ⟨sctx, h_fin⟩ ← breadthFirstSearchSequential (σₕ := σₕ) params sys 60000 progressInstanceId cancelToken
     let result := searchResult sys pickSource params sctx.val.base (logLookup sctx.val.log) sctx.val.log.size
-      (sctx.property.2.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.log_invs, h.toViolationTerminationSound⟩)
+      (sctx.property.2.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.log_invs, h.toViolationTerminationSound⟩) h_fin
     return (← keepingThen sctx (finish result)).1
 
 def findReachable : m (ModelCheckingResult ρ σ κ σₕ) :=
