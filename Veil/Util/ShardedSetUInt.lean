@@ -372,10 +372,7 @@ variable {α : Type u} {S : Type v} [Hashable α] {numShards : PosUSize}
 
 /-- Consing a key onto a bucket adds only a key of its shard. -/
 theorem mem_cons_shardIdx (x : α) (s : List α) (q : α) (h : q ∈ x :: s) :
-    q ∈ s ∨ shardIdxOfUSize numShards q = shardIdxOfUSize numShards x := by
-  rcases List.mem_cons.mp h with rfl | h
-  · exact .inr rfl
-  · exact .inl h
+    q ∈ s ∨ shardIdxOfUSize numShards q = shardIdxOfUSize numShards x := by grind
 
 /-- The keys of `l`, bucketed by shard. -/
 @[specialize]
