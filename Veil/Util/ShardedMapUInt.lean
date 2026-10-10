@@ -306,10 +306,17 @@ theorem contains_iff_mem {shs : ShardedHashMapUSize α β numShards} {x : α} :
     shs.contains x = true ↔ x ∈ shs := by
   unfold contains ; rw [mem_def, HashMap.mem_iff_contains]
 
+theorem not_contains_iff_not_mem {shs : ShardedHashMapUSize α β numShards} {x : α} :
+    shs.contains x = false ↔ x ∉ shs := by rw [← contains_iff_mem] ; grind
+
 theorem mem_iff_isSome_get? [EquivBEq α] [LawfulHashable α]
     {shs : ShardedHashMapUSize α β numShards} {x : α} :
     x ∈ shs ↔ (shs.get? x).isSome := by
   unfold get? ; rw [mem_def, HashMap.mem_iff_isSome_getElem?]
+
+theorem not_mem_iff_get?_none [EquivBEq α] [LawfulHashable α]
+    {shs : ShardedHashMapUSize α β numShards} {x : α} :
+    x ∉ shs ↔ shs.get? x = none := by rw [mem_iff_isSome_get?] ; simp
 
 theorem not_mem_empty {n : Nat} {h_pos} {h_small} {x : α} :
     x ∉ ShardedHashMapUSize.empty n h_pos h_small (α := α) (β := β) := by
