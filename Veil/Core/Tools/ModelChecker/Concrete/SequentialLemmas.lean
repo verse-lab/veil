@@ -13,30 +13,50 @@ variable {ρ σ κ σₕ asm : Type}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
 
+@[expose, inline]
+def initialLogAndRepresentativesCoreSequential (i : Nat)
+    (acc : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ)) (s : σ) :=
+  let (a, l) := acc
+  let x := fp.view s
+  if l.contains x then (a, l) else (s :: a, l.insert x (.init i))
+
+@[expose, inline]
+def initialLogAndRepresentativesSequential (initialStates : List σ) :
+    (List σ) × Std.HashMap σₕ (LogEntry σₕ κ) :=
+  initialStates.foldlIdx (init := ([], ∅)) initialLogAndRepresentativesCoreSequential
+
 /-- Sequential initialization keeps the initial-state indices only in the log. -/
 @[expose] def SequentialSearchContext.initial : SequentialSearchContext σ κ σₕ asm :=
-  let (reps, log) := initialLogAndRepresentatives (κ := κ) sys.initStates
+  let (reps, log) := initialLogAndRepresentativesSequential (κ := κ) sys.initStates
   ⟨BaseSearchContext.initial sys.initStates.length, log, fQueue.ofList (reps.map fun s => ⟨fp.view s, s, 0⟩)⟩
 
 theorem SequentialSearchContext.initial_invs :
   SequentialSearchContextInvariants sys params .none (SequentialSearchContext.initial (fp := fp) sys) ∧
     ∃ rep dep, (SequentialSearchContext.initial (fp := fp) sys).LogSound sys params rep dep := by
+  have h : DedupFoldDescription
+      (key := fun x : σ × Nat => fp.view x.1)
+      (val := fun x => (LogEntry.init x.2 : LogEntry σₕ κ))
+      (proj := Prod.fst) (lst := Prod.fst) (look := fun acc y => acc.2[y]?)
+      sys.initStates.zipIdx (initialLogAndRepresentativesSequential (κ := κ) (fp := fp) sys.initStates) := by
+    rw [initialLogAndRepresentativesSequential.eq_def, List.foldlIdx_eq_foldl_zipIdx]
+    apply DedupFoldDescription.ofDedupFoldDescriptionWithAcc (acc := ([], ∅)) <;> try grind
+    apply DedupFoldDescriptionWithAcc.of_foldl
+    all_goals open Classical in simp [initialLogAndRepresentativesCoreSequential]
+    grind
   unfold SequentialSearchContext.initial BaseSearchContext.initial
-  have h := initialLogAndRepresentatives_description (κ := κ) (fp := fp) sys.initStates
-  generalize (initialLogAndRepresentatives (κ := κ) (fp := fp) sys.initStates) = res at h ⊢
+  generalize (initialLogAndRepresentativesSequential (κ := κ) (fp := fp) sys.initStates) = res at h ⊢
   rcases h with ⟨reps, h0, h1, h2, h3, h4⟩ ; rcases res with ⟨states, log⟩
   dsimp only at * ; subst h0 ; simp only [List.map_map] ; simp at h3 h4
   constructor ; on_goal 1=> constructor ; on_goal 1=> constructor
-  -- CHECK Hoist the use of `[Std.HashMap.mem_iff_isSome_getElem?, Option.isSome_iff_exists]` to `initialLogAndRepresentatives_description`?
   all_goals (try simp [SequentialSearchContext.isStableClosed, ← fQueue.mem_ofList]) ; (try solve | intros ; grind)
   · intros ; subst_vars ; simp
-    rename_i hh ; obtain ⟨h31, h32⟩ := h3 _ _ hh ; constructor ; grind
     simp only [Std.HashMap.mem_iff_isSome_getElem?, Option.isSome_iff_exists, h4]
     grind
   · grind [Std.HashMap.mem_iff_isSome_getElem?, Option.isSome_iff_exists]
   · intros s hin ; simp only [Std.HashMap.mem_iff_isSome_getElem?, Option.isSome_iff_exists, h4]
-    simp at h2
-    specialize h2 _ hin ; aesop
+    simp [List.mk_mem_zipIdx_iff_getElem?] at h2
+    replace ⟨i, hi⟩ := List.getElem?_of_mem hin
+    specialize h2 _ _ hi ; aesop
   · simp only [Std.HashMap.mem_iff_isSome_getElem?, Option.isSome_iff_exists, h4]
     grind
   · let rep (a : σₕ) := (log[a]?).bind fun

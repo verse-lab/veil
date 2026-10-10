@@ -210,16 +210,6 @@ the frontier's, and `0` while the frontier is at depth `0`. -/
 @[inline]
 def BaseSearchContext.completedDepth (ctx : BaseSearchContext σ κ σₕ asm) : Nat := ctx.currentFrontierDepth - 1
 
-@[inline]
-def initialLogAndRepresentativesCore (i : Nat) (acc : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ)) (s : σ) :=
-  let (a, l) := acc
-  let x := fp.view s
-  if l.contains x then (a, l) else (s :: a, l.insert x (.init i))
-
-@[inline]
-def initialLogAndRepresentatives (initialStates : List σ) : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ) :=
-  initialStates.foldlIdx (init := ([], ∅)) initialLogAndRepresentativesCore
-
 /-- The context of a search before any state is processed: the `numInitialStates` initial states
 are all it has found. -/
 @[inline]
