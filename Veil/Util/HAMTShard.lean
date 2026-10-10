@@ -65,12 +65,22 @@ variable [LawfulBEq α]
 -- The HAMT hashes with `hashable α`, not with the `Hashable α` instance in scope, so the
 -- `VerifiedHAMT.Set` operations get their instances explicitly.
 instance : SetShard α (HAMTShard α) where
+  empty := @VerifiedHAMT.Set.empty α _ (hashable α)
   ofList l := @VerifiedHAMT.Set.ofList α _ (hashable α) _ l
   contains := contains
+  insert s x := @VerifiedHAMT.Set.insert α _ (hashable α) _ s x
   insertMany s hs := hs.fold (init := s) (@VerifiedHAMT.Set.insert α _ (hashable α) _)
   size s := @VerifiedHAMT.Set.size α _ (hashable α) s
+  toList s := @VerifiedHAMT.Set.toList α _ (hashable α) s
+  not_mem_empty := fun {k} => @VerifiedHAMT.Set.not_mem_empty α _ (hashable α) k
   contains_iff_mem := fun {s k} => @VerifiedHAMT.Set.contains_eq_true_iff α _ (hashable α) _ s k
+  mem_toList := fun {s k} => @VerifiedHAMT.Set.mem_toList α _ (hashable α) s k
+  nodup_toList := fun {s} => @VerifiedHAMT.Set.nodup_toList α _ (hashable α) s
+  length_toList := fun {s} => @VerifiedHAMT.Set.length_toList α _ (hashable α) s
   mem_ofList := fun {l k} => @VerifiedHAMT.Set.mem_ofList α _ (hashable α) _ l k
+  mem_insert := fun {s x k} => by
+    rw [@VerifiedHAMT.Set.mem_insert_iff α _ (hashable α) _ s x k, beq_iff_eq]
+    exact or_congr_left eq_comm
   mem_insertMany := by
     intro s hs k
     rw [HashSet.fold_eq_foldl_toList, @VerifiedHAMT.Set.mem_foldl_insert α _ (hashable α) _,
@@ -96,16 +106,30 @@ variable [LawfulBEq α]
 
 -- As for `HAMTShard`, the operations get the HAMT's `Hashable` instance explicitly.
 instance : SetShard α (HAMTKeysShard α) where
+  empty := @VerifiedHAMT.SetWithoutValArray.empty α _ (HAMTShard.hashable α)
   ofList l := @VerifiedHAMT.SetWithoutValArray.ofList α _ (HAMTShard.hashable α) _ l
   contains := contains
+  insert s x := @VerifiedHAMT.SetWithoutValArray.insert α _ (HAMTShard.hashable α) _ s x
   insertMany s hs :=
     hs.fold (init := s) (@VerifiedHAMT.SetWithoutValArray.insert α _ (HAMTShard.hashable α) _)
   size s := @VerifiedHAMT.SetWithoutValArray.Raw.SizedRaw.size α _ (HAMTShard.hashable α)
     (@VerifiedHAMT.SetWithoutValArray.toSizedRaw α _ (HAMTShard.hashable α) s)
+  toList s := @VerifiedHAMT.SetWithoutValArray.toList α _ (HAMTShard.hashable α) s
+  not_mem_empty := fun {k} =>
+    @VerifiedHAMT.SetWithoutValArray.not_mem_empty α _ (HAMTShard.hashable α) k
   contains_iff_mem := fun {s k} =>
     @VerifiedHAMT.SetWithoutValArray.contains_eq_true_iff α _ (HAMTShard.hashable α) _ s k
+  mem_toList := fun {s k} =>
+    @VerifiedHAMT.SetWithoutValArray.mem_toList α _ (HAMTShard.hashable α) s k
+  nodup_toList := fun {s} =>
+    @VerifiedHAMT.SetWithoutValArray.nodup_toList α _ (HAMTShard.hashable α) s
+  length_toList := fun {s} =>
+    @VerifiedHAMT.SetWithoutValArray.length_toList α _ (HAMTShard.hashable α) s
   mem_ofList := fun {l k} =>
     @VerifiedHAMT.SetWithoutValArray.mem_ofList α _ (HAMTShard.hashable α) _ l k
+  mem_insert := fun {s x k} => by
+    rw [@VerifiedHAMT.SetWithoutValArray.mem_insert_iff α _ (HAMTShard.hashable α) _ s x k, beq_iff_eq]
+    exact or_congr_left eq_comm
   mem_insertMany := by
     intro s hs k
     rw [HashSet.fold_eq_foldl_toList,

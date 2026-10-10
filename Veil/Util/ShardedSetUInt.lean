@@ -146,9 +146,16 @@ end VectorUSize
 /-- The operations, and their specifications, that every sharded collection needs from the type `S`
 of its shards. `SetShard` extends it with what the sharded sets need. -/
 class KeyShard (α : Type u) (S : Type v) [Membership α S] where
+  empty : S
   contains : S → α → Bool
   size : S → Nat
+  /-- The keys. -/
+  toList : S → List α
+  not_mem_empty {k : α} : k ∉ empty
   contains_iff_mem {s : S} {k : α} : contains s k = true ↔ k ∈ s
+  mem_toList {s : S} {k : α} : k ∈ toList s ↔ k ∈ s
+  nodup_toList {s : S} : (toList s).Nodup
+  length_toList {s : S} : (toList s).length = size s
 
 /-- Keys of type `α` split into `numShards` shards of type `S` by their hash: each key is in the
 shard at index `shardIdxOfUSize numShards k`. The sharded sets are this structure, for different
@@ -206,19 +213,6 @@ theorem mem_iff_exists_shard {st : ShardedUSize α S numShards} {k : α} :
     have h_eq := shardIdx_toNat_of_mem hi' hk
     simp only [h_eq]; exact hk
 
-/-- No key is listed twice if each shard lists its keys with `keys` without duplicates. -/
-theorem nodup_flatMap {st : ShardedUSize α S numShards} {keys : S → List α}
-    (h_mem : ∀ s k, k ∈ keys s ↔ k ∈ s) (h_nodup : ∀ s, (keys s).Nodup) :
-    (st.shards.val.toList.flatMap keys).Nodup := by
-  simp [Veil.List.nodup_flatMap] ; constructor
-  · intros ; apply h_nodup
-  · rw [List.pairwise_iff_getElem] ; intros i j hi hj hne
-    whnf ; simp [h_mem] ; intro a hini hinj
-    simp at hi hj
-    have h1 := shardIdx_toNat_of_mem hi hini
-    have h2 := shardIdx_toNat_of_mem hj hinj
-    grind
-
 section KeyShard
 
 variable [KeyShard α S]
@@ -239,11 +233,25 @@ theorem not_contains_iff_not_mem {st : ShardedUSize α S numShards} {k : α} :
     st.contains k = false ↔ k ∉ st := by
   rw [← contains_iff_mem] ; grind
 
-/-- The size is the number of keys of all shards, listed by `keys`. -/
-theorem size_eq_length_flatMap {st : ShardedUSize α S numShards} {keys : S → List α}
-    (h : ∀ s, KeyShard.size (α := α) s = (keys s).length) :
-    st.size = (st.shards.val.toList.flatMap keys).length := by
-  simp [size, ← Array.foldl_toList, h, List.sum_eq_foldl, List.foldl_map]
+/-- The keys of all shards. -/
+@[inline]
+def toList (st : ShardedUSize α S numShards) : List α :=
+  st.shards.val.toList.flatMap KeyShard.toList
+
+theorem length_toList {st : ShardedUSize α S numShards} :
+    st.size = st.toList.length := by
+  simp [size, toList, ← Array.foldl_toList, KeyShard.length_toList, List.sum_eq_foldl, List.foldl_map]
+
+theorem nodup_toList {st : ShardedUSize α S numShards} :
+    st.toList.Nodup := by
+  simp [toList, Veil.List.nodup_flatMap] ; constructor
+  · intros ; apply KeyShard.nodup_toList
+  · rw [List.pairwise_iff_getElem] ; intros i j hi hj hne
+    whnf ; simp [KeyShard.mem_toList] ; intro a hini hinj
+    simp at hi hj
+    have h1 := shardIdx_toNat_of_mem hi hini
+    have h2 := shardIdx_toNat_of_mem hj hinj
+    grind
 
 end KeyShard
 
@@ -264,6 +272,13 @@ theorem not_mem_replicate {s : S} {h : ∀ k : α, k ∉ s} {k : α} :
     k ∉ replicate (numShards := numShards) s h := by
   simp [mem_def, replicate, getShard, VectorUSize.ugetViaHash, VectorUSize.uget,
     VectorUSize.replicateUSize, Array.uget, Array.getElem_replicate, h]
+
+/-- The collection without keys. -/
+def empty [KeyShard α S] : ShardedUSize α S numShards :=
+  replicate (KeyShard.empty (α := α)) fun _ => KeyShard.not_mem_empty
+
+theorem not_mem_empty [KeyShard α S] {k : α} : k ∉ (empty : ShardedUSize α S numShards) :=
+  not_mem_replicate
 
 /-- Apply `f` to the shard of `k`, in place if that shard is not shared. `f` may add only keys of
 that shard. -/
@@ -331,8 +346,10 @@ collects the new states of a BFS level per shard and then adds them to each shar
 class SetShard (α : Type u) (S : Type v) [BEq α] [Hashable α] [Membership α S] extends KeyShard α S where
   /-- A shard holding the elements of a list. -/
   ofList : List α → S
+  insert : S → α → S
   insertMany : S → HashSet α → S
   mem_ofList {l : List α} {k : α} : k ∈ ofList l ↔ k ∈ l
+  mem_insert {s : S} {x k : α} : k ∈ insert s x ↔ (x == k) = true ∨ k ∈ s
   mem_insertMany {s : S} {hs : HashSet α} {k : α} : k ∈ insertMany s hs ↔ k ∈ s ∨ k ∈ hs
 
 /-- `Std.TreeSet` ordered by `compare`, as the set type of shards: the default for the parallel search's
@@ -341,18 +358,39 @@ abbrev TreeSetShard (α : Type u) [Ord α] := TreeSet α compare
 
 instance [Ord α] [TransOrd α] [BEq α] [LawfulBEqOrd α] [LawfulBEq α] [Hashable α] :
     SetShard α (TreeSetShard α) where
+  empty := ∅
   ofList l := TreeSet.ofListFast l compare
   contains := TreeSet.contains
+  insert s x := s.insert x
   insertMany s hs := s.insertManyFast hs
   size := TreeSet.size
+  toList := TreeSet.toList
+  not_mem_empty := TreeSet.not_mem_emptyc
   contains_iff_mem := TreeSet.mem_iff_contains.symm
+  mem_toList := TreeSet.mem_toList
+  nodup_toList := TreeSet.distinct_toList.imp fun h heq => by subst heq ; exact h ReflCmp.compare_self
+  length_toList := TreeSet.length_toList
   mem_ofList := by simp [TreeSet.mem_ofListFast]
+  mem_insert := by intros ; rw [TreeSet.mem_insert, LawfulBEqCmp.compare_eq_iff_beq]
   mem_insertMany := by intros ; simp only [TreeSet.mem_insertManyFast_hashset, HashSet.mem_iff_contains]
 
-instance [BEq α] [Hashable α] : KeyShard α (HashSet α) where
+/-- `HashSet` as the set type of shards, for `ShardedHashSetUSize`. -/
+instance [BEq α] [Hashable α] [LawfulBEq α] [LawfulHashable α] : SetShard α (HashSet α) where
+  empty := HashSet.emptyWithCapacity 8
+  ofList := HashSet.ofList
   contains := HashSet.contains
+  insert s x := s.insert x
+  insertMany s hs := s.insertMany hs.toList
   size := HashSet.size
+  toList := HashSet.toList
+  not_mem_empty := HashSet.not_mem_emptyWithCapacity
   contains_iff_mem := HashSet.mem_iff_contains.symm
+  mem_toList := HashSet.mem_toList
+  nodup_toList := HashMap.nodup_keys
+  length_toList := HashSet.length_toList
+  mem_ofList := by simp [HashSet.mem_ofList]
+  mem_insert := HashSet.mem_insert
+  mem_insertMany := by simp [HashSet.mem_insertMany_list, HashSet.mem_toList]
 
 /-- A set split into shards of type `S` by the hash of each key, with `USize`-based sharding. -/
 abbrev ShardedSetUSize (α : Type u) (S : Type v) [Hashable α] [Membership α S] (numShards : PosUSize) :=
@@ -423,53 +461,26 @@ theorem mem_insertMany {st : ShardedSetUSize α S numShards} {items : ShardedHas
   simp [ShardedUSize.mem_def, insertMany, ShardedUSize.zipShardsPar, ShardedUSize.getShard, Task.spawn,
     VectorUSize.ugetViaHash, VectorUSize.uget, SetShard.mem_insertMany]
 
-end ShardedSetUSize
+/-! ### Single insertion -/
 
-namespace ShardedHashSetUSize
-
-variable {α : Type u} [BEq α] [Hashable α] {numShards : PosUSize}
-
-/-- The empty set with `numShards` shards. -/
-def empty : ShardedHashSetUSize α numShards :=
-  .replicate (HashSet.emptyWithCapacity 8) fun _ => HashSet.not_mem_emptyWithCapacity
-
-theorem not_mem_empty {x : α} : x ∉ (empty : ShardedHashSetUSize α numShards) :=
-  ShardedUSize.not_mem_replicate
-
-/-- Unconditionally insert an element into the sharded hash set. -/
-@[specialize 1 2 3]
-def insert [LawfulBEq α] [LawfulHashable α] (shs : ShardedHashSetUSize α numShards) (x : α) :
-    ShardedHashSetUSize α numShards :=
-  shs.modifyShard x (·.insert x) fun _ k hk => by
-    simp [HashSet.mem_insert] at hk
+/-- Unconditionally insert an element into the sharded set. -/
+@[specialize]
+def insert [LawfulBEq α] (st : ShardedSetUSize α S numShards) (x : α) :
+    ShardedSetUSize α S numShards :=
+  st.modifyShard x (SetShard.insert · x) fun _ k hk => by
+    simp [SetShard.mem_insert] at hk
     rcases hk with hk | hk
     · grind
     · exact .inl hk
 
 @[simp]
-theorem mem_insert [LawfulBEq α] [LawfulHashable α]
-    {shs : ShardedHashSetUSize α numShards} {x y : α} :
-    x ∈ shs.insert y ↔ (y == x) = true ∨ x ∈ shs := by
+theorem mem_insert [LawfulBEq α] {st : ShardedSetUSize α S numShards} {x y : α} :
+    x ∈ st.insert y ↔ (y == x) = true ∨ x ∈ st := by
   unfold insert ShardedUSize.modifyShard
   rw [ShardedUSize.mem_def, ShardedUSize.mem_def]
   unfold ShardedUSize.getShard
   simp [VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.ugetViaHash, VectorUSize.uget, VectorUSize.uset,
     Array.uget, Array.uset, Array.getElem_set]
-  grind
+  grind [SetShard.mem_insert]
 
-/-- The keys. -/
-@[inline]
-def toList (shs : ShardedHashSetUSize α numShards) : List α :=
-  shs.shards.val.toList.flatMap (·.toList)
-
-theorem length_toList [EquivBEq α] [LawfulHashable α]
-    {shs : ShardedHashSetUSize α numShards} :
-    shs.size = shs.toList.length :=
-  ShardedUSize.size_eq_length_flatMap fun _ => HashSet.length_toList.symm
-
-theorem nodup_elements [LawfulBEq α] [LawfulHashable α]
-    {shs : ShardedHashSetUSize α numShards} :
-    shs.toList.Nodup :=
-  ShardedUSize.nodup_flatMap (fun _ _ => HashSet.mem_toList) fun _ => HashMap.nodup_keys
-
-end ShardedHashSetUSize
+end ShardedSetUSize
