@@ -411,6 +411,45 @@ def failingStepOf (s : σ) (e : Int) (h : ∃ f ∈ (sys.tr th s).failures, f.er
   let f := ((sys.tr th s).failures.find? (·.error == e)).get (by simpa [List.find?_isSome] using h)
   { transitionLabel := f.label, nextState := f.state }
 
+/-- The trace to the state recorded against `x`, recovered in `sys` from the log `look`, with the
+failing step when the violation is an assertion failure. Total: the log is sound for some
+representatives, and the representative of `x` exhibits the violation `kind`. -/
+def recoverViolationTrace (params : SearchParameters ρ σ) (look : LogLookup σₕ κ) (x : σₕ)
+    (kind : ViolationKind)
+    (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ViolationSound sys params rep (x, kind)) :
+    Trace ρ σ κ :=
+  let r := recoverTrace sys look x (h.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.1⟩) (by
+    obtain ⟨rep, dep, hinv, s, hs, -⟩ := h ; exact hinv.rep_mem x (by simp [hs]))
+  { r.trace with failingStep := match kind, h with
+    | .assertionFailure e, h => some (failingStepOf sys r.trace.lastState e (by
+        obtain ⟨rep, dep, hinv, hv⟩ := h ; exact r.exhibitsViolation sys hinv hv))
+    | _, _ => none }
+
+/-- The recovered trace of a violation is valid in `sys`, and ends at a state that exhibits the
+violation. -/
+theorem recoverViolationTrace_sound {params : SearchParameters ρ σ} {look : LogLookup σₕ κ}
+    {x : σₕ} {kind : ViolationKind}
+    (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ViolationSound sys params rep (x, kind)) :
+    letI t := recoverViolationTrace sys params look x kind h
+    t.isValid sys.toRelational ∧ t.theory = th ∧ ExhibitsViolation sys params t.lastState kind := by
+  have ⟨rep, dep, hinv, hv⟩ := h
+  have ⟨s, hs, _⟩ := hv
+  let r := recoverTrace sys look x ⟨rep, dep, hinv⟩ (hinv.rep_mem x (by simp [hs]))
+  obtain ⟨⟨h1, h2, h3⟩, hth⟩ := r.isValid sys
+  exact ⟨⟨h1, h2, h3⟩, hth, r.exhibitsViolation sys hinv hv⟩
+
+/-- What a result of the search guarantees: a violation comes with a trace that is valid in `sys`
+and ends at a state that exhibits it, except for an `assumptionFailure`, which comes without one and
+names the assumptions that the theory violates. Nothing is claimed about a search that found no
+violation, or was cancelled. -/
+def ResultSound (params : SearchParameters ρ σ) : ModelCheckingResult ρ σ κ σₕ → Prop
+  | .foundViolation _ kind trace? =>
+    match trace? with
+    | some t => t.isValid sys.toRelational ∧ t.theory = th ∧ ExhibitsViolation sys params t.lastState kind
+    | none => ∃ names, kind = .assumptionFailure names ∧ names = params.violatedAssumptions th ∧ names ≠ []
+  | .noViolationFound _ _ => True
+  | .cancelled => True
+
 omit fp in
 theorem ViolationSound.mono {params : SearchParameters ρ σ} {rep rep' : σₕ → Option σ}
     (hle : ∀ x s, rep x = some s → rep' x = some s) {v : σₕ × ViolationKind}

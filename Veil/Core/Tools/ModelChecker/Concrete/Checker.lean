@@ -13,26 +13,10 @@ namespace Veil.ModelChecker.Concrete
 This module provides the main entry point for model checking, dispatching to
 either the sequential or parallel implementation based on configuration. -/
 
-/-- The trace to the state recorded against `x`, recovered in `sys` from the search's log `look`,
-with the failing step when the violation is an assertion failure. Total: the log is sound for some
-representatives, and the representative of `x` exhibits the violation `kind`. -/
-private def recoverViolationTrace {ρ σ κ σₕ : Type} [StateFingerprint σ σₕ] {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
-  (params : SearchParameters ρ σ) (look : LogLookup σₕ κ) (x : σₕ) (kind : ViolationKind)
-  (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ViolationSound sys params rep (x, kind)) :
-  Trace ρ σ κ :=
-  let r := recoverTrace sys look x (h.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.1⟩) (by
-    obtain ⟨rep, dep, hinv, hv⟩ := h ; obtain ⟨s, hs, -⟩ := hv
-    exact hinv.rep_mem x (by simp [hs]))
-  match kind, h with
-  | .assertionFailure e, h => { r.trace with failingStep := some (failingStepOf sys r.trace.lastState e (by
-      obtain ⟨rep, dep, hinv, hv⟩ := h ; exact r.exhibitsViolation sys hinv hv)) }
-  | _, _ => r.trace
-
 /-- The result of a finished search, with a trace for a violation, recovered in `sys` from the
 search's log `look`: the log is sound for some representatives, which exhibit the violations that
 `ctx` records. `traceSys` is not read yet: the picks of a trace will come from it. -/
-private def searchResult {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th : ρ}
+def searchResult {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (_traceSys : Unit → EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ) [fp : StateFingerprint σ σₕ]
@@ -63,6 +47,18 @@ private def searchResult {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th :
         exact ⟨rep, dep, hinv, hviol _ (by rw [hv] ; exact List.mem_cons_self)⟩)))
     | [] => .noViolationFound distinctCount .exploredAllReachableStates
   | none => panic! s!"SearchContext.finished is none! This should never happen."
+
+/-- The result of a search is sound: each violation it reports comes with a trace that is valid in
+`sys` and ends at a state that exhibits the violation. -/
+theorem searchResult_sound {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
+  (traceSys : Unit → EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
+  (params : SearchParameters ρ σ) [fp : StateFingerprint σ σₕ]
+  (ctx : BaseSearchContext σ κ σₕ asm) (look : LogLookup σₕ κ) (distinctCount : Nat)
+  (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ctx.ViolationTerminationSound sys params rep) :
+  ResultSound sys params (searchResult sys traceSys params ctx look distinctCount h) := by
+  unfold searchResult
+  split <;> (try split) <;> first | exact recoverViolationTrace_sound sys _ | trivial
 
 /-- Run `act`, and only then let go of `keep`, which is part of the result. If inlined, the caller
 would take the pair apart right away and release `keep` before `act` runs; a function that just
