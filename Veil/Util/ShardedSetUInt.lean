@@ -254,16 +254,11 @@ def ofListByHash
   let shardArr := tasks.map Task.get
   ⟨USize.ofNat numShards, h_pos, ⟨shardArr.toArray, by grind⟩⟩
 
-private theorem ofListByHash_getShard
-    {numShards : Nat} {h_pos} {h_small} {l : List α} (k : α) :
-    (ofListByHash (S := S) l numShards h_pos h_small).getShard k =
-      SetShard.ofList ((distributeByHash l numShards h_pos h_small).ugetViaHash k h_pos) := by
-  simp [ofListByHash, getShard, Task.spawn, VectorUSize.ugetViaHash, VectorUSize.uget]
-
 theorem mem_ofListByHash [LawfulBEq α]
     {numShards : Nat} {h_pos} {h_small} {l : List α} {k : α} :
     k ∈ ofListByHash (S := S) l numShards h_pos h_small ↔ k ∈ l := by
-  simp only [mem_def, ofListByHash_getShard, SetShard.mem_ofList]
+  simp [mem_def, ofListByHash, getShard, Task.spawn, VectorUSize.ugetViaHash,
+    VectorUSize.uget, SetShard.mem_ofList]
   exact distributeByHash_mem
 
 /-! ## Sharded insertion -/
@@ -284,22 +279,14 @@ def insertManySharded
   let newShards := ⟨shardArr.toArray, by simp [shardArr, tasks, pairs, st.shards.property, items.property]⟩
   { st with shards := newShards }
 
-private theorem insertManySharded_getShard
-    {st : ShardedSetUSize α S}
-    {items : VectorUSize (HashSet α) st.numShards}
-    (k : α) :
-    (st.insertManySharded items).getShard k =
-      SetShard.insertMany (st.getShard k) (items.ugetViaHash k st.h_numShards_pos) := by
-  simp [insertManySharded, getShard, Task.spawn,
-    VectorUSize.ugetViaHash, VectorUSize.uget]
-
 theorem mem_insertManySharded
     {st : ShardedSetUSize α S}
     {items : VectorUSize (HashSet α) st.numShards}
     {k : α} :
     k ∈ st.insertManySharded items ↔
       k ∈ st ∨ k ∈ (items.ugetViaHash k st.h_numShards_pos) := by
-  simp only [mem_def, insertManySharded_getShard, SetShard.mem_insertMany]
+  simp [mem_def, insertManySharded, getShard, Task.spawn,
+    VectorUSize.ugetViaHash, VectorUSize.uget, SetShard.mem_insertMany]
 
 end ShardedSetUSize
 
@@ -454,10 +441,7 @@ theorem nodup_elements [LawfulBEq α] [LawfulHashable α]
       simp only [VectorUSize.uget, Array.uget, h_toNat_i]; exact hini)
     have h2 := shs.h_in_correct_shard (USize.ofNat j) h_lt_j a (by
       simp only [VectorUSize.uget, Array.uget, h_toNat_j]; exact hinj)
-    rw [h1] at h2
-    have h_eq := congrArg USize.toNat h2
-    rw [h_toNat_i, h_toNat_j] at h_eq
-    omega
+    grind
 
 @[simp]
 theorem mem_insert [LawfulBEq α] [LawfulHashable α]
@@ -466,26 +450,9 @@ theorem mem_insert [LawfulBEq α] [LawfulHashable α]
   unfold insert
   rw [mem_def, mem_def]
   unfold getShard
-  simp only [VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.ugetViaHash, VectorUSize.uget, VectorUSize.uset,
+  simp [VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.ugetViaHash, VectorUSize.uget, VectorUSize.uset,
     Array.uget, Array.uset, Array.getElem_set]
-  constructor
-  · intro hk
-    split at hk
-    · simp only [HashSet.mem_insert] at hk
-      rcases hk with hk | hk
-      · exact Or.inl hk
-      · exact Or.inr (by rename_i heq; simp only [← heq]; exact hk)
-    · exact Or.inr hk
-  · intro hk
-    rcases hk with hk | hk
-    · have := LawfulBEq.eq_of_beq hk ; subst x
-      rw [if_pos rfl]; simp [HashSet.mem_insert]
-    · split
-      · rename_i heq
-        simp [HashSet.mem_insert]; right
-        have : (shardIdxOfUSize numShards x).toNat = (shardIdxOfUSize numShards y).toNat := heq.symm
-        simp only [this] at hk; exact hk
-      · exact hk
+  grind
 
 end ShardedHashSetUSize
 
