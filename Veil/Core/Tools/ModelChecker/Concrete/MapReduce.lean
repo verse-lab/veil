@@ -470,6 +470,45 @@ theorem MapReduceSearchContextMainInvariants.initial
   apply MapReduceSearchContextMainInvariants.of_mergeLayer_initialMapReduceQueueItems <;> try rfl
   intro x ; exact ShardedUSize.not_mem_empty
 
+/-- Merging the initial items into a context that has seen nothing yet makes its log sound: the
+representative of a fingerprint is the initial state that its `init` entry points to. -/
+theorem MapReduceSearchContextMain.LogSound.of_mergeLayer_initialMapReduceQueueItems
+    {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
+    {params : SearchParameters ρ σ} (m0 : MapReduceSearchContextMain σ κ σₕ asm Shard numShards)
+    (h_tv : m0.tovisit = []) (h_gs : ∀ x, x ∉ m0.globalSeen)
+    (h_vs : m0.base.violatingStates = []) (h_fin : m0.base.finished = none) :
+    ∃ rep dep, (m0.mergeLayer [initialMapReduceQueueItems sys.initStates]).LogSound sys params rep dep := by
+  obtain ⟨⟨tovisit, seen⟩, hd, h_merge⟩ :=
+    m0.mergeLayer_description [initialMapReduceQueueItems sys.initStates] h_tv
+  rw [h_merge] ; clear h_merge
+  obtain ⟨pfx, h_pfx, h_nodup, h_cov, h_inQ, h_content⟩ := hd
+  have h_gs' : ∀ x, ShardedMapUSize.get? m0.globalSeen x = none :=
+    fun x => ShardedMapUSize.not_mem_iff_get?_none.mp (h_gs x)
+  simp [initialMapReduceQueueItems] at h_pfx h_inQ h_content
+  subst_vars
+  let rep (a : σₕ) := (seen.get? a).bind fun
+    | .init j => sys.initStates[j]?
+    | .step .. => none
+  exists rep, fun _ => 0 ; dsimp [rep]
+  refine ⟨⟨by simp [h_vs], by simp [h_fin, TerminationSound]⟩, ?_, ?_⟩    -- nothing recorded yet
+  on_goal 1=> constructor
+  all_goals (try simp [ShardedMapUSize.get?_insertMany, h_gs', Option.bind_eq_some_iff]) ; try grind
+  · intro x ; cases ShardedMapUSize.get? seen x <;> simp
+  · intro x i hx
+    obtain ⟨a, ha, -, he⟩ := (h_content _ _).mp hx ; obtain ⟨j, hj, rfl⟩ := h_inQ a ha
+    cases he ; simp [hx, hj]
+  · intro item hitem ; obtain ⟨j, hj, rfl⟩ := h_inQ item hitem
+    exact ⟨_, (h_content _ _).mpr ⟨_, hitem, rfl, rfl⟩, by simp [hj]⟩
+
+theorem MapReduceSearchContextMain.LogSound.initial
+    (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
+    (params : SearchParameters ρ σ) :
+    ∃ rep dep, (MapReduceSearchContextMain.initial (fp := fp) (Shard := Shard) (asm := asm)
+      (numShards := numShards) sys.initStates).LogSound sys params rep dep := by
+  unfold MapReduceSearchContextMain.initial
+  apply MapReduceSearchContextMain.LogSound.of_mergeLayer_initialMapReduceQueueItems <;> try rfl
+  intro x ; exact ShardedUSize.not_mem_empty
+
 private theorem List.zip_mem {α : Type u} {β : Type v} {l1 : List α} {l2 : List β}
   (hl : l1.length ≤ l2.length) (h : i < l1.length) :
   (l1[i], l2[i]) ∈ l1.zip l2 := by
@@ -615,6 +654,67 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
         grind
     · grind
   · rfl
+
+/-- Merging the workers' results keeps the log sound, for representatives extended with the states
+of the new frontier: each new entry is a transition from a state of the old frontier. -/
+theorem MapReduceSearchContextMain.mergeWithLocalOnes_log_sound
+  {params : SearchParameters ρ σ} {th : ρ}
+  {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
+  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards}
+  (h_ls : ∃ rep dep, mctx.LogSound sys params rep dep)
+  {numSplits chunkSize numLarge : Nat}
+  (lctxs :
+    let preds := (ListSplit.splitList numSplits chunkSize numLarge mctx.tovisit).map fun a item => item ∈ a
+    IteratedProd (preds.map fun P => LawfulMapReduceSearchContextLocal (κ := κ) sys params mctx.globalSeen P)) :
+  let mctx' := MapReduceSearchContextMain.mergeWithLocalOnes
+    ⟨{ mctx.base with currentFrontierDepth := mctx.base.currentFrontierDepth + 1 }, 0, [], mctx.globalSeen⟩ lctxs
+  ∃ rep dep, mctx'.LogSound sys params rep dep := by
+  obtain ⟨rep, dep, hls⟩ := h_ls
+  let workers := IteratedProd.subtypesToList lctxs
+  let ctx' : BaseSearchContext σ κ σₕ asm :=
+    { mctx.base with currentFrontierDepth := mctx.base.currentFrontierDepth + 1 }
+  obtain ⟨h_length, h_local⟩ : workers.length = _ ∧ _ := IteratedProd.externalize_proofs lctxs
+  have h_workers : ∀ lctx ∈ workers,
+      (∃ P, MapReduceSearchContextLocalInvariants sys params mctx.globalSeen P lctx) ∧ lctx.LogSound sys params rep := by
+    intro lctx h_in
+    rw [← List.map_snd_zip (Nat.le_of_eq h_length)] at h_in
+    obtain ⟨⟨P, lctx⟩, h_zip, rfl⟩ := List.mem_map.mp h_in
+    obtain ⟨h_inv, h_sound⟩ := h_local _ _ h_zip
+    obtain ⟨a, ha, rfl⟩ := List.mem_map.mp (List.of_mem_zip h_zip).1
+    refine ⟨⟨_, h_inv⟩, h_sound rep fun c hc => hls.tovisit_rep c ?_⟩
+    exact (ListSplit.splitList_mem_iff numSplits chunkSize numLarge mctx.tovisit c).mp ⟨a, ha, hc⟩
+  have h_base := BaseSearchContext.mergeWithoutDepthChange_foldl_sound sys params (acc := ctx')
+    (ctxs := workers.map (·.base)) ⟨hls.violations_sound, hls.termination_sound⟩ (by
+      simp only [List.mem_map] ; rintro _ ⟨lctx, h_in, rfl⟩
+      exact (h_workers lctx h_in).2.toViolationTerminationSound)
+  rw [List.foldl_map] at h_base
+  obtain ⟨merged, ⟨pfx, h_pfx, h_nodup, -, h_inQ, h_content⟩, h_merge⟩ :=
+    mergeLayer_description ⟨workers.foldl BaseSearchContext.mergeWorker ctx', 0, [], mctx.globalSeen⟩
+      (workers.map (·.queue)) rfl
+  dsimp only [mergeWithLocalOnes]
+  rw [h_merge] ; simp only [List.map_id] at h_pfx ; simp only [h_pfx]
+  simp only [List.mem_flatten, List.mem_map] at h_inQ
+  have h_items : ∀ item ∈ pfx, mctx.globalSeen.get? item.fingerprint = none ∧
+      fp.view item.state = item.fingerprint ∧ ∃ p l i sp,
+      item.entry = .step p l i ∧ rep p = some sp ∧ (sys.tr th sp).successes[i]? = some (l, item.state) := by
+    intro item hitem
+    obtain ⟨_, ⟨lctx, h_in, rfl⟩, h_q⟩ := h_inQ item hitem
+    obtain ⟨⟨_, h_inv⟩, h_sound⟩ := h_workers lctx h_in
+    exact ⟨ShardedMapUSize.not_mem_iff_get?_none.mp (h_inv.tovisit_globalSeen_disjoint item h_q),
+      (h_inv.queue_sound _ _ ⟨item.entry, h_q⟩).2.2.symm, h_sound.entries_sound item h_q⟩
+  obtain ⟨rep', dep', hinv, hitems, hmono⟩ := hls.log_invs.update_layer sys pfx h_nodup
+    (fun item hi => (h_items item hi).1) (fun item hi => (h_items item hi).2.1)
+    (fun item hi => (h_items item hi).2.2)
+    (look' := ShardedMapUSize.get? (mctx.globalSeen.insertMany merged.seen))
+    (fun item hi => by
+      simp [ShardedMapUSize.get?_insertMany, (h_content _ _).mpr (List.mem_map_of_mem hi)])
+    (fun x hx => by
+      rw [ShardedMapUSize.get?_insertMany]
+      apply Option.or_eq_right_of_none
+      simp only [Option.eq_none_iff_forall_ne_some]
+      grind only [List.mem_map])
+  exact ⟨rep', dep', ⟨fun v hv => (h_base.violations_sound v hv).mono sys hmono,
+    h_base.termination_sound.mono sys hmono⟩, hinv, hitems⟩
 
 omit [ActionStatUpdate κ asm] in
 private theorem breadthFirstSearchParallel.subproof1 {ρ σₕ σ : Type}

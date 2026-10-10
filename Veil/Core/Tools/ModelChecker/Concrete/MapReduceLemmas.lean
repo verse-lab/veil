@@ -48,6 +48,29 @@ theorem MapReduceSearchContextMainInvariants.setExploredAll_preserves_invs
   constructor ; on_goal 1=> constructor
   all_goals (try dsimp only) ; try solve | assumption | grind
 
+theorem MapReduceSearchContextMainInvariants.setCancelled
+  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards}
+  (mctx_invs : MapReduceSearchContextMainInvariants sys params mctx) :
+  MapReduceSearchContextMainInvariants sys params
+    { mctx with base := { mctx.base with finished := some (.earlyTermination .cancelled) } } := by
+  rcases mctx with ⟨ctx, mlen, q, gs⟩ ; rcases mctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed, h_len⟩ ; dsimp only at *
+  constructor ; on_goal 1=> constructor
+  all_goals (try dsimp only) ; try solve | assumption | grind
+
+theorem MapReduceSearchContextMain.LogSound.setExploredAll [MapShard σₕ (LogEntry σₕ κ) Shard]
+  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+  (h : mctx.LogSound sys params rep dep) :
+  MapReduceSearchContextMain.LogSound sys params
+    { mctx with base := { mctx.base with finished := some (.exploredAllReachableStates) } } rep dep := by
+  rcases h with ⟨⟨hv, _⟩, hlog, hq⟩ ; exact ⟨⟨hv, by simp [TerminationSound]⟩, hlog, hq⟩
+
+theorem MapReduceSearchContextMain.LogSound.setCancelled [MapShard σₕ (LogEntry σₕ κ) Shard]
+  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+  (h : mctx.LogSound sys params rep dep) :
+  MapReduceSearchContextMain.LogSound sys params
+    { mctx with base := { mctx.base with finished := some (.earlyTermination .cancelled) } } rep dep := by
+  rcases h with ⟨⟨hv, _⟩, hlog, hq⟩ ; exact ⟨⟨hv, by simp [TerminationSound]⟩, hlog, hq⟩
+
 theorem MapReduceSearchContextMainInvariants.bfs_completeness
   {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards}
   (mctx_invs : MapReduceSearchContextMainInvariants sys params mctx)

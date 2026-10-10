@@ -123,6 +123,16 @@ where
 abbrev LawfulMapReduceSearchContextMain : Type :=
   Subtype (α := MapReduceSearchContextMain σ κ σₕ asm Shard numShards) (MapReduceSearchContextMainInvariants sys params)
 
+/-- The log of a parallel search, its seen set, describes through the representatives `rep` the
+states on its frontier and the violations it has recorded. Kept apart from
+`MapReduceSearchContextMainInvariants`, since it is preserved for a growing `rep`. -/
+structure MapReduceSearchContextMain.LogSound [MapShard σₕ (LogEntry σₕ κ) Shard]
+    (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards)
+    (rep : σₕ → Option σ) (dep : σₕ → Nat) : Prop
+    extends BaseSearchContext.ViolationTerminationSound sys params mctx.base rep where
+  log_invs : LogInvariants sys (ShardedMapUSize.get? mctx.globalSeen) rep dep
+  tovisit_rep : ∀ item ∈ mctx.tovisit, rep item.fingerprint = some item.state
+
 structure MapReduceSearchContextLocalInvariants
   (globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards)
   (visited : MapReduceQueueItem σₕ σ κ → Prop)
