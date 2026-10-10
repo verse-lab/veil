@@ -53,7 +53,8 @@ def searchResult {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th : ρ}
   | none => panic! s!"SearchContext.finished is none! This should never happen."
 
 /-- The result of a search is sound: each violation it reports comes with a trace that is valid in
-`sys` and ends at a state that exhibits the violation. -/
+`sys`, ends at a state that exhibits the violation, and has the failing step of an assertion
+failure. -/
 theorem searchResult_sound {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (pickSource : Unit → PickSource σ κ)

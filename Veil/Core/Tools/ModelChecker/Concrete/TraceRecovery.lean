@@ -411,6 +411,25 @@ def failingStepOf (s : σ) (e : Int) (h : ∃ f ∈ (sys.tr th s).failures, f.er
   let f := ((sys.tr th s).failures.find? (·.error == e)).get (by simpa [List.find?_isSome] using h)
   { transitionLabel := f.label, nextState := f.state }
 
+/-- The failing step of `failingStepOf` fails with `e`, from `s`. -/
+theorem failingStepOf_mem {s : σ} {e : Int} (h : ∃ f ∈ (sys.tr th s).failures, f.error = e) :
+    letI step := failingStepOf sys s e h
+    (step.transitionLabel, ExecutionOutcome.assertionFailure e step.nextState) ∈ sys.tr th s := by
+  have key : ∀ f, (sys.tr th s).failures.find? (·.error == e) = some f →
+      (⟨f.label, e, f.state⟩ : FailedTransition κ Int σ) ∈ (sys.tr th s).failures := by
+    intro f hf
+    have he : f.error = e := by simpa using List.find?_some hf
+    rw [← he] ; exact List.mem_of_find?_eq_some hf
+  exact Transitions.mem_assertionFailure_iff.mpr (key _ (Option.eq_some_of_isSome _))
+
+/-- The failing step of a trace `t` that ends in the violation `kind`: for an assertion failure
+with exception `e`, a transition from the last state of `t` that fails with `e`; for any other
+violation, none. -/
+def FailingStepSound (t : Trace ρ σ κ) : ViolationKind → Prop
+  | .assertionFailure e => ∃ step, t.failingStep = some step ∧
+      (step.transitionLabel, ExecutionOutcome.assertionFailure e step.nextState) ∈ sys.tr th t.lastState
+  | _ => t.failingStep = none
+
 /-! ### The picks of a recovered trace
 
 The search runs `sys`, which does not log picks; `src` gives the initial states and transitions of
@@ -466,27 +485,31 @@ def recoverViolationTrace (params : SearchParameters ρ σ) (look : LogLookup σ
        | _, _ => none })
 
 variable {src} in
-/-- The recovered trace of a violation is valid in `sys`, and ends at a state that exhibits the
-violation. -/
+/-- The recovered trace of a violation is valid in `sys`, ends at a state that exhibits the
+violation, and has the failing step of an assertion failure (and none otherwise). -/
 theorem recoverViolationTrace_sound {params : SearchParameters ρ σ} {look : LogLookup σₕ κ}
     {x : σₕ} {kind : ViolationKind}
     (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ViolationSound sys params rep (x, kind)) :
     letI t := (recoverViolationTrace sys src params look x kind h).1
-    t.isValid sys.toRelational ∧ t.theory = th ∧ ExhibitsViolation sys params t.lastState kind := by
+    t.isValid sys.toRelational ∧ t.theory = th ∧ ExhibitsViolation sys params t.lastState kind ∧
+      FailingStepSound sys t kind := by
   have ⟨rep, dep, hinv, hv⟩ := h
   have ⟨s, hs, _⟩ := hv
   let r := recoverTrace sys look x ⟨rep, dep, hinv⟩ (hinv.rep_mem x (by simp [hs]))
   obtain ⟨⟨h1, h2, h3⟩, hth⟩ := r.isValid sys
-  exact ⟨⟨h1, h2, h3⟩, hth, r.exhibitsViolation sys hinv hv⟩
+  refine ⟨⟨h1, h2, h3⟩, hth, r.exhibitsViolation sys hinv hv, ?_⟩
+  cases kind <;> first | rfl | exact ⟨_, rfl, failingStepOf_mem sys _⟩
 
-/-- What a result of the search guarantees: a violation comes with a trace that is valid in `sys`
-and ends at a state that exhibits it, except for an `assumptionFailure`, which comes without one and
-names the assumptions that the theory violates. Nothing is claimed about a search that found no
-violation, or was cancelled. -/
+/-- What a result of the search guarantees: a violation comes with a trace that is valid in `sys`,
+ends at a state that exhibits it, and has the failing step of an assertion failure (and none
+otherwise), except for an `assumptionFailure`, which comes without one and names the assumptions
+that the theory violates. Nothing is claimed about a search that found no violation, or was
+cancelled. -/
 def ResultSound (params : SearchParameters ρ σ) : ModelCheckingResult ρ σ κ σₕ → Prop
   | .foundViolation _ kind trace? _ =>
     match trace? with
-    | some t => t.isValid sys.toRelational ∧ t.theory = th ∧ ExhibitsViolation sys params t.lastState kind
+    | some t => t.isValid sys.toRelational ∧ t.theory = th ∧ ExhibitsViolation sys params t.lastState kind ∧
+        FailingStepSound sys t kind
     | none => ∃ names, kind = .assumptionFailure names ∧ names = params.violatedAssumptions th ∧ names ≠ []
   | .noViolationFound _ _ => True
   | .cancelled => True
