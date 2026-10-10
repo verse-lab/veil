@@ -6,7 +6,7 @@ public section
 namespace Veil.ModelChecker.Concrete
 
 variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
-  {Shard : Type} [Membership σₕ Shard] {th : ρ}
+  {Shard : Type} [Membership σₕ Shard] {numShards : PosUSize} {th : ρ}
 
 /-- Create an empty local context with the given `completedDepth`. -/
 @[expose] def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ asm :=
@@ -19,7 +19,7 @@ variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionSta
 theorem MapReduceSearchContextLocalInvariants.initial
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
-  (globalSeen : MapReduceGlobalSeen σₕ κ Shard) (completedDepth : Nat) :
+  (globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards) (completedDepth : Nat) :
   MapReduceSearchContextLocalInvariants sys params globalSeen (fun _ => False)
     (MapReduceSearchContextLocal.initial (fp := fp) completedDepth) := by
   simp [MapReduceSearchContextLocal.initial]
@@ -37,7 +37,7 @@ variable {params : SearchParameters ρ σ}
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
 
 theorem MapReduceSearchContextMainInvariants.setExploredAll_preserves_invs
-  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard}
+  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards}
   (h_not_finished : mctx.base.hasFinished = false)
   (h_empty : mctx.tovisit.isEmpty)
   (mctx_invs : MapReduceSearchContextMainInvariants sys params mctx) :
@@ -49,7 +49,7 @@ theorem MapReduceSearchContextMainInvariants.setExploredAll_preserves_invs
   all_goals (try dsimp only) ; try solve | assumption | grind
 
 theorem MapReduceSearchContextMainInvariants.bfs_completeness
-  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard}
+  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards}
   (mctx_invs : MapReduceSearchContextMainInvariants sys params mctx)
   (h_explore_all : mctx.base.finished = some (.exploredAllReachableStates))
   (h_view_inj : Function.InjectiveOn fp.view sys.reachable) :
@@ -59,7 +59,7 @@ theorem MapReduceSearchContextMainInvariants.bfs_completeness
   induction h_reachable <;> grind
 
 theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_invs
-  {globalSeen : MapReduceGlobalSeen σₕ κ Shard}
+  {globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards}
   {p q : MapReduceQueueItem σₕ σ κ → Prop}
   {lctx : MapReduceSearchContextLocal σ κ σₕ asm}
   (h_finished : lctx.base.hasFinished = true)
@@ -71,7 +71,7 @@ theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_in
   all_goals dsimp only ; try solve | assumption | grind
 
 theorem MapReduceSearchContextLocalInvariants.progress_by_one_state
-  {globalSeen : MapReduceGlobalSeen σₕ κ Shard}
+  {globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards}
   {p q : MapReduceQueueItem σₕ σ κ → Prop}
   {lctx : MapReduceSearchContextLocal σ κ σₕ asm} {e : LogEntry σₕ κ}
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx)

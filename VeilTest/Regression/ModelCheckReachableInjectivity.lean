@@ -76,8 +76,8 @@ example {sctx : SequentialSearchContext State Unit Bool Stats}
     ∀ s, sys.reachable s → fingerprint.view s ∈ sctx.log :=
   SequentialSearchContext.bfs_completeness sys params h_invs h_finished injective_on_reachable
 
-example {Shard : Type} [Membership Bool Shard]
-    {mctx : MapReduceSearchContextMain State Unit Bool Stats Shard}
+example {Shard : Type} [Membership Bool Shard] {numShards : PosUSize}
+    {mctx : MapReduceSearchContextMain State Unit Bool Stats Shard numShards}
     (h_invs : MapReduceSearchContextMainInvariants sys params mctx)
     (h_finished : mctx.base.finished = some .exploredAllReachableStates) :
     ∀ s, sys.reachable s → fingerprint.view s ∈ mctx.globalSeen :=

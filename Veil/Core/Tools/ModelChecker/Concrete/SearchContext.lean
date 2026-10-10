@@ -71,16 +71,18 @@ end Sequential
 section MapReduce
 
 /-- The seen set of the parallel search, which is also its log: for each fingerprint it has seen,
-how the search first reached a state of that fingerprint, in shards of type `Shard`. -/
-abbrev MapReduceGlobalSeen (σₕ κ Shard : Type) : Type := ShardedMapUSize σₕ (LogEntry σₕ κ) Shard
+how the search first reached a state of that fingerprint, in `numShards` shards of type `Shard`. -/
+abbrev MapReduceGlobalSeen (σₕ κ Shard : Type) [Hashable σₕ] [Membership σₕ Shard] (numShards : PosUSize) : Type :=
+  ShardedMapUSize σₕ (LogEntry σₕ κ) Shard numShards
 
-structure MapReduceSearchContextMain (σ κ σₕ asm Shard : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] where
+structure MapReduceSearchContextMain (σ κ σₕ asm Shard : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
+    [Membership σₕ Shard] (numShards : PosUSize) where
   base : BaseSearchContext σ κ σₕ asm
   tovisitLen : Nat
   tovisit : List (MapReduceQueueItem σₕ σ κ)
   /-- The seen set, which is also the log: how the search first reached each state it has seen,
   by fingerprint; `recoverTrace` rebuilds a counterexample trace from it. -/
-  globalSeen : MapReduceGlobalSeen σₕ κ Shard
+  globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards
 
 /-- The state of a worker of the parallel search. -/
 structure MapReduceSearchContextLocal (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] where
@@ -93,7 +95,7 @@ structure MapReduceSearchContextLocal (σ κ σₕ asm : Type) [fp : StateFinger
 variable {ρ σ κ σₕ asm : Type}
   [fp : StateFingerprint σ σₕ]
   [ActionStatUpdate κ asm]
-  {Shard : Type} [Membership σₕ Shard]
+  {Shard : Type} [Membership σₕ Shard] {numShards : PosUSize}
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
@@ -101,7 +103,7 @@ variable {ρ σ κ σₕ asm : Type}
 /-- A map-reduce main context is stable closed if for any reachable state `u`
 that has been seen (in globalSeen) and has been fully processed (i.e., not in the
 frontier array), then all its successful successors have also been seen. -/
-abbrev MapReduceSearchContextMain.isStableClosed (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard) : Prop :=
+abbrev MapReduceSearchContextMain.isStableClosed (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards) : Prop :=
   Function.InjectiveOn fp.view sys.reachable →
     (mctx.base.finished = some (.exploredAllReachableStates) ∨ mctx.base.finished = none) →
       ∀ u, sys.reachable u → (fp.view u) ∈ mctx.globalSeen →
@@ -110,7 +112,7 @@ abbrev MapReduceSearchContextMain.isStableClosed (mctx : MapReduceSearchContextM
             (fp.view v) ∈ mctx.globalSeen
 
 structure MapReduceSearchContextMainInvariants
-  (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard)
+  (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards)
 extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ∃ e, ⟨x, st, e⟩ ∈ mctx.tovisit) (· ∈ mctx.globalSeen)
 where
   init_states_included : ∀ s ∈ sys.initStates, (fp.view s) ∈ mctx.globalSeen
@@ -119,10 +121,10 @@ where
   tovisit_len : mctx.tovisitLen = mctx.tovisit.length
 
 abbrev LawfulMapReduceSearchContextMain : Type :=
-  Subtype (α := MapReduceSearchContextMain σ κ σₕ asm Shard) (MapReduceSearchContextMainInvariants sys params)
+  Subtype (α := MapReduceSearchContextMain σ κ σₕ asm Shard numShards) (MapReduceSearchContextMainInvariants sys params)
 
 structure MapReduceSearchContextLocalInvariants
-  (globalSeen : MapReduceGlobalSeen σₕ κ Shard)
+  (globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards)
   (visited : MapReduceQueueItem σₕ σ κ → Prop)
   (lctx : MapReduceSearchContextLocal σ κ σₕ asm)
 extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ∃ e, ⟨x, st, e⟩ ∈ lctx.queue) (fun h => ∃ s e, ⟨h, s, e⟩ ∈ lctx.queue)
@@ -149,7 +151,7 @@ structure MapReduceSearchContextLocal.LogSound (lctx : MapReduceSearchContextLoc
 it has processed (`visited`) to their states, so that the merge can apply it to the
 representatives of the main context. -/
 abbrev LawfulMapReduceSearchContextLocal
-  (globalSeen : MapReduceGlobalSeen σₕ κ Shard)
+  (globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards)
   (visited : MapReduceQueueItem σₕ σ κ → Prop) : Type :=
   Subtype (α := MapReduceSearchContextLocal σ κ σₕ asm) fun lctx =>
     MapReduceSearchContextLocalInvariants sys params globalSeen visited lctx ∧

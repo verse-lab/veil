@@ -8,8 +8,8 @@ meta import Veil.Util.Tactics
 
 /-! # Sharded Set
 
-    Using `USize`-based sharding to skip the conversion from and to `Nat`. The sharded sets are all
-    `ShardedUSize`, for different types of shards.
+    Using `USize`-based sharding to skip the conversion from and to `Nat`. The sharded sets here and
+    the sharded maps of `ShardedMapUInt` are all `ShardedUSize`, for different types of shards.
 -/
 
 open Std
@@ -77,22 +77,8 @@ theorem usize_eq (v : VectorUSize α n) : v.val.usize = n := by
   simp only [Array.usize, h_size, Nat.toUSize_eq, USize.ofNat_toNat]
 
 @[inline]
-def replicate (h_small : n < USize.size) (x : α) : VectorUSize α n.toUSize :=
-  ⟨Array.replicate n x, by simp only [Array.size_replicate] ; symm ; exact USize.toNat_ofNat_of_lt h_small⟩
-
-@[inline]
 def replicateUSize (n : USize) (x : α) : VectorUSize α n :=
   ⟨Array.replicate n.toNat x, by simp⟩
-
-theorem replicate_eq_replicateUSize (h_small : n < USize.size) (x : α) :
-  replicate h_small x = replicateUSize n.toUSize x := by
-  simp only [replicate, replicateUSize]
-  congr ; rw [USize.toNat_ofNat_of_lt' h_small]
-
--- theorem replicateUSize_eq_replicate (x : α) :
---   replicateUSize n x = replicate h_small x := by
---   simp only [replicate, replicateUSize]
---   congr ; rw [USize.toNat_ofNat_of_lt' h_small]
 
 @[inline]
 def uget (v : VectorUSize α n) (i : USize) (h_lt : i < n) : α :=
@@ -144,7 +130,7 @@ end VectorUSize
 /-! ## Sharded collections -/
 
 /-- The operations, and their specifications, that every sharded collection needs from the type `S`
-of its shards. `SetShard` extends it with what the sharded sets need. -/
+of its shards. `SetShard` and `MapShard` extend it with what the sharded sets and maps need. -/
 class KeyShard (α : Type u) (S : Type v) [Membership α S] where
   empty : S
   contains : S → α → Bool
@@ -158,8 +144,9 @@ class KeyShard (α : Type u) (S : Type v) [Membership α S] where
   length_toList {s : S} : (toList s).length = size s
 
 /-- Keys of type `α` split into `numShards` shards of type `S` by their hash: each key is in the
-shard at index `shardIdxOfUSize numShards k`. The sharded sets are this structure, for different
-types of shards. Since `numShards` is a parameter, it is just the array of shards at run time. -/
+shard at index `shardIdxOfUSize numShards k`. The sharded sets and maps are this structure, for
+different types of shards. Since `numShards` is a parameter, it is just the array of shards at run
+time. -/
 structure ShardedUSize (α : Type u) (S : Type v) [Hashable α] [Membership α S] (numShards : PosUSize) where
   shards : VectorUSize S numShards
   h_in_correct_shard : ∀ (i : USize) (h : i < numShards), ∀ k ∈ shards.uget i h,
