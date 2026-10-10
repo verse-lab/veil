@@ -43,44 +43,34 @@ variable {α : Type u} {β : Type v} {S : Type w} [BEq α] [Hashable α] [Member
 def insertMany (s : S) (m : HashMap α β) : S :=
   m.fold (init := s) fun s k v => insert s k v
 
-/-- Inserting bindings whose keys are pairwise distinct. -/
-private theorem get?_foldl_insert [LawfulBEq α] {l : List (α × β)}
-    (hl : l.Pairwise (fun a b => (a.1 == b.1) = false)) {s : S} {k : α} :
-    get? (l.foldl (fun s b => insert s b.1 b.2) s) k =
-      ((l.find? (·.1 == k)).map (·.2)).or (get? s k) := by
-  induction l generalizing s with
-  | nil => simp
-  | cons b l ih =>
-    rw [List.pairwise_cons] at hl
-    rw [List.foldl_cons, ih hl.2, get?_insert, List.find?_cons]
-    by_cases hb : (b.1 == k) = true
-    · have : l.find? (·.1 == k) = none := by
-        rw [List.find?_eq_none] ; intro x hx ; have := hl.1 x hx
-        simp only [beq_iff_eq, beq_eq_false_iff_ne] at hb this ⊢ ; grind
-      simp [hb, this]
-    · simp [hb]
-
+-- CHECK Maybe move this to a utility file of theorems of `HashMap` operations?
 /-- The value of `k` in a `HashMap`, read off its list of bindings. -/
 private theorem map_snd_find?_toList [LawfulBEq α] [LawfulHashable α] {m : HashMap α β} {k : α} :
     (m.toList.find? (·.1 == k)).map (·.2) = m[k]? := by
-  rcases h : m[k]? with _ | v
-  · have hn : ¬ k ∈ m := by rw [HashMap.mem_iff_isSome_getElem?, h] ; simp
-    rw [HashMap.find?_toList_eq_none_iff_not_mem.mpr hn] ; rfl
-  · have hk : k ∈ m := by rw [HashMap.mem_iff_isSome_getElem?, h] ; simp
-    rw [(HashMap.find?_toList_eq_some_iff_getKey?_eq_some_and_getElem?_eq_some (k' := k)).mpr
-      ⟨HashMap.getKey?_eq_some hk, h⟩] ; rfl
+  apply Option.ext ; intro v
+  simp [Option.map_eq_some_iff, Prod.exists,
+    HashMap.find?_toList_eq_some_iff_getKey?_eq_some_and_getElem?_eq_some,
+    ← Option.isSome_iff_exists]
+  grind [HashMap.mem_iff_isSome_getElem?]
 
 theorem get?_insertMany [LawfulBEq α] [LawfulHashable α] {s : S} {m : HashMap α β} {k : α} :
     get? (insertMany s m) k = m[k]?.or (get? s k) := by
   simp only [insertMany, HashMap.fold_eq_foldl_toList]
-  rw [get?_foldl_insert HashMap.distinct_keys_toList]
-  congr 1 ; exact map_snd_find?_toList
+  rw [← map_snd_find?_toList]
+  have hl := HashMap.distinct_keys_toList (m := m)
+  generalize m.toList = l at hl ⊢
+  induction l generalizing s with
+  | nil => simp
+  | cons b l ih =>
+    rw [List.pairwise_cons] at hl
+    open Classical in simp [List.foldl_cons, ih hl.2, get?_insert, List.find?_cons]
+    grind
 
 theorem mem_insertMany [LawfulBEq α] [LawfulHashable α] {s : S} {m : HashMap α β} {k : α} :
     k ∈ insertMany s m ↔ k ∈ s ∨ k ∈ m := by
   rw [mem_iff_isSome_get? (β := β), get?_insertMany, Option.isSome_or, Bool.or_eq_true,
     ← HashMap.mem_iff_isSome_getElem?, ← mem_iff_isSome_get? (β := β)]
-  exact Or.comm
+  apply Or.comm
 
 end MapShard
 
@@ -131,10 +121,7 @@ instance : MapShard α β (HAMTMapShard α β) where
   get?_empty := fun {k} => @VerifiedHAMT.Map.find?_empty α β _ (HAMTShard.hashable α) _ k
   get?_insert := fun {s k q v} => by
     rw [@VerifiedHAMT.Map.find?_insert α β _ (HAMTShard.hashable α) _ s k q v]
-    by_cases h : k = q
-    · subst h ; simp
-    · have h' : q ≠ k := fun e => h e.symm
-      simp [beq_iff_eq, h, h']
+    simp only [BEq.comm]
 
 end HAMTMapShard
 
@@ -212,21 +199,17 @@ def insertManySharded (st : ShardedMapUSize α β S) (items : VectorUSize (HashM
   let newShards := ⟨shardArr.toArray, by simp [shardArr, tasks, pairs, st.shards.property, items.property]⟩
   { st with shards := newShards }
 
-private theorem insertManySharded_getShard {st : ShardedMapUSize α β S}
-    {items : VectorUSize (HashMap α β) st.numShards} (k : α) :
-    (st.insertManySharded items).getShard k =
-      MapShard.insertMany (st.getShard k) (items.ugetViaHash k st.h_numShards_pos) := by
-  simp [insertManySharded, getShard, Task.spawn, VectorUSize.ugetViaHash, VectorUSize.uget]
-
 theorem get?_insertManySharded [LawfulBEq α] [LawfulHashable α] {st : ShardedMapUSize α β S}
     {items : VectorUSize (HashMap α β) st.numShards} {k : α} :
     (st.insertManySharded items).get? k = (items.ugetViaHash k st.h_numShards_pos)[k]?.or (st.get? k) := by
-  simp only [get?, insertManySharded_getShard, MapShard.get?_insertMany]
+  simp [get?, insertManySharded, getShard, Task.spawn,
+    VectorUSize.ugetViaHash, VectorUSize.uget, MapShard.get?_insertMany]
 
 theorem mem_insertManySharded [LawfulBEq α] [LawfulHashable α] {st : ShardedMapUSize α β S}
     {items : VectorUSize (HashMap α β) st.numShards} {k : α} :
     k ∈ st.insertManySharded items ↔ k ∈ st ∨ k ∈ items.ugetViaHash k st.h_numShards_pos := by
-  simp only [mem_def, insertManySharded_getShard, MapShard.mem_insertMany]
+  simp [mem_def, insertManySharded, getShard, Task.spawn,
+    VectorUSize.ugetViaHash, VectorUSize.uget, MapShard.mem_insertMany]
 
 end ShardedMapUSize
 
@@ -363,15 +346,8 @@ def insert [LawfulBEq α] [LawfulHashable α]
 theorem length_toList [EquivBEq α] [LawfulHashable α]
     {shs : ShardedHashMapUSize α β numShards} :
     shs.size = shs.toList.length := by
-  rcases shs with ⟨h_pos, ⟨shards, h_n⟩, h_ics⟩
-  simp [size, ← Array.foldl_toList, toList, Std.HashMap.length_keys]
-  rw [← Nat.add_zero (List.sum _)]
-  generalize shards.toList = l
-  generalize (0 : Nat) = acc
-  clear h_pos h_n h_ics
-  induction l generalizing acc with
-  | nil => simp
-  | cons x l ih => simp ; grind
+  simp [size, toList, ← Array.foldl_toList, HashMap.length_keys,
+    List.sum_eq_foldl, List.foldl_map]
 
 theorem nodup_elements [LawfulBEq α] [LawfulHashable α]
     {shs : ShardedHashMapUSize α β numShards} :
@@ -395,10 +371,7 @@ theorem nodup_elements [LawfulBEq α] [LawfulHashable α]
       simp only [VectorUSize.uget, Array.uget, h_toNat_i]; exact hini)
     have h2 := shs.h_in_correct_shard (USize.ofNat j) h_lt_j a (by
       simp only [VectorUSize.uget, Array.uget, h_toNat_j]; exact hinj)
-    rw [h1] at h2
-    have h_eq := congrArg USize.toNat h2
-    rw [h_toNat_i, h_toNat_j] at h_eq
-    omega
+    grind
 
 @[simp]
 theorem mem_insert [LawfulBEq α] [LawfulHashable α]
@@ -407,42 +380,17 @@ theorem mem_insert [LawfulBEq α] [LawfulHashable α]
   unfold insert
   rw [mem_def, mem_def]
   unfold getShard
-  simp only [VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.ugetViaHash, VectorUSize.uget, VectorUSize.uset,
+  simp [VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.ugetViaHash, VectorUSize.uget, VectorUSize.uset,
     Array.uget, Array.uset, Array.getElem_set]
-  constructor
-  · intro hk
-    split at hk
-    · simp only [HashMap.mem_insert] at hk
-      rcases hk with hk | hk
-      · exact Or.inl hk
-      · exact Or.inr (by rename_i heq; simp only [← heq]; exact hk)
-    · exact Or.inr hk
-  · intro hk
-    rcases hk with hk | hk
-    · have := LawfulBEq.eq_of_beq hk ; subst x
-      rw [if_pos rfl]; simp [HashMap.mem_insert]
-    · split
-      · rename_i heq
-        simp [HashMap.mem_insert]; right
-        have : (shardIdxOfUSize numShards x).toNat = (shardIdxOfUSize numShards y).toNat := heq.symm
-        simp only [this] at hk; exact hk
-      · exact hk
+  grind
 
 theorem get?_insert [LawfulBEq α] [LawfulHashable α]
     {shs : ShardedHashMapUSize α β numShards} {x y : α} {v : β} :
     (shs.insert y v).get? x = if y == x then some v else shs.get? x := by
   unfold insert get? getShard
-  simp only [VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.ugetViaHash, VectorUSize.uget, VectorUSize.uset,
+  simp [VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.ugetViaHash, VectorUSize.uget, VectorUSize.uset,
     Array.uget, Array.uset, Array.getElem_set]
-  split
-  · rename_i heq
-    rw [HashMap.getElem?_insert]
-    have : (shardIdxOfUSize numShards x).toNat = (shardIdxOfUSize numShards y).toNat := heq.symm
-    simp only [this]
-  · rename_i hne
-    have : (y == x) = false := by
-      apply beq_eq_false_iff_ne.mpr ; intro h ; subst h ; exact hne rfl
-    simp [this]
+  grind
 
 end ShardedHashMapUSize
 
