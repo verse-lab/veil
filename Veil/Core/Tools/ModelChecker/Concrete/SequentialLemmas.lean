@@ -13,17 +13,12 @@ variable {ρ σ κ σₕ asm : Type}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
 
-@[expose, inline]
-def initialLogAndRepresentativesCoreSequential (i : Nat)
-    (acc : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ)) (s : σ) :=
-  let (a, l) := acc
-  let x := fp.view s
-  if l.contains x then (a, l) else (s :: a, l.insert x (.init i))
-
+/-- The initial states deduplicated by fingerprint, last first, and the initial log: the
+fingerprint of each kept state mapped to its position in `initialStates`. -/
 @[expose, inline]
 def initialLogAndRepresentativesSequential (initialStates : List σ) :
     (List σ) × Std.HashMap σₕ (LogEntry σₕ κ) :=
-  initialStates.foldlIdx (init := ([], ∅)) initialLogAndRepresentativesCoreSequential
+  dedupFold (fun x : σ × Nat => fp.view x.1) (fun x => .init x.2) Prod.fst initialStates.zipIdx
 
 /-- Sequential initialization keeps the initial-state indices only in the log. -/
 @[expose] def SequentialSearchContext.initial : SequentialSearchContext σ κ σₕ asm :=
@@ -37,12 +32,8 @@ theorem SequentialSearchContext.initial_invs :
       (key := fun x : σ × Nat => fp.view x.1)
       (val := fun x => (LogEntry.init x.2 : LogEntry σₕ κ))
       (proj := Prod.fst) (lst := Prod.fst) (look := fun acc y => acc.2[y]?)
-      sys.initStates.zipIdx (initialLogAndRepresentativesSequential (κ := κ) (fp := fp) sys.initStates) := by
-    rw [initialLogAndRepresentativesSequential.eq_def, List.foldlIdx_eq_foldl_zipIdx]
-    apply DedupFoldDescription.ofDedupFoldDescriptionWithAcc (acc := ([], ∅)) <;> try grind
-    apply DedupFoldDescriptionWithAcc.of_foldl
-    all_goals open Classical in simp [initialLogAndRepresentativesCoreSequential]
-    grind
+      sys.initStates.zipIdx (initialLogAndRepresentativesSequential (κ := κ) (fp := fp) sys.initStates) :=
+    dedupFold_description _ _ _ _
   unfold SequentialSearchContext.initial BaseSearchContext.initial
   generalize (initialLogAndRepresentativesSequential (κ := κ) (fp := fp) sys.initStates) = res at h ⊢
   rcases h with ⟨reps, h0, h1, h2, h3, h4⟩ ; rcases res with ⟨states, log⟩

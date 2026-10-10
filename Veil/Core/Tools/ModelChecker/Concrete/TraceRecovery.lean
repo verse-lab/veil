@@ -373,6 +373,27 @@ theorem DedupFoldDescriptionWithAcc.of_foldl [BEq K] [LawfulBEq K]
       obtain ⟨pfx, h1, h2, h3, h4, h5⟩ := ih acc
       exists pfx ; grind
 
+/-- Deduplicate `l` by `key`, keeping the first element of each key: the kept elements by `proj`,
+last first, and their values by `val`, by key. -/
+@[inline]
+def dedupFold [BEq K] [Hashable K] (key : α → K) (val : α → V) (proj : α → β) (l : List α) :
+    List β × Std.HashMap K V :=
+  l.foldl (init := ([], ∅)) fun acc a =>
+    if acc.2.contains (key a) then acc else (proj a :: acc.1, acc.2.insert (key a) (val a))
+
+theorem dedupFold_description [BEq K] [LawfulBEq K] [Hashable K] [LawfulHashable K]
+    (key : α → K) (val : α → V) (proj : α → β) (l : List α) :
+    DedupFoldDescription key val proj Prod.fst (fun acc k => acc.2[k]?) l (dedupFold key val proj l) := by
+  refine DedupFoldDescription.ofDedupFoldDescriptionWithAcc
+    (acc := (([], ∅) : List β × Std.HashMap K V)) ?_ rfl (fun _ => Std.HashMap.getElem?_empty)
+  unfold dedupFold
+  apply DedupFoldDescriptionWithAcc.of_foldl <;> intro acc a h <;> grind
+
+/-- The kept elements of a deduplication are elements of the list. -/
+theorem mem_of_mem_dedupFold_id [BEq K] [LawfulBEq K] [Hashable K] [LawfulHashable K]
+    {key : α → K} {val : α → V} {l : List α} {a : α} (ha : a ∈ (dedupFold key val id l).1) : a ∈ l := by
+  obtain ⟨pfx, h_lst, -, -, h_inQ, -⟩ := dedupFold_description key val id l ; grind
+
 /-! ### Violations recorded by the search -/
 
 /-- `s` exhibits the violation `kind`: it violates exactly the invariants `names` of a
