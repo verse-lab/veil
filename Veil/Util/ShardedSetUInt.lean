@@ -62,6 +62,9 @@ theorem shardIdxOfUSize_lt {numShards : USize} (k : α) (h_pos : 0 < numShards) 
 
 end ShardedSetUInt
 
+/-- A positive `USize`, such as a number of shards. At run time, it is just the `USize`. -/
+abbrev PosUSize := { n : USize // 0 < n }
+
 /-! ## Vector using UInt-based operations -/
 
 /-- Similar to `Vector`, but with `USize` indices and size. -/
@@ -150,8 +153,7 @@ class KeyShard (α : Type u) (S : Type v) [Membership α S] where
 /-- Keys of type `α` split into `numShards` shards of type `S` by their hash: each key is in the
 shard at index `shardIdxOfUSize numShards k`. The sharded sets are this structure, for different
 types of shards. Since `numShards` is a parameter, it is just the array of shards at run time. -/
-structure ShardedUSize (α : Type u) (S : Type v) [Hashable α] [Membership α S] (numShards : USize) where
-  h_numShards_pos : 0 < (numShards : USize)
+structure ShardedUSize (α : Type u) (S : Type v) [Hashable α] [Membership α S] (numShards : PosUSize) where
   shards : VectorUSize S numShards
   h_in_correct_shard : ∀ (i : USize) (h : i < numShards), ∀ k ∈ shards.uget i h,
     ShardedSetUInt.shardIdxOfUSize numShards k = i
@@ -161,14 +163,14 @@ namespace ShardedUSize
 open ShardedSetUInt
 
 variable {α : Type u} {S : Type v} {T : Type w} [Hashable α] [Membership α S] [Membership α T]
-  {numShards : USize}
+  {numShards : PosUSize}
 
 /-! ### Basic operations -/
 
 /-- Get the shard for a given key. -/
 @[inline]
 def getShard (st : ShardedUSize α S numShards) (k : α) : S :=
-  st.shards.ugetViaHash k st.h_numShards_pos
+  st.shards.ugetViaHash k numShards.property
 
 -- NOTE: `Membership.mem` has signature `γ → α → Prop` (container first, element second)
 instance instMembership : Membership α (ShardedUSize α S numShards) where
@@ -181,8 +183,8 @@ theorem mem_def {st : ShardedUSize α S numShards} {k : α} :
 theorem shardIdx_toNat_of_mem {st : ShardedUSize α S numShards} {i : Nat}
     (hi' : i < st.shards.val.size) {k : α} (hk : k ∈ st.shards.val[i]) :
     (shardIdxOfUSize numShards k).toNat = i := by
-  have hi_ns : i < numShards.toNat := by rw [← st.shards.property]; exact hi'
-  have hiU : i < USize.size := Nat.lt_trans hi_ns (USize.toNat_lt_size numShards)
+  have hi_ns : i < numShards.val.toNat := by rw [← st.shards.property]; exact hi'
+  have hiU : i < USize.size := Nat.lt_trans hi_ns (USize.toNat_lt_size numShards.val)
   have h_toNat_i : (USize.ofNat i).toNat = i := Nat.mod_eq_of_lt hiU
   have h_lt : USize.ofNat i < numShards := by
     rw [USize.lt_iff_toNat_lt, h_toNat_i]; exact hi_ns
@@ -252,15 +254,14 @@ shards. -/
 
 /-- `numShards` copies of a shard without keys. -/
 @[inline]
-def replicate (h_pos : 0 < numShards) (s : S) (h : ∀ k : α, k ∉ s) : ShardedUSize α S numShards where
-  h_numShards_pos := h_pos
+def replicate (s : S) (h : ∀ k : α, k ∉ s) : ShardedUSize α S numShards where
   shards := .replicateUSize numShards s
   h_in_correct_shard := by
     simp only [VectorUSize.replicateUSize, VectorUSize.uget, Array.uget]
     intros ; simp_all
 
-theorem not_mem_replicate {h_pos : 0 < numShards} {s : S} {h : ∀ k : α, k ∉ s} {k : α} :
-    k ∉ replicate h_pos s h := by
+theorem not_mem_replicate {s : S} {h : ∀ k : α, k ∉ s} {k : α} :
+    k ∉ replicate (numShards := numShards) s h := by
   simp [mem_def, replicate, getShard, VectorUSize.ugetViaHash, VectorUSize.uget,
     VectorUSize.replicateUSize, Array.uget, Array.getElem_replicate, h]
 
@@ -270,8 +271,7 @@ that shard. -/
 def modifyShard (st : ShardedUSize α S numShards) (k : α) (f : S → S)
     (hf : ∀ s q, q ∈ f s → q ∈ s ∨ shardIdxOfUSize numShards q = shardIdxOfUSize numShards k) :
     ShardedUSize α S numShards where
-  h_numShards_pos := st.h_numShards_pos
-  shards := st.shards.umodifyViaHash k f st.h_numShards_pos
+  shards := st.shards.umodifyViaHash k f numShards.property
   h_in_correct_shard := by
     intro j hj q hq
     simp only [VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.uget, VectorUSize.uset,
@@ -292,8 +292,7 @@ def mapShardsPar (st : ShardedUSize α S numShards) (f : S → T) (hf : ∀ s k,
     ShardedUSize α T numShards :=
   let tasks := st.shards.val.toList.map fun s => Task.spawn fun () => f s
   let shardArr := tasks.map Task.get
-  { h_numShards_pos := st.h_numShards_pos
-    shards := ⟨shardArr.toArray, by simp [shardArr, tasks, st.shards.property]⟩
+  { shards := ⟨shardArr.toArray, by simp [shardArr, tasks, st.shards.property]⟩
     h_in_correct_shard := by
       intro i hi k hk
       simp [shardArr, tasks, VectorUSize.uget, Array.uget, Task.spawn] at hk
@@ -313,8 +312,7 @@ def zipShardsPar (st : ShardedUSize α S numShards) (other : ShardedUSize α T n
   let pairs := st.shards.val.toList.zip other.shards.val.toList
   let tasks := pairs.map fun (s, t) => Task.spawn fun () => f s t
   let shardArr := tasks.map Task.get
-  { h_numShards_pos := st.h_numShards_pos
-    shards := ⟨shardArr.toArray, by
+  { shards := ⟨shardArr.toArray, by
       simp [shardArr, tasks, pairs, st.shards.property, other.shards.property]⟩
     h_in_correct_shard := by
       intro i hi k hk
@@ -357,18 +355,18 @@ instance [BEq α] [Hashable α] : KeyShard α (HashSet α) where
   contains_iff_mem := HashSet.mem_iff_contains.symm
 
 /-- A set split into shards of type `S` by the hash of each key, with `USize`-based sharding. -/
-abbrev ShardedSetUSize (α : Type u) (S : Type v) [Hashable α] [Membership α S] (numShards : USize) :=
+abbrev ShardedSetUSize (α : Type u) (S : Type v) [Hashable α] [Membership α S] (numShards : PosUSize) :=
   ShardedUSize α S numShards
 
 /-- A sharded set with `HashSet` shards. -/
-abbrev ShardedHashSetUSize (α : Type u) [BEq α] [Hashable α] (numShards : USize) :=
+abbrev ShardedHashSetUSize (α : Type u) [BEq α] [Hashable α] (numShards : PosUSize) :=
   ShardedSetUSize α (HashSet α) numShards
 
 namespace ShardedSetUSize
 
 open ShardedSetUInt
 
-variable {α : Type u} {S : Type v} [Hashable α] {numShards : USize}
+variable {α : Type u} {S : Type v} [Hashable α] {numShards : PosUSize}
 
 /-! ### Distribute: single-pass bucketing -/
 
@@ -381,12 +379,12 @@ theorem mem_cons_shardIdx (x : α) (s : List α) (q : α) (h : q ∈ x :: s) :
 
 /-- The keys of `l`, bucketed by shard. -/
 @[specialize]
-def distributeByHash (l : List α) (h_pos : 0 < numShards) : ShardedUSize α (List α) numShards :=
-  l.foldl (init := .replicate h_pos [] fun _ => List.not_mem_nil) fun st x =>
+def distributeByHash (l : List α) : ShardedUSize α (List α) numShards :=
+  l.foldl (init := .replicate [] fun _ => List.not_mem_nil) fun st x =>
     st.modifyShard x (List.cons x) (mem_cons_shardIdx x)
 
-theorem mem_distributeByHash {l : List α} {h_pos : 0 < numShards} {k : α} :
-    k ∈ distributeByHash l h_pos ↔ k ∈ l := by
+theorem mem_distributeByHash {l : List α} {k : α} :
+    k ∈ distributeByHash (numShards := numShards) l ↔ k ∈ l := by
   simp only [ShardedUSize.mem_def, ShardedUSize.getShard, distributeByHash, VectorUSize.ugetViaHash]
   rw [List.foldl_eq_foldr_reverse]
   rewrite (occs := .neg [1]) [← List.mem_reverse]
@@ -406,11 +404,11 @@ variable [BEq α] [Membership α S] [SetShard α S]
 /-- Build a `ShardedSetUSize` from a list by distributing elements into shards by hash,
     then building each shard in parallel using `Task.spawn`. -/
 @[specialize]
-def ofListByHash (l : List α) (h_pos : 0 < numShards) : ShardedSetUSize α S numShards :=
-  (distributeByHash l h_pos).mapShardsPar SetShard.ofList fun _ _ h => SetShard.mem_ofList.mp h
+def ofListByHash (l : List α) : ShardedSetUSize α S numShards :=
+  (distributeByHash l).mapShardsPar SetShard.ofList fun _ _ h => SetShard.mem_ofList.mp h
 
-theorem mem_ofListByHash {l : List α} {h_pos : 0 < numShards} {k : α} :
-    k ∈ ofListByHash (S := S) l h_pos ↔ k ∈ l := by
+theorem mem_ofListByHash {l : List α} {k : α} :
+    k ∈ ofListByHash (S := S) (numShards := numShards) l ↔ k ∈ l := by
   simp [ShardedUSize.mem_def, ofListByHash, ShardedUSize.mapShardsPar, ShardedUSize.getShard, Task.spawn,
     VectorUSize.ugetViaHash, VectorUSize.uget, SetShard.mem_ofList]
   exact mem_distributeByHash
@@ -432,13 +430,13 @@ end ShardedSetUSize
 
 namespace ShardedHashSetUSize
 
-variable {α : Type u} [BEq α] [Hashable α] {numShards : USize}
+variable {α : Type u} [BEq α] [Hashable α] {numShards : PosUSize}
 
 /-- The empty set with `numShards` shards. -/
-def empty (h_pos : 0 < numShards) : ShardedHashSetUSize α numShards :=
-  .replicate h_pos (HashSet.emptyWithCapacity 8) fun _ => HashSet.not_mem_emptyWithCapacity
+def empty : ShardedHashSetUSize α numShards :=
+  .replicate (HashSet.emptyWithCapacity 8) fun _ => HashSet.not_mem_emptyWithCapacity
 
-theorem not_mem_empty {h_pos : 0 < numShards} {x : α} : x ∉ empty (α := α) h_pos :=
+theorem not_mem_empty {x : α} : x ∉ (empty : ShardedHashSetUSize α numShards) :=
   ShardedUSize.not_mem_replicate
 
 /-- Unconditionally insert an element into the sharded hash set. -/
