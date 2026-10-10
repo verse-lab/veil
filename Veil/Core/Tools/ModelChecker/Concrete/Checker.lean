@@ -112,7 +112,7 @@ def findReachableThen (finish : ModelCheckingResult ρ σ κ σₕ → m α) : m
   | some cfg => do
     let mctx ← breadthFirstSearchParallel (σₕ := σₕ) (Shard := ShardOf (LogEntry σₕ κ)) params sys cfg
       progressInstanceId cancelToken
-    let result ← searchResult traceSys mctx.base mctx.globalSeen.get? mctx.globalSeen.size
+    let result ← searchResult traceSys mctx.val.base mctx.val.globalSeen.get? mctx.val.globalSeen.size
     return (← keepingThen mctx (finish result)).1
   | none => do
     let sctx ← breadthFirstSearchSequential (σₕ := σₕ) params sys 60000 progressInstanceId cancelToken

@@ -739,17 +739,18 @@ def breadthFirstSearchParallel {m : Type → Type}
   (parallelCfg : ParallelConfig)
   (progressInstanceId : Nat)
   (cancelToken : IO.CancelToken) :
-  m (MapReduceSearchContextMain σ κ σₕ asm Shard parallelCfg.numShards) := do
+  m (LawfulMapReduceSearchContextMain (fp := fp) (Shard := Shard) (numShards := parallelCfg.numShards) sys params) := do
   let mut mctx : LawfulMapReduceSearchContextMain (fp := fp) (Shard := Shard) (numShards := parallelCfg.numShards)
       sys params :=
     Subtype.mk (MapReduceSearchContextMain.initial sys.initStates)
-      (MapReduceSearchContextMainInvariants.initial sys params)
+      ⟨MapReduceSearchContextMainInvariants.initial sys params, MapReduceSearchContextMain.LogSound.initial sys params⟩
   let mut lastUpdateTime : Nat := 0
   let mut cancelled := false
   while h_not_finished : mctx.val.base.hasFinished = false do
     let mctxVal := mctx.val
     have h_not_finished_val : mctxVal.base.hasFinished = false := h_not_finished
-    have h_mctx : MapReduceSearchContextMainInvariants sys params mctxVal := mctx.property
+    have h_mctx : MapReduceSearchContextMainInvariants sys params mctxVal := mctx.property.1
+    have h_ls : ∃ rep dep, mctxVal.LogSound sys params rep dep := mctx.property.2
     let base := mctxVal.base
     let tovisitLen := mctxVal.tovisitLen
     let tovisit := mctxVal.tovisit
@@ -757,7 +758,8 @@ def breadthFirstSearchParallel {m : Type → Type}
     -- Check if the frontier is empty
     if h_empty : tovisit.isEmpty then
       mctx := Subtype.mk ⟨{ base with finished := some (.exploredAllReachableStates) }, tovisitLen, tovisit, globalSeen⟩
-        (h_mctx.setExploredAll_preserves_invs h_not_finished_val h_empty)
+        ⟨h_mctx.setExploredAll_preserves_invs h_not_finished_val h_empty,
+          h_ls.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.setExploredAll⟩⟩
       break
     else
       -- FIXME: Need to add a proper sequential fallback if the frontier is too small
@@ -794,8 +796,10 @@ def breadthFirstSearchParallel {m : Type → Type}
       let mctxValForMerge : MapReduceSearchContextMain σ κ σₕ asm Shard parallelCfg.numShards :=
         { base := { base with currentFrontierDepth := base.currentFrontierDepth + 1 } , tovisitLen := 0, tovisit := [], globalSeen := globalSeen }
       let mctxVal' := mctxValForMerge.mergeWithLocalOnes (preds := preds) results
-      have h_mctx' : MapReduceSearchContextMainInvariants sys params mctxVal' :=
-        MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs h_not_finished_val h_mctx results
+      have h_mctx' : MapReduceSearchContextMainInvariants sys params mctxVal' ∧
+          ∃ rep dep, mctxVal'.LogSound sys params rep dep :=
+        ⟨MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs h_not_finished_val h_mctx results,
+          MapReduceSearchContextMain.mergeWithLocalOnes_log_sound h_ls results⟩
       match heq : mctxVal' with
       | ⟨base', tovisitLen', tovisit', globalSeen'⟩ =>
         trySetViolationFound progressInstanceId base'
@@ -812,13 +816,14 @@ def breadthFirstSearchParallel {m : Type → Type}
   -- Final update to ensure stats reflect finished state, with the depth of the last frontier
   -- explored rather than of the next one. Only the display shows that depth: setting it as the
   -- frontier depth of the context would change its `completedDepth` too.
-  let ⟨mctxVal, _⟩ := mctx
+  let ⟨mctxVal, h_mctx⟩ := mctx
   let displayBase : BaseSearchContext σ κ σₕ asm :=
     { mctxVal.base with currentFrontierDepth := mctxVal.base.completedDepth }
   updateProgressDuringBFS progressInstanceId displayBase mctxVal.tovisitLen mctxVal.globalSeen.size
   if cancelled then
-    return { mctxVal with base := { mctxVal.base with finished := some (.earlyTermination .cancelled) } }
+    return ⟨{ mctxVal with base := { mctxVal.base with finished := some (.earlyTermination .cancelled) } },
+      ⟨h_mctx.1.setCancelled, h_mctx.2.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.setCancelled⟩⟩⟩
   else
-    return mctxVal
+    return ⟨mctxVal, h_mctx⟩
 
 end Veil.ModelChecker.Concrete

@@ -120,9 +120,6 @@ where
   stable_closed : mctx.isStableClosed sys
   tovisit_len : mctx.tovisitLen = mctx.tovisit.length
 
-abbrev LawfulMapReduceSearchContextMain : Type :=
-  Subtype (α := MapReduceSearchContextMain σ κ σₕ asm Shard numShards) (MapReduceSearchContextMainInvariants sys params)
-
 /-- The log of a parallel search, its seen set, describes through the representatives `rep` the
 states on its frontier and the violations it has recorded. Kept apart from
 `MapReduceSearchContextMainInvariants`, since it is preserved for a growing `rep`. -/
@@ -132,6 +129,10 @@ structure MapReduceSearchContextMain.LogSound [MapShard σₕ (LogEntry σₕ κ
     extends BaseSearchContext.ViolationTerminationSound sys params mctx.base rep where
   log_invs : LogInvariants sys (ShardedMapUSize.get? mctx.globalSeen) rep dep
   tovisit_rep : ∀ item ∈ mctx.tovisit, rep item.fingerprint = some item.state
+
+abbrev LawfulMapReduceSearchContextMain [MapShard σₕ (LogEntry σₕ κ) Shard] : Type :=
+  Subtype (α := MapReduceSearchContextMain σ κ σₕ asm Shard numShards) fun mctx =>
+    MapReduceSearchContextMainInvariants sys params mctx ∧ ∃ rep dep, mctx.LogSound sys params rep dep
 
 structure MapReduceSearchContextLocalInvariants
   (globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards)
