@@ -339,26 +339,17 @@ def DedupFoldDescription (key : α → K) (val : α → V) (proj : α → β)
     (∀ a ∈ pfx, a ∈ l) ∧
     (∀ k v, look res k = some v ↔ (k, v) ∈ pfx.map fun a => (key a, val a))
 
-/-- A complete, duplicate-free enumeration of the lookup's keys has the output list's length.
-If projection preserves keys, lookup membership also agrees with the output list's keys. -/
-theorem DedupFoldDescription.extra
+/-- If projection preserves keys, lookup membership agrees with the output list's keys. -/
+theorem DedupFoldDescription.isSome_iff
     {key : α → K} {val : α → V} {proj : α → β} {lst : γ → List β} {look : γ → K → Option V}
-    {l : List α} {res : γ} {key' : β → K} {keys : List K}
+    {l : List α} {res : γ} {key' : β → K}
     (h : DedupFoldDescription key val proj lst look l res)
-    (h_proj : ∀ a ∈ l, key' (proj a) = key a)
-    (h_nodup : keys.Nodup) (h_keys : ∀ k, k ∈ keys ↔ (look res k).isSome) :
-    (∀ k, (look res k).isSome ↔ k ∈ (lst res).map key') ∧
-      keys.length = (lst res).length := by
-  rcases h with ⟨pfx, h_lst, h_nd, -, h_mem, h_look⟩
-  have h_some : ∀ k, (look res k).isSome ↔ k ∈ pfx.map key := by
-    intro k
-    simp only [Option.isSome_iff_exists, h_look, List.mem_map, Prod.mk.injEq]
-    grind
-  constructor
-  · grind
-  · trans (pfx.map key).length
-    · apply List.Perm.length_eq ; rw [List.perm_ext_iff_of_nodup] <;> grind
-    · simp ; grind
+    (h_proj : ∀ a ∈ l, key' (proj a) = key a) :
+    ∀ k, (look res k).isSome ↔ k ∈ (lst res).map key' := by
+  rcases h with ⟨pfx, h_lst, -, -, h_mem, h_look⟩
+  intro k
+  simp only [Option.isSome_iff_exists, h_look, h_lst, List.mem_map, Prod.mk.injEq]
+  grind
 
 /-- The keys of the result of a deduplicating fold are those of the accumulator and those of the
 kept elements, which are new: there are as many more keys as kept elements. -/
@@ -379,6 +370,19 @@ theorem DedupFoldDescriptionWithAcc.length_keys
       intro k hk k' hk' ; rw [h_acc] at hk ; obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hk'
       rintro rfl ; simp [(h_mem a ha).2] at hk
   rw [h_perm.length_eq, h_lst] ; simp ; omega
+
+/-- A complete, duplicate-free enumeration of the lookup's keys has the output list's length. -/
+theorem DedupFoldDescription.length_keys
+    {key : α → K} {val : α → V} {proj : α → β} {lst : γ → List β} {look : γ → K → Option V}
+    {l : List α} {res : γ} {keys : List K}
+    (h : DedupFoldDescription key val proj lst look l res)
+    (h_nodup : keys.Nodup) (h_keys : ∀ k, k ∈ keys ↔ (look res k).isSome) :
+    keys.length = (lst res).length := by
+  -- Work with the list and lookup directly, so an empty accumulator is available.
+  have h' : DedupFoldDescriptionWithAcc key val proj Prod.fst Prod.snd l
+      ([], fun _ => none) (lst res, look res) := by
+    simpa [DedupFoldDescriptionWithAcc, DedupFoldDescription] using h
+  simpa using h'.length_keys (keysAcc := []) (by simp) h_nodup (by simp) h_keys
 
 /-- A deduplicating fold from an empty accumulator describes just the kept items. -/
 theorem DedupFoldDescription.ofDedupFoldDescriptionWithAcc

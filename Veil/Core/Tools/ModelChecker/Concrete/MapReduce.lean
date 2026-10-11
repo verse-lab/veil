@@ -349,9 +349,8 @@ theorem mergeShard_description (bucket : List (MapReduceQueueItem σₕ σ κ)) 
       bucket ⟨[], shard⟩ (mergeShard bucket shard) := by
   unfold mergeShard
   apply DedupFoldDescriptionWithAcc.of_foldl <;> intro acc item h
-  · have hc : KeyShard.contains acc.shard item.fingerprint = true := by
-      rw [KeyShard.contains_iff_mem, MapShard.mem_iff_isSome_get? (β := LogEntry σₕ κ)] ; exact h
-    simp only [hc, if_true]
+  · simp [← MapShard.mem_iff_isSome_get?] at h
+    open Classical in simp [KeyShard.contains_iff_mem, h]
   · have hc : KeyShard.contains acc.shard item.fingerprint = false := by
       rw [Bool.eq_false_iff, ne_eq, KeyShard.contains_iff_mem, MapShard.mem_iff_isSome_get? (β := LogEntry σₕ κ)]
       simp [h]
@@ -561,8 +560,7 @@ theorem MapReduceSearchContextMainInvariants.of_mergeLayer_initialMapReduceQueue
   obtain ⟨h_base, h_tvl, hd⟩ := m0.mergeLayer_description [initialMapReduceQueueItems sys.initStates]
   replace hd := DedupFoldDescription.ofDedupFoldDescriptionWithAcc hd h_tv
     (fun x => ShardedMapUSize.not_mem_iff_get?_none.mp (h_gs x))
-  have h_seen := (DedupFoldDescription.extra (key' := MapReduceQueueItem.fingerprint) hd (fun _ _ => rfl)
-    ShardedUSize.nodup_toList (fun _ => ShardedUSize.mem_toList.trans ShardedMapUSize.mem_iff_isSome_get?)).1
+  have h_seen := hd.isSome_iff (key' := MapReduceQueueItem.fingerprint) (fun _ _ => rfl)
   generalize m0.mergeLayer [initialMapReduceQueueItems sys.initStates] = res at *
   rcases res with ⟨base, len, tovisit, seen⟩
   simp only [← ShardedMapUSize.mem_iff_isSome_get?] at h_seen

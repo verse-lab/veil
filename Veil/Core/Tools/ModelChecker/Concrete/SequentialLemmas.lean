@@ -45,11 +45,11 @@ theorem initialLogAndRepresentativesSequential_eq_dedupFold (initialStates : Lis
       simp [Prod.ext_iff] at hres
       rcases hres with ⟨-, h1, h2⟩ ; subst_vars
       rw [← Std.HashMap.length_keys]
-      refine (DedupFoldDescription.extra (key' := QueueItem.fingerprint)
+      refine DedupFoldDescription.length_keys
         (dedupFold_description (fun x : σ × Nat => fp.view x.1)
           (fun x => (LogEntry.init x.2 : LogEntry σₕ κ))
           (fun x => (⟨fp.view x.1, x.1, 0⟩ : QueueItem σₕ σ)) sys.initStates.zipIdx)
-        (fun _ _ => rfl) Std.HashMap.nodup_keys ?_).2
+        Std.HashMap.nodup_keys ?_
       intro k ; rw [Std.HashMap.mem_keys, Std.HashMap.mem_iff_isSome_getElem?]⟩⟩
 
 theorem SequentialSearchContext.initial_invs :
