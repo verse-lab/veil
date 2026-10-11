@@ -331,8 +331,6 @@ structure ShardMerge (σ κ σₕ Shard : Type) where
   /-- The kept items of the bucket, last first: the first of each fingerprint that the shard did not
   have. -/
   kept : List (MapReduceQueueItem σₕ σ κ)
-  /-- How many items were kept. -/
-  count : Nat
   /-- The shard with the log entries of the kept items. -/
   shard : Shard
 
@@ -340,15 +338,15 @@ structure ShardMerge (σ κ σₕ Shard : Type) where
 not have yet, with its log entry, and keep it. -/
 @[inline]
 def mergeShard (bucket : List (MapReduceQueueItem σₕ σ κ)) (shard : Shard) : ShardMerge σ κ σₕ Shard :=
-  bucket.foldl (init := ⟨[], 0, shard⟩) fun acc item =>
+  bucket.foldl (init := ⟨[], shard⟩) fun acc item =>
     if KeyShard.contains acc.shard item.fingerprint then acc
-    else ⟨item :: acc.kept, acc.count + 1, MapShard.insert acc.shard item.fingerprint item.entry⟩
+    else ⟨item :: acc.kept, MapShard.insert acc.shard item.fingerprint item.entry⟩
 
 /-- Merging a bucket into a shard is a deduplicating fold whose map is the shard. -/
 theorem mergeShard_description (bucket : List (MapReduceQueueItem σₕ σ κ)) (shard : Shard) :
     DedupFoldDescriptionWithAcc (key := MapReduceQueueItem.fingerprint) (val := MapReduceQueueItem.entry)
       (proj := id) (lst := ShardMerge.kept) (look := fun acc k => MapShard.get? acc.shard k)
-      bucket ⟨[], 0, shard⟩ (mergeShard bucket shard) := by
+      bucket ⟨[], shard⟩ (mergeShard bucket shard) := by
   unfold mergeShard
   apply DedupFoldDescriptionWithAcc.of_foldl <;> intro acc item h
   · have hc : KeyShard.contains acc.shard item.fingerprint = true := by
@@ -358,16 +356,6 @@ theorem mergeShard_description (bucket : List (MapReduceQueueItem σₕ σ κ)) 
       rw [Bool.eq_false_iff, ne_eq, KeyShard.contains_iff_mem, MapShard.mem_iff_isSome_get? (β := LogEntry σₕ κ)]
       simp [h]
     simp only [hc, Bool.false_eq_true, if_false, id, MapShard.get?_insert, implies_true, and_self]
-
-theorem mergeShard_count (bucket : List (MapReduceQueueItem σₕ σ κ)) (shard : Shard) :
-    (mergeShard bucket shard).count = (mergeShard bucket shard).kept.length := by
-  unfold mergeShard
-  have h : (⟨[], 0, shard⟩ : ShardMerge σ κ σₕ Shard).count = (⟨[], 0, shard⟩ : ShardMerge σ κ σₕ Shard).kept.length :=
-    rfl
-  generalize (⟨[], 0, shard⟩ : ShardMerge σ κ σₕ Shard) = acc at h ⊢
-  induction bucket generalizing acc with
-  | nil => exact h
-  | cons item bucket ih => rw [List.foldl_cons] ; apply ih ; split <;> simp [h]
 
 open ShardedSetUInt in
 /-- Each merged shard of the seen set `gs` holds the keys of its own index only. -/
@@ -388,13 +376,16 @@ theorem mergeShards_keys {numShards : PosUSize} {lists : List (List (MapReduceQu
 /-- Merge the items of `lists` into the main context: keep one item of each fingerprint that the
 seen set does not have yet, add it to the frontier, and its fingerprint with its log entry to the
 seen set. The merge of a BFS layer (`mergeWithLocalOnes`) and of the initial states
-(`MapReduceSearchContextMain.initial`). Each shard is merged in a task of its own. -/
+(`MapReduceSearchContextMain.initial`). Each shard is merged in a task of its own. The frontier
+grows by as many items as the seen set. -/
 def MapReduceSearchContextMain.mergeLayer (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards)
     (lists : List (List (MapReduceQueueItem σₕ σ κ))) : MapReduceSearchContextMain σ κ σₕ asm Shard numShards :=
   let ⟨ctx, len, q, globalSeen⟩ := mctx
+  -- before the tasks take over the shards, to update them in place
+  let size := globalSeen.size
   let merges := (bucketsOf numShards lists).zipPar globalSeen.shards mergeShard
-  ⟨ctx, merges.val.foldl (init := len) (· + ·.count), merges.val.foldr (init := q) (·.kept ++ ·),
-    .ofMap merges ShardMerge.shard (mergeShards_keys globalSeen)⟩
+  let seen : MapReduceGlobalSeen σₕ κ Shard numShards := .ofMap merges ShardMerge.shard (mergeShards_keys globalSeen)
+  ⟨ctx, len + (seen.size - size), merges.val.foldr (init := q) (·.kept ++ ·), seen⟩
 
 section LayerMerge
 
@@ -407,7 +398,7 @@ variable {numShards : PosUSize} {lists : List (List (MapReduceQueueItem σₕ σ
 theorem mergeShards_description (i : USize) (hi : i < numShards) :
     DedupFoldDescriptionWithAcc (key := MapReduceQueueItem.fingerprint) (val := MapReduceQueueItem.entry)
       (proj := id) (lst := ShardMerge.kept) (look := fun acc k => MapShard.get? acc.shard k)
-      ((bucketsOf numShards lists).uget i hi) ⟨[], 0, shards.uget i hi⟩
+      ((bucketsOf numShards lists).uget i hi) ⟨[], shards.uget i hi⟩
       (((bucketsOf numShards lists).zipPar shards mergeShard).uget i hi) := by
   rw [VectorUSize.uget_zipPar] ; exact mergeShard_description _ _
 
@@ -426,21 +417,6 @@ theorem mem_flatMap_mergeShards {a : MapReduceQueueItem σₕ σ κ} :
   constructor
   · rintro ⟨r, ⟨i, hi, rfl⟩, ha⟩ ; exact ⟨i, hi, ha⟩
   · rintro ⟨i, hi, ha⟩ ; exact ⟨_, ⟨i, hi, rfl⟩, ha⟩
-
-/-- The total count of the merged shards of `lists` is the number of their kept items. -/
-theorem mergeShards_count (len : Nat) :
-    ((bucketsOf numShards lists).zipPar shards mergeShard).val.foldl (init := len) (· + ·.count) =
-      len + (((bucketsOf numShards lists).zipPar shards mergeShard).val.toList.flatMap (·.kept)).length := by
-  have h_count : ∀ r ∈ ((bucketsOf numShards lists).zipPar shards mergeShard).val.toList, r.count = r.kept.length := by
-    intro r hr ; obtain ⟨i, hi, rfl⟩ := VectorUSize.mem_toList_iff.mp hr
-    rw [VectorUSize.uget_zipPar] ; exact mergeShard_count _ _
-  rw [← Array.foldl_toList]
-  generalize ((bucketsOf numShards lists).zipPar shards mergeShard).val.toList = rs at h_count ⊢
-  induction rs generalizing len with
-  | nil => simp
-  | cons r rs ih =>
-    simp only [List.foldl_cons, List.flatMap_cons, List.length_append]
-    rw [ih _ (fun r' hr' => h_count r' (List.mem_cons_of_mem _ hr')), h_count r List.mem_cons_self] ; omega
 
 /-- The seen set merged from the shards: the merged shard of each fingerprint. -/
 theorem get?_ofMap_mergeShards
@@ -472,14 +448,26 @@ theorem MapReduceSearchContextMain.mergeLayer_description
     DedupFoldDescriptionWithAcc (key := MapReduceQueueItem.fingerprint) (val := MapReduceQueueItem.entry)
       (proj := id) (lst := MapReduceSearchContextMain.tovisit) (look := fun m k => m.globalSeen.get? k)
       lists.flatten mctx (mctx.mergeLayer lists) := by
+  suffices hd : DedupFoldDescriptionWithAcc (key := MapReduceQueueItem.fingerprint) (val := MapReduceQueueItem.entry)
+      (proj := id) (lst := MapReduceSearchContextMain.tovisit) (look := fun m k => m.globalSeen.get? k)
+      lists.flatten mctx (mctx.mergeLayer lists) by
+    refine ⟨by rcases mctx ; rfl, ?_, hd⟩
+    -- the seen set grows by the fingerprints of the kept items, and the frontier by the kept items
+    have h_keys := hd.length_keys ShardedUSize.nodup_toList ShardedUSize.nodup_toList
+      (fun _ => ShardedUSize.mem_toList.trans ShardedMapUSize.mem_iff_isSome_get?)
+      (fun _ => ShardedUSize.mem_toList.trans ShardedMapUSize.mem_iff_isSome_get?)
+    have h_len : (mctx.mergeLayer lists).tovisitLen =
+        mctx.tovisitLen + ((mctx.mergeLayer lists).globalSeen.size - mctx.globalSeen.size) := by
+      rcases mctx ; rfl
+    obtain ⟨pfx, h_lst, -⟩ := hd
+    simp only [← ShardedUSize.length_toList, h_lst, List.length_append] at h_keys
+    simp only [h_len, h_lst, List.length_append]
+    omega
   rcases mctx with ⟨ctx, len, q, gs⟩
   unfold mergeLayer ; dsimp only
   -- `gs.get? k` is defined as `MapShard.get?` on the shard of `k`, which the merges are described with
-  refine ⟨rfl, ?_, ((bucketsOf numShards lists).zipPar gs.shards mergeShard).val.toList.flatMap (·.kept),
+  refine ⟨((bucketsOf numShards lists).zipPar gs.shards mergeShard).val.toList.flatMap (·.kept),
     ?_, ?_, ?_, ?_, ?_⟩
-  · -- the frontier's length
-    rw [mergeShards_count, ← Array.foldr_toList, List.foldr_append_eq_flatMap, List.length_append]
-    exact Nat.add_assoc _ _ _
   · -- the frontier: the kept items of all shards, in front of the old one
     simp only [List.map_id, ← Array.foldr_toList, List.foldr_append_eq_flatMap]
   · -- the fingerprints of the kept items are distinct: within a shard, and across shards

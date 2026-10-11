@@ -360,6 +360,26 @@ theorem DedupFoldDescription.extra
     · apply List.Perm.length_eq ; rw [List.perm_ext_iff_of_nodup] <;> grind
     · simp ; grind
 
+/-- The keys of the result of a deduplicating fold are those of the accumulator and those of the
+kept elements, which are new: there are as many more keys as kept elements. -/
+theorem DedupFoldDescriptionWithAcc.length_keys
+    {key : α → K} {val : α → V} {proj : α → β} {lst : γ → List β} {look : γ → K → Option V}
+    {l : List α} {acc res : γ} {keysAcc keysRes : List K}
+    (h : DedupFoldDescriptionWithAcc key val proj lst look l acc res)
+    (h_nodup_acc : keysAcc.Nodup) (h_nodup_res : keysRes.Nodup)
+    (h_acc : ∀ k, k ∈ keysAcc ↔ (look acc k).isSome) (h_res : ∀ k, k ∈ keysRes ↔ (look res k).isSome) :
+    keysRes.length + (lst acc).length = keysAcc.length + (lst res).length := by
+  rcases h with ⟨pfx, h_lst, h_nd, -, h_mem, h_look⟩
+  have h_perm : keysRes.Perm (keysAcc ++ pfx.map key) := by
+    rw [List.perm_ext_iff_of_nodup h_nodup_res]
+    · intro k
+      simp only [h_res, List.mem_append, h_acc, Option.isSome_iff_exists, h_look, List.mem_map, Prod.mk.injEq]
+      grind
+    · rw [List.nodup_append] ; refine ⟨h_nodup_acc, h_nd, ?_⟩
+      intro k hk k' hk' ; rw [h_acc] at hk ; obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hk'
+      rintro rfl ; simp [(h_mem a ha).2] at hk
+  rw [h_perm.length_eq, h_lst] ; simp ; omega
+
 /-- A deduplicating fold from an empty accumulator describes just the kept items. -/
 theorem DedupFoldDescription.ofDedupFoldDescriptionWithAcc
     {key : α → K} {val : α → V} {proj : α → β} {lst : γ → List β} {look : γ → K → Option V}
