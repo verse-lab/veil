@@ -544,17 +544,10 @@ private theorem MergeAcc.Description.extra {numShards : PosUSize} (acc : MergeAc
     {lq : List (MapReduceQueueItem σₕ σ κ)} (h : MergeAcc.Description lq acc) :
     (∀ x, x ∈ acc.seen ↔ x ∈ acc.tovisit.map MapReduceQueueItem.fingerprint) ∧
       acc.seen.size = acc.tovisit.length := by
-  rcases h with ⟨pfx, h1, h2, h3, h4, h5⟩ ; simp at * ; subst_vars
-  constructor
-  · intro x ; rw [ShardedMapUSize.mem_iff_isSome_get?, Option.isSome_iff_exists] ; aesop
-  · rw [ShardedUSize.length_toList]
-    trans (acc.tovisit.map MapReduceQueueItem.fingerprint).length
-    on_goal 2=> simp
-    apply List.Perm.length_eq ; rw [List.perm_ext_iff_of_nodup] <;> try assumption
-    on_goal 2=> apply ShardedUSize.nodup_toList
-    simp only [ShardedUSize.toList, List.mem_flatMap, KeyShard.mem_toList,
-      ← ShardedUSize.mem_iff_exists_shard, ShardedMapUSize.mem_iff_isSome_get?]
-    simp ; intro x ; rw [Option.isSome_iff_exists] ; aesop
+  simpa only [← ShardedMapUSize.mem_iff_isSome_get?, ← ShardedUSize.length_toList] using
+    DedupFoldDescription.extra (key' := MapReduceQueueItem.fingerprint) (keys := acc.seen.toList)
+      h (fun _ _ => rfl) ShardedUSize.nodup_toList
+      (fun _ => ShardedUSize.mem_toList.trans ShardedMapUSize.mem_iff_isSome_get?)
 
 /-- Merge a worker's statistics into the main context's. -/
 @[inline]

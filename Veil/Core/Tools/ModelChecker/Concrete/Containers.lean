@@ -163,6 +163,13 @@ def toArray {α} (q : fQueue α) : Array α :=
 def ofList {α} (xs : List α) : fQueue α :=
   ⟨xs, [], xs.length, rfl⟩
 
+def ofListWithKnownLength {α} (xs : List α) (len : { n : Nat // n = xs.length }) : fQueue α :=
+  ⟨xs, [], len.val, len.property⟩
+
+@[simp] theorem ofListWithKnownLength_eq_ofList {α} (xs : List α)
+    (len : { n : Nat // n = xs.length }) : ofListWithKnownLength xs len = ofList xs := by
+  rcases len with ⟨n, rfl⟩ ; rfl
+
 /-- Enqueue multiple elements, maintaining FIFO order. O(|items|). -/
 def enqueueBatch {α} (q : fQueue α) (items : List α) : fQueue α :=
   ⟨q.front, items.reverseAux q.back, q.sz + items.length, by

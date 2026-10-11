@@ -290,6 +290,10 @@ theorem not_contains_iff_not_mem {st : ShardedUSize α S numShards} {k : α} :
 def toList (st : ShardedUSize α S numShards) : List α :=
   st.shards.val.toList.flatMap KeyShard.toList
 
+theorem mem_toList {st : ShardedUSize α S numShards} {k : α} :
+    k ∈ st.toList ↔ k ∈ st := by
+  simp only [toList, List.mem_flatMap, KeyShard.mem_toList, ← mem_iff_exists_shard]
+
 theorem length_toList {st : ShardedUSize α S numShards} :
     st.size = st.toList.length := by
   simp [size, toList, ← Array.foldl_toList, KeyShard.length_toList, List.sum_eq_foldl, List.foldl_map]

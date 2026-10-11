@@ -126,4 +126,19 @@ theorem nodup_flatMap {l : List α} {f : α → List β} :
 theorem nodup_filter (p : α → Bool) {l : List α} (h : l.Nodup) : (l.filter p).Nodup :=
   h.sublist (List.filter_sublist)
 
+/-- Like `foldlIdx`, but passes the final index (`start + l.length`) and accumulator to `final`. -/
+@[specialize] def foldlIdxWithLengthReturned (f : Nat → α → β → α) (final : Nat → α → γ) (init : α) :
+    List β → (start : Nat := 0) → γ
+  | [], s => final s init
+  | b :: l, s => foldlIdxWithLengthReturned f final (f s init b) l (s + 1)
+
+/-- Returning the final index agrees with an ordinary indexed fold and the list length. -/
+theorem foldlIdxWithLengthReturned_eq_foldlIdx
+    (f : Nat → α → β → α) (final : Nat → α → γ) (init : α) (l : List β) (start : Nat) :
+    foldlIdxWithLengthReturned f final init l start =
+      final (start + l.length) (l.foldlIdx f init start) := by
+  induction l generalizing init start with
+  | nil => rfl
+  | cons b l ih => simp only [foldlIdxWithLengthReturned] ; grind
+
 end Veil.List

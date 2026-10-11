@@ -339,6 +339,27 @@ def DedupFoldDescription (key : α → K) (val : α → V) (proj : α → β)
     (∀ a ∈ pfx, a ∈ l) ∧
     (∀ k v, look res k = some v ↔ (k, v) ∈ pfx.map fun a => (key a, val a))
 
+/-- A complete, duplicate-free enumeration of the lookup's keys has the output list's length.
+If projection preserves keys, lookup membership also agrees with the output list's keys. -/
+theorem DedupFoldDescription.extra
+    {key : α → K} {val : α → V} {proj : α → β} {lst : γ → List β} {look : γ → K → Option V}
+    {l : List α} {res : γ} {key' : β → K} {keys : List K}
+    (h : DedupFoldDescription key val proj lst look l res)
+    (h_proj : ∀ a ∈ l, key' (proj a) = key a)
+    (h_nodup : keys.Nodup) (h_keys : ∀ k, k ∈ keys ↔ (look res k).isSome) :
+    (∀ k, (look res k).isSome ↔ k ∈ (lst res).map key') ∧
+      keys.length = (lst res).length := by
+  rcases h with ⟨pfx, h_lst, h_nd, -, h_mem, h_look⟩
+  have h_some : ∀ k, (look res k).isSome ↔ k ∈ pfx.map key := by
+    intro k
+    simp only [Option.isSome_iff_exists, h_look, List.mem_map, Prod.mk.injEq]
+    grind
+  constructor
+  · grind
+  · trans (pfx.map key).length
+    · apply List.Perm.length_eq ; rw [List.perm_ext_iff_of_nodup] <;> grind
+    · simp ; grind
+
 /-- A deduplicating fold from an empty accumulator describes just the kept items. -/
 theorem DedupFoldDescription.ofDedupFoldDescriptionWithAcc
     {key : α → K} {val : α → V} {proj : α → β} {lst : γ → List β} {look : γ → K → Option V}
@@ -374,7 +395,8 @@ theorem DedupFoldDescriptionWithAcc.of_foldl [BEq K] [LawfulBEq K]
       exists pfx ; grind
 
 /-- Deduplicate `l` by `key`, keeping the first element of each key: the kept elements by `proj`,
-last first, and their values by `val`, by key. -/
+last first, and their values by `val`, by key. This can be considered as a sample implementation
+for `DedupFoldDescription`. -/
 @[inline]
 def dedupFold [BEq K] [Hashable K] (key : α → K) (val : α → V) (proj : α → β) (l : List α) :
     List β × Std.HashMap K V :=
