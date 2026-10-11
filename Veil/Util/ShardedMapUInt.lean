@@ -191,6 +191,15 @@ theorem get?_empty {k : α} :
   simp [get?, ShardedUSize.getShard, ShardedUSize.empty, ShardedUSize.replicate, VectorUSize.ugetViaHash,
     VectorUSize.uget, VectorUSize.replicateUSize, Array.uget, MapShard.get?_empty]
 
+open ShardedSetUInt in
+/-- Looking up a key in a map built by `ofMap` reads its shard after applying `f`. -/
+theorem get?_ofMap {γ : Type w'} {v : VectorUSize γ numShards} {f : γ → S}
+    {h : ∀ (i : USize) (hi : i < numShards), ∀ k ∈ f (v.uget i hi), shardIdxOfUSize numShards k = i}
+    {k : α} :
+    get? (ShardedUSize.ofMap v f h : ShardedMapUSize α β S numShards) k =
+      MapShard.get? (f (v.uget (shardIdxOfUSize numShards k) (shardIdxOfUSize_lt k numShards.property))) k := by
+  simp only [get?, ShardedUSize.ofMap, ShardedUSize.getShard, VectorUSize.ugetViaHash, VectorUSize.uget_map]
+
 /-- Unconditionally insert a key with its value into the sharded map. -/
 @[specialize]
 def insert [LawfulBEq α] (st : ShardedMapUSize α β S numShards) (x : α) (v : β) :

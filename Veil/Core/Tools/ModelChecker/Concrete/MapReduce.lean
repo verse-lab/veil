@@ -356,6 +356,7 @@ theorem mergeShard_description (bucket : List (MapReduceQueueItem σₕ σ κ)) 
       simp [h]
     simp only [hc, Bool.false_eq_true, if_false, id, MapShard.get?_insert, implies_true, and_self]
 
+-- CHECK Is this proof necessary?
 open ShardedSetUInt in
 /-- Each merged shard of the seen set `gs` holds the keys of its own index only. -/
 theorem mergeShards_keys {numShards : PosUSize} {lists : List (List (MapReduceQueueItem σₕ σ κ))}
@@ -417,24 +418,9 @@ theorem mem_flatMap_mergeShards {a : MapReduceQueueItem σₕ σ κ} :
   · rintro ⟨r, ⟨i, hi, rfl⟩, ha⟩ ; exact ⟨i, hi, ha⟩
   · rintro ⟨i, hi, ha⟩ ; exact ⟨_, ⟨i, hi, rfl⟩, ha⟩
 
-/-- The seen set merged from the shards: the merged shard of each fingerprint. -/
-theorem get?_ofMap_mergeShards
-    {merges : VectorUSize (ShardMerge σ κ σₕ Shard) numShards}
-    {h : ∀ (i : USize) (hi : i < numShards), ∀ k ∈ (merges.uget i hi).shard, shardIdxOfUSize numShards k = i}
-    {k : σₕ} :
-    ShardedMapUSize.get? (ShardedUSize.ofMap merges ShardMerge.shard h : MapReduceGlobalSeen σₕ κ Shard numShards) k =
-      MapShard.get? (merges.uget (shardIdxOfUSize numShards k) (shardIdxOfUSize_lt k numShards.property)).shard k := by
-  simp only [ShardedMapUSize.get?, ShardedUSize.ofMap, ShardedUSize.getShard, VectorUSize.ugetViaHash,
-    VectorUSize.uget_map]
-
 end LayerMerge
 
-private theorem List.foldr_append_eq_flatMap {α β : Type} {f : α → List β} {l : List α} {q : List β} :
-    l.foldr (f · ++ ·) q = l.flatMap f ++ q := by
-  induction l with
-  | nil => rfl
-  | cons r l ih => simp [ih]
-
+-- CHECK Still don't believe this proof is this long, but go back to this later
 open ShardedSetUInt in
 /-- The merge of a layer is a deduplicating fold of its items into the main context, whose map is
 the seen set: an item is kept, put in front of the frontier and added to the seen set with its log
@@ -468,51 +454,38 @@ theorem MapReduceSearchContextMain.mergeLayer_description
   refine ⟨((bucketsOf numShards lists).zipPar gs.shards mergeShard).val.toList.flatMap (·.kept),
     ?_, ?_, ?_, ?_, ?_⟩
   · -- the frontier: the kept items of all shards, in front of the old one
-    simp only [List.map_id, ← Array.foldr_toList, List.foldr_append_eq_flatMap]
+    simp only [List.map_id, ← Array.foldr_toList]
+    rw [List.foldr_append_eq_append] ; grind
   · -- the fingerprints of the kept items are distinct: within a shard, and across shards
     have h := VectorUSize.nodup_flatMap_of_shards (v := (bucketsOf numShards lists).zipPar gs.shards mergeShard)
       (fun r => r.kept.map MapReduceQueueItem.fingerprint)
-      (fun i hi k hk => by
-        obtain ⟨x, hx, rfl⟩ := List.mem_map.mp hk
-        exact (mergeShards_kept hx).2)
+      (fun i hi k hk => by grind only [List.mem_map, → mergeShards_kept])
       (fun i hi => by
         obtain ⟨pfx, h_lst, h_nodup, -⟩ := mergeShards_description (shards := gs.shards) (lists := lists) i hi
-        simp only [List.map_id, List.append_nil] at h_lst
-        rw [h_lst] ; exact h_nodup)
+        grind only [List.map_id, List.append_nil])
     simpa only [List.map_flatMap] using h
   · -- each item whose fingerprint is new has its fingerprint kept, in the shard of its fingerprint
     intro a ha h_new
     obtain ⟨pfx, h_lst, -, h_cov, -⟩ := mergeShards_description (shards := gs.shards) (lists := lists)
       (shardIdxOfUSize numShards a.fingerprint) (shardIdxOfUSize_lt _ numShards.property)
-    simp only [List.map_id, List.append_nil] at h_lst
-    obtain ⟨b, hb, h_eq⟩ := List.mem_map.mp (h_cov a (mem_bucketsOf.mpr ⟨ha, rfl⟩) h_new)
-    exact List.mem_map.mpr ⟨b, mem_flatMap_mergeShards.mpr ⟨_, _, h_lst ▸ hb⟩, h_eq⟩
+    have := h_cov a (mem_bucketsOf.mpr ⟨ha, rfl⟩) h_new
+    grind only [List.map_id, List.append_nil, List.mem_map, mem_flatMap_mergeShards]
   · -- each kept item is an item of the layer, whose fingerprint was new
     intro a ha
     obtain ⟨i, hi, ha⟩ := mem_flatMap_mergeShards.mp ha
     obtain ⟨pfx, h_lst, -, -, h_inQ, -⟩ := mergeShards_description (shards := gs.shards) (lists := lists) i hi
-    simp only [List.map_id, List.append_nil] at h_lst
-    obtain ⟨-, h_new⟩ := h_inQ a (h_lst ▸ ha)
     obtain ⟨h_in, rfl⟩ := mergeShards_kept ha
-    exact ⟨h_in, h_new⟩
+    change a ∈ lists.flatten ∧ MapShard.get? (gs.shards.uget _ hi) a.fingerprint = none
+    grind only [List.map_id, List.append_nil]
   · -- the seen set maps each kept fingerprint to its entry, in the shard of the fingerprint
     intro k v
-    simp only [get?_ofMap_mergeShards]
+    simp only [ShardedMapUSize.get?_ofMap]
     obtain ⟨pfx, h_lst, -, -, -, h_content⟩ := mergeShards_description (shards := gs.shards) (lists := lists)
       (shardIdxOfUSize numShards k) (shardIdxOfUSize_lt _ numShards.property)
     simp only [List.map_id, List.append_nil] at h_lst
     rw [h_content, ← h_lst]
     apply or_congr Iff.rfl
-    constructor
-    · intro h
-      obtain ⟨a, ha, h_eq⟩ := List.mem_map.mp h
-      exact List.mem_map.mpr ⟨a, mem_flatMap_mergeShards.mpr ⟨_, _, ha⟩, h_eq⟩
-    · intro h
-      obtain ⟨a, ha, h_eq⟩ := List.mem_map.mp h
-      obtain ⟨i, hi, ha⟩ := mem_flatMap_mergeShards.mp ha
-      simp only [Prod.mk.injEq] at h_eq ; obtain ⟨rfl, rfl⟩ := h_eq
-      obtain ⟨-, rfl⟩ := mergeShards_kept ha
-      exact List.mem_map.mpr ⟨a, ha, rfl⟩
+    grind only [List.mem_map, mem_flatMap_mergeShards, → mergeShards_kept]
 
 /-- Merge a worker's statistics into the main context's. -/
 @[inline]
@@ -762,20 +735,14 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
         simp [h_getElem_chunk] at h_in_zip
         specialize h_local_invs _ _ h_in_zip ; try simp at h_local_invs
         -- show that no `lctx` has finished
-        rw [h_base_desc] at h_not_finished_mbase
-        revert h_not_finished_mbase ; rcases heq : List.find? _ _ with _ | lctx
-        on_goal 2=>
-          dsimp ; intro heq' ; rw [List.find?_map, Option.map_eq_some_iff] at heq
-          rcases heq with ⟨lctx', heq, rfl⟩
-          rw [List.find?_eq_some_iff_getElem] at heq
-          try simp only [Function.comp_def, BaseSearchContext.hasFinished] at heq
-          grind
-        intro _ ; rw [List.find?_map, Option.map_eq_none_iff, List.find?_eq_none] at heq
-        -- NOTE: Here Lean has some trouble proving the index validity of `j` from the scratch, so use some trick
-        set e := getElem lctxs' j _
-        specialize heq e (by exact List.getElem_mem _) ; simp [BaseSearchContext.hasFinished] at heq
+        have h_unfinished : ∀ lctx ∈ lctxs', lctx.base.finished = none := by
+          simp only [h_base_desc, List.find?_map, Option.bind_map, Function.comp_def] at h_not_finished_mbase
+          cases h_find : lctxs'.find? (fun lctx => lctx.base.hasFinished) <;>
+            grind only [Option.bind_none, Option.bind_some, List.find?_eq_none, List.find?_some,
+              BaseSearchContext.hasFinished, Option.isSome_iff_ne_none]
         rcases h_local_invs with ⟨_, _, h_dj, h_same_dom, h_succ_coll⟩
-        specialize h_succ_coll heq (fp.view u) u ent (h_getElem_chunk ▸ h_in_chunk)
+        specialize h_succ_coll (h_unfinished _ (List.getElem_mem _))
+          (fp.view u) u ent (h_getElem_chunk ▸ h_in_chunk)
         grind
     · grind
   · rfl
