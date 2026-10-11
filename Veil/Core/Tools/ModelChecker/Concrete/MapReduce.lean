@@ -347,18 +347,9 @@ theorem mem_bucketsOf {numShards : PosUSize} {lists : List (List (MapReduceQueue
     {i : USize} {h : i < numShards} {x : MapReduceQueueItem σₕ σ κ} :
     x ∈ (bucketsOf numShards lists).uget i h ↔
       x ∈ lists.flatten ∧ shardIdxOfUSize numShards x.fingerprint = i := by
-  unfold bucketsOf
-  suffices ∀ init : VectorUSize (List (MapReduceQueueItem σₕ σ κ)) numShards,
-      x ∈ (lists.foldl (init := init)
-        (VectorUSize.distributeInto MapReduceQueueItem.fingerprint numShards.property)).uget i h ↔
-      x ∈ init.uget i h ∨ (x ∈ lists.flatten ∧ shardIdxOfUSize numShards x.fingerprint = i) by
-    rw [this, VectorUSize.uget_replicateUSize] ; simp
-  intro init
-  induction lists generalizing init with
-  | nil => simp
-  | cons lq lists ih =>
-    rw [List.foldl_cons, ih, VectorUSize.mem_uget_distributeInto, List.flatten_cons]
-    simp only [List.mem_append] ; grind
+  unfold bucketsOf VectorUSize.distributeInto
+  rw [← List.foldl_flatten, ← VectorUSize.distributeInto, VectorUSize.mem_uget_distributeInto,
+    VectorUSize.uget_replicateUSize] ; simp
 
 /-- Merge one shard: deduplicate its bucket, and add the log entries of the kept items to its shard
 of the seen set. The kept items, last first, their log entries, and the updated shard. -/
