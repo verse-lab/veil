@@ -508,20 +508,27 @@ def MapReduceSearchContextMain.mergeWithLocalOnes
   let mbase := workers.foldl (init := mctx.base) BaseSearchContext.mergeWorker
   MapReduceSearchContextMain.mergeLayer { mctx with base := mbase } (workers.map (·.queue))
 
-/-- The items of the initial states, each with its fingerprint and its `init` entry, the position
-of the state in `initStates`. -/
-@[expose] def initialMapReduceQueueItems (initStates : List σ) : List (MapReduceQueueItem σₕ σ κ) :=
-  -- CHECK Maybe parallelize this `map`?
-  initStates.mapIdx fun i s => ⟨fp.view s, s, .init i⟩
+/-- Count the initial states while building their items in input order. Each item carries its
+fingerprint and an `init` entry recording its position in `initStates`. -/
+@[expose] def initialMapReduceQueueItems (initStates : List σ) : Nat × List (MapReduceQueueItem σₕ σ κ) :=
+  Veil.List.foldlIdxWithLengthReturned
+    (f := fun i items s => items.push ⟨fp.view s, s, .init i⟩)
+    (init := #[]) (final := fun len items => (len, items.toList)) initStates
+
+theorem initialMapReduceQueueItems_eq_mapIdx (initStates : List σ) :
+    initialMapReduceQueueItems (κ := κ) initStates =
+      (initStates.length, initStates.mapIdx fun i s => ⟨fp.view s, s, .init i⟩) := by
+  rw [initialMapReduceQueueItems, Veil.List.foldlIdxWithLengthReturned_eq_foldlIdx,
+    List.foldlIdx_eq_foldl_zipIdx]
+  simp [List.foldl_push_eq_append, List.mapIdx_eq_zipIdx_map]
 
 /-- The main context before any state is processed: the initial states merged as round 0, into an
 empty seen set, so that each kept item and the seen set share its entry. -/
 @[expose] def MapReduceSearchContextMain.initial (initStates : List σ) :
     MapReduceSearchContextMain σ κ σₕ asm Shard numShards :=
-  -- CHECK There might be some very bad performance regression here, if `initStates` are many
+  let (len, items) := initialMapReduceQueueItems (κ := κ) initStates
   MapReduceSearchContextMain.mergeLayer
-    ⟨BaseSearchContext.initial initStates.length, 0, [], ShardedUSize.empty⟩
-    [initialMapReduceQueueItems initStates]
+    ⟨BaseSearchContext.initial len, 0, [], ShardedUSize.empty⟩ [items]
 
 /-- Merging the initial items into a context that has seen nothing yet establishes the invariants. -/
 theorem MapReduceSearchContextMainInvariants.of_mergeLayer_initialMapReduceQueueItems
@@ -529,19 +536,19 @@ theorem MapReduceSearchContextMainInvariants.of_mergeLayer_initialMapReduceQueue
     {params : SearchParameters ρ σ} (m0 : MapReduceSearchContextMain σ κ σₕ asm Shard numShards)
     (h_tv : m0.tovisit = []) (h_len : m0.tovisitLen = 0)
     (h_gs : ∀ x, x ∉ m0.globalSeen) (h_fin : m0.base.finished = none) :
-    MapReduceSearchContextMainInvariants sys params (m0.mergeLayer [initialMapReduceQueueItems sys.initStates]) := by
-  obtain ⟨h_base, h_tvl, hd⟩ := m0.mergeLayer_description [initialMapReduceQueueItems sys.initStates]
+    MapReduceSearchContextMainInvariants sys params (m0.mergeLayer [(initialMapReduceQueueItems sys.initStates).2]) := by
+  obtain ⟨h_base, h_tvl, hd⟩ := m0.mergeLayer_description [(initialMapReduceQueueItems sys.initStates).2]
   replace hd := DedupFoldDescription.ofDedupFoldDescriptionWithAcc hd h_tv
     (fun x => ShardedMapUSize.not_mem_iff_get?_none.mp (h_gs x))
   have h_seen := hd.isSome_iff (key' := MapReduceQueueItem.fingerprint) (fun _ _ => rfl)
-  generalize m0.mergeLayer [initialMapReduceQueueItems sys.initStates] = res at *
+  generalize m0.mergeLayer [(initialMapReduceQueueItems sys.initStates).2] = res at *
   rcases res with ⟨base, len, tovisit, seen⟩
   simp only [← ShardedMapUSize.mem_iff_isSome_get?] at h_seen
   obtain ⟨pfx, h_pfx, h_nodup, h_cov, h_inQ, h_content⟩ := hd
   dsimp only at h_base h_tvl h_pfx h_seen
   simp only [h_tv, h_len, List.length_nil, Nat.add_zero, Nat.zero_add, List.map_id] at h_tvl h_pfx
   subst h_base h_tvl h_pfx
-  simp [initialMapReduceQueueItems] at h_cov h_inQ
+  simp [initialMapReduceQueueItems_eq_mapIdx] at h_cov h_inQ
   constructor ; on_goal 1=> constructor
   all_goals (try simp [h_seen, h_fin]) ; try grind
   intro s hs ; obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hs
@@ -564,14 +571,14 @@ theorem MapReduceSearchContextMain.LogSound.of_mergeLayer_initialMapReduceQueueI
     {params : SearchParameters ρ σ} (m0 : MapReduceSearchContextMain σ κ σₕ asm Shard numShards)
     (h_tv : m0.tovisit = []) (h_gs : ∀ x, x ∉ m0.globalSeen)
     (h_vs : m0.base.violatingStates = []) (h_fin : m0.base.finished = none) :
-    ∃ rep dep, (m0.mergeLayer [initialMapReduceQueueItems sys.initStates]).LogSound sys params rep dep := by
-  obtain ⟨h_base, -, hd⟩ := m0.mergeLayer_description [initialMapReduceQueueItems sys.initStates]
+    ∃ rep dep, (m0.mergeLayer [(initialMapReduceQueueItems sys.initStates).2]).LogSound sys params rep dep := by
+  obtain ⟨h_base, -, hd⟩ := m0.mergeLayer_description [(initialMapReduceQueueItems sys.initStates).2]
   replace hd := DedupFoldDescription.ofDedupFoldDescriptionWithAcc hd h_tv
     (fun x => ShardedMapUSize.not_mem_iff_get?_none.mp (h_gs x))
-  generalize m0.mergeLayer [initialMapReduceQueueItems sys.initStates] = res at *
+  generalize m0.mergeLayer [(initialMapReduceQueueItems sys.initStates).2] = res at *
   rcases res with ⟨base, len, tovisit, seen⟩
   obtain ⟨pfx, h_pfx, h_nodup, h_cov, h_inQ, h_content⟩ := hd
-  simp [initialMapReduceQueueItems] at h_pfx h_inQ h_content
+  simp [initialMapReduceQueueItems_eq_mapIdx] at h_pfx h_inQ h_content
   dsimp only at h_base ; subst_vars
   let rep (a : σₕ) := (seen.get? a).bind fun
     | .init j => sys.initStates[j]?
