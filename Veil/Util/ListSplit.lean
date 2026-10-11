@@ -125,7 +125,7 @@ theorem splitListSpec_flatten (chunkSize numLarge : Nat) (n : Nat) (l : List α)
       rw [ih (numLarge - 1) (l.drop _) (by omega)]
       exact List.take_append_drop _ l
 
-private theorem flatten_map_reverse_perm (ll : List (List α)) :
+theorem flatten_map_reverse_perm (ll : List (List α)) :
     List.Perm (ll.map List.reverse).flatten ll.flatten := by
   induction ll with
   | nil => simp

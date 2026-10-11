@@ -371,6 +371,25 @@ theorem DedupFoldDescriptionWithAcc.length_keys
       rintro rfl ; simp [(h_mem a ha).2] at hk
   rw [h_perm.length_eq, h_lst] ; simp ; omega
 
+/-- A deduplicating fold over `l.map g` is one over `l` whose key, value and projection go through `g`. -/
+theorem DedupFoldDescriptionWithAcc.map {α β γ δ K V : Type} {key : β → K} {val : β → V} {proj : β → δ}
+    {lst : γ → List δ} {look : γ → K → Option V} {g : α → β} {l : List α} {acc res : γ}
+    (h : DedupFoldDescriptionWithAcc (key ∘ g) (val ∘ g) (proj ∘ g) lst look l acc res) :
+    DedupFoldDescriptionWithAcc key val proj lst look (l.map g) acc res := by
+  obtain ⟨pfx, h⟩ := h
+  refine ⟨pfx.map g, ?_⟩
+  grind only [List.map_map, List.mem_map, Function.comp_def]
+
+/-- The description of a deduplicating fold does not depend on the order of the kept elements: the
+result may hold any permutation of them. -/
+theorem DedupFoldDescriptionWithAcc.of_perm {α β γ K V : Type} {key : α → K} {val : α → V} {proj : α → β}
+    {lst : γ → List β} {look : γ → K → Option V} {l : List α} {acc res : γ} {pfx pfx' : List α}
+    (hp : List.Perm pfx' pfx) (h1 : lst res = pfx'.map proj ++ lst acc) (h2 : (pfx.map key).Nodup)
+    (h3 : ∀ a ∈ l, look acc (key a) = none → key a ∈ pfx.map key)
+    (h4 : ∀ a ∈ pfx, a ∈ l ∧ look acc (key a) = none)
+    (h5 : ∀ k v, look res k = some v ↔ look acc k = some v ∨ (k, v) ∈ pfx.map fun a => (key a, val a)) :
+    DedupFoldDescriptionWithAcc key val proj lst look l acc res := by exists pfx' ; grind
+
 /-- A complete, duplicate-free enumeration of the lookup's keys has the output list's length. -/
 theorem DedupFoldDescription.length_keys
     {key : α → K} {val : α → V} {proj : α → β} {lst : γ → List β} {look : γ → K → Option V}
