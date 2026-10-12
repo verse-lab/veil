@@ -276,7 +276,8 @@ private def Module.ensureExecutableModelCheckerDefinitions (mod : Module) : Comm
       modify fun s => { savedState with messages := s.messages, traceState := s.traceState }
       throwAbortCommand
   stepOrAbort <| Extract.runGenExtractCommand mod
-  stepOrAbort <| elabVeilCommand (← Extract.Module.assembleEnumerableTransitionSystem mod)
+  for cmd in ← Extract.Module.assembleEnumerableTransitionSystem mod do
+    stepOrAbort <| elabVeilCommand cmd
 
 @[command_elab Veil.genExecutable]
 def elabGenExecutable : CommandElab := fun _stx => do
@@ -451,9 +452,9 @@ shard type as syntax. -/
 structure ModelCheckCommandConfig extends ModelCheckerConfig where
   /-- Elaborated with the generated checker call; defaults to `Nat` (`StateFingerprint.ofHashNat`). -/
   fingerprintType : Term := mkCIdent ``Nat
-  /-- Applied to the fingerprint type, the set type of the shards of the parallel search's seen set;
-  defaults to `TreeSetShard` (`Std.TreeSet`). -/
-  seenSet : Term := mkCIdent ``TreeSetShard
+  /-- Applied to the fingerprint type, the map type of the shards of the parallel search's seen set,
+  as a function of the type of its values; defaults to `TreeMapShard` (`Std.TreeMap`). -/
+  seenSet : Term := mkCIdent ``TreeMapShard
 
 declare_command_config_elab elabModelCheckCommandConfig ModelCheckCommandConfig where
   option fingerprintType := fun cfg item => do
@@ -564,12 +565,19 @@ private def getTheoryTerm (cmdName : String) (theoryTermOpt : Option Term)
 private def mkIdentWithModName (mod : Module) (name : Name) : Ident :=
   Lean.mkIdent (mod.name ++ name)
 
-/-- The module's `enumerableTransitionSystem`, logging picks or not (`LogSwitch`). Only recovering
-a counterexample trace runs with the log; searches and simulations do not read it. -/
-private def mkTransitionSystemTerm (mod : Module) (instSortArgs : Array Term) (th : Ident)
-    (logPicks : Bool) : CommandElabM Term :=
-  `(letI : $(mkIdent ``LogSwitch) := ⟨$(quote logPicks)⟩
+/-- The module's `enumerableTransitionSystem`, which does not log picks (`LogSwitch`): searches and
+simulations do not read them. -/
+private def mkTransitionSystemTerm (mod : Module) (instSortArgs : Array Term) (th : Ident) :
+    CommandElabM Term :=
+  `(letI : $(mkIdent ``LogSwitch) := ⟨false⟩
     $(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
+
+/-- The module's `pickSource`, which logs picks (`LogSwitch`): recovering a counterexample trace
+takes the picks of its states from it. -/
+private def mkPickSourceTerm (mod : Module) (instSortArgs : Array Term) (th : Ident) :
+    CommandElabM Term :=
+  `(letI : $(mkIdent ``LogSwitch) := ⟨true⟩
+    $(mkIdentWithModName mod `pickSource) $instSortArgs* $th)
 
 /-- Build search parameters for model checking / simulation. -/
 private def mkSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
@@ -640,7 +648,7 @@ private def mkExecutionCall (mod : Module) (config : ModelCheckerConfig)
   let th := mkVeilImplementationDetailIdent `th
   let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
   let sp ← mkSearchParameters mod config
-  let sysWithoutLog ← mkTransitionSystemTerm mod instSortArgs th (logPicks := false)
+  let sysWithoutLog ← mkTransitionSystemTerm mod instSortArgs th
   let call ← mkCall {
     instSortArgs := instSortArgs
     theoryArg := th
@@ -657,18 +665,18 @@ private def mkExecutionCall (mod : Module) (config : ModelCheckerConfig)
 private def mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig) (fingerprintType seenSet : Term)
     (instTerm theoryTerm : Term) : CommandElabM Term :=
   mkExecutionCall mod config instTerm theoryTerm fun ectx => do
-  -- A counterexample's trace is recovered in a system that logs picks.
-  let traceSys ← mkTransitionSystemTerm mod ectx.instSortArgs ectx.theoryArg (logPicks := true)
+  -- A counterexample's trace takes the picks of its states from the module's pick source.
+  let pickSource ← mkPickSourceTerm mod ectx.instSortArgs ectx.theoryArg
   -- Model checker call with type annotation to help inference
   -- Note: findReachableThen takes parallelCfg, progressInstanceId, cancelToken, and the
   -- continuation for the result as the last four args
-  -- The fingerprint type comes from the `fingerprintType` option, the seen set's shard type from
-  -- `seenSet`. The checker is generic in both and gets specialized to them at this call site.
+  -- The fingerprint type comes from the `fingerprintType` option, the map type of the seen set's
+  -- shards, as a function of the type of its values, from `seenSet`. The checker is generic in both
+  -- and gets specialized to them at this call site.
   `(($(mkIdent ``Veil.ModelChecker.Concrete.findReachableThen)
-       ($(mkIdent `inhabσ) := $instInhabitedStateFieldConcreteType)
        ($(mkIdent `σₕ) := $fingerprintType)
-       ($(mkIdent `Shard) := $seenSet $fingerprintType)
-       ($(ectx.sysWithoutLog)) (fun _ => $traceSys)
+       ($(mkIdent `ShardOf) := $seenSet $fingerprintType)
+       ($(ectx.sysWithoutLog)) (fun _ => $pickSource)
        $(ectx.searchParams) : _ → _ → _ → _ → IO _))
 
 /-- Build the simulator call for the shared execution workflow, including display JSON conversion. -/

@@ -6,52 +6,38 @@ public section
 namespace Veil.ModelChecker.Concrete
 
 variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
-  {Shard : Type} [Membership σₕ Shard] {th : ρ}
-
-@[expose] def MapReduceSearchContextMain.initial [SetShard σₕ Shard] (initStates : List σ) (numShards : Nat)
-  (h_pos : 0 < USize.ofNat numShards := by native_decide)
-  (h_small : numShards < USize.size := by native_decide) : MapReduceSearchContextMain σ κ σₕ asm Shard :=
-  let fps := initStates.map fp.view
-  let tovisit := fps.zipWith (fun fp s => ⟨fp, s⟩) initStates
-  { base := BaseSearchContext.initial initStates,
-    tovisitLen := tovisit.length,
-    tovisit := tovisit,
-    globalSeen := ShardedSetUSize.ofListByHash fps numShards h_pos h_small }
+  {Shard : Type} [Membership σₕ Shard] {numShards : PosUSize} {th : ρ}
 
 /-- Create an empty local context with the given `completedDepth`. -/
 @[expose] def MapReduceSearchContextLocal.initial (completedDepth : Nat) : MapReduceSearchContextLocal σ κ σₕ asm :=
-  ({ log := Std.HashMap.emptyWithCapacity,
-     violatingStates := [],
+  ⟨{ violatingStates := [],
      finished := none,
-     completedDepth := completedDepth,
      currentFrontierDepth := completedDepth + 1,
      statesFound := 0,
-     actionStatsMap := ActionStatUpdate.empty (κ := κ) }, [])
-
-theorem MapReduceSearchContextMainInvariants.initial [SetShard σₕ Shard]
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
-  (params : SearchParameters ρ σ) (numShards : Nat) {h_pos} {h_small} :
-  MapReduceSearchContextMainInvariants sys params (MapReduceSearchContextMain.initial (fp := fp) (Shard := Shard) sys.initStates numShards h_pos h_small) := by
-  simp [MapReduceSearchContextMain.initial, BaseSearchContext.initial]
-  constructor ; on_goal 1=> constructor
-  all_goals simp [MapReduceSearchContextMain.isStableClosed,
-    ← List.map_uncurry_zip_eq_zipWith, ← List.map_prod_right_eq_zip, ShardedSetUSize.mem_ofListByHash] ; (try solve | intros ; grind)
+     actionStatsMap := ActionStatUpdate.empty (κ := κ) }, Std.HashSet.emptyWithCapacity, []⟩
 
 theorem MapReduceSearchContextLocalInvariants.initial
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
-  (globalSeen : ShardedSetUSize σₕ Shard) (completedDepth : Nat) :
+  (globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards) (completedDepth : Nat) :
   MapReduceSearchContextLocalInvariants sys params globalSeen (fun _ => False)
     (MapReduceSearchContextLocal.initial (fp := fp) completedDepth) := by
   simp [MapReduceSearchContextLocal.initial]
   constructor ; on_goal 1=> constructor
   all_goals (try solve | intros ; grind)
 
+theorem MapReduceSearchContextLocal.LogSound.initial
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
+  (params : SearchParameters ρ σ) (completedDepth : Nat) (rep : σₕ → Option σ) :
+  (MapReduceSearchContextLocal.initial (fp := fp) (κ := κ) (asm := asm) completedDepth).LogSound sys params rep := by
+  constructor ; on_goal 1=> constructor
+  all_goals simp [MapReduceSearchContextLocal.initial, TerminationSound]
+
 variable {params : SearchParameters ρ σ}
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
 
 theorem MapReduceSearchContextMainInvariants.setExploredAll_preserves_invs
-  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard}
+  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards}
   (h_not_finished : mctx.base.hasFinished = false)
   (h_empty : mctx.tovisit.isEmpty)
   (mctx_invs : MapReduceSearchContextMainInvariants sys params mctx) :
@@ -62,8 +48,31 @@ theorem MapReduceSearchContextMainInvariants.setExploredAll_preserves_invs
   constructor ; on_goal 1=> constructor
   all_goals (try dsimp only) ; try solve | assumption | grind
 
+theorem MapReduceSearchContextMainInvariants.setCancelled
+  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards}
+  (mctx_invs : MapReduceSearchContextMainInvariants sys params mctx) :
+  MapReduceSearchContextMainInvariants sys params
+    { mctx with base := { mctx.base with finished := some (.earlyTermination .cancelled) } } := by
+  rcases mctx with ⟨ctx, mlen, q, gs⟩ ; rcases mctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed, h_len⟩ ; dsimp only at *
+  constructor ; on_goal 1=> constructor
+  all_goals (try dsimp only) ; try solve | assumption | grind
+
+theorem MapReduceSearchContextMain.LogSound.setExploredAll [MapShard σₕ (LogEntry σₕ κ) Shard]
+  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+  (h : mctx.LogSound sys params rep dep) :
+  MapReduceSearchContextMain.LogSound sys params
+    { mctx with base := { mctx.base with finished := some (.exploredAllReachableStates) } } rep dep := by
+  rcases h with ⟨⟨hv, _⟩, hlog, hq⟩ ; exact ⟨⟨hv, by simp [TerminationSound]⟩, hlog, hq⟩
+
+theorem MapReduceSearchContextMain.LogSound.setCancelled [MapShard σₕ (LogEntry σₕ κ) Shard]
+  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+  (h : mctx.LogSound sys params rep dep) :
+  MapReduceSearchContextMain.LogSound sys params
+    { mctx with base := { mctx.base with finished := some (.earlyTermination .cancelled) } } rep dep := by
+  rcases h with ⟨⟨hv, _⟩, hlog, hq⟩ ; exact ⟨⟨hv, by simp [TerminationSound]⟩, hlog, hq⟩
+
 theorem MapReduceSearchContextMainInvariants.bfs_completeness
-  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard}
+  {mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards}
   (mctx_invs : MapReduceSearchContextMainInvariants sys params mctx)
   (h_explore_all : mctx.base.finished = some (.exploredAllReachableStates))
   (h_view_inj : Function.InjectiveOn fp.view sys.reachable) :
@@ -73,26 +82,26 @@ theorem MapReduceSearchContextMainInvariants.bfs_completeness
   induction h_reachable <;> grind
 
 theorem MapReduceSearchContextLocalInvariants.finished_change_visited_pred_in_invs
-  {globalSeen : ShardedSetUSize σₕ Shard}
-  {p q : MapReduceQueueItem σₕ σ → Prop}
+  {globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards}
+  {p q : MapReduceQueueItem σₕ σ κ → Prop}
   {lctx : MapReduceSearchContextLocal σ κ σₕ asm}
-  (h_finished : lctx.1.hasFinished = true)
+  (h_finished : lctx.base.hasFinished = true)
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx) :
   MapReduceSearchContextLocalInvariants sys params globalSeen q lctx := by
-  rcases lctx with ⟨ctx, q⟩ ; rcases lctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_not_explored_all, h_dj, h_same_dom, h_succ_coll⟩ ; dsimp only at *
+  rcases lctx with ⟨ctx, seen, q⟩ ; rcases lctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_not_explored_all, h_dj, h_same_dom, h_succ_coll⟩ ; dsimp only at *
   simp [BaseSearchContext.hasFinished] at h_finished
   constructor ; on_goal 1=> constructor
   all_goals dsimp only ; try solve | assumption | grind
 
 theorem MapReduceSearchContextLocalInvariants.progress_by_one_state
-  {globalSeen : ShardedSetUSize σₕ Shard}
-  {p q : MapReduceQueueItem σₕ σ → Prop}
-  {lctx : MapReduceSearchContextLocal σ κ σₕ asm}
+  {globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards}
+  {p q : MapReduceQueueItem σₕ σ κ → Prop}
+  {lctx : MapReduceSearchContextLocal σ κ σₕ asm} {e : LogEntry σₕ κ}
   (lctx_invs : MapReduceSearchContextLocalInvariants sys params globalSeen p lctx)
-  (h : ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th curr → ((fp.view v) ∈ globalSeen ∨ (fp.view v) ∈ lctx.1.log))
-  (hpq : ∀ item, q item ↔ p item ∨ item = ⟨fpSt, curr⟩) :
+  (h : ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th curr → ((fp.view v) ∈ globalSeen ∨ (fp.view v) ∈ lctx.seen))
+  (hpq : ∀ item, q item ↔ p item ∨ item = ⟨fpSt, curr, e⟩) :
   MapReduceSearchContextLocalInvariants sys params globalSeen q lctx := by
-  rcases lctx with ⟨ctx, q⟩ ; rcases lctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_not_explored_all, h_dj, h_same_dom, h_succ_coll⟩ ; dsimp only at *
+  rcases lctx with ⟨ctx, seen, q⟩ ; rcases lctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_not_explored_all, h_dj, h_same_dom, h_succ_coll⟩ ; dsimp only at *
   constructor ; on_goal 1=> constructor
   all_goals dsimp only ; try solve | assumption | grind
 

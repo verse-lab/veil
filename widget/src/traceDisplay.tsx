@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { DocumentPosition } from '@leanprover/infoview';
 import {
   ChangeInfo,
@@ -25,6 +26,7 @@ interface ParsedState {
   tag?: string; // Optional tag associated with this state (e.g. transition/action label)
   fields: Record<string, unknown>;
   failing?: boolean; // True if an assertion failed while executing the transition to this state
+  choices?: string[]; // The non-deterministic choices (picks) that led to this state, if known
 }
 type Trace = ParsedState[];
 
@@ -61,6 +63,7 @@ interface TraceData {
     fields: Record<string, unknown>;
     transition: unknown;
     failing?: boolean;
+    choices?: string[];
   }>;
   instantiation?: Record<string, unknown>;
   extraVals?: Record<string, unknown>;
@@ -210,6 +213,99 @@ const KVRow: React.FC<{
   );
 };
 
+/** Render the explanation ourselves: native title tooltips may be suppressed in infoview. */
+const HoverInfo: React.FC<React.PropsWithChildren<{
+  description: string;
+  stopPropagation?: boolean;
+}>> = ({ description, stopPropagation = false, children }) => {
+  const triggerRef = React.useRef<HTMLSpanElement>(null);
+  const tooltipRef = React.useRef<HTMLDivElement>(null);
+  const hideTimer = React.useRef<ReturnType<typeof setTimeout>>();
+  const tooltipId = React.useId();
+  const [visible, setVisible] = React.useState(false);
+  const [position, setPosition] = React.useState({ left: 0, top: 0 });
+
+  const cancelHide = () => clearTimeout(hideTimer.current);
+  const show = () => {
+    cancelHide();
+    setVisible(true);
+  };
+  const hide = () => {
+    cancelHide();
+    if (triggerRef.current?.contains(document.activeElement)) return;
+    hideTimer.current = setTimeout(() => setVisible(false), 150);
+  };
+
+  React.useEffect(() => () => clearTimeout(hideTimer.current), []);
+
+  React.useLayoutEffect(() => {
+    if (!visible || !triggerRef.current || !tooltipRef.current) return;
+    const trigger = triggerRef.current.getBoundingClientRect();
+    const tooltip = tooltipRef.current.getBoundingClientRect();
+    const margin = 8;
+    const width = document.documentElement.clientWidth;
+    const height = document.documentElement.clientHeight;
+    const left = Math.max(margin, Math.min(trigger.left, width - tooltip.width - margin));
+    const below = trigger.bottom + margin;
+    const top = below + tooltip.height <= height - margin
+      ? below
+      : Math.max(margin, trigger.top - tooltip.height - margin);
+    setPosition({ left, top });
+  }, [visible, description]);
+
+  React.useEffect(() => {
+    if (!visible) return;
+    const dismiss = () => setVisible(false);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') dismiss();
+    };
+    const onScroll = (event: Event) => {
+      // Let users scroll a long explanation without dismissing it.
+      if (event.target instanceof Node && tooltipRef.current?.contains(event.target)) return;
+      dismiss();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', dismiss);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', dismiss);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [visible]);
+
+  return (
+    <span
+      ref={triggerRef}
+      className="mc-hover-trigger"
+      tabIndex={0}
+      aria-describedby={visible ? tooltipId : undefined}
+      onPointerEnter={show}
+      onPointerLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+      onClick={e => { if (stopPropagation) e.stopPropagation(); }}
+    >
+      {children}
+      {visible && createPortal(
+        <div
+          ref={tooltipRef}
+          id={tooltipId}
+          role="tooltip"
+          className="mc-hover-tooltip"
+          style={position}
+          onPointerEnter={show}
+          onPointerLeave={hide}
+          onClick={e => e.stopPropagation()}
+        >
+          {description}
+        </div>,
+        document.body,
+      )}
+    </span>
+  );
+};
+
 const StateCard: React.FC<{
   st: ParsedState;
   highlighted?: boolean;
@@ -221,6 +317,20 @@ const StateCard: React.FC<{
   onResetForceOpen?: () => void;  // Called when user clicks header while forceOpen is active
 }> = ({ st, highlighted = false, changes, showRemovals = false, forceOpen = null, hiddenFields, onHideField, onResetForceOpen }) => {
   const isFailing = st.failing === true;
+  const actionDescription = st.index === 0
+    ? 'Initial state produced by the initializer (after_init).'
+    : isFailing
+      ? `State at the assertion failure while executing ${st.tag || 'this action'}.`
+      : `State reached by executing ${st.tag || 'this action'}.`;
+  const choices = st.choices ?? [];
+  const choiceOrigin = st.index === 0
+    ? 'initialization (after_init)'
+    : st.tag ? `action ${st.tag}` : 'this transition';
+  const choicesDescription = [
+    `Values chosen by non-deterministic statements (pick, :|, or := *) during ${choiceOrigin}.`,
+    'Read left to right in execution order, including choices in called procedures. The sequence starts over for each step.',
+    ...(isFailing ? ['Only choices made before the assertion failed are shown.'] : []),
+  ].join('\n');
   const [localOpen, setLocalOpen] = React.useState(true);
 
   // Sync local state when forceOpen changes - this ensures that when we
@@ -250,10 +360,26 @@ const StateCard: React.FC<{
   return (
     <div className={`state-card ${highlighted ? "is-highlighted" : ""} ${isFailing ? "is-failing" : ""}`}>
       <div className="state-header" onClick={handleHeaderClick}>
-        <span className="action-chip" title={st.tag ?? ''}>
-          {st.tag || '(no action)'}
-        </span>
+        <HoverInfo description={actionDescription}>
+          <span className="action-chip">{st.tag || '(no action)'}</span>
+        </HoverInfo>
         {isFailing && <span className="failing-badge">FAILED</span>}
+        {choices.length > 0 && (
+          <span className="choice-chips">
+            <HoverInfo description={choicesDescription} stopPropagation>
+              <span className="choice-label">choices:</span>
+            </HoverInfo>
+            {choices.map((c, i) => (
+              <HoverInfo
+                key={i}
+                description={`Choice ${i + 1} of ${choices.length}: ${c}\n${choicesDescription}`}
+                stopPropagation
+              >
+                <code className="choice-chip">{c}</code>
+              </HoverInfo>
+            ))}
+          </span>
+        )}
         <span className="state-id">(index: {st.index})</span>
         <div className="state-toggle">{open ? "▼" : "▶"}</div>
       </div>
@@ -441,6 +567,7 @@ function traceDataToStates(traceData: TraceData): ParsedState[] {
     tag: formatActionLabel(st.transition),
     fields: st.fields,
     failing: st.failing,
+    choices: st.choices,
   }));
 }
 
@@ -665,7 +792,57 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
     }
     .kv-content { display: block; }
-    .action-chip { cursor: help; }
+    .action-chip { cursor: default; }
+    .choice-chips {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      cursor: default;
+    }
+    .mc-hover-trigger {
+      display: inline-flex;
+    }
+    .mc-hover-trigger:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
+    }
+    .mc-hover-tooltip {
+      position: fixed;
+      z-index: 10000;
+      box-sizing: border-box;
+      max-width: min(360px, calc(100vw - 16px));
+      max-height: calc(100vh - 16px);
+      overflow: auto;
+      padding: 8px 10px;
+      border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-panel-border));
+      border-radius: 4px;
+      background: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+      color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 12px;
+      font-weight: normal;
+      line-height: 1.5;
+      white-space: pre-line;
+      overflow-wrap: anywhere;
+    }
+    .choice-label {
+      font-size: 11px;
+      font-weight: normal;
+      color: var(--vscode-descriptionForeground);
+      text-decoration: underline dotted;
+      text-underline-offset: 2px;
+    }
+    .choice-chip {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: normal;
+      background: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      border-radius: 3px;
+      padding: 1px 5px;
+    }
     .result-header {
       display: flex;
       align-items: center;

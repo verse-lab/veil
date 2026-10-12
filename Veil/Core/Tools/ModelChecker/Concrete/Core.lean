@@ -54,13 +54,29 @@ deriving BEq, DecidableEq, Repr
 theorem QueueItem.fold_unfold {σₕ σ : Type} (item : QueueItem σₕ σ) :
   item = ⟨item.fingerprint, item.state, item.depth⟩ := rfl
 
+/-- How the search first reached a state, recorded against the state's fingerprint. Trace
+recovery re-executes the system along these entries, so they hold positions in `sys.initStates`
+and in the successes of `sys.tr` rather than fingerprints of post-states: the position does not
+depend on fingerprints being injective. The label is redundant with the position, but lets a
+path be displayed from the log alone. -/
+inductive LogEntry (σₕ κ : Type) where
+  /-- The state is `sys.initStates[idx]`. -/
+  | init (idx : Nat)
+  /-- The state is the post-state of `(sys.tr th parent).successes[idx]`, a transition labelled
+  `label`. -/
+  | step (parent : σₕ) (label : κ) (idx : Nat)
+deriving Repr, Inhabited
+
 /-- A queue item for the MapReduce checker, without the depth field.
     In MapReduce BFS, all items in the frontier share the same depth,
-    tracked externally via `completedDepth`. -/
-structure MapReduceQueueItem (σₕ σ : Type) where
+    tracked externally via `currentFrontierDepth`. The item carries the log entry of its state, so
+    that the merge of a BFS round keeps, for each fingerprint, the entry of the very state it
+    keeps in the frontier. -/
+structure MapReduceQueueItem (σₕ σ κ : Type) where
   fingerprint : σₕ
   state : σ
-deriving BEq, DecidableEq, Repr
+  entry : LogEntry σₕ κ
+deriving Repr
 
 structure ActionStat where
   statesGenerated : Nat
@@ -158,14 +174,9 @@ structure BaseSearchContext (σ κ σₕ asm : Type)
   [fp : StateFingerprint σ σₕ]
   [ActionStatUpdate κ asm]
 where
-  /- We use a `HashMap σ_post (σ_pre × κ)` to store the log of transitions, which
-  will make it easier to reconstruct counterexample trace. -/
-  log                : Std.HashMap σₕ (Option (σₕ × κ))
   violatingStates    : List (σₕ × ViolationKind)
   /-- Have we finished the search? If so, why? -/
   finished           : Option (TerminationReason σₕ)
-  /-- The depth up to which ALL states have been fully explored (successors enqueued) -/
-  completedDepth     : Nat
   /-- The depth of the current BFS frontier being processed -/
   currentFrontierDepth : Nat
   /-- Total number of post-states generated (before deduplication) -/
@@ -194,18 +205,20 @@ variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionSta
 @[inline]
 def BaseSearchContext.hasFinished (ctx : BaseSearchContext σ κ σₕ asm) : Bool := ctx.finished.isSome
 
+/-- The depth up to which ALL states have been fully explored (successors enqueued): the one before
+the frontier's, and `0` while the frontier is at depth `0`. -/
 @[inline]
-def BaseSearchContext.initial (initialStates : List σ) : BaseSearchContext σ κ σₕ asm :=
-  let initStates := initialStates.map fun x => (fp.view x, Option.none)
-  {
-    log := Std.HashMap.ofList initStates,
-    violatingStates := [],
+def BaseSearchContext.completedDepth (ctx : BaseSearchContext σ κ σₕ asm) : Nat := ctx.currentFrontierDepth - 1
+
+/-- The context of a search before any state is processed: the `numInitialStates` initial states
+are all it has found. -/
+@[inline]
+def BaseSearchContext.initial (numInitialStates : Nat) : BaseSearchContext σ κ σₕ asm :=
+  { violatingStates := [],
     finished := none,
-    completedDepth := 0,
     currentFrontierDepth := 0,
-    statesFound := initStates.length,
-    actionStatsMap := ActionStatUpdate.empty (κ := κ)
-  }
+    statesFound := numInitialStates,
+    actionStatsMap := ActionStatUpdate.empty (κ := κ) }
 
 -- NOTE: Hopefully, if `outcomes` does not have any other reference, then
 -- Lean should be able to reuse constructors inside it? Can we somehow
@@ -260,24 +273,29 @@ def BaseSearchContext.processState
     | none => ctx
   (ctx, if earlyTermination.isSome then none else some trs.successes)
 
+/-- Merge the violations and the statistics of `ctx2` into `ctx1`, keeping the depths of `ctx1`. -/
 def BaseSearchContext.mergeWithoutDepthChange (ctx1 ctx2 : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm :=
-  { log := ctx1.log.union ctx2.log,
-    violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
+  { violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
     finished := ctx1.finished.or ctx2.finished,
-    completedDepth := ctx1.completedDepth,    -- no change
-    currentFrontierDepth := ctx1.currentFrontierDepth,    -- no change
-    statesFound := ctx1.statesFound + ctx2.statesFound,
-    actionStatsMap := ActionStatUpdate.merge (κ := κ) ctx1.actionStatsMap ctx2.actionStatsMap }
-
-/-- Like `mergeWithoutDepthChange` but does NOT merge the `log` field.
-    Used in the MapReduce path to delay log merging until trace recovery is needed. -/
-def BaseSearchContext.mergeWithoutDepthChangeNoLog (ctx1 ctx2 : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm :=
-  { log := ctx1.log,
-    violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
-    finished := ctx1.finished.or ctx2.finished,
-    completedDepth := ctx1.completedDepth,
     currentFrontierDepth := ctx1.currentFrontierDepth,
     statesFound := ctx1.statesFound + ctx2.statesFound,
     actionStatsMap := ActionStatUpdate.merge (κ := κ) ctx1.actionStatsMap ctx2.actionStatsMap }
+
+theorem BaseSearchContext.mergeWithoutDepthChange_foldl_description
+  (acc : BaseSearchContext σ κ σₕ asm) (ctxs : List (BaseSearchContext σ κ σₕ asm)) :
+  let res := ctxs.foldl (init := acc) BaseSearchContext.mergeWithoutDepthChange
+  res.finished = acc.finished.or ((ctxs.find? (·.hasFinished)).bind (fun x => x.finished)) := by
+  dsimp only
+  induction ctxs generalizing acc with
+  | nil => simp [List.foldl]
+  | cons ctx ctxs ih =>
+    dsimp [List.foldl, List.find?, BaseSearchContext.hasFinished]
+    rw [ih] ; clear ih
+    unfold mergeWithoutDepthChange ; dsimp
+    rcases acc.finished with _ | _
+    on_goal 2=> rfl
+    dsimp ; rcases h : ctx.finished with _ | _
+    on_goal 2=> grind
+    dsimp ; rfl
 
 end Veil.ModelChecker.Concrete

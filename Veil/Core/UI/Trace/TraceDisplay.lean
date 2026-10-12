@@ -105,7 +105,10 @@ private def fmtAction (j : Json) : String := match j with
 
 private def fmtState (s : Json) (ind : String) : String :=
   let trans := match s.getObjValD "transition" with | .str "after_init" => "init" | t => fmtAction t
-  s!"{ind}State {fmtJson (s.getObjValD "index")} (via {trans}):\n{fmtFields (s.getObjValD "fields") (ind ++ "  ")}"
+  let choices := match s.getObjValD "choices" with
+    | .arr cs => if cs.isEmpty then "" else s!"\n{ind}  choices: {", ".intercalate (cs.map fmtJson).toList}"
+    | _ => ""
+  s!"{ind}State {fmtJson (s.getObjValD "index")} (via {trans}):{choices}\n{fmtFields (s.getObjValD "fields") (ind ++ "  ")}"
 
 def formatTrace (j : Json) (ind : String := "  ") : String := Id.run do
   let mut r := ""

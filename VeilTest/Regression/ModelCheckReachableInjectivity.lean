@@ -61,23 +61,23 @@ def initial : SequentialSearchContext State Unit Bool Stats :=
   SequentialSearchContext.initial sys
 
 example : SequentialSearchContextInvariants sys params .none initial :=
-  SequentialSearchContextInvariants.initial sys params
+  (SequentialSearchContext.initial_invs sys params).1
 
 -- The unreachable state has a seen fingerprint, but is still unreachable.
-example : fingerprint.view State.unreachable ∈ initial.1.log := by
-  exact (SequentialSearchContextInvariants.initial (asm := Stats) sys params).init_states_included
+example : fingerprint.view State.unreachable ∈ initial.log := by
+  exact (SequentialSearchContext.initial_invs (asm := Stats) sys params).1.init_states_included
     .initial (by simp [sys])
 
 example : ¬ sys.reachable .unreachable := fun h => reachable_ne_unreachable h rfl
 
 example {sctx : SequentialSearchContext State Unit Bool Stats}
     (h_invs : SequentialSearchContextInvariants sys params .none sctx)
-    (h_finished : sctx.1.finished = some .exploredAllReachableStates) :
-    ∀ s, sys.reachable s → fingerprint.view s ∈ sctx.1.log :=
+    (h_finished : sctx.base.finished = some .exploredAllReachableStates) :
+    ∀ s, sys.reachable s → fingerprint.view s ∈ sctx.log :=
   SequentialSearchContext.bfs_completeness sys params h_invs h_finished injective_on_reachable
 
-example {Shard : Type} [Membership Bool Shard]
-    {mctx : MapReduceSearchContextMain State Unit Bool Stats Shard}
+example {Shard : Type} [Membership Bool Shard] {numShards : PosUSize}
+    {mctx : MapReduceSearchContextMain State Unit Bool Stats Shard numShards}
     (h_invs : MapReduceSearchContextMainInvariants sys params mctx)
     (h_finished : mctx.base.finished = some .exploredAllReachableStates) :
     ∀ s, sys.reachable s → fingerprint.view s ∈ mctx.globalSeen :=

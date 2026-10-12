@@ -8,108 +8,66 @@ public section
 
 namespace Veil.ModelChecker.Concrete
 
-/-! ## Trace Recovery
-
-These functions reconstruct a full trace with concrete states from a SearchContext
-that contains fingerprint-based state references. -/
-
-/-- Walk backward through the log to build a fingerprint-based path from a
-state to an initial state. Returns `(initialStateFingerprint, steps)` where
-each step has the transition label and the fingerprint of the post-state. -/
-partial def retraceSteps [BEq σₕ] [Hashable σₕ]
-  (log : Std.HashMap σₕ (Option (σₕ × κ))) (cur : σₕ)
-  (acc : List (Step σₕ κ) := []) : σₕ × List (Step σₕ κ) :=
-  match log[cur]? with
-  | some (some (prev, label)) =>
-    retraceSteps log prev ({ transitionLabel := label, nextState := cur } :: acc)
-  | _ => (cur, acc)
-
-/-- Find a full state from a list that matches a given fingerprint. -/
-@[inline, specialize]
-def findByFingerprint [fp : StateFingerprint σ σₕ]
-  (states : List σ) (targetFp : σₕ) (fallback : σ) : σ :=
-  states.find? (fun s => fp.view s == targetFp) |>.getD fallback
-
-/-- Reconstruct a full trace with concrete states from a SearchContext.
-This re-executes transitions to recover full state objects from fingerprints.
-The `targetFingerprint` parameter specifies which violating state's trace to recover.
-If `assertionFailureExId` is provided, this is an assertion failure trace and we'll
-find the failing transition to populate the `failingStep` field. -/
-def recoverTrace {ρ σ κ σₕ asm : Type} {m : Type → Type}
-  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
-  [fp : StateFingerprint σ σₕ]
-  [Inhabited σ] [Repr σₕ]
-  [ActionStatUpdate κ asm]
-  {th : ρ}
-  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
-  -- (params : SearchParameters ρ σ)
-  (ctx : BaseSearchContext σ κ σₕ asm)
-  (targetFingerprint : σₕ)
-  (assertionFailureExId : Option Int := none)
-  : m (Trace ρ σ κ) := do
-  -- Retrace steps from the target fingerprint back to an initial state
-  let (initFp, stepsFp) := retraceSteps ctx.log targetFingerprint
-  -- Recover initial state by matching fingerprint
-  let initialState := findByFingerprint sys.initStates initFp default
-  -- Recover trace steps by re-executing transitions and matching fingerprints
-  -- FIXME: Ideally, this should never fail, due to the proof we have ...
-  let mut curSt := initialState
-  let mut steps : Steps σ κ := #[]
-  for step in stepsFp do
-    let successfulTransitions := (sys.tr th curSt).successes
-    let (transitionLabel, nextSt) ←
-      match successfulTransitions.find? (fun (_, s) => fp.view s == step.nextState) with
-      | some (tr, s) => pure (tr, s)
-      | none => IO.ofExcept <| Except.error s!"Could not recover transition from fingerprint {repr (fp.view curSt)} to {repr step.nextState}!"
-    curSt := nextSt
-    steps := steps.push { transitionLabel := transitionLabel, nextState := nextSt }
-  return { theory := th, initialState := initialState, steps := steps, failingStep := findFailingStep curSt assertionFailureExId }
-where
-  findFailingStep (st : σ) : Option Int → Option (Step σ κ)
-    | some exId =>
-      match (sys.tr th st).failures.find? (·.error == exId) with
-      | some f => some { transitionLabel := f.label, nextState := f.state }
-      | none => none
-    | none => none
-
 /-! ## Model Checker
 
 This module provides the main entry point for model checking, dispatching to
 either the sequential or parallel implementation based on configuration. -/
 
-/-- The result of a finished search, with a trace for a violation, recovered in `traceSys ()`. -/
-private def searchResult {ρ σ κ σₕ : Type} {m : Type → Type}
-  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
-  [Inhabited σ] [ActionStatUpdate κ asm]
-  {th : ρ}
-  (traceSys : Unit → EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
-  [fp : StateFingerprint σ σₕ] [Repr σₕ]
-  (ctx : BaseSearchContext σ κ σₕ asm) (distinctCount : Nat)
-  : m (ModelCheckingResult ρ σ κ σₕ) := do
-  match ctx.finished with
-  | some (.earlyTermination (.foundViolatingState fingerprint violations)) => do
-    return ModelCheckingResult.foundViolation fingerprint (.safetyFailure violations) (some (← recoverTrace (traceSys ()) ctx fingerprint))
-  | some (.earlyTermination (.deadlockOccurred fingerprint)) => do
-    return ModelCheckingResult.foundViolation fingerprint .deadlock (some (← recoverTrace (traceSys ()) ctx fingerprint))
-  | some (.earlyTermination (.assertionFailed fingerprint exId)) => do
-    return ModelCheckingResult.foundViolation fingerprint (.assertionFailure exId) (some (← recoverTrace (traceSys ()) ctx fingerprint (some exId)))
+/-- The result of a finished search, with a trace for a violation, recovered in `sys` from the
+search's log `look`: the log is sound for some representatives, which exhibit the violations that
+`ctx` records. The picks of the trace come from `pickSource`, which is built only for a trace.
+The search has finished, so `ctx` records why. -/
+def searchResult {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
+  (pickSource : Unit → PickSource σ κ)
+  (params : SearchParameters ρ σ) [fp : StateFingerprint σ σₕ]
+  (ctx : BaseSearchContext σ κ σₕ asm) (look : LogLookup σₕ κ) (distinctCount : Nat)
+  (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ctx.ViolationTerminationSound sys params rep)
+  (h_fin : ctx.finished.isSome) :
+  ModelCheckingResult ρ σ κ σₕ :=
+  match hf : ctx.finished with
+  | some (.earlyTermination (.foundViolatingState x names)) =>
+    let r := recoverViolationTrace sys (pickSource ()) params look x (.safetyFailure names) (by
+      obtain ⟨rep, dep, hinv, -, hterm⟩ := h ; rw [hf] at hterm ; exact ⟨rep, dep, hinv, hterm⟩)
+    .foundViolation x (.safetyFailure names) (some r.1) r.2
+  | some (.earlyTermination (.deadlockOccurred x)) =>
+    let r := recoverViolationTrace sys (pickSource ()) params look x .deadlock (by
+      obtain ⟨rep, dep, hinv, -, hterm⟩ := h ; rw [hf] at hterm ; exact ⟨rep, dep, hinv, hterm⟩)
+    .foundViolation x .deadlock (some r.1) r.2
+  | some (.earlyTermination (.assertionFailed x exId)) =>
+    let r := recoverViolationTrace sys (pickSource ()) params look x (.assertionFailure exId) (by
+      obtain ⟨rep, dep, hinv, -, hterm⟩ := h ; rw [hf] at hterm ; exact ⟨rep, dep, hinv, hterm⟩)
+    .foundViolation x (.assertionFailure exId) (some r.1) r.2
   | some (.earlyTermination (.reachedDepthBound _)) =>
     -- No violation found within depth bound; report number of states explored
-    return ModelCheckingResult.noViolationFound distinctCount (.earlyTermination (.reachedDepthBound ctx.completedDepth))
+    .noViolationFound distinctCount (.earlyTermination (.reachedDepthBound ctx.completedDepth))
   | some (.earlyTermination .cancelled) =>
     -- Search was cancelled by the user
-    return ModelCheckingResult.cancelled
-  | some (.exploredAllReachableStates) => do
-    match ctx.violatingStates with
-    | (fingerprint, violation) :: _ =>
-      -- For assertion failures, pass the exception ID to recover the failing step
-      let assertionExId := match violation with
-        | .assertionFailure exId => some exId
-        | _ => none
-      return ModelCheckingResult.foundViolation fingerprint violation (some (← recoverTrace (traceSys ()) ctx fingerprint assertionExId))
-    | [] =>
-      return ModelCheckingResult.noViolationFound distinctCount (.exploredAllReachableStates)
-  | none => panic! s!"SearchContext.finished is none! This should never happen."
+    .cancelled
+  | some .exploredAllReachableStates =>
+    match hv : ctx.violatingStates with
+    | (x, violation) :: _ =>
+      let r := recoverViolationTrace sys (pickSource ()) params look x violation (by
+        obtain ⟨rep, dep, hinv, hviol, -⟩ := h
+        exact ⟨rep, dep, hinv, hviol _ (by rw [hv] ; exact List.mem_cons_self)⟩)
+      .foundViolation x violation (some r.1) r.2
+    | [] => .noViolationFound distinctCount .exploredAllReachableStates
+  | none => absurd h_fin (by simp [hf])
+
+/-- The result of a search is sound: each violation it reports comes with a trace that is valid in
+`sys`, ends at a state that exhibits the violation, and has the failing step of an assertion
+failure. -/
+theorem searchResult_sound {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th : ρ}
+  (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
+  (pickSource : Unit → PickSource σ κ)
+  (params : SearchParameters ρ σ) [fp : StateFingerprint σ σₕ]
+  (ctx : BaseSearchContext σ κ σₕ asm) (look : LogLookup σₕ κ) (distinctCount : Nat)
+  (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ctx.ViolationTerminationSound sys params rep)
+  (h_fin : ctx.finished.isSome) :
+  ResultSound sys params (searchResult sys pickSource params ctx look distinctCount h h_fin) := by
+  unfold searchResult
+  split <;> (try split) <;>
+    first | exact recoverViolationTrace_sound sys _ | trivial | (rename_i hnone ; simp [hnone] at h_fin)
 
 /-- Run `act`, and only then let go of `keep`, which is part of the result. If inlined, the caller
 would take the pair apart right away and release `keep` before `act` runs; a function that just
@@ -123,15 +81,18 @@ section
 
 variable {ρ σ κ σₕ α : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
-  [inhabσ : Inhabited σ] [Repr κ]
+  -- The search loops are defined by `partial_fixpoint`, which needs these; `IO` has them
+  [∀ α, Lean.Order.CCPO (m α)] [Lean.Order.MonoBind m]
+  [Repr κ]
   [ActionStatUpdate κ asm]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
-  -- The system to recover counterexample traces in. It must have the transitions of `sys`, but may
-  -- do more bookkeeping: the frontend passes `sys` with picks logged (`LogSwitch`), which the search
-  -- does without. It is a thunk, so that it is built only when there is a trace to recover.
-  (traceSys : Unit → EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
-  [fp : StateFingerprint σ σₕ] {Shard : Type} [Membership σₕ Shard] [SetShard σₕ Shard] [Repr σₕ] [Inhabited σₕ]
+  -- The initial states and transitions of `sys` computed with the picks logged (`LogSwitch`), which
+  -- the search runs without: the picks of a counterexample trace come from it. It is a thunk, so
+  -- that it is built only when there is a trace.
+  (pickSource : Unit → PickSource σ κ)
+  [fp : StateFingerprint σ σₕ] {ShardOf : Type → Type} [Membership σₕ (ShardOf (LogEntry σₕ κ))]
+  [MapShard σₕ (LogEntry σₕ κ) (ShardOf (LogEntry σₕ κ))] [Repr σₕ] [Inhabited σₕ]
   (params : SearchParameters ρ σ)
   (parallelCfg : Option ParallelConfig)
   (progressInstanceId : Nat)
@@ -140,28 +101,32 @@ variable {ρ σ κ σₕ α : Type} {m : Type → Type}
 /-- `findReachable`, then `finish` on the result while the search's data structures (the seen
 set, the log for recovering traces) are still referenced; they are released only after `finish`
 returns. The caller picks the fingerprint type `σₕ` and its `StateFingerprint` instance, and the
-set type `Shard` of the shards of the parallel search's seen set. Traces are recovered in
-`traceSys ()` rather than `sys`. -/
+map type of the shards of the parallel search's seen set, which also holds its log, as a function
+`ShardOf` of the type of the values. Traces are recovered in `sys`, from the log of the search,
+with the picks of their states from `pickSource`. -/
 def findReachableThen (finish : ModelCheckingResult ρ σ κ σₕ → m α) : m α := do
   let assumptionViolations := params.violatedAssumptions th
   unless assumptionViolations.isEmpty do
     setViolationFound progressInstanceId
-    return ← finish (ModelCheckingResult.foundViolation default (.assumptionFailure assumptionViolations) none)
+    return ← finish (ModelCheckingResult.foundViolation default (.assumptionFailure assumptionViolations) none {})
   -- Create a "filtered" version of the system
   let sys := Veil.ModelChecker.restrictSystemByStateConstraints sys params th
-  let traceSys := fun _ => Veil.ModelChecker.restrictSystemByStateConstraints (traceSys ()) params th
+  let pickSource := fun _ => (pickSource ()).restrictByStateConstraints params th
   match parallelCfg with
   | some cfg => do
-    let mctx ← breadthFirstSearchParallel (σₕ := σₕ) (Shard := Shard) params sys cfg progressInstanceId cancelToken
-    let result ← searchResult traceSys mctx.base mctx.globalSeen.size
+    let ⟨mctx, h_fin⟩ ← breadthFirstSearchParallel (σₕ := σₕ) (Shard := ShardOf (LogEntry σₕ κ)) params sys cfg
+      progressInstanceId cancelToken
+    let result := searchResult sys pickSource params mctx.val.base mctx.val.globalSeen.get? mctx.val.globalSeen.size
+      (mctx.property.2.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.log_invs, h.toViolationTerminationSound⟩) h_fin
     return (← keepingThen mctx (finish result)).1
   | none => do
-    let sctx ← breadthFirstSearchSequential (σₕ := σₕ) params sys 60000 progressInstanceId cancelToken
-    let result ← searchResult traceSys sctx.1 sctx.1.log.size
+    let ⟨sctx, h_fin⟩ ← breadthFirstSearchSequential (σₕ := σₕ) params sys 60000 progressInstanceId cancelToken
+    let result := searchResult sys pickSource params sctx.val.base (logLookup sctx.val.log) sctx.val.log.size
+      (sctx.property.2.elim fun rep h => h.elim fun dep h => ⟨rep, dep, h.log_invs, h.toViolationTerminationSound⟩) h_fin
     return (← keepingThen sctx (finish result)).1
 
 def findReachable : m (ModelCheckingResult ρ σ κ σₕ) :=
-  findReachableThen (σₕ := σₕ) (Shard := Shard) sys traceSys params parallelCfg progressInstanceId cancelToken pure
+  findReachableThen (σₕ := σₕ) (ShardOf := ShardOf) sys pickSource params parallelCfg progressInstanceId cancelToken pure
 
 end
 

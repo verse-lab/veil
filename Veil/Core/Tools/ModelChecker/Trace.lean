@@ -14,6 +14,32 @@ structure Step (σ : Type) (l : Type) where
   nextState : σ
 deriving Repr, Inhabited
 
+/-- A transition label with the picks that led to the transition, as `PickSource` gives them. -/
+structure LabelWithPicks (l : Type) where
+  label : l
+  picks : List Std.Format
+
+/-- Where the picks of a counterexample trace come from: a system's initial states and transitions,
+for a fixed theory, computed with the picks logged and in the same positions as the system's. It is
+not a transition system: nothing is proved about it, and recovery checks the states it gives
+against the fingerprints of the trace before taking their picks. -/
+structure PickSource (σ l : Type) where
+  /-- The initial states, each with the picks that led to it. -/
+  initStates : List (σ × List Std.Format)
+  /-- The transitions out of a state, each labelled with the picks that led to it. -/
+  tr : σ → Transitions (LabelWithPicks l) Int σ
+
+/-- The picks of the states of a trace, where they are known, in the shape of the trace. They are
+recovered best effort and kept beside the trace, since they are not part of what makes it valid. -/
+structure TracePicks where
+  /-- The picks that led to the initial state. -/
+  initialState : Option (List String) := none
+  /-- The picks of each step, in order; empty when they are not recovered at all. -/
+  steps : Array (Option (List String)) := #[]
+  /-- The picks of the failing step. -/
+  failingStep : Option (List String) := none
+deriving Repr, Inhabited
+
 /-- This supports cheap appends. -/
 abbrev Steps (σ : Type) (l : Type) := Array (Step σ l)
 abbrev StepList (σ : Type) (l : Type) := List (Step σ l)
@@ -68,32 +94,41 @@ structure Trace (ρ : Type) (σ : Type) (l : Type) where
   failingStep : Option (Step σ l) := none
 deriving Repr, Inhabited
 
-instance jsonOfTrace {ρ σ l : Type} [ToJson ρ] [ToJson σ] [ToJson l] : ToJson (Trace ρ σ l) where
-  toJson := fun tr =>
-    let states : Array Json :=
-      #[ Json.mkObj
-        [ ("index", toJson 0),
-          ("fields", toJson tr.initialState),
-          ("transition", "after_init") ]] ++
-      (tr.steps.mapIdx (fun i st =>
-        let idx := i + 1
-        Json.mkObj
+/-- The JSON of `tr`, where each state has the picks that `picks` knows for it as `"choices"`. A
+state whose picks are unknown or empty has no `"choices"`. -/
+def Trace.toJsonWithPicks {ρ σ l : Type} [ToJson ρ] [ToJson σ] [ToJson l] (tr : Trace ρ σ l)
+    (picks : TracePicks) : Json :=
+  let withChoices (fields : List (String × Json)) (choices? : Option (List String)) : Json :=
+    match choices? with
+    | some choices@(_ :: _) => Json.mkObj (fields ++ [("choices", toJson choices)])
+    | _ => Json.mkObj fields
+  let states : Array Json :=
+    #[ withChoices
+      [ ("index", toJson 0),
+        ("fields", toJson tr.initialState),
+        ("transition", "after_init") ] picks.initialState ] ++
+    (tr.steps.mapIdx (fun i st =>
+      let idx := i + 1
+      withChoices
+      [ ("index", toJson idx),
+        ("fields", toJson st.nextState),
+        ("transition", toJson st.transitionLabel)] picks.steps[i]?.join))
+  -- Add failing step if present (for assertion failures)
+  let statesWithFailure := match tr.failingStep with
+    | some failStep =>
+      let idx := states.size
+      states.push (withChoices
         [ ("index", toJson idx),
-          ("fields", toJson st.nextState),
-          ("transition", toJson st.transitionLabel)]))
-    -- Add failing step if present (for assertion failures)
-    let statesWithFailure := match tr.failingStep with
-      | some failStep =>
-        let idx := states.size
-        states.push (Json.mkObj
-          [ ("index", toJson idx),
-            ("fields", toJson failStep.nextState),
-            ("transition", toJson failStep.transitionLabel),
-            ("failing", toJson true) ])
-      | none => states
-    Json.mkObj
-      [ ("theory", toJson tr.theory),
-        ("states", Json.arr statesWithFailure) ]
+          ("fields", toJson failStep.nextState),
+          ("transition", toJson failStep.transitionLabel),
+          ("failing", toJson true) ] picks.failingStep)
+    | none => states
+  Json.mkObj
+    [ ("theory", toJson tr.theory),
+      ("states", Json.arr statesWithFailure) ]
+
+instance jsonOfTrace {ρ σ l : Type} [ToJson ρ] [ToJson σ] [ToJson l] : ToJson (Trace ρ σ l) where
+  toJson tr := tr.toJsonWithPicks {}
 
 @[inline, grind]
 def Trace.lastState (trace : Trace ρ σ l) : σ := trace.steps.getLastStateD trace.initialState
