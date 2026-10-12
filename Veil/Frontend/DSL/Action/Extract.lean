@@ -297,9 +297,16 @@ where
 
 def specializeAndExtractSingle (mod : Module) (pi : ProcedureInfo) (extractedName : Name := toExtractedName pi.name)
   (attrs : Array (TSyntax ``Lean.Parser.Term.attrInstance) := #[])
-  (toExtract : Name := pi.name) : CommandElabM SpecializedTerm := do
+  (toExtract : Name := pi.name) (borrowArgs : Bool := false) : CommandElabM SpecializedTerm := do
   let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams pi.name (.procedure pi)
   let extractBody ← specializeAndExtractCore extraDsimpsForSpecialize κ useWeak intoMonadicActions toExtract (baseParams ++ extraParams ++ actualParams)
+  -- `@&` on the binders of a lambda is honored by the compiler and survives
+  -- specialization; see `specializeAndExtractExternalActions` for why actions borrow.
+  let extractBody ← if borrowArgs then
+      let rd := mkIdent `__veil_rd
+      let st := mkIdent `__veil_st
+      `(fun ($rd : @& $environmentTheory) ($st : @& $environmentState) => ($extractBody) $rd $st)
+    else pure extractBody
   let defBody ← buildingTermWithDefaultχSpecialized baseParams (extraParams ++ actualParams) injectedBinders extractBody mod
   let cmd ← if attrs.isEmpty
     then `(command| def $(mkIdent extractedName):ident := $(defBody.body):term)
@@ -323,13 +330,32 @@ def specializeAndExtractInternalMode (mod : Module) : CommandElabM Unit := do
     discard <| specializeAndExtractSingle injectedBinders extraDsimpsForSpecialize κ useWeak false mod ps.info (attrs := #[attr1/-, attr2 -/])
 
 /-- Extract each action into its own definition, returning them in `mod.actions`
-order so the dispatcher can call each one the way its binders require. -/
+order so the dispatcher can call each one the way its binders require.
+
+The actions take the theory and the state borrowed (`borrowArgs`). If owned and the
+state dies at the first `require` (all its fields are projected before it), then
+the compiler resets it there to reuse its memory for the successor. However, that only
+pays off when the state is exclusive, and here it never is: every caller goes
+through `tr`, which applies every label's action to the same state and keeps it
+(the model checker's frontier, the simulator's trace, `recoverTrace`), and in
+the parallel search the state is multi-threaded, which is never exclusive. On a
+shared state the reset costs an `inc` per field and a `dec` of the state before
+the guard, and a `dec` per field when the guard fails.
+
+The cost of borrowing: a caller that hands over its last reference to the state
+gets no in-place update; the successor copies every field it changes (an
+`Array.set!` copies the array). If a caller that passes its last reference to
+the state is ever added, extract the actions a second time without `borrowArgs`
+(owned) for it, and keep the borrowed ones for `NextAct`. The borrowed ones must
+stay separate extractions under `@&` binders: a wrapper
+`fun (st : @& State) => ownedAction st` costs an `inc` of `st` to pass it,
+and the owned action still resets it. -/
 def specializeAndExtractExternalActions (mod : Module) : CommandElabM (Array SpecializedTerm) :=
   mod.actions.mapM fun a => do
     let pi := a.info
     let extName := toExtName pi.name
     specializeAndExtractSingle injectedBinders extraDsimpsForSpecialize κ useWeak true mod pi
-      (extractedName := toExtractedName extName) (toExtract := extName)
+      (extractedName := toExtractedName extName) (toExtract := extName) (borrowArgs := true)
 
 /-- Extract each action into its own definition and assemble `NextAct` as a
 dispatcher over them.
