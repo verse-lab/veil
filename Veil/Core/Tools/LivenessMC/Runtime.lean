@@ -13,13 +13,27 @@ between executions of the same elaborated snapshot; it is not a reusable certifi
 private structure HandoffCheckpoint where
   propertiesChecked : Nat := 0
   exploredStates : Nat := 0
+  /-- Search time of the completed prefix, so a handed-off run reports the whole command's
+  search cost rather than only the binary's share. The interpreted and compiled shares are
+  distinguishable anyway: the workflow reports the wall clock of each separately. -/
+  searchNs : Nat := 0
   deriving ToJson, FromJson
 
 variable {ρ σ l : Type} [beqσ : BEq σ] [hashσ : Hashable σ] [lawfulσ : LawfulBEq σ] [inhabσ : Inhabited σ]
   [beql : BEq l] [hashl : Hashable l] {th : ρ}
 
-/-- Check declared properties in order with `checkFair`, stopping at the first
-counterexample. Assumptions and state constraints match the safety checker.
+/-- The command's own measurement of the search, carried in the result JSON so that it survives the
+trip from a compiled worker's stdout back to the elaborator. `search_ns` is the sum over the
+properties actually searched in this execution plus any prefix carried over at handoff; it excludes
+process startup, assumption evaluation and the state-constraint restriction, all of which the
+workflow's wall clock still contains. -/
+private def timingJson (route : Route) (searchNs : Nat) (perProperty : Array Json) : Json :=
+  Json.mkObj [("route", route.name), ("search_ns", toJson searchNs),
+    ("properties", Json.arr perProperty)]
+
+/-- Check declared properties in order with `checkRoute route` (`fair` unless the command says
+otherwise), stopping at the first counterexample. Assumptions and state constraints match the
+safety checker.
 A dead end stutters: LTLLib gives it a self-loop, so a run may end there. Assertion
 failures and safety invariants are checked separately by `#model_check`.
 
@@ -37,7 +51,21 @@ Only the first unfinished property restarts its search. -/
 def checkAllWithProgress [ToJson ρ] [ToJson σ]
     (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l (Transitions l Int σ) th)
     (params : SearchParameters ρ σ) (properties : List (LivenessProperty ρ σ l))
-    (instanceId : Nat) (cancelToken : IO.CancelToken) : IO Json := do
+    (instanceId : Nat) (cancelToken : IO.CancelToken) (route : Route := .fair)
+    [cert : RouteCertificate route (restrictSystemByStateConstraints sys params th)] :
+    IO Json := do
+  -- `--property` narrows this run to one of the properties the command compiled in, so that a
+  -- single build can serve them all and a harness can measure each one as its own process.
+  -- Applied before anything reads the list, so the progress count, the handoff checkpoint and the
+  -- reported `properties` array all describe the run that actually happens -- and so the
+  -- stop-at-first-counterexample rule below cannot hide a property this run was asked for.
+  let properties ← match ← getPropertySelection with
+    | none => pure properties
+    | some wanted =>
+      match properties.filter (fun p => p.name.toString == wanted) with
+      | [] => throw <| IO.userError s!"--property {wanted}: this binary has no such liveness \
+          property. It compiled in: {", ".intercalate (properties.map (·.name.toString))}"
+      | selected => pure selected
   let cancelled := Json.mkObj [("result", "cancelled")]
   match params.violatedAssumptions th with
   | violates@(_ :: _) =>
@@ -51,35 +79,54 @@ def checkAllWithProgress [ToJson ρ] [ToJson σ]
     | some state => IO.ofExcept (fromJson? state)
   if checkpoint.propertiesChecked > properties.length then
     throw <| IO.userError "liveness handoff checkpoint exceeds the number of properties"
-  let sys := restrictSystemByStateConstraints sys params th
+  -- The search runs on the state-constraint-restricted system, so `ndfs`'s certificate is owed
+  -- about *that* graph and not about the declared one.
+  let rsys := restrictSystemByStateConstraints sys params th
   let mut progress : LivenessProgress := {
     numProperties := properties.length
     propertiesChecked := checkpoint.propertiesChecked
   }
   let mut explored := checkpoint.exploredStates
+  let mut searchNs := checkpoint.searchNs
+  let mut perProperty : Array Json := #[]
   for p in properties.drop progress.propertiesChecked do
     if ← cancelToken.isSet then return cancelled
     progress := { progress with currentProperty := p.name.toString }
     updateLivenessProgress instanceId progress
-    match checkFair sys p with
+    -- The route is a pure function and `match` is what forces it, so a clock straddling the
+    -- `match` measures the whole search and nothing else: none of it has run before the
+    -- scrutinee is demanded, all of it has run once a branch is taken.
+    let t0 ← IO.monoNanosNow
+    match checkRoute route rsys p (cert := cert) with
     | .empty n =>
+        let elapsed := (← IO.monoNanosNow) - t0
+        searchNs := searchNs + elapsed
         explored := explored + n
+        perProperty := perProperty.push <| Json.mkObj
+          [("property", toJson p.name), ("search_ns", toJson elapsed),
+           ("explored_states", toJson n), ("verdict", "holds")]
         progress := { progress with propertiesChecked := progress.propertiesChecked + 1 }
         saveHandoffState instanceId (toJson ({
           propertiesChecked := progress.propertiesChecked
           exploredStates := explored
+          searchNs := searchNs
         } : HandoffCheckpoint))
         updateLivenessProgress instanceId progress
     | .nonEmpty stem loop =>
+        let elapsed := (← IO.monoNanosNow) - t0
+        searchNs := searchNs + elapsed
+        perProperty := perProperty.push <| Json.mkObj
+          [("property", toJson p.name), ("search_ns", toJson elapsed), ("verdict", "fails")]
         setViolationFound instanceId
         updateLivenessProgress instanceId progress
         return Json.mkObj [("result", "found_violation"),
           ("violation", Json.mkObj [("kind", "liveness_failure"), ("violates", toJson [p.name])]),
           ("theory", toJson th),
-          ("lasso", Json.mkObj [("stem", toJson (stem.map Prod.fst)),
-            ("loop", toJson (loop.map Prod.fst))])]
+          ("lasso", Json.mkObj [("stem", toJson stem), ("loop", toJson loop)]),
+          ("timing", timingJson route searchNs perProperty)]
   updateLivenessProgress instanceId progress
   return Json.mkObj [("result", "no_violation_found"),
-    ("properties_checked", toJson progress.propertiesChecked), ("explored_states", toJson explored)]
+    ("properties_checked", toJson progress.propertiesChecked), ("explored_states", toJson explored),
+    ("timing", timingJson route searchNs perProperty)]
 
 end Veil.LivenessMC

@@ -212,7 +212,9 @@ run_cmd do
       let (id, token) ← allocProgressInstance details
       let ctx : ExecutionWorkflow.ExecutionContext := {
         stx := ← getRef, instanceId := id, cancelToken := token,
-        assertionSources := {}, parallelCfg := none, resultKind := kind
+        assertionSources := {}, parallelCfg := none, resultKind := kind,
+        commandName := "test", mode := .interpreted,
+        compileMs := ← IO.mkRef none, runMs := ← IO.mkRef none
       }
       token.set
       ExecutionWorkflow.finishWithResult ctx result
@@ -229,7 +231,9 @@ run_cmd do
   let (id, token) ← allocProgressInstance (.simulation {})
   let ctx : ExecutionWorkflow.ExecutionContext := {
     stx := ← getRef, instanceId := id, cancelToken := token,
-    assertionSources := {}, parallelCfg := none, resultKind := .simulate
+    assertionSources := {}, parallelCfg := none, resultKind := .simulate,
+    commandName := "simulate", mode := .interpreted,
+    compileMs := ← IO.mkRef none, runMs := ← IO.mkRef none
   }
   requestHandoff id
   token.set
@@ -253,7 +257,7 @@ run_cmd do
     let result ← ExecutionWorkflow.runBinaryForJson "/bin/sh"
       #["-c", "printf '%s\n' \"$1\" \"$2\" >&2; printf '%s\n' \"$3\"", "worker",
         (toJson first).compress, (toJson last).compress, verdict.compress] id token
-    expect "the worker's JSON verdict must be returned" (result == some verdict)
+    expect "the worker's JSON verdict must be returned" (result.map Prod.fst == some verdict)
     let progress ← getProgress id
     expect "worker progress must retain the parent's successful compilation" <|
       match progress.compilationStatus with

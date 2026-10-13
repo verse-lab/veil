@@ -602,6 +602,14 @@ declare_command_config_elab elabModelCheckCommandConfig ModelCheckCommandConfig 
     let base : ModelCheckerConfig ← Lean.Elab.ConfigEval.evalExprWithElab ⟨item.value⟩
     return { cfg with toModelCheckerConfig := base }
 
+/-- Configuration options for the `#liveness_check` command. -/
+structure LivenessCheckConfig where
+  /-- Which of LTLLib's searches to run. The default is the proved one; see `Veil.LivenessMC.Route`. -/
+  route : LivenessMC.Route := .fair
+  deriving Repr
+
+declare_command_config_elab elabLivenessCheckConfig LivenessCheckConfig
+
 declare_command_config_elab elabSimulateConfig ModelChecker.Simulation.SimulateConfig
 
 /--
@@ -903,29 +911,102 @@ def elabSimulate : CommandElab :=
     (fun stx => elabSimulateCommandConfig stx[4]) 5 fun ecctx => do
     return (← mkSimulateCall ecctx.mod ecctx.instantiation ecctx.theory ecctx.config, none)
 
+/-- The selected route as a term for the generated call. `Route` has no `Quote` instance, and
+spelling the constructors out keeps the generated call readable in `trace.veil.desugar`. -/
+private def routeTerm (route : LivenessMC.Route) : Term :=
+  mkCIdent <| match route with
+    | .ndfs => ``LivenessMC.Route.ndfs
+    | .dijkstra => ``LivenessMC.Route.dijkstra
+    | .patOnly => ``LivenessMC.Route.patOnly
+    | .crossing => ``LivenessMC.Route.crossing
+    | .prune => ``LivenessMC.Route.prune
+    | .fair => ``LivenessMC.Route.fair
+
 /-- Build a liveness call with the same continuation interface as the other runners. -/
-private def mkLivenessCheckerCall (mod : Module) (instTerm theoryTerm : Term) : CommandElabM Term :=
+private def mkLivenessCheckerCall (mod : Module) (instTerm theoryTerm : Term)
+    (properties : Array LivenessAssertion) (route : LivenessMC.Route)
+    (finiteReachBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq)) : CommandElabM Term :=
   mkExecutionCall mod {} instTerm theoryTerm (includeSafetyAndDeadlock := false) fun ectx => do
   let instSortArgs := ectx.instSortArgs
-  let props ← mod.livenessProperties.mapM fun lp =>
+  let sys := ectx.sysWithoutLog
+  let sp := ectx.searchParams
+  let props ← properties.mapM fun lp =>
     `($(mkIdentWithModName mod lp.name)
       ($theoryIdent $instSortArgs*) ($stateIdent ($fieldConcreteDispatcher $instSortArgs*))
       $instSortArgs* ($fieldConcreteDispatcher $instSortArgs*))
+  let checkAll := mkIdent ``Veil.LivenessMC.checkAllWithProgress
+  -- The five `FiniteReach`-free routes get their `RouteCertificate` by instance synthesis, since
+  -- Veil ships an instance for each. `ndfs` has none, so the clause's tactic builds one here,
+  -- against the state-constraint-restricted system the runner actually searches.
+  -- `RouteCertificate.ofClosure` states the obligation as a plain conjunction about `bfsClosure`,
+  -- so the clause's tactic runs once and sees no `Route.Certificate` indirection.
+  let runCall ← match finiteReachBy with
+    | none => `($checkAll:ident $sys $sp [$props,*] progressInstanceId cancelToken
+        $(routeTerm route))
+    | some tac => `($checkAll:ident $sys $sp [$props,*] progressInstanceId cancelToken
+        $(routeTerm route)
+        (cert := $(mkCIdent ``LivenessMC.RouteCertificate.ofClosure) (by ($tac:tacticSeq))))
   `(fun (_ : Option Veil.ModelChecker.ParallelConfig) (progressInstanceId : Nat)
         (cancelToken : IO.CancelToken) (finish : Lean.Json → IO _) => do
-      let result ← $(mkIdent ``Veil.LivenessMC.checkAllWithProgress):ident
-        $(ectx.sysWithoutLog)
-        $(ectx.searchParams) [$props,*] progressInstanceId cancelToken
+      let result ← $runCall:term
       finish result)
+
+/-- The properties this invocation checks: those named in brackets, or all of them when none are.
+
+Selection is resolved against the module's declarations, so a misspelling is an error here rather
+than a silently empty run, and the result keeps *declaration* order whatever order the names were
+written in — the command's contract is that properties are checked in declaration order and stop at
+the first counterexample, and selecting a subset should not quietly change that. -/
+private def selectLivenessProperties (mod : Module) (selection : Array (TSyntax `propertyName)) :
+    CommandElabM (Array LivenessAssertion) := do
+  if mod.livenessProperties.isEmpty then
+    throwError "No liveness properties declared in this module. Declare a `liveness` property first."
+  if selection.isEmpty then return mod.livenessProperties
+  let declared := mod.livenessProperties.map (·.name)
+  let mut wanted : Array Name := #[]
+  for nameStx in selection do
+    let name := nameStx.getPropertyName
+    unless declared.contains name do
+      throwErrorAt nameStx "`{name}` is not a liveness property of this module. Declared: \
+        {", ".intercalate (declared.map toString).toList}"
+    if wanted.contains name then
+      throwErrorAt nameStx "`{name}` is named twice; each property is checked once."
+    wanted := wanted.push name
+  return mod.livenessProperties.filter (fun lp => wanted.contains lp.name)
 
 @[command_elab Veil.livenessCheck]
 def elabLivenessCheck : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot #liveness_check outside of a Veil module!")
-  mod.throwIfSpecNotFinalized
-  if mod.livenessProperties.isEmpty then
-    throwError "No liveness properties declared in this module. Declare a `liveness` property first."
-  elabExecutionCommand "liveness_check" `veil.perf.elaborator.livenessCheck .liveness
-    (fun _ => pure ()) 4 (fun ecctx => do
-      return (← mkLivenessCheckerCall ecctx.mod ecctx.instantiation ecctx.theory, none)) stx
+  withTraceNode `veil.perf.elaborator.livenessCheck (fun _ => return "#liveness_check") do
+    -- `stx[1]` is the bracketed property selection (possibly empty), `stx[2]` the optional mode,
+    -- `stx[3]` the instantiation, `stx[4]` the optional theory, `stx[5]` the `optConfig`,
+    -- `stx[6]` the optional `finite_reach_by`, `stx[7]` the optional `assumptions_hold_by`
+    let selection : Array (TSyntax `propertyName) := stx[1].getArgs.map (⟨·⟩)
+    let mode := getModelCheckingMode stx[2]
+    let instTerm : Term := ⟨stx[3]⟩
+    let theoryTermOpt : Option Term := if stx[4].isNone then none else some ⟨stx[4][0]⟩
+    let assumptionsHoldBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq) :=
+      if stx[7].isNone then none else some ⟨stx[7][0][1]⟩
+    let finiteReachBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq) :=
+      if stx[6].isNone then none else some ⟨stx[6][0][1]⟩
+    let cfg ← elabLivenessCheckConfig stx[5]
+    if cfg.route.needsFiniteReach && finiteReachBy.isNone then
+      throwError "`(route := .{cfg.route.name})` needs a `FiniteReach` certificate: it is the one \
+        route whose search recurses on one. Add a `finite_reach_by` clause -- \
+        `finite_reach_by native_decide` proves it by exploring the whole state space at \
+        elaboration time, which a measurement of this route will not want to pay."
+    if !cfg.route.needsFiniteReach && finiteReachBy.isSome then
+      throwError "`(route := .{cfg.route.name})` needs no `FiniteReach` certificate, so \
+        `finite_reach_by` would prove nothing. Remove the clause."
+    let mod ← getCurrentModule (errMsg := "You cannot #liveness_check outside of a Veil module!")
+    mod.throwIfSpecNotFinalized
+    let properties ← selectLivenessProperties mod selection
+    let theoryTerm ← getTheoryTerm "#liveness_check" theoryTermOpt mod instTerm
+    warnAboutTransitions mod
+    if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
+      checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
+    mod.ensureExecutableModelCheckerDefinitions
+    let callExpr ← mkLivenessCheckerCall mod instTerm theoryTerm properties cfg.route finiteReachBy
+    ExecutionWorkflow.run { name := "liveness_check" } .liveness mod stx mode callExpr
+      (numLivenessProperties := properties.size)
 
 end Veil

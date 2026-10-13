@@ -435,6 +435,12 @@ syntax assumptionsHoldBy := "assumptions_hold_by " tacticSeq
 
 scoped syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
 
+/-- Optional clause discharging the `FiniteReach` certificate that `(route := .ndfs)` needs, and
+that no other route asks for. `native_decide` proves it honestly, by running a `bfsClosure` of the
+whole state space at elaboration time; a benchmark measuring the route will not want to pay that
+twice and will write `sorry`, which is then recorded against the file that wrote it. -/
+syntax finiteReachBy := "finite_reach_by " tacticSeq
+
 /-- Check all declared `liveness` properties on the instantiated system.
 Requires `#gen_spec`; executable definitions are generated automatically. Like `#model_check`,
 the default runs interpreted while compiling in the background and switches to the native
@@ -448,13 +454,32 @@ systems is exhaustive. Deadlocks are not implicitly extended with stuttering ste
 use `#model_check` to check safety invariants, assertion failures, and deadlocks separately.
 Violations display the state projections of a counterexample stem and repeating loop.
 
+Naming properties in brackets, with the same spelling as their declarations, checks only those and
+in declaration order; with none named, every declared property is checked. This is what lets one
+module answer several questions separately — a property that fails no longer hides the ones
+declared after it, and an ablation can measure one property at a time without duplicating the
+model. (The brackets are parsed greedily, so an instantiation term that itself begins with `[`
+would be taken for a selection; in practice that term is a structure instance.)
+
+`route` selects the search. The default, `fair`, is the only route whose soundness and completeness
+are proved (`Veil.LivenessMC.checkFair_empty_unsat`/`_nonEmpty_sat`); the others are the stages it is
+built from, exposed so that an ablation — what each technique in the pipeline buys — can be run
+through this command rather than through a separate harness. `Veil.LivenessMC.Route` documents them.
+`ndfs` additionally needs `finite_reach_by`, since it is the one route whose definition recurses on
+its `FiniteReach` certificate. As with `#model_check`, write the theory term (`{}` if
+empty) before the option, or the option is parsed as the theory.
+
 ```
+#liveness_check [goal] { node := Fin 3 } {}
+#liveness_check [goal] [noFair] compiled { node := Fin 3 } {}
 #liveness_check interpreted { node := Fin 3 } {}
 #liveness_check compiled { node := Fin 3 } {}
 #liveness_check { node := Fin 3 } {}
+#liveness_check compiled { node := Fin 3 } {} (route := .prune)
+#liveness_check compiled { node := Fin 3 } {} (route := .ndfs) finite_reach_by native_decide
 ```
 -/
-scoped syntax (name := livenessCheck) "#liveness_check " (modelCheckMode)? term:max (term:max)? (assumptionsHoldBy)? : command
+scoped syntax (name := livenessCheck) "#liveness_check " (propertyName)* (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (finiteReachBy)? (assumptionsHoldBy)? : command
 
 /-- Execute a concrete Veil action/procedure term using the same nondeterministic
 extraction machinery as `#model_check`, and print every possible return value

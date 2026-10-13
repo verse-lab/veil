@@ -16,6 +16,16 @@ private def loopingSystem :
   tr := fun _ n => { successes := [((), n)], failures := [] }
 }
 
+/-- The verdict and the totals, without the run's own timings: `search_ns` is wall-clock and so
+differs between two runs that did identical work, which the totals comparisons below must not see.
+The timings are checked separately, by the properties they do have. -/
+private def withoutTiming (j : Json) : Json :=
+  match j with
+  | .obj kvs => .obj (kvs.erase "timing")
+  | _ => j
+
+private def timingOf (j : Json) : Json := j.getObjValD "timing"
+
 private def immediatelyTrue : LivenessProperty Unit Nat Unit := {
   name := `immediatelyTrue
   atoms := [.state { name := `always, property := fun _ _ => True }]
@@ -90,9 +100,21 @@ private def immediatelyTrue : LivenessProperty Unit Nat Unit := {
   unless (← getHandoffState id).isNone do throw <| IO.userError "checkpoint leaked between runs"
   saveHandoffState id checkpoint
   let resumed ← checkAllWithProgress loopingSystem params [alwaysTrue, alwaysTrue] id tk
-  unless resumed == full do throw <| IO.userError "resumed totals differ from uninterrupted checking"
+  unless withoutTiming resumed == withoutTiming full do
+    throw <| IO.userError "resumed totals differ from uninterrupted checking"
+  -- The resumed run searched only the second property, and its reported search time is that
+  -- search plus the prefix carried in the checkpoint.
+  unless ((timingOf resumed).getObjValD "properties").getArr?.toOption.map (·.size) == some 1 do
+    throw <| IO.userError "the resumed run reported the prefix's searches as its own"
   let complete ← checkAllWithProgress loopingSystem params [alwaysTrue, alwaysTrue] id tk
-  unless complete == full do throw <| IO.userError "completed prefix was counted twice"
+  unless withoutTiming complete == withoutTiming full do
+    throw <| IO.userError "completed prefix was counted twice"
+  -- A run that finds the whole prefix complete searches nothing and reports the carried time
+  -- unchanged, so the command's total never shrinks across a handoff.
+  unless (timingOf complete).getObjValD "properties" == .arr #[] do
+    throw <| IO.userError "a fully completed prefix reported a search"
+  unless (timingOf complete).getObjValD "search_ns" == (timingOf resumed).getObjValD "search_ns" do
+    throw <| IO.userError "a fully completed prefix lost the carried search time"
   unless (match (← getProgress id).details with
       | .liveness m => m.propertiesChecked == 2 && m.currentProperty.isEmpty
       | _ => false) do

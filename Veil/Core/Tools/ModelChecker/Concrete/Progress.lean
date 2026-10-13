@@ -162,9 +162,21 @@ the parent process's `handoffStateRef`. Populated at startup by `enableCompiledM
 and read by the runner through `getHandoffState`. Remains `none` for standalone compiled runs. -/
 private initialize compiledHandoffState : IO.Ref (Option Json) ← IO.mkRef none
 
+/-- The one liveness property named on the compiled binary's command line via `--property`.
+Populated at startup by `enableCompiledModeProgress`, read by the liveness runner through
+`getPropertySelection`. Remains `none` when the flag is absent, which checks every property the
+command compiled in.
+
+This is what lets a single build serve every property of a model. Like `--handoff-state`, the flag
+travels at launch, so it is not part of the generated program and does not change its cache key: a
+harness builds a model once and then measures each property as its own process. -/
+private initialize compiledPropertySelection : IO.Ref (Option String) ← IO.mkRef none
+
 /-- Enable compiled mode progress reporting. Call this at the start of the compiled executable. -/
-def enableCompiledModeProgress (handoffState : Option Json := none) : IO Unit := do
+def enableCompiledModeProgress (handoffState : Option Json := none)
+    (propertySelection : Option String := none) : IO Unit := do
   compiledHandoffState.set handoffState
+  compiledPropertySelection.set propertySelection
   compiledModeEnabled.set true
   compiledModeStartTime.set (← IO.monoMsNow)
 
@@ -212,6 +224,11 @@ def getHandoffState (instanceId : Nat) : IO (Option Json) := do
   match ← getProgressRefs instanceId with
   | some refs => refs.handoffStateRef.get
   | none => return none
+
+/-- The property named by `--property`, or `none` for an unrestricted run. Only a compiled binary
+can be given the flag, so this is always `none` under interpreted execution. -/
+def getPropertySelection : IO (Option String) := do
+  if ← compiledModeEnabled.get then compiledPropertySelection.get else return none
 
 /-- Update progress for a `#model_check` instance.
     In compiled mode, also outputs progress to stderr as JSON.

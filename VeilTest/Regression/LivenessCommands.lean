@@ -151,3 +151,91 @@ warning: Cannot compile #liveness_check: the file already declares `main`, which
 #liveness_check {}
 
 end LivenessCompilationFailure
+
+/-! ## Route selection
+
+`(route := …)` picks which of LTLLib's searches runs. All of them must reach the same verdict;
+what legitimately differs is how many product states they touch, which is the point of the
+ablation, so the expected messages below differ only in that number. `crossing` reports fewer here
+because its per-disjunct feasibility pre-pass settles this question on the system graph without
+ever building the product, and `ndfs` reports more because it degeneralizes the automaton first.
+
+Only the interpreted mode is exercised: the route is baked into the generated program, so the
+compiled path is the one the `main`-declaring tests above already cover, and this file cannot
+compile anything after them. -/
+
+veil module LivenessRoutes
+individual flag : Bool
+individual other : Bool
+after_init { flag := false; other := false }
+action set { flag := true }
+action idle { other := other }
+liveness [fairFlag] (□ ◇ ⌜ ¬ flag ⌝) → □ ◇ ⌜ ¬ flag ⌝
+liveness [eventuallyFlag] (□ ◇ T(set)) → ◇ ⌜ flag ⌝
+invariant true
+#gen_spec
+
+/-- info: ✅ No liveness violation (checked 2 properties, explored 5 product states) -/
+#guard_msgs in
+#liveness_check interpreted {} {} (route := .fair)
+/-- info: ✅ No liveness violation (checked 2 properties, explored 5 product states) -/
+#guard_msgs in
+#liveness_check interpreted {} {} (route := .prune)
+/-- info: ✅ No liveness violation (checked 2 properties, explored 5 product states) -/
+#guard_msgs in
+#liveness_check interpreted {} {} (route := .patOnly)
+/-- info: ✅ No liveness violation (checked 2 properties, explored 2 product states) -/
+#guard_msgs in
+#liveness_check interpreted {} {} (route := .crossing)
+/-- info: ✅ No liveness violation (checked 2 properties, explored 5 product states) -/
+#guard_msgs in
+#liveness_check interpreted {} {} (route := .dijkstra)
+-- `ndfs` is the one route that has to be handed a `FiniteReach` certificate. `native_decide`
+-- discharges it by exploring the state space during elaboration, which is why a benchmark
+-- measuring this route writes `sorry` instead and carries the `sorryAx` in its own file.
+/-- info: ✅ No liveness violation (checked 2 properties, explored 6 product states) -/
+#guard_msgs in
+#liveness_check interpreted {} {} (route := .ndfs) finite_reach_by native_decide
+/--
+error: `(route := .ndfs)` needs a `FiniteReach` certificate: it is the one route whose search recurses on one. Add a `finite_reach_by` clause -- `finite_reach_by native_decide` proves it by exploring the whole state space at elaboration time, which a measurement of this route will not want to pay.
+-/
+#guard_msgs in
+#liveness_check interpreted {} {} (route := .ndfs)
+/--
+error: `(route := .fair)` needs no `FiniteReach` certificate, so `finite_reach_by` would prove nothing. Remove the clause.
+-/
+#guard_msgs in
+#liveness_check interpreted {} {} (route := .fair) finite_reach_by native_decide
+
+/-! ### Selecting properties
+
+Naming properties in brackets checks only those, and the per-property counts sum to the
+module-wide total above (3 + 2 = 5). That is what makes this worth having: an ablation can measure
+one question at a time against one model, and a property that fails no longer hides the ones
+declared after it. -/
+
+/-- info: ✅ No liveness violation (checked 1 properties, explored 3 product states) -/
+#guard_msgs in
+#liveness_check [fairFlag] interpreted {}
+/-- info: ✅ No liveness violation (checked 1 properties, explored 2 product states) -/
+#guard_msgs in
+#liveness_check [eventuallyFlag] interpreted {}
+-- Named out of declaration order, and still checked in declaration order: the command's contract
+-- is that properties are checked in order and stop at the first counterexample, and selecting a
+-- subset must not quietly change that.
+/-- info: ✅ No liveness violation (checked 2 properties, explored 5 product states) -/
+#guard_msgs in
+#liveness_check [eventuallyFlag] [fairFlag] interpreted {}
+-- The selection composes with the route.
+/-- info: ✅ No liveness violation (checked 1 properties, explored 3 product states) -/
+#guard_msgs in
+#liveness_check [fairFlag] interpreted {} {} (route := .dijkstra)
+/--
+error: `noSuchProperty` is not a liveness property of this module. Declared: fairFlag, eventuallyFlag
+-/
+#guard_msgs in
+#liveness_check [noSuchProperty] interpreted {}
+/-- error: `fairFlag` is named twice; each property is checked once. -/
+#guard_msgs in
+#liveness_check [fairFlag] [fairFlag] interpreted {}
+end LivenessRoutes
