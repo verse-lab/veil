@@ -280,7 +280,9 @@ def Module.assembleNextTransition (mod : Module) : CommandElabM (Command × Modu
 -- of `Transition.toVeilM`. It is **NOT** meant to be maintained and should be
 -- immediately removed once that issue is fixed.
 
-def Module.assembleNextTransition' (mod : Module) : CommandElabM Command := do
+def Module.assembleNextTrAndStep (mod : Module) : CommandElabM (Array Command × Module) := do
+  mod.throwIfAlreadyDeclared assembledNextTrName
+  mod.throwIfAlreadyDeclared assembledNextStepName
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
   let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
   let binders ← (baseParams ++ extraParams).mapM (·.binder)
@@ -296,9 +298,19 @@ def Module.assembleNextTransition' (mod : Module) : CommandElabM Command := do
     mkFunSyntax actualBinders <| ← `(@$name $args* $rd $st $st')
   let body ← `($label.$(mkIdent `casesOn) $branches*)
   let nextTrDef ← `(command|
-    def $(mkIdent <| assembledNextName.appendAfter "'") $[$(binders)]* : $nextTrT :=
+    def $assembledNextTr $[$(binders)]* : $nextTrT :=
       fun ($rd : $environmentTheory) ($st : $environmentState) ($label : $labelT) ($st' : $environmentState) => $body)
-  return nextTrDef
+  let nextTrDerivedDef : DerivedDefinition := { name := assembledNextTrName, kind := .actionLike, params := #[], extraParams := extraParams, derivedFrom := actionNames, stx := nextTrDef }
+  let mod ← mod.registerDerivedDefinition nextTrDerivedDef
+  let nextStepT ← `(term| $environmentTheory → $environmentState → $environmentState → Prop)
+  let nextTrArgs ← (baseParams ++ extraParams).mapM (·.arg)
+  let nextStepDef ← `(command|
+    def $assembledNextStep $[$(binders)]* : $nextStepT :=
+      fun ($rd : $environmentTheory) ($st : $environmentState) ($st' : $environmentState) =>
+        ∃ $label:ident : $labelT, @$assembledNextTr $nextTrArgs* $rd $st $label:ident $st')
+  let nextStepDerivedDef : DerivedDefinition := { name := assembledNextStepName, kind := .actionLike, params := #[], extraParams := extraParams, derivedFrom := {assembledNextTrName}, stx := nextStepDef }
+  let mod ← mod.registerDerivedDefinition nextStepDerivedDef
+  return (#[nextTrDef, nextStepDef], mod)
 
 /-! ## Init Predicate Assembly -/
 

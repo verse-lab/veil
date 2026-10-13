@@ -47,11 +47,10 @@ private def Module.prepareVerification (mod : Module) (stx : Syntax) : CommandEl
     elabVeilCommand nextCmd
     let (nextTrCmd, mod) ← mod.assembleNextTransition
     elabVeilCommand nextTrCmd
-    let nextTr'Cmd ← mod.assembleNextTransition'
-    elabVeilCommand nextTr'Cmd
+    let (nextTrCmds, mod) ← mod.assembleNextTrAndStep
+    for cmd in nextTrCmds do elabVeilCommand cmd
     try
-      if let some abstractNextCmd ← liftTermElabM mod.defineTransitionAbstractForNext then
-        elabVeilCommand abstractNextCmd
+      liftTermElabM mod.defineTransitionAbstractForNext
     catch ex =>
       logWarningAt stx m!"unable to prove {toTransitionAbstractName assembledNextName}: {ex.toMessageData}"
     let (initCmd, mod) ← mod.assembleInit
