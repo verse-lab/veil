@@ -429,10 +429,10 @@ private def resolveActionAtom (mod : Module) (a : Ident) (args : Array Term) : C
   return actionName
 
 partial def elabLtlFormula (mod : Module) (livenessName : Name) (atoms : Array LivenessAtomSpec)
-    (stx : TSyntax `ltlFormula) : CommandElabM (Term × Module × Array LivenessAtomSpec) := do
+    (stx : TSyntax `tlfml) : CommandElabM (Term × Module × Array LivenessAtomSpec) := do
   match stx with
   -- Each atomic proposition `⌜ AP ⌝` becomes a fresh `livenessAtom` assertion (elaborated exactly like `safety`/`invariant`)
-  | `(ltlFormula| ⌜ $t:term ⌝) =>
+  | `(tlfml| ⌜ $t:term ⌝) =>
     let atomName := Name.mkSimple s!"{livenessName}_atom{atoms.size}"
     let assertion : StateAssertion :=
       { kind := .livenessAtom, name := atomName, extraParams := #[], term := t, userSyntax := stx.raw, inSets := Std.HashSet.emptyWithCapacity }
@@ -440,43 +440,49 @@ partial def elabLtlFormula (mod : Module) (livenessName : Name) (atoms : Array L
     -- Atoms are referenced by their position in `atoms`
     return (← `(term| $(mkIdent ``LTLLib.Formula.atom) $(quote atoms.size)), mod, atoms.push (.state atomName))
   -- `E(a)` / `T(a)` need no assertion: they are decided against the action label, not against a state term
-  | `(ltlFormula| E($a:ident $args*)) =>
+  | `(tlfml| E($a:ident $args*)) =>
     let actionName ← resolveActionAtom mod a args
     return (← `(term| $(mkIdent ``LTLLib.Formula.atom) $(quote atoms.size)), mod,
       atoms.push (.enabled actionName args))
-  | `(ltlFormula| T($a:ident $args*)) =>
+  | `(tlfml| T($a:ident $args*)) =>
     let actionName ← resolveActionAtom mod a args
     return (← `(term| $(mkIdent ``LTLLib.Formula.atom) $(quote atoms.size)), mod,
       atoms.push (.taken actionName args))
-  | `(ltlFormula| ⊤) => return (← `(term| $(mkIdent ``LTLLib.Formula.tt)), mod, atoms)
-  | `(ltlFormula| ⊥) => return (← `(term| $(mkIdent ``LTLLib.Formula.ff)), mod, atoms)
-  | `(ltlFormula| ($f)) => elabLtlFormula mod livenessName atoms f
-  | `(ltlFormula| ¬$f) =>
+  | `(tlfml| ⊤) => return (← `(term| $(mkIdent ``LTLLib.Formula.tt)), mod, atoms)
+  | `(tlfml| ⊥) => return (← `(term| $(mkIdent ``LTLLib.Formula.ff)), mod, atoms)
+  | `(tlfml| ($f)) => elabLtlFormula mod livenessName atoms f
+  | `(tlfml| ¬$f) =>
     let (t, mod, atoms) ← elabLtlFormula mod livenessName atoms f
     return (← `(term| $(mkIdent ``LTLLib.Formula.not) $t), mod, atoms)
-  | `(ltlFormula| ◇$f) =>
+  | `(tlfml| ◇$f) =>
     let (t, mod, atoms) ← elabLtlFormula mod livenessName atoms f
     return (← `(term| $(mkIdent ``LTLLib.Formula.eventually) $t), mod, atoms)
-  | `(ltlFormula| □$f) =>
+  | `(tlfml| □$f) =>
     let (t, mod, atoms) ← elabLtlFormula mod livenessName atoms f
     return (← `(term| $(mkIdent ``LTLLib.Formula.always) $t), mod, atoms)
-  | `(ltlFormula| $f1 ∧ $f2) =>
+  | `(tlfml| $f1 ∧ $f2) =>
     let (t1, mod, atoms) ← elabLtlFormula mod livenessName atoms f1
     let (t2, mod, atoms) ← elabLtlFormula mod livenessName atoms f2
     return (← `(term| $(mkIdent ``LTLLib.Formula.and) $t1 $t2), mod, atoms)
-  | `(ltlFormula| $f1 ∨ $f2) =>
+  | `(tlfml| $f1 ∨ $f2) =>
     let (t1, mod, atoms) ← elabLtlFormula mod livenessName atoms f1
     let (t2, mod, atoms) ← elabLtlFormula mod livenessName atoms f2
     return (← `(term| $(mkIdent ``LTLLib.Formula.or) $t1 $t2), mod, atoms)
-  | `(ltlFormula| $f1 → $f2) =>
+  | `(tlfml| $f1 → $f2) =>
     let (t1, mod, atoms) ← elabLtlFormula mod livenessName atoms f1
     let (t2, mod, atoms) ← elabLtlFormula mod livenessName atoms f2
     return (← `(term| $(mkIdent ``LTLLib.Formula.implies) $t1 $t2), mod, atoms)
-  | `(ltlFormula| $f1 ↔ $f2) =>
+  | `(tlfml| $f1 ↔ $f2) =>
     let (t1, mod, atoms) ← elabLtlFormula mod livenessName atoms f1
     let (t2, mod, atoms) ← elabLtlFormula mod livenessName atoms f2
     return (← `(term| $(mkIdent ``LTLLib.Formula.iff) $t1 $t2), mod, atoms)
-  | _ => throwUnsupportedSyntax
+  -- `tlfml` also admits a plain term (a `Lentil.pred`), which has no meaning for the model checker
+  | `(tlfml| $t:term) =>
+    throwErrorAt t "a plain term is not an atomic proposition of a `liveness` property; write \
+      `⌜ {t} ⌝` for a state predicate"
+  | _ =>
+    throwErrorAt stx "a `liveness` property is built from `⌜ … ⌝`, `E(…)`, `T(…)`, `⊤`, `⊥`, `¬`, `□`, \
+      `◇`, `∧`, `∨`, `→` and `↔`; this formula is none of them"
 
 @[command_elab Veil.livenessDeclaration]
 def elabLivenessDeclaration : CommandElab := fun stx => do
@@ -484,7 +490,7 @@ def elabLivenessDeclaration : CommandElab := fun stx => do
   mod ← mod.ensureStateIsDefined
   mod.throwIfSpecAlreadyFinalized
   let (nameStx, formulaStx) ← match stx with
-    | `(command|liveness $name:propertyName ? $f:ltlFormula) => pure (name, f)
+    | `(command|liveness $name:propertyName ? $f:tlfml) => pure (name, f)
     | _ => throwUnsupportedSyntax
   let name := match nameStx with
     | some n => n.getPropertyName

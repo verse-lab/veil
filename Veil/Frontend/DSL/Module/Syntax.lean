@@ -318,35 +318,24 @@ scoped syntax (name := stateConstraintKind) kw_state_constraint : propertyKind
 /-- An assertion. -/
 scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term : command
 
-/- ## Liveness (LTL) properties -/
+/- ## Liveness (LTL) properties
 
-declare_syntax_cat ltlFormula
-
-/-- Atomic proposition: lifts a state predicate into an LTL atom. -/
-scoped syntax (name := ltlAtom) "⌜" term "⌝" : ltlFormula
-scoped syntax (name := ltlTop) "⊤" : ltlFormula
-scoped syntax (name := ltlBot) "⊥" : ltlFormula
-scoped syntax (name := ltlParen) "(" ltlFormula ")" : ltlFormula
+Formulas are written in Lentil's `tlfml` category, extended below with the action atoms `E(…)` and
+`T(…)` and with `↔`. -/
 
 /-- `E(a)`: Some instantiation of action `a` can fire here. `E(a x y)`: That parameterized instantiation can.
 
 A *state* atom: whether an action can fire is determined by the state alone. "Can fire" means the action
 has a successful outcome, see `LivenessMC.enabledLabels`. -/
-scoped syntax (name := ltlEnabled) "E(" ident (term:max)* ")" : ltlFormula
+scoped syntax (name := tlfmlEnabled) "E(" ident (term:max)* ")" : tlfml
 
 /-- `T(a)`: The step taken here is some instantiation of action `a`. `T(a x y)`: It is that parameterized instantiation.
 
 An *edge* atom: it is a property of the step, not of either endpoint. -/
-scoped syntax (name := ltlTaken) "T(" ident (term:max)* ")" : ltlFormula
+scoped syntax (name := tlfmlTaken) "T(" ident (term:max)* ")" : tlfml
 
-scoped syntax:max (name := ltlNot) "¬" ltlFormula:max : ltlFormula
-scoped syntax:max (name := ltlEventually) "◇" ltlFormula:max : ltlFormula
-scoped syntax:max (name := ltlAlways) "□" ltlFormula:max : ltlFormula
-
-scoped syntax:35 (name := ltlAnd) ltlFormula " ∧ " ltlFormula:36 : ltlFormula
-scoped syntax:30 (name := ltlOr) ltlFormula " ∨ " ltlFormula:31 : ltlFormula
-scoped syntax:25 (name := ltlImplies) ltlFormula " → " ltlFormula:26 : ltlFormula
-scoped syntax:20 (name := ltlIff) ltlFormula " ↔ " ltlFormula:21 : ltlFormula
+/-- `φ ↔ ψ`. Non-associative, like Lean's `↔`. -/
+scoped syntax:20 (name := tlfmlIff) tlfml:21 " ↔ " tlfml:21 : tlfml
 
 /-- Declare a liveness (LTL) property.
 
@@ -356,7 +345,7 @@ liveness [someChosen] ◇ ⌜ chosen = 1 ⌝
 liveness [sendIsFair] □ (E(send) → ◇ T(send))
 ```
 -/
-scoped syntax (name := livenessDeclaration) kw_liveness (propertyName)? ltlFormula : command
+scoped syntax (name := livenessDeclaration) kw_liveness (propertyName)? tlfml : command
 
 /-- A temporal property is an LTL formula over the system's state.
 Unlike safety properties which are state predicates, temporal properties
