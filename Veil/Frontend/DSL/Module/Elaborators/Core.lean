@@ -604,7 +604,7 @@ declare_command_config_elab elabModelCheckCommandConfig ModelCheckCommandConfig 
 
 /-- Configuration options for the `#liveness_check` command. -/
 structure LivenessCheckConfig where
-  /-- Which of LTLLib's searches to run. The default is the proved one; see `Veil.LivenessMC.Route`. -/
+  /-- The search to run; see `Veil.LivenessMC.Route`. -/
   route : LivenessMC.Route := .fair
   deriving Repr
 
@@ -911,8 +911,7 @@ def elabSimulate : CommandElab :=
     (fun stx => elabSimulateCommandConfig stx[4]) 5 fun ecctx => do
     return (← mkSimulateCall ecctx.mod ecctx.instantiation ecctx.theory ecctx.config, none)
 
-/-- The selected route as a term for the generated call. `Route` has no `Quote` instance, and
-spelling the constructors out keeps the generated call readable in `trace.veil.desugar`. -/
+/-- `route` as a term. -/
 private def routeTerm (route : LivenessMC.Route) : Term :=
   mkCIdent <| match route with
     | .ndfs => ``LivenessMC.Route.ndfs
@@ -935,11 +934,7 @@ private def mkLivenessCheckerCall (mod : Module) (instTerm theoryTerm : Term)
       ($theoryIdent $instSortArgs*) ($stateIdent ($fieldConcreteDispatcher $instSortArgs*))
       $instSortArgs* ($fieldConcreteDispatcher $instSortArgs*))
   let checkAll := mkIdent ``Veil.LivenessMC.checkAllWithProgress
-  -- The five `FiniteReach`-free routes get their `RouteCertificate` by instance synthesis, since
-  -- Veil ships an instance for each. `ndfs` has none, so the clause's tactic builds one here,
-  -- against the state-constraint-restricted system the runner actually searches.
-  -- `RouteCertificate.ofClosure` states the obligation as a plain conjunction about `bfsClosure`,
-  -- so the clause's tactic runs once and sees no `Route.Certificate` indirection.
+  -- `ndfs` takes its certificate from the `finite_reach_by` tactic, the other routes by instance.
   let runCall ← match finiteReachBy with
     | none => `($checkAll:ident $sys $sp [$props,*] progressInstanceId cancelToken
         $(routeTerm route))
@@ -951,12 +946,7 @@ private def mkLivenessCheckerCall (mod : Module) (instTerm theoryTerm : Term)
       let result ← $runCall:term
       finish result)
 
-/-- The properties this invocation checks: those named in brackets, or all of them when none are.
-
-Selection is resolved against the module's declarations, so a misspelling is an error here rather
-than a silently empty run, and the result keeps *declaration* order whatever order the names were
-written in — the command's contract is that properties are checked in declaration order and stop at
-the first counterexample, and selecting a subset should not quietly change that. -/
+/-- The properties named in brackets, in declaration order, or all of them if none are named. -/
 private def selectLivenessProperties (mod : Module) (selection : Array (TSyntax `propertyName)) :
     CommandElabM (Array LivenessAssertion) := do
   if mod.livenessProperties.isEmpty then
@@ -970,7 +960,7 @@ private def selectLivenessProperties (mod : Module) (selection : Array (TSyntax 
       throwErrorAt nameStx "`{name}` is not a liveness property of this module. Declared: \
         {", ".intercalate (declared.map toString).toList}"
     if wanted.contains name then
-      throwErrorAt nameStx "`{name}` is named twice; each property is checked once."
+      throwErrorAt nameStx "`{name}` is named twice."
     wanted := wanted.push name
   return mod.livenessProperties.filter (fun lp => wanted.contains lp.name)
 
@@ -990,13 +980,10 @@ def elabLivenessCheck : CommandElab := fun stx => do
       if stx[6].isNone then none else some ⟨stx[6][0][1]⟩
     let cfg ← elabLivenessCheckConfig stx[5]
     if cfg.route.needsFiniteReach && finiteReachBy.isNone then
-      throwError "`(route := .{cfg.route.name})` needs a `FiniteReach` certificate: it is the one \
-        route whose search recurses on one. Add a `finite_reach_by` clause -- \
-        `finite_reach_by native_decide` proves it by exploring the whole state space at \
-        elaboration time, which a measurement of this route will not want to pay."
+      throwError "`(route := .{cfg.route.name})` needs a `finite_reach_by` clause, \
+        e.g. `finite_reach_by native_decide`."
     if !cfg.route.needsFiniteReach && finiteReachBy.isSome then
-      throwError "`(route := .{cfg.route.name})` needs no `FiniteReach` certificate, so \
-        `finite_reach_by` would prove nothing. Remove the clause."
+      throwError "`(route := .{cfg.route.name})` does not take a `finite_reach_by` clause."
     let mod ← getCurrentModule (errMsg := "You cannot #liveness_check outside of a Veil module!")
     mod.throwIfSpecNotFinalized
     let properties ← selectLivenessProperties mod selection

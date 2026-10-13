@@ -8,21 +8,16 @@ namespace Veil.ModelChecker.Compilation
 
 open Lean
 
-/-- Launch-time arguments, separated from the positional parallel settings. None of these is part
-of the generated program, so none of them changes its cache key: one build serves every way of
-launching it. -/
+/-- Command-line arguments of a compiled binary. -/
 private structure LaunchArgs where
-  /-- What is left for the positional parallel configuration, in order. -/
+  /-- The positional parallel settings. -/
   positional : List String := []
-  /-- Checkpoint handed over from an interpreted run, via `--handoff-state`. -/
+  /-- `--handoff-state`: checkpoint from an interpreted run. -/
   handoffState : Option Json := none
-  /-- The single liveness property to check, via `--property`. `none` checks all of them. -/
+  /-- `--property`: the liveness property to check; `none` checks all of them. -/
   property : Option String := none
 
-/-- Strip the launch-time flags, keeping the positional arguments in order.
-
-A flag has to be *removed*, not merely recognised: whatever is left is parsed positionally as the
-parallel configuration, so a flag left in place would be read as a worker count. -/
+/-- Parse `--handoff-state` and `--property`, keeping the other arguments in order. -/
 private def parseLaunchArgs : List String → Except String LaunchArgs
   | [] => pure {}
   | ["--handoff-state"] => throw "expected one JSON argument after --handoff-state"
@@ -70,12 +65,7 @@ def runMain (check : Option ModelChecker.ParallelConfig → Nat → IO.CancelTok
   catch e =>
     die (toString e)
 where
-  /-- Report on stderr and exit non-zero.
-
-  The explicit exit is the point: letting `main` unwind does **not** end this process, because the
-  `exitWhenParentDies` task is still blocked reading stdin and a parent that holds the pipe open
-  never releases it. An error would then hang until the parent's own timeout fired instead of
-  reporting itself -- observed with a misspelled `--property`, which sat for the full budget. -/
+  /-- Print `msg` to stderr and exit with code 1. -/
   die (msg : String) : IO Unit := do
     let stderr ← IO.getStderr
     stderr.putStrLn s!"error: {msg}"

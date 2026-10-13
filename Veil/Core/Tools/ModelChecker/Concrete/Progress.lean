@@ -162,14 +162,8 @@ the parent process's `handoffStateRef`. Populated at startup by `enableCompiledM
 and read by the runner through `getHandoffState`. Remains `none` for standalone compiled runs. -/
 private initialize compiledHandoffState : IO.Ref (Option Json) ← IO.mkRef none
 
-/-- The one liveness property named on the compiled binary's command line via `--property`.
-Populated at startup by `enableCompiledModeProgress`, read by the liveness runner through
-`getPropertySelection`. Remains `none` when the flag is absent, which checks every property the
-command compiled in.
-
-This is what lets a single build serve every property of a model. Like `--handoff-state`, the flag
-travels at launch, so it is not part of the generated program and does not change its cache key: a
-harness builds a model once and then measures each property as its own process. -/
+/-- The liveness property named by `--property`, set by `enableCompiledModeProgress`. `none` when
+the flag is absent. -/
 private initialize compiledPropertySelection : IO.Ref (Option String) ← IO.mkRef none
 
 /-- Enable compiled mode progress reporting. Call this at the start of the compiled executable. -/
@@ -225,8 +219,7 @@ def getHandoffState (instanceId : Nat) : IO (Option Json) := do
   | some refs => refs.handoffStateRef.get
   | none => return none
 
-/-- The property named by `--property`, or `none` for an unrestricted run. Only a compiled binary
-can be given the flag, so this is always `none` under interpreted execution. -/
+/-- The property named by `--property`; always `none` in interpreted mode. -/
 def getPropertySelection : IO (Option String) := do
   if ← compiledModeEnabled.get then compiledPropertySelection.get else return none
 

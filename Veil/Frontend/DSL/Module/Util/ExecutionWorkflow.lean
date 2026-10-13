@@ -37,19 +37,12 @@ private structure ExecutionContext where
   parallelCfg : Option ModelChecker.ParallelConfig
   /-- Which command owns this context; selects the infoview renderer. -/
   resultKind : TraceDisplay.ResultKind
-  /-- `#model_check`, `#simulate` or `#liveness_check`, for the timing record. -/
+  /-- `model_check`, `simulate` or `liveness_check`. -/
   commandName : String
-  /-- Which of the three execution modes this run was started in. -/
   mode : ModelCheckingMode
-  /-- Wall clock of the C generation and the Lake build, in milliseconds, set by whichever task
-  ran them. `none` for an interpreted run, and for a `default`-mode run whose interpreted search
-  won the race. A build Lake found up to date still counts: what is measured is the attempt, not
-  the compilation it may have skipped. -/
+  /-- Wall clock of the compilation in milliseconds; `none` if nothing was compiled. -/
   compileMs : IO.Ref (Option Nat)
-  /-- Wall clock of the compiled worker process, in milliseconds: spawn to exit, as the parent
-  measures it. `none` when no binary ran. This is the figure a benchmark wants for a compiled
-  run -- the search plus the process startup every tool pays -- and unlike the progress clock it
-  does not depend on the worker having reported progress. -/
+  /-- Wall clock of the compiled binary in milliseconds; `none` if no binary ran. -/
   runMs : IO.Ref (Option Nat)
 
 /-- Report compilation failures without stopping an interpreted run during handoff.
@@ -167,13 +160,8 @@ private def verifyBinaryExists (buildFolder : System.FilePath) (instanceId : Nat
   ModelChecker.Concrete.finishProgress instanceId (errorJson s!"Binary not found at {binPath}")
   return none
 
-/-- Run the compiled binary and return its JSON result, with the process's wall clock in
-milliseconds, if it completed.
-
-The duration is taken in the waiting task, the instant `child.wait` returns, rather than in the
-polling loop below: that loop sleeps 100 ms between checks, which is longer than a whole run on a
-small model -- a binary that answers in 20 ms would otherwise be indistinguishable from one that
-takes 120 ms. -/
+/-- Run the compiled binary and return its JSON result and wall clock in milliseconds, if it
+completed. -/
 private def runBinaryForJson (binPath : System.FilePath) (args : Array String)
     (instanceId : Nat) (cancelToken : IO.CancelToken) : IO (Option (Json × Nat)) := do
   ModelChecker.Concrete.updateStatus instanceId "Running compiled binary..."
@@ -270,8 +258,6 @@ private def allocExecutionContext (mod : Module) (stx : Syntax)
   let details : ModelChecker.Concrete.ProgressDetails ← do
     match resultKind with
     | .simulate => pure <| .simulation {}
-    -- `#liveness_check` may have been given a subset to check, and the progress widget counts
-    -- down the properties this run will actually search.
     | .liveness =>
       pure <| .liveness { numProperties := numLivenessProperties.getD mod.livenessProperties.size }
     | _ =>
@@ -293,13 +279,7 @@ def ModelCheckingMode.name : ModelCheckingMode → String
   | .compiled => "compiled"
   | .default => "default"
 
-/-- Write this run's timings to the Lean process's stderr as one compact JSON line, when
-`veil.modelChecker.emitTimings` is set.
-
-A compiled run measures itself inside the worker process, which reports its `timing` object on its
-stdout for the elaborator to read; an interpreted run measures itself in this process. Either way the
-numbers only ever reach the infoview, and a harness driving `lake env lean` over a file sees nothing.
-This is the one place that lets them out, so the record is deliberately flat and self-describing:
+/-- If `veil.modelChecker.emitTimings` is set, print this run's timings to stderr as one JSON line:
 
 ```json
 {"veil_timing":{"command":"liveness_check","mode":"compiled","compile_ms":17204,"run_ms":131,
@@ -307,27 +287,8 @@ This is the one place that lets them out, so the record is deliberately flat and
   "timing":{"route":"prune","search_ns":942000,"properties":[…]}}}
 ```
 
-The three clocks are nested, outermost first:
-
-* `compile_ms` is the C generation and the Lake build, absent when nothing was compiled.
-* `run_ms` is the compiled worker process, spawn to exit, measured by the parent. **This is the
-  figure a benchmark wants for a compiled run**: the search plus the process startup that every
-  tool in a comparison pays. Absent when no binary ran.
-* `wall_ms` is Veil's progress clock, which drives the infoview. For a compiled run the parent
-  adopts the worker's own progress records, so it reads as the worker's lifetime *provided the
-  worker reported progress at all*; a run that fails its assumptions returns before reporting any,
-  and then `wall_ms` is measured from before compilation and is not a run time. Prefer `run_ms`.
-* `timing.search_ns` is the search alone, clocked around the pure LTLLib call inside whichever
-  process ran it.
-
-`timing` is absent for a runner that reports none (`#model_check`, `#simulate`) and for a run that
-ended in an error or a cancellation.
-
-The line is written to the elaborator's stderr stream. Under `lean`/`lake env lean` that stream is
-the process's stdout, so a harness greps the whole output for `{"veil_timing":`; every other line
-Veil writes there is either a `file:line:col:` diagnostic or part of one. In the language server it
-goes to the worker's stderr instead, where nothing reads it, which is why the option is off by
-default. -/
+`compile_ms` and `run_ms` are absent when nothing was compiled or run, and `timing` when the runner
+reports none. -/
 private def emitTimings (ctx : ExecutionContext) (json : Json) : CommandElabM Unit := do
   unless veil.modelChecker.emitTimings.get (← getOptions) do return
   let progress ← liftIO <| ModelChecker.Concrete.getProgress ctx.instanceId
@@ -372,21 +333,13 @@ private def runBinaryAndLogResult (ctx : ExecutionContext) (buildFolder : System
   ModelChecker.Compilation.markRegistryFinished sourceFile command commandId buildFolder
   finishWithResult ctx json
 
-/-- Finish a `veil.modelChecker.buildOnly` run: the worker exists and is deliberately not run.
-
-The build folder is reported so that a harness need not guess which binary belongs to this command.
-Guessing is only unambiguous while a file holds a single compiled command: folders are named
-`{stem}_{command}_{hash of the generated C}`, so several commands in one file differ only by a hash,
-and Lean's code generator does not even emit textually identical C for textually identical
-commands. -/
+/-- Finish a `veil.modelChecker.buildOnly` run and report its build folder. -/
 private def reportBuildOnly (ctx : ExecutionContext) (buildFolder : System.FilePath) :
     CommandElabM Unit := do
   let compileMs ← liftIO ctx.compileMs.get
-  -- Without this the progress widget would spin as "Running..." forever: nothing else ever
-  -- completes this instance, because the run that would have completed it never happens.
   ModelChecker.Concrete.finishProgress ctx.instanceId
     (Json.mkObj [("result", "built_only"), ("build_dir", toJson buildFolder.toString)])
-  logInfoAt ctx.stx m!"Built the worker for #{ctx.commandName} and did not run it \
+  logInfoAt ctx.stx m!"Built #{ctx.commandName} without running it \
     (`veil.modelChecker.buildOnly`): {buildFolder}"
   unless veil.modelChecker.emitTimings.get (← getOptions) do return
   liftIO <| IO.eprintln (Json.mkObj [("veil_build", Json.mkObj
@@ -425,9 +378,7 @@ private def compileModel (sourceFile : String) (callExpr : Term)
   ModelChecker.Concrete.updateCompilationStatus instanceId .succeeded
   return some buildFolder
 
-/-- `compileModel`, recording its wall clock on the context. `.succeeded` carries no duration and
-replaces the `.inProgress` status that did, so the figure is taken here rather than read back off
-the progress instance. -/
+/-- `compileModel`, recording its wall clock in `ctx.compileMs`. -/
 private def compileModelTimed (ctx : ExecutionContext) (sourceFile : String) (callExpr : Term)
     (commandId : String) (cancelToken : IO.CancelToken)
     (command : ModelChecker.Compilation.CompiledCommandSpec) :
@@ -469,8 +420,6 @@ private def runCompiled (command : ModelChecker.Compilation.CompiledCommandSpec)
     numLivenessProperties
   let sourceFile ← getFileName
   let commandId ← getCompiledCommandId s!"#{command.name}" stx
-  -- Read outside the task: `getOptions` reflects the elaboration state at this point, which is
-  -- where the `set_option` or the `-D` on the command line applies.
   let buildOnly := veil.modelChecker.buildOnly.get (← getOptions)
 
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
@@ -596,9 +545,7 @@ private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSp
 
 /-- Shared execution workflow for safety checking, simulation, and liveness checking.
 `callExpr` takes parallel configuration, progress ID, cancellation token, and a result
-continuation, in that order. Its result must have a `ToJson` instance. `numLivenessProperties`
-is how many properties a `#liveness_check` will search, which is fewer than the module declares
-when the command named a subset; the other commands leave it `none`. -/
+continuation, in that order. Its result must have a `ToJson` instance. -/
 def run (command : ModelChecker.Compilation.CompiledCommandSpec)
     (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax)
     (mode : ModelCheckingMode) (callExpr : Term)
