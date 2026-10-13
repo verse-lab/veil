@@ -39,8 +39,6 @@ error: ❌ Violation: liveness_failure (violates: eventuallyFalse)
   Loop (repeats):
     State 0:
       chosen = 1
-    State 1:
-      chosen = 1
 -/
 #guard_msgs in
 #liveness_check interpreted {}

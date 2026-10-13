@@ -598,13 +598,15 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
 
   // Compute all unique field names from the trace
   const lasso = 'lasso' in result ? result.lasso : undefined;
+  // `loop.slice(1)` is the cycle: LTLLib repeats its first state at the head of `loop`.
+  const lassoCycle = React.useMemo(() => lasso ? lasso.loop.slice(1) : [], [lasso]);
   const traceData: TraceData | null | undefined = React.useMemo(() => lasso ? {
     theory: 'theory' in result ? result.theory ?? {} : {},
-    states: [...lasso.stem, ...lasso.loop].map((fields, index) => ({
+    states: [...lasso.stem, ...lassoCycle].map((fields, index) => ({
       index, fields,
       transition: index < lasso.stem.length ? 'stem' : 'loop',
     })),
-  } : 'trace' in result ? result.trace : undefined, [result, lasso]);
+  } : 'trace' in result ? result.trace : undefined, [result, lasso, lassoCycle]);
   const allFieldNames = React.useMemo(() => {
     if (!traceData?.states) return [];
     const names = new Set<string>();
@@ -681,6 +683,33 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       gap: 8px;
       padding: 8px;
       overflow-x: auto;
+    }
+    .mc-lasso-divider {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .mc-lasso-rule {
+      flex: 1;
+      border-top: 2px dashed var(--vscode-focusBorder);
+    }
+    .mc-trace.horizontal .mc-lasso-divider {
+      flex-direction: column;
+      align-self: stretch;
+      margin: 0 4px;
+    }
+    .mc-trace.horizontal .mc-lasso-rule {
+      min-height: 16px;
+      border-top: none;
+      border-left: 2px dashed var(--vscode-focusBorder);
+    }
+    .mc-trace.horizontal .mc-lasso-label {
+      writing-mode: vertical-rl;
     }
     .mc-summary {
       margin: 12px 8px;
@@ -1074,7 +1103,18 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                   {trace.map((s: ParsedState, idx: number) => {
                     const prev = idx > 0 ? trace[idx - 1].fields : undefined;
                     const changes = diffChanges(prev, s.fields);
-                    return <StateCard key={s.index} st={s} changes={changes} showRemovals={showRemovals} forceOpen={allStatesOpen} hiddenFields={hiddenFields} onHideField={toggleFieldVisibility} onResetForceOpen={() => setAllStatesOpen(null)} />;
+                    return (
+                      <React.Fragment key={s.index}>
+                        {lasso && idx === lasso.stem.length && (
+                          <div className="mc-lasso-divider" role="separator">
+                            <span className="mc-lasso-rule" />
+                            <span className="mc-lasso-label">⟲ Loop (repeats)</span>
+                            <span className="mc-lasso-rule" />
+                          </div>
+                        )}
+                        <StateCard st={s} changes={changes} showRemovals={showRemovals} forceOpen={allStatesOpen} hiddenFields={hiddenFields} onHideField={toggleFieldVisibility} onResetForceOpen={() => setAllStatesOpen(null)} />
+                      </React.Fragment>
+                    );
                   })}
                 </div>
 
@@ -1084,7 +1124,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
 
                 <div className="mc-summary">
                   <strong>Summary:</strong> {lasso
-                    ? `${lasso.stem.length} stem states, ${lasso.loop.length} loop states (repeats)`
+                    ? `${lasso.stem.length} stem states, ${lassoCycle.length} loop states (repeats)`
                     : `${trace.length} states in trace`}
                 </div>
               </>

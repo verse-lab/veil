@@ -60,8 +60,6 @@ error: ❌ Violation: liveness_failure (violates: eventuallyFlag)
   Loop (repeats):
     State 0:
       flag = false
-    State 1:
-      flag = false
 -/
 #guard_msgs in
 #liveness_check interpreted {}
@@ -72,8 +70,6 @@ error: ❌ Violation: liveness_failure (violates: eventuallyFlag)
       flag = false
   Loop (repeats):
     State 0:
-      flag = false
-    State 1:
       flag = false
 -/
 #guard_msgs in
@@ -86,8 +82,6 @@ info: ❌ Violation: liveness_failure (violates: eventuallyFlag)
       flag = false
   Loop (repeats):
     State 0:
-      flag = false
-    State 1:
       flag = false
 -/
 #guard_msgs in

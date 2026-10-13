@@ -203,12 +203,15 @@ private def formatLivenessResult (j : Json) : MessageData :=
       let lasso := j.getObjValD "lasso"
       if lasso == .null then fmtViolation j
       else
-        let renderStates := fun (part : String) =>
+        let renderStates := fun (states : List Json) =>
+          "\n".intercalate <| states.zipIdx.map fun (st, i) =>
+            s!"    State {i}:\n{fmtFields st "      "}"
+        let states := fun (part : String) =>
           match lasso.getObjValD part with
-          | .arr states => "\n".intercalate <| states.toList.zipIdx.map fun (st, i) =>
-              s!"    State {i}:\n{fmtFields st "      "}"
-          | _ => ""
-        m!"{fmtViolation j}\n  Stem:\n{renderStates "stem"}\n  Loop (repeats):\n{renderStates "loop"}"
+          | .arr states => states.toList
+          | _ => []
+        -- `loop.tail` is the cycle: LTLLib repeats its first state at the head of `loop`.
+        m!"{fmtViolation j}\n  Stem:\n{renderStates (states "stem")}\n  Loop (repeats):\n{renderStates (states "loop").tail}"
   | "no_violation_found" =>
       m!"✅ No liveness violation (checked {fmtJson (j.getObjValD "properties_checked")} properties, explored {fmtJson (j.getObjValD "explored_states")} product states)"
   | "cancelled" => m!"⚠️ Cancelled"

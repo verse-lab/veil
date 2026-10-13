@@ -155,8 +155,6 @@ error: ❌ Violation: liveness_failure (violates: pending)
   Loop (repeats):
     State 0:
 0
-    State 1:
-0
 -/
 #guard_msgs in
 #test_liveness_handoff true
