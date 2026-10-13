@@ -24,7 +24,7 @@ transition byz {
 }
 
 /--
-warning: you have not defined any invariants for this specification; did you forget?
+warning: you have not defined any invariants or temporal properties for this specification; did you forget?
 -/
 #guard_msgs in
 #gen_spec
