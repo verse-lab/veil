@@ -176,6 +176,18 @@ register_option veil.simulate.maxSteps : Nat := {
   descr := "Maximum number of action transitions per simulation trace, excluding the initial state. Default is 100."
 }
 
+register_option veil.modelChecker.emitTimings : Bool := {
+  defValue := false
+  descr := "If true, `#model_check`, `#simulate` and `#liveness_check` each write one compact JSON \
+  object to the *Lean process's* stderr when a run finishes, under the key `veil_timing`. It carries \
+  the command, the execution mode, the wall clock of the run as the progress widget measured it, the \
+  compilation wall clock when a binary was built, and the runner's own `timing` object when it reports \
+  one (`#liveness_check` reports the route and the per-property search time). Intended for benchmark \
+  harnesses: a compiled run's numbers are produced inside the worker process, whose stdout and stderr \
+  the elaborator consumes, so this is the only place they can be read from outside. Off by default, \
+  since the infoview already shows all of it."
+}
+
 register_option veil.modelChecker.maxStoredBuilds : Nat := {
   defValue := 1
   descr := "Maximum number of compiled builds of `#model_check`, `#simulate`, and `#liveness_check` stored in \
@@ -194,7 +206,7 @@ register_option veil.modelChecker.maxStoredCheckers : Nat := {
 
 register_option veil.modelChecker.buildOnly : Bool := {
   defValue := false
-  descr := "Build the binary of `#model_check` and `#simulate` inside a module without running it, \
+  descr := "Build the binary of `#model_check`, `#simulate`, and `#liveness_check` inside a module without running it, \
   whatever mode the command names, and report it and the time of each phase of the build as an \
   info message whose last line is `VEIL_BUILD_ONLY` followed by a JSON object. As for \
   `#mc_config`, the binary is copied to `.lake/model_checkers` \

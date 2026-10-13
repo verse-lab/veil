@@ -40,6 +40,20 @@ private structure ExecutionContext where
   /-- Where the actions and the properties of the module are, which the result gives the infoview,
   if known -/
   sources : Json := .null
+  /-- `#model_check`, `#simulate` or `#liveness_check`, for the timing record. -/
+  commandName : String
+  /-- Which of the three execution modes this run was started in. -/
+  mode : ModelCheckingMode
+  /-- Wall clock of the C generation and the Lake build, in milliseconds, set by whichever task
+  ran them. `none` for an interpreted run, and for a `default`-mode run whose interpreted search
+  won the race. A build Lake found up to date still counts: what is measured is the attempt, not
+  the compilation it may have skipped. -/
+  compileMs : IO.Ref (Option Nat)
+  /-- Wall clock of the compiled worker process, in milliseconds: spawn to exit, as the parent
+  measures it. `none` when no binary ran. This is the figure a benchmark wants for a compiled
+  run -- the search plus the process startup every tool pays -- and unlike the progress clock it
+  does not depend on the worker having reported progress. -/
+  runMs : IO.Ref (Option Nat)
 
 /-- Report compilation failures without stopping an interpreted run during handoff.
 Interruptions produce no diagnostic: a killed build returns `none`, and an interrupt raised
@@ -220,10 +234,17 @@ private def verifyBinaryExists (buildFolder : System.FilePath) (instanceId : Nat
   ModelChecker.Concrete.finishProgress instanceId (errorJson s!"Binary not found at {binPath}")
   return none
 
-/-- Run the compiled binary and return its JSON result if completed. -/
+/-- Run the compiled binary and return its JSON result, with the process's wall clock in
+milliseconds, if it completed.
+
+The duration is taken in the waiting task, the instant `child.wait` returns, rather than in the
+polling loop below: that loop sleeps 100 ms between checks, which is longer than a whole run on a
+small model -- a binary that answers in 20 ms would otherwise be indistinguishable from one that
+takes 120 ms. -/
 private def runBinaryForJson (binPath : System.FilePath) (args : Array String)
-    (instanceId : Nat) (cancelToken : IO.CancelToken) : IO (Option Json) := do
+    (instanceId : Nat) (cancelToken : IO.CancelToken) : IO (Option (Json × Nat)) := do
   ModelChecker.Concrete.updateStatus instanceId "Running compiled binary..."
+  let spawnedAt ← IO.monoMsNow
   let child ← IO.Process.spawn {
     cmd := binPath.toString, args,
     stdin := .piped, stdout := .piped, stderr := .piped }
@@ -262,7 +283,9 @@ private def runBinaryForJson (binPath : System.FilePath) (args : Array String)
         unless (Json.parse line).toOption.any (·.getObjVal? "start" |>.isOk) do
           stderrAccum.modify (· ++ line)
   let stdoutTask ← IO.asTask (prio := .dedicated) child.stdout.readToEnd
-  let waitTask ← IO.asTask (prio := .dedicated) child.wait
+  let waitTask ← IO.asTask (prio := .dedicated) do
+    let exitCode ← child.wait
+    return (exitCode, (← IO.monoMsNow) - spawnedAt)
   -- Monitor for cancellation
   while !(← IO.hasFinished waitTask) do
     if ← checkCancelled cancelToken instanceId then
@@ -276,14 +299,16 @@ private def runBinaryForJson (binPath : System.FilePath) (args : Array String)
       return none
     IO.sleep 100
   let stdout ← IO.ofExcept (← IO.wait stdoutTask)
-  let exitCode ← IO.ofExcept (← IO.wait waitTask)
+  let (exitCode, runMs) ← IO.ofExcept (← IO.wait waitTask)
   -- Process exit does not imply stderr has been drained. Join the reader before
   -- consuming diagnostics or publishing a final result; propagate reader failures.
   IO.ofExcept (← IO.wait stderrTask)
   let stderr ← stderrAccum.get
   if exitCode != 0 then
     throw <| IO.userError s!"Binary exited with code {exitCode}{if stderr.isEmpty then "" else s!"\n{stderr}"}"
-  return some (Json.parse stdout |>.toOption.getD (errorJson s!"Failed to parse output: {stdout.take 500}"))
+  return some
+    (Json.parse stdout |>.toOption.getD (errorJson s!"Failed to parse output: {stdout.take 500}"),
+     runMs)
 
 /-- Elaborate the interpreted mode computation. Must be called synchronously. -/
 private def elaborateInterpretedComputation (instanceId : Nat) (callExpr : Term)
@@ -308,11 +333,16 @@ private def logModelCheckResult (kind : TraceDisplay.ResultKind) (stx : Syntax)
 /-- Allocate a model check context with progress tracking. -/
 private def allocExecutionContext (mod : Module) (stx : Syntax)
     (parallelCfg : Option ModelChecker.ParallelConfig)
-    (resultKind : TraceDisplay.ResultKind) : CommandElabM ExecutionContext := do
+    (resultKind : TraceDisplay.ResultKind) (commandName : String)
+    (mode : ModelCheckingMode) (numLivenessProperties : Option Nat) :
+    CommandElabM ExecutionContext := do
   let details : ModelChecker.Concrete.ProgressDetails ← do
     match resultKind with
     | .simulate => pure <| .simulation {}
-    | .liveness => pure <| .liveness { numProperties := mod.livenessProperties.size }
+    -- `#liveness_check` may have been given a subset to check, and the progress widget counts
+    -- down the properties this run will actually search.
+    | .liveness =>
+      pure <| .liveness { numProperties := numLivenessProperties.getD mod.livenessProperties.size }
     | _ =>
       let actionLabels := actionLabelNames mod
       pure <|.modelCheck { allActionLabels := actionLabels }
@@ -320,13 +350,71 @@ private def allocExecutionContext (mod : Module) (stx : Syntax)
   let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
   let (actions, properties) ← getDeclSources mod
   let sources := infoviewSources actions properties (← IO.currentDir)
-  return { stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind, sources }
+  return { stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind, sources,
+           commandName, mode, compileMs := ← IO.mkRef none, runMs := ← IO.mkRef none }
 
 /-- Handle errors in model checking computations. -/
 private def handleModelCheckError (ctx : ExecutionContext) (e : Exception) : CommandElabM Unit := do
   let json := errorJson s!"{← e.toMessageData.toString}"
   logModelCheckResult ctx.resultKind ctx.stx json
   ModelChecker.Concrete.finishProgress ctx.instanceId json
+
+def ModelCheckingMode.name : ModelCheckingMode → String
+  | .interpreted => "interpreted"
+  | .compiled => "compiled"
+  | .default => "default"
+
+/-- Write this run's timings to the Lean process's stderr as one compact JSON line, when
+`veil.modelChecker.emitTimings` is set.
+
+A compiled run measures itself inside the worker process, which reports its `timing` object on its
+stdout for the elaborator to read; an interpreted run measures itself in this process. Either way the
+numbers only ever reach the infoview, and a harness driving `lake env lean` over a file sees nothing.
+This is the one place that lets them out, so the record is deliberately flat and self-describing:
+
+```json
+{"veil_timing":{"command":"liveness_check","mode":"compiled","compile_ms":17204,"run_ms":131,
+  "wall_ms":128,"result":"no_violation_found",
+  "timing":{"route":"prune","search_ns":942000,"properties":[…]}}}
+```
+
+The three clocks are nested, outermost first:
+
+* `compile_ms` is the C generation and the Lake build, absent when nothing was compiled.
+* `run_ms` is the compiled worker process, spawn to exit, measured by the parent. **This is the
+  figure a benchmark wants for a compiled run**: the search plus the process startup that every
+  tool in a comparison pays. Absent when no binary ran.
+* `wall_ms` is Veil's progress clock, which drives the infoview. For a compiled run the parent
+  adopts the worker's own progress records, so it reads as the worker's lifetime *provided the
+  worker reported progress at all*; a run that fails its assumptions returns before reporting any,
+  and then `wall_ms` is measured from before compilation and is not a run time. Prefer `run_ms`.
+* `timing.search_ns` is the search alone, clocked around the pure LTLLib call inside whichever
+  process ran it.
+
+`timing` is absent for a runner that reports none (`#model_check`, `#simulate`) and for a run that
+ended in an error or a cancellation.
+
+The line is written to the elaborator's stderr stream. Under `lean`/`lake env lean` that stream is
+the process's stdout, so a harness greps the whole output for `{"veil_timing":`; every other line
+Veil writes there is either a `file:line:col:` diagnostic or part of one. In the language server it
+goes to the worker's stderr instead, where nothing reads it, which is why the option is off by
+default. -/
+private def emitTimings (ctx : ExecutionContext) (json : Json) : CommandElabM Unit := do
+  unless veil.modelChecker.emitTimings.get (← getOptions) do return
+  let progress ← liftIO <| ModelChecker.Concrete.getProgress ctx.instanceId
+  let compileMs ← liftIO ctx.compileMs.get
+  let runMs ← liftIO ctx.runMs.get
+  let fields := [("command", Json.str ctx.commandName), ("mode", Json.str ctx.mode.name),
+      ("wall_ms", toJson progress.elapsedMs)]
+    ++ (match compileMs with | some ms => [("compile_ms", toJson ms)] | none => [])
+    ++ (match runMs with | some ms => [("run_ms", toJson ms)] | none => [])
+    ++ (match json.getObjValAs? String "result" with
+        | .ok r => [("result", Json.str r)]
+        | .error _ => [])
+    ++ (match json.getObjVal? "timing" with
+        | .ok t => [("timing", t)]
+        | .error _ => [])
+  liftIO <| IO.eprintln (Json.mkObj [("veil_timing", Json.mkObj fields)]).compress
 
 /-- Finish model checking with a successful result. -/
 private def finishWithResult (ctx : ExecutionContext) (json : Json) : CommandElabM Unit := do
@@ -341,6 +429,7 @@ private def finishWithResult (ctx : ExecutionContext) (json : Json) : CommandEla
   let json := if json matches .obj _ && !ctx.sources.isNull then json.setObjVal! "sources" ctx.sources else json
   logModelCheckResult ctx.resultKind ctx.stx json
   ModelChecker.Concrete.finishProgress ctx.instanceId json
+  emitTimings ctx json
 
 /-- Run the compiled binary and log the result. -/
 private def runBinaryAndLogResult (ctx : ExecutionContext) (buildFolder : System.FilePath)
@@ -351,7 +440,8 @@ private def runBinaryAndLogResult (ctx : ExecutionContext) (buildFolder : System
   let args := match handoffState with
     | some state => args ++ #["--handoff-state", state.compress]
     | none => args
-  let some json ← runBinaryForJson binPath args ctx.instanceId ctx.cancelToken | return
+  let some (json, runMs) ← runBinaryForJson binPath args ctx.instanceId ctx.cancelToken | return
+  ctx.runMs.set (some runMs)
   ModelChecker.Compilation.markRegistryFinished sourceFile command commandId buildFolder
   finishWithResult ctx json
 
@@ -406,11 +496,26 @@ private def compileModel (sourceFile : String) (callExpr : Term)
     timing.set { emitCMs, ccLinkMs, cBytes := cCode.utf8ByteSize }
   return some buildFolder
 
+/-- `compileModel`, recording its wall clock on the context. `.succeeded` carries no duration and
+replaces the `.inProgress` status that did, so the figure is taken here rather than read back off
+the progress instance. -/
+private def compileModelTimed (ctx : ExecutionContext) (sourceFile : String) (callExpr : Term)
+    (commandId : String) (cancelToken : IO.CancelToken)
+    (command : ModelChecker.Compilation.CompiledCommandSpec) :
+    CommandElabM (Option System.FilePath) := do
+  let t0 ← liftIO IO.monoMsNow
+  let result ← compileModel sourceFile callExpr commandId ctx.instanceId cancelToken command
+  if result.isSome then
+    ctx.compileMs.set (some ((← liftIO IO.monoMsNow) - t0))
+  return result
+
 /-- Handle interpreted mode: evaluate and display results directly. -/
-private def runInterpreted
+private def runInterpreted (command : ModelChecker.Compilation.CompiledCommandSpec)
     (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax) (callExpr : Term)
-    (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-  let ctx ← allocExecutionContext mod stx parallelCfg kind
+    (parallelCfg : Option ModelChecker.ParallelConfig)
+    (numLivenessProperties : Option Nat) : CommandElabM Unit := do
+  let ctx ← allocExecutionContext mod stx parallelCfg kind command.name .interpreted
+    numLivenessProperties
   let ioComputation ← elaborateInterpretedComputation ctx.instanceId callExpr parallelCfg
   let computation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
@@ -460,8 +565,10 @@ private def compileThen (command : ModelChecker.Compilation.CompiledCommandSpec)
 /-- Handle compiled-only mode: compile and run binary without interpreted fallback. -/
 private def runCompiled (command : ModelChecker.Compilation.CompiledCommandSpec)
     (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax) (callExpr : Term)
-    (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-  let ctx ← allocExecutionContext mod stx parallelCfg kind
+    (parallelCfg : Option ModelChecker.ParallelConfig)
+    (numLivenessProperties : Option Nat) : CommandElabM Unit := do
+  let ctx ← allocExecutionContext mod stx parallelCfg kind command.name .compiled
+    numLivenessProperties
   compileThen command stx callExpr ctx.instanceId ctx.cancelToken
     (fun buildFolder sourceFile commandId =>
       runBinaryAndLogResult ctx buildFolder sourceFile command commandId)
@@ -471,8 +578,10 @@ private def runCompiled (command : ModelChecker.Compilation.CompiledCommandSpec)
 /-- Handle default mode: run interpreted + background compile with handoff. -/
 private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSpec)
     (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax) (callExpr : Term)
-    (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-  let ctx ← allocExecutionContext mod stx parallelCfg kind
+    (parallelCfg : Option ModelChecker.ParallelConfig)
+    (numLivenessProperties : Option Nat) : CommandElabM Unit := do
+  let ctx ← allocExecutionContext mod stx parallelCfg kind command.name .default
+    numLivenessProperties
   let sourceFile ← getFileName
   let commandId ← getCompiledCommandId s!"#{command.name}" stx
   let ioComputation ← elaborateInterpretedComputation ctx.instanceId callExpr parallelCfg
@@ -514,8 +623,7 @@ private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSp
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
       let some buildFolder ← withCompilationDiagnostics stx ctx.instanceId true <|
-        compileModel sourceFile callExpr commandId ctx.instanceId compilationCancelTk
-        command | do
+        compileModelTimed ctx sourceFile callExpr commandId compilationCancelTk command | do
           ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
           return
       -- Skip handoff if violation found or interpreted finished
@@ -663,19 +771,22 @@ private def runBuildOnly (command : ModelChecker.Compilation.CompiledCommandSpec
 `callExpr` takes parallel configuration, progress ID, cancellation token, and a result
 continuation, in that order. Its result must have a `ToJson` instance. `extractMs`, the time the
 command spent generating the module's executable definitions, is reported by
-`veil.modelChecker.buildOnly`. -/
+`veil.modelChecker.buildOnly`. `numLivenessProperties` is how many properties a
+`#liveness_check` will search, which is fewer than the module declares
+when the command named a subset; the other commands leave it `none`. -/
 def run (command : ModelChecker.Compilation.CompiledCommandSpec)
     (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax)
     (mode : ModelCheckingMode) (callExpr : Term)
     (parallelCfg : Option ModelChecker.ParallelConfig := none)
-    (extractMs : Nat := 0) : CommandElabM Unit := do
+    (extractMs : Nat := 0)
+    (numLivenessProperties : Option Nat := none) : CommandElabM Unit := do
   if veil.modelChecker.buildOnly.get (← getOptions) then
     return ← runBuildOnly command stx callExpr extractMs
   let mode := if (← liftIO isVeilOnlineEnv) then .interpreted else mode
   match mode with
-  | .interpreted => runInterpreted kind mod stx callExpr parallelCfg
-  | .compiled => runCompiled command kind mod stx callExpr parallelCfg
-  | .default => runWithHandoff command kind mod stx callExpr parallelCfg
+  | .interpreted => runInterpreted command kind mod stx callExpr parallelCfg numLivenessProperties
+  | .compiled => runCompiled command kind mod stx callExpr parallelCfg numLivenessProperties
+  | .default => runWithHandoff command kind mod stx callExpr parallelCfg numLivenessProperties
 
 /-- How the message of `buildOnly` starts: the VS Code extension reads the rest as the path of the
 binary (`BUILT_PREFIX`) -/

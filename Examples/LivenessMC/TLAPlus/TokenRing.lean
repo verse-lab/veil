@@ -80,4 +80,4 @@ def theory0 : Theory (Fin 6) :=
 
 #model_check { node := Fin 6 } theory0
 
-#liveness_check { node := Fin 6 } theory0
+#liveness_check compiled { node := Fin 6 } theory0
