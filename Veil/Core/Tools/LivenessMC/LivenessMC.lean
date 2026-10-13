@@ -318,7 +318,8 @@ theorem checkFair_empty_unsat [Inhabited σ] [LawfulHashable σ]
     (edgeAtom := p.isEdgeAtom) (by simpa only [sysStepOf_eq] using sysFR) h
   simpa only [sysStepOf_eq] using hx
 
-/-- Completeness of `checkFair`: a `.nonEmpty` result yields a real labelled run violating `p.φ`. -/
+/-- Completeness of `checkFair`: a `.nonEmpty` result yields a real labelled run violating `p.φ`, whose
+`i`-th state is the `i`-th state of the reported lasso: `stem`, then `loop.tail` repeated. -/
 theorem checkFair_nonEmpty_sat [Inhabited σ] [LawfulHashable σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
@@ -329,7 +330,8 @@ theorem checkFair_nonEmpty_sat [Inhabited σ] [LawfulHashable σ]
     ∃ ρ' : Nat → LTLLib.LSys.Edge Nat σ,
       (LTLLib.LSys.toSpec (sysStepsLabelled sys (edgeLabelling p)) sys.initStates
         (sysLabelOf sys p th)).isRun ρ' ∧
-      ¬ LTLLib.Formula.directSatisfies (LTLLib.LSys.valuation (sysLabelOf sys p th) ρ') p.φ := by
+      ¬ LTLLib.Formula.directSatisfies (LTLLib.LSys.valuation (sysLabelOf sys p th) ρ') p.φ ∧
+      ∀ i, LTLLib.lassoAt (stem.map Prod.fst) (loop.tail.map Prod.fst) i = some (ρ' i).1 := by
   rw [checkFair] at h
   -- `steps_edgeAtom` is the premise the routed theorem asks of `p.isEdgeAtom`: every atom a step
   -- contributes is one it marks. Whichever route then ran, the witness is a real run.
@@ -339,7 +341,7 @@ theorem checkFair_nonEmpty_sat [Inhabited σ] [LawfulHashable σ]
     (by simpa only [sysStepOf_eq] using steps_edgeAtom sys p)
     -- finiteness is owed only on the fallback branch, so the prune-routed case never reads it
     (fun _ => by simpa only [sysStepOf_eq] using sysFR) h
-  simpa only [sysStepOf_eq] using hc
+  simpa only [sysStepOf_eq, LTLLib.lassoAt_map] using hc
 
 /-! ## Routes
 
