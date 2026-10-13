@@ -307,8 +307,15 @@ scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term :
 scoped syntax (name := genSpec) kw_gen_spec : command
 
 /-- Generate executable actions and the enumerable transition system without running a search.
-Requires a finalized specification (`#gen_spec`). -/
-scoped syntax (name := genExecutable) kw_gen_executable : command
+Requires a finalized specification (`#gen_spec`).
+
+Options:
+- `borrowArgs` (default `true`): the actions take the theory and the state borrowed (`@&`).
+  `#gen_executable -borrowArgs` extracts them owned instead.
+
+`#model_check` and `#simulate` generate these definitions with the default options when the module
+does not have them yet, so `#gen_executable` with other options must come before them. -/
+scoped syntax (name := genExecutable) kw_gen_executable Parser.Tactic.optConfig : command
 
 scoped syntax (name := genTheorems) kw_gen_theorems : command
 
