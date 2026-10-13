@@ -302,106 +302,471 @@ def bfsBigStep
 
 end LawfulMapReduceSearchContextLocal
 
-/-- The accumulator of a layer's merge: the frontier kept so far, and the log entries of its items
-by fingerprint. -/
-structure MergeAcc (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] (numShards : PosUSize) where
-  tovisit : List (MapReduceQueueItem σₕ σ κ)
-  seen : ShardedHashMapUSize σₕ (LogEntry σₕ κ) numShards
+/-! ### The merge of a layer, shard by shard
+
+The items of a layer are numbered in the order of `lists.flatten` and kept in an array by number, on
+the main thread, and their numbers are put in buckets by the shard of their fingerprint, one hash per
+item. Each bucket is then merged into its shard of the seen set in a task of its own: the items whose
+fingerprints the shard does not have yet are added to it with their log entries, and the task returns
+their numbers. The kept items are then marked by number, and the next frontier takes them in the order
+of their numbers (`keptInOrder`).
+
+That order, not the shards', is what the next layer's split needs: states that a worker found one after
+another stay together, and the split hands them to one worker again. A successor that several of them
+share is then found again by that worker, whose own seen set drops it, instead of by several workers
+that each pass it on to the merge. -/
+
+section DistributeIndexesByHash
+
+/-- The items of a layer, numbered by their position in `lists.flatten`, and their numbers in buckets
+by the shard of their fingerprint. -/
+structure LayerBuckets (σ κ σₕ : Type) (numShards : PosUSize) where
+  /-- The items, by number. -/
+  items : Array (MapReduceQueueItem σₕ σ κ)
+  /-- For each shard, the numbers of its items, in increasing order. -/
+  buckets : VectorUSize (Array Nat) numShards
+
+/-- Add `x` as the item numbered `i`. -/
+@[inline]
+def LayerBuckets.add (b : LayerBuckets σ κ σₕ numShards) (i : Nat) (x : MapReduceQueueItem σₕ σ κ) :
+    LayerBuckets σ κ σₕ numShards :=
+  ⟨b.items.push x, b.buckets.umodifyViaHash x.fingerprint (·.push i) numShards.property⟩
+
+-- CHECK Might be easier to prove by connecting to `distributeInto`?
+/-- Number the items of `lists` in the order of `lists.flatten` and put the numbers in buckets by
+the shard of the item's fingerprint. -/
+@[inline]
+def bucketsOf (numShards : PosUSize) (lists : List (List (MapReduceQueueItem σₕ σ κ))) :
+    LayerBuckets σ κ σₕ numShards :=
+  lists.foldl (init := ⟨#[], .replicateUSize numShards #[]⟩) fun acc l =>
+    -- the items of `l` come after those of the lists before it
+    l.foldlIdx (start := acc.items.size) (init := acc) fun i acc x => acc.add i x
+
+theorem LayerBuckets.size_add {b : LayerBuckets σ κ σₕ numShards} {i : Nat} {x : MapReduceQueueItem σₕ σ κ} :
+    (b.add i x).items.size = b.items.size + 1 := by
+  simp [LayerBuckets.add]
+
+open ShardedSetUInt in
+/-- Each bucket of `b` has the numbers of the items of its shard. -/
+def LayerBuckets.Spec (b : LayerBuckets σ κ σₕ numShards) : Prop :=
+  ∀ (s : USize) (hs : s < numShards) (j : Nat),
+    j ∈ b.buckets.uget s hs ↔ ∃ x, b.items[j]? = some x ∧ shardIdxOfUSize numShards x.fingerprint = s
+
+/-- The numbers in the buckets of `b` are numbers of items. -/
+theorem LayerBuckets.Spec.lt_size {b : LayerBuckets σ κ σₕ numShards} (hb : b.Spec) :
+    ∀ bk ∈ b.buckets.val, ∀ i ∈ bk, i < b.items.size := by
+  unfold LayerBuckets.Spec at hb
+  simp only [← Array.mem_toList_iff, VectorUSize.mem_toList_iff]
+  grind
+
+/-- Adding an item with the next number keeps each bucket the numbers of the items of its shard. -/
+theorem LayerBuckets.spec_add {b : LayerBuckets σ κ σₕ numShards} (hb : b.Spec) (x : MapReduceQueueItem σₕ σ κ) :
+    (b.add b.items.size x).Spec := by
+  grind [LayerBuckets.Spec, LayerBuckets.add, VectorUSize.uget_umodifyViaHash]
+
+theorem LayerBuckets.spec_foldlIdx (l : List (MapReduceQueueItem σₕ σ κ)) :
+    ∀ b : LayerBuckets σ κ σₕ numShards, b.Spec →
+      (l.foldlIdx (fun i acc x => acc.add i x) b b.items.size).Spec := by
+  induction l <;> grind only [List.foldlIdx, LayerBuckets.spec_add, LayerBuckets.size_add]
+
+theorem LayerBuckets.items_foldlIdx (l : List (MapReduceQueueItem σₕ σ κ)) :
+    ∀ b : LayerBuckets σ κ σₕ numShards,
+      (l.foldlIdx (fun i acc x => acc.add i x) b b.items.size).items.toList = b.items.toList ++ l := by
+  induction l <;> grind [List.foldlIdx, LayerBuckets.add, LayerBuckets.size_add]
+
+theorem bucketsOf_spec (numShards : PosUSize) (lists : List (List (MapReduceQueueItem σₕ σ κ))) :
+    (bucketsOf numShards lists).Spec := by
+  apply List.foldlRecOn (motive := LayerBuckets.Spec)
+  · intro s hs j ; simp [VectorUSize.uget_replicateUSize]
+  · intro b hb l _ ; exact LayerBuckets.spec_foldlIdx l b hb
+
+omit σ κ σₕ fp in
+abbrev LawfulLayerBuckets (σ κ σₕ : Type) [fp : StateFingerprint σ σₕ] (numShards : PosUSize) :=
+  { b : LayerBuckets σ κ σₕ numShards // @LayerBuckets.Spec σ κ σₕ fp numShards b }
 
 @[inline]
-def MergeAcc.innerMerge {numShards : PosUSize}
-  (acc : MergeAcc σ κ σₕ numShards) (item : MapReduceQueueItem σₕ σ κ) : MergeAcc σ κ σₕ numShards :=
-  if !acc.seen.contains item.fingerprint then
-    ⟨item :: acc.tovisit, acc.seen.insert item.fingerprint item.entry⟩
-  else
-    acc
+def lawfulBucketsOf (numShards : PosUSize) (lists : List (List (MapReduceQueueItem σₕ σ κ))) :
+    LawfulLayerBuckets σ κ σₕ numShards :=
+  ⟨bucketsOf numShards lists, bucketsOf_spec numShards lists⟩
 
-/-- Specialize the generic deduplicating-fold description to a merge accumulator. -/
-abbrev MergeAcc.DescriptionWithAcc {numShards : PosUSize}
-    (lq : List (MapReduceQueueItem σₕ σ κ)) (acc res : MergeAcc σ κ σₕ numShards) : Prop :=
-  DedupFoldDescriptionWithAcc
-    (key := MapReduceQueueItem.fingerprint)
-    (val := MapReduceQueueItem.entry)
-    (proj := id)
-    (lst := MergeAcc.tovisit)
-    (look := fun acc x => acc.seen.get? x) lq acc res
+/-- The items of `bucketsOf` are those of `lists`, in their order. -/
+theorem lawfulBucketsOf_items (numShards : PosUSize) (lists : List (List (MapReduceQueueItem σₕ σ κ))) :
+    (lawfulBucketsOf numShards lists).val.items.toList = lists.flatten := by
+  unfold lawfulBucketsOf bucketsOf
+  rw [← List.foldl_hom (fun b : LayerBuckets σ κ σₕ numShards => b.items.toList)
+    (fun b l => (LayerBuckets.items_foldlIdx l b).symm)]
+  simpa using (List.foldl_append_eq_append (l := lists) (l' := []) (f := id))
 
--- FIXME: Deduplicate the definition
-abbrev MergeAcc.Description {numShards : PosUSize}
-    (lq : List (MapReduceQueueItem σₕ σ κ)) (res : MergeAcc σ κ σₕ numShards) : Prop :=
-  DedupFoldDescription
-    (key := MapReduceQueueItem.fingerprint)
-    (val := MapReduceQueueItem.entry)
-    (proj := id)
-    (lst := MergeAcc.tovisit)
-    (look := fun acc x => acc.seen.get? x) lq res
+end DistributeIndexesByHash
 
-/-- The merge of a round folds `innerMerge` over the items of the workers: a deduplicating fold. -/
-theorem MergeAcc.innerMerge_foldl_descriptive {numShards : PosUSize}
-  (acc : MergeAcc σ κ σₕ numShards) (lq : List (MapReduceQueueItem σₕ σ κ)) :
-  MergeAcc.DescriptionWithAcc lq acc (lq.foldl MergeAcc.innerMerge acc) := by
-  apply DedupFoldDescriptionWithAcc.of_foldl <;> intro acc item h <;> simp [MergeAcc.innerMerge]
-  · grind [ShardedUSize.contains_iff_mem, ShardedMapUSize.mem_iff_isSome_get?]
-  · open Classical in simp only [ShardedUSize.not_contains_iff_not_mem]
-    simp only [← ShardedMapUSize.not_mem_iff_get?_none] at h
-    simp [h, ShardedMapUSize.get?_insert]
+-- CHECK Will this leave a reference to `n`?
+/-- An array of indices below `n`. -/
+abbrev IndexArray (n : Nat) := {ks : Array Nat // ∀ i ∈ ks, i < n}
 
-/-- Deduplicate the items of `lists`, keeping the first of each fingerprint, and add the kept
-ones to the frontier, and their fingerprints with their log entries to the seen set: the merge of a
-BFS layer (`mergeWithLocalOnes`) and of the initial states (`MapReduceSearchContextMain.initial`). -/
+namespace IndexArray
+
+-- NOTE: Using `Fin` also works here, but it seems that `attach` does not directly work for `Fin`?
+-- So `map` into `Fin` might introduce additional time consumption?
+
+/-- Push the `· < n` proof of `ns` onto every element. This is a spec only. -/
+def toFinList {n : Nat} (ns : IndexArray n) : List (Fin n) :=
+  ns.val.toList.pmap (fun i h => ⟨i, h⟩) (fun i hi => ns.property i (Array.mem_toList_iff.mp hi))
+
+theorem mem_toFinList {n : Nat} {ns : IndexArray n} {j : Fin n} :
+    j ∈ toFinList ns ↔ j.val ∈ ns.val := by simp [toFinList, List.mem_pmap, Fin.ext_iff]
+
+theorem map_val_toFinList {n : Nat} (ns : IndexArray n) :
+    ns.toFinList.map Fin.val = ns.val.toList := by
+  simp [toFinList, List.map_pmap, List.pmap_eq_map]
+
+@[inline]
+def toItemsList {items : Array α} (ns : IndexArray items.size) : List α :=
+  ns.val.attach.toList.map fun ⟨a, ha⟩ => items[a]'(ns.property _ ha)
+
+theorem toItemsList_eq_map_toFinList {items : Array α} (ns : IndexArray items.size) :
+    ns.toItemsList = ns.toFinList.map (items[·]) := by
+  simp only [toItemsList, toFinList, Array.toList_attach, List.map_attachWith_eq_pmap, List.map_pmap]
+  apply List.pmap_congr_left
+  intros ; rfl
+
+/-- Distinct referenced items imply distinct indices, even across buckets. -/
+theorem nodup_indices_of_nodup_items {items : Array α} (buckets : List (IndexArray items.size))
+    (h : (buckets.flatMap toItemsList).Nodup) :
+    (buckets.flatMap (·.val.toList)).Nodup := by
+  rw [funext (toItemsList_eq_map_toFinList (items := items)), ← List.map_flatMap] at h
+  have h_fin : (buckets.flatMap toFinList).Nodup :=
+    List.Pairwise.of_map _ (fun a b h hab => h (congrArg _ hab)) h
+  have h_nat := List.Pairwise.map (S := (· ≠ ·)) Fin.val (fun _ _ h heq => h (Fin.ext heq)) h_fin
+  simpa only [List.nodup_iff_pairwise_ne, List.map_flatMap, map_val_toFinList] using h_nat
+
+end IndexArray
+
+/-- The buckets of `b`, each with the fact that its numbers are numbers of items. -/
+@[inline]
+def LawfulLayerBuckets.boundedBuckets (b : LawfulLayerBuckets σ κ σₕ numShards) :
+    VectorUSize (IndexArray b.val.items.size) numShards :=
+  ⟨b.val.buckets.val.attachWith _ (b.property.lt_size), by simp [b.val.buckets.property]⟩
+
+theorem LawfulLayerBuckets.uget_boundedBuckets {b : LawfulLayerBuckets σ κ σₕ numShards} {s : USize}
+    {hs : s < numShards} : (b.boundedBuckets.uget s hs).val = b.val.buckets.uget s hs := by
+  simp [LawfulLayerBuckets.boundedBuckets, VectorUSize.uget, Array.uget]
+
+/-- The items of a bucket of `b`, by the numbers in it. -/
+def LawfulLayerBuckets.getBucketItemsListByIndices (b : LawfulLayerBuckets σ κ σₕ numShards) (s : USize) (hs : s < numShards) :
+    List (MapReduceQueueItem σₕ σ κ) :=
+  b.boundedBuckets.uget s hs |>.toItemsList
+
+open ShardedSetUInt in
+theorem mem_lawfulBucketsOf {numShards : PosUSize} {lists : List (List (MapReduceQueueItem σₕ σ κ))}
+    {s : USize} {hs : s < numShards} {x : MapReduceQueueItem σₕ σ κ} :
+    x ∈ (lawfulBucketsOf numShards lists).getBucketItemsListByIndices s hs ↔
+      x ∈ lists.flatten ∧ shardIdxOfUSize numShards x.fingerprint = s := by
+  have hspec := (lawfulBucketsOf numShards lists).property s hs
+  rw [← lawfulBucketsOf_items numShards lists]
+  simp only [LawfulLayerBuckets.getBucketItemsListByIndices, IndexArray.toItemsList,
+    List.mem_map, Subtype.exists, Array.mem_toList_iff, Array.mem_attach, true_and]
+  grind only [LawfulLayerBuckets.uget_boundedBuckets, Array.getElem?_eq_some_iff,
+    Array.mem_iff_getElem]
+
+section MergeShardByIndex
+
+/-- The result of merging the bucket of a shard into it, for items numbered below `n`. -/
+structure ShardMerge (Shard : Type) (n : Nat) where
+  /-- The numbers of the kept items: the first item of each fingerprint that the shard did not have. -/
+  kept : IndexArray n
+  /-- The shard with the log entries of the kept items. -/
+  shard : Shard
+
+/-- Merge a bucket into its shard of the seen set: add each item whose fingerprint the shard does
+not have yet, with its log entry, and keep its number. -/
+@[inline]
+def mergeShard (items : Array (MapReduceQueueItem σₕ σ κ))
+    (bucket : IndexArray items.size) (shard : Shard) : ShardMerge Shard items.size :=
+  bucket.val.attach.foldl (init := ⟨⟨#[], by simp⟩, shard⟩) fun acc ⟨i, hi⟩ =>
+    have hlt := bucket.property i hi
+    let x := items[i]
+    if KeyShard.contains acc.shard x.fingerprint then acc
+    else
+      ⟨⟨acc.kept.val.push i, fun j hj => (Array.mem_push.mp hj).elim (acc.kept.property j) (· ▸ hlt)⟩,
+        MapShard.insert acc.shard x.fingerprint x.entry⟩
+
+/-- The kept items of `m`, last first. This is a spec only. -/
+def ShardMerge.keptItems (items : Array (MapReduceQueueItem σₕ σ κ)) (m : ShardMerge Shard items.size) :
+    List (MapReduceQueueItem σₕ σ κ) :=
+  m.kept.toItemsList.reverse
+
+/-- Merging a bucket into a shard is a deduplicating fold whose map is the shard. -/
+theorem mergeShard_description (items : Array (MapReduceQueueItem σₕ σ κ))
+    (bucket : IndexArray items.size) (shard : Shard) :
+    DedupFoldDescriptionWithAcc
+      (key := MapReduceQueueItem.fingerprint)
+      (val := MapReduceQueueItem.entry)
+      (proj := id)
+      (lst := ShardMerge.keptItems items)
+      (look := fun acc k => MapShard.get? acc.shard k)
+      bucket.toItemsList
+      ⟨⟨#[], by simp⟩, shard⟩ (mergeShard items bucket shard) := by
+  apply DedupFoldDescriptionWithAcc.map
+  unfold mergeShard
+  rw [← Array.foldl_toList]
+  apply DedupFoldDescriptionWithAcc.of_foldl <;> intro acc ⟨i, hi⟩ h
+  · simp [← MapShard.mem_iff_isSome_get?] at h
+    open Classical in simp [KeyShard.contains_iff_mem, h]
+  · have hc : KeyShard.contains acc.shard (items[i]'(bucket.property i hi)).fingerprint = false := by
+      rw [Bool.eq_false_iff, ne_eq, KeyShard.contains_iff_mem, MapShard.mem_iff_isSome_get? (β := LogEntry σₕ κ)]
+      simp only [Function.comp_apply] at h ; simp [h]
+    simp only [hc, Bool.false_eq_true, if_false, Function.comp_apply, id, MapShard.get?_insert, implies_true,
+      and_true]
+    simp [ShardMerge.keptItems, IndexArray.toItemsList_eq_map_toFinList,
+      IndexArray.toFinList, List.pmap_append]
+
+/-- A kept item comes from the input bucket and its fingerprint was absent from the shard. -/
+theorem mergeShard_kept (items : Array (MapReduceQueueItem σₕ σ κ))
+    (bucket : IndexArray items.size) (shard : Shard) {a : MapReduceQueueItem σₕ σ κ}
+    (ha : a ∈ ShardMerge.keptItems items (mergeShard items bucket shard)) :
+    a ∈ bucket.toItemsList ∧ MapShard.get? shard a.fingerprint = none := by
+  obtain ⟨pfx, h_lst, -, -, h_inQ, -⟩ := mergeShard_description items bucket shard
+  have h_empty : ShardMerge.keptItems items ⟨⟨#[], by simp⟩, shard⟩ = [] := rfl
+  simp only [List.map_id, h_empty, List.append_nil] at h_lst
+  exact h_inQ a (h_lst ▸ ha)
+
+-- CHECK Is this proof necessary?
+open ShardedSetUInt in
+/-- Each merged shard of the seen set `gs` holds the keys of its own index only. -/
+theorem mergeShards_keys {numShards : PosUSize} {lists : List (List (MapReduceQueueItem σₕ σ κ))}
+    (gs : MapReduceGlobalSeen σₕ κ Shard numShards) (i : USize) (hi : i < numShards) (k : σₕ)
+    (hk :
+      let b := lawfulBucketsOf numShards lists
+      let res := b.boundedBuckets.zipPar gs.shards (mergeShard b.val.items)
+      k ∈ (res.uget i hi).shard) :
+    shardIdxOfUSize numShards k = i := by
+  simp only [VectorUSize.uget_zipPar, MapShard.mem_iff_isSome_get? (β := LogEntry σₕ κ), Option.isSome_iff_exists] at hk
+  obtain ⟨v, hv⟩ := hk
+  obtain ⟨pfx, -, -, -, h_inQ, h_content⟩ :=
+    mergeShard_description _
+      ((lawfulBucketsOf numShards lists).boundedBuckets |>.uget i hi)
+      (gs.shards.uget i hi)
+  have := gs.h_in_correct_shard i hi k
+  change ∀ a ∈ pfx, a ∈ (lawfulBucketsOf numShards lists).getBucketItemsListByIndices i hi ∧ _ at h_inQ
+  grind [mem_lawfulBucketsOf, MapShard.mem_iff_isSome_get?]
+
+end MergeShardByIndex
+
+section ReorderMergedElementsByIndex
+
+-- NOTE: `ByteArray` saves more memory than `Array Bool`, so using it here
+theorem size_byteArray_set {a : ByteArray} {i : Nat} {v : UInt8} (h : i < a.size) :
+    (a.set i v h).size = a.size := ByteArray.size_set _ ⟨i, h⟩ v
+
+/-- One byte per item, 1 for the items whose numbers are in `kept`. -/
+@[inline]
+def keptMarks (items : Array (MapReduceQueueItem σₕ σ κ)) (kept : Array (IndexArray items.size))
+    (init : {marks : ByteArray // marks.size = items.size} := ⟨ByteArray.ofFn (n := items.size) fun _ => (0 : UInt8), ByteArray.size_ofFn _⟩)  :
+    {marks : ByteArray // marks.size = items.size} :=
+  kept.foldl
+    (β := {marks : ByteArray // marks.size = items.size})
+    (init := init) fun marks ks =>
+      ks.val.attach.foldl (init := marks) fun ⟨marks, hsize⟩ ⟨i, hi⟩ =>
+        have hlt := hsize ▸ ks.property i hi
+        ⟨marks.set i (1 : UInt8) hlt, Eq.trans (size_byteArray_set hlt) hsize⟩
+
+omit fp in
+theorem keptMarks_spec (items : Array (MapReduceQueueItem σₕ σ κ)) (kept : Array (IndexArray items.size))
+    (init : {marks : ByteArray // marks.size = items.size}) :
+    ∀ j, (keptMarks items kept init).val.data[j]? =
+      if ∃ ks ∈ kept.toList, j ∈ ks.val then some (1 : UInt8) else init.val.data[j]? := by
+  classical
+  intro j
+  unfold keptMarks
+  simp only [← Array.foldl_toList, List.foldl_eq_foldr_reverse]
+  simp only [← List.mem_reverse (as := kept.toList)]
+  generalize kept.toList.reverse = buckets
+  induction buckets with
+  | nil => simp
+  | cons ks buckets ih =>
+    simp only [List.foldr_cons, List.mem_cons, exists_eq_or_imp]
+    have hmem : j ∈ ks.val ↔ ∃ i ∈ ks.val.attach.toList.reverse, i.val = j := by simp
+    simp only [hmem]
+    generalize ks.val.attach.toList.reverse = indices
+    induction indices with
+    | nil => simpa using ih
+    | cons i indices ih' =>
+      simp only [List.foldr_cons, ByteArray.data_set, Array.getElem?_set,
+        List.mem_cons, exists_eq_or_imp]
+      rw [ih'] ; grind only
+
+/-- The kept items in front of `q`, in the reverse of the order of their numbers: as a fold over
+`lists.flatten` that puts each kept item in front leaves them, and as the original serial merge did.
+`kept` has the numbers of the kept items of each shard. -/
+@[inline]
+def keptInOrder (items : Array (MapReduceQueueItem σₕ σ κ))
+    (marks : {marks : ByteArray // marks.size = items.size})
+    (init : List (MapReduceQueueItem σₕ σ κ)) : List (MapReduceQueueItem σₕ σ κ) :=
+  -- let marks := keptMarks items kept
+  Nat.fold items.size (init := init) fun i h acc =>
+    if marks.val.get i (marks.property.symm ▸ h) == (1 : UInt8) then items[i] :: acc else acc
+
+omit fp in
+/-- The frontier that `keptInOrder` builds: the items of the numbers in `kept`, last number first, in front
+of `q`. -/
+theorem keptInOrder_eq (items : Array (MapReduceQueueItem σₕ σ κ))
+    (marks : {marks : ByteArray // marks.size = items.size})
+    (init : List (MapReduceQueueItem σₕ σ κ)) :
+    keptInOrder items marks init =
+      ((List.finRange items.size).filter fun j => marks.val.get j.val (marks.property.symm ▸ j.isLt) == (1 : UInt8)).reverse.map
+        (items[·]) ++ init := by
+  unfold keptInOrder
+  rw [Nat.fold_eq_finRange_foldl, List.map_reverse, ← List.foldl_flip_cons_eq_append, List.foldl_filter]
+  rfl
+
+@[inline]
+def reorderUsingMarks (items : Array (MapReduceQueueItem σₕ σ κ)) (kept : Array (IndexArray items.size))
+    (init : List (MapReduceQueueItem σₕ σ κ)) := keptInOrder items (keptMarks items kept) init
+
+/-- Spec only -/
+def flattenNestedIndexArray (arr : Array (IndexArray n)) : List Nat :=
+  arr.toList.flatMap (·.val.toList)
+
+omit fp [Membership σₕ Shard] [MapShard σₕ (LogEntry σₕ κ) Shard] in
+/-- Reordering by marks preserves the kept items when their indices are distinct. -/
+theorem reorderUsingMarks_perm (items : Array (MapReduceQueueItem σₕ σ κ))
+    (kept : Array (IndexArray items.size)) (init : List (MapReduceQueueItem σₕ σ κ))
+    (hnd : (flattenNestedIndexArray kept).Nodup) :
+    -- `P` is known, but just hidden for convenience
+    ∃ P, reorderUsingMarks items kept init = P ++ init ∧
+      List.Perm P (kept.toList.flatMap IndexArray.toItemsList) := by
+  refine ⟨_, keptInOrder_eq items _ init, ?_⟩
+  rw [funext (IndexArray.toItemsList_eq_map_toFinList (items := items)), ← List.map_flatMap]
+  apply List.Perm.map
+  rw [List.perm_ext_iff_of_nodup]
+  · intro j
+    have hd := keptMarks_spec items kept
+      ⟨ByteArray.ofFn (n := items.size) (fun _ => 0), ByteArray.size_ofFn _⟩ j.val
+    rw [Array.getElem?_eq_getElem (by simpa only [ByteArray.size_data,
+      (keptMarks items kept).property] using j.isLt)] at hd
+    change some ((keptMarks items kept).val.get j.val _) = _ at hd
+    simp [j.isLt] at hd
+    simp only [List.mem_reverse, List.mem_filter, List.mem_finRange, true_and,
+      List.mem_flatMap, IndexArray.mem_toFinList, beq_iff_eq]
+    change (keptMarks items kept).val.get j.val _ = 1 ↔ ∃ ks ∈ kept.toList, j.val ∈ ks.val
+    split at hd <;> simp_all
+  · exact (List.reverse_perm _).nodup_iff.mpr ((List.nodup_finRange _).filter _)
+  · have hv : (kept.toList.flatMap IndexArray.toFinList).map Fin.val =
+        flattenNestedIndexArray kept := by
+      simp only [flattenNestedIndexArray, List.map_flatMap, IndexArray.map_val_toFinList]
+    rw [← hv] at hnd
+    exact List.Pairwise.of_map _ (fun a b h hab => h (congrArg Fin.val hab)) hnd
+
+end ReorderMergedElementsByIndex
+
+/-- Merge the items of `lists` into the main context: keep one item of each fingerprint that the
+seen set does not have yet, add it to the frontier, and its fingerprint with its log entry to the
+seen set. The merge of a BFS layer (`mergeWithLocalOnes`) and of the initial states
+(`MapReduceSearchContextMain.initial`). Each shard is merged in a task of its own. The frontier
+grows by as many items as the seen set. -/
 def MapReduceSearchContextMain.mergeLayer (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards)
     (lists : List (List (MapReduceQueueItem σₕ σ κ))) : MapReduceSearchContextMain σ κ σₕ asm Shard numShards :=
   let ⟨ctx, len, q, globalSeen⟩ := mctx
-  let ⟨mq, st⟩ := lists.foldl
-    (init := (⟨q, ShardedUSize.empty⟩ : MergeAcc σ κ σₕ numShards))
-    fun acc lq => lq.foldl MergeAcc.innerMerge acc
-  ⟨ctx, len + st.size, mq, globalSeen.insertMany st⟩
+  -- before the tasks take over the shards, to update them in place
+  let size := globalSeen.size
+  let b := lawfulBucketsOf numShards lists
+  let merges := b.boundedBuckets.zipPar globalSeen.shards (mergeShard b.val.items)
+  let seen : MapReduceGlobalSeen σₕ κ Shard numShards := .ofMap merges ShardMerge.shard (mergeShards_keys globalSeen)
+  ⟨ctx, len + (seen.size - size), reorderUsingMarks b.val.items (merges.val.map (·.kept)) q, seen⟩
 
-/-- A layer first deduplicates its items into an empty per-round map, then adds the resulting
-frontier and entries to the main context. Existing global entries are overwritten by the round. -/
-theorem MapReduceSearchContextMain.mergeLayer_description_with_acc
-    (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards) (lists : List (List (MapReduceQueueItem σₕ σ κ))) :
-    ∃ merged : MergeAcc σ κ σₕ numShards,
-      MergeAcc.DescriptionWithAcc lists.flatten
-        ⟨mctx.tovisit, ShardedUSize.empty⟩
-        merged ∧
-      mctx.mergeLayer lists =
-        ⟨mctx.base, mctx.tovisitLen + merged.seen.size, merged.tovisit,
-          mctx.globalSeen.insertMany merged.seen⟩ := by
-  rcases mctx with ⟨ctx, len, q, gs⟩
-  refine ⟨_, MergeAcc.innerMerge_foldl_descriptive _ lists.flatten, ?_⟩
-  simp only [mergeLayer, List.foldl_flatten]
-
--- FIXME: Maybe eventually remove this duplicate?
+-- CHECK Still don't believe this proof is this long, but go back to this later
+open ShardedSetUInt in
+/-- The merge of a layer keeps one input item for each fingerprint absent from the seen set,
+puts it in front of the frontier, and adds its log entry to the seen set. The frontier's length
+grows with the seen set. This description does not specify which representative is chosen or
+the order of the kept items. -/
 theorem MapReduceSearchContextMain.mergeLayer_description
-    (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards) (lists : List (List (MapReduceQueueItem σₕ σ κ)))
-    (h : mctx.tovisit = []) :
-    ∃ merged : MergeAcc σ κ σₕ numShards,
-      MergeAcc.Description lists.flatten merged ∧
-      mctx.mergeLayer lists =
-        ⟨mctx.base, mctx.tovisitLen + merged.seen.size, merged.tovisit,
-          mctx.globalSeen.insertMany merged.seen⟩ := by
-  obtain ⟨merged, hd, h_merge⟩ := mctx.mergeLayer_description_with_acc lists
-  refine ⟨merged, ?_, h_merge⟩
-  apply DedupFoldDescription.ofDedupFoldDescriptionWithAcc <;> try assumption
-  simp [ShardedMapUSize.get?_empty]
-
-/-- Specialize the deduplicating fold's key and length description to the sharded seen map. -/
-private theorem MergeAcc.Description.extra {numShards : PosUSize} (acc : MergeAcc σ κ σₕ numShards)
-    {lq : List (MapReduceQueueItem σₕ σ κ)} (h : MergeAcc.Description lq acc) :
-    (∀ x, x ∈ acc.seen ↔ x ∈ acc.tovisit.map MapReduceQueueItem.fingerprint) ∧
-      acc.seen.size = acc.tovisit.length := by
-  rcases h with ⟨pfx, h1, h2, h3, h4, h5⟩ ; simp at * ; subst_vars
-  constructor
-  · intro x ; rw [ShardedMapUSize.mem_iff_isSome_get?, Option.isSome_iff_exists] ; aesop
-  · rw [ShardedUSize.length_toList]
-    trans (acc.tovisit.map MapReduceQueueItem.fingerprint).length
-    on_goal 2=> simp
-    apply List.Perm.length_eq ; rw [List.perm_ext_iff_of_nodup] <;> try assumption
-    on_goal 2=> apply ShardedUSize.nodup_toList
-    simp only [ShardedUSize.toList, List.mem_flatMap, KeyShard.mem_toList,
-      ← ShardedUSize.mem_iff_exists_shard, ShardedMapUSize.mem_iff_isSome_get?]
-    simp ; intro x ; rw [Option.isSome_iff_exists] ; aesop
+    (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards) (lists : List (List (MapReduceQueueItem σₕ σ κ))) :
+    (mctx.mergeLayer lists).base = mctx.base ∧
+    (mctx.mergeLayer lists).tovisitLen + mctx.tovisit.length = mctx.tovisitLen + (mctx.mergeLayer lists).tovisit.length ∧
+    DedupFoldDescriptionWithAcc (key := MapReduceQueueItem.fingerprint) (val := MapReduceQueueItem.entry)
+      (proj := id) (lst := MapReduceSearchContextMain.tovisit) (look := fun m k => m.globalSeen.get? k)
+      lists.flatten mctx (mctx.mergeLayer lists) := by
+  suffices hd : DedupFoldDescriptionWithAcc (key := MapReduceQueueItem.fingerprint) (val := MapReduceQueueItem.entry)
+      (proj := id) (lst := MapReduceSearchContextMain.tovisit) (look := fun m k => m.globalSeen.get? k)
+      lists.flatten mctx (mctx.mergeLayer lists) by
+    refine ⟨by rcases mctx ; rfl, ?_, hd⟩
+    -- the seen set grows by the fingerprints of the kept items, and the frontier by the kept items
+    have h_keys := hd.length_keys ShardedUSize.nodup_toList ShardedUSize.nodup_toList
+      (fun _ => ShardedUSize.mem_toList.trans ShardedMapUSize.mem_iff_isSome_get?)
+      (fun _ => ShardedUSize.mem_toList.trans ShardedMapUSize.mem_iff_isSome_get?)
+    have h_len : (mctx.mergeLayer lists).tovisitLen =
+        mctx.tovisitLen + ((mctx.mergeLayer lists).globalSeen.size - mctx.globalSeen.size) := by
+      rcases mctx ; rfl
+    obtain ⟨pfx, h_lst, -⟩ := hd
+    simp only [← ShardedUSize.length_toList, h_lst, List.length_append] at h_keys
+    simp only [h_len, h_lst, List.length_append]
+    omega
+  rcases mctx with ⟨ctx, len, q, gs⟩
+  unfold mergeLayer ; dsimp only
+  let b := lawfulBucketsOf numShards lists
+  let merges := b.boundedBuckets.zipPar gs.shards (mergeShard b.val.items)
+  have hdesc (i : USize) (hi : i < numShards) :
+      DedupFoldDescriptionWithAcc MapReduceQueueItem.fingerprint MapReduceQueueItem.entry id
+        (ShardMerge.keptItems b.val.items) (fun acc k => MapShard.get? acc.shard k)
+        (b.getBucketItemsListByIndices i hi) ⟨⟨#[], by simp⟩, gs.shards.uget i hi⟩
+        (merges.uget i hi) := by
+    simpa only [merges, VectorUSize.uget_zipPar, LawfulLayerBuckets.getBucketItemsListByIndices] using
+      mergeShard_description b.val.items (b.boundedBuckets.uget i hi) (gs.shards.uget i hi)
+  have h_empty (shard : Shard) : ShardMerge.keptItems b.val.items ⟨⟨#[], by simp⟩, shard⟩ = [] := rfl
+  simp only [DedupFoldDescriptionWithAcc, List.map_id, h_empty, List.append_nil, exists_eq_left'] at hdesc
+  have hkept (i : USize) (hi : i < numShards) (a : MapReduceQueueItem σₕ σ κ)
+      (ha : a ∈ ShardMerge.keptItems b.val.items (merges.uget i hi)) :
+      (a ∈ lists.flatten ∧ shardIdxOfUSize numShards a.fingerprint = i) ∧
+        MapShard.get? (gs.shards.uget i hi) a.fingerprint = none := by
+    have h := mergeShard_kept b.val.items (b.boundedBuckets.uget i hi) (gs.shards.uget i hi)
+      (by simpa only [merges, VectorUSize.uget_zipPar] using ha)
+    exact ⟨mem_lawfulBucketsOf.mp h.1, h.2⟩
+  have h_nodup : ((merges.val.toList.flatMap (ShardMerge.keptItems b.val.items)).map
+      MapReduceQueueItem.fingerprint).Nodup := by
+    have h := VectorUSize.nodup_flatMap_of_shards (v := merges)
+      (fun r => (ShardMerge.keptItems b.val.items r).map MapReduceQueueItem.fingerprint)
+      (fun i hi k hk => by grind only [List.mem_map])
+      (fun i hi => (hdesc i hi).1)
+    simpa only [List.map_flatMap] using h
+  -- Each shard lists its kept items in reverse order; this preserves their permutation.
+  have h_order : ((merges.val.map (·.kept)).toList.flatMap IndexArray.toItemsList).Perm
+      (merges.val.toList.flatMap (ShardMerge.keptItems b.val.items)) := by
+    unfold ShardMerge.keptItems
+    simpa only [Array.toList_map, List.flatMap_map, List.map_map, List.flatMap_def,
+      Function.comp_def] using
+      (ListSplit.flatten_map_reverse_perm (merges.val.toList.map fun m => m.kept.toItemsList)).symm
+  -- Distinct fingerprints imply distinct indices, which is all reordering needs.
+  have h_indices : (flattenNestedIndexArray (merges.val.map (·.kept))).Nodup := by
+    apply IndexArray.nodup_indices_of_nodup_items
+    have h := (h_order.map MapReduceQueueItem.fingerprint).nodup_iff.mpr h_nodup
+    exact List.Pairwise.of_map _ (fun a b h hab => h (congrArg _ hab)) h
+  obtain ⟨P, hP, h_perm⟩ := reorderUsingMarks_perm b.val.items (merges.val.map (·.kept)) q h_indices
+  have h_perm := h_perm.trans h_order
+  refine DedupFoldDescriptionWithAcc.of_perm h_perm (by rw [hP] ; simp) h_nodup ?_ ?_ ?_
+  · -- each new fingerprint is kept by its shard
+    intro a ha h_new
+    obtain ⟨-, h_cov, -⟩ := hdesc
+      (shardIdxOfUSize numShards a.fingerprint) (shardIdxOfUSize_lt _ numShards.property)
+    have := h_cov a (mem_lawfulBucketsOf.mpr ⟨ha, rfl⟩) h_new
+    grind only [List.mem_map, List.mem_flatMap, VectorUSize.mem_toList_iff]
+  · -- kept items came from the layer and their fingerprints were new
+    intro a ha
+    obtain ⟨m, hm, ha⟩ := List.mem_flatMap.mp ha
+    obtain ⟨i, hi, rfl⟩ := VectorUSize.mem_toList_iff.mp hm
+    obtain ⟨⟨h_in, h_shard⟩, h_new⟩ := hkept i hi a ha
+    refine ⟨h_in, ?_⟩
+    change MapShard.get? (gs.shards.uget (shardIdxOfUSize numShards a.fingerprint)
+      (shardIdxOfUSize_lt _ numShards.property)) a.fingerprint = none
+    simpa only [h_shard] using h_new
+  · -- lookup agrees with the kept item in the fingerprint's shard
+    intro k v
+    simp only [ShardedMapUSize.get?_ofMap]
+    obtain ⟨-, -, -, h_content⟩ := hdesc
+      (shardIdxOfUSize numShards k) (shardIdxOfUSize_lt _ numShards.property)
+    rw [h_content]
+    apply or_congr Iff.rfl
+    grind only [List.mem_map, List.mem_flatMap, VectorUSize.mem_toList_iff]
 
 /-- Merge a worker's statistics into the main context's. -/
 @[inline]
@@ -424,20 +789,27 @@ def MapReduceSearchContextMain.mergeWithLocalOnes
   let mbase := workers.foldl (init := mctx.base) BaseSearchContext.mergeWorker
   MapReduceSearchContextMain.mergeLayer { mctx with base := mbase } (workers.map (·.queue))
 
-/-- The items of the initial states, each with its fingerprint and its `init` entry, the position
-of the state in `initStates`. -/
-@[expose] def initialMapReduceQueueItems (initStates : List σ) : List (MapReduceQueueItem σₕ σ κ) :=
-  -- CHECK Maybe parallelize this `map`?
-  initStates.mapIdx fun i s => ⟨fp.view s, s, .init i⟩
+/-- Count the initial states while building their items in input order. Each item carries its
+fingerprint and an `init` entry recording its position in `initStates`. -/
+@[expose] def initialMapReduceQueueItems (initStates : List σ) : Nat × List (MapReduceQueueItem σₕ σ κ) :=
+  Veil.List.foldlIdxWithLengthReturned
+    (f := fun i items s => items.push ⟨fp.view s, s, .init i⟩)
+    (init := #[]) (final := fun len items => (len, items.toList)) initStates
+
+theorem initialMapReduceQueueItems_eq_mapIdx (initStates : List σ) :
+    initialMapReduceQueueItems (κ := κ) initStates =
+      (initStates.length, initStates.mapIdx fun i s => ⟨fp.view s, s, .init i⟩) := by
+  rw [initialMapReduceQueueItems, Veil.List.foldlIdxWithLengthReturned_eq_foldlIdx,
+    List.foldlIdx_eq_foldl_zipIdx]
+  simp [List.foldl_push_eq_append, List.mapIdx_eq_zipIdx_map]
 
 /-- The main context before any state is processed: the initial states merged as round 0, into an
 empty seen set, so that each kept item and the seen set share its entry. -/
 @[expose] def MapReduceSearchContextMain.initial (initStates : List σ) :
     MapReduceSearchContextMain σ κ σₕ asm Shard numShards :=
-  -- CHECK There might be some very bad performance regression here, if `initStates` are many
+  let (len, items) := initialMapReduceQueueItems (κ := κ) initStates
   MapReduceSearchContextMain.mergeLayer
-    ⟨BaseSearchContext.initial initStates.length, 0, [], ShardedUSize.empty⟩
-    [initialMapReduceQueueItems initStates]
+    ⟨BaseSearchContext.initial len, 0, [], ShardedUSize.empty⟩ [items]
 
 /-- Merging the initial items into a context that has seen nothing yet establishes the invariants. -/
 theorem MapReduceSearchContextMainInvariants.of_mergeLayer_initialMapReduceQueueItems
@@ -445,20 +817,23 @@ theorem MapReduceSearchContextMainInvariants.of_mergeLayer_initialMapReduceQueue
     {params : SearchParameters ρ σ} (m0 : MapReduceSearchContextMain σ κ σₕ asm Shard numShards)
     (h_tv : m0.tovisit = []) (h_len : m0.tovisitLen = 0)
     (h_gs : ∀ x, x ∉ m0.globalSeen) (h_fin : m0.base.finished = none) :
-    MapReduceSearchContextMainInvariants sys params (m0.mergeLayer [initialMapReduceQueueItems sys.initStates]) := by
-  obtain ⟨⟨tovisit, seen⟩, hd, h_merge⟩ :=
-    m0.mergeLayer_description [initialMapReduceQueueItems sys.initStates] h_tv
-  rw [h_merge] ; clear h_merge
-  obtain ⟨h_seen, h_size⟩ := MergeAcc.Description.extra ⟨tovisit, seen⟩ hd
+    MapReduceSearchContextMainInvariants sys params (m0.mergeLayer [(initialMapReduceQueueItems sys.initStates).2]) := by
+  obtain ⟨h_base, h_tvl, hd⟩ := m0.mergeLayer_description [(initialMapReduceQueueItems sys.initStates).2]
+  replace hd := DedupFoldDescription.ofDedupFoldDescriptionWithAcc hd h_tv
+    (fun x => ShardedMapUSize.not_mem_iff_get?_none.mp (h_gs x))
+  have h_seen := hd.isSome_iff (key' := MapReduceQueueItem.fingerprint) (fun _ _ => rfl)
+  generalize m0.mergeLayer [(initialMapReduceQueueItems sys.initStates).2] = res at *
+  rcases res with ⟨base, len, tovisit, seen⟩
+  simp only [← ShardedMapUSize.mem_iff_isSome_get?] at h_seen
   obtain ⟨pfx, h_pfx, h_nodup, h_cov, h_inQ, h_content⟩ := hd
-  simp [initialMapReduceQueueItems] at *
-  subst_vars
+  dsimp only at h_base h_tvl h_pfx h_seen
+  simp only [h_tv, h_len, List.length_nil, Nat.add_zero, Nat.zero_add, List.map_id] at h_tvl h_pfx
+  subst h_base h_tvl h_pfx
+  simp [initialMapReduceQueueItems_eq_mapIdx] at h_cov h_inQ
   constructor ; on_goal 1=> constructor
-  all_goals (try simp [ShardedMapUSize.mem_insertMany] at *) ; try grind
-  · simp only [h_seen]
-    intro s hs ; obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hs
-    right ; exact h_cov ⟨fp.view sys.initStates[i], sys.initStates[i], .init i⟩ i hi rfl
-  · whnf ; simp only [ShardedMapUSize.mem_insertMany, h_gs, false_or, h_seen] ; grind
+  all_goals (try simp [h_seen, h_fin]) ; try grind
+  intro s hs ; obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hs
+  exact h_cov ⟨fp.view sys.initStates[i], sys.initStates[i], .init i⟩ i hi rfl
 
 theorem MapReduceSearchContextMainInvariants.initial
     (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
@@ -477,22 +852,22 @@ theorem MapReduceSearchContextMain.LogSound.of_mergeLayer_initialMapReduceQueueI
     {params : SearchParameters ρ σ} (m0 : MapReduceSearchContextMain σ κ σₕ asm Shard numShards)
     (h_tv : m0.tovisit = []) (h_gs : ∀ x, x ∉ m0.globalSeen)
     (h_vs : m0.base.violatingStates = []) (h_fin : m0.base.finished = none) :
-    ∃ rep dep, (m0.mergeLayer [initialMapReduceQueueItems sys.initStates]).LogSound sys params rep dep := by
-  obtain ⟨⟨tovisit, seen⟩, hd, h_merge⟩ :=
-    m0.mergeLayer_description [initialMapReduceQueueItems sys.initStates] h_tv
-  rw [h_merge] ; clear h_merge
+    ∃ rep dep, (m0.mergeLayer [(initialMapReduceQueueItems sys.initStates).2]).LogSound sys params rep dep := by
+  obtain ⟨h_base, -, hd⟩ := m0.mergeLayer_description [(initialMapReduceQueueItems sys.initStates).2]
+  replace hd := DedupFoldDescription.ofDedupFoldDescriptionWithAcc hd h_tv
+    (fun x => ShardedMapUSize.not_mem_iff_get?_none.mp (h_gs x))
+  generalize m0.mergeLayer [(initialMapReduceQueueItems sys.initStates).2] = res at *
+  rcases res with ⟨base, len, tovisit, seen⟩
   obtain ⟨pfx, h_pfx, h_nodup, h_cov, h_inQ, h_content⟩ := hd
-  have h_gs' : ∀ x, ShardedMapUSize.get? m0.globalSeen x = none :=
-    fun x => ShardedMapUSize.not_mem_iff_get?_none.mp (h_gs x)
-  simp [initialMapReduceQueueItems] at h_pfx h_inQ h_content
-  subst_vars
+  simp [initialMapReduceQueueItems_eq_mapIdx] at h_pfx h_inQ h_content
+  dsimp only at h_base ; subst_vars
   let rep (a : σₕ) := (seen.get? a).bind fun
     | .init j => sys.initStates[j]?
     | .step .. => none
   exists rep, fun _ => 0 ; dsimp [rep]
   refine ⟨⟨by simp [h_vs], by simp [h_fin, TerminationSound]⟩, ?_, ?_⟩    -- nothing recorded yet
   on_goal 1=> constructor
-  all_goals (try simp [ShardedMapUSize.get?_insertMany, h_gs', Option.bind_eq_some_iff]) ; try grind
+  all_goals (try simp [Option.bind_eq_some_iff]) ; try grind
   · intro x ; cases ShardedMapUSize.get? seen x <;> simp
   · intro x i hx
     obtain ⟨a, ha, -, he⟩ := (h_content _ _).mp hx ; obtain ⟨j, hj, rfl⟩ := h_inQ a ha
@@ -556,17 +931,28 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
   rw [h_not_finished] at h_base_desc ; try dsimp at h_base_desc
   generalize lctxs'.foldl BaseSearchContext.mergeWorker ctx' = mbase at *
   -- the merge of the layer
-  obtain ⟨merged, hd, h_merge⟩ :=
-    mergeLayer_description ⟨mbase, 0, [], gs⟩ (lctxs'.map (·.queue)) rfl
-  rw [h_merge]
-  obtain ⟨h_seen, h_size⟩ := hd.extra
-  obtain ⟨pfx, h_pfx, h_nodup, h_in_pfx, h_inQ, h_content⟩ := hd
-  simp only [List.map_id] at h_pfx
-  simp only [h_pfx] at h_seen h_size
-  have h_fps := fun x => (ShardedMapUSize.mem_insertMany (st := gs) (items := merged.seen) (k := x)).trans
-    (or_congr Iff.rfl (h_seen x))
+  obtain ⟨h_base', h_tvl, ⟨pfx, h_pfx, h_nodup, h_cov, h_inQ, h_content⟩⟩ :=
+    mergeLayer_description ⟨mbase, 0, [], gs⟩ (lctxs'.map (·.queue))
+  generalize mergeLayer ⟨mbase, 0, [], gs⟩ (lctxs'.map (·.queue)) = res at *
+  rcases res with ⟨base', len', tovisit', seen'⟩
+  dsimp only at h_base' h_tvl h_pfx h_content h_inQ h_cov
+  simp only [List.map_id, List.append_nil, List.length_nil, Nat.add_zero, Nat.zero_add] at h_pfx h_tvl
+  subst base' h_tvl ; subst tovisit'
+  -- the merged seen set: the old one, with the fingerprints of the kept items
+  have h_fps : ∀ x, x ∈ seen' ↔ x ∈ gs ∨ x ∈ pfx.map MapReduceQueueItem.fingerprint := by
+    intro x
+    simp only [ShardedMapUSize.mem_iff_isSome_get?, Option.isSome_iff_exists, h_content, List.mem_map,
+      Prod.mk.injEq]
+    grind
+  -- each item of the layer has its fingerprint in the old seen set, or kept
+  have h_in_pfx : ∀ a ∈ (lctxs'.map (·.queue)).flatten,
+      a.fingerprint ∈ gs ∨ a.fingerprint ∈ pfx.map MapReduceQueueItem.fingerprint := by
+    intro a ha
+    by_cases h : a.fingerprint ∈ gs
+    · exact .inl h
+    · exact .inr (h_cov a ha (ShardedMapUSize.not_mem_iff_get?_none.mp h))
+  replace h_inQ := fun a ha => (h_inQ a ha).1
   simp [List.mem_flatten] at h_inQ h_fps h_in_pfx
-  simp only [h_pfx, h_size, Nat.zero_add]
 
   rcases h_mctx with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed, h_orig_len⟩
   whnf at h_closed ; dsimp only at *
@@ -637,20 +1023,14 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_preserves_invs
         simp [h_getElem_chunk] at h_in_zip
         specialize h_local_invs _ _ h_in_zip ; try simp at h_local_invs
         -- show that no `lctx` has finished
-        rw [h_base_desc] at h_not_finished_mbase
-        revert h_not_finished_mbase ; rcases heq : List.find? _ _ with _ | lctx
-        on_goal 2=>
-          dsimp ; intro heq' ; rw [List.find?_map, Option.map_eq_some_iff] at heq
-          rcases heq with ⟨lctx', heq, rfl⟩
-          rw [List.find?_eq_some_iff_getElem] at heq
-          try simp only [Function.comp_def, BaseSearchContext.hasFinished] at heq
-          grind
-        intro _ ; rw [List.find?_map, Option.map_eq_none_iff, List.find?_eq_none] at heq
-        -- NOTE: Here Lean has some trouble proving the index validity of `j` from the scratch, so use some trick
-        set e := getElem lctxs' j _
-        specialize heq e (by exact List.getElem_mem _) ; simp [BaseSearchContext.hasFinished] at heq
+        have h_unfinished : ∀ lctx ∈ lctxs', lctx.base.finished = none := by
+          simp only [h_base_desc, List.find?_map, Option.bind_map, Function.comp_def] at h_not_finished_mbase
+          cases h_find : lctxs'.find? (fun lctx => lctx.base.hasFinished) <;>
+            grind only [Option.bind_none, Option.bind_some, List.find?_eq_none, List.find?_some,
+              BaseSearchContext.hasFinished, Option.isSome_iff_ne_none]
         rcases h_local_invs with ⟨_, _, h_dj, h_same_dom, h_succ_coll⟩
-        specialize h_succ_coll heq (fp.view u) u ent (h_getElem_chunk ▸ h_in_chunk)
+        specialize h_succ_coll (h_unfinished _ (List.getElem_mem _))
+          (fp.view u) u ent (h_getElem_chunk ▸ h_in_chunk)
         grind
     · grind
   · rfl
@@ -688,31 +1068,33 @@ theorem MapReduceSearchContextMain.mergeWithLocalOnes_log_sound
       simp only [List.mem_map] ; rintro _ ⟨lctx, h_in, rfl⟩
       exact (h_workers lctx h_in).2.toViolationTerminationSound)
   rw [List.foldl_map] at h_base
-  obtain ⟨merged, ⟨pfx, h_pfx, h_nodup, -, h_inQ, h_content⟩, h_merge⟩ :=
+  obtain ⟨h_base', -, ⟨pfx, h_pfx, h_nodup, -, h_inQ, h_content⟩⟩ :=
     mergeLayer_description ⟨workers.foldl BaseSearchContext.mergeWorker ctx', 0, [], mctx.globalSeen⟩
-      (workers.map (·.queue)) rfl
+      (workers.map (·.queue))
   dsimp only [mergeWithLocalOnes]
-  rw [h_merge] ; simp only [List.map_id] at h_pfx ; simp only [h_pfx]
+  generalize mergeLayer ⟨workers.foldl BaseSearchContext.mergeWorker ctx', 0, [], mctx.globalSeen⟩
+    (workers.map (·.queue)) = res at *
+  rcases res with ⟨base', len', tovisit', seen'⟩
+  dsimp only at h_base' h_pfx h_content h_inQ
+  subst h_base' ; simp only [List.map_id, List.append_nil] at h_pfx ; subst tovisit'
   simp only [List.mem_flatten, List.mem_map] at h_inQ
+  -- each kept item is new, is a transition from the old frontier, and has its fingerprint
   have h_items : ∀ item ∈ pfx, mctx.globalSeen.get? item.fingerprint = none ∧
       fp.view item.state = item.fingerprint ∧ ∃ p l i sp,
       item.entry = .step p l i ∧ rep p = some sp ∧ (sys.tr th sp).successes[i]? = some (l, item.state) := by
     intro item hitem
-    obtain ⟨_, ⟨lctx, h_in, rfl⟩, h_q⟩ := h_inQ item hitem
+    obtain ⟨⟨_, ⟨lctx, h_in, rfl⟩, h_q⟩, h_new⟩ := h_inQ item hitem
     obtain ⟨⟨_, h_inv⟩, h_sound⟩ := h_workers lctx h_in
-    exact ⟨ShardedMapUSize.not_mem_iff_get?_none.mp (h_inv.tovisit_globalSeen_disjoint item h_q),
-      (h_inv.queue_sound _ _ ⟨item.entry, h_q⟩).2.2.symm, h_sound.entries_sound item h_q⟩
+    exact ⟨h_new, (h_inv.queue_sound _ _ ⟨item.entry, h_q⟩).2.2.symm, h_sound.entries_sound item h_q⟩
   obtain ⟨rep', dep', hinv, hitems, hmono⟩ := hls.log_invs.update_layer sys pfx h_nodup
     (fun item hi => (h_items item hi).1) (fun item hi => (h_items item hi).2.1)
     (fun item hi => (h_items item hi).2.2)
-    (look' := ShardedMapUSize.get? (mctx.globalSeen.insertMany merged.seen))
-    (fun item hi => by
-      simp [ShardedMapUSize.get?_insertMany, (h_content _ _).mpr (List.mem_map_of_mem hi)])
+    (look' := ShardedMapUSize.get? seen')
+    (fun item hi => (h_content _ _).mpr (.inr (List.mem_map_of_mem hi)))
     (fun x hx => by
-      rw [ShardedMapUSize.get?_insertMany]
-      apply Option.or_eq_right_of_none
-      simp only [Option.eq_none_iff_forall_ne_some]
-      grind only [List.mem_map])
+      apply Option.ext ; intro v
+      rw [h_content] ; simp only [List.mem_map, Prod.mk.injEq, or_iff_left_iff_imp]
+      rintro ⟨item, hitem, rfl, -⟩ ; exact absurd rfl (hx item hitem))
   exact ⟨rep', dep', ⟨fun v hv => (h_base.violations_sound v hv).mono sys hmono,
     h_base.termination_sound.mono sys hmono⟩, hinv, hitems⟩
 

@@ -1,6 +1,7 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.Concrete.SearchContext
+public import Veil.Util.List
 
 public section
 
@@ -15,20 +16,41 @@ variable {ρ σ κ σₕ asm : Type}
 
 @[expose, inline]
 def initialLogAndRepresentativesCoreSequential (i : Nat)
-    (acc : (List σ) × Std.HashMap σₕ (LogEntry σₕ κ)) (s : σ) :=
+    (acc : (List (QueueItem σₕ σ)) × Std.HashMap σₕ (LogEntry σₕ κ)) (s : σ) :=
   let (a, l) := acc
   let x := fp.view s
-  if l.contains x then (a, l) else (s :: a, l.insert x (.init i))
+  if l.contains x then (a, l) else (⟨x, s, 0⟩ :: a, l.insert x (.init i))
 
 @[expose, inline]
 def initialLogAndRepresentativesSequential (initialStates : List σ) :
-    (List σ) × Std.HashMap σₕ (LogEntry σₕ κ) :=
-  initialStates.foldlIdx (init := ([], ∅)) initialLogAndRepresentativesCoreSequential
+    Nat × (List (QueueItem σₕ σ)) × Std.HashMap σₕ (LogEntry σₕ κ) :=
+  Veil.List.foldlIdxWithLengthReturned
+    (f := initialLogAndRepresentativesCoreSequential)
+    (init := ([], ∅)) (final := Prod.mk) initialStates
+
+theorem initialLogAndRepresentativesSequential_eq_dedupFold (initialStates : List σ) :
+    initialLogAndRepresentativesSequential (κ := κ) initialStates =
+      (initialStates.length,
+        dedupFold (fun x : σ × Nat => fp.view x.1) (fun x => .init x.2)
+          (fun x => (⟨fp.view x.1, x.1, 0⟩ : QueueItem σₕ σ)) initialStates.zipIdx) := by
+  rw [initialLogAndRepresentativesSequential, Veil.List.foldlIdxWithLengthReturned_eq_foldlIdx,
+    List.foldlIdx_eq_foldl_zipIdx] ; simp only [Nat.zero_add] ; rfl
 
 /-- Sequential initialization keeps the initial-state indices only in the log. -/
 @[expose] def SequentialSearchContext.initial : SequentialSearchContext σ κ σₕ asm :=
-  let (reps, log) := initialLogAndRepresentativesSequential (κ := κ) sys.initStates
-  ⟨BaseSearchContext.initial sys.initStates.length, log, fQueue.ofList (reps.map fun s => ⟨fp.view s, s, 0⟩)⟩
+  let (eq := hres) (len, reps, log) := initialLogAndRepresentativesSequential (κ := κ) sys.initStates
+  ⟨BaseSearchContext.initial len, log, fQueue.ofListWithKnownLength reps
+    ⟨log.size, by
+      rw [initialLogAndRepresentativesSequential_eq_dedupFold] at hres
+      simp [Prod.ext_iff] at hres
+      rcases hres with ⟨-, h1, h2⟩ ; subst_vars
+      rw [← Std.HashMap.length_keys]
+      refine DedupFoldDescription.length_keys
+        (dedupFold_description (fun x : σ × Nat => fp.view x.1)
+          (fun x => (LogEntry.init x.2 : LogEntry σₕ κ))
+          (fun x => (⟨fp.view x.1, x.1, 0⟩ : QueueItem σₕ σ)) sys.initStates.zipIdx)
+        Std.HashMap.nodup_keys ?_
+      intro k ; rw [Std.HashMap.mem_keys, Std.HashMap.mem_iff_isSome_getElem?]⟩⟩
 
 theorem SequentialSearchContext.initial_invs :
   SequentialSearchContextInvariants sys params .none (SequentialSearchContext.initial (fp := fp) sys) ∧
@@ -36,17 +58,15 @@ theorem SequentialSearchContext.initial_invs :
   have h : DedupFoldDescription
       (key := fun x : σ × Nat => fp.view x.1)
       (val := fun x => (LogEntry.init x.2 : LogEntry σₕ κ))
-      (proj := Prod.fst) (lst := Prod.fst) (look := fun acc y => acc.2[y]?)
-      sys.initStates.zipIdx (initialLogAndRepresentativesSequential (κ := κ) (fp := fp) sys.initStates) := by
-    rw [initialLogAndRepresentativesSequential.eq_def, List.foldlIdx_eq_foldl_zipIdx]
-    apply DedupFoldDescription.ofDedupFoldDescriptionWithAcc (acc := ([], ∅)) <;> try grind
-    apply DedupFoldDescriptionWithAcc.of_foldl
-    all_goals open Classical in simp [initialLogAndRepresentativesCoreSequential]
-    grind
-  unfold SequentialSearchContext.initial BaseSearchContext.initial
+      (proj := fun x => (⟨fp.view x.1, x.1, 0⟩ : QueueItem σₕ σ))
+      (lst := Prod.fst) (look := fun acc y => acc.2[y]?)
+      sys.initStates.zipIdx (initialLogAndRepresentativesSequential (κ := κ) sys.initStates).2 := by
+    rw [initialLogAndRepresentativesSequential_eq_dedupFold] ; apply dedupFold_description
+  simp only [SequentialSearchContext.initial, fQueue.ofListWithKnownLength_eq_ofList,
+    BaseSearchContext.initial]
   generalize (initialLogAndRepresentativesSequential (κ := κ) (fp := fp) sys.initStates) = res at h ⊢
-  rcases h with ⟨reps, h0, h1, h2, h3, h4⟩ ; rcases res with ⟨states, log⟩
-  dsimp only at * ; subst h0 ; simp only [List.map_map] ; simp at h3 h4
+  rcases h with ⟨reps, h0, h1, h2, h3, h4⟩ ; rcases res with ⟨len, states, log⟩
+  dsimp only at * ; subst h0 ; simp at h3 h4
   constructor ; on_goal 1=> constructor ; on_goal 1=> constructor
   all_goals (try simp [SequentialSearchContext.isStableClosed, ← fQueue.mem_ofList]) ; (try solve | intros ; grind)
   · intros ; subst_vars ; simp

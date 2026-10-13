@@ -125,6 +125,93 @@ def umodifyViaHash [Hashable β] (v : VectorUSize α n) (x : β) (f : α → α)
   let idx := shardIdxOfUSize n x
   v.umodify idx f (shardIdxOfUSize_lt x h_pos)
 
+@[inline]
+def map (f : α → β) (v : VectorUSize α n) : VectorUSize β n :=
+  ⟨v.val.map f, by simp [v.property]⟩
+
+/-- Combine each element with the element of `w` at the same index, each pair in a task of its own.
+Like `ShardedUSize.zipShardsPar`, it takes the arrays of `v` and `w` (`Array.toList`), so that each
+element is unshared and `f` can update it in place. -/
+@[specialize]
+def zipPar (v : VectorUSize α n) (w : VectorUSize β n) (f : α → β → γ) : VectorUSize γ n :=
+  let tasks := (v.val.toList.zip w.val.toList).map fun (a, b) => Task.spawn fun () => f a b
+  ⟨(tasks.map Task.get).toArray, by simp [tasks, v.property, w.property]⟩
+
+theorem uget_map {f : α → β} {v : VectorUSize α n} {i : USize} {h : i < n} :
+    (v.map f).uget i h = f (v.uget i h) := by
+  simp [map, uget, Array.uget]
+
+theorem uget_zipPar {w : VectorUSize β n} {f : α → β → γ} {v : VectorUSize α n} {i : USize} {h : i < n} :
+    (v.zipPar w f).uget i h = f (v.uget i h) (w.uget i h) := by
+  simp [zipPar, uget, Array.uget, Task.spawn]
+
+theorem ext_uget {v w : VectorUSize α n} (h : ∀ (i : USize) (hi : i < n), v.uget i hi = w.uget i hi) :
+    v = w := by
+  apply Subtype.ext ; apply Array.ext (by rw [v.property, w.property])
+  intro j hj _
+  have hj_ns : j < n.toNat := by simpa [v.property] using hj
+  exact h (USize.ofNatLT j (Nat.lt_trans hj_ns n.toNat_lt_size)) hj_ns
+
+theorem uget_replicateUSize {x : α} {i : USize} {h : i < n} :
+    (replicateUSize n x).uget i h = x := by
+  simp [replicateUSize, uget, Array.uget]
+
+theorem uget_umodifyViaHash [Hashable β] {v : VectorUSize α n} {x : β} {f : α → α} {h_pos : 0 < n}
+    {i : USize} {h : i < n} :
+    (v.umodifyViaHash x f h_pos).uget i h =
+      if shardIdxOfUSize n x = i then f (v.uget i h) else v.uget i h := by
+  simp only [umodifyViaHash, umodify, uset, uget, Array.uget, Array.uset, Array.getElem_set]
+  split <;> split <;> grind [USize.toNat_inj]
+
+/-- `buckets` with each element of `l` put in front of the bucket of its key's shard. -/
+@[specialize]
+def distributeInto [Hashable β] (key : α → β) (h_pos : 0 < n) (buckets : VectorUSize (List α) n)
+    (l : List α) : VectorUSize (List α) n :=
+  l.foldl (init := buckets) fun buckets x => buckets.umodifyViaHash (key x) (x :: ·) h_pos
+
+theorem mem_uget_distributeInto [Hashable β] {key : α → β} {h_pos : 0 < n}
+    {buckets : VectorUSize (List α) n} {l : List α} {i : USize} {h : i < n} {x : α} :
+    x ∈ (distributeInto key h_pos buckets l).uget i h ↔
+      x ∈ buckets.uget i h ∨ (x ∈ l ∧ shardIdxOfUSize n (key x) = i) := by
+  induction l generalizing buckets with
+  | nil => simp [distributeInto]
+  | cons y l ih =>
+    simp only [distributeInto, List.foldl_cons] at ih ⊢
+    rw [ih, uget_umodifyViaHash]
+    split <;> grind
+
+theorem mem_toList_iff {v : VectorUSize α n} {x : α} :
+    x ∈ v.val.toList ↔ ∃ (i : USize) (h : i < n), v.uget i h = x := by
+  constructor
+  · intro hmem
+    rw [List.mem_iff_getElem] at hmem
+    obtain ⟨i, hi, rfl⟩ := hmem
+    have hi_ns : i < n.toNat := by simpa [v.property] using hi
+    exact ⟨USize.ofNatLT i (Nat.lt_trans hi_ns n.toNat_lt_size), hi_ns, rfl⟩
+  · rintro ⟨i, h, rfl⟩
+    simp only [uget, Array.uget]
+    exact Array.mem_toList_iff.mpr (Array.getElem_mem ..)
+
+/-- The keys of all shards are pairwise distinct, when each shard holds keys of its own index
+only and has no duplicate keys itself. -/
+theorem nodup_flatMap_of_shards [Hashable β] {v : VectorUSize α n} (keys : α → List β)
+    (hsh : ∀ (i : USize) (h : i < n), ∀ k ∈ keys (v.uget i h), shardIdxOfUSize n k = i)
+    (hnd : ∀ (i : USize) (h : i < n), (keys (v.uget i h)).Nodup) :
+    (v.val.toList.flatMap keys).Nodup := by
+  have hsh_nat (i : Nat) (hi : i < v.val.size) (k : β) (hk : k ∈ keys v.val[i]) :
+      (shardIdxOfUSize n k).toNat = i := by
+    have hi_ns : i < n.toNat := by simpa [v.property] using hi
+    exact congrArg USize.toNat (hsh (USize.ofNatLT i (Nat.lt_trans hi_ns n.toNat_lt_size)) hi_ns k hk)
+  rw [Veil.List.nodup_flatMap] ; constructor
+  · intro l hl ; obtain ⟨i, h, rfl⟩ := mem_toList_iff.mp hl ; exact hnd i h
+  · rw [List.pairwise_iff_getElem] ; intros i j hi hj hne
+    intro k hx hy
+    simp only [Array.getElem_toList] at hx hy
+    simp at hi hj
+    have h1 := hsh_nat i hi k hx
+    have h2 := hsh_nat j hj k hy
+    omega
+
 end VectorUSize
 
 /-! ## Sharded collections -/
@@ -173,32 +260,10 @@ instance instMembership : Membership α (ShardedUSize α S numShards) where
 theorem mem_def {st : ShardedUSize α S numShards} {k : α} :
     k ∈ st ↔ k ∈ st.getShard k := Iff.rfl
 
-/-- The shard at index `i` is the shard of each of its keys. -/
-theorem shardIdx_toNat_of_mem {st : ShardedUSize α S numShards} {i : Nat}
-    (hi' : i < st.shards.val.size) {k : α} (hk : k ∈ st.shards.val[i]) :
-    (shardIdxOfUSize numShards k).toNat = i := by
-  have hi_ns : i < numShards.val.toNat := by rw [← st.shards.property]; exact hi'
-  have hiU : i < USize.size := Nat.lt_trans hi_ns (USize.toNat_lt_size numShards.val)
-  have h_toNat_i : (USize.ofNat i).toNat = i := Nat.mod_eq_of_lt hiU
-  have h_lt : USize.ofNat i < numShards := by
-    rw [USize.lt_iff_toNat_lt, h_toNat_i]; exact hi_ns
-  have h_idx := st.h_in_correct_shard (USize.ofNat i) h_lt k (by
-    simp only [VectorUSize.uget, Array.uget, h_toNat_i]; exact hk)
-  exact (congrArg USize.toNat h_idx).trans h_toNat_i
-
 theorem mem_iff_exists_shard {st : ShardedUSize α S numShards} {k : α} :
     k ∈ st ↔ ∃ shard ∈ st.shards.val.toList, k ∈ shard := by
-  simp only [mem_def, getShard, VectorUSize.ugetViaHash, VectorUSize.uget, Array.uget]
-  constructor
-  · intro hk
-    exact ⟨_, Array.mem_toList_iff.mpr (Array.getElem_mem ..), hk⟩
-  · rintro ⟨shard, hshard, hk⟩
-    rw [List.mem_iff_getElem] at hshard
-    obtain ⟨i, hi, rfl⟩ := hshard
-    simp only [Array.getElem_toList] at hk
-    have hi' : i < st.shards.val.size := by simpa using hi
-    have h_eq := shardIdx_toNat_of_mem hi' hk
-    simp only [h_eq]; exact hk
+  simp only [mem_def, getShard, VectorUSize.ugetViaHash, VectorUSize.mem_toList_iff]
+  constructor <;> grind [st.h_in_correct_shard]
 
 section KeyShard
 
@@ -225,20 +290,18 @@ theorem not_contains_iff_not_mem {st : ShardedUSize α S numShards} {k : α} :
 def toList (st : ShardedUSize α S numShards) : List α :=
   st.shards.val.toList.flatMap KeyShard.toList
 
+theorem mem_toList {st : ShardedUSize α S numShards} {k : α} :
+    k ∈ st.toList ↔ k ∈ st := by
+  simp only [toList, List.mem_flatMap, KeyShard.mem_toList, ← mem_iff_exists_shard]
+
 theorem length_toList {st : ShardedUSize α S numShards} :
     st.size = st.toList.length := by
   simp [size, toList, ← Array.foldl_toList, KeyShard.length_toList, List.sum_eq_foldl, List.foldl_map]
 
 theorem nodup_toList {st : ShardedUSize α S numShards} :
-    st.toList.Nodup := by
-  simp [toList, Veil.List.nodup_flatMap] ; constructor
-  · intros ; apply KeyShard.nodup_toList
-  · rw [List.pairwise_iff_getElem] ; intros i j hi hj hne
-    whnf ; simp [KeyShard.mem_toList] ; intro a hini hinj
-    simp at hi hj
-    have h1 := shardIdx_toNat_of_mem hi hini
-    have h2 := shardIdx_toNat_of_mem hj hinj
-    grind
+    st.toList.Nodup := VectorUSize.nodup_flatMap_of_shards KeyShard.toList
+    (fun i hi k hk => st.h_in_correct_shard i hi k (KeyShard.mem_toList.mp hk))
+    (fun _ _ => KeyShard.nodup_toList)
 
 end KeyShard
 
@@ -323,6 +386,21 @@ def zipShardsPar (st : ShardedUSize α S numShards) (other : ShardedUSize α T n
       · exact st.h_in_correct_shard i hi k hk
       · exact other.h_in_correct_shard i hi k hk }
 
+/-- The shards `f x` of the elements `x` of `v`, each holding keys of its own index only. -/
+@[inline]
+def ofMap {β : Type w} (v : VectorUSize β numShards) (f : β → S)
+    (h : ∀ (i : USize) (hi : i < numShards), ∀ k ∈ f (v.uget i hi), shardIdxOfUSize numShards k = i) :
+    ShardedUSize α S numShards :=
+  ⟨v.map f, fun i hi k hk => h i hi k (by rwa [VectorUSize.uget_map] at hk)⟩
+
+theorem ext_shards {st other : ShardedUSize α S numShards} (h : st.shards = other.shards) : st = other := by
+  cases st ; cases other ; simp only at h ; subst h ; rfl
+
+theorem uget_zipShardsPar {other : ShardedUSize α T numShards} {f : S → T → S}
+    {hf : ∀ s t k, k ∈ f s t → k ∈ s ∨ k ∈ t} {st : ShardedUSize α S numShards} {i : USize} {h : i < numShards} :
+    (st.zipShardsPar other f hf).shards.uget i h = f (st.shards.uget i h) (other.shards.uget i h) := by
+  simp [zipShardsPar, VectorUSize.uget, Array.uget, Task.spawn]
+
 end ShardedUSize
 
 /-! ## Sharded sets -/
@@ -395,29 +473,19 @@ variable {α : Type u} {S : Type v} [Hashable α] {numShards : PosUSize}
 
 /-! ### Distribute: single-pass bucketing -/
 
-/-- Consing a key onto a bucket adds only a key of its shard. -/
-theorem mem_cons_shardIdx (x : α) (s : List α) (q : α) (h : q ∈ x :: s) :
-    q ∈ s ∨ shardIdxOfUSize numShards q = shardIdxOfUSize numShards x := by grind
-
 /-- The keys of `l`, bucketed by shard. -/
 @[specialize]
-def distributeByHash (l : List α) : ShardedUSize α (List α) numShards :=
-  l.foldl (init := .replicate [] fun _ => List.not_mem_nil) fun st x =>
-    st.modifyShard x (List.cons x) (mem_cons_shardIdx x)
+def distributeByHash (l : List α) : ShardedUSize α (List α) numShards where
+  shards := VectorUSize.distributeInto id numShards.property (.replicateUSize numShards []) l
+  h_in_correct_shard := by
+    intro i hi k hk
+    simp only [VectorUSize.mem_uget_distributeInto, VectorUSize.uget_replicateUSize] at hk
+    simp at hk ; exact hk.2
 
 theorem mem_distributeByHash {l : List α} {k : α} :
     k ∈ distributeByHash (numShards := numShards) l ↔ k ∈ l := by
-  simp only [ShardedUSize.mem_def, ShardedUSize.getShard, distributeByHash, VectorUSize.ugetViaHash]
-  rw [List.foldl_eq_foldr_reverse]
-  rewrite (occs := .neg [1]) [← List.mem_reverse]
-  generalize l.reverse = l' ; clear l
-  induction l' with
-  | nil => simp [ShardedUSize.replicate, VectorUSize.replicateUSize, VectorUSize.uget]
-  | cons x l' ih =>
-    simp only [List.foldr, List.mem_cons, ← ih]
-    generalize (List.foldr _ _ l') = acc ; clear ih
-    simp only [ShardedUSize.modifyShard, VectorUSize.umodifyViaHash, VectorUSize.umodify, VectorUSize.uset, VectorUSize.uget, Array.uget, Array.uset, Array.getElem_set]
-    split <;> grind
+  simp [ShardedUSize.mem_def, ShardedUSize.getShard, distributeByHash, VectorUSize.ugetViaHash,
+    VectorUSize.mem_uget_distributeInto, VectorUSize.uget_replicateUSize]
 
 variable [BEq α] [Membership α S] [SetShard α S]
 

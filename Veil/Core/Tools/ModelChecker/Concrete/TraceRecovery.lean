@@ -339,6 +339,70 @@ def DedupFoldDescription (key : α → K) (val : α → V) (proj : α → β)
     (∀ a ∈ pfx, a ∈ l) ∧
     (∀ k v, look res k = some v ↔ (k, v) ∈ pfx.map fun a => (key a, val a))
 
+/-- If projection preserves keys, lookup membership agrees with the output list's keys. -/
+theorem DedupFoldDescription.isSome_iff
+    {key : α → K} {val : α → V} {proj : α → β} {lst : γ → List β} {look : γ → K → Option V}
+    {l : List α} {res : γ} {key' : β → K}
+    (h : DedupFoldDescription key val proj lst look l res)
+    (h_proj : ∀ a ∈ l, key' (proj a) = key a) :
+    ∀ k, (look res k).isSome ↔ k ∈ (lst res).map key' := by
+  rcases h with ⟨pfx, h_lst, -, -, h_mem, h_look⟩
+  intro k
+  simp only [Option.isSome_iff_exists, h_look, h_lst, List.mem_map, Prod.mk.injEq]
+  grind
+
+/-- The keys of the result of a deduplicating fold are those of the accumulator and those of the
+kept elements, which are new: there are as many more keys as kept elements. -/
+theorem DedupFoldDescriptionWithAcc.length_keys
+    {key : α → K} {val : α → V} {proj : α → β} {lst : γ → List β} {look : γ → K → Option V}
+    {l : List α} {acc res : γ} {keysAcc keysRes : List K}
+    (h : DedupFoldDescriptionWithAcc key val proj lst look l acc res)
+    (h_nodup_acc : keysAcc.Nodup) (h_nodup_res : keysRes.Nodup)
+    (h_acc : ∀ k, k ∈ keysAcc ↔ (look acc k).isSome) (h_res : ∀ k, k ∈ keysRes ↔ (look res k).isSome) :
+    keysRes.length + (lst acc).length = keysAcc.length + (lst res).length := by
+  rcases h with ⟨pfx, h_lst, h_nd, -, h_mem, h_look⟩
+  have h_perm : keysRes.Perm (keysAcc ++ pfx.map key) := by
+    rw [List.perm_ext_iff_of_nodup h_nodup_res]
+    · intro k
+      simp only [h_res, List.mem_append, h_acc, Option.isSome_iff_exists, h_look, List.mem_map, Prod.mk.injEq]
+      grind
+    · rw [List.nodup_append] ; refine ⟨h_nodup_acc, h_nd, ?_⟩
+      intro k hk k' hk' ; rw [h_acc] at hk ; obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hk'
+      rintro rfl ; simp [(h_mem a ha).2] at hk
+  rw [h_perm.length_eq, h_lst] ; simp ; omega
+
+/-- A deduplicating fold over `l.map g` is one over `l` whose key, value and projection go through `g`. -/
+theorem DedupFoldDescriptionWithAcc.map {α β γ δ K V : Type} {key : β → K} {val : β → V} {proj : β → δ}
+    {lst : γ → List δ} {look : γ → K → Option V} {g : α → β} {l : List α} {acc res : γ}
+    (h : DedupFoldDescriptionWithAcc (key ∘ g) (val ∘ g) (proj ∘ g) lst look l acc res) :
+    DedupFoldDescriptionWithAcc key val proj lst look (l.map g) acc res := by
+  obtain ⟨pfx, h⟩ := h
+  refine ⟨pfx.map g, ?_⟩
+  grind only [List.map_map, List.mem_map, Function.comp_def]
+
+/-- The description of a deduplicating fold does not depend on the order of the kept elements: the
+result may hold any permutation of them. -/
+theorem DedupFoldDescriptionWithAcc.of_perm {α β γ K V : Type} {key : α → K} {val : α → V} {proj : α → β}
+    {lst : γ → List β} {look : γ → K → Option V} {l : List α} {acc res : γ} {pfx pfx' : List α}
+    (hp : List.Perm pfx' pfx) (h1 : lst res = pfx'.map proj ++ lst acc) (h2 : (pfx.map key).Nodup)
+    (h3 : ∀ a ∈ l, look acc (key a) = none → key a ∈ pfx.map key)
+    (h4 : ∀ a ∈ pfx, a ∈ l ∧ look acc (key a) = none)
+    (h5 : ∀ k v, look res k = some v ↔ look acc k = some v ∨ (k, v) ∈ pfx.map fun a => (key a, val a)) :
+    DedupFoldDescriptionWithAcc key val proj lst look l acc res := by exists pfx' ; grind
+
+/-- A complete, duplicate-free enumeration of the lookup's keys has the output list's length. -/
+theorem DedupFoldDescription.length_keys
+    {key : α → K} {val : α → V} {proj : α → β} {lst : γ → List β} {look : γ → K → Option V}
+    {l : List α} {res : γ} {keys : List K}
+    (h : DedupFoldDescription key val proj lst look l res)
+    (h_nodup : keys.Nodup) (h_keys : ∀ k, k ∈ keys ↔ (look res k).isSome) :
+    keys.length = (lst res).length := by
+  -- Work with the list and lookup directly, so an empty accumulator is available.
+  have h' : DedupFoldDescriptionWithAcc key val proj Prod.fst Prod.snd l
+      ([], fun _ => none) (lst res, look res) := by
+    simpa [DedupFoldDescriptionWithAcc, DedupFoldDescription] using h
+  simpa using h'.length_keys (keysAcc := []) (by simp) h_nodup (by simp) h_keys
+
 /-- A deduplicating fold from an empty accumulator describes just the kept items. -/
 theorem DedupFoldDescription.ofDedupFoldDescriptionWithAcc
     {key : α → K} {val : α → V} {proj : α → β} {lst : γ → List β} {look : γ → K → Option V}
@@ -372,6 +436,28 @@ theorem DedupFoldDescriptionWithAcc.of_foldl [BEq K] [LawfulBEq K]
     · rw [h_old acc a (by simp [h])]
       obtain ⟨pfx, h1, h2, h3, h4, h5⟩ := ih acc
       exists pfx ; grind
+
+/-- Deduplicate `l` by `key`, keeping the first element of each key: the kept elements by `proj`,
+last first, and their values by `val`, by key. This can be considered as a sample implementation
+for `DedupFoldDescription`. -/
+@[inline]
+def dedupFold [BEq K] [Hashable K] (key : α → K) (val : α → V) (proj : α → β) (l : List α) :
+    List β × Std.HashMap K V :=
+  l.foldl (init := ([], ∅)) fun acc a =>
+    if acc.2.contains (key a) then acc else (proj a :: acc.1, acc.2.insert (key a) (val a))
+
+theorem dedupFold_description [BEq K] [LawfulBEq K] [Hashable K] [LawfulHashable K]
+    (key : α → K) (val : α → V) (proj : α → β) (l : List α) :
+    DedupFoldDescription key val proj Prod.fst (fun acc k => acc.2[k]?) l (dedupFold key val proj l) := by
+  refine DedupFoldDescription.ofDedupFoldDescriptionWithAcc
+    (acc := (([], ∅) : List β × Std.HashMap K V)) ?_ rfl (fun _ => Std.HashMap.getElem?_empty)
+  unfold dedupFold
+  apply DedupFoldDescriptionWithAcc.of_foldl <;> intro acc a h <;> grind
+
+/-- The kept elements of a deduplication are elements of the list. -/
+theorem mem_of_mem_dedupFold_id [BEq K] [LawfulBEq K] [Hashable K] [LawfulHashable K]
+    {key : α → K} {val : α → V} {l : List α} {a : α} (ha : a ∈ (dedupFold key val id l).1) : a ∈ l := by
+  obtain ⟨pfx, h_lst, -, -, h_inQ, -⟩ := dedupFold_description key val id l ; grind
 
 /-! ### Violations recorded by the search -/
 
