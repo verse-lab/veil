@@ -13,27 +13,19 @@ between executions of the same elaborated snapshot; it is not a reusable certifi
 private structure HandoffCheckpoint where
   propertiesChecked : Nat := 0
   exploredStates : Nat := 0
-  /-- Search time of the completed prefix, so a handed-off run reports the whole command's
-  search cost rather than only the binary's share. The interpreted and compiled shares are
-  distinguishable anyway: the workflow reports the wall clock of each separately. -/
   searchNs : Nat := 0
   deriving ToJson, FromJson
 
 variable {ρ σ l : Type} [beqσ : BEq σ] [hashσ : Hashable σ] [lawfulσ : LawfulBEq σ] [inhabσ : Inhabited σ]
   [beql : BEq l] [hashl : Hashable l] {th : ρ}
 
-/-- The command's own measurement of the search, carried in the result JSON so that it survives the
-trip from a compiled worker's stdout back to the elaborator. `search_ns` is the sum over the
-properties actually searched in this execution plus any prefix carried over at handoff; it excludes
-process startup, assumption evaluation and the state-constraint restriction, all of which the
-workflow's wall clock still contains. -/
+/-- The route and the search time, in total and per property. -/
 private def timingJson (route : Route) (searchNs : Nat) (perProperty : Array Json) : Json :=
   Json.mkObj [("route", route.name), ("search_ns", toJson searchNs),
     ("properties", Json.arr perProperty)]
 
-/-- Check declared properties in order with `checkRoute route` (`fair` unless the command says
-otherwise), stopping at the first counterexample. Assumptions and state constraints match the
-safety checker.
+/-- Check declared properties in order with `checkRoute route`, stopping at the first
+counterexample. Assumptions and state constraints match the safety checker.
 A dead end stutters: LTLLib gives it a self-loop, so a run may end there. Assertion
 failures and safety invariants are checked separately by `#model_check`.
 
@@ -54,17 +46,12 @@ def checkAllWithProgress [ToJson ρ] [ToJson σ]
     (instanceId : Nat) (cancelToken : IO.CancelToken) (route : Route := .fair)
     [cert : RouteCertificate route (restrictSystemByStateConstraints sys params th)] :
     IO Json := do
-  -- `--property` narrows this run to one of the properties the command compiled in, so that a
-  -- single build can serve them all and a harness can measure each one as its own process.
-  -- Applied before anything reads the list, so the progress count, the handoff checkpoint and the
-  -- reported `properties` array all describe the run that actually happens -- and so the
-  -- stop-at-first-counterexample rule below cannot hide a property this run was asked for.
   let properties ← match ← getPropertySelection with
     | none => pure properties
     | some wanted =>
       match properties.filter (fun p => p.name.toString == wanted) with
-      | [] => throw <| IO.userError s!"--property {wanted}: this binary has no such liveness \
-          property. It compiled in: {", ".intercalate (properties.map (·.name.toString))}"
+      | [] => throw <| IO.userError s!"--property {wanted}: no such liveness property. \
+          Available: {", ".intercalate (properties.map (·.name.toString))}"
       | selected => pure selected
   let cancelled := Json.mkObj [("result", "cancelled")]
   match params.violatedAssumptions th with
@@ -79,8 +66,6 @@ def checkAllWithProgress [ToJson ρ] [ToJson σ]
     | some state => IO.ofExcept (fromJson? state)
   if checkpoint.propertiesChecked > properties.length then
     throw <| IO.userError "liveness handoff checkpoint exceeds the number of properties"
-  -- The search runs on the state-constraint-restricted system, so `ndfs`'s certificate is owed
-  -- about *that* graph and not about the declared one.
   let rsys := restrictSystemByStateConstraints sys params th
   let mut progress : LivenessProgress := {
     numProperties := properties.length
@@ -93,9 +78,6 @@ def checkAllWithProgress [ToJson ρ] [ToJson σ]
     if ← cancelToken.isSet then return cancelled
     progress := { progress with currentProperty := p.name.toString }
     updateLivenessProgress instanceId progress
-    -- The route is a pure function and `match` is what forces it, so a clock straddling the
-    -- `match` measures the whole search and nothing else: none of it has run before the
-    -- scrutinee is demanded, all of it has run once a branch is taken.
     let t0 ← IO.monoNanosNow
     match checkRoute route rsys p (cert := cert) with
     | .empty n =>

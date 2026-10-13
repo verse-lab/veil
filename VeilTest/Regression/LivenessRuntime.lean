@@ -16,9 +16,7 @@ private def loopingSystem :
   tr := fun _ n => { successes := [((), n)], failures := [] }
 }
 
-/-- The verdict and the totals, without the run's own timings: `search_ns` is wall-clock and so
-differs between two runs that did identical work, which the totals comparisons below must not see.
-The timings are checked separately, by the properties they do have. -/
+/-- `j` without its `timing` field. -/
 private def withoutTiming (j : Json) : Json :=
   match j with
   | .obj kvs => .obj (kvs.erase "timing")
@@ -102,15 +100,11 @@ private def immediatelyTrue : LivenessProperty Unit Nat Unit := {
   let resumed ← checkAllWithProgress loopingSystem params [alwaysTrue, alwaysTrue] id tk
   unless withoutTiming resumed == withoutTiming full do
     throw <| IO.userError "resumed totals differ from uninterrupted checking"
-  -- The resumed run searched only the second property, and its reported search time is that
-  -- search plus the prefix carried in the checkpoint.
   unless ((timingOf resumed).getObjValD "properties").getArr?.toOption.map (·.size) == some 1 do
     throw <| IO.userError "the resumed run reported the prefix's searches as its own"
   let complete ← checkAllWithProgress loopingSystem params [alwaysTrue, alwaysTrue] id tk
   unless withoutTiming complete == withoutTiming full do
     throw <| IO.userError "completed prefix was counted twice"
-  -- A run that finds the whole prefix complete searches nothing and reports the carried time
-  -- unchanged, so the command's total never shrinks across a handoff.
   unless (timingOf complete).getObjValD "properties" == .arr #[] do
     throw <| IO.userError "a fully completed prefix reported a search"
   unless (timingOf complete).getObjValD "search_ns" == (timingOf resumed).getObjValD "search_ns" do
@@ -126,12 +120,12 @@ private def immediatelyTrue : LivenessProperty Unit Nat Unit := {
 #eval show IO Unit from do
   let checkpoint := Json.mkObj [("propertiesChecked", toJson (1 : Nat)), ("exploredStates", toJson (7 : Nat))]
   for args in [[], ["4", "20", "1"]] do
-    let parsed ← IO.ofExcept <| Compilation.parseHandoffArgs (args ++ ["--handoff-state", checkpoint.compress])
-    unless parsed == (args, some checkpoint) do throw <| IO.userError "handoff arguments changed parallel settings"
-    let plain ← IO.ofExcept <| Compilation.parseHandoffArgs args
-    unless plain == (args, none) do throw <| IO.userError "standalone run acquired a checkpoint"
+    let parsed ← IO.ofExcept <| Compilation.parseLaunchArgs (args ++ ["--handoff-state", checkpoint.compress])
+    unless (parsed.positional, parsed.handoffState) == (args, some checkpoint) do throw <| IO.userError "handoff arguments changed parallel settings"
+    let plain ← IO.ofExcept <| Compilation.parseLaunchArgs args
+    unless (plain.positional, plain.handoffState) == (args, none) do throw <| IO.userError "standalone run acquired a checkpoint"
   for args in [["--handoff-state"], ["--handoff-state", "not JSON"]] do
-    unless Compilation.parseHandoffArgs args matches .error _ do
+    unless Compilation.parseLaunchArgs args matches .error _ do
       throw <| IO.userError "malformed handoff arguments were accepted"
 
 open Lean Elab Command in
