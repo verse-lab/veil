@@ -266,7 +266,10 @@ def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
       logWarning m!"unable to generate transition weakening lemma: {ex.toMessageData}"
   pure mod
 
-private def Module.ensureExecutableModelCheckerDefinitions (mod : Module) : CommandElabM Unit := do
+/-- Generate the executable definitions with `cfg`, unless the module has them already (whatever
+options they were generated with). -/
+private def Module.ensureExecutableModelCheckerDefinitions (mod : Module) (cfg : Extract.ExecutableConfig := {}) :
+    CommandElabM Unit := do
   if (← getEnv).contains (mod.name ++ enumerableTransitionSystemName) then
     return
   let savedState ← get
@@ -275,15 +278,15 @@ private def Module.ensureExecutableModelCheckerDefinitions (mod : Module) : Comm
     if (← get).messages.hasErrors then
       modify fun s => { savedState with messages := s.messages, traceState := s.traceState }
       throwAbortCommand
-  stepOrAbort <| Extract.runGenExtractCommand mod
+  stepOrAbort <| Extract.runGenExtractCommand mod cfg
   for cmd in ← Extract.Module.assembleEnumerableTransitionSystem mod do
     stepOrAbort <| elabVeilCommand cmd
 
 @[command_elab Veil.genExecutable]
-def elabGenExecutable : CommandElab := fun _stx => do
+def elabGenExecutable : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot #gen_executable outside of a Veil module!")
   mod.throwIfSpecNotFinalized
-  mod.ensureExecutableModelCheckerDefinitions
+  mod.ensureExecutableModelCheckerDefinitions (← Extract.elabExecutableConfig stx[1])
 
 @[command_elab Veil.genState]
 def elabGenState : CommandElab := fun _stx => do

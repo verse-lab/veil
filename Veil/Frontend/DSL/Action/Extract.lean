@@ -17,6 +17,15 @@ meta section FrontendExtraction
 
 syntax injectBindersStx := "injection_begin" bracketedBinder* "injection_end"
 
+/-- Options of `#gen_executable`, passed on to the `#extract` it runs. -/
+structure ExecutableConfig where
+  /-- Whether the actions dispatched by `NextAct` take the theory and the state borrowed (`@&`);
+  see `specializeAndExtractExternalActions`. -/
+  borrowArgs : Bool := true
+  deriving Repr
+
+declare_command_config_elab elabExecutableConfig ExecutableConfig
+
 namespace Preprocessing
 
 attribute [dsimpFieldRepresentationGet ↓] FieldRepresentation.get
@@ -297,9 +306,16 @@ where
 
 def specializeAndExtractSingle (mod : Module) (pi : ProcedureInfo) (extractedName : Name := toExtractedName pi.name)
   (attrs : Array (TSyntax ``Lean.Parser.Term.attrInstance) := #[])
-  (toExtract : Name := pi.name) : CommandElabM SpecializedTerm := do
+  (toExtract : Name := pi.name) (borrowArgs : Bool := false) : CommandElabM SpecializedTerm := do
   let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams pi.name (.procedure pi)
   let extractBody ← specializeAndExtractCore extraDsimpsForSpecialize κ useWeak intoMonadicActions toExtract (baseParams ++ extraParams ++ actualParams)
+  -- `@&` on the binders of a lambda is honored by the compiler and survives
+  -- specialization; see `specializeAndExtractExternalActions` for why actions borrow.
+  let extractBody ← if borrowArgs then
+      let rd := mkIdent `__veil_rd
+      let st := mkIdent `__veil_st
+      `(fun ($rd : @& $environmentTheory) ($st : @& $environmentState) => ($extractBody) $rd $st)
+    else pure extractBody
   let defBody ← buildingTermWithDefaultχSpecialized baseParams (extraParams ++ actualParams) injectedBinders extractBody mod
   let cmd ← if attrs.isEmpty
     then `(command| def $(mkIdent extractedName):ident := $(defBody.body):term)
@@ -323,13 +339,34 @@ def specializeAndExtractInternalMode (mod : Module) : CommandElabM Unit := do
     discard <| specializeAndExtractSingle injectedBinders extraDsimpsForSpecialize κ useWeak false mod ps.info (attrs := #[attr1/-, attr2 -/])
 
 /-- Extract each action into its own definition, returning them in `mod.actions`
-order so the dispatcher can call each one the way its binders require. -/
-def specializeAndExtractExternalActions (mod : Module) : CommandElabM (Array SpecializedTerm) :=
+order so the dispatcher can call each one the way its binders require.
+
+With `borrowArgs` (the default; `#gen_executable -borrowArgs` turns it off), the
+actions take the theory and the state borrowed. If owned and the
+state dies at the first `require` (all its fields are projected before it), then
+the compiler resets it there to reuse its memory for the successor. However, that only
+pays off when the state is exclusive, and here it never is: every caller goes
+through `tr`, which applies every label's action to the same state and keeps it
+(the model checker's frontier, the simulator's trace, `recoverTrace`), and in
+the parallel search the state is multi-threaded, which is never exclusive. On a
+shared state the reset costs an `inc` per field and a `dec` of the state before
+the guard, and a `dec` per field when the guard fails.
+
+The cost of borrowing: a caller that hands over its last reference to the state
+gets no in-place update; the successor copies every field it changes (an
+`Array.set!` copies the array). If a caller that passes its last reference to
+the state is ever added, extract the actions a second time without `borrowArgs`
+(owned) for it, and keep the borrowed ones for `NextAct`. The borrowed ones must
+stay separate extractions under `@&` binders: a wrapper
+`fun (st : @& State) => ownedAction st` costs an `inc` of `st` to pass it,
+and the owned action still resets it. -/
+def specializeAndExtractExternalActions (mod : Module) (borrowArgs : Bool := true) :
+    CommandElabM (Array SpecializedTerm) :=
   mod.actions.mapM fun a => do
     let pi := a.info
     let extName := toExtName pi.name
     specializeAndExtractSingle injectedBinders extraDsimpsForSpecialize κ useWeak true mod pi
-      (extractedName := toExtractedName extName) (toExtract := extName)
+      (extractedName := toExtractedName extName) (toExtract := extName) (borrowArgs := borrowArgs)
 
 /-- Extract each action into its own definition and assemble `NextAct` as a
 dispatcher over them.
@@ -359,21 +396,24 @@ def specializeAndExtractActions (mod : Module) (extractedActions : Array Special
   let extractedName := toExtractedName assembledNextActName
   elabVeilCommand <| ←  `(command| def $(mkIdent extractedName):ident := $(defBody.body):term)
 
-def specializeAndExtract : CommandElabM Unit := do
+def specializeAndExtract (cfg : ExecutableConfig) : CommandElabM Unit := do
   let mod ← getCurrentModule
   specializeAndExtractInitializer injectedBinders extraDsimpsForSpecialize κ useWeak mod
   specializeAndExtractInternalMode injectedBinders extraDsimpsForSpecialize κ useWeak mod
   let extractedActions ← specializeAndExtractExternalActions injectedBinders extraDsimpsForSpecialize κ useWeak mod
+    (borrowArgs := cfg.borrowArgs)
   specializeAndExtractActions injectedBinders κ mod extractedActions
 
-syntax (name := specializeAndExtractCmdStx) "#extract" ("!")? "log_entry_being" term
+-- The options go before `log_entry_being`: after its `term`, `(borrowArgs := false)` would parse
+-- as a named argument of that term.
+syntax (name := specializeAndExtractCmdStx) "#extract" ("!")? Parser.Tactic.optConfig "log_entry_being" term
   ("dsimp_with " "[" ident,* "]")? (injectBindersStx)? : command
 
 elab_rules : command
-  | `(#extract $[!%$notUseWeakSign]? log_entry_being $logelem:term $[dsimp_with [$[$extraDsimps:ident],*]]? $[injection_begin $injectedBinders:bracketedBinder* injection_end]?) => do
+  | `(#extract $[!%$notUseWeakSign]? $cfg log_entry_being $logelem:term $[dsimp_with [$[$extraDsimps:ident],*]]? $[injection_begin $injectedBinders:bracketedBinder* injection_end]?) => do
     let extraDsimps := extraDsimps.getD #[]
     let injectedBinders := injectedBinders.getD #[]
-    specializeAndExtract injectedBinders extraDsimps logelem notUseWeakSign.isNone
+    specializeAndExtract injectedBinders extraDsimps logelem notUseWeakSign.isNone (← elabExecutableConfig cfg)
 
 private def bindersToInjectForExecution [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadEnv m]
     (mod : Veil.Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
@@ -385,11 +425,13 @@ private def bindersToInjectForExecution [AddMessageContext m] [MonadOptions m] [
   -- and recovers traces with it on
   return binders.push (← `(bracketedBinder| [$(mkCIdent ``LogSwitch)]))
 
-def runGenExtractCommand (mod : Veil.Module) : CommandElabM Unit := do
+def runGenExtractCommand (mod : Veil.Module) (cfg : ExecutableConfig := {}) : CommandElabM Unit := do
   let binders ← bindersToInjectForExecution mod
+  let cfgStx ← `(Lean.Parser.Tactic.optConfig|
+    ($(mkIdent `borrowArgs):ident := $(mkIdent (if cfg.borrowArgs then ``true else ``false))))
   let execListCmd ← `(command |
     attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet] $instEnumerationForIteratedProd in
-    #extract! log_entry_being $(mkIdent ``Std.Format)
+    #extract! $cfgStx log_entry_being $(mkIdent ``Std.Format)
     injection_begin
       $[$binders]*
     injection_end)
