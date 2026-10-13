@@ -42,17 +42,10 @@ private structure ExecutionContext where
   sources : Json := .null
   /-- `#model_check`, `#simulate` or `#liveness_check`, for the timing record. -/
   commandName : String
-  /-- Which of the three execution modes this run was started in. -/
   mode : ModelCheckingMode
-  /-- Wall clock of the C generation and the Lake build, in milliseconds, set by whichever task
-  ran them. `none` for an interpreted run, and for a `default`-mode run whose interpreted search
-  won the race. A build Lake found up to date still counts: what is measured is the attempt, not
-  the compilation it may have skipped. -/
+  /-- Wall clock of the compilation in milliseconds; `none` if nothing was compiled. -/
   compileMs : IO.Ref (Option Nat)
-  /-- Wall clock of the compiled worker process, in milliseconds: spawn to exit, as the parent
-  measures it. `none` when no binary ran. This is the figure a benchmark wants for a compiled
-  run -- the search plus the process startup every tool pays -- and unlike the progress clock it
-  does not depend on the worker having reported progress. -/
+  /-- Wall clock of the compiled binary in milliseconds; `none` if no binary ran. -/
   runMs : IO.Ref (Option Nat)
 
 /-- Report compilation failures without stopping an interpreted run during handoff.
@@ -234,13 +227,8 @@ private def verifyBinaryExists (buildFolder : System.FilePath) (instanceId : Nat
   ModelChecker.Concrete.finishProgress instanceId (errorJson s!"Binary not found at {binPath}")
   return none
 
-/-- Run the compiled binary and return its JSON result, with the process's wall clock in
-milliseconds, if it completed.
-
-The duration is taken in the waiting task, the instant `child.wait` returns, rather than in the
-polling loop below: that loop sleeps 100 ms between checks, which is longer than a whole run on a
-small model -- a binary that answers in 20 ms would otherwise be indistinguishable from one that
-takes 120 ms. -/
+/-- Run the compiled binary and return its JSON result and wall clock in milliseconds, if it
+completed. -/
 private def runBinaryForJson (binPath : System.FilePath) (args : Array String)
     (instanceId : Nat) (cancelToken : IO.CancelToken) : IO (Option (Json × Nat)) := do
   ModelChecker.Concrete.updateStatus instanceId "Running compiled binary..."
@@ -339,8 +327,6 @@ private def allocExecutionContext (mod : Module) (stx : Syntax)
   let details : ModelChecker.Concrete.ProgressDetails ← do
     match resultKind with
     | .simulate => pure <| .simulation {}
-    -- `#liveness_check` may have been given a subset to check, and the progress widget counts
-    -- down the properties this run will actually search.
     | .liveness =>
       pure <| .liveness { numProperties := numLivenessProperties.getD mod.livenessProperties.size }
     | _ =>
@@ -364,13 +350,7 @@ def ModelCheckingMode.name : ModelCheckingMode → String
   | .compiled => "compiled"
   | .default => "default"
 
-/-- Write this run's timings to the Lean process's stderr as one compact JSON line, when
-`veil.modelChecker.emitTimings` is set.
-
-A compiled run measures itself inside the worker process, which reports its `timing` object on its
-stdout for the elaborator to read; an interpreted run measures itself in this process. Either way the
-numbers only ever reach the infoview, and a harness driving `lake env lean` over a file sees nothing.
-This is the one place that lets them out, so the record is deliberately flat and self-describing:
+/-- If `veil.modelChecker.emitTimings` is set, print this run's timings to stderr as one JSON line:
 
 ```json
 {"veil_timing":{"command":"liveness_check","mode":"compiled","compile_ms":17204,"run_ms":131,
@@ -378,27 +358,8 @@ This is the one place that lets them out, so the record is deliberately flat and
   "timing":{"route":"prune","search_ns":942000,"properties":[…]}}}
 ```
 
-The three clocks are nested, outermost first:
-
-* `compile_ms` is the C generation and the Lake build, absent when nothing was compiled.
-* `run_ms` is the compiled worker process, spawn to exit, measured by the parent. **This is the
-  figure a benchmark wants for a compiled run**: the search plus the process startup that every
-  tool in a comparison pays. Absent when no binary ran.
-* `wall_ms` is Veil's progress clock, which drives the infoview. For a compiled run the parent
-  adopts the worker's own progress records, so it reads as the worker's lifetime *provided the
-  worker reported progress at all*; a run that fails its assumptions returns before reporting any,
-  and then `wall_ms` is measured from before compilation and is not a run time. Prefer `run_ms`.
-* `timing.search_ns` is the search alone, clocked around the pure LTLLib call inside whichever
-  process ran it.
-
-`timing` is absent for a runner that reports none (`#model_check`, `#simulate`) and for a run that
-ended in an error or a cancellation.
-
-The line is written to the elaborator's stderr stream. Under `lean`/`lake env lean` that stream is
-the process's stdout, so a harness greps the whole output for `{"veil_timing":`; every other line
-Veil writes there is either a `file:line:col:` diagnostic or part of one. In the language server it
-goes to the worker's stderr instead, where nothing reads it, which is why the option is off by
-default. -/
+`compile_ms` and `run_ms` are absent when nothing was compiled or run, and `timing` when the runner
+reports none. -/
 private def emitTimings (ctx : ExecutionContext) (json : Json) : CommandElabM Unit := do
   unless veil.modelChecker.emitTimings.get (← getOptions) do return
   let progress ← liftIO <| ModelChecker.Concrete.getProgress ctx.instanceId
@@ -496,9 +457,7 @@ private def compileModel (sourceFile : String) (callExpr : Term)
     timing.set { emitCMs, ccLinkMs, cBytes := cCode.utf8ByteSize }
   return some buildFolder
 
-/-- `compileModel`, recording its wall clock on the context. `.succeeded` carries no duration and
-replaces the `.inProgress` status that did, so the figure is taken here rather than read back off
-the progress instance. -/
+/-- `compileModel`, recording its wall clock in `ctx.compileMs`. -/
 private def compileModelTimed (ctx : ExecutionContext) (sourceFile : String) (callExpr : Term)
     (commandId : String) (cancelToken : IO.CancelToken)
     (command : ModelChecker.Compilation.CompiledCommandSpec) :
