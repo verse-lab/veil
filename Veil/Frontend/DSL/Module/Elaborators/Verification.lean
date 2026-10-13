@@ -15,8 +15,8 @@ open scoped Veil.Extract
 namespace Veil
 
 private def warnIfNoInvariantsDefined (mod : Module) : CommandElabM Unit := do
-  if mod.invariants.isEmpty then
-    logWarning "you have not defined any invariants for this specification; did you forget?"
+  if mod.invariants.isEmpty && mod.livenessProperties.isEmpty then
+    logWarning "you have not defined any invariants or temporal properties for this specification; did you forget?"
 
 private def warnIfNoActionsDefined (mod : Module) : CommandElabM Unit := do
   if mod.actions.isEmpty then
