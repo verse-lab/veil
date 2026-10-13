@@ -362,6 +362,7 @@ def Module.declarationBaseParams [Monad m] [MonadQuotation m] [MonadExceptOf Exc
   | .stateAssertion .termination | .stateAssertion .stateConstraint | .stateAssertion .livenessAtom => pure mod.parameters -- the same as `invariant`
   | .procedure _ => pure mod.parameters
   | .derivedDefinition k _ => derivedDefinitionBaseParams mod k
+  | .temporalProperty => pure mod.parameters
 where
   theoryParameters (mod : Module) : Array Parameter :=
     mod.parameters.filterMap fun p => match p.kind with
@@ -401,6 +402,10 @@ def Module.declarationSplitParams [Monad m] [MonadQuotation m] [MonadExceptOf Ex
         let .some proc := mod.procedures.find? (fun a => a.name == forDeclaration)
           | throwError "[Module.declarationSplitParams]: procedure {forDeclaration} not found"
         pure (proc.extraParams, proc.params)
+    | .temporalProperty => do
+        let some tp := mod.temporalProperties.find? (·.name == forDeclaration)
+          | throwError "temporal property {forDeclaration} not found"
+        pure (tp.extraParams, #[])
     | _ => throwError "[Module.declarationSplitParams]: declaration {forDeclaration} has unsupported kind {repr k}")
   -- dbg_trace "declarationSplitParams: {repr k} {forDeclaration} -> baseParams {baseParams.map (·.name)} extraParams {extraParams.map (·.name)}"
   return (baseParams, extraParams, actualParams)
@@ -457,6 +462,7 @@ def Module.mkDerivedDefinitionsParamsMapFn [Monad m] [MonadQuotation m] [MonadEx
     | .stateAssertion _ => return mod.assertions.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | .procedure _ => return mod.procedures.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | .derivedDefinition _ _ => return mod._derivedDefinitions.valuesArray.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
+    | .temporalProperty => return mod.temporalProperties.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | _ => throwError "[Module.mkDerivedDefinitionsParamsMapFn]: declaration {dec} (included in derivedFrom) has unsupported kind")
     pure $ Array.flatten extraParams)
   -- Canonicalized extra params repeat by name across declarations; bind each once.
