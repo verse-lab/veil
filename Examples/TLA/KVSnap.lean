@@ -3,144 +3,181 @@ module
 public import Veil
 public import Veil.Util.Permutations
 
-open Std
-
-veil module KVSnap
--- src : https://github.com/tlaplus/Examples/blob/master/specifications/KeyValueStore/KVsnap.tla
--- --------------------------- MODULE KVsnap ---------------------------------
+-- source: KVsnap.tla, checked with MCKVsnap.cfg
+-- https://github.com/tlaplus/Examples/blob/master/specifications/KeyValueStore/KVsnap.tla
 -- (**************************************************************************)
 -- (* Pluscal algorithm for a simple key-value store with snapshot isolation  *)
 -- (* This version has atomic updates of store and missed sets of txns       *)
 -- (**************************************************************************)
--- EXTENDS Integers, Sequences, FiniteSets, Util
+--
+-- Translation notes:
+--   - `NoVal` is the only value outside `TxId`, so `TxId \union {NoVal}` is `Option txId`
+--     (`none` = `NoVal`).
+--   - `SetToSeq(S)` is a `CHOOSE`; here it is fixed to "ascending key order". Within a
+--     transaction this only orders the reads among themselves and the writes among
+--     themselves, which `ClientCentric` never compares (every read precedes every write).
+--   - `TypeOK` is enforced by the Veil types and is not restated.
+--   - Out of scope: the fairness conjuncts of `Spec` and the temporal property
+--     `Termination`. The `termination` clause below only reports stuck states where some
+--     transaction is not `Done`, matching TLC's deadlock check given the `Terminating`
+--     stutter step.
+
+veil module KVsnapNew
 
 -- CONSTANTS   Key,            \* The set of all keys.
 --             TxId,           \* The set of all transaction IDs.
 --             NoVal           \* NoVal, which all keys are initialized with.
--- type key
-    -- Key = {k1, k2, k3}
-    -- Val = {v1, v2}
-    -- TxId = {t1, t2, t3}
-    -- NoVal = NoVal
-enum key = { K1, K2, K3 }
-type Keys
-enum txId = { noVal, T1, T2, T3}
-type TxIds
-enum states = { START, READ, UPDATE, COMMIT, Done }
-instantiate keySet : TSet key Keys
-instantiate txIdSet : TSet txId TxIds
+type key
+type txId
+type keySet
+instantiate kset : TSet key keySet
+-- `ClientCentric` quantifies over all keys (states) and `Range(ops)` over all TxIds
+instantiate keyEnum : Veil.Enumeration key
+instantiate txEnum : Veil.Enumeration txId
+
+-- PlusCal labels
+enum pcLabel = { START, READ, UPDATE, COMMIT, Done }
+
+/-! ## ClientCentric (only what `Serializability` needs)
+
+`CC == INSTANCE ClientCentric WITH Keys <- Key, Values <- TxId \union {NoVal}`. A database
+state is a function `κ → ν`; states are compared pointwise over the list of all keys. -/
+
+-- Operation == [op: {"read", "write"}, key: Keys, value: Values]
+@[veil_decl]
+inductive OpKind where
+  | read
+  | write
 
 @[veil_decl]
-inductive OpType where
-  | Read
-  | Write
-deriving instance Veil.Enumeration, Lean.ToJson for OpType
-
-@[veil_decl]
-structure Op (α β : Type) where
-  op : OpType
-  key : α
-  value : β
-deriving instance Veil.Enumeration, Lean.ToJson for Op
-
-type Ops
-instantiate opsSet : TSet (Op key txId) Ops
--- \* Instantiating ClientCentric enables us to check transaction isolation guarantees this model satisfies
--- \* https://muratbuffalo.blogspot.com/2022/07/automated-validation-of-state-based.html
--- CC == INSTANCE ClientCentric WITH Keys <- Key, Values <- TxId \union {NoVal}
--- \* BEGIN TRANSLATION (chksum(pcal) = "1adfcb46" /\ chksum(tla) = "5b28617f")
--- VARIABLES store, tx, missed, pc, snapshotStore, read_keys, write_keys, ops
--- vars == << store, tx, missed, pc, snapshotStore, read_keys, write_keys, ops>>
-function store : key → txId
-relation tx : txId → Bool
-function missed : txId → Keys
-function snapshotStore : txId → key → txId
-function read_keys : txId → Keys
-function write_keys : txId → Keys
-relation pc : txId → states → Bool
-function ops : txId → List (Op key txId)
-
-
-/- __GHOST VAIRBLES__ -/
--- State == [Keys -> Values]
--- Note: In TLA+, State is a function from Keys to Values
--- We represent this as (key → txId) in Veil
--- abbrev KVState (key txId : Type) [BEq key] [Hashable key] := HashMap key txId
-type KVState
-instantiate totalMap : TMap key txId KVState
+structure Operation (κ ν : Type) where
+  op : OpKind
+  key : κ
+  value : ν
 
 -- ExecutionElem == [parentState: State, transaction: Transaction]
+structure ExecutionElem (κ ν : Type) where
+  parentState : κ → ν
+  transaction : List (Operation κ ν)
 
-@[veil_decl]
-structure ExecutionElem (k t σ: Type) where
-  parentState : σ  -- State is a function
-  transaction : List (Op k t)
+namespace CC
 
--- Execution == Seq(ExecutionElem) -- List (ExecutionElem k t σ)
--- Accumulator for execution computation
-@[veil_decl]
-structure ExecutionAcc (k t σ : Type) where
-  execution : List (ExecutionElem k t σ)
-  nextState : σ -- State is a function
+/-- Equality of two states `[Keys -> Values]`, given the list of all keys. -/
+def stateEq {κ ν : Type} [DecidableEq ν] (keys : List κ) (s₁ s₂ : κ → ν) : Bool :=
+  keys.all fun k => s₁ k == s₂ k
 
--- type transactions
--- type executionsTy
--- instantiate transactionSet : TSet (List (Op key txId)) transactions
--- instantiate executionSet : TSet (List (ExecutionElem key txId KVState)) executionsTy
-immutable individual initialState : KVState
-individual transaction : List (Op key txId)
-individual TransactionsPool : List (List (Op key txId))
-individual ExecutionsPool : List (List (ExecutionElem key txId KVState))
-immutable individual txIdUniv : TxIds
+/-- `Index(executionStates(execution), s)`: the first index (TLC's `CHOOSE` over `1..n`). -/
+def stateIndex {κ ν : Type} [DecidableEq ν] (keys : List κ) (states : List (κ → ν)) (s : κ → ν) : Nat :=
+  states.findIdx (stateEq keys · s)
 
+-- effects(state, transaction) ==
+--        ReduceSeq(LAMBDA o, newState: IF o.op = "write" THEN [newState EXCEPT ![o.key] = o.value] ELSE newState, transaction, state)
+def effects {κ ν : Type} [DecidableEq κ] (state : κ → ν) (txn : List (Operation κ ν)) : κ → ν :=
+  txn.foldl (fun st o =>
+    if o.op = .write then fun k => if k = o.key then o.value else st k else st) state
 
+-- executions(initialState, transactions) ==
+--   LET orderings == PermSeqs(transactions)
+--       accummulator == [ execution |-> <<>>, nextState |-> initialState ]
+--   IN { LET executionAcc == ReduceSeq(
+--                             LAMBDA t, acc: [ execution |-> Append(acc.execution, [parentState |-> acc.nextState, transaction |-> t])
+--                                            , nextState |-> effects(acc.nextState,t) ],
+--                             ordering, accummulator)
+--        IN executionAcc.execution
+--      : ordering \in orderings }
+-- `transactions` must be duplicate-free (it is a set in TLA+).
+def executions {κ ν : Type} [DecidableEq κ] (initialState : κ → ν) (transactions : List (List (Operation κ ν))) :
+    List (List (ExecutionElem κ ν)) :=
+  (Veil.List.permutations transactions).map fun ordering =>
+    (ordering.foldl (fun (acc : List (ExecutionElem κ ν) × (κ → ν)) t =>
+      (acc.1 ++ [⟨acc.2, t⟩], effects acc.2 t)) ([], initialState)).1
+
+-- parentState(execution, transaction) ==
+--   LET ind == CHOOSE i \in 1..Len(execution): execution[i].transaction = transaction
+--   IN execution[ind].parentState
+-- `none` when `transaction` is not in `execution` (never the case for `CT_SER` below).
+def parentState {κ ν : Type} [DecidableEq κ] [DecidableEq ν] (execution : List (ExecutionElem κ ν))
+    (transaction : List (Operation κ ν)) : Option (κ → ν) :=
+  (execution.find? (·.transaction == transaction)).map (·.parentState)
+
+-- beforeOrEqualInExecution(execution, state1, state2) ==
+--   LET states == executionStates(execution)
+--   IN  Index(states, state1) <= Index(states, state2)
+def beforeOrEqualInExecution {κ ν : Type} [DecidableEq ν] (keys : List κ) (execution : List (ExecutionElem κ ν))
+    (state1 state2 : κ → ν) : Bool :=
+  let states := execution.map (·.parentState)
+  stateIndex keys states state1 ≤ stateIndex keys states state2
+
+-- The condition defining `ReadStates(execution, operation, transaction)`, for one `s \in Se`:
+--   /\ beforeOrEqualInExecution(execution, s, sp)
+--   /\ \/ s[operation.key] = operation.value
+--      \/ \E write \in SeqToSet(transaction):
+--         /\ write.op = "write" /\ write.key = operation.key /\ write.value = operation.value
+--         /\ earlierInTransaction(transaction, write, operation)
+--      \/ operation.op = "write"
+def isReadState {κ ν : Type} [DecidableEq κ] [DecidableEq ν] (keys : List κ) (execution : List (ExecutionElem κ ν))
+    (transaction : List (Operation κ ν)) (sp : κ → ν) (operation : Operation κ ν) (s : κ → ν) : Bool :=
+  beforeOrEqualInExecution keys execution s sp &&
+    (s operation.key == operation.value ||
+     transaction.any (fun w =>
+       w.op == .write && w.key == operation.key && w.value == operation.value &&
+       transaction.idxOf w < transaction.idxOf operation) ||
+     operation.op == .write)
+
+-- Complete(execution, transaction, state) ==
+--   LET setOfAllReadStatesOfOperation(transactionOperations) ==
+--         { ReadStates(execution, operation, transaction) : operation \in SeqToSet(transactionOperations) }
+--       readStatesForEmptyTransaction == { s \in SeqToSet(executionStates(execution)) : beforeOrEqualInExecution(execution, s, parentState(execution, transaction)) }
+--   IN state \in INTERSECTION(setOfAllReadStatesOfOperation(transaction) \union { readStatesForEmptyTransaction } )
+-- Membership in the intersection is checked directly instead of building the sets.
+def complete {κ ν : Type} [DecidableEq κ] [DecidableEq ν] (keys : List κ) (execution : List (ExecutionElem κ ν))
+    (transaction : List (Operation κ ν)) (state : κ → ν) : Bool :=
+  match parentState execution transaction with
+  | none => false
+  | some sp =>
+    (execution.any fun e => stateEq keys e.parentState state) &&
+      beforeOrEqualInExecution keys execution state sp &&
+      transaction.all fun operation => isReadState keys execution transaction sp operation state
+
+-- CT_SER(transaction, execution) ==
+--   Complete(execution, transaction, parentState(execution, transaction))
+def CT_SER {κ ν : Type} [DecidableEq κ] [DecidableEq ν] (keys : List κ) (transaction : List (Operation κ ν))
+    (execution : List (ExecutionElem κ ν)) : Bool :=
+  match parentState execution transaction with
+  | none => false
+  | some sp => complete keys execution transaction sp
+
+-- satisfyIsolationLevel(initialState, transactions, commitTest(_,_)) ==
+--   \E execution \in executions(initialState, transactions): \A transaction \in transactions:
+--     commitTest(transaction, execution)
+-- Serializability(initialState, transactions) == satisfyIsolationLevel(initialState, transactions, CT_SER)
+def Serializability {κ ν : Type} [DecidableEq κ] [DecidableEq ν] (keys : List κ) (initialState : κ → ν)
+    (transactions : List (List (Operation κ ν))) : Bool :=
+  (executions initialState transactions).any fun execution =>
+    transactions.all fun transaction => CT_SER keys transaction execution
+
+end CC
+
+-- VARIABLES store, tx, missed, pc, snapshotStore, read_keys, write_keys, ops
+-- \* A data store mapping keys to values
+function store : key → Option txId
+-- \* The set of open snapshot transactions
+relation tx : txId → Bool
+-- \* The set of writes invisible to each transaction
+function missed : txId → keySet
+function pc : txId → pcLabel
+-- \* local snapshot of the store
+function snapshotStore : txId → key → Option txId
+-- \* read keys  for the transaction
+function read_keys : txId → keySet
+-- \* write keys for the transaction
+function write_keys : txId → keySet
+-- \* a log of reads & writes this transaction executes; used for interfacing to CC
+function ops : txId → List (Operation key (Option txId))
 
 #gen_state
 
-procedure SetToSeq (L : Ops) { return opsSet.toList L }
-
-procedure effects (curState : KVState) (transaction : List (Op key txId)) {
-  let newState := transaction.foldl (fun acc o =>
-    match o.op with
-    | OpType.Write => totalMap.insert o.key o.value acc
-    | OpType.Read => acc
-  ) curState
-  return newState
-}
-
-procedure executions (initState : KVState) (trans : List (List (Op key txId))) {
-  let orderings := Veil.List.permutations trans
-  let initAcc : ExecutionAcc key txId KVState := { execution := [], nextState := initState }
-  let allExecutions := orderings.map fun ordering =>
-    let executionAcc := ordering.foldl (fun acc t =>
-      let newState := t.foldl (fun st o =>
-        if o.op == OpType.Write then
-          totalMap.insert o.key o.value st
-        else
-          st
-      ) acc.nextState
-
-      { execution := acc.execution ++ [{ parentState := acc.nextState, transaction := t }],
-        nextState := newState }
-    ) initAcc
-    executionAcc.execution
-
-  return allExecutions
-}
-
-
-
-procedure updatePools {
-  let allTxIds := txIdSet.toList txIdUniv
-  let allTransactions := allTxIds.map (fun t => ops t)
-  let nonEmptyTransactions := allTransactions.filter (fun t => t.length > 0)
-  TransactionsPool := nonEmptyTransactions.eraseDups
-  let allExecs ← executions initialState TransactionsPool
-  ExecutionsPool := allExecs.eraseDups
-}
-
-
--- Init == (* Global variables *)txId
+-- Init == (* Global variables *)
 --         /\ store = [k \in Key |-> NoVal]
 --         /\ tx = {}
 --         /\ missed = [t \in TxId |-> {}]
@@ -151,15 +188,14 @@ procedure updatePools {
 --         /\ ops = [self \in TxId |-> <<>>]
 --         /\ pc = [self \in ProcSet |-> "START"]
 after_init {
-  store K := noVal
+  store K := none
   tx T := false
-  missed T := keySet.empty
-  snapshotStore T K := noVal
-  read_keys T := keySet.empty
-  write_keys T := keySet.empty
+  missed T := kset.empty
+  snapshotStore T K := none
+  read_keys T := kset.empty
+  write_keys T := kset.empty
   ops T := []
-  updatePools
-  pc T S := S == START
+  pc T := START
 }
 
 -- START(self) == /\ pc[self] = "START"
@@ -171,50 +207,38 @@ after_init {
 --                       /\ write_keys' = [write_keys EXCEPT ![self] = wk]
 --                /\ pc' = [pc EXCEPT ![self] = "READ"]
 --                /\ UNCHANGED << store, missed, ops >>
-action _START (self : txId) {
-  require self ≠ noVal
-  require pc self START
-  -- require ¬ tx self
+-- (`SUBSET Key \ { {} }` parses as `(SUBSET Key) \ { {} }`: the non-empty subsets.)
+action Start (self : txId) {
+  require pc self = START
   tx self := true
   snapshotStore self K := store K
-  let rk :| keySet.count rk > 0
-  let wk :| keySet.count wk > 0
+  let rk :| ¬ kset.isEmpty rk
+  let wk :| ¬ kset.isEmpty wk
   read_keys self := rk
   write_keys self := wk
-  pc self S := S == READ
+  pc self := READ
 }
 
 -- READ(self) == /\ pc[self] = "READ"
 --               /\ ops' = [ops EXCEPT ![self] = ops[self] \o SetToSeq({rOp(k, snapshotStore[self][k]): k \in read_keys[self]})]
 --               /\ pc' = [pc EXCEPT ![self] = "UPDATE"]
---               /\ UNCHANGED << store, tx, missed, snapshotStore, read_keys,
---                               write_keys >>
-action _READ (self : txId) {
-  require self ≠ noVal
-  require pc self READ
-  let readOps : Ops := keySet.map (read_keys self) (fun k =>
-    { op := OpType.Read,
-      key := k,
-      value := snapshotStore self k : Op key txId })
-  let readOpsSeq ← SetToSeq readOps
-  ops self := ops self ++ readOpsSeq
-  updatePools
-
-  pc self S := S == UPDATE
+--               /\ UNCHANGED << store, tx, missed, snapshotStore, read_keys, write_keys >>
+action Read (self : txId) {
+  require pc self = READ
+  ops self := ops self ++
+    (kset.toList (read_keys self)).map (fun k => ⟨.read, k, snapshotStore self k⟩)
+  pc self := UPDATE
 }
 
 -- UPDATE(self) == /\ pc[self] = "UPDATE"
 --                 /\ snapshotStore' = [snapshotStore EXCEPT ![self] = [k \in Key |-> IF k \in write_keys[self] THEN self ELSE snapshotStore[self][k] ]]
 --                 /\ pc' = [pc EXCEPT ![self] = "COMMIT"]
 --                 /\ UNCHANGED << store, tx, missed, read_keys, write_keys, ops >>
-action _UPDATE (self : txId) {
-  require self ≠ noVal
-  require pc self UPDATE
-  snapshotStore self K := if keySet.contains K (write_keys self) then self else snapshotStore self K
-  pc self S := S == COMMIT
+action Update (self : txId) {
+  require pc self = UPDATE
+  snapshotStore self K := if K ∈ write_keys self then some self else snapshotStore self K
+  pc self := COMMIT
 }
-
-
 
 -- COMMIT(self) == /\ pc[self] = "COMMIT"
 --                 /\ IF missed[self] \intersect write_keys[self] = {}
@@ -226,102 +250,40 @@ action _UPDATE (self : txId) {
 --                            /\ UNCHANGED << store, tx, missed, ops >>
 --                 /\ pc' = [pc EXCEPT ![self] = "Done"]
 --                 /\ UNCHANGED << snapshotStore, read_keys, write_keys >>
-action _COMMIT (self : txId) {
-  require self ≠ noVal
-  require pc self COMMIT
-  if keySet.intersection (missed self) (write_keys self) == keySet.empty then
+-- Reads: `missed'` reads the new `tx`, so `tx` is updated first; nothing else reads a
+-- field that this action changes.
+action Commit (self : txId) {
+  require pc self = COMMIT
+  if kset.isEmpty (kset.intersection (missed self) (write_keys self)) then
     tx self := false
-    missed O := if tx O then keySet.union (missed O) (write_keys self) else missed O
-    store K := if keySet.contains K (write_keys self) then (snapshotStore self K) else store K
-    let writeOps : Ops := keySet.map (write_keys self) (fun k =>
-      { op := OpType.Write,
-        key := k,
-        value := self : Op key txId })
-    let writeOpsSeq ← SetToSeq writeOps
-    ops self := ops self ++ writeOpsSeq
-
-    updatePools
-
-  pc self S := S == Done
+    missed O := if tx O then kset.union (missed O) (write_keys self) else missed O
+    store K := if K ∈ write_keys self then snapshotStore self K else store K
+    ops self := ops self ++
+      (kset.toList (write_keys self)).map (fun k => ⟨.write, k, some self⟩)
+  pc self := Done
 }
 
+-- Terminating == /\ \A self \in ProcSet: pc[self] = "Done"
+--                /\ UNCHANGED vars
+termination [AllDone] ∀ t, pc t = Done
 
+-- InitialState == [k \in Key |-> NoVal]
+-- Serialization == CC!Serializability(InitialState, Range(ops))
+-- \* Serializability would not be satisfied due to write-skew
+ghost relation serialization :=
+  CC.Serializability keyEnum.allValues (fun _ => (none : Option txId))
+    ((txEnum.allValues.map ops).eraseDups) = true
 
-ghost relation isComplete (execution : List (ExecutionElem key txId KVState)) (transaction : List (Op key txId)) (state : KVState) :=
-  let Se := execution.map (fun e => e.parentState)
-  let spIdx := (execution.findIdx? (fun e => e.transaction == transaction)) |>.getD 0
-  let statesUpToSp := Se.take (spIdx + 1)
-  -- Helper: compute read states for a single operation (pure function)
-  let computeReadStates (operation : Op key txId) : List KVState :=
-    statesUpToSp.filter (fun s =>
-      let stateMatchesOp := (totalMap.lookup operation.key s |>.getD noVal) == operation.value
-      let writeIdx := transaction.findIdx? (fun w =>
-        w.op == OpType.Write && w.key == operation.key && w.value == operation.value
-      )
-      let opIdx := transaction.findIdx? (fun w => w == operation)
-      let existsEarlierWrite := writeIdx.isSome && (opIdx.getD 0) > (writeIdx.getD 0)
-      let isWriteOp := operation.op == OpType.Write
-      stateMatchesOp || existsEarlierWrite || isWriteOp
-    )
-  -- All read states for each operation
-  let allReadStates := transaction.map computeReadStates
-  -- Read states for empty transaction
-  let emptyReadStates := statesUpToSp
-  -- Check if state is in intersection
-  if transaction.isEmpty then
-    emptyReadStates.contains state = true
-  else
-    let isInIntersection := allReadStates.all (fun readStateList => readStateList.contains state)
-    let isInEmptyStates := emptyReadStates.contains state
-    isInIntersection && isInEmptyStates = true
+safety [Serialization] serialization
 
-
-invariant [serializability]
-  TransactionsPool.length > 0 →
-    (∃ exec ∈ ExecutionsPool,
-      ∀ trans ∈ TransactionsPool,
-        let parentStateIdx := (exec.findIdx? (fun e => e.transaction == trans)) |>.getD 0
-        let parentSt := if parentStateIdx < exec.length
-                        then exec[parentStateIdx]!.parentState
-                        else initialState
-        isComplete exec trans parentSt)
-
-
-termination [all_thread_done] (∀ t : txId, t ≠ noVal → pc t Done)
-
--- veil_set_option useNewExtraction true
 #gen_spec
-#gen_executable
 
+-- MCKVsnap.cfg: Key = {k1, k2, k3}, TxId = {t1, t2, t3}; no SYMMETRY.
+-- `Serialization` is expected to fail (write skew).
+set_option veil.violationIsError false in
+#model_check compiled
+{ key := Fin 3,
+  txId := Fin 2,
+  keySet := OrdList (Fin 3) } {}
 
-
-def m1 : Std.ExtTreeMap key_IndT txId_IndT compare :=
-  ExtTreeMap.ofList [
-    (.K1, .noVal),
-    (.K2, .noVal),
-  ] compare
-
-
--- set_option veil.violationIsError false in
--- #model_check compiled
--- {
---   key := key_IndT,
---   Keys := Std.ExtTreeSet key_IndT compare,
---   txId := txId_IndT,
---   TxIds := Std.ExtTreeSet txId_IndT compare,
---   states := states_IndT,
---   Ops := ExtTreeSet (Op key_IndT txId_IndT),
---   KVState := ExtTreeMap key_IndT txId_IndT
--- }
--- {
---   initialState := Std.ExtTreeMap.ofList [
---     (key_IndT.K1, txId_IndT.noVal),
---     (key_IndT.K2, txId_IndT.noVal),
---     (key_IndT.K3, txId_IndT.noVal),
---   ] compare
---   -- initialState := m1
--- ,
---   txIdUniv := ExtTreeSet.ofList ([.T1, .T2, .T3] : List txId_IndT),
--- }
-
-end KVSnap
+end KVsnapNew
