@@ -1,6 +1,7 @@
 module
 
 public meta import Lean
+public meta import Lentil.Basic
 public meta import Veil.Util.Meta
 
 public meta section
@@ -188,6 +189,7 @@ inductive DeclarationKind where
   | stateAssertion (k : StateAssertionKind)
   | procedure (info : ProcedureInfo)
   | derivedDefinition (k : DerivedDefinitionKind) (derivedFrom : Std.HashSet Name)
+  | temporalProperty
 deriving Inhabited
 
 instance : BEq DeclarationKind where
@@ -198,6 +200,7 @@ instance : BEq DeclarationKind where
     | .stateAssertion a, .stateAssertion b => a == b
     | .procedure a, .procedure b => a == b
     | .derivedDefinition a b, .derivedDefinition c d => a == c && b.all (fun x => d.contains x) && d.all (fun x => b.contains x)
+    | .temporalProperty, .temporalProperty => true
     | _, _ => false
 
 instance : Repr DeclarationKind where
@@ -208,6 +211,7 @@ instance : Repr DeclarationKind where
     | .stateAssertion a => s!"stateAssertion {repr a}"
     | .procedure a => s!"procedure {repr a}"
     | .derivedDefinition a b => s!"derivedDefinition {repr a} (derivedFrom: {repr b.toArray})"
+    | .temporalProperty => "temporalProperty"
 
 /-! ## Actual representations -/
 
@@ -309,6 +313,17 @@ structure LivenessAssertion where
   userSyntax : Syntax
 deriving Inhabited
 
+/-- A temporal property is a temporal formula over the system's execution traces. -/
+structure TemporalProperty where
+  name : Name
+  /-- Extra parameters needed to elaborate this temporal property. -/
+  extraParams : Array Parameter := #[]
+  /-- Lean term for this temporal property (should have type `Lentil.pred State`) -/
+  term : TSyntax `tlfml
+  /-- The user-written syntax -/
+  userSyntax : Syntax
+deriving Inhabited
+
 /--
   A `procedure` is a chunk of imperative code that takes arguments and
   potentially returns a value.
@@ -404,6 +419,8 @@ structure Module where
   procedures : Array ProcedureSpecification
   /-- The assertions that this module makes -/
   assertions : Array StateAssertion
+  /-- Temporal properties declared in this module. -/
+  temporalProperties : Array TemporalProperty := #[]
 
   /-- The `liveness` (LTL) properties that this module makes. -/
   livenessProperties : Array LivenessAssertion := #[]
