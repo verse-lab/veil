@@ -35,7 +35,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "83bceb4f0f636ac9b985cd24dad15bd769bf5171",
+   "rev": "f34750b78e3d1d8a37b820584ba0de6ec7faff03",
    "name": "LTLLib",
    "manifestFile": "lake-manifest.json",
    "inputRev": "main",
