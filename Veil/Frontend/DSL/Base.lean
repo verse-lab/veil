@@ -17,6 +17,7 @@ public import Veil.Frontend.DSL.Action.Semantics.Theorems
 public meta import Veil.Frontend.DSL.Module.Representation
 public meta import Veil.Frontend.DSL.Module.Elaborators.Verification
 public meta import Veil.Frontend.DSL.Module.ConfigTemplate
+public meta import Veil.Frontend.DSL.Module.Elaborators.Temporal
 public meta import Veil.Frontend.DSL.Infra.Assertions
 public meta import Veil.Frontend.DSL.Infra.EnvExtensions
 public meta import Veil.Frontend.DSL.Infra.Simp
