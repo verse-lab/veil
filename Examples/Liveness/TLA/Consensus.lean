@@ -43,7 +43,7 @@ set_option veil.smt.trust false
 
 #check_invariants
 
-temporal [success] 𝒲ℱ choose → ◇ ⌜ someChosen ⌝
+temporal (only := verify) [success] 𝒲ℱ choose → ◇ ⌜ someChosen ⌝
 
 prove_temporal_by [success]
   -- Name each of the three conjuncts: ⌜ Init ⌝, □⟨ NextStep ⟩ and □⌜ Invariants ⌝

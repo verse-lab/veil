@@ -19,10 +19,8 @@ syntax (name := tlfmlStateAtom) "veil_tlfml_state_atom% " term:max : term
 macro_rules
   | `([tlfml| ⌜ $t:term ⌝]) => `(veil_tlfml_state_atom% ($t))
   -- These name the action labels that the model checker sees, which a `Lentil.pred` cannot observe
-  | `([tlfml| E($a:ident $_args*)]) => Macro.throwErrorAt a
-    "`E(…)` is an atom of `liveness` properties, which are model checked; a `temporal` property cannot use it"
-  | `([tlfml| T($a:ident $_args*)]) => Macro.throwErrorAt a
-    "`T(…)` is an atom of `liveness` properties, which are model checked; a `temporal` property cannot use it"
+  | `([tlfml| E($a:ident $_args*)]) => Macro.throwErrorAt a "`E(…)` only exists for model checking"
+  | `([tlfml| T($a:ident $_args*)]) => Macro.throwErrorAt a "`T(…)` only exists for model checking"
 
 /-- `⌜ t ⌝` as Lentil reads it, `state_pred t`, or, while a temporal property of the current module is
 elaborated, `state_pred (fun st => t)` with the state fields bound in `t` as in an assertion. -/
@@ -36,79 +34,47 @@ elaborated, `state_pred (fun st => t)` with the state fields bound in `t` as in 
     (fun _ _ => `(uqc% ($t:term)))
   elabTerm (← `($(mkIdent ``Lentil.state_pred) fun ($st : $environmentState) => $body)) expectedType?
 
--- NOTE: `temporal` refers to `Init` and `Next` which are only available
--- after the spec is finalized
+/-- Declares a temporal property. Its definitions (`Module.defineTemporalCheck` and
+`Module.defineTemporalVerify`) need what the spec provides: before `#gen_spec`, they are generated once the
+spec is finalized; after, right away. -/
 @[command_elab Veil.temporalDeclaration]
 def elabTemporalDeclaration : CommandElab := fun stx => do
   let mut mod ← getCurrentModule (errMsg := "You cannot declare a temporal property outside of a Veil module!")
   mod ← mod.ensureStateIsDefined
-  -- Needs `Init`, `NextStep`, …, which `#gen_spec` leaves to the first verification
-  -- command under `veil.deferVCGeneration`.
-  mod ← mod.ensureVerificationSpec stx
-  let (name, prop) ← match stx with
-    | `(command|temporal $[$name:propertyName]? $prop:tlfml) =>
-      pure (name.elim (Name.mkSimple s!"temporal_{mod.verifiableTemporalProperties.size}") (·.getPropertyName), prop)
+  let (only?, name?, formula) ← match stx with
+    | `(command|temporal $[(only := $t:ident)]? $[$name:propertyName]? $f:tlfml) => pure (t, name, f)
     | _ => throwUnsupportedSyntax
+  let target ← match only? with
+    | none => pure TemporalTarget.both
+    | some t => match t.getId with
+      | `verify => pure .verify
+      | `check => pure .check
+      | _ => throwErrorAt t "expected `verify` (only prove the property) or `check` (only model check it)"
+  let name := name?.elim (Name.mkSimple s!"temporal_{mod.temporalProperties.size}") (·.getPropertyName)
   mod.throwIfAlreadyDeclared name
-  -- Include the dependencies of both the formula bindings and its proof obligation.
-  let ghostDefs := mod._derivedDefinitions.valuesArray.filter fun dd =>
-      match dd.kind with | .ghost _ | .theoryGhost _ => true | _ => false
-  let dependencies := (Std.HashSet.ofArray (mod.actions.map (·.name)))
-    |>.union (Std.HashSet.ofArray (ghostDefs.map (·.name)))
-    |>.union (Std.HashSet.ofArray #[assembledInitName, assembledNextStepName,
-        assembledInvariantsName, assembledAssumptionsName])
-  let dk : DeclarationKind := .derivedDefinition .actionLike dependencies
-  let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) dk
-  let lp : TemporalProperty :=
-    { name := name, formula := prop, target := .verify, extraParams := extraParams, userSyntax := stx }
-  let baseBinders ← baseParams.mapM (·.binder)
-  let extraBinders ← extraParams.mapM (·.binder)
-  let allBinders := (← baseBinders.mapM mkImplicitBinder) ++ (← extraBinders.mapM mkImplicitBinder)
-  -- Build let bindings for each action's transition relation
-  -- For action `send (x : ts)`, generate:
-  --   let send := fun x => @send.ext.tr <modArgs> x th
-  -- For action `poll` (no params), generate:
-  --   let poll := @poll.ext.tr <modArgs> th
-  let thIdent := mkVeilImplementationDetailIdent `th
-  let mut letBindings : Array (Ident × Term) := #[]
-  for act in mod.actions do
-    let actTrName := mkIdent <| toTransitionName <| toExtName act.name
-    let ((_, modArgs), (specificBinders, specificArgs)) ← mod.declarationSplitBindersArgs act.name act.info.declarationKind
-    let specificFunBinders ← specificBinders.mapM bracketedBinderToFunBinder
-    let appTerm ← `(@$actTrName $modArgs* $specificArgs* $thIdent)
-    let rhs ← mkFunSyntax specificFunBinders appTerm
-    letBindings := letBindings.push (mkIdent act.name, rhs)
-  -- State fields and ghosts need no bindings: each `⌜ t ⌝` sees them as an assertion does
-  -- (`elabTlfmlStateAtom`).
-  -- Assemble the body: let bindings + [tlfml| user_formula ]
-  let fullBody ← do
-    let body ← letBindings.foldrM (init := ← `([tlfml| $prop])) fun (bindName, bindVal) body =>
-      `(let $bindName := $bindVal; $body)
-    -- Expose immutable theory fields in temporal formulas, matching assertions and ghosts.
-    let temporalPredType ← `($(mkIdent ``Lentil.pred) $environmentState)
-    let bodyWithTheory ← liftTermElabM <|
-      mod.withTheoryAndStateTermTemplate
-        [(.theory, thIdent, true)]
-        (some temporalPredType)
-        (fun _ _ => pure body)
-    `(fun ($thIdent : $environmentTheory) => $bodyWithTheory)
-  -- Generate the definition
-  -- NOTE: We might use `remove_unused_args%` to trim some unused arguments, but
-  -- that makes the later use of the temporal property in proofs more complicated,
-  -- as we need to figure out which arguments got removed in building its syntax of application
-  let cmd ← `(noncomputable def $(mkIdent name) $[$allBinders]* := $fullBody)
-  -- The atoms are read against this module (`elabTlfmlStateAtom`)
-  withScope (fun scope => { scope with opts := veil.temporal.moduleAtoms.set scope.opts true }) do
-    elabVeilCommand cmd
-  let newMod := { mod with
-    temporalProperties := mod.temporalProperties.push lp,
-    _declarations := mod._declarations.insert name .temporalProperty
-  }
-  localEnv.modifyModule (fun _ => newMod)
+  let tp : TemporalProperty :=
+    { name, formula, target, userSyntax := stx,
+      checkPending := target.needsCheck,
+      verifyPending := target.needsVerify }
+  mod := { mod with
+    temporalProperties := mod.temporalProperties.push tp
+    _declarations := mod._declarations.insert name .temporalProperty }
+  if mod.isSpecFinalized then
+    if tp.checkPending then
+      mod ← mod.generateTemporalDefinition tp .check
+    localEnv.modifyModule (fun _ => mod)
+    -- Only a property to prove needs `Init`, `NextStep`, …, which `#gen_spec` leaves to the first
+    -- verification command under `veil.deferVCGeneration`. That command, here this one, generates
+    -- every pending shallow definition, including those of properties declared before `#gen_spec`.
+    if tp.verifyPending then
+      mod ← mod.ensureVerificationSpec stx
+  localEnv.modifyModule (fun _ => mod)
 
 private def Module.getStatementForTemporalTheorems [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
   (mod : Module) (propName : Name) : m (Name × Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term) := do
   unless mod.verifiableTemporalProperties.any (·.name == propName) do
+    if mod.temporalProperties.any (·.name == propName) then
+      throwError s!"Temporal property '{propName}' is only model checked, so it has nothing to prove"
     throwError s!"No temporal property named '{propName}' declared in module {mod.name}"
   -- Build the proof obligation:
   --   ∀ (sorts...) (typeclasses...) (th : Theory),

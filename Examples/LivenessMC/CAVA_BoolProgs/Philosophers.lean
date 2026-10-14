@@ -55,14 +55,14 @@ safety [mutex20] ¬(eat2 = true ∧ eat0 = true)
 -- Same property as the CAVA/Isabelle `demo_philosophers` binary: G (F (eat 0)).
 -- Counterexample: the deadlock in which every philosopher holds one fork and nobody eats.
 -- Philosophers 1 and 2 trading their shared fork forever, starving philosopher 0, is another.
-liveness [φPhil0EventuallyEats] □ ◇ ⌜ eat0 = true ⌝
+temporal [φPhil0EventuallyEats] □ ◇ ⌜ eat0 = true ⌝
 
 -- Not checked in the corresponding Isabelle demo, nor here: `#liveness_check` stops at the
 -- counterexample to `φPhil0EventuallyEats` before reaching the properties below.
-liveness [φMutex] □ (¬ (⌜ eat0 = true ⌝ ∧ ⌜ eat1 = true ⌝) ∧ ¬ (⌜ eat1 = true ⌝ ∧ ⌜ eat2 = true ⌝) ∧ ¬ (⌜ eat2 = true ⌝ ∧ ⌜ eat0 = true ⌝))
+temporal [φMutex] □ (¬ (⌜ eat0 = true ⌝ ∧ ⌜ eat1 = true ⌝) ∧ ¬ (⌜ eat1 = true ⌝ ∧ ⌜ eat2 = true ⌝) ∧ ¬ (⌜ eat2 = true ⌝ ∧ ⌜ eat0 = true ⌝))
 
 -- Not checked in the corresponding Isabelle demo, nor here (see above).
-liveness [φSomeoneEats] ◇ (⌜ eat0 = true ⌝ ∨ ⌜ eat1 = true ⌝ ∨ ⌜ eat2 = true ⌝)
+temporal [φSomeoneEats] ◇ (⌜ eat0 = true ⌝ ∨ ⌜ eat1 = true ⌝ ∨ ⌜ eat2 = true ⌝)
 
 #gen_spec
 

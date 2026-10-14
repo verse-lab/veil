@@ -44,8 +44,8 @@ invariant [counterRefl] counter = counter
 
 -- Parameterized ghosts, theory fields and module parameters retain their binders.
 temporal [ghostArgs] ⌞ belowLimit bound ⌟ → (⌜ atValue bound ⌝ → ⌜ atValue bound ⌝)
-temporal [markEnabled] ∀ n : Fin actionBound, ⌞ n.val < limit ⌟ → Enabled (mark n)
-temporal [neverEnabled] ¬ Enabled disabled
+temporal (only := verify) [markEnabled] ∀ n : Fin actionBound, ⌞ n.val < limit ⌟ → Enabled (mark n)
+temporal (only := verify) [neverEnabled] ¬ Enabled disabled
 
 prove_temporal_by [ghostArgs]
   tstart hInit hNext hInv

@@ -27,7 +27,7 @@ individual x : Bool
 after_init { pure () }
 action foo { pure () }
 
-liveness [eventually_x] ◇ ⌜ x = true ⌝
+temporal [eventually_x] ◇ ⌜ x = true ⌝
 
 #guard_msgs in
 #gen_spec

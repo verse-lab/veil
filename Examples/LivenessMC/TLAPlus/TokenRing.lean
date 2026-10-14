@@ -56,7 +56,7 @@ UniqueToken ==
        /\ \A j \in 0..i-1: c[j]= c[0]           \* before i all c equals c[0]
        /\ \A j \in i..N-1: c[j]= (c[0]-1) % M   \* after i all c following c[0]
 -/
-liveness [stab]
+temporal [stab]
   ◇ □ ⌜ (∃ (i:node),
           (forAllPreds i (fun j => c j = c (n 0)))
           ∧ (forAllSuccs i (fun j => c j = (c (n 0) + M - 1) % M)))

@@ -74,14 +74,14 @@ action abort (s : Server) {
 safety [oneStage] ¬(recv 0 = true ∧ work 0 = true)
 
 -- False: every server can accept then abort forever.
-liveness [server0Emits] □ ◇ ⌜ emit 0 = true ⌝
+temporal [server0Emits] □ ◇ ⌜ emit 0 = true ⌝
 
 -- False too: the accept-then-abort loop satisfies it and never emits.
-liveness [server0EmitsWeak]
+temporal [server0EmitsWeak]
   (□ ◇ ⌜ recv 0 = true ⌝) → □ ◇ ⌜ emit 0 = true ⌝
 
 -- True: each server's whole cycle completes infinitely often.
-liveness [server0EmitsFair]
+temporal [server0EmitsFair]
   ( (□ ◇ (⌜ recv 0 = true ⌝ ∧ ◇ (⌜ work 0 = true ⌝ ∧ ◇ ⌜ emit 0 = true ⌝)))
   ∧ (□ ◇ (⌜ recv 1 = true ⌝ ∧ ◇ (⌜ work 1 = true ⌝ ∧ ◇ ⌜ emit 1 = true ⌝)))
   ∧ (□ ◇ (⌜ recv 2 = true ⌝ ∧ ◇ (⌜ work 2 = true ⌝ ∧ ◇ ⌜ emit 2 = true ⌝))) )
@@ -113,22 +113,22 @@ private def timeIt {α} (name : String) (f : Unit → LTLLib.EmptinessResult α)
 
 -- What the router does with each assumption, before any checking happens.
 #eval show IO Unit from do
-  Veil.LivenessMC.explainFairness (server0EmitsWeak Theory (State FieldConcreteType) FieldConcreteType)
-  Veil.LivenessMC.explainFairness (server0EmitsFair Theory (State FieldConcreteType) FieldConcreteType)
+  Veil.LivenessMC.explainFairness (server0EmitsWeak.ast Theory (State FieldConcreteType) FieldConcreteType)
+  Veil.LivenessMC.explainFairness (server0EmitsFair.ast Theory (State FieldConcreteType) FieldConcreteType)
 
 #eval show IO Unit from do
   IO.println "NestedServers, 3 servers, 64 states"
   timeIt "no assumption          " fun _ =>
     Veil.LivenessMC.check (enumerableTransitionSystem {})
-      (server0Emits Theory (State FieldConcreteType) FieldConcreteType)
+      (server0Emits.ast Theory (State FieldConcreteType) FieldConcreteType)
       (by native_decide) (by native_decide)
   timeIt "weak assumption        " fun _ =>
     Veil.LivenessMC.check (enumerableTransitionSystem {})
-      (server0EmitsWeak Theory (State FieldConcreteType) FieldConcreteType)
+      (server0EmitsWeak.ast Theory (State FieldConcreteType) FieldConcreteType)
       (by native_decide) (by native_decide)
   timeIt "nested assumption, hoisted" fun _ =>
     Veil.LivenessMC.checkUnderFairness (enumerableTransitionSystem {})
-      (server0EmitsFair Theory (State FieldConcreteType) FieldConcreteType)
+      (server0EmitsFair.ast Theory (State FieldConcreteType) FieldConcreteType)
 
 /-! ## Veil callbacks per product state
 
@@ -140,7 +140,7 @@ anything above means once per edge. See `EdgeLabels.md` §9. -/
   Veil.LivenessMC.resetVeilTimers
   let t0 ← IO.monoNanosNow
   let r := Veil.LivenessMC.checkUnderFairnessTimed (enumerableTransitionSystem {})
-    (server0EmitsFair Theory (State FieldConcreteType) FieldConcreteType)
+    (server0EmitsFair.ast Theory (State FieldConcreteType) FieldConcreteType)
   let (verdict, states) := match r with
     | .empty k => (s!"holds, {k} product states", k)
     | .nonEmpty stem loop => (s!"fails, cex {stem.length}+{loop.length}", 0)

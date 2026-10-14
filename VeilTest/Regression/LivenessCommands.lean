@@ -15,10 +15,10 @@ after_init { active N := false }
 action activate (n : node) { active n := true }
 action idle { active N := active N }
 
-liveness [alwaysTrue] □ ⊤
-liveness [enabled] □ E(activate)
-liveness [step] □ (T(activate) ∨ T(idle))
-liveness [fairProgress] (□ ◇ T(activate)) → ◇ ⌜ ∃ n, active n ⌝
+temporal [alwaysTrue] □ ⊤
+temporal (only := check) [enabled] □ E(activate)
+temporal (only := check) [step] □ (T(activate) ∨ T(idle))
+temporal (only := check) [fairProgress] (□ ◇ T(activate)) → ◇ ⌜ ∃ n, active n ⌝
 
 invariant true
 #gen_spec
@@ -46,8 +46,8 @@ veil module LivenessCounterexample
 individual flag : Bool
 after_init { flag := false }
 action idle { flag := flag }
-liveness [trivial] □ ⊤
-liveness [eventuallyFlag] ◇ ⌜ flag ⌝
+temporal [trivial] □ ⊤
+temporal [eventuallyFlag] ◇ ⌜ flag ⌝
 invariant true
 #gen_spec
 
@@ -94,9 +94,9 @@ after_init { flag := false }
 action toggle { flag := !flag }
 action idle { flag := flag }
 state_constraint [unflagged] ¬ flag
-liveness [alwaysUnflagged] □ ⌜ ¬ flag ⌝
+temporal [alwaysUnflagged] □ ⌜ ¬ flag ⌝
 -- Negating this places an edge atom in a hoisted FG region, exercising crossing.
-liveness [fairIdle] (□ ◇ E(idle)) → (□ ◇ T(idle))
+temporal (only := check) [fairIdle] (□ ◇ E(idle)) → (□ ◇ T(idle))
 invariant true
 #gen_spec
 /-- info: ✅ No liveness violation (checked 2 properties, explored 1 product states) -/
@@ -113,7 +113,9 @@ after_init { flag := false }
 action idle { flag := flag }
 invariant true
 #gen_spec
-/-- error: No liveness properties declared in this module. Declare a `liveness` property first. -/
+/--
+error: No temporal property of this module is model checked. Declare one with `temporal` (without `only := verify`) first.
+-/
 #guard_msgs in
 #liveness_check interpreted {}
 end NoLiveness
@@ -126,7 +128,7 @@ individual flag : Bool
 after_init { flag := false }
 action idle { flag := flag }
 invariant true
-liveness [trivial] □ ⊤
+temporal [trivial] □ ⊤
 #gen_spec
 
 /--
@@ -154,8 +156,8 @@ individual other : Bool
 after_init { flag := false; other := false }
 action set { flag := true }
 action idle { other := other }
-liveness [fairFlag] (□ ◇ ⌜ ¬ flag ⌝) → □ ◇ ⌜ ¬ flag ⌝
-liveness [eventuallyFlag] (□ ◇ T(set)) → ◇ ⌜ flag ⌝
+temporal [fairFlag] (□ ◇ ⌜ ¬ flag ⌝) → □ ◇ ⌜ ¬ flag ⌝
+temporal (only := check) [eventuallyFlag] (□ ◇ T(set)) → ◇ ⌜ flag ⌝
 invariant true
 #gen_spec
 
@@ -202,7 +204,7 @@ error: `(route := .ndfs)` needs a `finite_reach_by` clause, e.g. `finite_reach_b
 #guard_msgs in
 #liveness_check [fairFlag] interpreted {} {} (route := .dijkstra)
 /--
-error: `noSuchProperty` is not a liveness property of this module. Declared: fairFlag, eventuallyFlag
+error: `noSuchProperty` is not a model-checked temporal property of this module. Model checked: fairFlag, eventuallyFlag
 -/
 #guard_msgs in
 #liveness_check [noSuchProperty] interpreted {}

@@ -26,14 +26,14 @@ action step {
 
 -- `→` associates to the right, as in Lean: `x = 1 → (x = 2 → x = 3)` holds in the initial
 -- state `x = 0`, whereas `(x = 1 → x = 2) → x = 3` does not.
-liveness [impliesRight] ⌜ x = 1 ⌝ → ⌜ x = 2 ⌝ → ⌜ x = 3 ⌝
-liveness [impliesLeft] (⌜ x = 1 ⌝ → ⌜ x = 2 ⌝) → ⌜ x = 3 ⌝
-liveness [iff] ⌜ x = 0 ⌝ ↔ ¬ ⌜ x ≠ 0 ⌝
-liveness [stepFair] □ (E(step) → ◇ T(step))
+temporal [impliesRight] ⌜ x = 1 ⌝ → ⌜ x = 2 ⌝ → ⌜ x = 3 ⌝
+temporal [impliesLeft] (⌜ x = 1 ⌝ → ⌜ x = 2 ⌝) → ⌜ x = 3 ⌝
+temporal (only := check) [iff] ⌜ x = 0 ⌝ ↔ ¬ ⌜ x ≠ 0 ⌝
+temporal (only := check) [stepFair] □ (E(step) → ◇ T(step))
 -- The only run is `x = 0, 1, 2, 3, 3, …`
-liveness [nextIsOne] ◯ ⌜ x = 1 ⌝
-liveness [belowUntilThree] ⌜ x < 3 ⌝ 𝑈 ⌜ x = 3 ⌝
-liveness [zeroLeadsToThree] ⌜ x = 0 ⌝ ↝ ⌜ x = 3 ⌝
+temporal [nextIsOne] ◯ ⌜ x = 1 ⌝
+temporal [belowUntilThree] ⌜ x < 3 ⌝ 𝑈 ⌜ x = 3 ⌝
+temporal [zeroLeadsToThree] ⌜ x = 0 ⌝ ↝ ⌜ x = 3 ⌝
 
 #gen_spec
 
@@ -63,7 +63,8 @@ error: ❌ Violation: liveness_failure (violates: impliesLeft)
 end LivenessTlfmlSyntax
 
 /-! A formula without a model-checking counterpart is reported when the spec is finalized, which is
-when `liveness` properties are elaborated. -/
+when the model-checking definitions of the temporal properties declared before `#gen_spec` are
+generated. With `(only := check)`, this is an error. -/
 
 veil module LivenessTlfmlUnsupported
 
@@ -81,8 +82,8 @@ action step {
 
 ghost relation positive := x > 0
 
-liveness [bare] ◇ positive
-liveness [weakFair] 𝒲ℱ step
+temporal (only := check) [bare] ◇ positive
+temporal (only := check) [weakFair] 𝒲ℱ step
 
 /--
 error: a plain term is not an atomic proposition of a model-checked property; write `⌜ positive ⌝` for a state predicate

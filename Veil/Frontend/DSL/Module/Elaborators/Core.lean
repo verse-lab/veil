@@ -487,67 +487,159 @@ Tried before the plain reading of `[ltl| …]` (`LivenessMC.elabLtlAtom`), to wh
     | _ => throwUnsupportedSyntax
   elabTerm (← `($(mkIdent ``LTLLib.Formula.atom) $atom)) expectedType?
 
-@[command_elab Veil.livenessDeclaration]
-def elabLivenessDeclaration : CommandElab := fun stx => do
-  let mut mod ← getCurrentModule (errMsg := "You cannot declare a liveness property outside of a Veil module!")
-  mod ← mod.ensureStateIsDefined
-  mod.throwIfSpecAlreadyFinalized
-  let (nameStx, formula) ← match stx with
-    | `(command|liveness $name:propertyName ? $f:tlfml) => pure (name, f)
-    | _ => throwUnsupportedSyntax
-  let name := match nameStx with
-    | some n => n.getPropertyName
-    | none => Name.mkSimple s!"liveness_{mod.checkableTemporalProperties.size}"
-  -- Elaborated by `Module.generateLivenessDefinitions` once the spec is finalized, since `E(…)`/`T(…)`
-  -- are decided against the `Label` type that `#gen_spec` generates.
-  let livenessProperty : TemporalProperty := { name, formula, target := .check, userSyntax := stx }
-  localEnv.modifyModule (fun _ => { mod with temporalProperties := mod.temporalProperties.push livenessProperty })
+/-! ## Definitions of temporal properties
 
-/-- Define `p : LivenessProperty ρ σ Label := LivenessProperty.ofFormula `p [ltl| φ]` under the binders of
-`params`, elaborating the formula once. As for an assertion (`Module.mkVeilTerm`), every `Decidable` instance
-that cannot be synthesized here, such as one for a quantifier over a sort or one that exists only at a concrete
-type, becomes a trailing instance-implicit parameter, which `#liveness_check` synthesizes at the types it
-instantiates the module with. Returns these parameters. -/
-def Module.defineLivenessProperty (mod : Module) (name : Name) (formula : TSyntax `tlfml)
-    (params : Array Parameter) : TermElabM (Array Parameter) := withExporting (isExporting := true) do
-  withDeclName ((← getCurrNamespace) ++ name) do
-  let binders ← params.mapM (·.binder)
-  let body ← `(($(mkIdent ``Veil.LivenessMC.LivenessProperty.ofFormula) $(quote name) [ltl| $formula] :
-    $(mkIdent ``Veil.LivenessMC.LivenessProperty) $environmentTheory $environmentState $(← mod.labelTypeStx)))
-  let (insts, e) ← elabBinders binders fun vs => do
-    -- The atoms are read against this module (`elabModuleLtlAtom`)
-    let (insts, e) ← withOptions (veil.temporal.moduleAtoms.set · true) <|
-      getRequiredDecidableInstances name body (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
-    let e ← Meta.mkLambdaFVars (vs ++ insts.map (·.2)) (← instantiateMVars e)
-      (binderInfoForMVars := .instImplicit)
-    let e ← instantiateMVars e
-    if e.hasMVar then
-      let holes ← (← Meta.getMVars e).mapM fun mv => do instantiateMVars (← mv.getType)
-      let holes := MessageData.joinSep (holes.toList.map toMessageData) Format.line
-      throwError "the definition of `{name}` still has holes after elaboration, of type(s){indentD holes}"
-    pure (insts, e)
-  let _ ← addVeilDefinition name (← Meta.letToHave e)
-  return insts.mapIdx fun i (decT, _) =>
-    { kind := .definitionParameter name .typeclass, name := Name.mkSimple s!"{name}_dec_{i}", «type» := decT,
-      userSyntax := .missing }
+A temporal property `p` has up to two definitions: the shallow `p`, a `Lentil.pred` for `prove_temporal_by`,
+and the deep `p.ast`, an `LTLLib.Formula` syntax tree for `#liveness_check`. One declared before the spec is
+finalized gets them later: `p.ast` once `Label` exists (`Module.ensureSpecIsFinalized`), and `p` once `Init`,
+`NextStep`, … do (`Module.ensureVerificationSpec`). -/
 
-def Module.generateLivenessDefinitions (mod : Module) : CommandElabM Module := do
-  let mut mod := mod
-  for lp in mod.checkableTemporalProperties do
-    mod.throwIfAlreadyDeclared lp.name
-    mod ← withTraceNode (`veil.perf.elaborator.liveness ++ lp.name) (fun _ => return s!"liveness {lp.name} (gen)") do
-      let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .invariantLike {})
-      -- As for a `def`, an error in one property is reported and the others are still defined
-      try
-        let decParams ← liftTermElabM <| mod.defineLivenessProperty lp.name lp.formula (baseParams ++ extraParams)
-        let (mod, decParams) ← liftTermElabM <| mod.canonicalizeExtraParams decParams
-        mod.registerDerivedDefinition
-          { name := lp.name, kind := .invariantLike, params := #[], extraParams := extraParams ++ decParams,
-            derivedFrom := {}, stx := none }
-      catch ex =>
-        logException ex
-        pure mod
-  return mod
+private def Module.modifyTemporalProperty (mod : Module) (name : Name) (f : TemporalProperty → TemporalProperty) :
+    Module :=
+  { mod with temporalProperties := mod.temporalProperties.map fun tp => if tp.name == name then f tp else tp }
+
+/-- Define and register `p.ast`, the deep definition of `tp`: a `LivenessProperty ρ σ Label` built by
+`LivenessProperty.ofFormula` from `[ltl| φ]`, elaborating the formula once. Needs the finalized spec. As for an assertion
+(`Module.mkVeilTerm`), every `Decidable` instance that cannot be synthesized here, such as one for a quantifier
+over a sort or one that exists only at a concrete type, becomes a trailing instance-implicit parameter, which
+`#liveness_check` synthesizes at the types it instantiates the module with. -/
+private def Module.defineTemporalCheck (mod : Module) (tp : TemporalProperty) : CommandElabM Module := do
+  let defName := toTemporalAstName tp.name
+  let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .invariantLike {})
+  let decParams ← liftTermElabM <| withExporting (isExporting := true) do
+    withDeclName ((← getCurrNamespace) ++ defName) do
+    let binders ← (baseParams ++ extraParams).mapM (·.binder)
+    let body ← `(($(mkIdent ``Veil.LivenessMC.LivenessProperty.ofFormula) $(quote tp.name) [ltl| $(tp.formula)] :
+      $(mkIdent ``Veil.LivenessMC.LivenessProperty) $environmentTheory $environmentState $(← mod.labelTypeStx)))
+    let (insts, e) ← elabBinders binders fun vs => do
+      -- The atoms are read against this module (`elabModuleLtlAtom`)
+      let (insts, e) ← withOptions (veil.temporal.moduleAtoms.set · true) <|
+        getRequiredDecidableInstances defName body (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
+      let e ← Meta.mkLambdaFVars (vs ++ insts.map (·.2)) (← instantiateMVars e)
+        (binderInfoForMVars := .instImplicit)
+      let e ← instantiateMVars e
+      if e.hasMVar then
+        let holes ← (← Meta.getMVars e).mapM fun mv => do instantiateMVars (← mv.getType)
+        let holes := MessageData.joinSep (holes.toList.map toMessageData) Format.line
+        throwError "the definition of `{defName}` still has holes after elaboration, of type(s){indentD holes}"
+      pure (insts, e)
+    let _ ← addVeilDefinition defName (← Meta.letToHave e)
+    return insts.mapIdx fun i (decT, _) =>
+      { kind := .definitionParameter defName .typeclass, name := Name.mkSimple s!"{tp.name}_dec_{i}",
+        «type» := decT, userSyntax := .missing : Parameter }
+  let (mod, decParams) ← liftTermElabM <| mod.canonicalizeExtraParams decParams
+  mod.registerDerivedDefinition
+    { name := defName, kind := .invariantLike, params := #[], extraParams := extraParams ++ decParams,
+      derivedFrom := {}, stx := none }
+
+/-- Define `p`, the shallow definition of `tp`, and record its extra parameters in `tp`. Needs `Init`,
+`NextStep`, … (`Module.ensureVerificationSpec`). -/
+private def Module.defineTemporalVerify (mod : Module) (tp : TemporalProperty) : CommandElabM Module := do
+  -- The dependencies decide which extracted `Decidable` parameters `p` binds. The formula needs those of
+  -- the actions (bound to their transitions below) and of the ghosts (used in atoms). Only `p._proof` needs
+  -- those of `Init`, `NextStep`, `Invariants` and `Assumptions`: its statement mentions them and reuses the
+  -- binders of `p` (`Module.getStatementForTemporalTheorems`).
+  let ghostDefs := mod._derivedDefinitions.valuesArray.filter fun dd =>
+      match dd.kind with | .ghost _ | .theoryGhost _ => true | _ => false
+  let dependencies := (Std.HashSet.ofArray (mod.actions.map (·.name)))
+    |>.union (Std.HashSet.ofArray (ghostDefs.map (·.name)))
+    |>.union (Std.HashSet.ofArray #[assembledInitName, assembledNextStepName,
+        assembledInvariantsName, assembledAssumptionsName])
+  let dk : DeclarationKind := .derivedDefinition .actionLike dependencies
+  let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) dk
+  let baseBinders ← baseParams.mapM (·.binder)
+  let extraBinders ← extraParams.mapM (·.binder)
+  let allBinders := (← baseBinders.mapM mkImplicitBinder) ++ (← extraBinders.mapM mkImplicitBinder)
+  -- Build let bindings for each action's transition relation
+  -- For action `send (x : ts)`, generate:
+  --   let send := fun x => @send.ext.tr <modArgs> x th
+  -- For action `poll` (no params), generate:
+  --   let poll := @poll.ext.tr <modArgs> th
+  let thIdent := mkVeilImplementationDetailIdent `th
+  let mut letBindings : Array (Ident × Term) := #[]
+  for act in mod.actions do
+    let actTrName := mkIdent <| toTransitionName <| toExtName act.name
+    let ((_, modArgs), (specificBinders, specificArgs)) ← mod.declarationSplitBindersArgs act.name act.info.declarationKind
+    let specificFunBinders ← specificBinders.mapM bracketedBinderToFunBinder
+    let appTerm ← `(@$actTrName $modArgs* $specificArgs* $thIdent)
+    let rhs ← mkFunSyntax specificFunBinders appTerm
+    letBindings := letBindings.push (mkIdent act.name, rhs)
+  -- State fields and ghosts need no bindings: each `⌜ t ⌝` sees them as an assertion does
+  -- (`Veil.elabTlfmlStateAtom`).
+  -- Assemble the body: let bindings + [tlfml| user_formula ]
+  let fullBody ← do
+    let body ← letBindings.foldrM (init := ← `([tlfml| $(tp.formula)])) fun (bindName, bindVal) body =>
+      `(let $bindName := $bindVal; $body)
+    -- Expose immutable theory fields in temporal formulas, matching assertions and ghosts.
+    let temporalPredType ← `($(mkIdent ``Lentil.pred) $environmentState)
+    let bodyWithTheory ← liftTermElabM <|
+      mod.withTheoryAndStateTermTemplate
+        [(.theory, thIdent, true)]
+        (some temporalPredType)
+        (fun _ _ => pure body)
+    `(fun ($thIdent : $environmentTheory) => $bodyWithTheory)
+  -- Generate the definition
+  -- NOTE: We might use `remove_unused_args%` to trim some unused arguments, but
+  -- that makes the later use of the temporal property in proofs more complicated,
+  -- as we need to figure out which arguments got removed in building its syntax of application
+  let cmd ← `(noncomputable def $(mkIdent tp.name) $[$allBinders]* := $fullBody)
+  -- The atoms are read against this module (`Veil.elabTlfmlStateAtom`)
+  withScope (fun scope => { scope with opts := veil.temporal.moduleAtoms.set scope.opts true }) do
+    elabVeilCommand cmd
+  return mod.modifyTemporalProperty tp.name ({ · with extraParams })
+
+/-- `tp` loses its definition for `side` (`.check` for `p.ast`, `.verify` for `p`), which failed with `errs`.
+If `tp` has its other definition too (it did not ask for `(only := …)`), it keeps that one, and the errors
+become warnings suggesting `(only := …)`. Otherwise it has no definition left: the errors are reported and
+`tp` is forgotten. -/
+def Module.dropTemporalDefinition (mod : Module) (tp : TemporalProperty) (side : TemporalTarget)
+    (errs : Array Message) : CommandElabM Module := do
+  if tp.target matches .both then
+    let (rest, kept, failed, keptTarget) := if side.needsCheck
+      then (TemporalTarget.verify, "proved", "model-checking", "verify")
+      else (TemporalTarget.check, "model checked", "proof", "check")
+    -- `logMessage` keeps the positions of the failing subformula, which `logAt` would recompute from a
+    -- `Syntax`, but it skips `warningAsError`, which `logAt` applies
+    let severity := if warningAsError.get (← getOptions) then MessageSeverity.error else .warning
+    for e in errs do
+      logMessage { e with severity, data := m!"`{tp.name}` is only {kept}, since its {failed} \
+        definition fails to elaborate (write `temporal (only := {keptTarget})` to say so):{indentD e.data}" }
+    return mod.modifyTemporalProperty tp.name ({ · with target := rest })
+  -- Already logged once through `logAt`, these keep their positions and context
+  for e in errs do logMessage e
+  -- Forget `tp`
+  return { mod with
+    temporalProperties := mod.temporalProperties.filter (·.name != tp.name)
+    _declarations := mod._declarations.erase tp.name }
+
+/-- Whether a definition of `tp` that `side` needs (`.check` for `p.ast`, `.verify` for `p`) is yet to be
+generated. -/
+private def TemporalProperty.isPending (tp : TemporalProperty) (side : TemporalTarget) : Bool :=
+  (side.needsCheck && tp.checkPending) || (side.needsVerify && tp.verifyPending)
+
+private def TemporalProperty.clearPending (tp : TemporalProperty) (side : TemporalTarget) : TemporalProperty :=
+  { tp with
+    checkPending := tp.checkPending && !side.needsCheck
+    verifyPending := tp.verifyPending && !side.needsVerify }
+
+/-- Generate the pending definition of `tp` for `side`, dropping it if it fails (`Module.dropTemporalDefinition`):
+`.check` for `p.ast`, which needs `Label`, and `.verify` for `p`, which needs `Init`, `NextStep`, …. -/
+def Module.generateTemporalDefinition (mod : Module) (tp : TemporalProperty) (side : TemporalTarget) :
+    CommandElabM Module := do
+  let sideName := if side.needsCheck then "check" else "verify"
+  withTraceNode (`veil.perf.elaborator.temporal ++ tp.name) (fun _ => return s!"temporal {tp.name} ({sideName})") do
+    let define := if side.needsCheck then mod.defineTemporalCheck tp else mod.defineTemporalVerify tp
+    let mod ← match ← commitIfNoErrors define with
+      | .ok mod => pure mod
+      | .error errs => mod.dropTemporalDefinition tp side errs
+    return mod.modifyTemporalProperty tp.name (·.clearPending side)
+
+/-- Generate the pending definitions for `side`: the deep ones once `Label` exists, which are those of the
+properties declared before the spec was finalized, and the shallow ones once `Init`, `NextStep`, … exist,
+which under `veil.deferVCGeneration` include those of the properties declared before `#gen_spec`. -/
+def Module.generatePendingTemporalDefinitions (mod : Module) (side : TemporalTarget) : CommandElabM Module :=
+  mod.temporalProperties.foldlM (init := mod) fun mod tp =>
+    if tp.isPending side then mod.generateTemporalDefinition tp side else pure mod
 
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/
@@ -933,7 +1025,7 @@ private def mkLivenessCheckerCall (mod : Module) (instTerm theoryTerm : Term)
   let sys := ectx.sysWithoutLog
   let sp := ectx.searchParams
   let props ← properties.mapM fun lp =>
-    `($(mkIdentWithModName mod lp.name)
+    `($(mkIdentWithModName mod (toTemporalAstName lp.name))
       ($theoryIdent $instSortArgs*) ($stateIdent ($fieldConcreteDispatcher $instSortArgs*))
       $instSortArgs* ($fieldConcreteDispatcher $instSortArgs*))
   let checkAll := mkIdent ``Veil.LivenessMC.checkAllWithProgress
@@ -954,14 +1046,15 @@ private def selectLivenessProperties (mod : Module) (selection : Array (TSyntax 
     CommandElabM (Array TemporalProperty) := do
   let properties := mod.checkableTemporalProperties
   if properties.isEmpty then
-    throwError "No liveness properties declared in this module. Declare a `liveness` property first."
+    throwError "No temporal property of this module is model checked. Declare one with `temporal` \
+      (without `only := verify`) first."
   if selection.isEmpty then return properties
   let declared := properties.map (·.name)
   let mut wanted : Array Name := #[]
   for nameStx in selection do
     let name := nameStx.getPropertyName
     unless declared.contains name do
-      throwErrorAt nameStx "`{name}` is not a liveness property of this module. Declared: \
+      throwErrorAt nameStx "`{name}` is not a model-checked temporal property of this module. Model checked: \
         {", ".intercalate (declared.map toString).toList}"
     if wanted.contains name then
       throwErrorAt nameStx "`{name}` is named twice."
@@ -991,10 +1084,6 @@ def elabLivenessCheck : CommandElab := fun stx => do
     let mod ← getCurrentModule (errMsg := "You cannot #liveness_check outside of a Veil module!")
     mod.throwIfSpecNotFinalized
     let properties ← selectLivenessProperties mod selection
-    -- `Module.generateLivenessDefinitions` defines nothing for a formula that failed to elaborate
-    for lp in properties do
-      unless (← getEnv).contains (mod.name ++ lp.name) do
-        throwError "`{lp.name}` has no definition to check, since its formula failed to elaborate at `#gen_spec`"
     let theoryTerm ← getTheoryTerm "#liveness_check" theoryTermOpt mod instTerm
     warnAboutTransitions mod
     if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then

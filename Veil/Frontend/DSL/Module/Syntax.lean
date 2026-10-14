@@ -66,7 +66,6 @@ scoped syntax (name := kw_invariant) "invariant" : veilKeyword
 scoped syntax (name := kw_safety) "safety" : veilKeyword
 scoped syntax (name := kw_termination) "termination" : veilKeyword
 scoped syntax (name := kw_state_constraint) "state_constraint" : veilKeyword
-scoped syntax (name := kw_liveness) "liveness" : veilKeyword
 
 scoped syntax (name := kw_gen_spec) "#gen_spec" : veilKeyword
 scoped syntax (name := kw_gen_executable) "#gen_executable" : veilKeyword
@@ -318,10 +317,10 @@ scoped syntax (name := stateConstraintKind) kw_state_constraint : propertyKind
 /-- An assertion. -/
 scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term : command
 
-/- ## Liveness (LTL) properties
+/- ## Temporal (LTL) properties
 
 Formulas are written in Lentil's `tlfml` category, extended below with the action atoms `E(…)` and
-`T(…)`, and with `↔` in `Veil.Core.Tools.LivenessMC.Syntax`. -/
+`T(…)`, and with `↔` in `Veil.Core.Tools.LivenessMC.Syntax`; these three only exist for model checking. -/
 
 /-- `E(a)`: Some instantiation of action `a` can fire here. `E(a x y)`: That parameterized instantiation can.
 
@@ -334,28 +333,27 @@ scoped syntax (name := tlfmlEnabled) "E(" ident (term:max)* ")" : tlfml
 An *edge* atom: it is a property of the step, not of either endpoint. -/
 scoped syntax (name := tlfmlTaken) "T(" ident (term:max)* ")" : tlfml
 
-/-- Declare a liveness (LTL) property.
+/-- A temporal property is an LTL formula over the system's execution traces. Unlike safety
+properties, which are state predicates, temporal properties are properties about traces.
+
+Veil defines it twice: `p`, a `Lentil.pred` that `prove_temporal_by [p]` proves, and `p.ast`, an
+`LTLLib.Formula` syntax tree that `#liveness_check` checks. `(only := verify)` and `(only := check)` keep
+one of them. Without `(only := …)`, a definition that fails to elaborate is dropped with a warning, e.g.
+`p` when the formula uses `E(…)`, which only model checking supports.
+
+Declared before `#gen_spec`, the definitions are generated once the spec is finalized; declared after,
+right away. Inside `⌜ … ⌝`, the module's theory and state fields and its ghosts are in scope, as in an
+assertion.
 
 Example:
 ```lean
-liveness [someChosen] ◇ ⌜ chosen = 1 ⌝
-liveness [sendIsFair] □ (E(send) → ◇ T(send))
+temporal [someChosen] ◇ ⌜ chosen = 1 ⌝
+temporal (only := check) [sendIsFair] □ (E(send) → ◇ T(send))
+temporal (only := verify) [eventuallyChosen] 𝒲ℱ choose → ◇ ⌜ ∃ v, chosen v ⌝
 ```
 -/
-scoped syntax (name := livenessDeclaration) kw_liveness (propertyName)? tlfml : command
-
-/-- A temporal property is an LTL formula over the system's state.
-Unlike safety properties which are state predicates, temporal properties
-are properties about traces. Declared after `#gen_spec`.
-
-Inside `⌜ … ⌝`, the module's theory and state fields and its ghosts are in scope, as in an assertion.
-
-Example:
-```lean
-temporal [eventuallyChosen] 𝒲ℱ choose → ◇ ⌜ ∃ v, chosen v ⌝
-```
--/
-syntax (name := temporalDeclaration) kw_temporal (propertyName)? tlfml : command
+syntax (name := temporalDeclaration)
+  kw_temporal (atomic("(" &"only") " := " ident ")")? (propertyName)? tlfml : command
 
 /-- Prove a previously declared temporal property using tactics.
 Must come after `#gen_spec` since it needs the assembled transition system.
@@ -457,7 +455,8 @@ scoped syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (t
 /-- Proves the `FiniteReach` certificate of `(route := .ndfs)`. -/
 syntax finiteReachBy := "finite_reach_by " tacticSeq
 
-/-- Check all declared `liveness` properties on the instantiated system.
+/-- Check all declared `temporal` properties that are model checked (not `only := verify`) on the
+instantiated system.
 Requires `#gen_spec`; executable definitions are generated automatically. Like `#model_check`,
 the default runs interpreted while compiling in the background and switches to the native
 binary if the interpreted search has not finished. Already passed properties are skipped;

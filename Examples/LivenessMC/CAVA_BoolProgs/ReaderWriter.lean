@@ -122,11 +122,11 @@ action writerDone1 {
 safety [noQError] qError = false
 
 -- Same property as the CAVA/Isabelle `demo_reader_writer` binary: G (not q_error).
-liveness [φNoQError] □ ¬ ⌜ qError = true ⌝
+temporal [φNoQError] □ ¬ ⌜ qError = true ⌝
 
 -- Not checked in the corresponding Isabelle demo. Fails: the readers can keep taking turns forever
 -- and the writers never become active, so this is the property reported below, with its counterexample.
-liveness [φWriterEventuallyActive] ◇ ⌜ writersActive = true ⌝
+temporal [φWriterEventuallyActive] ◇ ⌜ writersActive = true ⌝
 
 #gen_spec
 

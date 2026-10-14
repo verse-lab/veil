@@ -15,7 +15,7 @@ open scoped Veil.Extract
 namespace Veil
 
 private def warnIfNoInvariantsDefined (mod : Module) : CommandElabM Unit := do
-  if mod.invariants.isEmpty && mod.checkableTemporalProperties.isEmpty then
+  if mod.invariants.isEmpty && mod.temporalProperties.isEmpty then
     logWarning "you have not defined any invariants or temporal properties for this specification; did you forget?"
 
 private def warnIfNoActionsDefined (mod : Module) : CommandElabM Unit := do
@@ -118,6 +118,8 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   let (labelCmds, mod) ← mod.assembleLabel
   for cmd in labelCmds do
     elabVeilCommand cmd
+  -- The deep definitions of the temporal properties declared so far, which need `Label`
+  let mod ← mod.generatePendingTemporalDefinitions .check
   -- With `veil.deferVCGeneration`, the verification conditions and everything
   -- else that needs the actions' WPs, including the `doesNotThrow` checks, wait
   -- for a verification command.
@@ -135,13 +137,18 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
 /-- Called by the verification commands. If `#gen_spec` deferred VC generation
 (`veil.deferVCGeneration`), the first call generates the deferred verification
 definitions and does what `#gen_spec` skipped; otherwise this only checks that
-`#gen_spec` ran. -/
+`#gen_spec` ran. Either way, it then defines the pending shallow definitions of
+temporal properties, which need `Init`, `NextStep`, …. -/
 def Module.ensureVerificationSpec (mod : Module) (stx : Syntax) : CommandElabM Module := do
   mod.throwIfSpecNotFinalized
-  unless mod._vcGenerationDeferred do return mod
-  mod.generateDeferredWPs
-  let mod ← mod.prepareVerification stx
-  let mod := { mod with _vcGenerationDeferred := false }
+  let deferred := mod._vcGenerationDeferred
+  unless deferred || mod.temporalProperties.any (·.verifyPending) do return mod
+  let mut mod := mod
+  if deferred then
+    mod.generateDeferredWPs
+    mod ← mod.prepareVerification stx
+    mod := { mod with _vcGenerationDeferred := false }
+  mod ← mod.generatePendingTemporalDefinitions .verify
   localEnv.modifyModule (fun _ => mod)
   return mod
 
@@ -154,7 +161,6 @@ def elabGenSpec : CommandElab := fun stx => do
     -- A previous #gen_spec may have finalized the spec while deferring verification.
     let mod ← if veil.deferVCGeneration.get (← getOptions) then pure mod
       else mod.ensureVerificationSpec stx
-    let mod ← mod.generateLivenessDefinitions
     localEnv.modifyModule (fun _ => mod)
 
 private def proofHasSorryGoalCount (results : VerificationResults VCMetadata SmtResult) : Nat :=

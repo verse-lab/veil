@@ -384,13 +384,13 @@ action declareError2 {
 safety [noError] error = false
 
 -- Same property as the CAVA/Isabelle `demo_leader_filters` binary: F (elected).
-liveness [φEventuallyElected] ◇ ⌜ elected = true ⌝
+temporal [φEventuallyElected] ◇ ⌜ elected = true ⌝
 
 -- Not checked in the corresponding Isabelle demo; holds.
-liveness [φNoError] □ ¬ ⌜ error = true ⌝
+temporal [φNoError] □ ¬ ⌜ error = true ⌝
 
 -- Not checked in the corresponding Isabelle demo; holds.
-liveness [φStableElection] ◇ □ ⌜ elected = true ⌝
+temporal [φStableElection] ◇ □ ⌜ elected = true ⌝
 
 #gen_spec
 

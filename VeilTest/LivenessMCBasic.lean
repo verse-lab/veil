@@ -24,8 +24,8 @@ action choose {
   chosen := 1
 }
 
-liveness [alwaysTrue] □ ⊤
-liveness [eventuallyFalse] ◇ ⊥
+temporal [alwaysTrue] □ ⊤
+temporal [eventuallyFalse] ◇ ⊥
 
 #gen_spec
 
