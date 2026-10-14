@@ -37,7 +37,7 @@ private structure ExecutionContext where
   parallelCfg : Option ModelChecker.ParallelConfig
   /-- Which command owns this context; selects the infoview renderer. -/
   resultKind : TraceDisplay.ResultKind
-  /-- `model_check`, `simulate` or `liveness_check`. -/
+  /-- `model_check`, `simulate` or `temporal_check`. -/
   commandName : String
   mode : ModelCheckingMode
   /-- Wall clock of the compilation in milliseconds; `none` if nothing was compiled. -/
@@ -282,7 +282,7 @@ def ModelCheckingMode.name : ModelCheckingMode → String
 /-- If `veil.modelChecker.emitTimings` is set, print this run's timings to stderr as one JSON line:
 
 ```json
-{"veil_timing":{"command":"liveness_check","mode":"compiled","compile_ms":17204,"run_ms":131,
+{"veil_timing":{"command":"temporal_check","mode":"compiled","compile_ms":17204,"run_ms":131,
   "wall_ms":128,"result":"no_violation_found",
   "timing":{"route":"prune","search_ns":942000,"properties":[…]}}}
 ```

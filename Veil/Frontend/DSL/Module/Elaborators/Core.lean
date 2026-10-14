@@ -1109,7 +1109,7 @@ def elabLivenessCheck : CommandElab := fun stx => do
       checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
     mod.ensureExecutableModelCheckerDefinitions
     let callExpr ← mkLivenessCheckerCall mod instTerm theoryTerm properties cfg.route finiteReachBy
-    ExecutionWorkflow.run { name := "liveness_check" } .liveness mod stx mode callExpr
+    ExecutionWorkflow.run { name := "temporal_check" } .liveness mod stx mode callExpr
       (numLivenessProperties := properties.size)
 
 end Veil
