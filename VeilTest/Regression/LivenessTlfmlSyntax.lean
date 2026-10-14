@@ -88,7 +88,7 @@ temporal (only := check) [weakFair] 𝒲ℱ step
 /--
 error: a plain term is not an atomic proposition of a model-checked property; write `⌜ positive ⌝` for a state predicate
 ---
-error: a model-checked property is built from the atoms `⌜ … ⌝`, `⌞ … ⌟`, `E(…)` and `T(…)` and the fairness conditions `WF(…)` and `SF(…)` with `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`; this formula is none of them
+error: a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `E(…)` and `T(…)`, the fairness conditions `WF(…)` and `SF(…)`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and `∃ x : T, …`; this formula is none of them
 -/
 #guard_msgs in
 #gen_spec
