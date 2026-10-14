@@ -21,7 +21,7 @@ private def simulateCommand : CompiledCommandSpec := {
   name := "simulate"
 }
 
-private def livenessCommand : CompiledCommandSpec := { name := "liveness_check" }
+private def livenessCommand : CompiledCommandSpec := { name := "temporal_check" }
 
 private def registryKeySourceFile := "compilation-registry-key.lean"
 
