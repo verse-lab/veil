@@ -212,20 +212,20 @@ invariant [card_faulty] pset.count Faulty ≤ T
 
 #gen_spec
 
-#model_check
-{ process := (Fin 4),
-  procSet := OrdList (Fin 4) }
-{ N := 4,
-  T := 1,
-  F := 1 }
-
--- This takes more time
--- #model_check compiled
--- { process := (Fin 5),
---   procSet := OrdList (Fin 5) }
--- { N := 5,
+-- #model_check
+-- { process := (Fin 4),
+--   procSet := OrdList (Fin 4) }
+-- { N := 4,
 --   T := 1,
 --   F := 1 }
+
+-- This takes more time
+#model_check compiled
+{ process := (Fin 5),
+  procSet := OrdList (Fin 5) }
+{ N := 5,
+  T := 1,
+  F := 1 }
 
 
 /- Interactive proofs of the verification conditions of `#check_invariants`
