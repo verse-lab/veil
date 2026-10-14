@@ -54,25 +54,25 @@ temporal (only := check) [everyLeafFails] ∀ l : Loc, ◇ ⌜ loc = l ⌝
 
 /-- info: ✅ No liveness violation (checked 1 properties, explored 16 product states) -/
 #guard_msgs in
-#liveness_check [allVisited] interpreted {}
+#temporal_check [allVisited] interpreted {}
 /-- info: ✅ No liveness violation (checked 1 properties, explored 16 product states) -/
 #guard_msgs in
-#liveness_check [allVisitedByHand] interpreted {}
+#temporal_check [allVisitedByHand] interpreted {}
 /-- info: ✅ No liveness violation (checked 1 properties, explored 16 product states) -/
 #guard_msgs in
-#liveness_check [allVisitedInferred] interpreted {}
+#temporal_check [allVisitedInferred] interpreted {}
 /-- error: ❌ Violation: liveness_failure (violates: wholeFails) -/
 #guard_msgs (substring := true) in
-#liveness_check [wholeFails] interpreted {}
+#temporal_check [wholeFails] interpreted {}
 /-- info: ✅ No liveness violation (checked 1 properties, explored 3 product states) -/
 #guard_msgs in
-#liveness_check [someLeaf] interpreted {}
+#temporal_check [someLeaf] interpreted {}
 /-- info: ✅ No liveness violation (checked 1 properties, explored 3 product states) -/
 #guard_msgs in
-#liveness_check [someLeafByHand] interpreted {}
+#temporal_check [someLeafByHand] interpreted {}
 /-- error: ❌ Violation: liveness_failure (violates: everyLeafFails) -/
 #guard_msgs (substring := true) in
-#liveness_check [everyLeafFails] interpreted {}
+#temporal_check [everyLeafFails] interpreted {}
 
 -- Binder predicates are not supported
 /--
@@ -135,15 +135,15 @@ run_meta do
 
 /-- info: ✅ No liveness violation (checked 5 properties, explored 35 product states) -/
 #guard_msgs in
-#liveness_check [eachVisited] [nested] [atMostOne] [someVisited] [anyVisited] interpreted { node := Fin 2 }
+#temporal_check [eachVisited] [nested] [atMostOne] [someVisited] [anyVisited] interpreted { node := Fin 2 }
 /-- info: ✅ No liveness violation (checked 5 properties, explored 62 product states) -/
 #guard_msgs in
-#liveness_check [eachVisited] [nested] [atMostOne] [someVisited] [anyVisited] interpreted { node := Fin 3 }
+#temporal_check [eachVisited] [nested] [atMostOne] [someVisited] [anyVisited] interpreted { node := Fin 3 }
 /-- error: ❌ Violation: liveness_failure (violates: eachVisitedWhole) -/
 #guard_msgs (substring := true) in
-#liveness_check [eachVisitedWhole] interpreted { node := Fin 2 }
+#temporal_check [eachVisitedWhole] interpreted { node := Fin 2 }
 
--- Without an `Enumeration Nat` instance, `#liveness_check` cannot instantiate the property
+-- Without an `Enumeration Nat` instance, `#temporal_check` cannot instantiate the property
 temporal (only := check) [overNat] ∀ k : Nat, ◇ ⌜ k = k ⌝
 
 /--
@@ -151,6 +151,6 @@ error: failed to synthesize instance of type class
   Enumeration Nat
 -/
 #guard_msgs (substring := true) in
-#liveness_check [overNat] interpreted { node := Fin 2 }
+#temporal_check [overNat] interpreted { node := Fin 2 }
 
 end TemporalQuantifiersSorts

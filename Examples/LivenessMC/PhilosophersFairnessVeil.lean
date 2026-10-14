@@ -8,7 +8,7 @@ public import Veil
     - Phil. 0 starves because of deadlock: All 3 pick up their left fork at the same time,
         none can put it down before eating
 
-    `#liveness_check` reports the second error, the deadlock, which its search reaches first.
+    `#temporal_check` reports the second error, the deadlock, which its search reaches first.
     See `PhilosophersFairnessCAVA.lean` for the same system in the CAVA `BoolProgs` style.
 -/
 
@@ -54,7 +54,7 @@ safety [mutex01] ¬(eat 0 = true ∧ eat 1 = true)
 safety [mutex12] ¬(eat 1 = true ∧ eat 2 = true)
 safety [mutex20] ¬(eat 2 = true ∧ eat 0 = true)
 
--- `#liveness_check` checks the properties in declaration order and stops at the first
+-- `#temporal_check` checks the properties in declaration order and stops at the first
 -- counterexample, so the property that holds comes first.
 
 -- (fairness assumption) → phil0EventuallyEats.
@@ -69,6 +69,6 @@ temporal [phil0EventuallyEats] □ ◇ ⌜ eat 0 = true ⌝
 #gen_spec
 
 set_option veil.violationIsError false in
-#liveness_check {}
+#temporal_check {}
 
 end Philosophers

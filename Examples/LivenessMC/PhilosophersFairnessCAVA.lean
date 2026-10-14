@@ -10,7 +10,7 @@ public import Veil
 
     Written in the CAVA `BoolProgs` style: one `individual` per program variable, plus an
     `action_taken` field so the fairness assumption can refer to the last action taken.
-    `#liveness_check` reports the deadlock, the counterexample its search reaches first.
+    `#temporal_check` reports the deadlock, the counterexample its search reaches first.
     See `PhilosophersFairnessVeil.lean` for the same system over relations.
 -/
 
@@ -88,7 +88,7 @@ safety [mutex01] ¬(eat0 = true ∧ eat1 = true)
 safety [mutex12] ¬(eat1 = true ∧ eat2 = true)
 safety [mutex20] ¬(eat2 = true ∧ eat0 = true)
 
--- `#liveness_check` checks the properties in declaration order and stops at the first
+-- `#temporal_check` checks the properties in declaration order and stops at the first
 -- counterexample, so the property that holds comes first.
 
 -- (fairness assumption) → phil0EventuallyEats.
@@ -104,6 +104,6 @@ temporal [phil0EventuallyEats] □ ◇ ⌜ eat0 = true ⌝
 #gen_spec
 
 set_option veil.violationIsError false in
-#liveness_check {}
+#temporal_check {}
 
 end BoolProgPhilosophers

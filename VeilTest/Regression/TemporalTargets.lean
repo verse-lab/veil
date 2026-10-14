@@ -5,7 +5,7 @@ public import Veil.Liveness
 
 open Lentil
 
-/-! A `temporal` property is defined both for `prove_temporal_by` and for `#liveness_check`, whether it is
+/-! A `temporal` property is defined both for `prove_temporal_by` and for `#temporal_check`, whether it is
 declared before or after `#gen_spec`. Without `(only := …)`, a definition that fails to elaborate is
 dropped with a warning. -/
 
@@ -46,7 +46,7 @@ warning: `raiseRecurs` is only model checked, since its proof definition fails t
 -- One property, both model checked and proved
 /-- info: ✅ No liveness violation (checked 1 properties, explored 1 product states) -/
 #guard_msgs in
-#liveness_check [selfImplied] interpreted {}
+#temporal_check [selfImplied] interpreted {}
 
 prove_temporal_by [selfImplied]
   tstart hInit hNext hInv
@@ -56,7 +56,7 @@ prove_temporal_by [selfImplied]
 
 /-- error: `fairRaise` is not a model-checked temporal property of this module. Model checked: selfImplied, raiseRecurs -/
 #guard_msgs in
-#liveness_check [fairRaise] interpreted {}
+#temporal_check [fairRaise] interpreted {}
 
 end TemporalTargets
 

@@ -5,7 +5,7 @@ public import Veil
 /-!
 # Basic liveness model checking
 
-`#liveness_check` accepts `□ ⊤` and finds a counterexample to `◇ ⊥`. Properties are checked in
+`#temporal_check` accepts `□ ⊤` and finds a counterexample to `◇ ⊥`. Properties are checked in
 declaration order and the first counterexample is reported, so a wrong verdict on either property
 changes the message below.
 -/
@@ -41,6 +41,6 @@ error: ❌ Violation: liveness_failure (violates: eventuallyFalse)
       chosen = 1
 -/
 #guard_msgs in
-#liveness_check interpreted {}
+#temporal_check interpreted {}
 
 end Live

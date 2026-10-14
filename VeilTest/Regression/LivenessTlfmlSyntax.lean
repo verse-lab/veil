@@ -39,7 +39,7 @@ temporal [zeroLeadsToThree] ⌜ x = 0 ⌝ ↝ ⌜ x = 3 ⌝
 
 /-- info: ✅ No liveness violation (checked 6 properties, explored 19 product states) -/
 #guard_msgs in
-#liveness_check [impliesRight] [iff] [stepFair] [nextIsOne] [belowUntilThree] [zeroLeadsToThree]
+#temporal_check [impliesRight] [iff] [stepFair] [nextIsOne] [belowUntilThree] [zeroLeadsToThree]
   interpreted {}
 
 /--
@@ -58,7 +58,7 @@ error: ❌ Violation: liveness_failure (violates: impliesLeft)
       x = 3
 -/
 #guard_msgs in
-#liveness_check [impliesLeft] interpreted {}
+#temporal_check [impliesLeft] interpreted {}
 
 end LivenessTlfmlSyntax
 
