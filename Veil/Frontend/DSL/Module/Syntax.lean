@@ -320,7 +320,8 @@ scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term :
 /- ## Temporal (LTL) properties
 
 Formulas are written in Lentil's `tlfml` category, extended below with the action atoms `E(…)` and
-`T(…)`, and with `↔` in `Veil.Core.Tools.LivenessMC.Syntax`; these three only exist for model checking. -/
+`T(…)` and the fairness conditions `WF(…)` and `SF(…)`, and with `↔` in `Veil.Core.Tools.LivenessMC.Syntax`;
+these only exist for model checking. -/
 
 /-- `E(a)`: Some instantiation of action `a` can fire here. `E(a x y)`: That parameterized instantiation can.
 
@@ -332,6 +333,22 @@ scoped syntax (name := tlfmlEnabled) "E(" ident (term:max)* ")" : tlfml
 
 An *edge* atom: it is a property of the step, not of either endpoint. -/
 scoped syntax (name := tlfmlTaken) "T(" ident (term:max)* ")" : tlfml
+
+/-- Weak fairness.
+
+`WF(a x y)` means `(◇ □ E(a x y)) → □ ◇ T(a x y)`: if from some point on `a x y` can fire in every state,
+then `a x y` is taken infinitely often.
+
+`WF(a)` means `(◇ □ E(a)) → □ ◇ T(a)`. Since `E(a)` and `T(a)` are about any instantiation of `a`, this
+says: if from some point on some instantiation of `a` can fire in every state (not necessarily the same
+one), then some instantiation of `a` is taken infinitely often (again not necessarily the same one).
+
+So `WF(a)` does not make every instantiation of `a` fair. For example, a run that keeps taking `a 2`
+satisfies `WF(a)`, even if `a 1` can always fire and is never taken; it does not satisfy `WF(a 1)`. -/
+scoped syntax (name := tlfmlWeakFairness) "WF(" ident (term:max)* ")" : tlfml
+
+/-- Strong fairness. See the explanation for `WF(…)` for details. -/
+scoped syntax (name := tlfmlStrongFairness) "SF(" ident (term:max)* ")" : tlfml
 
 /-- A temporal property is an LTL formula over the system's execution traces. Unlike safety
 properties, which are state predicates, temporal properties are properties about traces.

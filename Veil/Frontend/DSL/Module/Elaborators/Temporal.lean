@@ -21,6 +21,8 @@ macro_rules
   -- These name the action labels that the model checker sees, which a `Lentil.pred` cannot observe
   | `([tlfml| E($a:ident $_args*)]) => Macro.throwErrorAt a "`E(…)` only exists for model checking"
   | `([tlfml| T($a:ident $_args*)]) => Macro.throwErrorAt a "`T(…)` only exists for model checking"
+  | `([tlfml| WF($a:ident $_args*)]) => Macro.throwErrorAt a "`WF(…)` only exists for model checking"
+  | `([tlfml| SF($a:ident $_args*)]) => Macro.throwErrorAt a "`SF(…)` only exists for model checking"
 
 /-- `⌜ t ⌝` as Lentil reads it, `state_pred t`, or, while a temporal property of the current module is
 elaborated, `state_pred (fun st => t)` with the state fields bound in `t` as in an assertion. -/
