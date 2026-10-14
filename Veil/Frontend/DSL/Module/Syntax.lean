@@ -344,7 +344,8 @@ says: if from some point on some instantiation of `a` can fire in every state (n
 one), then some instantiation of `a` is taken infinitely often (again not necessarily the same one).
 
 So `WF(a)` does not make every instantiation of `a` fair. For example, a run that keeps taking `a 2`
-satisfies `WF(a)`, even if `a 1` can always fire and is never taken; it does not satisfy `WF(a 1)`. -/
+satisfies `WF(a)`, even if `a 1` can always fire and is never taken; it does not satisfy `WF(a 1)`.
+To make every instantiation of `a` fair, write `∀ x, WF(a x)`. -/
 scoped syntax (name := tlfmlWeakFairness) "WF(" ident (term:max)* ")" : tlfml
 
 /-- Strong fairness. See the explanation for `WF(…)` for details. -/
@@ -362,10 +363,16 @@ Declared before `#gen_spec`, the definitions are generated once the spec is fina
 right away. Inside `⌜ … ⌝`, the module's theory and state fields and its ghosts are in scope, as in an
 assertion.
 
+`∀ x, φ` and `∃ x, φ` (or `∀ x : T, φ` and `∃ x : T, φ`) quantify over all values of the type of `x`.
+To model check them, the type needs an `Enumeration` instance: `#liveness_check` checks the conjunction
+(for `∀`) or the disjunction (for `∃`) of `φ` over the values that the instance lists. For a sort, this
+is the instance of the type that `#liveness_check` puts in for the sort, e.g. `Fin 3`.
+
 Example:
 ```lean
 temporal [someChosen] ◇ ⌜ chosen = 1 ⌝
 temporal (only := check) [sendIsFair] □ (E(send) → ◇ T(send))
+temporal (only := check) [allSent] (∀ n, WF(send n)) → ∀ n, ◇ ⌜ sent n ⌝
 temporal (only := verify) [eventuallyChosen] 𝒲ℱ choose → ◇ ⌜ ∃ v, chosen v ⌝
 ```
 -/

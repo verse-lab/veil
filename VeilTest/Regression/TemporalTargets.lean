@@ -35,7 +35,7 @@ temporal [fairRaise] 𝒲ℱ raise → ◇ ⌜ raised ⌝
 
 /--
 warning: `fairRaise` is only proved, since its model-checking definition fails to elaborate (write `temporal (only := verify)` to say so):
-  a model-checked property is built from the atoms `⌜ … ⌝`, `⌞ … ⌟`, `E(…)` and `T(…)` and the fairness conditions `WF(…)` and `SF(…)` with `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`; this formula is none of them
+  a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `E(…)` and `T(…)`, the fairness conditions `WF(…)` and `SF(…)`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and `∃ x : T, …`; this formula is none of them
 ---
 warning: `raiseRecurs` is only model checked, since its proof definition fails to elaborate (write `temporal (only := check)` to say so):
   `T(…)` only exists for model checking

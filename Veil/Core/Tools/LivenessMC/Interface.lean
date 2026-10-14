@@ -1,7 +1,9 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.Interface
+public import Veil.Frontend.DSL.State.Types
 public import LTLLib.LTL.Syntax
+public import Lentil.Utils.MiscLemmas
 
 public section
 
@@ -31,6 +33,24 @@ structure LivenessProperty (ρ σ l : Type) where
   name : Name := Name.anonymous
   atoms : List (LivenessAtom ρ σ l)
   φ : LTLLib.Formula Nat -- Reference atomic props by their index in `atoms`
+
+/-- The disjunction of a list of formulas, `⊥` for the empty list. Like `LTLLib.Formula.conj`, it adds no
+`⊥` to a non-empty list.
+
+TODO: This belongs in LTLLib, next to `LTLLib.Formula.conj`. -/
+def disj (φs : List (LTLLib.Formula α)) : LTLLib.Formula α :=
+  LentilLib.List.foldrD .or .ff φs
+
+/-- The conjunction of `φ x` over all values `x` that `Enumeration` lists. In a Veil module,
+`[ltl| ∀ x, φ]` elaborates to it. `φ` comes before the instance, so that the type of `x` can be inferred
+from `φ`. -/
+def forallEnum (φ : α → LTLLib.Formula β) [Enumeration α] : LTLLib.Formula β :=
+  LTLLib.Formula.conj (Enumeration.allValues.map φ)
+
+/-- The disjunction of `φ x` over all values `x` that `Enumeration` lists. In a Veil module,
+`[ltl| ∃ x, φ]` elaborates to it. -/
+def existsEnum (φ : α → LTLLib.Formula β) [Enumeration α] : LTLLib.Formula β :=
+  disj (Enumeration.allValues.map φ)
 
 /-- The property `φ` with its atoms numbered: every occurrence of an atom becomes an atomic proposition
 of its own, numbered in the order `φ` mentions it, left to right. -/

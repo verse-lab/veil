@@ -379,8 +379,12 @@ def normalizeLevelParams (e : Expr) : Expr :=
 returns the set of `Decidable` instances needed to make it elaborate
 correctly. `decBodyTransform` is for simplifying the body of the
 propositions to decide (e.g., removing unnecessary arguments, or
-exposing types explicitly for certain dependently-typed terms). -/
-def getRequiredDecidableInstances (owner : Name) (stx : Term) (decBodyTransform : Expr → TermElabM Expr) : TermElabM (Array (Term × Expr) × Expr) := do
+exposing types explicitly for certain dependently-typed terms).
+
+If `alsoExtract` lists some classes, missing instances of these
+classes are returned as well. -/
+def getRequiredDecidableInstances (owner : Name) (stx : Term) (decBodyTransform : Expr → TermElabM Expr)
+    (alsoExtract : Array Name := #[]) : TermElabM (Array (Term × Expr) × Expr) := do
   /- We want to throw an error if anything fails or is missing during
   elaboration. -/
   Term.withoutErrToSorry $ do
@@ -392,7 +396,7 @@ def getRequiredDecidableInstances (owner : Name) (stx : Term) (decBodyTransform 
   let e ← Term.elabTerm stx none
   Term.synthesizeSyntheticMVars (postpone := .no) (ignoreStuckTC := true)
   let mvars ← (Array.map Expr.mvar) <$> Meta.getMVars e
-  let decInsts ← mvars.zipIdx.filterMapM fun (mv, idx) => simplifyMVarType idx mv isBodyDecidable
+  let decInsts ← mvars.zipIdx.filterMapM fun (mv, idx) => simplifyMVarType idx mv isBodyExtracted
   let canonicalized ← canonicalizeByDefEqType decInsts fun inst => Meta.inferType inst.2
   for (inst, representative) in decInsts.zip canonicalized.representatives do
     unless inst.2 == representative.2 do
@@ -400,8 +404,9 @@ def getRequiredDecidableInstances (owner : Name) (stx : Term) (decBodyTransform 
   let decInsts := canonicalized.unique
   return (decInsts, e)
 where
-  isBodyDecidable (body : Expr) : TermElabM Bool := do
-    return (← Meta.whnf body).getAppFn.constName? == some ``Decidable
+  isBodyExtracted (body : Expr) : TermElabM Bool := do
+    let cls := (← Meta.whnf body).getAppFn.constName?
+    return cls == some ``Decidable || cls.any alsoExtract.contains
   /-- `mv`'s type will include arguments which are not actually needed
   for the predicate. This method gets rid of those unnecessary
   arguments. Moreover, it only returns those `mv`ars whose final result

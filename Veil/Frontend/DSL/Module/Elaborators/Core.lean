@@ -450,6 +450,14 @@ private def mkActionLabelMatch (mod : Module) (actionName : Name) (args : Array 
   else
     `(term| fun $lbl => decide ($lbl = $(Lean.mkIdent (labelTypeName ++ actionName)):ident $args*))
 
+-- `∀ x, φ` and `∃ x, φ` become the conjunction and the disjunction of `φ` over the values that `Enumeration`
+-- lists for the type of `x`. For a sort, these are only known once `#liveness_check` instantiates the module.
+macro_rules
+  | `([ltl| ∀ $x:ident, $f]) => `($(mkIdent ``LivenessMC.forallEnum) fun $x => [ltl| $f])
+  | `([ltl| ∀ $x:ident : $t, $f]) => `($(mkIdent ``LivenessMC.forallEnum) fun ($x : $t) => [ltl| $f])
+  | `([ltl| ∃ $x:ident, $f]) => `($(mkIdent ``LivenessMC.existsEnum) fun $x => [ltl| $f])
+  | `([ltl| ∃ $x:ident : $t, $f]) => `($(mkIdent ``LivenessMC.existsEnum) fun ($x : $t) => [ltl| $f])
+
 /-- The atoms of `[ltl| …]`, read against the current module while Veil elaborates one of its temporal
 formulas (`veil.temporal.moduleAtoms`). `⌜ t ⌝` is a state predicate and `⌞ t ⌟` a theory predicate,
 which see the module's fields as an assertion does; `E(a …)`/`T(a …)` name one of its actions, and
@@ -489,9 +497,10 @@ Tried before the plain reading of `[ltl| …]` (`LivenessMC.elabLtlAtom`), to wh
       throwErrorAt t "a plain term is not an atomic proposition of a model-checked property; write \
         `⌜ {t} ⌝` for a state predicate"
     | `([ltl| $f]) =>
-      throwErrorAt f "a model-checked property is built from the atoms `⌜ … ⌝`, `⌞ … ⌟`, `E(…)` and \
-        `T(…)` and the fairness conditions `WF(…)` and `SF(…)` with `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, \
-        `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`; this formula is none of them"
+      throwErrorAt f "a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `E(…)` and \
+        `T(…)`, the fairness conditions `WF(…)` and `SF(…)`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, \
+        `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and \
+        `∃ x : T, …`; this formula is none of them"
     | _ => throwUnsupportedSyntax
   elabTerm (← `($(mkIdent ``LTLLib.Formula.atom) $atom)) expectedType?
 
@@ -510,7 +519,8 @@ private def Module.modifyTemporalProperty (mod : Module) (name : Name) (f : Temp
 `LivenessProperty.ofFormula` from `[ltl| φ]`, elaborating the formula once. Needs the finalized spec. As for an assertion
 (`Module.mkVeilTerm`), every `Decidable` instance that cannot be synthesized here, such as one for a quantifier
 over a sort or one that exists only at a concrete type, becomes a trailing instance-implicit parameter, which
-`#liveness_check` synthesizes at the types it instantiates the module with. -/
+`#liveness_check` synthesizes at the types it instantiates the module with. The same goes for the
+`Enumeration` instances that the temporal quantifiers `∀ x, …`/`∃ x, …` need, such as one for a sort. -/
 private def Module.defineTemporalCheck (mod : Module) (tp : TemporalProperty) : CommandElabM Module := do
   let defName := toTemporalAstName tp.name
   let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .invariantLike {})
@@ -523,6 +533,7 @@ private def Module.defineTemporalCheck (mod : Module) (tp : TemporalProperty) : 
       -- The atoms are read against this module (`elabModuleLtlAtom`)
       let (insts, e) ← withOptions (veil.temporal.moduleAtoms.set · true) <|
         getRequiredDecidableInstances defName body (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
+          (alsoExtract := #[``Veil.Enumeration])
       let e ← Meta.mkLambdaFVars (vs ++ insts.map (·.2)) (← instantiateMVars e)
         (binderInfoForMVars := .instImplicit)
       let e ← instantiateMVars e
