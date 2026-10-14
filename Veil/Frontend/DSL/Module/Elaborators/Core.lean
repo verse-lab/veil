@@ -452,7 +452,8 @@ private def mkActionLabelMatch (mod : Module) (actionName : Name) (args : Array 
 
 /-- The atoms of `[ltl| …]`, read against the current module while Veil elaborates one of its temporal
 formulas (`veil.temporal.moduleAtoms`). `⌜ t ⌝` is a state predicate and `⌞ t ⌟` a theory predicate,
-which see the module's fields as an assertion does; `E(a …)`/`T(a …)` name one of its actions.
+which see the module's fields as an assertion does; `E(a …)`/`T(a …)` name one of its actions, and
+`WF(a …)`/`SF(a …)` are the formulas they abbreviate, the same as when written out.
 Tried before the plain reading of `[ltl| …]` (`LivenessMC.elabLtlAtom`), to which it defers otherwise. -/
 @[term_elab LivenessMC.ltlFormula] def elabModuleLtlAtom : TermElab := fun stx expectedType? => do
   unless veil.temporal.moduleAtoms.get (← getOptions) do throwUnsupportedSyntax
@@ -476,14 +477,21 @@ Tried before the plain reading of `[ltl| …]` (`LivenessMC.elabLtlAtom`), to wh
       let actionName ← resolveActionAtom mod a args
       `($(mkIdent ``LivenessMC.LivenessAtom.taken) $(quote (Name.mkSimple s!"T({actionName})"))
           $(← mkActionLabelMatch mod actionName args))
+    -- Checking `a …` before unfolding reports a wrong one once, not for both `E(a …)` and `T(a …)`
+    | `([ltl| WF($a:ident $args*)]) =>
+      discard <| resolveActionAtom mod a args
+      return ← elabTerm (← `([ltl| (◇ □ E($a $args*)) → □ ◇ T($a $args*)])) expectedType?
+    | `([ltl| SF($a:ident $args*)]) =>
+      discard <| resolveActionAtom mod a args
+      return ← elabTerm (← `([ltl| (□ ◇ E($a $args*)) → □ ◇ T($a $args*)])) expectedType?
     -- `tlfml` also admits a plain term (a `Lentil.pred`), which has no meaning for the model checker
     | `([ltl| $t:term]) =>
       throwErrorAt t "a plain term is not an atomic proposition of a model-checked property; write \
         `⌜ {t} ⌝` for a state predicate"
     | `([ltl| $f]) =>
       throwErrorAt f "a model-checked property is built from the atoms `⌜ … ⌝`, `⌞ … ⌟`, `E(…)` and \
-        `T(…)` with `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`; this formula is \
-        none of them"
+        `T(…)` and the fairness conditions `WF(…)` and `SF(…)` with `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, \
+        `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`; this formula is none of them"
     | _ => throwUnsupportedSyntax
   elabTerm (← `($(mkIdent ``LTLLib.Formula.atom) $atom)) expectedType?
 
