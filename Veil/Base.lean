@@ -160,8 +160,8 @@ register_option veil.experimental.wpCompact : Bool := {
 register_option veil.temporal.moduleAtoms : Bool := {
   defValue := false
   descr := "Set by Veil while it elaborates a temporal formula of a module, not meant to be set by hand. \
-  If true, the atoms of `[ltl| …]` are read against the current module: `⌜ t ⌝` sees its theory and state \
-  fields, as an assertion does, and `E(a …)`/`T(a …)` name its actions."
+  If true, the atoms of `[ltl| …]` and `[tlfml| …]` are read against the current module: `⌜ t ⌝` sees its \
+  theory and state fields, as an assertion does, and in `[ltl| …]`, `E(a …)`/`T(a …)` name its actions."
 }
 
 register_option veil.deferVCGeneration : Bool := {
