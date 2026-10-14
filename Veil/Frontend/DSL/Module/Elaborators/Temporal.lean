@@ -18,7 +18,7 @@ def elabTemporalDeclaration : CommandElab := fun stx => do
   mod ← mod.ensureVerificationSpec stx
   let (name, prop) ← match stx with
     | `(command|temporal $[$name:propertyName]? $prop:tlfml) =>
-      pure (name.elim (Name.mkSimple s!"temporal_{mod.temporalProperties.size}") (·.getPropertyName), prop)
+      pure (name.elim (Name.mkSimple s!"temporal_{mod.verifiableTemporalProperties.size}") (·.getPropertyName), prop)
     | _ => throwUnsupportedSyntax
   mod.throwIfAlreadyDeclared name
   -- Include the dependencies of both the formula bindings and its proof obligation.
@@ -30,7 +30,8 @@ def elabTemporalDeclaration : CommandElab := fun stx => do
         assembledInvariantsName, assembledAssumptionsName])
   let dk : DeclarationKind := .derivedDefinition .actionLike dependencies
   let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) dk
-  let lp : TemporalProperty := { name := name, extraParams := extraParams, term := prop, userSyntax := stx }
+  let lp : TemporalProperty :=
+    { name := name, formula := prop, target := .verify, extraParams := extraParams, userSyntax := stx }
   let baseBinders ← baseParams.mapM (·.binder)
   let extraBinders ← extraParams.mapM (·.binder)
   let allBinders := (← baseBinders.mapM mkImplicitBinder) ++ (← extraBinders.mapM mkImplicitBinder)
@@ -114,7 +115,7 @@ def elabTemporalDeclaration : CommandElab := fun stx => do
 
 private def Module.getStatementForTemporalTheorems [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
   (mod : Module) (propName : Name) : m (Name × Array (TSyntax `Lean.Parser.Term.bracketedBinder) × Term) := do
-  unless mod.temporalProperties.any (·.name == propName) do
+  unless mod.verifiableTemporalProperties.any (·.name == propName) do
     throwError s!"No temporal property named '{propName}' declared in module {mod.name}"
   -- Build the proof obligation:
   --   ∀ (sorts...) (typeclasses...) (th : Theory),

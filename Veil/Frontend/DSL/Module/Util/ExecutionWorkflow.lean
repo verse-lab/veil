@@ -259,7 +259,7 @@ private def allocExecutionContext (mod : Module) (stx : Syntax)
     match resultKind with
     | .simulate => pure <| .simulation {}
     | .liveness =>
-      pure <| .liveness { numProperties := numLivenessProperties.getD mod.livenessProperties.size }
+      pure <| .liveness { numProperties := numLivenessProperties.getD mod.checkableTemporalProperties.size }
     | _ =>
       let actionLabels ← getActionLabelNames mod
       pure <|.modelCheck { allActionLabels := actionLabels }

@@ -497,15 +497,15 @@ def elabLivenessDeclaration : CommandElab := fun stx => do
     | _ => throwUnsupportedSyntax
   let name := match nameStx with
     | some n => n.getPropertyName
-    | none => Name.mkSimple s!"liveness_{mod.livenessProperties.size}"
+    | none => Name.mkSimple s!"liveness_{mod.checkableTemporalProperties.size}"
   -- Elaborated by `Module.generateLivenessDefinitions` once the spec is finalized, since `E(…)`/`T(…)`
   -- are decided against the `Label` type that `#gen_spec` generates.
-  let livenessProperty : LivenessAssertion := { name, formula, userSyntax := stx }
-  localEnv.modifyModule (fun _ => { mod with livenessProperties := mod.livenessProperties.push livenessProperty })
+  let livenessProperty : TemporalProperty := { name, formula, target := .check, userSyntax := stx }
+  localEnv.modifyModule (fun _ => { mod with temporalProperties := mod.temporalProperties.push livenessProperty })
 
 def Module.generateLivenessDefinitions (mod : Module) : CommandElabM Module := do
   let mut mod := mod
-  for lp in mod.livenessProperties do
+  for lp in mod.checkableTemporalProperties do
     mod.throwIfAlreadyDeclared lp.name
     mod ← withTraceNode (`veil.perf.elaborator.liveness ++ lp.name) (fun _ => return s!"liveness {lp.name} (gen)") do
       let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .invariantLike {})
@@ -902,7 +902,7 @@ private def routeTerm (route : LivenessMC.Route) : Term :=
 
 /-- Build a liveness call with the same continuation interface as the other runners. -/
 private def mkLivenessCheckerCall (mod : Module) (instTerm theoryTerm : Term)
-    (properties : Array LivenessAssertion) (route : LivenessMC.Route)
+    (properties : Array TemporalProperty) (route : LivenessMC.Route)
     (finiteReachBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq)) : CommandElabM Term :=
   mkExecutionCall mod {} instTerm theoryTerm (includeSafetyAndDeadlock := false) fun ectx => do
   let instSortArgs := ectx.instSortArgs
@@ -927,11 +927,12 @@ private def mkLivenessCheckerCall (mod : Module) (instTerm theoryTerm : Term)
 
 /-- The properties named in brackets, in declaration order, or all of them if none are named. -/
 private def selectLivenessProperties (mod : Module) (selection : Array (TSyntax `propertyName)) :
-    CommandElabM (Array LivenessAssertion) := do
-  if mod.livenessProperties.isEmpty then
+    CommandElabM (Array TemporalProperty) := do
+  let properties := mod.checkableTemporalProperties
+  if properties.isEmpty then
     throwError "No liveness properties declared in this module. Declare a `liveness` property first."
-  if selection.isEmpty then return mod.livenessProperties
-  let declared := mod.livenessProperties.map (·.name)
+  if selection.isEmpty then return properties
+  let declared := properties.map (·.name)
   let mut wanted : Array Name := #[]
   for nameStx in selection do
     let name := nameStx.getPropertyName
@@ -941,7 +942,7 @@ private def selectLivenessProperties (mod : Module) (selection : Array (TSyntax 
     if wanted.contains name then
       throwErrorAt nameStx "`{name}` is named twice."
     wanted := wanted.push name
-  return mod.livenessProperties.filter (fun lp => wanted.contains lp.name)
+  return properties.filter (fun lp => wanted.contains lp.name)
 
 @[command_elab Veil.livenessCheck]
 def elabLivenessCheck : CommandElab := fun stx => do
