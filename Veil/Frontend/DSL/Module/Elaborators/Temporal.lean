@@ -7,6 +7,35 @@ public meta section
 open Lean Parser Elab Command Term
 namespace Veil
 
+/-! ## State atoms of temporal formulas
+
+Lentil reads `⌜ t ⌝` as `state_pred t` with `t : σ → Prop`. While Veil elaborates a temporal property of a
+module (`veil.temporal.moduleAtoms`), `t` is instead a proposition over the module's fields, as in an
+assertion: the theory fields are bound around the whole formula, and the state fields around each atom. -/
+
+/-- Internal: the atom `⌜ t ⌝` of a `[tlfml| …]` formula, see `elabTlfmlStateAtom`. -/
+syntax (name := tlfmlStateAtom) "veil_tlfml_state_atom% " term:max : term
+
+macro_rules
+  | `([tlfml| ⌜ $t:term ⌝]) => `(veil_tlfml_state_atom% ($t))
+  -- These name the action labels that the model checker sees, which a `Lentil.pred` cannot observe
+  | `([tlfml| E($a:ident $_args*)]) => Macro.throwErrorAt a
+    "`E(…)` is an atom of `liveness` properties, which are model checked; a `temporal` property cannot use it"
+  | `([tlfml| T($a:ident $_args*)]) => Macro.throwErrorAt a
+    "`T(…)` is an atom of `liveness` properties, which are model checked; a `temporal` property cannot use it"
+
+/-- `⌜ t ⌝` as Lentil reads it, `state_pred t`, or, while a temporal property of the current module is
+elaborated, `state_pred (fun st => t)` with the state fields bound in `t` as in an assertion. -/
+@[term_elab tlfmlStateAtom] def elabTlfmlStateAtom : TermElab := fun stx expectedType? => do
+  let `(veil_tlfml_state_atom% $t) := stx | throwUnsupportedSyntax
+  unless veil.temporal.moduleAtoms.get (← getOptions) do
+    return ← elabTerm (← `($(mkIdent ``Lentil.state_pred) $t)) expectedType?
+  let mod ← getCurrentModule
+  let st := mkVeilImplementationDetailIdent `st
+  let body ← mod.withTheoryAndStateTermTemplate [(.state .none "_conc", st, true)] (some (← `(Prop)))
+    (fun _ _ => `(uqc% ($t:term)))
+  elabTerm (← `($(mkIdent ``Lentil.state_pred) fun ($st : $environmentState) => $body)) expectedType?
+
 -- NOTE: `temporal` refers to `Init` and `Next` which are only available
 -- after the spec is finalized
 @[command_elab Veil.temporalDeclaration]
@@ -49,46 +78,8 @@ def elabTemporalDeclaration : CommandElab := fun stx => do
     let appTerm ← `(@$actTrName $modArgs* $specificArgs* $thIdent)
     let rhs ← mkFunSyntax specificFunBinders appTerm
     letBindings := letBindings.push (mkIdent act.name, rhs)
-  -- Build let bindings for mutable relation fields, so `⌜ r x ⌝` works like
-  -- a state predicate.
-  -- NOTE: Another consideration could be to override `⌜ ... ⌝` so it expands
-  -- into `⌜ fun st => State.casesOn (getFrom st) ... ⌝`, but that might not
-  -- delaborate nicely. So here the approach is much more restrictive.
-  for sc in mod.mutableComponents do
-    if sc.kind == .relation then
-      let stIdent := mkVeilImplementationDetailIdent `st
-      let stBinder ← `(Lean.Parser.Term.funBinder| ($stIdent : $environmentState))
-      let argIdents := sc.domainTerms.mapIdx fun i _ =>
-        mkIdent <| mkVeilImplementationDetailName (.mkSimple s!"arg{i}")
-      let argBinders ← sc.domainTerms.mapIdxM fun i dom =>
-        `(Lean.Parser.Term.funBinder| ($(argIdents[i]!) : $dom))
-      let core ← `(($(mkIdent ``getFrom) $stIdent).$(mkIdent sc.name))
-      let field ← `(term| (($fieldRepresentation _).$(mkIdent `get) $core))
-      let app := Syntax.mkApp field argIdents
-      let rhs ← mkFunSyntax (argBinders.push stBinder) $ ← `(term| @$(mkIdent ``Eq) $(mkIdent ``Bool) $app $(mkIdent ``true))
-      letBindings := letBindings.push (mkIdent sc.name, rhs)
-  -- Build let bindings for each ghost definition
-  -- For ghost `sent (x : ts)` (state-dependent), generate:
-  --   let sent := fun x st => @sent <modArgs> x th st
-  -- For theory-only ghosts, generate:
-  --   let gname := @gname <modArgs> th
-  for gdef in ghostDefs do
-    let ghostRef := mkIdent gdef.name
-    let (baseParams, extraParams, actualParams) ← mod.declarationSplitParams gdef.name gdef.declarationKind
-    let userParams := actualParams.filter fun p => p.kind != .theoryArg && p.kind != .stateArg
-    let specificFunBinders ← userParams.mapM fun p => p.binder >>= bracketedBinderToFunBinder
-    -- Ghost definitions take user arguments before extracted Decidable instances.
-    let args ← (baseParams ++ userParams ++ extraParams).mapM (·.arg)
-    let (specificFunBinders, body) ← if gdef.kind matches .ghost _ then
-      let stIdent := mkVeilImplementationDetailIdent `st
-      let stBinder : TSyntax `Lean.Parser.Term.funBinder := stIdent
-      let body ← `(@$ghostRef $args* $thIdent $stIdent)
-      pure (specificFunBinders.push stBinder, body)
-    else
-      let body ← `(@$ghostRef $args* $thIdent)
-      pure (specificFunBinders, body)
-    let rhs ← mkFunSyntax specificFunBinders body
-    letBindings := letBindings.push (mkIdent gdef.name, rhs)
+  -- State fields and ghosts need no bindings: each `⌜ t ⌝` sees them as an assertion does
+  -- (`elabTlfmlStateAtom`).
   -- Assemble the body: let bindings + [tlfml| user_formula ]
   let fullBody ← do
     let body ← letBindings.foldrM (init := ← `([tlfml| $prop])) fun (bindName, bindVal) body =>
@@ -106,7 +97,9 @@ def elabTemporalDeclaration : CommandElab := fun stx => do
   -- that makes the later use of the temporal property in proofs more complicated,
   -- as we need to figure out which arguments got removed in building its syntax of application
   let cmd ← `(noncomputable def $(mkIdent name) $[$allBinders]* := $fullBody)
-  elabVeilCommand cmd
+  -- The atoms are read against this module (`elabTlfmlStateAtom`)
+  withScope (fun scope => { scope with opts := veil.temporal.moduleAtoms.set scope.opts true }) do
+    elabVeilCommand cmd
   let newMod := { mod with
     temporalProperties := mod.temporalProperties.push lp,
     _declarations := mod._declarations.insert name .temporalProperty

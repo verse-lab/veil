@@ -346,7 +346,15 @@ scoped syntax (name := livenessDeclaration) kw_liveness (propertyName)? tlfml : 
 
 /-- A temporal property is an LTL formula over the system's state.
 Unlike safety properties which are state predicates, temporal properties
-are properties about traces. Declared after `#gen_spec`. -/
+are properties about traces. Declared after `#gen_spec`.
+
+Inside `⌜ … ⌝`, the module's theory and state fields and its ghosts are in scope, as in an assertion.
+
+Example:
+```lean
+temporal [eventuallyChosen] 𝒲ℱ choose → ◇ ⌜ ∃ v, chosen v ⌝
+```
+-/
 syntax (name := temporalDeclaration) kw_temporal (propertyName)? tlfml : command
 
 /-- Prove a previously declared temporal property using tactics.
