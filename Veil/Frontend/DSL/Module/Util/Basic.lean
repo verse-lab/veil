@@ -98,7 +98,6 @@ instance : ToString StateAssertionKind where
     | StateAssertionKind.safety => "safety"
     | StateAssertionKind.termination => "termination"
     | StateAssertionKind.stateConstraint => "state_constraint"
-    | StateAssertionKind.livenessAtom => "liveness_atom"
 
 instance : ToString StateAssertion where
   toString sa := s!"{sa.kind} [{sa.name}] {sa.term}"
@@ -359,7 +358,7 @@ def Module.declarationBaseParams [Monad m] [MonadQuotation m] [MonadExceptOf Exc
   | .stateComponent _ _ => mod.uninterpretedParamFilterMapFn (pure ·)
   | .stateAssertion .assumption => pure (theoryParameters mod)
   | .stateAssertion .invariant | .stateAssertion .safety | .stateAssertion .trustedInvariant => pure mod.parameters
-  | .stateAssertion .termination | .stateAssertion .stateConstraint | .stateAssertion .livenessAtom => pure mod.parameters -- the same as `invariant`
+  | .stateAssertion .termination | .stateAssertion .stateConstraint => pure mod.parameters -- the same as `invariant`
   | .procedure _ => pure mod.parameters
   | .derivedDefinition k _ => derivedDefinitionBaseParams mod k
   | .temporalProperty => pure mod.parameters

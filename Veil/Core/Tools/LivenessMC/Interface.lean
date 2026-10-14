@@ -32,6 +32,28 @@ structure LivenessProperty (ρ σ l : Type) where
   atoms : List (LivenessAtom ρ σ l)
   φ : LTLLib.Formula Nat -- Reference atomic props by their index in `atoms`
 
+/-- The property `φ` with its atoms numbered: every occurrence of an atom becomes an atomic proposition
+of its own, numbered in the order `φ` mentions it, left to right. -/
+def LivenessProperty.ofFormula (name : Name) (φ : LTLLib.Formula (LivenessAtom ρ σ l)) :
+    LivenessProperty ρ σ l :=
+  let (φ, atoms) := (number φ).run #[]
+  { name, atoms := atoms.toList, φ }
+where
+  number : LTLLib.Formula (LivenessAtom ρ σ l) → StateM (Array (LivenessAtom ρ σ l)) (LTLLib.Formula Nat)
+    | .tt => pure .tt
+    | .ff => pure .ff
+    | .atom a => modifyGet fun atoms => (.atom atoms.size, atoms.push a)
+    | .not φ => .not <$> number φ
+    | .and φ ψ => .and <$> number φ <*> number ψ
+    | .or φ ψ => .or <$> number φ <*> number ψ
+    | .implies φ ψ => .implies <$> number φ <*> number ψ
+    | .iff φ ψ => .iff <$> number φ <*> number ψ
+    | .next φ => .next <$> number φ
+    | .until φ ψ => .until <$> number φ <*> number ψ
+    | .release φ ψ => .release <$> number φ <*> number ψ
+    | .eventually φ => .eventually <$> number φ
+    | .always φ => .always <$> number φ
+
 /-- The state atoms holding at `st`: the `⌜ … ⌝` predicates, plus the `E(a)` atoms matched by some label
 that can fire at `st`.
 

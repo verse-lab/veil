@@ -19,6 +19,7 @@ public meta import Veil.Frontend.DSL.Module.Util.Instantiation
 public meta import Veil.Util.Multiprocessing
 public meta import Veil.Frontend.DSL.Module.AssertionInfo
 public import Veil.Core.Tools.LivenessMC.Interface
+public meta import Veil.Core.Tools.LivenessMC.Syntax
 public meta import Veil.Core.Tools.LivenessMC.Runtime
 
 public meta section
@@ -410,7 +411,6 @@ def elabAssertion : CommandElab := fun stx => do
     | .trustedInvariant => "trusted_invariant"
     | .termination => "termination"
     | .stateConstraint => "state_constraint"
-    | .livenessAtom => "liveness_atom"
   withTraceNode (`veil.perf.elaborator.assertion ++ assertion.name) (fun _ => return s!"{kindStr} {assertion.name}") do
     -- Elaborate the assertion in the Lean environment
     let mod' ← mod.defineAssertion assertion
@@ -418,7 +418,7 @@ def elabAssertion : CommandElab := fun stx => do
     localEnv.modifyModule (fun _ => mod')
 
 /-- Resolve the action named in an `E(…)`/`T(…)` atom and check its arity. An unapplied name means "any instantiation". -/
-private def resolveActionAtom (mod : Module) (a : Ident) (args : Array Term) : CommandElabM Name := do
+private def resolveActionAtom (mod : Module) (a : Ident) (args : Array Term) : TermElabM Name := do
   let actionName := a.getId
   let some spec := mod.actions.find? (fun p => p.name == actionName)
     | throwErrorAt a "unknown action `{actionName}`; the module's actions are \
@@ -428,127 +428,100 @@ private def resolveActionAtom (mod : Module) (a : Ident) (args : Array Term) : C
       were given; write `{actionName}` on its own for any instantiation"
   return actionName
 
-partial def elabLtlFormula (mod : Module) (livenessName : Name) (atoms : Array LivenessAtomSpec)
-    (stx : TSyntax `tlfml) : CommandElabM (Term × Module × Array LivenessAtomSpec) := do
-  match stx with
-  -- Each atomic proposition `⌜ AP ⌝` becomes a fresh `livenessAtom` assertion (elaborated exactly like `safety`/`invariant`)
-  | `(tlfml| ⌜ $t:term ⌝) =>
-    let atomName := Name.mkSimple s!"{livenessName}_atom{atoms.size}"
-    let assertion : StateAssertion :=
-      { kind := .livenessAtom, name := atomName, extraParams := #[], term := t, userSyntax := stx.raw, inSets := Std.HashSet.emptyWithCapacity }
-    let mod ← mod.defineAssertion assertion
-    -- Atoms are referenced by their position in `atoms`
-    return (← `(term| $(mkIdent ``LTLLib.Formula.atom) $(quote atoms.size)), mod, atoms.push (.state atomName))
-  -- `E(a)` / `T(a)` need no assertion: they are decided against the action label, not against a state term
-  | `(tlfml| E($a:ident $args*)) =>
-    let actionName ← resolveActionAtom mod a args
-    return (← `(term| $(mkIdent ``LTLLib.Formula.atom) $(quote atoms.size)), mod,
-      atoms.push (.enabled actionName args))
-  | `(tlfml| T($a:ident $args*)) =>
-    let actionName ← resolveActionAtom mod a args
-    return (← `(term| $(mkIdent ``LTLLib.Formula.atom) $(quote atoms.size)), mod,
-      atoms.push (.taken actionName args))
-  | `(tlfml| ⊤) => return (← `(term| $(mkIdent ``LTLLib.Formula.tt)), mod, atoms)
-  | `(tlfml| ⊥) => return (← `(term| $(mkIdent ``LTLLib.Formula.ff)), mod, atoms)
-  | `(tlfml| ($f)) => elabLtlFormula mod livenessName atoms f
-  | `(tlfml| ¬$f) =>
-    let (t, mod, atoms) ← elabLtlFormula mod livenessName atoms f
-    return (← `(term| $(mkIdent ``LTLLib.Formula.not) $t), mod, atoms)
-  | `(tlfml| ◇$f) =>
-    let (t, mod, atoms) ← elabLtlFormula mod livenessName atoms f
-    return (← `(term| $(mkIdent ``LTLLib.Formula.eventually) $t), mod, atoms)
-  | `(tlfml| □$f) =>
-    let (t, mod, atoms) ← elabLtlFormula mod livenessName atoms f
-    return (← `(term| $(mkIdent ``LTLLib.Formula.always) $t), mod, atoms)
-  | `(tlfml| $f1 ∧ $f2) =>
-    let (t1, mod, atoms) ← elabLtlFormula mod livenessName atoms f1
-    let (t2, mod, atoms) ← elabLtlFormula mod livenessName atoms f2
-    return (← `(term| $(mkIdent ``LTLLib.Formula.and) $t1 $t2), mod, atoms)
-  | `(tlfml| $f1 ∨ $f2) =>
-    let (t1, mod, atoms) ← elabLtlFormula mod livenessName atoms f1
-    let (t2, mod, atoms) ← elabLtlFormula mod livenessName atoms f2
-    return (← `(term| $(mkIdent ``LTLLib.Formula.or) $t1 $t2), mod, atoms)
-  | `(tlfml| $f1 → $f2) =>
-    let (t1, mod, atoms) ← elabLtlFormula mod livenessName atoms f1
-    let (t2, mod, atoms) ← elabLtlFormula mod livenessName atoms f2
-    return (← `(term| $(mkIdent ``LTLLib.Formula.implies) $t1 $t2), mod, atoms)
-  | `(tlfml| $f1 ↔ $f2) =>
-    let (t1, mod, atoms) ← elabLtlFormula mod livenessName atoms f1
-    let (t2, mod, atoms) ← elabLtlFormula mod livenessName atoms f2
-    return (← `(term| $(mkIdent ``LTLLib.Formula.iff) $t1 $t2), mod, atoms)
-  -- `tlfml` also admits a plain term (a `Lentil.pred`), which has no meaning for the model checker
-  | `(tlfml| $t:term) =>
-    throwErrorAt t "a plain term is not an atomic proposition of a `liveness` property; write \
-      `⌜ {t} ⌝` for a state predicate"
-  | _ =>
-    throwErrorAt stx "a `liveness` property is built from `⌜ … ⌝`, `E(…)`, `T(…)`, `⊤`, `⊥`, `¬`, `□`, \
-      `◇`, `∧`, `∨`, `→` and `↔`; this formula is none of them"
+/-- The label predicate deciding `E(a …)`/`T(a …)`. For an unapplied action name it is a match over every
+constructor, and for an applied one equality against that instantiation via the derived `DecidableEq Label`.
+
+For a module whose actions are `send (n : node)` and `recv`, `E(send)` and `T(send)` give
+```lean
+fun lbl => match lbl with
+  | Label.send .. => true
+  | Label.recv .. => false
+```
+and `E(send n₀)` and `T(send n₀)` give `fun lbl => decide (lbl = Label.send n₀)`. -/
+private def mkActionLabelMatch (mod : Module) (actionName : Name) (args : Array Term) : TermElabM Term := do
+  let lbl := mkIdent `lbl
+  if args.isEmpty then
+    let alts ← mod.actions.mapM fun (act : ProcedureSpecification) => do
+      let ctor : Ident := Lean.mkIdent (labelTypeName ++ act.name)
+      let rhs : Ident :=
+        if act.name == actionName then Lean.mkIdent ``Bool.true else Lean.mkIdent ``Bool.false
+      `(Lean.Parser.Term.matchAltExpr| | $ctor:ident .. => $rhs)
+    `(term| fun $lbl => match $lbl:ident with $alts:matchAlt*)
+  else
+    `(term| fun $lbl => decide ($lbl = $(Lean.mkIdent (labelTypeName ++ actionName)):ident $args*))
+
+/-- The atoms of `[ltl| …]`, read against the current module while Veil elaborates one of its temporal
+formulas (`veil.temporal.moduleAtoms`). `⌜ t ⌝` is a state predicate and `⌞ t ⌟` a theory predicate,
+which see the module's fields as an assertion does; `E(a …)`/`T(a …)` name one of its actions.
+Tried before the plain reading of `[ltl| …]` (`LivenessMC.elabLtlAtom`), to which it defers otherwise. -/
+@[term_elab LivenessMC.ltlFormula] def elabModuleLtlAtom : TermElab := fun stx expectedType? => do
+  unless veil.temporal.moduleAtoms.get (← getOptions) do throwUnsupportedSyntax
+  let mod ← getCurrentModule
+  let (th, st) := (mkIdent `th, mkIdent `st)
+  let statePredicate (targets : List (TheoryAndStateTermTemplateArgKind × Term × Bool)) (t : Term) := do
+    let body ← mod.withTheoryAndStateTermTemplate targets (some (← `(Prop))) (fun _ _ => `(uqc% ($t:term)))
+    -- The constructor does not take the field's default, so `name` is given explicitly
+    `($(mkIdent ``LivenessMC.LivenessAtom.state) ($(mkIdent ``ModelChecker.SafetyProperty.mk)
+        ($(mkIdent `name) := $(quote Name.anonymous))
+        ($(mkIdent `property) := fun ($th : $environmentTheory) ($st : $environmentState) => $body)))
+  let atom ← match stx with
+    | `([ltl| ⌜ $t:term ⌝]) => statePredicate [(.theory, th, true), (.state .none "_conc", st, true)] t
+    | `([ltl| ⌞ $t:term ⌟]) => statePredicate [(.theory, th, true)] t
+    -- `E(a)`/`T(a)` are decided by a predicate on the action label, not on a state
+    | `([ltl| E($a:ident $args*)]) =>
+      let actionName ← resolveActionAtom mod a args
+      `($(mkIdent ``LivenessMC.LivenessAtom.enabled) $(quote (Name.mkSimple s!"E({actionName})"))
+          $(← mkActionLabelMatch mod actionName args))
+    | `([ltl| T($a:ident $args*)]) =>
+      let actionName ← resolveActionAtom mod a args
+      `($(mkIdent ``LivenessMC.LivenessAtom.taken) $(quote (Name.mkSimple s!"T({actionName})"))
+          $(← mkActionLabelMatch mod actionName args))
+    -- `tlfml` also admits a plain term (a `Lentil.pred`), which has no meaning for the model checker
+    | `([ltl| $t:term]) =>
+      throwErrorAt t "a plain term is not an atomic proposition of a model-checked property; write \
+        `⌜ {t} ⌝` for a state predicate"
+    | `([ltl| $f]) =>
+      throwErrorAt f "a model-checked property is built from the atoms `⌜ … ⌝`, `⌞ … ⌟`, `E(…)` and \
+        `T(…)` with `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`; this formula is \
+        none of them"
+    | _ => throwUnsupportedSyntax
+  elabTerm (← `($(mkIdent ``LTLLib.Formula.atom) $atom)) expectedType?
 
 @[command_elab Veil.livenessDeclaration]
 def elabLivenessDeclaration : CommandElab := fun stx => do
   let mut mod ← getCurrentModule (errMsg := "You cannot declare a liveness property outside of a Veil module!")
   mod ← mod.ensureStateIsDefined
   mod.throwIfSpecAlreadyFinalized
-  let (nameStx, formulaStx) ← match stx with
+  let (nameStx, formula) ← match stx with
     | `(command|liveness $name:propertyName ? $f:tlfml) => pure (name, f)
     | _ => throwUnsupportedSyntax
   let name := match nameStx with
     | some n => n.getPropertyName
     | none => Name.mkSimple s!"liveness_{mod.livenessProperties.size}"
-  withTraceNode (`veil.perf.elaborator.liveness ++ name) (fun _ => return s!"liveness {name}") do
-    let (formula, mod, atoms) ← elabLtlFormula mod name #[] formulaStx
-    let livenessProperty : LivenessAssertion := { name := name, atoms := atoms, formula := formula, userSyntax := stx }
-    localEnv.modifyModule (fun _ => { mod with livenessProperties := mod.livenessProperties.push livenessProperty })
+  -- Elaborated by `Module.generateLivenessDefinitions` once the spec is finalized, since `E(…)`/`T(…)`
+  -- are decided against the `Label` type that `#gen_spec` generates.
+  let livenessProperty : LivenessAssertion := { name, formula, userSyntax := stx }
+  localEnv.modifyModule (fun _ => { mod with livenessProperties := mod.livenessProperties.push livenessProperty })
 
 def Module.generateLivenessDefinitions (mod : Module) : CommandElabM Module := do
   let mut mod := mod
   for lp in mod.livenessProperties do
     mod.throwIfAlreadyDeclared lp.name
     mod ← withTraceNode (`veil.perf.elaborator.liveness ++ lp.name) (fun _ => return s!"liveness {lp.name} (gen)") do
-      -- `E(a)`/`T(a)` are decided by a predicate on the *label*. For an unapplied action name that is a
-      -- match over every constructor and for an applied one it is equality against that instantiation
-      -- via the derived `DecidableEq Label`.
-      let mkIsMatch (actionName : Name) (args : Array Term) : CommandElabM Term := do
-        let lbl := mkIdent `lbl
-        if args.isEmpty then
-          let alts ← mod.actions.mapM fun (act : ProcedureSpecification) => do
-            let ctor : Ident := Lean.mkIdent (labelTypeName ++ act.name)
-            let rhs : Ident :=
-              if act.name == actionName then Lean.mkIdent ``Bool.true else Lean.mkIdent ``Bool.false
-            `(Lean.Parser.Term.matchAltExpr| | $ctor:ident .. => $rhs)
-          `(term| fun $lbl => match $lbl:ident with $alts:matchAlt*)
-        else
-          `(term| fun $lbl => decide ($lbl = $(Lean.mkIdent (labelTypeName ++ actionName)):ident $args*))
-      let atomTerms ← lp.atoms.mapM fun spec => do
-        match spec with
-        | .state atomName =>
-          let (params, _) ← mod.declarationAllParams atomName (.stateAssertion .livenessAtom)
-          let args ← params.mapM (·.arg)
-          -- Atomic propositions as `SafetyProperty` (like in `#model_check`)
-          let atomApp ← `(term| @$(mkIdent (mod.name ++ atomName)):ident $args* $(mkIdent `th) $(mkIdent `st))
-          `(term| $(mkIdent ``Veil.LivenessMC.LivenessAtom.state)
-            ($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
-              ($(mkIdent `name) := $(quote atomName))
-              ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $atomApp)))
-        | .enabled actionName args =>
-          `(term| $(mkIdent ``Veil.LivenessMC.LivenessAtom.enabled)
-            $(quote (Name.mkSimple s!"E({actionName})")) $(← mkIsMatch actionName args))
-        | .taken actionName args =>
-          `(term| $(mkIdent ``Veil.LivenessMC.LivenessAtom.taken)
-            $(quote (Name.mkSimple s!"T({actionName})")) $(← mkIsMatch actionName args))
-      let propTerm ← `(term| { $(mkIdent `name):ident := $(quote lp.name), $(mkIdent `atoms):ident := [$atomTerms,*], $(mkIdent `φ):ident := $(lp.formula) })
-      let derivedFrom := Std.HashSet.ofArray (lp.atoms.filterMap (·.assertionName?))
-      let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .invariantLike derivedFrom)
+      let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .invariantLike {})
       -- Require `Enumeration` for every sort, so that `∀`/`∃` over a sort inside a
       -- liveness atom can synthesize `Decidable` (see `Module.livenessEnumerationParams`).
       let enumParams ← mod.livenessEnumerationParams
       let binders ← (baseParams ++ extraParams ++ enumParams).mapM (·.binder)
       let propCmd ← `(command| def $(mkIdent lp.name) $[$binders]* :
         $(mkIdent ``Veil.LivenessMC.LivenessProperty) $environmentTheory $environmentState
-          $(← mod.labelTypeStx) := $propTerm)
-      elabVeilCommand propCmd
+          $(← mod.labelTypeStx) :=
+        $(mkIdent ``Veil.LivenessMC.LivenessProperty.ofFormula) $(quote lp.name) [ltl| $(lp.formula)])
+      -- The atoms are read against this module (`elabModuleLtlAtom`)
+      withScope (fun scope => { scope with opts := veil.temporal.moduleAtoms.set scope.opts true }) do
+        elabVeilCommand propCmd
       let derivedDef : DerivedDefinition :=
-        { name := lp.name, kind := .invariantLike, params := #[], extraParams := extraParams, derivedFrom := derivedFrom, stx := propCmd }
+        { name := lp.name, kind := .invariantLike, params := #[], extraParams := extraParams, derivedFrom := {}, stx := propCmd }
       mod.registerDerivedDefinition derivedDef
   return mod
 
