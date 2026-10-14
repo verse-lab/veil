@@ -146,9 +146,6 @@ inductive StateAssertionKind
   /-- A `state_constraint` filters out states during model checking.
   States that do not satisfy the constraint are not explored. -/
   | stateConstraint
-  /-- An atomic proposition (`⌜ AP ⌝`) occurring inside a `liveness` LTL
-  formula. Like `invariant`/`safety`, but not checked as an invariant. -/
-  | livenessAtom
 deriving BEq, Hashable, Repr
 
 instance : Inhabited StateAssertionKind where
@@ -290,24 +287,10 @@ deriving Inhabited
 def StateAssertion.declarationKind (sa : StateAssertion) : DeclarationKind := .stateAssertion sa.kind
 
 
-/-- One atomic proposition of a liveness property.
-`state` names the generated `livenessAtom` assertion, the other two name an action and,
-when the user wrote an applied form, the arguments pinning one instantiation. -/
-inductive LivenessAtomSpec where
-  | state (assertionName : Name)
-  | enabled (actionName : Name) (args : Array Term)
-  | taken (actionName : Name) (args : Array Term)
-deriving Inhabited
-
-def LivenessAtomSpec.assertionName? : LivenessAtomSpec → Option Name
-  | .state n => some n
-  | _ => none
-
 structure LivenessAssertion where
   name : Name
-  /-- The atomic propositions of the formula, in the order the formula indexes them. -/
-  atoms : Array LivenessAtomSpec
-  formula : Term
+  /-- The formula as written; it is elaborated, through `[ltl| …]`, once the spec is finalized. -/
+  formula : TSyntax `tlfml
   /-- The user-written syntax that resulted in the declaration of this
   assertion. -/
   userSyntax : Syntax

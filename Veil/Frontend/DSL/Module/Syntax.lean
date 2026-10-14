@@ -321,7 +321,7 @@ scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term :
 /- ## Liveness (LTL) properties
 
 Formulas are written in Lentil's `tlfml` category, extended below with the action atoms `E(…)` and
-`T(…)` and with `↔`. -/
+`T(…)`, and with `↔` in `Veil.Core.Tools.LivenessMC.Syntax`. -/
 
 /-- `E(a)`: Some instantiation of action `a` can fire here. `E(a x y)`: That parameterized instantiation can.
 
@@ -333,9 +333,6 @@ scoped syntax (name := tlfmlEnabled) "E(" ident (term:max)* ")" : tlfml
 
 An *edge* atom: it is a property of the step, not of either endpoint. -/
 scoped syntax (name := tlfmlTaken) "T(" ident (term:max)* ")" : tlfml
-
-/-- `φ ↔ ψ`. Non-associative, like Lean's `↔`. -/
-scoped syntax:20 (name := tlfmlIff) tlfml:21 " ↔ " tlfml:21 : tlfml
 
 /-- Declare a liveness (LTL) property.
 
