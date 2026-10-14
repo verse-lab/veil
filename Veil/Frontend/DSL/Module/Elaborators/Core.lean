@@ -503,26 +503,50 @@ def elabLivenessDeclaration : CommandElab := fun stx => do
   let livenessProperty : TemporalProperty := { name, formula, target := .check, userSyntax := stx }
   localEnv.modifyModule (fun _ => { mod with temporalProperties := mod.temporalProperties.push livenessProperty })
 
+/-- Define `p : LivenessProperty ρ σ Label := LivenessProperty.ofFormula `p [ltl| φ]` under the binders of
+`params`, elaborating the formula once. As for an assertion (`Module.mkVeilTerm`), every `Decidable` instance
+that cannot be synthesized here, such as one for a quantifier over a sort or one that exists only at a concrete
+type, becomes a trailing instance-implicit parameter, which `#liveness_check` synthesizes at the types it
+instantiates the module with. Returns these parameters. -/
+def Module.defineLivenessProperty (mod : Module) (name : Name) (formula : TSyntax `tlfml)
+    (params : Array Parameter) : TermElabM (Array Parameter) := withExporting (isExporting := true) do
+  withDeclName ((← getCurrNamespace) ++ name) do
+  let binders ← params.mapM (·.binder)
+  let body ← `(($(mkIdent ``Veil.LivenessMC.LivenessProperty.ofFormula) $(quote name) [ltl| $formula] :
+    $(mkIdent ``Veil.LivenessMC.LivenessProperty) $environmentTheory $environmentState $(← mod.labelTypeStx)))
+  let (insts, e) ← elabBinders binders fun vs => do
+    -- The atoms are read against this module (`elabModuleLtlAtom`)
+    let (insts, e) ← withOptions (veil.temporal.moduleAtoms.set · true) <|
+      getRequiredDecidableInstances name body (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
+    let e ← Meta.mkLambdaFVars (vs ++ insts.map (·.2)) (← instantiateMVars e)
+      (binderInfoForMVars := .instImplicit)
+    let e ← instantiateMVars e
+    if e.hasMVar then
+      let holes ← (← Meta.getMVars e).mapM fun mv => do instantiateMVars (← mv.getType)
+      let holes := MessageData.joinSep (holes.toList.map toMessageData) Format.line
+      throwError "the definition of `{name}` still has holes after elaboration, of type(s){indentD holes}"
+    pure (insts, e)
+  let _ ← addVeilDefinition name (← Meta.letToHave e)
+  return insts.mapIdx fun i (decT, _) =>
+    { kind := .definitionParameter name .typeclass, name := Name.mkSimple s!"{name}_dec_{i}", «type» := decT,
+      userSyntax := .missing }
+
 def Module.generateLivenessDefinitions (mod : Module) : CommandElabM Module := do
   let mut mod := mod
   for lp in mod.checkableTemporalProperties do
     mod.throwIfAlreadyDeclared lp.name
     mod ← withTraceNode (`veil.perf.elaborator.liveness ++ lp.name) (fun _ => return s!"liveness {lp.name} (gen)") do
       let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .invariantLike {})
-      -- Require `Enumeration` for every sort, so that `∀`/`∃` over a sort inside a
-      -- liveness atom can synthesize `Decidable` (see `Module.livenessEnumerationParams`).
-      let enumParams ← mod.livenessEnumerationParams
-      let binders ← (baseParams ++ extraParams ++ enumParams).mapM (·.binder)
-      let propCmd ← `(command| def $(mkIdent lp.name) $[$binders]* :
-        $(mkIdent ``Veil.LivenessMC.LivenessProperty) $environmentTheory $environmentState
-          $(← mod.labelTypeStx) :=
-        $(mkIdent ``Veil.LivenessMC.LivenessProperty.ofFormula) $(quote lp.name) [ltl| $(lp.formula)])
-      -- The atoms are read against this module (`elabModuleLtlAtom`)
-      withScope (fun scope => { scope with opts := veil.temporal.moduleAtoms.set scope.opts true }) do
-        elabVeilCommand propCmd
-      let derivedDef : DerivedDefinition :=
-        { name := lp.name, kind := .invariantLike, params := #[], extraParams := extraParams, derivedFrom := {}, stx := propCmd }
-      mod.registerDerivedDefinition derivedDef
+      -- As for a `def`, an error in one property is reported and the others are still defined
+      try
+        let decParams ← liftTermElabM <| mod.defineLivenessProperty lp.name lp.formula (baseParams ++ extraParams)
+        let (mod, decParams) ← liftTermElabM <| mod.canonicalizeExtraParams decParams
+        mod.registerDerivedDefinition
+          { name := lp.name, kind := .invariantLike, params := #[], extraParams := extraParams ++ decParams,
+            derivedFrom := {}, stx := none }
+      catch ex =>
+        logException ex
+        pure mod
   return mod
 
 open Lean Meta Elab Command Veil in
@@ -967,6 +991,10 @@ def elabLivenessCheck : CommandElab := fun stx => do
     let mod ← getCurrentModule (errMsg := "You cannot #liveness_check outside of a Veil module!")
     mod.throwIfSpecNotFinalized
     let properties ← selectLivenessProperties mod selection
+    -- `Module.generateLivenessDefinitions` defines nothing for a formula that failed to elaborate
+    for lp in properties do
+      unless (← getEnv).contains (mod.name ++ lp.name) do
+        throwError "`{lp.name}` has no definition to check, since its formula failed to elaborate at `#gen_spec`"
     let theoryTerm ← getTheoryTerm "#liveness_check" theoryTermOpt mod instTerm
     warnAboutTransitions mod
     if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
