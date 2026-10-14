@@ -30,7 +30,7 @@ safety [myexample]
   chosen = 0 ∨ chosen = 1
 
 -- Fails: the run that only ever takes `noChoose` never sets `chosen`.
-liveness [chosenEqOne] □ ◇ ⌜ chosen = 1 ⌝
+temporal [chosenEqOne] □ ◇ ⌜ chosen = 1 ⌝
 
 #gen_spec
 

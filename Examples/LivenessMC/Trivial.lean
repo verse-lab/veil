@@ -21,8 +21,8 @@ safety [myexample]
 
 -- Checked in declaration order: `alwaysTrue` holds, and `eventuallyFalse` is then reported
 -- together with a counterexample lasso.
-liveness [alwaysTrue] □ ⊤
-liveness [eventuallyFalse] ◇ ⊥
+temporal [alwaysTrue] □ ⊤
+temporal [eventuallyFalse] ◇ ⊥
 
 #gen_spec
 

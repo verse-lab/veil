@@ -324,6 +324,29 @@ def elabVeilCommand (stx : Syntax) : CommandElabM Unit := do
     trace[veil.desugar] "{stx}"
     elabCommand stx
 
+/-- Run `x` and keep what it does if it neither throws nor logs an error. Otherwise undo its changes to the
+environment (and so to environment extensions) and to the message log, and return its error messages, for
+the caller to report as it sees fit. Unlike `observing?`, this also counts the errors that `x` logged and
+recovered from, as elaborating a command does, and it works in `CommandElabM`, which has no
+`MonadBacktrack`. Info trees are not rolled back; interrupts are rethrown. -/
+def commitIfNoErrors (x : CommandElabM α) : CommandElabM (Except (Array Message) α) := do
+  let env ← getEnv
+  let saved ← modifyGet fun s => (s.messages, { s with messages := {} })
+  let result ← try some <$> x catch ex =>
+    if ex.isInterrupt then
+      modify fun s => { s with messages := saved ++ s.messages }
+      throw ex
+    logException ex
+    pure none
+  let msgs := (← get).messages
+  if let some a := result then
+    unless msgs.hasErrors do
+      modify fun s => { s with messages := saved ++ msgs }
+      return .ok a
+  setEnv env
+  modify fun s => { s with messages := saved }
+  return .error (msgs.toArray.filter (·.severity == .error))
+
 /-- Remove `let`/`have` bindings whose variable does not occur in their body.
 Bindings kept alive only by other dead bindings are removed as well, since
 `Core.transform` rewrites bottom-up. -/

@@ -31,14 +31,14 @@ action clear3 { require v3 = true; v3 := false }
 safety [boolsAreBools] (v0 = true ∨ v0 = false)
 
 -- Same property as the CAVA/Isabelle `demo_simple` binary: F (G (not (var 0))).
-liveness [φV0EventuallyStaysOff] ◇ □ ⌜ v0 = false ⌝
+temporal [φV0EventuallyStaysOff] ◇ □ ⌜ v0 = false ⌝
 
 -- Not checked in the corresponding Isabelle demo; holds.
-liveness [φTerminates] ◇ □ ⌜ ¬v0 ∧ ¬v1 ∧ ¬v2 ∧ ¬v3 ⌝
+temporal [φTerminates] ◇ □ ⌜ ¬v0 ∧ ¬v1 ∧ ¬v2 ∧ ¬v3 ⌝
 
 -- Not checked in the corresponding Isabelle demo. Fails: every run clears `v0` for good, so this
 -- is the property reported below, with its counterexample.
-liveness [φInfinitelyOn] □ ◇ ⌜ v0 = true ⌝
+temporal [φInfinitelyOn] □ ◇ ⌜ v0 = true ⌝
 
 #gen_spec
 

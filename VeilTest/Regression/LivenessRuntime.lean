@@ -138,8 +138,8 @@ veil module Handoff
 individual flag : Bool
 after_init { flag := false }
 action idle { flag := flag }
-liveness [trivial] □ ⊤
-liveness [another] □ ⊤
+temporal [trivial] □ ⊤
+temporal [another] □ ⊤
 invariant true
 #gen_spec
 

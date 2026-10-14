@@ -54,6 +54,9 @@ def toCoreSimplifiedEqName (n : Name) : Name := n ++ `core_simplified_eq
 
 def toTransitionAbstractName (n : Name) : Name := n ++ `tr_abstract
 
+/-- The deep definition of temporal property `n`, which `#liveness_check` checks; its shallow definition is `n`. -/
+def toTemporalAstName (n : Name) : Name := n ++ `ast
+
 def toEnabledName (n : Name) : Name := n ++ `enabled
 def toEnabledEqName (n : Name) : Name := n ++ `enabled_eq
 def toEnabledDerivedEqName (n : Name) : Name := n ++ `enabled_derived_eq

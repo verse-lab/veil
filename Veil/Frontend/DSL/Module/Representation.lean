@@ -297,14 +297,31 @@ inductive TemporalTarget where
   | check
 deriving Inhabited, BEq, Repr
 
-/-- A temporal property is a temporal formula over the system's execution traces. -/
+/-- Whether this target includes model checking, i.e. the deep definition `p.ast`. -/
+def TemporalTarget.needsCheck : TemporalTarget → Bool
+  | .verify => false
+  | _ => true
+
+/-- Whether this target includes proving, i.e. the shallow definition `p`. -/
+def TemporalTarget.needsVerify : TemporalTarget → Bool
+  | .check => false
+  | _ => true
+
+/-- A temporal property is a temporal formula over the system's execution traces. Its shallow definition
+`p`, a `Lentil.pred`, is what `prove_temporal_by` proves, and its deep definition `p.ast`, an
+`LTLLib.Formula` syntax tree, is what `#liveness_check` checks. -/
 structure TemporalProperty where
   name : Name
   /-- The formula as written. The shallow definition elaborates it through Lentil's `[tlfml| …]`,
   the deep one through `[ltl| …]`. -/
   formula : TSyntax `tlfml
-  /-- Whether the property is proved, model checked, or both. -/
+  /-- Whether the property is proved, model checked, or both. A definition that fails to elaborate is
+  dropped from `.both` (see `Module.dropTemporalDefinition`). -/
   target : TemporalTarget := .both
+  /-- Whether the deep definition is yet to be generated, which needs the finalized spec (`Label`). -/
+  checkPending : Bool := false
+  /-- Whether the shallow definition is yet to be generated, which needs `Init`, `NextStep`, …. -/
+  verifyPending : Bool := false
   /-- Extra parameters needed to elaborate the shallow definition. -/
   extraParams : Array Parameter := #[]
   /-- The user-written syntax -/
