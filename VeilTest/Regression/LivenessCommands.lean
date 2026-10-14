@@ -25,21 +25,21 @@ invariant true
 
 /-- info: ✅ No liveness violation (checked 4 properties, explored 15 product states) -/
 #guard_msgs in
-#liveness_check interpreted { node := Fin 2 } { leader := fun _ => true }
+#temporal_check interpreted { node := Fin 2 } { leader := fun _ => true }
   assumptions_hold_by native_decide
 /-- info: ✅ No liveness violation (checked 4 properties, explored 15 product states) -/
 #guard_msgs in
-#liveness_check compiled { node := Fin 2 } { leader := fun _ => true }
+#temporal_check compiled { node := Fin 2 } { leader := fun _ => true }
 /-- info: ✅ No liveness violation (checked 4 properties, explored 15 product states) -/
 #guard_msgs in
-#liveness_check { node := Fin 2 } { leader := fun _ => true }
+#temporal_check { node := Fin 2 } { leader := fun _ => true }
 
 /-- error: ❌ Violation: assumption_failure (violates: hasLeader) -/
 #guard_msgs in
-#liveness_check interpreted { node := Fin 2 } { leader := fun _ => false }
+#temporal_check interpreted { node := Fin 2 } { leader := fun _ => false }
 /-- error: ❌ Violation: assumption_failure (violates: hasLeader) -/
 #guard_msgs in
-#liveness_check compiled { node := Fin 2 } { leader := fun _ => false }
+#temporal_check compiled { node := Fin 2 } { leader := fun _ => false }
 end LivenessWorkflow
 
 veil module LivenessCounterexample
@@ -62,7 +62,7 @@ error: ❌ Violation: liveness_failure (violates: eventuallyFlag)
       flag = false
 -/
 #guard_msgs in
-#liveness_check interpreted {}
+#temporal_check interpreted {}
 /--
 error: ❌ Violation: liveness_failure (violates: eventuallyFlag)
   Stem:
@@ -73,7 +73,7 @@ error: ❌ Violation: liveness_failure (violates: eventuallyFlag)
       flag = false
 -/
 #guard_msgs in
-#liveness_check compiled {}
+#temporal_check compiled {}
 set_option veil.violationIsError false in
 /--
 info: ❌ Violation: liveness_failure (violates: eventuallyFlag)
@@ -85,7 +85,7 @@ info: ❌ Violation: liveness_failure (violates: eventuallyFlag)
       flag = false
 -/
 #guard_msgs in
-#liveness_check {}
+#temporal_check {}
 end LivenessCounterexample
 
 veil module LivenessConstraint
@@ -101,10 +101,10 @@ invariant true
 #gen_spec
 /-- info: ✅ No liveness violation (checked 2 properties, explored 1 product states) -/
 #guard_msgs in
-#liveness_check interpreted {}
+#temporal_check interpreted {}
 /-- info: ✅ No liveness violation (checked 2 properties, explored 1 product states) -/
 #guard_msgs in
-#liveness_check compiled {}
+#temporal_check compiled {}
 end LivenessConstraint
 
 veil module NoLiveness
@@ -117,7 +117,7 @@ invariant true
 error: No temporal property of this module is model checked. Declare one with `temporal` (without `only := verify`) first.
 -/
 #guard_msgs in
-#liveness_check interpreted {}
+#temporal_check interpreted {}
 end NoLiveness
 
 -- Temporary native entry points must not pollute the elaboration environment.
@@ -132,19 +132,19 @@ temporal [trivial] □ ⊤
 #gen_spec
 
 /--
-error: Cannot compile #liveness_check: the file already declares `main`, which the generated binary needs as its entry point. Move the `main` declaration into another file, or use `#liveness_check interpreted`.
+error: Cannot compile #temporal_check: the file already declares `main`, which the generated binary needs as its entry point. Move the `main` declaration into another file, or use `#temporal_check interpreted`.
 -/
 #guard_msgs in
-#liveness_check compiled {}
+#temporal_check compiled {}
 
 -- A background compilation failure must preserve the interpreted verdict.
 /--
 info: ✅ No liveness violation (checked 1 properties, explored 1 product states)
 ---
-warning: Cannot compile #liveness_check: the file already declares `main`, which the generated binary needs as its entry point. Move the `main` declaration into another file, or use `#liveness_check interpreted`.
+warning: Cannot compile #temporal_check: the file already declares `main`, which the generated binary needs as its entry point. Move the `main` declaration into another file, or use `#temporal_check interpreted`.
 -/
 #guard_msgs (ordering := sorted) in
-#liveness_check {}
+#temporal_check {}
 
 end LivenessCompilationFailure
 
@@ -163,52 +163,52 @@ invariant true
 
 /-- info: ✅ No liveness violation (checked 2 properties, explored 5 product states) -/
 #guard_msgs in
-#liveness_check interpreted {} {} (route := .fair)
+#temporal_check interpreted {} {} (route := .fair)
 /-- info: ✅ No liveness violation (checked 2 properties, explored 5 product states) -/
 #guard_msgs in
-#liveness_check interpreted {} {} (route := .prune)
+#temporal_check interpreted {} {} (route := .prune)
 /-- info: ✅ No liveness violation (checked 2 properties, explored 5 product states) -/
 #guard_msgs in
-#liveness_check interpreted {} {} (route := .patOnly)
+#temporal_check interpreted {} {} (route := .patOnly)
 /-- info: ✅ No liveness violation (checked 2 properties, explored 2 product states) -/
 #guard_msgs in
-#liveness_check interpreted {} {} (route := .crossing)
+#temporal_check interpreted {} {} (route := .crossing)
 /-- info: ✅ No liveness violation (checked 2 properties, explored 5 product states) -/
 #guard_msgs in
-#liveness_check interpreted {} {} (route := .dijkstra)
+#temporal_check interpreted {} {} (route := .dijkstra)
 /-- info: ✅ No liveness violation (checked 2 properties, explored 6 product states) -/
 #guard_msgs in
-#liveness_check interpreted {} {} (route := .ndfs) finite_reach_by native_decide
+#temporal_check interpreted {} {} (route := .ndfs) finite_reach_by native_decide
 /--
 error: `(route := .ndfs)` needs a `finite_reach_by` clause, e.g. `finite_reach_by native_decide`.
 -/
 #guard_msgs in
-#liveness_check interpreted {} {} (route := .ndfs)
+#temporal_check interpreted {} {} (route := .ndfs)
 /-- error: `(route := .fair)` does not take a `finite_reach_by` clause. -/
 #guard_msgs in
-#liveness_check interpreted {} {} (route := .fair) finite_reach_by native_decide
+#temporal_check interpreted {} {} (route := .fair) finite_reach_by native_decide
 
 /-! ### Selecting properties -/
 
 /-- info: ✅ No liveness violation (checked 1 properties, explored 3 product states) -/
 #guard_msgs in
-#liveness_check [fairFlag] interpreted {}
+#temporal_check [fairFlag] interpreted {}
 /-- info: ✅ No liveness violation (checked 1 properties, explored 2 product states) -/
 #guard_msgs in
-#liveness_check [eventuallyFlag] interpreted {}
+#temporal_check [eventuallyFlag] interpreted {}
 -- Checked in declaration order.
 /-- info: ✅ No liveness violation (checked 2 properties, explored 5 product states) -/
 #guard_msgs in
-#liveness_check [eventuallyFlag] [fairFlag] interpreted {}
+#temporal_check [eventuallyFlag] [fairFlag] interpreted {}
 /-- info: ✅ No liveness violation (checked 1 properties, explored 3 product states) -/
 #guard_msgs in
-#liveness_check [fairFlag] interpreted {} {} (route := .dijkstra)
+#temporal_check [fairFlag] interpreted {} {} (route := .dijkstra)
 /--
 error: `noSuchProperty` is not a model-checked temporal property of this module. Model checked: fairFlag, eventuallyFlag
 -/
 #guard_msgs in
-#liveness_check [noSuchProperty] interpreted {}
+#temporal_check [noSuchProperty] interpreted {}
 /-- error: `fairFlag` is named twice. -/
 #guard_msgs in
-#liveness_check [fairFlag] [fairFlag] interpreted {}
+#temporal_check [fairFlag] [fairFlag] interpreted {}
 end LivenessRoutes

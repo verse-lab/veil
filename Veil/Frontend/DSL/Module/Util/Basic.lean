@@ -492,7 +492,7 @@ def Module.trustedInvariants (mod : Module) : Array StateAssertion :=
 def Module.safeties (mod : Module) : Array StateAssertion :=
   mod.assertions.filter (fun a => a.kind == .safety)
 
-/-- The temporal properties that `#liveness_check` checks. -/
+/-- The temporal properties that `#temporal_check` checks. -/
 def Module.checkableTemporalProperties (mod : Module) : Array TemporalProperty :=
   mod.temporalProperties.filter (·.target.needsCheck)
 
