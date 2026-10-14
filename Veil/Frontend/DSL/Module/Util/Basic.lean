@@ -315,14 +315,6 @@ def Module.sortNames (mod : Module) : Array Name := mod.sortFilterMapFn (m := Id
 /-- Returns sort parameters along with their kind (uninterpreted or enum). -/
 def Module.sortParams (mod : Module) : Array (Parameter × SortKind) := mod.sortFilterMapFn (m := Id) fun p k => (p, k)
 
-/-- For each sort parameter this module declares (`type X` or `enum X`), build a `Veil.Enumeration X`.
-  This lets a `liveness` atom's `∀`/`∃` over such a sort. -/
-def Module.livenessEnumerationParams [Monad m] [MonadQuotation m] (mod : Module) : m (Array Parameter) :=
-  mod.sortFilterMapFn fun p _ => do
-    let enumType ← `(term| $(mkIdent ``Veil.Enumeration) $(mkIdent p.name))
-    pure { kind := .moduleTypeclass .sortAssumption, name := Name.mkSimple s!"{p.name}_livenessEnum",
-           «type» := enumType, userSyntax := p.userSyntax : Parameter }
-
 /-! ## Uninterpreted Parameter Utilities (sorts + user parameters) -/
 
 /-- Filters and maps over uninterpreted parameters, including sorts and user-declared
