@@ -287,22 +287,26 @@ deriving Inhabited
 def StateAssertion.declarationKind (sa : StateAssertion) : DeclarationKind := .stateAssertion sa.kind
 
 
-structure LivenessAssertion where
-  name : Name
-  /-- The formula as written; it is elaborated, through `[ltl| …]`, once the spec is finalized. -/
-  formula : TSyntax `tlfml
-  /-- The user-written syntax that resulted in the declaration of this
-  assertion. -/
-  userSyntax : Syntax
-deriving Inhabited
+/-- Which of `prove_temporal_by` and `#liveness_check` a temporal property is for. -/
+inductive TemporalTarget where
+  /-- Both proved and model checked. -/
+  | both
+  /-- Only proved, through its shallow definition (a `Lentil.pred`). -/
+  | verify
+  /-- Only model checked, through its deep definition (an `LTLLib.Formula` syntax tree). -/
+  | check
+deriving Inhabited, BEq, Repr
 
 /-- A temporal property is a temporal formula over the system's execution traces. -/
 structure TemporalProperty where
   name : Name
-  /-- Extra parameters needed to elaborate this temporal property. -/
+  /-- The formula as written. The shallow definition elaborates it through Lentil's `[tlfml| …]`,
+  the deep one through `[ltl| …]`. -/
+  formula : TSyntax `tlfml
+  /-- Whether the property is proved, model checked, or both. -/
+  target : TemporalTarget := .both
+  /-- Extra parameters needed to elaborate the shallow definition. -/
   extraParams : Array Parameter := #[]
-  /-- Lean term for this temporal property (should have type `Lentil.pred State`) -/
-  term : TSyntax `tlfml
   /-- The user-written syntax -/
   userSyntax : Syntax
 deriving Inhabited
@@ -402,11 +406,8 @@ structure Module where
   procedures : Array ProcedureSpecification
   /-- The assertions that this module makes -/
   assertions : Array StateAssertion
-  /-- Temporal properties declared in this module. -/
+  /-- Temporal properties declared in this module, to be proved, model checked, or both. -/
   temporalProperties : Array TemporalProperty := #[]
-
-  /-- The `liveness` (LTL) properties that this module makes. -/
-  livenessProperties : Array LivenessAssertion := #[]
 
   /-- Derived definitions that this module has. -/
   protected _derivedDefinitions : Std.HashMap Name DerivedDefinition
