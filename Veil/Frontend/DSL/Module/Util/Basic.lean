@@ -500,6 +500,14 @@ def Module.trustedInvariants (mod : Module) : Array StateAssertion :=
 def Module.safeties (mod : Module) : Array StateAssertion :=
   mod.assertions.filter (fun a => a.kind == .safety)
 
+/-- The temporal properties that `#liveness_check` checks. -/
+def Module.checkableTemporalProperties (mod : Module) : Array TemporalProperty :=
+  mod.temporalProperties.filter fun tp => tp.target matches .both | .check
+
+/-- The temporal properties that `prove_temporal_by` proves. -/
+def Module.verifiableTemporalProperties (mod : Module) : Array TemporalProperty :=
+  mod.temporalProperties.filter fun tp => tp.target matches .both | .verify
+
 /-! ## Field Utilities -/
 
 /-- Recursively get all fields that are available in this module
