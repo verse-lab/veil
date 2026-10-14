@@ -32,16 +32,34 @@ temporal [usesMutableRelationField] ◇ ⌜ seen limit ⌝
 temporal [usesMutableIndividualField] ◇ ⌜ counter = limit ⌝
 temporal [top] (⊤)
 
--- The action atoms of model-checked properties are rejected
+-- The action atoms only exist for model checking: without `only`, such a property is only model checked
 /--
-error: `E(…)` is an atom of `liveness` properties, which are model checked; a `temporal` property cannot use it
+warning: `usesEnabledAtom` is only model checked, since its proof definition fails to elaborate (write `temporal (only := check)` to say so):
+  `E(…)` only exists for model checking
 -/
 #guard_msgs in
 temporal [usesEnabledAtom] □ E(tick)
+/-- error: `T(…)` only exists for model checking -/
+#guard_msgs in
+temporal (only := verify) [usesTakenAtom] □ ◇ T(tick)
+
+/-- error: Temporal property 'usesEnabledAtom' is only model checked, so it has nothing to prove -/
+#guard_msgs in
+prove_temporal_by [usesEnabledAtom] sorry
+
+-- `warningAsError` turns the warning into an error; the property is still kept for model checking.
+-- (Not `set_option … in`: the section it opens would drop the property from the module when it ends.)
+set_option warningAsError true
 /--
-error: `T(…)` is an atom of `liveness` properties, which are model checked; a `temporal` property cannot use it
+error: `takenAsError` is only model checked, since its proof definition fails to elaborate (write `temporal (only := check)` to say so):
+  `T(…)` only exists for model checking
 -/
 #guard_msgs in
-temporal [usesTakenAtom] □ ◇ T(tick)
+temporal [takenAsError] □ ◇ T(tick)
+set_option warningAsError false
+
+/-- error: Temporal property 'takenAsError' is only model checked, so it has nothing to prove -/
+#guard_msgs in
+prove_temporal_by [takenAsError] sorry
 
 end TemporalBasic

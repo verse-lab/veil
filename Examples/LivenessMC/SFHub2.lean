@@ -18,11 +18,11 @@ action toHub {
   loc := (0 : Loc)
 }
 
-liveness [noFair] □ (⌜ loc = (0 : Loc) ⌝ → ◇ ⌜ loc = (1 : Loc) ⌝)
+temporal [noFair] □ (⌜ loc = (0 : Loc) ⌝ → ◇ ⌜ loc = (1 : Loc) ⌝)
 
 -- client 0: request = hub itself
 -- client 1: own request/ack pair
-liveness [goal]
+temporal [goal]
   ((□ ◇ ⌜ loc = (0 : Loc) ⌝ → □ ◇ ⌜ loc = (1 : Loc) ⌝)
    ∧ (□ ◇ ⌜ loc = (2 : Loc) ⌝ → □ ◇ ⌜ loc = (3 : Loc) ⌝))
   → □ (⌜ loc = (0 : Loc) ⌝ → ◇ ⌜ loc = (1 : Loc) ⌝)

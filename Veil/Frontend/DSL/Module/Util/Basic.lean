@@ -494,11 +494,11 @@ def Module.safeties (mod : Module) : Array StateAssertion :=
 
 /-- The temporal properties that `#liveness_check` checks. -/
 def Module.checkableTemporalProperties (mod : Module) : Array TemporalProperty :=
-  mod.temporalProperties.filter fun tp => tp.target matches .both | .check
+  mod.temporalProperties.filter (·.target.needsCheck)
 
 /-- The temporal properties that `prove_temporal_by` proves. -/
 def Module.verifiableTemporalProperties (mod : Module) : Array TemporalProperty :=
-  mod.temporalProperties.filter fun tp => tp.target matches .both | .verify
+  mod.temporalProperties.filter (·.target.needsVerify)
 
 /-! ## Field Utilities -/
 

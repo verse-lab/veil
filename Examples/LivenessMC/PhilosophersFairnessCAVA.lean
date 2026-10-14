@@ -92,14 +92,14 @@ safety [mutex20] ¬(eat2 = true ∧ eat0 = true)
 -- counterexample, so the property that holds comes first.
 
 -- (fairness assumption) → phil0EventuallyEats.
-liveness [phil0EventuallyEatsFair]
+temporal [phil0EventuallyEatsFair]
   ((□ (◇ (¬ ⌜ eat0 = false ∧ one0 = false ⌝) ∨ ◇ ⌜ action_taken = pickup1_0_T ⌝))
    ∧ (□ (◇ (¬ ⌜ one0 = true ∧ eat0 = false ⌝) ∨ ◇ ⌜ action_taken = pickup2_0_T ⌝)))
   → □ ◇ ⌜ eat0 = true ⌝
 
 -- False without fairness: all three can pick up their left fork and deadlock, and philosophers 1
 -- and 2 can also trade forks 1/2 forever; either way philosopher 0 starves. The deadlock is reported.
-liveness [phil0EventuallyEats] □ ◇ ⌜ eat0 = true ⌝
+temporal [phil0EventuallyEats] □ ◇ ⌜ eat0 = true ⌝
 
 #gen_spec
 

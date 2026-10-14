@@ -2,10 +2,11 @@ module
 
 public import Veil
 
-/-! A `Decidable` instance that a `liveness` atom needs but that cannot be synthesized for the module's
-abstract sorts becomes an instance-implicit parameter of the property's definition, which
-`#liveness_check` synthesizes at the concrete types. This covers quantifiers over a sort, which need no
-`Enumeration` on the definition, and instances that exist only at a concrete type. -/
+/-! A `Decidable` instance that an atom of a model-checked temporal property needs but that cannot be
+synthesized for the module's abstract sorts becomes an instance-implicit parameter of the property's
+model-checking definition `p.ast`, which `#liveness_check` synthesizes at the concrete types. This
+covers quantifiers over a sort, which need no `Enumeration` on the definition, and instances that exist
+only at a concrete type. -/
 
 public section
 
@@ -42,18 +43,18 @@ action move (n : node) {
 ghost relation wasVisited (n : node) := visited n
 
 -- Decidable only at the concrete type
-liveness [startsSpecial] ⌜ Special.special cur ⌝
+temporal [startsSpecial] ⌜ Special.special cur ⌝
 -- Quantifiers over a sort, also around a ghost
-liveness [visitedStable] □ (⌜ ∀ n, wasVisited n ⌝ → □ ⌜ ∀ n, wasVisited n ⌝)
-liveness [eventuallyVisited] ◇ ⌜ ∃ n, wasVisited n ⌝
+temporal [visitedStable] □ (⌜ ∀ n, wasVisited n ⌝ → □ ⌜ ∀ n, wasVisited n ⌝)
+temporal [eventuallyVisited] ◇ ⌜ ∃ n, wasVisited n ⌝
 
 invariant true
 #gen_spec
 
 -- No definition asks for `Enumeration` on the sort
 run_meta do
-  for n in [``LivenessDecidableParams.startsSpecial, ``LivenessDecidableParams.visitedStable,
-      ``LivenessDecidableParams.eventuallyVisited] do
+  for n in [``LivenessDecidableParams.startsSpecial.ast, ``LivenessDecidableParams.visitedStable.ast,
+      ``LivenessDecidableParams.eventuallyVisited.ast] do
     if (← Lean.getConstInfo n).type.getUsedConstants.contains ``Veil.Enumeration then
       throwError "{n} asks for `Enumeration`"
 
@@ -85,8 +86,8 @@ action raise {
 
 ghost relation raised := flag = true
 
-liveness [bare] ◇ raised
-liveness [wrapped] ◇ ⌜ raised ⌝
+temporal (only := check) [bare] ◇ raised
+temporal [wrapped] ◇ ⌜ raised ⌝
 
 /--
 error: a plain term is not an atomic proposition of a model-checked property; write `⌜ raised ⌝` for a state predicate
@@ -94,7 +95,7 @@ error: a plain term is not an atomic proposition of a model-checked property; wr
 #guard_msgs in
 #gen_spec
 
-/-- error: `bare` has no definition to check, since its formula failed to elaborate at `#gen_spec` -/
+/-- error: `bare` is not a model-checked temporal property of this module. Model checked: wrapped -/
 #guard_msgs in
 #liveness_check [bare] interpreted {}
 

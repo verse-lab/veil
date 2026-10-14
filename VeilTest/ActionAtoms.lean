@@ -28,15 +28,15 @@ action reset {
 }
 
 -- `up` can always eventually fire, and does.
-liveness [upRecurs] □ ◇ E(up)
-liveness [upTaken] □ ◇ T(up)
+temporal (only := check) [upRecurs] □ ◇ E(up)
+temporal (only := check) [upTaken] □ ◇ T(up)
 -- `reset` is not always enabled, so this one must fail.
-liveness [resetAlways] □ E(reset)
+temporal (only := check) [resetAlways] □ E(reset)
 -- Per-action strong fairness, the motivating shape: whenever `reset` is enabled it is eventually taken.
 -- Its negation puts the edge atom `¬T(reset)` inside a `◇□`, which is what the step regions exist for.
-liveness [resetFair] □ (E(reset) → ◇ T(reset))
+temporal (only := check) [resetFair] □ (E(reset) → ◇ T(reset))
 -- A step cannot be two different actions at once.
-liveness [notBoth] □ ¬(T(up) ∧ T(reset))
+temporal (only := check) [notBoth] □ ¬(T(up) ∧ T(reset))
 
 #gen_spec
 #gen_executable
@@ -51,15 +51,15 @@ open Veil.LivenessMC in
     else IO.println s!"  FAIL  {nm}: expected {if want then "holds" else "fails"}"
   IO.println "action atoms (labelled NDFS route):"
   expect "□◇E(up)"                true
-    (checkNDFS sys (upRecurs Theory (State FieldConcreteType) FieldConcreteType) (by native_decide) (by native_decide))
+    (checkNDFS sys (upRecurs.ast Theory (State FieldConcreteType) FieldConcreteType) (by native_decide) (by native_decide))
   expect "□◇T(up)"                true
-    (checkNDFS sys (upTaken Theory (State FieldConcreteType) FieldConcreteType) (by native_decide) (by native_decide))
+    (checkNDFS sys (upTaken.ast Theory (State FieldConcreteType) FieldConcreteType) (by native_decide) (by native_decide))
   expect "□E(reset)"              false
-    (checkNDFS sys (resetAlways Theory (State FieldConcreteType) FieldConcreteType) (by native_decide) (by native_decide))
+    (checkNDFS sys (resetAlways.ast Theory (State FieldConcreteType) FieldConcreteType) (by native_decide) (by native_decide))
   expect "□(E(reset) → ◇T(reset))" true
-    (checkNDFS sys (resetFair Theory (State FieldConcreteType) FieldConcreteType) (by native_decide) (by native_decide))
+    (checkNDFS sys (resetFair.ast Theory (State FieldConcreteType) FieldConcreteType) (by native_decide) (by native_decide))
   expect "□¬(T(up) ∧ T(reset))"   true
-    (checkNDFS sys (notBoth Theory (State FieldConcreteType) FieldConcreteType) (by native_decide) (by native_decide))
+    (checkNDFS sys (notBoth.ast Theory (State FieldConcreteType) FieldConcreteType) (by native_decide) (by native_decide))
 
 open Veil.LivenessMC in
 #eval do
@@ -73,11 +73,11 @@ open Veil.LivenessMC in
   -- were lifted this route took an unlabelled successor function, so every `T(…)` would have read false.
   IO.println "action atoms (fairness route agrees):"
   expect "□◇T(up)"                true
-    (checkUnderFairness sys (upTaken Theory (State FieldConcreteType) FieldConcreteType))
+    (checkUnderFairness sys (upTaken.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□(E(reset) → ◇T(reset))" true
-    (checkUnderFairness sys (resetFair Theory (State FieldConcreteType) FieldConcreteType))
+    (checkUnderFairness sys (resetFair.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□¬(T(up) ∧ T(reset))"   true
-    (checkUnderFairness sys (notBoth Theory (State FieldConcreteType) FieldConcreteType))
+    (checkUnderFairness sys (notBoth.ast Theory (State FieldConcreteType) FieldConcreteType))
 
 end ActionAtoms
 
@@ -102,13 +102,13 @@ action toggle1 { bit := 1 - bit }
 action toggle2 { bit := 1 - bit }
 
 -- FAILS: the run that always takes `toggle2` never takes `toggle1`.
-liveness [t1Recurs] □ ◇ T(toggle1)
+temporal (only := check) [t1Recurs] □ ◇ T(toggle1)
 -- FAILS, for the same reason.
-liveness [t1Forever] ◇ □ T(toggle1)
+temporal (only := check) [t1Forever] ◇ □ T(toggle1)
 -- HOLDS: every step is one of the two.
-liveness [eitherStep] □ (T(toggle1) ∨ T(toggle2))
+temporal (only := check) [eitherStep] □ (T(toggle1) ∨ T(toggle2))
 -- HOLDS: a step is exactly one action.
-liveness [notBothPar] □ ¬(T(toggle1) ∧ T(toggle2))
+temporal (only := check) [notBothPar] □ ¬(T(toggle1) ∧ T(toggle2))
 
 #gen_spec
 #gen_executable
@@ -123,16 +123,16 @@ open Veil.LivenessMC in
     else IO.println s!"  FAIL  {nm}: expected {if want then "holds" else "fails"}"
   IO.println "parallel edges (the §6.3 discriminator):"
   expect "□◇T(toggle1)"                false
-    (checkNDFS sys (t1Recurs Theory (State FieldConcreteType) FieldConcreteType)
+    (checkNDFS sys (t1Recurs.ast Theory (State FieldConcreteType) FieldConcreteType)
       (by native_decide) (by native_decide))
   expect "◇□T(toggle1)"                false
-    (checkNDFS sys (t1Forever Theory (State FieldConcreteType) FieldConcreteType)
+    (checkNDFS sys (t1Forever.ast Theory (State FieldConcreteType) FieldConcreteType)
       (by native_decide) (by native_decide))
   expect "□(T(toggle1) ∨ T(toggle2))"  true
-    (checkNDFS sys (eitherStep Theory (State FieldConcreteType) FieldConcreteType)
+    (checkNDFS sys (eitherStep.ast Theory (State FieldConcreteType) FieldConcreteType)
       (by native_decide) (by native_decide))
   expect "□¬(T(toggle1) ∧ T(toggle2))" true
-    (checkNDFS sys (notBothPar Theory (State FieldConcreteType) FieldConcreteType)
+    (checkNDFS sys (notBothPar.ast Theory (State FieldConcreteType) FieldConcreteType)
       (by native_decide) (by native_decide))
 
 open Veil.LivenessMC in
@@ -148,13 +148,13 @@ open Veil.LivenessMC in
   -- an encoding that read the region off the pair would answer differently.
   IO.println "parallel edges (fairness route agrees):"
   expect "□◇T(toggle1)"                false
-    (checkUnderFairness sys (t1Recurs Theory (State FieldConcreteType) FieldConcreteType))
+    (checkUnderFairness sys (t1Recurs.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "◇□T(toggle1)"                false
-    (checkUnderFairness sys (t1Forever Theory (State FieldConcreteType) FieldConcreteType))
+    (checkUnderFairness sys (t1Forever.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□(T(toggle1) ∨ T(toggle2))"  true
-    (checkUnderFairness sys (eitherStep Theory (State FieldConcreteType) FieldConcreteType))
+    (checkUnderFairness sys (eitherStep.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□¬(T(toggle1) ∧ T(toggle2))" true
-    (checkUnderFairness sys (notBothPar Theory (State FieldConcreteType) FieldConcreteType))
+    (checkUnderFairness sys (notBothPar.ast Theory (State FieldConcreteType) FieldConcreteType))
 
 end ParallelEdges
 
@@ -178,22 +178,22 @@ action work { flag := 1 }
 action idle { flag := flag }
 
 -- FAILS: the always-idle run never sets the flag.
-liveness [reaches] ◇ ⌜ flag = 1 ⌝
+temporal [reaches] ◇ ⌜ flag = 1 ⌝
 -- HOLDS: `T(work)` taken infinitely often forces it. The assumption is a hoisted `□◇` over an edge atom.
-liveness [reachesFair] (□ ◇ T(work)) → ◇ ⌜ flag = 1 ⌝
+temporal (only := check) [reachesFair] (□ ◇ T(work)) → ◇ ⌜ flag = 1 ⌝
 -- FAILS: `work` is always enabled and the always-idle run never takes it.
-liveness [sfWork] (□ ◇ E(work)) → (□ ◇ T(work))
+temporal (only := check) [sfWork] (□ ◇ E(work)) → (□ ◇ T(work))
 -- HOLDS: the same strong fairness as an assumption. It is a disjunction of two fair disjuncts, so it is
 -- hoisted whole and crossed, one with the edge atom in a `◇□` region.
-liveness [sfForces] ((□ ◇ E(work)) → (□ ◇ T(work))) → ◇ ⌜ flag = 1 ⌝
+temporal (only := check) [sfForces] ((□ ◇ E(work)) → (□ ◇ T(work))) → ◇ ⌜ flag = 1 ⌝
 -- The two cases that *discriminate*. Every property above has an edge atom only in its assumption, so an
 -- implementation that never contributed `T(…)` would make the assumption unsatisfiable and the implication
 -- vacuously true — the same answer, for the wrong reason. These two assume something the idle run does
 -- satisfy, so they must FAIL, and a broken `T(…)` would report them as holding.
 -- FAILS: the always-idle run takes `idle` infinitely often and never sets the flag. (`□◇`, a mark.)
-liveness [idleRecurs] (□ ◇ T(idle)) → ◇ ⌜ flag = 1 ⌝
+temporal (only := check) [idleRecurs] (□ ◇ T(idle)) → ◇ ⌜ flag = 1 ⌝
 -- FAILS: the same run takes `idle` forever. (`◇□`, a step region — the §6.5 case.)
-liveness [idleForever] (◇ □ T(idle)) → ◇ ⌜ flag = 1 ⌝
+temporal (only := check) [idleForever] (◇ □ T(idle)) → ◇ ⌜ flag = 1 ⌝
 
 #gen_spec
 #gen_executable
@@ -208,17 +208,17 @@ open Veil.LivenessMC in
     else IO.println s!"  FAIL  {nm}: expected {if want then "holds" else "fails"}"
   IO.println "edge atoms inside a hoisted fairness:"
   expect "◇flag=1"                          false
-    (checkUnderFairness sys (reaches Theory (State FieldConcreteType) FieldConcreteType))
+    (checkUnderFairness sys (reaches.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□◇T(work) → ◇flag=1"              true
-    (checkUnderFairness sys (reachesFair Theory (State FieldConcreteType) FieldConcreteType))
+    (checkUnderFairness sys (reachesFair.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□◇E(work) → □◇T(work)"            false
-    (checkUnderFairness sys (sfWork Theory (State FieldConcreteType) FieldConcreteType))
+    (checkUnderFairness sys (sfWork.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "SF(work) → ◇flag=1"               true
-    (checkUnderFairness sys (sfForces Theory (State FieldConcreteType) FieldConcreteType))
+    (checkUnderFairness sys (sfForces.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□◇T(idle) → ◇flag=1"              false
-    (checkUnderFairness sys (idleRecurs Theory (State FieldConcreteType) FieldConcreteType))
+    (checkUnderFairness sys (idleRecurs.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "◇□T(idle) → ◇flag=1"              false
-    (checkUnderFairness sys (idleForever Theory (State FieldConcreteType) FieldConcreteType))
+    (checkUnderFairness sys (idleForever.ast Theory (State FieldConcreteType) FieldConcreteType))
 
 /-! ### Which properties get the prune's free path
 
@@ -234,17 +234,17 @@ open Veil.LivenessMC in
     else IO.println s!"  FAIL  {nm}: expected {if want then "free" else "one prune level"}"
   IO.println "prune cost (§12.3: `□◇T(a)` is free, `◇□T(a)` commits a region first):"
   route "◇flag=1                  (no fairness)        " true
-    (pruneRegionsAvoidEdgeAtoms (reaches Theory (State FieldConcreteType) FieldConcreteType))
+    (pruneRegionsAvoidEdgeAtoms (reaches.ast Theory (State FieldConcreteType) FieldConcreteType))
   route "□◇T(work) → ◇flag=1      (edge atom assumed)  " true
-    (pruneRegionsAvoidEdgeAtoms (reachesFair Theory (State FieldConcreteType) FieldConcreteType))
+    (pruneRegionsAvoidEdgeAtoms (reachesFair.ast Theory (State FieldConcreteType) FieldConcreteType))
   route "SF(work) → ◇flag=1       (SF assumed)         " true
-    (pruneRegionsAvoidEdgeAtoms (sfForces Theory (State FieldConcreteType) FieldConcreteType))
+    (pruneRegionsAvoidEdgeAtoms (sfForces.ast Theory (State FieldConcreteType) FieldConcreteType))
   route "□◇T(idle) → ◇flag=1      (edge atom assumed)  " true
-    (pruneRegionsAvoidEdgeAtoms (idleRecurs Theory (State FieldConcreteType) FieldConcreteType))
+    (pruneRegionsAvoidEdgeAtoms (idleRecurs.ast Theory (State FieldConcreteType) FieldConcreteType))
   route "□◇E(work) → □◇T(work)    (SF verified)        " false
-    (pruneRegionsAvoidEdgeAtoms (sfWork Theory (State FieldConcreteType) FieldConcreteType))
+    (pruneRegionsAvoidEdgeAtoms (sfWork.ast Theory (State FieldConcreteType) FieldConcreteType))
   route "◇□T(idle) → ◇flag=1      (◇□ over an edge atom)" false
-    (pruneRegionsAvoidEdgeAtoms (idleForever Theory (State FieldConcreteType) FieldConcreteType))
+    (pruneRegionsAvoidEdgeAtoms (idleForever.ast Theory (State FieldConcreteType) FieldConcreteType))
 
 open Veil.LivenessMC in
 #eval do
@@ -259,12 +259,12 @@ open Veil.LivenessMC in
   -- caller's. These agree with the crossing above.
   IO.println "the prune route, on every property, with no side condition:"
   expect "◇flag=1"                          false
-    (checkFair sys (reaches Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (reaches.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□◇T(work) → ◇flag=1"              true
-    (checkFair sys (reachesFair Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (reachesFair.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "SF(work) → ◇flag=1"               true
-    (checkFair sys (sfForces Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (sfForces.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□◇T(idle) → ◇flag=1"              false
-    (checkFair sys (idleRecurs Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (idleRecurs.ast Theory (State FieldConcreteType) FieldConcreteType))
 
 end FairnessEdgeAtoms
