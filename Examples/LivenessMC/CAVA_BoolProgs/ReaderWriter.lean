@@ -132,6 +132,6 @@ temporal [φWriterEventuallyActive] ◇ ⌜ writersActive = true ⌝
 
 -- Checks every `liveness` property above in declaration order, stopping at the first counterexample.
 set_option veil.violationIsError false in
-#liveness_check {}
+#temporal_check {}
 
 end BoolProgReaderWriter

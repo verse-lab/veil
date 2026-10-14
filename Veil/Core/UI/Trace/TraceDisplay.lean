@@ -21,7 +21,7 @@ inductive ResultKind where
   | modelCheck
   /-- `#simulate`, i.e. `SimulateResult.toDisplayJson`. -/
   | simulate
-  /-- `#liveness_check`, including a stem/loop counterexample. -/
+  /-- `#temporal_check`, including a stem/loop counterexample. -/
   | liveness
   /-- `sat trace` / `unsat trace`, i.e. a trace extracted from a VC. -/
   | symbolicTrace

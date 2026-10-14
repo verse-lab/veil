@@ -287,7 +287,7 @@ deriving Inhabited
 def StateAssertion.declarationKind (sa : StateAssertion) : DeclarationKind := .stateAssertion sa.kind
 
 
-/-- Which of `prove_temporal_by` and `#liveness_check` a temporal property is for. -/
+/-- Which of `prove_temporal_by` and `#temporal_check` a temporal property is for. -/
 inductive TemporalTarget where
   /-- Both proved and model checked. -/
   | both
@@ -309,7 +309,7 @@ def TemporalTarget.needsVerify : TemporalTarget → Bool
 
 /-- A temporal property is a temporal formula over the system's execution traces. Its shallow definition
 `p`, a `Lentil.pred`, is what `prove_temporal_by` proves, and its deep definition `p.ast`, an
-`LTLLib.Formula` syntax tree, is what `#liveness_check` checks. -/
+`LTLLib.Formula` syntax tree, is what `#temporal_check` checks. -/
 structure TemporalProperty where
   name : Name
   /-- The formula as written. The shallow definition elaborates it through Lentil's `[tlfml| …]`,

@@ -451,7 +451,7 @@ private def mkActionLabelMatch (mod : Module) (actionName : Name) (args : Array 
     `(term| fun $lbl => decide ($lbl = $(Lean.mkIdent (labelTypeName ++ actionName)):ident $args*))
 
 -- `∀ x, φ` and `∃ x, φ` become the conjunction and the disjunction of `φ` over the values that `Enumeration`
--- lists for the type of `x`. For a sort, these are only known once `#liveness_check` instantiates the module.
+-- lists for the type of `x`. For a sort, these are only known once `#temporal_check` instantiates the module.
 macro_rules
   | `([ltl| ∀ $x:ident, $f]) => `($(mkIdent ``LivenessMC.forallEnum) fun $x => [ltl| $f])
   | `([ltl| ∀ $x:ident : $t, $f]) => `($(mkIdent ``LivenessMC.forallEnum) fun ($x : $t) => [ltl| $f])
@@ -507,7 +507,7 @@ Tried before the plain reading of `[ltl| …]` (`LivenessMC.elabLtlAtom`), to wh
 /-! ## Definitions of temporal properties
 
 A temporal property `p` has up to two definitions: the shallow `p`, a `Lentil.pred` for `prove_temporal_by`,
-and the deep `p.ast`, an `LTLLib.Formula` syntax tree for `#liveness_check`. One declared before the spec is
+and the deep `p.ast`, an `LTLLib.Formula` syntax tree for `#temporal_check`. One declared before the spec is
 finalized gets them later: `p.ast` once `Label` exists (`Module.ensureSpecIsFinalized`), and `p` once `Init`,
 `NextStep`, … do (`Module.ensureVerificationSpec`). -/
 
@@ -519,7 +519,7 @@ private def Module.modifyTemporalProperty (mod : Module) (name : Name) (f : Temp
 `LivenessProperty.ofFormula` from `[ltl| φ]`, elaborating the formula once. Needs the finalized spec. As for an assertion
 (`Module.mkVeilTerm`), every `Decidable` instance that cannot be synthesized here, such as one for a quantifier
 over a sort or one that exists only at a concrete type, becomes a trailing instance-implicit parameter, which
-`#liveness_check` synthesizes at the types it instantiates the module with. The same goes for the
+`#temporal_check` synthesizes at the types it instantiates the module with. The same goes for the
 `Enumeration` instances that the temporal quantifiers `∀ x, …`/`∃ x, …` need, such as one for a sort. -/
 private def Module.defineTemporalCheck (mod : Module) (tp : TemporalProperty) : CommandElabM Module := do
   let defName := toTemporalAstName tp.name
@@ -716,7 +716,7 @@ declare_command_config_elab elabModelCheckCommandConfig ModelCheckCommandConfig 
     let base : ModelCheckerConfig ← Lean.Elab.ConfigEval.evalExprWithElab ⟨item.value⟩
     return { cfg with toModelCheckerConfig := base }
 
-/-- Configuration options for the `#liveness_check` command. -/
+/-- Configuration options for the `#temporal_check` command. -/
 structure LivenessCheckConfig where
   /-- The search to run; see `Veil.LivenessMC.Route`. -/
   route : LivenessMC.Route := .fair
@@ -1082,7 +1082,7 @@ private def selectLivenessProperties (mod : Module) (selection : Array (TSyntax 
 
 @[command_elab Veil.livenessCheck]
 def elabLivenessCheck : CommandElab := fun stx => do
-  withTraceNode `veil.perf.elaborator.livenessCheck (fun _ => return "#liveness_check") do
+  withTraceNode `veil.perf.elaborator.livenessCheck (fun _ => return "#temporal_check") do
     -- `stx[1]` is the bracketed property selection (possibly empty), `stx[2]` the optional mode,
     -- `stx[3]` the instantiation, `stx[4]` the optional theory, `stx[5]` the `optConfig`,
     -- `stx[6]` the optional `finite_reach_by`, `stx[7]` the optional `assumptions_hold_by`
@@ -1100,10 +1100,10 @@ def elabLivenessCheck : CommandElab := fun stx => do
         e.g. `finite_reach_by native_decide`."
     if !cfg.route.needsFiniteReach && finiteReachBy.isSome then
       throwError "`(route := .{cfg.route.name})` does not take a `finite_reach_by` clause."
-    let mod ← getCurrentModule (errMsg := "You cannot #liveness_check outside of a Veil module!")
+    let mod ← getCurrentModule (errMsg := "You cannot #temporal_check outside of a Veil module!")
     mod.throwIfSpecNotFinalized
     let properties ← selectLivenessProperties mod selection
-    let theoryTerm ← getTheoryTerm "#liveness_check" theoryTermOpt mod instTerm
+    let theoryTerm ← getTheoryTerm "#temporal_check" theoryTermOpt mod instTerm
     warnAboutTransitions mod
     if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
       checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy

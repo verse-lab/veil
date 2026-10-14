@@ -355,7 +355,7 @@ scoped syntax (name := tlfmlStrongFairness) "SF(" ident (term:max)* ")" : tlfml
 properties, which are state predicates, temporal properties are properties about traces.
 
 Veil defines it twice: `p`, a `Lentil.pred` that `prove_temporal_by [p]` proves, and `p.ast`, an
-`LTLLib.Formula` syntax tree that `#liveness_check` checks. `(only := verify)` and `(only := check)` keep
+`LTLLib.Formula` syntax tree that `#temporal_check` checks. `(only := verify)` and `(only := check)` keep
 one of them. Without `(only := …)`, a definition that fails to elaborate is dropped with a warning, e.g.
 `p` when the formula uses `E(…)`, which only model checking supports.
 
@@ -364,9 +364,9 @@ right away. Inside `⌜ … ⌝`, the module's theory and state fields and its g
 assertion.
 
 `∀ x, φ` and `∃ x, φ` (or `∀ x : T, φ` and `∃ x : T, φ`) quantify over all values of the type of `x`.
-To model check them, the type needs an `Enumeration` instance: `#liveness_check` checks the conjunction
+To model check them, the type needs an `Enumeration` instance: `#temporal_check` checks the conjunction
 (for `∀`) or the disjunction (for `∃`) of `φ` over the values that the instance lists. For a sort, this
-is the instance of the type that `#liveness_check` puts in for the sort, e.g. `Fin 3`.
+is the instance of the type that `#temporal_check` puts in for the sort, e.g. `Fin 3`.
 
 Example:
 ```lean
@@ -499,16 +499,16 @@ Properties named in brackets are checked alone, in declaration order.
 `finite_reach_by`. As with `#model_check`, write the theory term (`{}` if empty) before the option.
 
 ```
-#liveness_check [goal] { node := Fin 3 } {}
-#liveness_check [goal] [noFair] compiled { node := Fin 3 } {}
-#liveness_check interpreted { node := Fin 3 } {}
-#liveness_check compiled { node := Fin 3 } {}
-#liveness_check { node := Fin 3 } {}
-#liveness_check compiled { node := Fin 3 } {} (route := .prune)
-#liveness_check compiled { node := Fin 3 } {} (route := .ndfs) finite_reach_by native_decide
+#temporal_check [goal] { node := Fin 3 } {}
+#temporal_check [goal] [noFair] compiled { node := Fin 3 } {}
+#temporal_check interpreted { node := Fin 3 } {}
+#temporal_check compiled { node := Fin 3 } {}
+#temporal_check { node := Fin 3 } {}
+#temporal_check compiled { node := Fin 3 } {} (route := .prune)
+#temporal_check compiled { node := Fin 3 } {} (route := .ndfs) finite_reach_by native_decide
 ```
 -/
-scoped syntax (name := livenessCheck) "#liveness_check " (propertyName)* (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (finiteReachBy)? (assumptionsHoldBy)? : command
+scoped syntax (name := livenessCheck) "#temporal_check " (propertyName)* (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (finiteReachBy)? (assumptionsHoldBy)? : command
 
 /-- Execute a concrete Veil action/procedure term using the same nondeterministic
 extraction machinery as `#model_check`, and print every possible return value

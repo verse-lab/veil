@@ -30,6 +30,6 @@ temporal [goal]
 #gen_spec
 
 -- set_option veil.violationIsError false in
-#liveness_check {}
+#temporal_check {}
 
 end SFHub2

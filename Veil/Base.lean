@@ -170,7 +170,7 @@ register_option veil.deferVCGeneration : Bool := {
   and `#gen_spec` run while it is set generates no verification conditions, so it also skips the assertion-failure (`doesNotThrow`) checks. \
   The first verification command (e.g. `#check_invariants`) generates the definitions and runs the checks. \
   If the option is turned off within a module, the next declaration or `#gen_spec` first generates the definitions deferred so far. \
-  `#model_check`, `#simulate`, and `#liveness_check` need neither."
+  `#model_check`, `#simulate`, and `#temporal_check` need neither."
 }
 
 register_option veil.simulate.numTraces : Nat := {
@@ -185,13 +185,13 @@ register_option veil.simulate.maxSteps : Nat := {
 
 register_option veil.modelChecker.emitTimings : Bool := {
   defValue := false
-  descr := "If true, `#model_check`, `#simulate` and `#liveness_check` print the timings of a \
+  descr := "If true, `#model_check`, `#simulate` and `#temporal_check` print the timings of a \
   finished run to stderr as a JSON object under the key `veil_timing`. Default is false."
 }
 
 register_option veil.modelChecker.maxStoredBuilds : Nat := {
   defValue := 1
-  descr := "Maximum number of compiled builds of `#model_check`, `#simulate`, and `#liveness_check` stored in \
+  descr := "Maximum number of compiled builds of `#model_check`, `#simulate`, and `#temporal_check` stored in \
   `.lake/model_checker_builds`; 0 means no limit, so builds are never deleted. When a run ends, \
   cleanup keeps the most recently compiled builds up to this limit, allowing later runs to reuse \
   them. Builds that running checks use are never deleted, even beyond the limit. Cleanup is \
@@ -200,7 +200,7 @@ register_option veil.modelChecker.maxStoredBuilds : Nat := {
 
 register_option veil.modelChecker.buildOnly : Bool := {
   defValue := false
-  descr := "If true, a `compiled` `#model_check`, `#simulate` or `#liveness_check` builds its \
+  descr := "If true, a `compiled` `#model_check`, `#simulate` or `#temporal_check` builds its \
   binary without running it. With `veil.modelChecker.emitTimings`, the build folder is printed to \
   stderr under the key `veil_build`. Default is false."
 }

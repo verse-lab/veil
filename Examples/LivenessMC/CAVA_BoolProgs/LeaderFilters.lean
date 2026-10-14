@@ -395,6 +395,6 @@ temporal [φStableElection] ◇ □ ⌜ elected = true ⌝
 #gen_spec
 
 -- Checks every `liveness` property above in declaration order, stopping at the first counterexample.
-#liveness_check {}
+#temporal_check {}
 
 end BoolProgLeaderFilters

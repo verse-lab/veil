@@ -4,7 +4,7 @@ public import Veil
 
 /-! A `Decidable` instance that an atom of a model-checked temporal property needs but that cannot be
 synthesized for the module's abstract sorts becomes an instance-implicit parameter of the property's
-model-checking definition `p.ast`, which `#liveness_check` synthesizes at the concrete types. This
+model-checking definition `p.ast`, which `#temporal_check` synthesizes at the concrete types. This
 covers quantifiers over a sort, which need no `Enumeration` on the definition, and instances that exist
 only at a concrete type. -/
 
@@ -60,11 +60,11 @@ run_meta do
 
 /-- info: ✅ No liveness violation (checked 3 properties, explored 11 product states) -/
 #guard_msgs in
-#liveness_check interpreted { node := Fin 2 } { start := 1 }
+#temporal_check interpreted { node := Fin 2 } { start := 1 }
 
 /-- error: ❌ Violation: liveness_failure (violates: startsSpecial) -/
 #guard_msgs (substring := true) in
-#liveness_check [startsSpecial] interpreted { node := Fin 2 } { start := 0 }
+#temporal_check [startsSpecial] interpreted { node := Fin 2 } { start := 0 }
 
 end LivenessDecidableParams
 
@@ -97,10 +97,10 @@ error: a plain term is not an atomic proposition of a model-checked property; wr
 
 /-- error: `bare` is not a model-checked temporal property of this module. Model checked: wrapped -/
 #guard_msgs in
-#liveness_check [bare] interpreted {}
+#temporal_check [bare] interpreted {}
 
 /-- info: ✅ No liveness violation (checked 1 properties, explored 2 product states) -/
 #guard_msgs in
-#liveness_check [wrapped] interpreted {}
+#temporal_check [wrapped] interpreted {}
 
 end LivenessDecidableParamsBroken

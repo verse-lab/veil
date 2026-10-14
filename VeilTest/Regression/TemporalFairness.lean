@@ -55,22 +55,22 @@ run_meta do
 
 /-- info: ✅ No liveness violation (checked 1 properties, explored 6 product states) -/
 #guard_msgs in
-#liveness_check [weakHolds] interpreted {}
+#temporal_check [weakHolds] interpreted {}
 /-- info: ✅ No liveness violation (checked 1 properties, explored 6 product states) -/
 #guard_msgs in
-#liveness_check [weakHoldsByHand] interpreted {}
+#temporal_check [weakHoldsByHand] interpreted {}
 /-- error: ❌ Violation: liveness_failure (violates: weakFails) -/
 #guard_msgs (substring := true) in
-#liveness_check [weakFails] interpreted {}
+#temporal_check [weakFails] interpreted {}
 /-- info: ✅ No liveness violation (checked 1 properties, explored 5 product states) -/
 #guard_msgs in
-#liveness_check [strongHolds] interpreted {}
+#temporal_check [strongHolds] interpreted {}
 /-- info: ✅ No liveness violation (checked 1 properties, explored 5 product states) -/
 #guard_msgs in
-#liveness_check [strongHoldsByHand] interpreted {}
+#temporal_check [strongHoldsByHand] interpreted {}
 /-- error: ❌ Violation: liveness_failure (violates: strongWholeFails) -/
 #guard_msgs (substring := true) in
-#liveness_check [strongWholeFails] interpreted {}
+#temporal_check [strongWholeFails] interpreted {}
 
 /-- error: unknown action `toLeave`; the module's actions are [toLeaf, toHub, stay] -/
 #guard_msgs in

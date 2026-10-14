@@ -57,7 +57,7 @@ safety [mutex20] ¬(eat2 = true ∧ eat0 = true)
 -- Philosophers 1 and 2 trading their shared fork forever, starving philosopher 0, is another.
 temporal [φPhil0EventuallyEats] □ ◇ ⌜ eat0 = true ⌝
 
--- Not checked in the corresponding Isabelle demo, nor here: `#liveness_check` stops at the
+-- Not checked in the corresponding Isabelle demo, nor here: `#temporal_check` stops at the
 -- counterexample to `φPhil0EventuallyEats` before reaching the properties below.
 temporal [φMutex] □ (¬ (⌜ eat0 = true ⌝ ∧ ⌜ eat1 = true ⌝) ∧ ¬ (⌜ eat1 = true ⌝ ∧ ⌜ eat2 = true ⌝) ∧ ¬ (⌜ eat2 = true ⌝ ∧ ⌜ eat0 = true ⌝))
 
@@ -68,6 +68,6 @@ temporal [φSomeoneEats] ◇ (⌜ eat0 = true ⌝ ∨ ⌜ eat1 = true ⌝ ∨ �
 
 -- Checks every `liveness` property above in declaration order, stopping at the first counterexample.
 set_option veil.violationIsError false in
-#liveness_check {}
+#temporal_check {}
 
 end BoolProgPhilosophers

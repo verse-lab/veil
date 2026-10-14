@@ -359,7 +359,7 @@ References:
 - [SLDP09] Sun, Liu, Dong, Pang. PAT: Towards Flexible Verification under Fairness. CAV 2009.
 -/
 
-/-- The search run by `#liveness_check`. -/
+/-- The search run by `#temporal_check`. -/
 inductive Route where
   | ndfs
   | dijkstra
