@@ -51,39 +51,64 @@ An explanation of the constructs of the Veil DSL can be found at
 
 ## Build
 
-Veil requires [Lean 4](https://github.com/leanprover/lean4) and
-[NodeJS](https://nodejs.org/en/download/), and Lean CVC5 requires
-[Clang](https://releases.llvm.org/download.html). To install those on Linux or
-MacOS:
+Install the system dependencies for your platform, then follow the shared setup
+instructions below.
+
+### 1. Install system dependencies
+
+<details>
+<summary>Ubuntu/Debian</summary>
+
+```bash
+sudo apt-get update &&
+sudo apt-get install -y --no-install-recommends \
+  ca-certificates curl git unzip clang lld libc++-dev libc++abi-dev
+```
+
+</details>
+
+<details>
+<summary>macOS</summary>
+
+Install the XCode Command Line Tools (they provide `clang` and `git`):
+
+```bash
+xcode-select --install
+```
+
+</details>
+
+### 2. Install Node.js and Lean
+
+On both Linux and macOS, install [Lean 4](https://github.com/leanprover/lean4)
+through [Elan](https://github.com/leanprover/elan) and [Node.js
+24](https://nodejs.org/en/download/) (including `npm`) through nvm. Elan will
+install the Lean version specified in `lean-toolchain` when you first run
+`lake` in the repository:
 
 ```bash
 set -o pipefail &&
-sudo apt-get update &&
-sudo apt-get install -y --no-install-recommends \
-  ca-certificates curl git unzip clang lld libc++-dev libc++abi-dev &&
+(curl -fsSL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none) &&
+. "$HOME/.elan/env" &&
 (curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.7/install.sh | bash) &&
 . "$HOME/.nvm/nvm.sh" &&
-nvm install 24 &&
-(curl -fsSL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none) &&
-. "$HOME/.elan/env"
+nvm install 24
 ```
 
-Then, clone Veil:
+### 3. Clone and build Veil
+
+Clone Veil, enter the repository, and build it:
 
 ```bash
 git clone https://github.com/verse-lab/veil.git
-```
-
-And, finally, build it:
-
-```bash
+cd veil
 lake build
 ```
 
 ### Troubleshooting
 
 **(NPM errors)** If you see an error about `npm`, make sure it's in your
-`PATH`; the command above installs both `node` and `npm`.
+`PATH`; the installation command above installs both `node` and `npm`.
 
 **(cvc5 errors)** If you see an error about `cvc5`, run:
 
