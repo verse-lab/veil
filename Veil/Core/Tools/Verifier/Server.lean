@@ -41,9 +41,8 @@ def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotTh
 
 /-- Start ready dischargers from the enabled set until the number in flight
 reaches the core count: spawn each task (`Discharger.run` only *spawns* — the
-elaboration/solving runs on the thread pool), send it to the task
-registration channel for the frontend to register via `logSnapshotTask`, and
-write the started discharger back into its node.
+elaboration/solving runs on the thread pool) and write the started discharger
+back into its node. Each observer registers matching tasks from this state.
 
 Must be called with the `vcManager` lock held, as part of a handler's single
 critical section: holding the lock, the `(vc, discharger)` pairs returned by
@@ -60,28 +59,14 @@ private def fillAvailableSlotsLocked (mgr : VCManager VCMetadata SmtResult)
   let ready := (← mgr.readyTasks).take (numCores - inFlight)
   for (vc, discharger) in ready do
     let discharger' ← discharger.run
-    if let some task := discharger'.task then
-      -- Send to channel for frontend to register (instead of registering directly here)
-      let _ ← Veil.taskRegistrationCh.send { task, cancelTk := discharger'.cancelTk }
     let vc' := { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }
     mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc' }
   return mgr
 
-/-- Cancel every discharger of `mgr` and drain queued-but-not-yet-registered
-task registrations, cancelling each. Called by both reset paths so replacing
-the manager state never leaks running work: tasks already registered with the
-language server are cancelled by it on re-elaboration, but entries still queued
-in `taskRegistrationCh` would otherwise never be registered *nor* cancelled,
-and running dischargers would keep computing for a manager generation whose
-results are ignored (see `Discharger.cancelTk` for the cancellation latency
-contract). Public so reset behavior can be regression-tested deterministically
-(`VeilTest/Regression/VerifierServerRaces.lean`). -/
-def cancelAbandonedWork (mgr : VCManager VCMetadata SmtResult) : IO Unit := do
+/-- Explicit manager reset owns cancellation of abandoned shared workers.
+Command snapshot observers never own the workers' cancellation tokens. -/
+def cancelAbandonedWork (mgr : VCManager VCMetadata SmtResult) : IO Unit :=
   mgr.cancelAllDischargers
-  while true do
-    match ← Veil.taskRegistrationCh.tryRecv with
-    | some info => info.cancelTk.set
-    | none => break
 
 /-- Starts a separate task (on a dedicated thread) that runs the VCManager.
 If this is called multiple times, each call will reset the VC manager. -/
@@ -100,8 +85,8 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
         -- reset in `runManager`) are serialized against the whole handler, and
         -- the single `ref.set` at the end makes a failed handler roll back
         -- wholesale instead of leaving torn state. Holding the lock here is
-        -- cheap: `Discharger.run` only spawns a task, channel sends are
-        -- non-blocking, and discharger task bodies never take this mutex.
+        -- cheap: `Discharger.run` only spawns a task, and discharger
+        -- task bodies never take this mutex.
         match notification with
         | .dischargerResult dischargerId res => do
           vcManager.atomically (fun ref => do
@@ -162,27 +147,54 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
     ref.set true
   )
 
-/-- Log any pending discharger tasks from the channel via `logSnapshotTask` (non-blocking). -/
-private partial def logPendingDischargerTasks : CommandElabM Unit := do
-  if let some info ← Veil.taskRegistrationCh.tryRecv then
-    Command.logSnapshotTask { stx? := none, cancelTk? := info.cancelTk, task := info.task }
-    logPendingDischargerTasks
+/-- Preserve diagnostics, traces, and asynchronous children without granting an
+observer cancellation ownership. `SnapshotTask.cancelRec` traverses children
+when their tasks finish even if the parent token is `none`, so stripping only
+the root token is insufficient. Mapping is lazy in pending child tasks. -/
+private partial def observerSnapshotTree (tree : Language.SnapshotTree) : Language.SnapshotTree :=
+  { tree with children := tree.children.map fun child =>
+      { child with
+        cancelTk? := none
+        task := child.task.map observerSnapshotTree (sync := true) } }
+
+/-- Register newly started tasks matching this observer, using its own seen set.
+Reading manager state instead of consuming a channel lets overlapping observers
+see the same tasks, including work started before they began waiting. -/
+def logPendingDischargerTasks (mgr : VCManager VCMetadata SmtResult)
+    (filter : VCMetadata → Bool) (registered : HashSet DischargerIdentifier)
+    : CommandElabM (HashSet DischargerIdentifier) := do
+  let mut registered := registered
+  for (_, vc) in mgr.nodes do
+    if !filter vc.metadata then continue
+    for discharger in vc.dischargers do
+      if registered.contains discharger.id then continue
+      if let some task := discharger.task then
+        Command.logSnapshotTask {
+          stx? := none
+          cancelTk? := none
+          task := task.map observerSnapshotTree (sync := true) }
+        registered := registered.insert discharger.id
+  return registered
 
 /-- Poll for discharger tasks from the manager and register them with `logSnapshotTask`.
     Waits until all VCs matching the filter are done, then returns the results.
     This enables profiler trace propagation by registering tasks on the calling thread. -/
 private def awaitFilteredWithLogging (filter : VCMetadata → Bool)
     : CommandElabM (VerificationResults VCMetadata SmtResult) := do
+  let mut registered := HashSet.emptyWithCapacity
   while true do
-    logPendingDischargerTasks
+    liftCoreM Core.checkInterrupted
     -- Surface manager-loop errors where the user is looking; the loop itself
     -- cannot log to the editor (it is not registered with `logSnapshotTask`).
     for err in ← managerLoopErrors.modifyGet fun errs => (errs, #[]) do
       logWarning m!"VC manager loop error: {err}"
     -- Snapshot under the lock, render outside it (`toResults` pretty-prints).
     let mgr ← vcManager.atomically fun ref => ref.get
+    registered ← logPendingDischargerTasks mgr filter registered
     if mgr.isDoneFiltered filter then
-      return ← liftCoreM (mgr.toResults filter)
+      let results ← liftCoreM (mgr.toResults filter)
+      liftCoreM Core.checkInterrupted
+      return results
     IO.sleep 10
   panic! "unreachable"
 
@@ -197,6 +209,7 @@ def runFilteredAsync (filter : VCMetadata → Bool)
   let cancelTk ← IO.CancelToken.new
   let wrappedTask ← Command.wrapAsyncAsSnapshot (fun () => do
     let results ← awaitFilteredWithLogging filter
+    liftCoreM Core.checkInterrupted
     callback results) cancelTk
   let task ← (wrappedTask ()).asTask (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := cancelTk, task := task }
