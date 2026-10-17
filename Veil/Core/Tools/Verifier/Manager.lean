@@ -495,24 +495,32 @@ def Discharger.startTime (discharger : Discharger ResultT) : BaseIO (Option Nat)
   else
     return none
 
-/-- Find the next discharger to try. Once this function returns `none`, it will
-not return `some` again unless new dischargers are added. -/
-def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT ResultT) : BaseIO (Option (Discharger ResultT)) := do
-  match vc.successful with
-  | some _ => return .none
-  | none =>
-    if vc.hasInteractiveDischarger then
-      return none
-    for discharger in vc.dischargers do
-      match ← discharger.status with
-      | .notStarted => return some discharger
-      -- if the discharger is still running, wait for it to finish
-      | .running => return none
-      -- if the discharger is finished the VC is proven or disproven, we're done
-      | .finished (.proven _ _ _)  | .finished (.disproven _ _) => return none
-      | .finished (.unknown _ _) => continue
-      | .finished (.error _ _) => continue
-    return none
+/-- Find the next automatic discharger using only results committed by this
+manager. A published result may still be waiting in the notification channel,
+so the live result promise must not advance the solver sequence. -/
+def VCManager.nextDischarger? (mgr : VCManager VCMetaT ResultT)
+    (vc : VerificationCondition VCMetaT ResultT) : Option (Discharger ResultT) := Id.run do
+  if vc.successful.isSome || vc.hasInteractiveDischarger then return none
+  for discharger in vc.dischargers do
+    match mgr._dischargerResults[(vc.uid, discharger.id.dischargerId)]? with
+    | some (.proven _ _ _) | some (.disproven _ _) => return none
+    | some (.unknown _ _) | some (.error _ _) => continue
+    | none => return if discharger.task.isNone then some discharger else none
+  return none
+
+/-- Having no ready discharger can mean either waiting or exhaustion. A VC is
+complete only after a conclusive effective result, or after every effective
+discharger has a committed result. -/
+private def VCManager.isVCComplete (mgr : VCManager VCMetaT ResultT)
+    (vc : VerificationCondition VCMetaT ResultT) : Bool :=
+  let dischargers := vc.effectiveDischargers
+  vc.successful.isSome ||
+    dischargers.any (fun discharger =>
+      match mgr._dischargerResults[(vc.uid, discharger.id.dischargerId)]? with
+      | some (.proven _ _ _) | some (.disproven _ _) => true
+      | _ => false) ||
+    dischargers.all (fun discharger =>
+      mgr._dischargerResults.contains (vc.uid, discharger.id.dischargerId))
 
 /-- Enable every VC currently in the manager (dormant ones included: they
 stay dormant until woken, but need no separate enabling then). -/
@@ -540,7 +548,7 @@ def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT)
     -- Skip dormant VCs (e.g., alternative VCs waiting for their primary to fail)
     else if mgr.dormantVCs.contains vcId then pure none
     else if inDegree != 0 then pure none else
-      match ← vc.nextDischarger? with
+      match mgr.nextDischarger? vc with
       | some discharger => pure (some (vc, discharger))
       | none => pure none)
   return ready
@@ -645,8 +653,8 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
   | .unknown _ _ => vcStatus := .unknown
   | .error _ _ => vcStatus := .error
   let .some vc' := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} disappeared"; return mgr
-  -- Mark that we're done with this VC (if we've been successful or there are no more dischargers to try)
-  if vc'.successful.isSome || (← vc'.nextDischarger?).isNone then
+  -- Pending results must be committed before exhaustion can finalize the VC.
+  if mgr.isVCComplete vc' then
     vcStatus := mgr.exhaustedVCStatus vc'
     mgr := { mgr with _doneWith := mgr._doneWith.insert vcId vcStatus }
     -- Trigger alternative VCs if this VC failed (not proven)
