@@ -4,6 +4,7 @@ public meta import Lean
 public meta import Std.Sync.Channel
 public meta import Veil.Backend.SMT.Result
 public meta import Veil.Util.TopologicalSort
+public meta import Veil.Util.Meta
 
 public meta section
 open Lean Std
@@ -32,6 +33,8 @@ structure DischargerIdentifier where
   vcId : VCId
   /-- This is the index of within the `vcId`'s `dischargers` array. -/
   dischargerId : DischargerId
+  /-- Revision of a replaced discharger at the same array index. -/
+  revision : Nat := 0
   /-- The name of the discharger. -/
   name : Name
 deriving Inhabited, BEq, Hashable
@@ -138,6 +141,9 @@ structure Discharger (ResultT : Type) where
   /-- Whether this discharger comes from an explicitly tagged interactive proof
   theorem rather than automatic tooling. -/
   isInteractive : Bool := false
+  /-- Declaration identity retained by an interactive result. Used to reject
+  a cached proof when the editor removes or changes its theorem. -/
+  theoremValue? : Option (Name × Expr) := none
   /-- Optionally, a VC discharger can provide term (e.g. a proof script) that
   can be shown to the user, e.g. when a VC's corresponding `theorem` is
   pretty-printed. -/
@@ -236,7 +242,9 @@ def publishDischargerResult (resultPromise : IO.Promise (DischargerResult Result
     (ch : Std.Channel (ManagerNotification VCMetaT ResultT))
     (id : DischargerIdentifier) (res : DischargerResult ResultT) : BaseIO Unit := do
   resultPromise.resolve res
-  let _ ← ch.send (.dischargerResult id res)
+  -- A duplicate producer must notify the same value that won the promise.
+  if let some committed := resultPromise.result?.get then
+    let _ ← ch.send (.dischargerResult id committed)
 
 inductive VCStatus where
   /-- The VC has been proven (shown to be true). -/
@@ -296,17 +304,43 @@ structure VCManager (VCMetaT ResultT: Type) where
   Used for alternative VCs that only run when their primary VC fails. -/
   dormantVCs : HashSet VCId := HashSet.emptyWithCapacity
 
-  /-- VCs a verifier command has requested (via `.startAll`/`.startFiltered`).
-  This set grows monotonically: once a VC is enabled, it remains enabled.
-  If a primary VC fails, its alternative VCs become enabled. -/
+  /-- Registration-time dormancy. Runtime dormancy is derived afresh from
+  current outcomes and demand, so retries cannot inherit an old wake-up. -/
+  registeredDormantVCs : HashSet VCId := {}
+
+  /-- VCs owned by live requests or standalone starts, including their
+  prerequisites and fallbacks. The session recomputes this set on ownership
+  changes; unowned pending work is disabled and cancelled. -/
   enabledVCs : HashSet VCId := HashSet.emptyWithCapacity
+
+  /-- Unfinished work abandoned by its last owner. Its one-shot attempts must
+  be regenerated before a new request can use it. -/
+  cancelledVCs : HashSet VCId := {}
+
+  /-- Recreate automatic dischargers for a new document generation. Captures
+  the elaboration environment in which the VC was generated, but allocates new
+  cancellation tokens, promises and tasks for each generation. -/
+  factories : HashMap (VCId × DischargerId)
+    (DischargerIdentifier → Std.Channel (ManagerNotification VCMetaT ResultT) →
+      EIO Exception (Discharger ResultT)) := {}
+
+  /-- Cancelled attempts displaced by dependency invalidation. Retain them
+  until they finish so cooperative cancellation does not oversubscribe slots. -/
+  retiredDischargers : Array (Discharger ResultT) := #[]
 
   protected _nextVcId : VCId := 0
   /-- Number of dischargers that have finished executing. -/
   protected _totalDischarged : Nat := 0
+  /-- Count each attempt once, including interactive results replayed after
+  prerequisite recovery. New generations reset this history. -/
+  protected _countedDischargers : HashSet DischargerIdentifier := {}
   /-- Number of dischargers that have finished successfully. This is equal to
   the number of VCs that have been proven. -/
   protected _totalSolved : Nat := 0
+
+  /-- Terminal diagnostics for VCs blocked by failed prerequisites. These are
+  cleared when the prerequisite is reopened, so blocked work can recover. -/
+  dependencyErrors : HashMap VCId String := {}
 
   protected _doneWith : HashMap VCId VCStatus := HashMap.emptyWithCapacity
 
@@ -336,27 +370,62 @@ def VCManager.new (ch : Std.Channel (ManagerNotification VCMetaT ResultT)) (curr
     ch := ch,
   }
 
+private def VCManager.refreshDormancy (mgr : VCManager VCMetaT ResultT) : VCManager VCMetaT ResultT := Id.run do
+  let mut dormant := mgr.registeredDormantVCs
+  for (primary, alternatives) in mgr.alternativeVCs do
+    if !mgr.dependencyErrors.contains primary && mgr._doneWith[primary]?.any (· != .proven) &&
+        !(mgr.nodes[primary]?.any fun vc => vc.dischargers.any (·.isInteractive)) then
+      for alt in alternatives do dormant := dormant.erase alt
+  -- A live, non-dormant dependent forces its actual prerequisites. Reverse
+  -- registration order propagates this through the whole dependency chain.
+  for id in (List.range mgr._nextVcId).reverse do
+    if mgr.enabledVCs.contains id && !dormant.contains id then
+      for parent in mgr.upstream[id]?.getD {} do dormant := dormant.erase parent
+  return {mgr with dormantVCs := dormant}
+
+/-- Keep outstanding counts and blocked states consistent after registration
+or result changes. Prerequisites precede dependents, so one pass propagates
+failure or recovery through an entire dependency chain. -/
+private def VCManager.refreshDependencies (mgr : VCManager VCMetaT ResultT) : VCManager VCMetaT ResultT := Id.run do
+  if mgr.downstream.isEmpty then return mgr.refreshDormancy
+  let mut mgr := mgr
+  for vcId in List.range mgr._nextVcId do
+    let deps := mgr.upstream[vcId]?.getD {}
+    let outstanding := deps.fold (fun count parent => count + if mgr._doneWith[parent]? == some .proven then 0 else 1) 0
+    mgr := {mgr with inDegree := mgr.inDegree.insert vcId outstanding}
+    let failed := deps.toArray.find? fun parent =>
+      mgr._doneWith[parent]?.any (· != .proven)
+    if let some parent := failed then
+      if !mgr._doneWith.contains vcId || mgr.dependencyErrors.contains vcId then
+        mgr := {mgr with
+          _doneWith := mgr._doneWith.insert vcId .error
+          dependencyErrors := mgr.dependencyErrors.insert vcId s!"Verification blocked: prerequisite VC {parent} did not prove its condition"}
+    else if mgr.dependencyErrors.contains vcId then
+      mgr := {mgr with _doneWith := mgr._doneWith.erase vcId, dependencyErrors := mgr.dependencyErrors.erase vcId}
+  return mgr.refreshDormancy
+
 /-- Adds a new verification condition (VC) to the VCManager, along with its
 upstream dependencies. Returns the updated VCManager and the new VC.
 If `isDormant` is true, the VC will not be started automatically by `readyTasks`. -/
 def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger ResultT) := #[]) (isDormant : Bool := false) : (VCManager VCMetaT ResultT × VCId) := Id.run do
   let uid := mgr._nextVcId
-  let vc := {vc with uid := uid, dischargers := initialDischargers, successful := none}
+  let vc : VerificationCondition VCMetaT ResultT := {vc with uid := uid, dischargers := initialDischargers, successful := none}
   -- Add ourselves downstream of all our dependencies
   let mut downstream := mgr.downstream
   for parent in dependsOn do
     downstream := downstream.insert parent ((downstream[parent]? |>.getD {}).insert uid)
-  let mut mgr' := { mgr with
+  let mut mgr' : VCManager VCMetaT ResultT := { mgr with
     nodes := (mgr.nodes.insert uid vc),
     upstream := (mgr.upstream.insert uid dependsOn),
-    inDegree := (mgr.inDegree.insert uid dependsOn.size),
+    inDegree := (mgr.inDegree.insert uid (dependsOn.fold
+      (fun count parent => count + if mgr._doneWith[parent]? == some .proven then 0 else 1) 0)),
     downstream := downstream,
     _nextVcId := mgr._nextVcId + 1
   }
   -- Mark as dormant if requested (e.g., for alternative VCs)
   if isDormant then
-    mgr' := { mgr' with dormantVCs := mgr'.dormantVCs.insert uid }
-  (mgr', uid)
+    mgr' := { mgr' with registeredDormantVCs := mgr'.registeredDormantVCs.insert uid }
+  (mgr'.refreshDependencies, uid)
 
 /-- Add an alternative VC associated with a primary VC. The alternative
 starts dormant and will only be triggered when the primary VC fails
@@ -374,7 +443,11 @@ def VCManager.addAlternativeVC (mgr : VCManager VCMetaT ResultT)
   let mgr'' := { mgr' with
     alternativeVCs := mgr'.alternativeVCs.insert primaryVCId (alts.push altId)
   }
-  (mgr'', altId)
+  -- Registration may race with (or follow) the primary's final result. Apply
+  -- the same wake-up rule here as result delivery; that event will not recur.
+  let mgr'' := if mgr.enabledVCs.contains primaryVCId then
+    {mgr'' with enabledVCs := mgr''.enabledVCs.insert altId} else mgr''
+  (mgr''.refreshDormancy, altId)
 
 private def VCManager.mkDischargerIdentifier (mgr : VCManager VCMetaT ResultT)
     (vc : VerificationCondition VCMetaT ResultT) : DischargerIdentifier :=
@@ -385,16 +458,17 @@ private def VCManager.mkDischargerIdentifier (mgr : VCManager VCMetaT ResultT)
 
 /-- Add a discharger to an existing VC. If the VC had previously exhausted its
 dischargers without success, re-open it so the new discharger can affect the
-reported status. -/
+reported status. A conclusive counterexample remains terminal: the scheduler
+will not run subsequent automatic dischargers past it. -/
 def VCManager.addDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId)
     (discharger : Discharger ResultT) : VCManager VCMetaT ResultT := Id.run do
   let some vc := mgr.nodes[vcId]? | return mgr
   let mut mgr := mgr
   let vc := { vc with dischargers := vc.dischargers.push discharger }
   mgr := { mgr with nodes := mgr.nodes.insert vcId vc }
-  if vc.successful.isNone then
+  if vc.successful.isNone && (discharger.isInteractive || mgr._doneWith[vcId]? != some .disproven) then
     mgr := { mgr with _doneWith := mgr._doneWith.erase vcId }
-  return mgr
+  return mgr.refreshDependencies
 
 open Lean.Elab.Command in
 def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VCMetaT ResultT) → CommandElabM (Discharger ResultT)) : CommandElabM (VCManager VCMetaT ResultT) := do
@@ -402,7 +476,10 @@ def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (m
   match mgr.nodes[vcId]? with
   | some vc => do
     let id := mgr.mkDischargerIdentifier vc
-    pure <| mgr.addDischarger vcId (← mk vc.toVCStatement id ch)
+    let factory ← Lean.Elab.Command.wrapAsync
+      (fun (id, ch) => mk vc.toVCStatement id ch) none
+    let mgr := mgr.addDischarger vcId (← mk vc.toVCStatement id ch)
+    pure { mgr with factories := mgr.factories.insert (vcId, id.dischargerId) (fun id ch => factory (id, ch)) }
   | none => pure mgr
 
 def VCManager.theorems [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mgr : VCManager VCMetaT ResultT) : m (Array Command) :=
@@ -462,7 +539,22 @@ def Discharger.status (discharger : Discharger ResultT) : BaseIO (DischargeStatu
   | false =>
     match discharger.task with
     | none => return .notStarted
-    | some _ => return .running
+    | some task =>
+      if ← IO.hasFinished task then
+        -- Publication happens before task completion, but may happen after
+        -- the first promise read above. Read again after observing completion.
+        if ← IO.hasFinished resultTask then
+          if let some result := resultTask.get then return .finished result
+        let message := "Verification discharger task finished without publishing a result"
+        return .finished (.error #[(Exception.error Syntax.missing message, toJson message)] 0)
+      return .running
+
+/-- A published result does not release the physical worker: snapshot cleanup
+or a cooperatively cancelled solver may still be running. -/
+def Discharger.isRunning (d : Discharger ResultT) : BaseIO Bool := do
+  match d.task with
+  | none => return false
+  | some task => return !(← IO.hasFinished task)
 
 def Discharger.isSuccessful (discharger : Discharger ResultT) : BaseIO Bool := do
   match (← discharger.status) with
@@ -495,37 +587,84 @@ def Discharger.startTime (discharger : Discharger ResultT) : BaseIO (Option Nat)
   else
     return none
 
-/-- Find the next discharger to try. Once this function returns `none`, it will
-not return `some` again unless new dischargers are added. -/
-def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT ResultT) : BaseIO (Option (Discharger ResultT)) := do
-  match vc.successful with
-  | some _ => return .none
-  | none =>
-    if vc.hasInteractiveDischarger then
-      return none
-    for discharger in vc.dischargers do
-      match ← discharger.status with
-      | .notStarted => return some discharger
-      -- if the discharger is still running, wait for it to finish
-      | .running => return none
-      -- if the discharger is finished the VC is proven or disproven, we're done
-      | .finished (.proven _ _ _)  | .finished (.disproven _ _) => return none
-      | .finished (.unknown _ _) => continue
-      | .finished (.error _ _) => continue
-    return none
+/-- Schedule only from results accepted by this manager. Promise publication
+is concurrent with the driver; it cannot advance the attempt sequence until
+reconciliation has committed the corresponding logical transition. -/
+def VCManager.nextDischarger? (mgr : VCManager VCMetaT ResultT)
+    (vc : VerificationCondition VCMetaT ResultT) : Option (Discharger ResultT) := Id.run do
+  if vc.successful.isSome || vc.hasInteractiveDischarger then return none
+  for d in vc.dischargers do
+    match mgr._dischargerResults[(vc.uid, d.id.dischargerId)]? with
+    | some (.proven ..) | some (.disproven ..) => return none
+    | some (.unknown ..) | some (.error ..) => continue
+    | none => return if d.task.isNone then some d else none
+  return none
+
+/-- Registration is append-only: prerequisites must already exist when a VC
+is added. This rejects missing/forward/self edges (and therefore cycles), as
+well as dischargers whose identity does not belong to their registered slot. -/
+def VCManager.validateRegistrations (mgr : VCManager VCMetaT ResultT) : Except String Unit := do
+  for (vcId, vc) in mgr.nodes do
+    for parent in mgr.upstream[vcId]?.getD {} do
+      unless mgr.nodes.contains parent do
+        throw s!"VC {vc.name} depends on missing VC {parent}"
+      unless parent < vcId do
+        throw s!"VC {vc.name} has a forward or cyclic dependency on VC {parent}; register prerequisites first"
+    for i in [:vc.dischargers.size] do
+      let some d := vc.dischargers[i]? | continue
+      unless d.id.managerId == mgr._managerId && d.id.vcId == vcId && d.id.dischargerId == i do
+        throw s!"Discharger {d.id.name} has an identity that does not belong to VC {vc.name}, slot {i}"
+
+/-- A requested VC must have a discharger before execution begins. Partial
+registration remains valid while a VC is disabled or its fallback is dormant. -/
+def VCManager.validateEnabled (mgr : VCManager VCMetaT ResultT) : Except String Unit := do
+  for (id, vc) in mgr.nodes do
+    if mgr.enabledVCs.contains id && !mgr.dormantVCs.contains id &&
+        !mgr._doneWith.contains id && vc.effectiveDischargers.isEmpty then
+      throw s!"VC {vc.name} has no discharger; register a discharger before starting verification"
 
 /-- Enable every VC currently in the manager (dormant ones included: they
 stay dormant until woken, but need no separate enabling then). -/
 def VCManager.enableAll (mgr : VCManager VCMetaT ResultT) : VCManager VCMetaT ResultT :=
   let enabled := mgr.nodes.fold (fun s vcId _ => s.insert vcId) mgr.enabledVCs
-  { mgr with enabledVCs := enabled }
+  { mgr with enabledVCs := enabled }.refreshDormancy
 
-/-- Enable every VC whose metadata matches `filter`. -/
+/-- Close request ownership over prerequisites and fallback alternatives.
+Use current registrations, including conditions added while a request waits. -/
+def VCManager.requestScope (mgr : VCManager VCMetaT ResultT)
+    (roots : HashSet VCId) : HashSet VCId := Id.run do
+  let mut selected := roots
+  let mut pending := selected.toList
+  for _ in [:mgr.nodes.size] do
+    let id :: rest := pending | break
+    pending := rest
+    let related := (mgr.upstream[id]?.getD {}).toArray ++ mgr.alternativeVCs[id]?.getD #[]
+    for other in related do
+      if mgr.nodes.contains other && !selected.contains other then
+        selected := selected.insert other
+        pending := other :: pending
+  return selected
+
+def VCManager.matchingIds (mgr : VCManager VCMetaT ResultT)
+    (filter : VCMetaT → Bool) : HashSet VCId :=
+  mgr.nodes.fold (fun ids id vc => if filter vc.metadata then ids.insert id else ids) {}
+
+/-- Enable selected VCs and all their prerequisites. Registration order is
+validated before scheduling, so a reverse pass closes the enabled set over
+transitive dependencies. A prerequisite must actually run even if it was
+registered as a dormant fallback; success of its primary cannot prove it. -/
+def VCManager.enableIds (mgr : VCManager VCMetaT ResultT)
+    (ids : HashSet VCId) : VCManager VCMetaT ResultT := Id.run do
+  let mut enabled := ids.fold (·.insert ·) mgr.enabledVCs
+  for vcId in (List.range mgr._nextVcId).reverse do
+    if enabled.contains vcId then
+      for parent in mgr.upstream[vcId]?.getD {} do
+        enabled := enabled.insert parent
+  return {mgr with enabledVCs := enabled}.refreshDormancy
+
 def VCManager.enableMatching (mgr : VCManager VCMetaT ResultT)
     (filter : VCMetaT → Bool) : VCManager VCMetaT ResultT :=
-  let enabled := mgr.nodes.fold (init := mgr.enabledVCs)
-    (fun s vcId vc => if filter vc.metadata then s.insert vcId else s)
-  { mgr with enabledVCs := enabled }
+  mgr.enableIds (mgr.matchingIds filter)
 
 /-- The enabled, not-yet-done, non-dormant VCs with no outstanding
 dependencies whose next discharger can be started. -/
@@ -540,20 +679,20 @@ def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT)
     -- Skip dormant VCs (e.g., alternative VCs waiting for their primary to fail)
     else if mgr.dormantVCs.contains vcId then pure none
     else if inDegree != 0 then pure none else
-      match ← vc.nextDischarger? with
+      match mgr.nextDischarger? vc with
       | some discharger => pure (some (vc, discharger))
       | none => pure none)
   return ready
 
-/-- Number of dischargers that have been started but have not yet published a
-result. Relies on every started discharger eventually resolving its result
-promise via `publishDischargerResult`. FIXME: this is inefficient. -/
+/-- Number of physical tasks still running, including displaced attempts. -/
 def VCManager.inFlightCount (mgr : VCManager VCMetaT ResultT) : BaseIO Nat := do
   let mut count := 0
   for (_, vc) in mgr.nodes do
     for d in vc.dischargers do
-      if d.task.isSome && !(← IO.hasFinished d.resultPromise.result?) then
+      if ← d.isRunning then
         count := count + 1
+  for d in mgr.retiredDischargers do
+    if ← d.isRunning then count := count + 1
   return count
 
 /-- Set the cancellation token of every discharger in the manager. Used on
@@ -561,6 +700,7 @@ reset, so abandoned dischargers stop (cooperatively, see `Discharger.cancelTk`)
 instead of running to timeout for a manager generation whose results will be
 ignored. Setting the token of a finished or interactive discharger is a no-op. -/
 def VCManager.cancelAllDischargers (mgr : VCManager VCMetaT ResultT) : BaseIO Unit := do
+  for d in mgr.retiredDischargers do d.cancelTk.set
   for (_, vc) in mgr.nodes do
     for discharger in vc.dischargers do
       discharger.cancelTk.set
@@ -604,74 +744,174 @@ private def VCManager.exhaustedVCStatus (mgr : VCManager VCMetaT ResultT)
     else
       .unknown
 
-def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerIdentifier) (res : DischargerResult ResultT): BaseIO (VCManager VCMetaT ResultT) := do
+def Discharger.invalidated (d : Discharger ResultT) (id : DischargerIdentifier)
+    (error : Exception) : BaseIO (Discharger ResultT) := do
+  let promise ← IO.Promise.new
+  promise.resolve (.error #[← safeExceptionEntry error] 0)
+  let start ← IO.Promise.new
+  start.resolve (← IO.monoMsNow)
+  return {d with
+    id, theoremValue? := none, cancelTk := ← IO.CancelToken.new
+    task := some (Task.pure default), startTimePromise := start
+    resultPromise := promise, mkTask := pure (Task.pure default)}
+
+/-- Stop work that lost its last owner. Disable queued attempts immediately;
+remember unfinished VCs so a later request cannot reuse cancelled resources. -/
+def VCManager.cancelUnneeded (mgr : VCManager VCMetaT ResultT)
+    (wanted : HashSet VCId) : BaseIO (VCManager VCMetaT ResultT) := do
   let mut mgr := mgr
-  let vcId := id.vcId
-  let mut .some vc := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} not found"; return mgr
-  let incomingIsInteractive := match vc.dischargers[id.dischargerId]? with
-    | some discharger => discharger.isInteractive
-    | none => false
-  if vc.hasInteractiveDischarger && !incomingIsInteractive then
-    return mgr
-  let wasAlreadySuccessful := vc.successful.isSome
-  if incomingIsInteractive then
-    vc.cancelNonInteractiveDischargers
-    if wasAlreadySuccessful then
-      vc := { vc with successful := none }
-      mgr := { mgr with
-        nodes := mgr.nodes.insert vcId vc
-        _doneWith := mgr._doneWith.erase vcId }
-  let mut vcStatus := .unknown
-  -- Store the discharger result for JSON serialization
-  mgr := { mgr with _dischargerResults := mgr._dischargerResults.insert (vcId, id.dischargerId) res }
-  -- A late failure from another discharger must not undo a proof we already recorded.
-  if vc.successful.isSome && !res.isSuccessful && !incomingIsInteractive then
-    return { mgr with _doneWith := mgr._doneWith.insert vcId .proven }
-  -- Update downstream in-degrees
-  match res with
-  | .proven _ _ _ => do
-    vcStatus := .proven
-    if vc.successful.isNone then
-      vc := { vc with successful := some id.dischargerId }
-      mgr := { mgr with nodes := mgr.nodes.insert vcId vc }
-      unless wasAlreadySuccessful do
-        let downstream := match mgr.downstream[vcId]? with
-        | some downstream => downstream
-        | none => HashSet.emptyWithCapacity 0
-        for downstreamVc in downstream do
-          let .some downstreamInDegree := mgr.inDegree[downstreamVc]? | dbg_trace "VCManager.markDischarger: VC {downstreamVc} not found in the in-degree map"; return mgr
-          mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (downstreamInDegree - 1) }
-  | .disproven _ _ => vcStatus := .disproven
-  | .unknown _ _ => vcStatus := .unknown
-  | .error _ _ => vcStatus := .error
-  let .some vc' := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} disappeared"; return mgr
-  -- Mark that we're done with this VC (if we've been successful or there are no more dischargers to try)
-  if vc'.successful.isSome || (← vc'.nextDischarger?).isNone then
-    vcStatus := mgr.exhaustedVCStatus vc'
-    mgr := { mgr with _doneWith := mgr._doneWith.insert vcId vcStatus }
-    -- Trigger alternative VCs if this VC failed (not proven)
-    if vcStatus != .proven && !vc'.hasInteractiveDischarger then
-      if let .some altIds := mgr.alternativeVCs[vcId]? then
-        for altId in altIds do
-          -- Wake up the alternative VC: remove from the dormant set and
-          -- enable it (its primary was necessarily enabled to have run).
-          mgr := { mgr with
-            dormantVCs := mgr.dormantVCs.erase altId
-            enabledVCs := mgr.enabledVCs.insert altId }
+  for id in mgr.enabledVCs do
+    if wanted.contains id then continue
+    let some vc := mgr.nodes[id]? | continue
+    let mut revoked := false
+    for d in vc.dischargers do
+      if !d.isInteractive && d.task.isSome &&
+          !mgr._dischargerResults.contains (id, d.id.dischargerId) then
+        d.cancelTk.set
+        revoked := true
+    if revoked && !vc.hasInteractiveDischarger then
+      mgr := {mgr with cancelledVCs := mgr.cancelledVCs.insert id}
+  return {mgr with enabledVCs := {}}.refreshDormancy
+
+/-- Restart abandoned work with a new identity before it becomes executable.
+Late results from displaced tasks are ignored, but their physical capacity
+remains occupied until they finish. Custom attempts need a factory to retry. -/
+def VCManager.restartCancelled (mgr : VCManager VCMetaT ResultT) : BaseIO (VCManager VCMetaT ResultT) := do
+  let mut mgr := mgr
+  for vcId in mgr.cancelledVCs do
+    unless mgr.enabledVCs.contains vcId do continue
+    let some vc := mgr.nodes[vcId]? | continue
+    if vc.hasInteractiveDischarger then
+      mgr := {mgr with cancelledVCs := mgr.cancelledVCs.erase vcId}
+      continue
+    let mut ds := #[]
+    for d in vc.dischargers do
+      if d.task.isNone || mgr._dischargerResults.contains (vcId, d.id.dischargerId) then
+        ds := ds.push d
+        continue
+      d.cancelTk.set
+      if ← d.isRunning then
+        mgr := {mgr with retiredDischargers := mgr.retiredDischargers.push d}
+      let id := {d.id with revision := d.id.revision + 1}
+      let replacement ← match mgr.factories[(vcId, d.id.dischargerId)]?, mgr.ch with
+        | some factory, some ch => do
+          match ← (factory id ch).toBaseIO with
+          | .ok fresh => pure fresh
+          | .error ex => d.invalidated id ex
+        | _, _ => d.invalidated id (Exception.error Syntax.missing
+            m!"Cannot retry cancelled VC {vc.name}: re-register its discharger or regenerate the specification")
+      ds := ds.push replacement
+      mgr := {mgr with _dischargerResults := mgr._dischargerResults.erase (vcId, d.id.dischargerId)}
+    mgr := {mgr with
+      nodes := mgr.nodes.insert vcId {vc with dischargers := ds, successful := none}
+      _doneWith := mgr._doneWith.erase vcId, dependencyErrors := mgr.dependencyErrors.erase vcId
+      cancelledVCs := mgr.cancelledVCs.erase vcId}
+  return mgr.refreshDependencies
+
+/-- Discard all attempts downstream of a proof that was withdrawn. Started
+attempts get fresh identities/resources; their late results cannot restore an
+invalidated proof. Custom attempts without a factory fail explicitly until the
+caller re-registers them, rather than reusing an old witness. -/
+private def VCManager.invalidateDependents (mgr : VCManager VCMetaT ResultT)
+    (root : VCId) : BaseIO (VCManager VCMetaT ResultT) := do
+  let mut mgr := mgr
+  let mut affected := (HashSet.emptyWithCapacity).insert root
+  for vcId in List.range mgr._nextVcId do
+    if vcId == root || !(mgr.upstream[vcId]?.getD {}).toArray.any affected.contains then continue
+    affected := affected.insert vcId
+    let some vc := mgr.nodes[vcId]? | continue
+    let mut ds := #[]
+    for d in vc.dischargers do
+      let status ← d.status
+      if d.isInteractive || status matches .notStarted then
+        ds := ds.push d
+      else
+        d.cancelTk.set
+        if ← d.isRunning then
+          mgr := {mgr with retiredDischargers := mgr.retiredDischargers.push d}
+        let id := {d.id with revision := d.id.revision + 1}
+        let error := Exception.error Syntax.missing m!"Verification invalidated: prerequisite VC {root} changed; re-register this discharger or regenerate the specification"
+        let replacement ← match mgr.factories[(vcId, d.id.dischargerId)]?, mgr.ch with
+          | some factory, some ch => do
+            match ← (factory id ch).toBaseIO with
+            | .ok fresh => pure fresh
+            | .error ex => d.invalidated id ex
+          | _, _ => d.invalidated id error
+        ds := ds.push replacement
+      mgr := {mgr with _dischargerResults := mgr._dischargerResults.erase (vcId, d.id.dischargerId)}
+    mgr := {mgr with
+      nodes := mgr.nodes.insert vcId {vc with dischargers := ds, successful := none},
+      _doneWith := mgr._doneWith.erase vcId, dependencyErrors := mgr.dependencyErrors.erase vcId}
   return mgr
+
+def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerIdentifier) (res : DischargerResult ResultT): BaseIO (VCManager VCMetaT ResultT) := do
+  let vcId := id.vcId
+  if mgr.dependencyErrors.contains vcId then return mgr
+  let some vc := mgr.nodes[vcId]? | return mgr
+  let some current := vc.dischargers[id.dischargerId]? | return mgr
+  if id.managerId != mgr._managerId || current.id != id then return mgr
+  -- Revocation takes effect when ownership is lost, before a replacement
+  -- exists. Cancellation outcomes cannot become failures or wake fallbacks.
+  if mgr.cancelledVCs.contains vcId && !current.isInteractive then return mgr
+  if mgr._dischargerResults.contains (vcId, id.dischargerId) then return mgr
+  if vc.hasInteractiveDischarger && !current.isInteractive then return mgr
+  let mut mgr := {mgr with
+    _dischargerResults := mgr._dischargerResults.insert (vcId, id.dischargerId) res}
+  if current.isInteractive then
+    vc.cancelNonInteractiveDischargers
+    mgr := {mgr with cancelledVCs := mgr.cancelledVCs.erase vcId}
+  let effective := vc.effectiveDischargers
+  let successful := effective.findSome? fun d =>
+    if mgr._dischargerResults[(vcId, d.id.dischargerId)]?.any (·.isSuccessful)
+    then some d.id.dischargerId else none
+  let wasSuccessful := vc.successful.isSome
+  let vc := {vc with successful}
+  mgr := {mgr with nodes := mgr.nodes.insert vcId vc}
+  if wasSuccessful && successful.isNone then
+    mgr ← mgr.invalidateDependents vcId
+  -- Running and exhausted are distinct. Derive aggregate state only from
+  -- committed outcomes, never from a concurrently changing promise/task.
+  let conclusive := effective.any fun d =>
+    match mgr._dischargerResults[(vcId, d.id.dischargerId)]? with
+    | some (.disproven ..) => true
+    | _ => false
+  let exhausted := !effective.isEmpty && effective.all fun d =>
+    mgr._dischargerResults.contains (vcId, d.id.dischargerId)
+  if successful.isSome || conclusive || exhausted then
+    let status := mgr.exhaustedVCStatus vc
+    mgr := {mgr with _doneWith := mgr._doneWith.insert vcId status}
+    if status != .proven && !vc.hasInteractiveDischarger && mgr.enabledVCs.contains vcId then
+      for altId in mgr.alternativeVCs[vcId]?.getD #[] do
+        mgr := {mgr with enabledVCs := mgr.enabledVCs.insert altId}
+  else
+    mgr := {mgr with _doneWith := mgr._doneWith.erase vcId}
+  return mgr.refreshDependencies
 
 /-- Record a finished discharger result, updating aggregate counters and VC
 status bookkeeping together. -/
 def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
     (id : DischargerIdentifier) (res : DischargerResult ResultT) :
     BaseIO (VCManager VCMetaT ResultT) := do
-  let alreadySolved := match mgr.nodes[id.vcId]? with
-    | some vc => vc.successful.isSome
-    | none => false
-  let mut mgr := { mgr with _totalDischarged := mgr._totalDischarged + 1 }
-  if res.isSuccessful && !alreadySolved then
-    mgr := { mgr with _totalSolved := mgr._totalSolved + 1 }
-  mgr.markDischarger id res
+  let updated ← mgr.markDischarger id res
+  if mgr._dischargerResults.contains (id.vcId, id.dischargerId) ||
+      !updated._dischargerResults.contains (id.vcId, id.dischargerId) then return updated
+  return { updated with
+    _totalDischarged := updated._totalDischarged + if updated._countedDischargers.contains id then 0 else 1
+    _countedDischargers := updated._countedDischargers.insert id
+    _totalSolved := updated.nodes.fold (fun count _ vc => count + if vc.successful.isSome then 1 else 0) 0 }
+
+/-- Reconcile task/promise completion independently of channel delivery.
+A custom discharger may abort without notifying, and a result promise may be
+resolved before its notification is processed. Recording is idempotent. -/
+def VCManager.reconcileFinished (mgr : VCManager VCMetaT ResultT) : BaseIO (VCManager VCMetaT ResultT) := do
+  let mut mgr := mgr
+  for (_, vc) in mgr.nodes do
+    for d in vc.effectiveDischargers do
+      unless mgr._dischargerResults.contains (vc.uid, d.id.dischargerId) do
+        if let .finished result ← d.status then
+          mgr ← mgr.recordDischargerResult d.id result
+  let retired ← mgr.retiredDischargers.filterM (·.isRunning)
+  return {mgr with retiredDischargers := retired}
 
 def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : String := Id.run do
   match mgr._doneWith[vcId]? with
@@ -690,7 +930,8 @@ def VCManager.findVCByFilter (mgr : VCManager VCMetaT ResultT) (filter : VCMetaT
 - In `dormantVCs` (is dormant and won't be processed because its primary succeeded)
 This correctly handles alternative VCs that remain dormant when their primary succeeds. -/
 def VCManager.isDone (mgr : VCManager VCMetaT ResultT) : Bool :=
-  mgr._doneWith.size + mgr.dormantVCs.size == mgr.nodes.size
+  mgr.nodes.toArray.all fun (vcId, _) =>
+    mgr._doneWith.contains vcId || mgr.dormantVCs.contains vcId
 
 /-- Check if all VCs matching the filter are done. -/
 def VCManager.isDoneFiltered (mgr : VCManager VCMetaT ResultT) (filter : VCMetaT → Bool) : Bool :=

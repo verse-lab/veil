@@ -26,6 +26,13 @@ safety [single_leader] leader N ∧ leader M → N = M
 
 #gen_spec
 
+#check_invariants
+
+run_cmd do
+  let results ← Veil.Verifier.waitFilteredSync (fun _ => true)
+  unless results.totalVCs > 0 && (results.vcs.all fun vc => vc.isDormant || vc.status == some .proven) do
+    throwError "This module did not independently complete all of its VCs"
+
 end FirstModule
 
 
@@ -50,5 +57,12 @@ action send (n next : node) {
 safety [single_leader] leader N ∧ leader M → N = M
 
 #gen_spec
+
+#check_invariants
+
+run_cmd do
+  let results ← Veil.Verifier.waitFilteredSync (fun _ => true)
+  unless results.totalVCs > 0 && (results.vcs.all fun vc => vc.isDormant || vc.status == some .proven) do
+    throwError "This module did not independently complete all of its VCs"
 
 end SecondModule

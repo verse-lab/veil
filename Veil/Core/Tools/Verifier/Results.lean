@@ -212,6 +212,11 @@ private def TimingData.proofHasSorry (timing : TimingData ResultT) : Bool :=
 
 /-- Build `TimingData` for a specific VC. -/
 def mkTimingData [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr : VCManager VCMetaT ResultT) (vc : VerificationCondition VCMetaT ResultT) : m (TimingData ResultT) := do
+  if let some message := mgr.dependencyErrors[vc.uid]? then
+    let result : DischargerResult ResultT := .error #[(Exception.error Syntax.missing message, toJson message)] 0
+    return {
+      totalTime := mgr.vcTotalTime vc.uid, successfulDischargerId := none, successfulDischargerTime := none
+      dischargers := #[{id := vc.dischargers.size, name := `dependency, status := .finished result, time := none, result := some result}] }
   let dischargerDetails ← vc.effectiveDischargers.mapM fun discharger =>
     mkDischargerResultData mgr vc discharger.id.dischargerId
   return {
