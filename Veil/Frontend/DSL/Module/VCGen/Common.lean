@@ -134,9 +134,22 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
     )
     publishDischargerResult resultPromise ch dischargerId res
   ) cancelTk
+  let run : BaseIO Language.SnapshotTree := do
+    let startTime ← IO.monoMsNow
+    let snapshot ← mk vcStatement
+    -- The snapshot wrapper turns interrupts into an empty snapshot, possibly
+    -- skipping publication. Finish here in BaseIO, after the cancellable body
+    -- has exited on this same worker. Preserve any result it already published.
+    unless ← resultPromise.isResolved do
+      let ex := Exception.error term
+        m!"Discharger {dischargerId.name} interrupted before producing a result"
+      let endTime ← IO.monoMsNow
+      publishDischargerResult resultPromise ch dischargerId
+        (.error #[← safeExceptionEntry ex] (endTime - startTime))
+    return snapshot
   -- Dedicated thread: the task blocks in in-process solver FFI for its whole
   -- duration, which would starve the bounded elaboration thread pool
-  let mkTask := (mk vcStatement).asTask (prio := .dedicated)
+  let mkTask := run.asTask (prio := .dedicated)
   return {
     id := dischargerId,
     term := term,
