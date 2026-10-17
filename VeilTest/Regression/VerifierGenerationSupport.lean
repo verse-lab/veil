@@ -17,7 +17,7 @@ def await (label : String) (condition : BaseIO Bool) : IO Unit := do
       throw <| IO.userError s!"timed out: {label}"
     IO.sleep 1
 
-def manager : BaseIO Mgr := vcManager.atomically fun ref => ref.get
+def manager : CommandElabM Mgr := readVCManager
 
 def data (name : Name) : CommandElabM (VCData VCMetadata) := do
   return { name, params := #[], statement := ← `(True)
@@ -26,15 +26,18 @@ def data (name : Name) : CommandElabM (VCData VCMetadata) := do
 def matching (name : Name) (metadata : VCMetadata) : Bool := metadata.propertyName? == some name
 
 def fresh (names : Array Name) (completed : Bool := false) : CommandElabM Mgr := do
-  let mut mgr ← VCManager.new vcManagerCh (currentManagerId := (← manager)._managerId)
+  reset (← manager)._managerId
+  let mut mgr ← manager
   for name in names do
     let (mgr', id) := mgr.addVC (← data name) {}
     mgr := mgr'
     if completed then mgr := { mgr with _doneWith := mgr._doneWith.insert id .proven }
-  vcManager.atomically fun ref => ref.set mgr
+  withVCManager fun ref => ref.set mgr
   return mgr
 
 def barrier : CommandElabM Unit := do
+  let owner ← getVCManagerOwner
+  let manager := owner.manager.atomically (m := BaseIO) fun ref => ref.get
   let (id, name) ← withVCManager fun ref => do
     let mgr ← ref.get
     let name := Name.mkSimple s!"barrier{mgr._nextVcId}"
@@ -44,14 +47,14 @@ def barrier : CommandElabM Unit := do
   startFiltered (matching name)
   await "notification barrier" do return (← manager).enabledVCs.contains id
 
-/-- Exercise queued public requests before the first invocation of runManager.
-The replacement uses identical matching metadata, so filter scoping alone cannot
-hide a leak. The task counter also detects accidental worker admission. -/
+/-- Scoped requests carry their original generation even when applied after a
+reset. Frontend starts now apply atomically, so there is no pre-driver queue. -/
 def queuedStart (filtered : Bool) : CommandElabM Unit := do
-  check (!(← vcServerStarted.atomically fun ref => ref.get)) "manager loop already started"
-  let _ ← fresh #[`target]
-  if filtered then startFiltered (matching `target) else startAll
+  runManager
+  let original ← fresh #[`target]
   let mgr ← fresh #[`target]
+  let owner ← getVCManagerOwner
+  let manager := owner.manager.atomically (m := BaseIO) fun ref => ref.get
   let starts ← IO.mkRef 0
   let resultPromise ← IO.Promise.new
   let startTimePromise ← IO.Promise.new
@@ -66,16 +69,17 @@ def queuedStart (filtered : Bool) : CommandElabM Unit := do
         (.unknown none 0)
       return .pure default }
   try
-    vcManager.atomically fun ref => ref.set (mgr.addDischarger 0 worker)
-    runManager
+    withVCManager fun ref => ref.set (mgr.addDischarger 0 worker)
+    sendNotification (if filtered then .startFiltered original._managerId (matching `target)
+      else .startAll original._managerId)
     barrier
-    check (!(← manager).enabledVCs.contains 0) "stale queued start enabled replacement VC"
-    check ((← starts.get) == 0) "stale queued start admitted replacement worker"
+    check (!(← manager).enabledVCs.contains 0) "stale scoped start enabled replacement VC"
+    check ((← starts.get) == 0) "stale scoped start admitted replacement worker"
     if filtered then startFiltered (matching `target) else startAll
     barrier
     check ((← manager).enabledVCs.contains 0) "current start did not enable VC"
     check ((← starts.get) == 1) "current start did not admit exactly one worker"
-    liftIO <| IO.println s!"queued start (filtered={filtered}): PASS"
+    liftIO <| IO.println s!"scoped start (filtered={filtered}): PASS"
   finally
     resultPromise.resolve (.unknown none 0)
     startTimePromise.resolve 0
@@ -83,6 +87,9 @@ def queuedStart (filtered : Bool) : CommandElabM Unit := do
 /-- Each stale test enters the production waiter and consumes a sentinel before
 replacement. No timed ordering is used; the deadline only bounds failure. -/
 def staleWait (asynchronous : Bool) (replacement : Nat) : CommandElabM Unit := do
+  runManager
+  let owner ← getVCManagerOwner
+  let managerLoopErrors := owner.errors
   let saved ← manager
   let savedSnapshots := (← get).snapshotTasks
   let savedErrors ← managerLoopErrors.get
@@ -118,11 +125,12 @@ def staleWait (asynchronous : Bool) (replacement : Nat) : CommandElabM Unit := d
       observer.cancelRec
       await "observer cleanup" (IO.hasFinished observer.task)
       discard <| IO.wait observer.task
-    vcManager.atomically fun ref => ref.set saved
+    withVCManager fun ref => ref.set saved
     managerLoopErrors.set savedErrors
     modify fun st => { st with snapshotTasks := savedSnapshots }
 
 def currentWaits : CommandElabM Unit := do
+  runManager
   let saved ← manager
   let savedSnapshots := (← get).snapshotTasks
   let cleanup ← IO.mkRef (none : Option (Language.SnapshotTask Language.SnapshotTree))
@@ -143,7 +151,7 @@ def currentWaits : CommandElabM Unit := do
     if let some observer ← cleanup.get then
       observer.cancelRec
       await "current observer cleanup" (IO.hasFinished observer.task)
-    vcManager.atomically fun ref => ref.set saved
+    withVCManager fun ref => ref.set saved
     modify fun st => { st with snapshotTasks := savedSnapshots }
 
 end VeilTest.VerifierGeneration

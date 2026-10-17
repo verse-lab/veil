@@ -17,6 +17,10 @@ private def observe (name : Name) : CommandElabM (Array (Language.SnapshotTask L
     modify fun st => { st with snapshotTasks := before }
 
 private def run : CommandElabM Unit := do
+  runManager
+  let owner ← getVCManagerOwner
+  let vcManager := owner.manager
+  let managerLoopErrors := owner.errors
   let savedManager ← vcManager.atomically fun ref => ref.get
   let savedSnapshots := (← get).snapshotTasks
   let savedErrors ← managerLoopErrors.get

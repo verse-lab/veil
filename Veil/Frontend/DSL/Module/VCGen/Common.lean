@@ -108,32 +108,56 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
   let startTimePromise ← IO.Promise.new
   let resultPromise ← IO.Promise.new
   -- Use wrapAsyncAsSnapshot for proper snapshot tree integration with the language server
-  let mk ← Command.wrapAsyncAsSnapshot (fun vcStatement : VCStatement => do
-    -- Resolve the start time promise when the discharger actually begins
-    let startTime ← IO.monoMsNow
-    startTimePromise.resolve startTime
-    let res ← (do
-      try
-        -- Wrap in profiler trace for discharger timing
-        withTraceNode (`veil.perf.discharger ++ dischargerId.name)
-            (fun _ => return s!"{traceLabel} {dischargerId.name}") do
-          liftTermElabM $ do
-            let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
-            let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
-              withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
+  let savedState ← get
+  let mk ← try
+    -- Automatic workers need the specification environment, but never own its
+    -- mutable runtime. Excluding handles from their captured environment breaks
+    -- owner -> discharger closure -> environment -> owner reference cycles.
+    -- wrapAsync captures state before its execution-time resets. Strip earlier
+    -- diagnostics, info trees and snapshots as well: they can hold environments
+    -- or observer closures pointing back to this runtime.
+    modify fun st => { st with
+      env := Veil.Verifier.vcManagerExt.setState st.env {}
+      messages := {}
+      infoState := { enabled := st.infoState.enabled }
+      traceState := {}
+      snapshotTasks := #[] }
+    withReader (fun ctx : Command.Context => { ctx with snap? := none }) do
+      Command.wrapAsyncAsSnapshot (fun vcStatement : VCStatement => do
+        -- Resolve the start time promise when the discharger actually begins
+        let startTime ← IO.monoMsNow
+        startTimePromise.resolve startTime
+        let res ← (do
+          try
+            -- Wrap in profiler trace for discharger timing
+            withTraceNode (`veil.perf.discharger ++ dischargerId.name)
+                (fun _ => return s!"{traceLabel} {dischargerId.name}") do
+              liftTermElabM $ do
+                let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
+                let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
+                  withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
+                let endTime ← IO.monoMsNow
+                mkResult smtCh (.inl witness) (endTime - startTime)
+          catch ex =>
+            --`mkResult` can throw, but a result must be published on every path.
             let endTime ← IO.monoMsNow
-            mkResult smtCh (.inl witness) (endTime - startTime)
-      catch ex =>
-        --`mkResult` can throw, but a result must be published on every path.
-        let endTime ← IO.monoMsNow
-        try
-          liftTermElabM $ mkResult smtCh (.inr ex) (endTime - startTime)
-        catch ex2 =>
-          return .error #[← safeExceptionEntry ex, ← safeExceptionEntry ex2]
-            (endTime - startTime)
-    )
-    publishDischargerResult resultPromise ch dischargerId res
-  ) cancelTk
+            try
+              liftTermElabM $ mkResult smtCh (.inr ex) (endTime - startTime)
+            catch ex2 =>
+              return .error #[← safeExceptionEntry ex, ← safeExceptionEntry ex2]
+                (endTime - startTime)
+        )
+        publishDischargerResult resultPromise ch dischargerId res
+      ) cancelTk
+  finally
+    -- Keep wrapAsync's fresh name-generator advances while restoring all
+    -- caller diagnostics/UI state and its original manager-bearing environment.
+    modify fun st => { st with
+      env := savedState.env
+      messages := savedState.messages
+      infoState := savedState.infoState
+      traceState := savedState.traceState
+      snapshotTasks := savedState.snapshotTasks }
   let run : BaseIO Language.SnapshotTree := do
     let startTime ← IO.monoMsNow
     let snapshot ← mk vcStatement

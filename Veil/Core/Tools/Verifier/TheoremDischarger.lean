@@ -77,9 +77,12 @@ private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
   pure (discharger, result)
 
 private def registerFinishedTheoremDischarger
-    (declName : Name) (result : DischargerResult SmtResult) : AttrM (Except String Unit) :=
-  liftM <| vcManager.atomically (fun ref => do
+    (owner : VCManagerEnvironment) (managerId : ManagerId)
+    (declName : Name) (result : DischargerResult SmtResult) : AttrM (Except String Unit) := do
+  let res ← liftM <| owner.manager.atomically (fun ref => do
     let mgr ← ref.get
+    if mgr._managerId != managerId then
+      return Except.error "verification manager was reset during theorem validation"
     let vcIds := findMatchingVCs mgr declName
     if vcIds.isEmpty then
       pure <| Except.error s!"`@[veil]` could not find a verification condition named `{declName}`"
@@ -104,10 +107,12 @@ private def registerFinishedTheoremDischarger
       -- This bypasses the notification channel, so schedule a fill: the
       -- result may have completed a VC (unlocking dependents) or re-opened
       -- one whose remaining automatic dischargers should now run.
-      let _ ← vcManagerCh.send .fill
       pure (Except.ok ())
     else
       pure <| Except.error s!"`@[veil]` is ambiguous for `{declName}`; matched {vcIds.size} verification conditions")
+
+  liftM <| enqueue owner .fill
+  return res
 
 private def currentErrorEntries (fallback : MessageData) : AttrM (Array (Exception × Json)) := do
   let msgLog ← Core.getMessageLog
@@ -122,7 +127,8 @@ private def currentErrorEntries (fallback : MessageData) : AttrM (Array (Excepti
 
 private def registerTheoremDischarger (declName : Name) : AttrM Unit := do
   let res ← do
-    let mgr ← vcManager.atomically fun ref => ref.get
+    let owner ← getVCManagerOwner
+    let mgr ← owner.manager.atomically fun ref => ref.get
     let vcIds := findMatchingVCs mgr declName
     if vcIds.isEmpty then
       pure <| Except.error s!"`@[veil]` could not find a verification condition named `{declName}`"
@@ -136,11 +142,11 @@ private def registerTheoremDischarger (declName : Name) : AttrM Unit := do
         let message ← ex.toMessageData.toString
         let result : DischargerResult SmtResult :=
           .error #[(ex, Json.str message)] 0
-        registerFinishedTheoremDischarger declName result
+        registerFinishedTheoremDischarger owner mgr._managerId declName result
       | .ok witness => do
         let result : DischargerResult SmtResult :=
           .proven (some witness) none 0
-        registerFinishedTheoremDischarger declName result
+        registerFinishedTheoremDischarger owner mgr._managerId declName result
     else
       pure <| Except.error s!"`@[veil]` is ambiguous for `{declName}`; matched {vcIds.size} verification conditions"
   match res with
@@ -170,7 +176,9 @@ initialize
       if info.value.hasSorry then
         let fallback := theoremSorryMessage declName info.value
         let result : DischargerResult SmtResult := .error (← currentErrorEntries fallback) 0
-        let res ← registerFinishedTheoremDischarger declName result
+        let owner ← getVCManagerOwner
+        let mgr ← owner.manager.atomically fun ref => ref.get
+        let res ← registerFinishedTheoremDischarger owner mgr._managerId declName result
         match res with
         | .ok () => liftM frontendNotification.notifyAll
         | .error err => throwError err

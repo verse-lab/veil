@@ -19,8 +19,6 @@ private def await (label : String) (condition : BaseIO Bool) : IO Unit := do
       throw <| IO.userError s!"timed out: {label}"
     IO.sleep 1
 
-private def manager : BaseIO (VCManager VCMetadata SmtResult) :=
-  vcManager.atomically fun ref => ref.get
 
 private def data (name : Name) : CommandElabM (VCData VCMetadata) := do
   return { name, params := #[], statement := ← `(True)
@@ -30,6 +28,8 @@ private def data (name : Name) : CommandElabM (VCData VCMetadata) := do
 barrier: seeing it enabled under the manager mutex means prior handlers and
 the barrier handler's own admission pass have finished. -/
 private def barrier : CommandElabM Unit := do
+  let owner ← getVCManagerOwner
+  let manager := owner.manager.atomically (m := BaseIO) fun ref => ref.get
   let id ← withVCManager fun ref => do
     let mgr ← ref.get
     let name := Name.mkSimple s!"barrier{mgr._nextVcId}"
@@ -98,6 +98,8 @@ private def fresh : CommandElabM Unit := do
 
 private def earlyPublication : CommandElabM Unit := do
   fresh
+  let owner ← getVCManagerOwner
+  let manager := owner.manager.atomically (m := BaseIO) fun ref => ref.get
   let mgr ← manager
   let a ← worker mgr._managerId mgr._nextVcId 0
   let b ← worker mgr._managerId mgr._nextVcId 1
@@ -124,6 +126,8 @@ private def earlyPublication : CommandElabM Unit := do
 
 private def resets (publishBeforeReset : Bool) : CommandElabM Unit := do
   fresh
+  let owner ← getVCManagerOwner
+  let manager := owner.manager.atomically (m := BaseIO) fun ref => ref.get
   let mgr ← manager
   let a ← worker mgr._managerId mgr._nextVcId 0
   let retained ← IO.mkRef #[a]
@@ -138,11 +142,8 @@ private def resets (publishBeforeReset : Bool) : CommandElabM Unit := do
     let mut previous := a
     for iteration in [:3] do
       let oldId := (← manager)._managerId
-      if iteration == 1 then
-        -- Also exercise the synchronous frontend reset path.
-        runManager
-      else
-        reset oldId
+      -- Reset only this owner; creating another owner is covered separately.
+      reset oldId
       await "reset processed" do return (← manager)._managerId != oldId
       check (← previous.discharger.cancelTk.isSet) "reset missed abandoned cancellation token"
       let mgr ← manager
@@ -176,6 +177,8 @@ private def resets (publishBeforeReset : Bool) : CommandElabM Unit := do
 
 private def twoSlots : CommandElabM Unit := do
   fresh
+  let owner ← getVCManagerOwner
+  let manager := owner.manager.atomically (m := BaseIO) fun ref => ref.get
   numCoresCache.set (some 2)
   let mgr ← manager
   let a ← worker mgr._managerId mgr._nextVcId 0

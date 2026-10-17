@@ -13,35 +13,137 @@ namespace Veil.Verifier
 
 open Lean Elab Command Std
 
--- FIXME: this should be in `EnvExtensions.lean`, but putting it there triggers
--- the bug fixed in [#10217](https://github.com/leanprover/lean4/pull/10217).
--- Placing it here as a workaround until the fix ships in a stable Lean.
-/-- Holds the state of the VCManager for the current file. -/
-initialize vcManager : Std.Mutex (VCManager VCMetadata SmtResult) ← Std.Mutex.new (← VCManager.new vcManagerCh)
+/-- The handle follows saved environments, asynchronous commands and CoreM getters.
+It is deliberately not persistent across imports. -/
+initialize vcManagerExt : EnvExtension (HashMap Name VCManagerEnvironment) ←
+  registerEnvExtension (pure {}) (asyncMode := .local)
 
-/-- Errors thrown inside the manager loop. The loop runs detached from any
-command snapshot (registering its infinite task would hang the build), so
-exceptions it catches are invisible to the editor; they are recorded here and
-surfaced as warnings by `awaitFilteredWithLogging` on its next poll. -/
-initialize managerLoopErrors : IO.Ref (Array String) ← IO.mkRef #[]
+def getVCManagerOwner [Monad m] [MonadEnv m] [MonadError m] : m VCManagerEnvironment := do
+  let key := ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
+  let some owner := (vcManagerExt.getState (← getEnv))[key]?
+    | throwError "verification manager has not been prepared"
+  return owner
+
+def withVCManager (f : IO.Ref (VCManager VCMetadata SmtResult) → CommandElabM α) : CommandElabM α := do
+  (← getVCManagerOwner).manager.atomically f
+
+def readVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m] :
+    m (VCManager VCMetadata SmtResult) := do
+  liftM <| (← getVCManagerOwner).manager.atomically (m := BaseIO) fun ref => ref.get
+
+/-- One lock protects the physical pool and active-owner registry. Its lock is
+always taken before an owner's manager mutex. Frontend mutations only take the
+owner mutex, and enqueue afterwards. No idle owner is retained here. -/
+structure DispatcherState where
+  nextId : Nat := 0
+  owners : HashMap ManagerId VCManagerEnvironment := {}
+  tasks : Array SnapshotTreeTask := #[]
+deriving Inhabited
+
+initialize dispatcher : Std.Mutex DispatcherState ← Std.Mutex.new {}
+
+private def newManagerLocked (ref : IO.Ref DispatcherState) : BaseIO (VCManager VCMetadata SmtResult) := do
+  let st ← ref.get
+  ref.set { st with nextId := st.nextId + 1 }
+  VCManager.new vcManagerCh (currentManagerId := st.nextId)
+
+/-- Explicit reset owns worker cancellation; observers do not. -/
+def cancelAbandonedWork (mgr : VCManager VCMetadata SmtResult) : BaseIO Unit :=
+  mgr.cancelAllDischargers
+
+private def fillOwnerLocked (pool : IO.Ref DispatcherState) (owner : VCManagerEnvironment)
+    : BaseIO Bool := owner.manager.atomically fun ref => do
+  let mut mgr ← ref.get
+  if ← owner.cancelTk.isSet then
+    cancelAbandonedWork mgr
+    return false
+  let numCores ← getNumCores
+  let ready := (← mgr.readyTasks).take (numCores - (← pool.get).tasks.size)
+  for (vc, discharger) in ready do
+    let discharger' ← discharger.run
+    if let some task := discharger'.task then
+      pool.modify fun st => { st with tasks := st.tasks.push task }
+      BaseIO.chainTask task (fun _ => discard <| vcManagerCh.send .fill)
+    let vc' := { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }
+    mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc' }
+  ref.set mgr
+  -- Results can precede physical completion. Keep the owner until both its
+  -- ready work and outstanding publications have drained; the physical pool
+  -- separately retains unfinished tasks even after this owner retires.
+  if !(← mgr.readyTasks).isEmpty then return true
+  for (_, vc) in mgr.nodes do
+    for d in vc.effectiveDischargers do
+      if d.task.isSome && !mgr._dischargerResults.contains (vc.uid, d.id.dischargerId) then
+        return true
+  return false
+
+private def handleNotificationLocked (pool : IO.Ref DispatcherState)
+  (notification : ManagerNotification VCMetadata SmtResult) : BaseIO Unit := do
+  let st ← pool.get
+  let tasks ← st.tasks.filterM fun task => return !(← IO.hasFinished task)
+  pool.set { st with tasks }
+  let id? := match notification with
+    | .dischargerResult id _ => some id.managerId
+    | .reset id | .startAll id | .startFiltered id _ => some id
+    | .fill => none
+  if let some id := id? then
+    if let some owner := (← pool.get).owners[id]? then
+      owner.manager.atomically fun ref => do
+        let mgr ← ref.get
+        if mgr._managerId != id then return
+        match notification with
+        | .dischargerResult id res => ref.set (← mgr.recordDischargerResult id res)
+        | .startAll _ => ref.set mgr.enableAll
+        | .startFiltered _ filter => ref.set (mgr.enableMatching filter)
+        | .reset _ =>
+          cancelAbandonedWork mgr
+          ref.set (← newManagerLocked pool)
+        | .fill => pure ()
+  let owners := (← pool.get).owners
+  for (id, owner) in owners do
+    let currentId ← owner.manager.atomically fun ref => return (← ref.get)._managerId
+    if currentId != id || !(← fillOwnerLocked pool owner) then
+      pool.modify fun st => { st with owners := st.owners.erase id }
+
+
+private def handleNotification (notification : ManagerNotification VCMetadata SmtResult) : BaseIO Unit := do
+  dispatcher.atomically fun pool => handleNotificationLocked pool notification
+  frontendNotification.notifyAll
+
+private def startDispatcher : BaseIO Unit :=
+  vcServerStarted.atomically fun ref => do
+    unless ← ref.get do
+      -- One shared asynchronous receiver, no dedicated thread per owner.
+      discard <| vcManagerCh.forAsync handleNotification
+      ref.set true
+
+/-- Apply frontend requests synchronously under the pool lock. Registration and
+handling are one transaction: retiring an idle owner cannot discard a queued
+start. Worker publications still use the shared asynchronous channel. -/
+def enqueue (owner : VCManagerEnvironment)
+    (notification : ManagerNotification VCMetadata SmtResult) : BaseIO Unit := do
+  dispatcher.atomically fun pool => do
+    let id ← owner.manager.atomically fun ref => return (← ref.get)._managerId
+    let requestedId := match notification with
+      | .reset requested | .startAll requested | .startFiltered requested _ => requested
+      | .dischargerResult requested _ => requested.managerId
+      | .fill => id
+    if requestedId != id then return
+    pool.modify fun st => { st with owners := st.owners.insert id owner }
+    handleNotificationLocked pool notification
+  frontendNotification.notifyAll
 
 def sendNotification (notification : ManagerNotification VCMetadata SmtResult) : CommandElabM Unit := do
-  let _ ← vcManagerCh.send notification
-
-/-- Run a computation with exclusive access to the VCManager.
-    Use this for batching multiple VC operations atomically. -/
-def withVCManager (f : IO.Ref (VCManager VCMetadata SmtResult) → CommandElabM α) : CommandElabM α :=
-  vcManager.atomically f
+  enqueue (← getVCManagerOwner) notification
 
 def reset (managerId : ManagerId) : CommandElabM Unit := sendNotification (.reset managerId)
+
 def startAll : CommandElabM Unit := do
-  let managerId ← vcManager.atomically fun ref => return (← ref.get)._managerId
+  let managerId := (← readVCManager)._managerId
   sendNotification (.startAll managerId)
 
-/-- Capture the generation before enqueueing, so its observer and start request
-refer to exactly the same work even if the manager is replaced meanwhile. -/
 private def requestFiltered (filter : VCMetadata → Bool) : CommandElabM ManagerId := do
-  let managerId ← vcManager.atomically fun ref => return (← ref.get)._managerId
+  let managerId := (← readVCManager)._managerId
   sendNotification (.startFiltered managerId filter)
   return managerId
 
@@ -50,129 +152,17 @@ def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := do
 
 def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
 
-/-- Actual scheduler-started tasks across all manager generations. Access only
-while holding `vcManager`'s mutex. Reset cancels workers cooperatively, but
-cannot release their physical slots before their tasks finish. -/
-private initialize scheduledTasks : IO.Ref (Array SnapshotTreeTask) ← IO.mkRef #[]
-
-/-- Start ready dischargers from the enabled set until the unfinished task count
-reaches the core count: spawn each task (`Discharger.run` only *spawns* — the
-elaboration/solving runs on the thread pool) and write the started discharger
-back into its node. Each observer registers matching tasks from this state.
-
-Must be called with the `vcManager` lock held, as part of a handler's single
-critical section: holding the lock, the `(vc, discharger)` pairs returned by
-`readyTasks` are *current*, so the write-back cannot clobber concurrent
-frontend updates (interactive `@[veil]` registrations, added dischargers, a
-reset). `BaseIO`, so the handler cannot fail or be interrupted between
-spawning tasks and the caller's single `ref.set` — spawned work and recorded
-state stay consistent. -/
-private def fillAvailableSlotsLocked (mgr : VCManager VCMetadata SmtResult)
-    : BaseIO (VCManager VCMetadata SmtResult) := do
-  let mut mgr := mgr
-  let numCores ← getNumCores
-  let tasks ← (← scheduledTasks.get).filterM fun task => return !(← IO.hasFinished task)
-  scheduledTasks.set tasks
-  let ready := (← mgr.readyTasks).take (numCores - tasks.size)
-  for (vc, discharger) in ready do
-    let discharger' ← discharger.run
-    if let some task := discharger'.task then
-      scheduledTasks.modify (·.push task)
-      -- This continuation runs after the original task has finished, even if
-      -- its result was published earlier or belongs to an abandoned manager.
-      -- Unlike Task.map, chainTask runs even when its return value is dropped.
-      BaseIO.chainTask task (fun _ => discard <| vcManagerCh.send .fill)
-    let vc' := { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }
-    mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc' }
-  return mgr
-
-/-- Explicit manager reset owns cancellation of abandoned shared workers.
-Command snapshot observers never own the workers' cancellation tokens. -/
-def cancelAbandonedWork (mgr : VCManager VCMetadata SmtResult) : IO Unit :=
-  mgr.cancelAllDischargers
-
-/-- Starts a separate task (on a dedicated thread) that runs the VCManager.
-If this is called multiple times, each call will reset the VC manager. -/
+/-- Prepare an independent owner. Completed snapshot registration gives the
+creating command cancellation ownership without an infinite snapshot task.
+Cancellation is checked before each admission, including completion refills. -/
 def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
   let cancelTk := cancelTk?.getD (← IO.CancelToken.new)
-  let managerLoop ← Command.wrapAsyncAsSnapshot (fun () => do
-    -- dbg_trace "({← IO.monoMsNow}) [Manager] Starting manager loop"
-    while true do
-      try
-        -- blocks until we get a notification
-        -- NOTE: this `get` is really problematic, as it increases the threadpool size
-        let notification := (← vcManagerCh.recv).get
-        -- Each notification is processed in ONE `vcManager.atomically` section:
-        -- decisions (`readyTasks`) and write-backs see the same state, frontend
-        -- writers (`withVCManager`, `@[veil]` registration, the frontend-side
-        -- reset in `runManager`) are serialized against the whole handler, and
-        -- the single `ref.set` at the end makes a failed handler roll back
-        -- wholesale instead of leaving torn state. Holding the lock here is
-        -- cheap: `Discharger.run` only spawns a task, and discharger
-        -- task bodies never take this mutex.
-        match notification with
-        | .dischargerResult dischargerId res => do
-          vcManager.atomically (fun ref => do
-            let mut mgr ← ref.get
-            if dischargerId.managerId != mgr._managerId then
-              return
-            mgr ← mgr.recordDischargerResult dischargerId res
-            -- Refill AFTER recordDischargerResult so freshly woken
-            -- alternatives and unlocked dependents can all be scheduled.
-            mgr ← fillAvailableSlotsLocked mgr
-            ref.set mgr)
-          Frontend.notify
-        | .startAll managerId => do
-          vcManager.atomically (fun ref => do
-            let mgr ← ref.get
-            if mgr._managerId != managerId then return
-            ref.set (← fillAvailableSlotsLocked mgr.enableAll))
-          Frontend.notify
-        | .startFiltered managerId filter => do
-          vcManager.atomically (fun ref => do
-            let mgr ← ref.get
-            if mgr._managerId != managerId then return
-            ref.set (← fillAvailableSlotsLocked (mgr.enableMatching filter)))
-          -- Wake pollers (they re-check `isDoneFiltered` under their own lock)
-          Frontend.notify
-        | .fill => do
-          vcManager.atomically (fun ref => do
-            ref.set (← fillAvailableSlotsLocked (← ref.get)))
-          Frontend.notify
-        | .reset managerId => vcManager.atomically (fun ref => do
-          let mut mgr ← ref.get
-          if mgr._managerId != managerId then
-            return
-          -- Reap abandoned work before dropping the only references to it
-          cancelAbandonedWork mgr
-          mgr ← VCManager.new vcManagerCh (currentManagerId := mgr._managerId)
-          ref.set mgr)
-      catch ex =>
-        -- Log errors but continue processing to prevent the manager loop from
-        -- dying. The single-`ref.set` discipline above means a failed handler
-        -- left the manager unchanged. Nothing logged here reaches the editor
-        -- (the loop is not registered with `logSnapshotTask`), so also record
-        -- the error for `awaitFilteredWithLogging` to surface as a warning.
-        let msg ← ex.toMessageData.toString
-        dbg_trace "[VCManager] Error in manager loop: {msg}"
-        managerLoopErrors.modify (·.push msg)
-  ) cancelTk
-  vcServerStarted.atomically (fun ref => do
-    if !(← ref.get) then
-      -- Start the manager task but DON'T register with logSnapshotTask.
-      -- The manager loop is infinite, so registering it would hang the build.
-      -- Discharger tasks are registered by runFilteredAsync/waitFilteredSync instead.
-      -- dbg_trace "({← IO.monoMsNow}) [Manager] Starting manager loop"
-      let _ ← (managerLoop ()).asTask
-    else
-      vcManager.atomically (fun managerRef => do
-        let mgr ← managerRef.get
-        -- Reap abandoned work before dropping the only references to it
-        cancelAbandonedWork mgr
-        let mgr ← VCManager.new vcManagerCh (currentManagerId := mgr._managerId)
-        managerRef.set mgr)
-    ref.set true
-  )
+  let mgr ← liftM <| dispatcher.atomically newManagerLocked
+  let owner := { manager := ← Std.Mutex.new mgr, errors := ← IO.mkRef #[], cancelTk : VCManagerEnvironment }
+  let key := ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
+  modifyEnv fun env => vcManagerExt.modifyState env (·.insert key owner)
+  Command.logSnapshotTask { stx? := none, cancelTk? := some cancelTk, task := .pure default }
+  startDispatcher
 
 /-- Preserve diagnostics, traces, and asynchronous children without granting an
 observer cancellation ownership. `SnapshotTask.cancelRec` traverses children
@@ -209,15 +199,19 @@ def logPendingDischargerTasks (mgr : VCManager VCMetadata SmtResult)
     This enables profiler trace propagation by registering tasks on the calling thread. -/
 private def awaitFilteredWithLogging (managerId : ManagerId) (filter : VCMetadata → Bool)
     : CommandElabM (VerificationResults VCMetadata SmtResult) := do
+  let owner ← getVCManagerOwner
   let mut registered := HashSet.emptyWithCapacity
   while true do
     liftCoreM Core.checkInterrupted
+    if ← owner.cancelTk.isSet then
+      enqueue owner .fill
+      throwError "verification interrupted: specification owner was canceled"
     -- Surface manager-loop errors where the user is looking; the loop itself
     -- cannot log to the editor (it is not registered with `logSnapshotTask`).
-    for err in ← managerLoopErrors.modifyGet fun errs => (errs, #[]) do
+    for err in ← (← getVCManagerOwner).errors.modifyGet fun errs => (errs, #[]) do
       logWarning m!"VC manager loop error: {err}"
     -- Snapshot under the lock, render outside it (`toResults` pretty-prints).
-    let mgr ← vcManager.atomically fun ref => ref.get
+    let mgr ← readVCManager
     if mgr._managerId != managerId then
       throwError "verification interrupted: VC manager generation {managerId} was replaced by {mgr._managerId}"
     registered ← logPendingDischargerTasks mgr filter registered
@@ -279,7 +273,7 @@ are the witnesses returned by successful dischargers. Declarations are added in
 the manager DAG's dependency order so downstream proof terms can refer to
 upstream VC theorem constants. -/
 def addProvenTheoremsInDependencyOrder (filter : VCMetadata → Bool) : CommandElabM Unit := do
-  let mgr ← vcManager.atomically fun ref => ref.get
+  let mgr ← readVCManager
   for vcId in mgr.vcIdsInDependencyOrder filter do
     if let some (vc, witness) := mgr.provenWitness? vcId then
       addProvenVCTheorem vc witness
