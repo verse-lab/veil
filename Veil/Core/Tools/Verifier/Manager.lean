@@ -535,6 +535,17 @@ def VCManager.enableMatching (mgr : VCManager VCMetaT ResultT)
     (fun s vcId vc => if filter vc.metadata then s.insert vcId else s)
   { mgr with enabledVCs := enabled }
 
+/-- Enable automatic work requested through a checkpoint view. Interactive
+proofs suppress new attempts only for that request, never previously enabled
+shared work needed by another checkpoint. -/
+def VCManager.enableMatchingFromView (mgr view : VCManager VCMetaT ResultT)
+    (filter : VCMetaT → Bool) : VCManager VCMetaT ResultT :=
+  let enabled := view.nodes.fold (init := mgr.enabledVCs)
+    (fun enabled vcId vc =>
+      if filter vc.metadata && !vc.hasInteractiveDischarger then enabled.insert vcId
+      else enabled)
+  { mgr with enabledVCs := enabled }
+
 /-- The enabled, not-yet-done, non-dormant VCs with no outstanding
 dependencies whose next discharger can be started. -/
 def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT)
@@ -553,13 +564,13 @@ def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT)
       | none => pure none)
   return ready
 
-/-- Number of dischargers that have been started but have not yet published a
-result. Relies on every started discharger eventually resolving its result
+/-- Logical number of effective dischargers that have been started but have not yet published a
+result. Hidden automatic tasks remain in the separate physical pool. Relies on every started discharger eventually resolving its result
 promise via `publishDischargerResult`. FIXME: this is inefficient. -/
 def VCManager.inFlightCount (mgr : VCManager VCMetaT ResultT) : BaseIO Nat := do
   let mut count := 0
   for (_, vc) in mgr.nodes do
-    for d in vc.dischargers do
+    for d in vc.effectiveDischargers do
       if d.task.isSome && !(← IO.hasFinished d.resultPromise.result?) then
         count := count + 1
   return count
@@ -612,7 +623,7 @@ private def VCManager.exhaustedVCStatus (mgr : VCManager VCMetaT ResultT)
     else
       .unknown
 
-def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerIdentifier) (res : DischargerResult ResultT): BaseIO (VCManager VCMetaT ResultT) := do
+def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerIdentifier) (res : DischargerResult ResultT) (cancelAutomatic : Bool := true): BaseIO (VCManager VCMetaT ResultT) := do
   let mut mgr := mgr
   let vcId := id.vcId
   let mut .some vc := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} not found"; return mgr
@@ -623,7 +634,7 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerI
     return mgr
   let wasAlreadySuccessful := vc.successful.isSome
   if incomingIsInteractive then
-    vc.cancelNonInteractiveDischargers
+    if cancelAutomatic then vc.cancelNonInteractiveDischargers
     if wasAlreadySuccessful then
       vc := { vc with successful := none }
       mgr := { mgr with
@@ -680,6 +691,28 @@ def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
   if res.isSuccessful && !alreadySolved then
     mgr := { mgr with _totalSolved := mgr._totalSolved + 1 }
   mgr.markDischarger id res
+
+/-- Project checkpoint-local completed interactive proofs over shared automatic
+attempts. This is an immutable view: no automatic task is canceled or replaced.
+The runtime manager must not be replaced with the resulting view. -/
+def VCManager.withInteractiveResults (mgr : VCManager VCMetaT ResultT)
+    (registrations : Array (Discharger ResultT × DischargerResult ResultT)) :
+    BaseIO (VCManager VCMetaT ResultT) := do
+  let mut mgr := mgr
+  for (discharger, result) in registrations do
+    if discharger.id.managerId != mgr._managerId then continue
+    let some vc := mgr.nodes[discharger.id.vcId]? | continue
+    -- Positional IDs are assigned by each view: later automatic additions
+    -- must not collide with a registration captured before they existed.
+    let discharger := { discharger with id.dischargerId := vc.dischargers.size }
+    let vc := { vc with dischargers := vc.dischargers.push discharger }
+    mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc }
+    mgr ← mgr.markDischarger discharger.id result (cancelAutomatic := false)
+  if !registrations.isEmpty then
+    mgr := { mgr with
+      _totalSolved := mgr.nodes.fold (fun n _ vc => n + if vc.successful.isSome then 1 else 0) 0
+      _totalDischarged := mgr._dischargerResults.size }
+  return mgr
 
 def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : String := Id.run do
   match mgr._doneWith[vcId]? with

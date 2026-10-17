@@ -1,5 +1,6 @@
 module
 meta import VeilTest.Regression.VerifierWorkerContextSupport
+meta import Veil.Core.Tools.Verifier.TheoremDischarger
 
 open Lean Elab Command Veil Veil.Verifier
 meta section
@@ -11,6 +12,16 @@ private def await (label : String) (condition : BaseIO Bool) : IO Unit := do
 
 run_cmd do
   runManager
+  withVCManager fun ref => do
+    let (mgr, _) := (← ref.get).addVC {
+      name := `workerCheckpoint, params := #[], statement := ← `(True), metadata := default } {}
+    ref.set mgr
+
+@[veil] public theorem workerCheckpoint : True := True.intro
+
+run_cmd do
+  unless !(interactiveRegistrationsExt.getState (← getEnv)).isEmpty do
+    throwError "missing caller proof checkpoint fixture"
   let owner ← getVCManagerOwner
   let mgr ← readVCManager
   let entered ← IO.Promise.new
@@ -18,7 +29,7 @@ run_cmd do
   workerContextGates.set (some (entered, release))
   let stmt : VCStatement := { name := `workerContext, params := #[], statement := ← `(True) }
   let term ← `(by worker_context_probe; exact workerAvailable)
-  let id : DischargerIdentifier := { managerId := mgr._managerId, vcId := 0, dischargerId := 0, name := `workerContext }
+  let id : DischargerIdentifier := { managerId := mgr._managerId, vcId := 1, dischargerId := 0, name := `workerContext }
   let callerMessages := (← get).messages
   let callerInfos := (← get).infoState
   let callerTrace := (← get).traceState
@@ -28,6 +39,8 @@ run_cmd do
   let d ← Discharger.fromTermWith term stmt id vcManagerCh fun _ outcome time => do
     unless (Veil.Verifier.vcManagerExt.getState (← getEnv)).isEmpty do
       throwError "mkResult captured manager handles"
+    unless (Veil.Verifier.interactiveRegistrationsExt.getState (← getEnv)).isEmpty do
+      throwError "mkResult captured checkpoint proof registrations"
     unless (← getEnv).contains ``workerAvailable do throwError "mkResult lost theorem environment"
     match outcome with
     | .inl witness => pure (.proven (some witness) none time)
@@ -42,13 +55,15 @@ run_cmd do
     unless after.ngen.idx != before.ngen.idx || after.ngen.namePrefix != before.ngen.namePrefix do
       throwError "capture discarded fresh name-generator advances"
     unless (← readVCManager)._managerId == mgr._managerId do throwError "construction changed caller owner"
+    unless !(interactiveRegistrationsExt.getState (← getEnv)).isEmpty do
+      throwError "capture erased caller proof checkpoint"
     unless !(← d.startTimePromise.isResolved) do throwError "queued worker started during capture"
     withVCManager fun ref => do
       let (mgr, _) := (← ref.get).addVC { stmt with metadata := default } {} #[d]
       ref.set mgr
     startAll
     let running ← readVCManager
-    task.set (running.nodes[0]?.bind fun vc => vc.dischargers[0]?.bind (·.task))
+    task.set (running.nodes[1]?.bind fun vc => vc.dischargers[0]?.bind (·.task))
     await "worker sees detached environment" entered.isResolved
     unless (← readVCManager)._managerId == mgr._managerId do throwError "running worker changed caller owner"
     release.resolve ()
@@ -56,7 +71,7 @@ run_cmd do
     let some result := d.resultPromise.result?.get | throwError "worker dropped result"
     unless result.isSuccessful do throwError "detached worker could not use ordinary theorem: {result.kindString}"
     await "accepted result" do
-      owner.manager.atomically fun ref => return (← ref.get)._doneWith.contains 0
+      owner.manager.atomically fun ref => return (← ref.get)._doneWith.contains 1
     if let some t ← task.get then
       await "worker snapshot diagnostics" (IO.hasFinished t)
       let diagnostics := t.get.element.diagnostics.msgLog.toArray

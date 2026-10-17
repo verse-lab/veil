@@ -202,11 +202,12 @@ private def runFilteredInvariantCheck
     : CommandElabM Unit := do
   Verifier.runFilteredAsync filter (logVerificationResults stx)
   let owner ← Verifier.getVCManagerOwner
-  let managerId := (← Verifier.readVCManager)._managerId
+  let getManager ← Verifier.captureVCManager
+  let managerId := (← getManager)._managerId
   Verifier.displayStreamingResults stx
     (do
       -- CAREFUL: do not hold the lock to print
-      let mgr ← owner.manager.atomically fun ref => ref.get
+      let mgr ← getManager
       if (← owner.cancelTk.isSet) || mgr._managerId != managerId then
         throwError "verification interrupted: specification owner was canceled or reset"
       let done := mgr.isDoneFiltered filter

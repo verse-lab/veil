@@ -275,11 +275,11 @@ private def formatTraceStatus (isExpectedSat : Bool) (status : Option VCStatus) 
 
 private def traceLoadingMessage : String := "⏳ Verifying trace query..."
 
-private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (managerId : ManagerId) (isExpectedSat : Bool) (_vcName : Name)
+private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (getManager : BaseIO (VCManager VCMetadata SmtResult)) (managerId : ManagerId) (isExpectedSat : Bool) (_vcName : Name)
     (vcFilter : VCMetadata → Bool) (token : RefreshToken) : CoreM Unit := do
   -- CAREFUL: do not sleep while holding the lock
   IO.sleep 100
-  let mgr ← owner.manager.atomically fun ref => ref.get
+  let mgr ← getManager
   if (← owner.cancelTk.isSet) || mgr._managerId != managerId then
     throwError "verification interrupted: specification owner was canceled or reset"
   let result? ←
@@ -290,7 +290,7 @@ private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (managerI
   match result? with
   | none =>
     token.update (.text traceLoadingMessage)
-    runTraceRefreshStep owner managerId isExpectedSat _vcName vcFilter token
+    runTraceRefreshStep owner getManager managerId isExpectedSat _vcName vcFilter token
   | some vcResult =>
     -- Show trace widget if we have JSON, otherwise show status message
     if let some (traceJson, rawHtml?) := extractTraceDataFromVC vcResult then
@@ -305,9 +305,10 @@ private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (managerI
 private def displayTraceStreamingResults (stx : Syntax) (isExpectedSat : Bool)
     (vcName : Name) (vcFilter : VCMetadata → Bool) : CommandElabM Unit := do
   let owner ← Verifier.getVCManagerOwner
-  let managerId := (← Verifier.readVCManager)._managerId
+  let getManager ← Verifier.captureVCManager
+  let managerId := (← getManager)._managerId
   let html ← liftCoreM <| mkRefreshComponentM (.text traceLoadingMessage)
-    (runTraceRefreshStep owner managerId isExpectedSat vcName vcFilter)
+    (runTraceRefreshStep owner getManager managerId isExpectedSat vcName vcFilter)
   liftCoreM <| Widget.savePanelWidgetInfo
     (hash HtmlDisplayPanel.javascript)
     (return json% { html: $(← Server.rpcEncode html) })

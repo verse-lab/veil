@@ -26,9 +26,8 @@ run_cmd do
 @[veil] public theorem same : True := True.intro
 
 run_cmd do
-  let some a := (← owners.get)[0]? | throwError "missing A"
   let some b := (← owners.get)[1]? | throwError "missing B"
-  let amgr ← a.manager.atomically fun ref => ref.get
+  let amgr ← readVCManager
   let bmgr ← b.manager.atomically fun ref => ref.get
   unless amgr.provenWitness? 0 |>.isSome do throwError "A theorem did not register in A"
   unless bmgr._doneWith.isEmpty do throwError "A theorem registered in B"

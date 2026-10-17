@@ -18,6 +18,16 @@ It is deliberately not persistent across imports. -/
 initialize vcManagerExt : EnvExtension (HashMap Name VCManagerEnvironment) ←
   registerEnvExtension (pure {}) (asyncMode := .local)
 
+/-- Completed interactive results belong to an immutable Lean checkpoint, keyed
+by globally unique runtime generation. They never enter the shared runtime. -/
+abbrev InteractiveRegistrations := Array (Discharger SmtResult × DischargerResult SmtResult)
+initialize interactiveRegistrationsExt : EnvExtension (HashMap ManagerId InteractiveRegistrations) ←
+  registerEnvExtension (pure {}) (asyncMode := .local)
+
+/-- Detached workers must not retain runtime owners through saved environments. -/
+def clearVerifierRuntime (env : Environment) : Environment :=
+  interactiveRegistrationsExt.setState (vcManagerExt.setState env {}) {}
+
 def getVCManagerOwner [Monad m] [MonadEnv m] [MonadError m] : m VCManagerEnvironment := do
   let key := ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
   let some owner := (vcManagerExt.getState (← getEnv))[key]?
@@ -27,9 +37,20 @@ def getVCManagerOwner [Monad m] [MonadEnv m] [MonadError m] : m VCManagerEnviron
 def withVCManager (f : IO.Ref (VCManager VCMetadata SmtResult) → CommandElabM α) : CommandElabM α := do
   (← getVCManagerOwner).manager.atomically f
 
+/-- Capture the caller's proof checkpoint once, while allowing shared automatic
+results to advance. Safe for CoreM/widget refreshes in a different context. -/
+def captureVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m] :
+    m (BaseIO (VCManager VCMetadata SmtResult)) := do
+  let owner ← getVCManagerOwner
+  let id ← liftM <| owner.manager.atomically (m := BaseIO) fun ref => return (← ref.get)._managerId
+  let registrations := (interactiveRegistrationsExt.getState (← getEnv))[id]?.getD #[]
+  return do
+    let mgr ← owner.manager.atomically (m := BaseIO) fun ref => ref.get
+    mgr.withInteractiveResults registrations
+
 def readVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m] :
     m (VCManager VCMetadata SmtResult) := do
-  liftM <| (← getVCManagerOwner).manager.atomically (m := BaseIO) fun ref => ref.get
+  liftM (← captureVCManager)
 
 /-- One lock protects the physical pool and active-owner registry. Its lock is
 always taken before an owner's manager mutex. Frontend mutations only take the
@@ -78,7 +99,8 @@ private def fillOwnerLocked (pool : IO.Ref DispatcherState) (owner : VCManagerEn
   return false
 
 private def handleNotificationLocked (pool : IO.Ref DispatcherState)
-  (notification : ManagerNotification VCMetadata SmtResult) : BaseIO Unit := do
+  (notification : ManagerNotification VCMetadata SmtResult)
+    (registrations : InteractiveRegistrations := #[]) : BaseIO Unit := do
   let st ← pool.get
   let tasks ← st.tasks.filterM fun task => return !(← IO.hasFinished task)
   pool.set { st with tasks }
@@ -93,8 +115,10 @@ private def handleNotificationLocked (pool : IO.Ref DispatcherState)
         if mgr._managerId != id then return
         match notification with
         | .dischargerResult id res => ref.set (← mgr.recordDischargerResult id res)
-        | .startAll _ => ref.set mgr.enableAll
-        | .startFiltered _ filter => ref.set (mgr.enableMatching filter)
+        | .startAll _ =>
+          ref.set (mgr.enableMatchingFromView (← mgr.withInteractiveResults registrations) (fun _ => true))
+        | .startFiltered _ filter =>
+          ref.set (mgr.enableMatchingFromView (← mgr.withInteractiveResults registrations) filter)
         | .reset _ =>
           cancelAbandonedWork mgr
           ref.set (← newManagerLocked pool)
@@ -121,7 +145,8 @@ private def startDispatcher : BaseIO Unit :=
 handling are one transaction: retiring an idle owner cannot discard a queued
 start. Worker publications still use the shared asynchronous channel. -/
 def enqueue (owner : VCManagerEnvironment)
-    (notification : ManagerNotification VCMetadata SmtResult) : BaseIO Unit := do
+    (notification : ManagerNotification VCMetadata SmtResult)
+    (registrations : InteractiveRegistrations := #[]) : BaseIO Unit := do
   dispatcher.atomically fun pool => do
     let id ← owner.manager.atomically fun ref => return (← ref.get)._managerId
     let requestedId := match notification with
@@ -130,13 +155,20 @@ def enqueue (owner : VCManagerEnvironment)
       | .fill => id
     if requestedId != id then return
     pool.modify fun st => { st with owners := st.owners.insert id owner }
-    handleNotificationLocked pool notification
+    handleNotificationLocked pool notification registrations
   frontendNotification.notifyAll
 
 def sendNotification (notification : ManagerNotification VCMetadata SmtResult) : CommandElabM Unit := do
-  enqueue (← getVCManagerOwner) notification
+  let owner ← getVCManagerOwner
+  let id ← owner.manager.atomically fun ref => return (← ref.get)._managerId
+  let registrations := (interactiveRegistrationsExt.getState (← getEnv))[id]?.getD #[]
+  enqueue owner notification registrations
 
-def reset (managerId : ManagerId) : CommandElabM Unit := sendNotification (.reset managerId)
+def reset (managerId : ManagerId) : CommandElabM Unit := do
+  let currentId ← (← getVCManagerOwner).manager.atomically fun ref => return (← ref.get)._managerId
+  sendNotification (.reset managerId)
+  if currentId == managerId then
+    modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.erase managerId)
 
 def startAll : CommandElabM Unit := do
   let managerId := (← readVCManager)._managerId
@@ -160,6 +192,9 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
   let mgr ← liftM <| dispatcher.atomically newManagerLocked
   let owner := { manager := ← Std.Mutex.new mgr, errors := ← IO.mkRef #[], cancelTk : VCManagerEnvironment }
   let key := ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
+  if let some previous := (vcManagerExt.getState (← getEnv))[key]? then
+    let previousId ← previous.manager.atomically fun ref => return (← ref.get)._managerId
+    modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.erase previousId)
   modifyEnv fun env => vcManagerExt.modifyState env (·.insert key owner)
   Command.logSnapshotTask { stx? := none, cancelTk? := some cancelTk, task := .pure default }
   startDispatcher
@@ -183,7 +218,7 @@ def logPendingDischargerTasks (mgr : VCManager VCMetadata SmtResult)
   let mut registered := registered
   for (_, vc) in mgr.nodes do
     if !filter vc.metadata then continue
-    for discharger in vc.dischargers do
+    for discharger in vc.effectiveDischargers do
       if registered.contains discharger.id then continue
       if let some task := discharger.task then
         Command.logSnapshotTask {

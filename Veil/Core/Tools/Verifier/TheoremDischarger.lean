@@ -79,39 +79,31 @@ private def mkFinishedTheoremDischarger (mgr : VCManager VCMetadata SmtResult)
 private def registerFinishedTheoremDischarger
     (owner : VCManagerEnvironment) (managerId : ManagerId)
     (declName : Name) (result : DischargerResult SmtResult) : AttrM (Except String Unit) := do
-  let res ← liftM <| owner.manager.atomically (fun ref => do
+  -- Recheck the captured owner generation after validation, and commit the
+  -- immutable registration while holding its lock. A reset cannot interleave.
+  let res ← owner.manager.atomically fun ref => do
     let mgr ← ref.get
     if mgr._managerId != managerId then
       return Except.error "verification manager was reset during theorem validation"
-    let vcIds := findMatchingVCs mgr declName
+    let registrations := (interactiveRegistrationsExt.getState (← getEnv))[managerId]?.getD #[]
+    let view ← mgr.withInteractiveResults registrations
+    let vcIds := findMatchingVCs view declName
     if vcIds.isEmpty then
-      pure <| Except.error s!"`@[veil]` could not find a verification condition named `{declName}`"
+      return Except.error s!"`@[veil]` could not find a verification condition named `{declName}`"
     else if vcIds.size = 1 then
       let vcId := vcIds[0]!
-      let some vc := mgr.nodes[vcId]?
-        | pure <| Except.error s!"`@[veil]` found verification condition {vcId}, but it is no longer registered"
+      let some vc := view.nodes[vcId]?
+        | return Except.error s!"`@[veil]` found verification condition {vcId}, but it is no longer registered"
       let existingId? := findInteractiveDischargerId? vc declName
-      let (discharger, result) ← mkFinishedTheoremDischarger mgr vc declName existingId? result
-      let vc := match existingId? with
-        | some existingId =>
-          { vc with
-            dischargers := vc.dischargers.set! existingId discharger
-            successful := if vc.successful == some existingId && !result.isSuccessful then none else vc.successful }
-        | none =>
-          { vc with dischargers := vc.dischargers.push discharger }
-      let mut mgr := { mgr with nodes := mgr.nodes.insert vcId vc }
-      if vc.successful.isNone then
-        mgr := { mgr with _doneWith := mgr._doneWith.erase vcId }
-      mgr ← mgr.recordDischargerResult discharger.id result
-      ref.set mgr
-      -- This bypasses the notification channel, so schedule a fill: the
-      -- result may have completed a VC (unlocking dependents) or re-opened
-      -- one whose remaining automatic dischargers should now run.
-      pure (Except.ok ())
+      let (discharger, result) ← mkFinishedTheoremDischarger view vc declName existingId? result
+      let registrations := match registrations.findIdx? (fun (d, _) =>
+          d.id.vcId == discharger.id.vcId && d.id.name == discharger.id.name) with
+        | some i => registrations.set! i (discharger, result)
+        | none => registrations.push (discharger, result)
+      modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.insert managerId registrations)
+      return Except.ok ()
     else
-      pure <| Except.error s!"`@[veil]` is ambiguous for `{declName}`; matched {vcIds.size} verification conditions")
-
-  liftM <| enqueue owner .fill
+      return Except.error s!"`@[veil]` is ambiguous for `{declName}`; matched {vcIds.size} verification conditions"
   return res
 
 private def currentErrorEntries (fallback : MessageData) : AttrM (Array (Exception × Json)) := do

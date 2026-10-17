@@ -117,7 +117,7 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
     -- diagnostics, info trees and snapshots as well: they can hold environments
     -- or observer closures pointing back to this runtime.
     modify fun st => { st with
-      env := Veil.Verifier.vcManagerExt.setState st.env {}
+      env := Veil.Verifier.clearVerifierRuntime st.env
       messages := {}
       infoState := { enabled := st.infoState.enabled }
       traceState := {}
