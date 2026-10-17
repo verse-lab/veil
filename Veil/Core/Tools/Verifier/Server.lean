@@ -34,8 +34,19 @@ def withVCManager (f : IO.Ref (VCManager VCMetadata SmtResult) → CommandElabM 
   vcManager.atomically f
 
 def reset (managerId : ManagerId) : CommandElabM Unit := sendNotification (.reset managerId)
-def startAll : CommandElabM Unit := sendNotification .startAll
-def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := sendNotification (.startFiltered filter)
+def startAll : CommandElabM Unit := do
+  let managerId ← vcManager.atomically fun ref => return (← ref.get)._managerId
+  sendNotification (.startAll managerId)
+
+/-- Capture the generation before enqueueing, so its observer and start request
+refer to exactly the same work even if the manager is replaced meanwhile. -/
+private def requestFiltered (filter : VCMetadata → Bool) : CommandElabM ManagerId := do
+  let managerId ← vcManager.atomically fun ref => return (← ref.get)._managerId
+  sendNotification (.startFiltered managerId filter)
+  return managerId
+
+def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := do
+  discard <| requestFiltered filter
 
 def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
 
@@ -111,13 +122,17 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
             mgr ← fillAvailableSlotsLocked mgr
             ref.set mgr)
           Frontend.notify
-        | .startAll => do
+        | .startAll managerId => do
           vcManager.atomically (fun ref => do
-            ref.set (← fillAvailableSlotsLocked (← ref.get).enableAll))
+            let mgr ← ref.get
+            if mgr._managerId != managerId then return
+            ref.set (← fillAvailableSlotsLocked mgr.enableAll))
           Frontend.notify
-        | .startFiltered filter => do
+        | .startFiltered managerId filter => do
           vcManager.atomically (fun ref => do
-            ref.set (← fillAvailableSlotsLocked ((← ref.get).enableMatching filter)))
+            let mgr ← ref.get
+            if mgr._managerId != managerId then return
+            ref.set (← fillAvailableSlotsLocked (mgr.enableMatching filter)))
           -- Wake pollers (they re-check `isDoneFiltered` under their own lock)
           Frontend.notify
         | .fill => do
@@ -190,8 +205,9 @@ def logPendingDischargerTasks (mgr : VCManager VCMetadata SmtResult)
 
 /-- Poll for discharger tasks from the manager and register them with `logSnapshotTask`.
     Waits until all VCs matching the filter are done, then returns the results.
+    Fails if the captured manager generation has been replaced.
     This enables profiler trace propagation by registering tasks on the calling thread. -/
-private def awaitFilteredWithLogging (filter : VCMetadata → Bool)
+private def awaitFilteredWithLogging (managerId : ManagerId) (filter : VCMetadata → Bool)
     : CommandElabM (VerificationResults VCMetadata SmtResult) := do
   let mut registered := HashSet.emptyWithCapacity
   while true do
@@ -202,6 +218,8 @@ private def awaitFilteredWithLogging (filter : VCMetadata → Bool)
       logWarning m!"VC manager loop error: {err}"
     -- Snapshot under the lock, render outside it (`toResults` pretty-prints).
     let mgr ← vcManager.atomically fun ref => ref.get
+    if mgr._managerId != managerId then
+      throwError "verification interrupted: VC manager generation {managerId} was replaced by {mgr._managerId}"
     registered ← logPendingDischargerTasks mgr filter registered
     if mgr.isDoneFiltered filter then
       let results ← liftCoreM (mgr.toResults filter)
@@ -217,10 +235,10 @@ This task also polls for discharger tasks from the manager and registers them wi
 Note: Widget display does not work in the callback since it runs in an async context. -/
 def runFilteredAsync (filter : VCMetadata → Bool)
     (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) : CommandElabM Unit := do
-  startFiltered filter
+  let managerId ← requestFiltered filter
   let cancelTk ← IO.CancelToken.new
   let wrappedTask ← Command.wrapAsyncAsSnapshot (fun () => do
-    let results ← awaitFilteredWithLogging filter
+    let results ← awaitFilteredWithLogging managerId filter
     liftCoreM Core.checkInterrupted
     callback results) cancelTk
   let task ← (wrappedTask ()).asTask (prio := .dedicated)
@@ -232,8 +250,8 @@ This also polls for discharger tasks from the manager and registers them with
 `logSnapshotTask`, enabling profiler trace propagation.
 Warning: This blocks the elaborator until all matching VCs complete. -/
 def waitFilteredSync (filter : VCMetadata → Bool) : CommandElabM (VerificationResults VCMetadata SmtResult) := do
-  startFiltered filter
-  awaitFilteredWithLogging filter
+  let managerId ← requestFiltered filter
+  awaitFilteredWithLogging managerId filter
 
 private def ensureExistingTheoremMatches (fullName : Name) (statement : Expr) : TermElabM Unit := do
   let some info := (← getEnv).find? fullName

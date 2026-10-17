@@ -209,10 +209,10 @@ inductive ManagerNotification (VCMetaT ResultT : Type) where
   | dischargerResult (id : DischargerIdentifier) (res : DischargerResult ResultT)
   /-- Issued by the frontend to reset the VCManager. -/
   | reset (managerId : ManagerId)
-  /-- Issued by the frontend to start all ready tasks. -/
-  | startAll
-  /-- Start VCs matching the filter. -/
-  | startFiltered (filter : VCMetaT → Bool)
+  /-- Issued by the frontend to start all ready tasks in this generation. -/
+  | startAll (managerId : ManagerId)
+  /-- Start VCs matching the filter in this generation. -/
+  | startFiltered (managerId : ManagerId) (filter : VCMetaT → Bool)
   /-- Top the pool of running dischargers back up to capacity from already-
   enabled VCs, without enabling anything new. Sent after frontend mutations
   that can make enabled work ready (e.g. an interactive `@[veil]` result that
@@ -225,8 +225,8 @@ instance [ToString ResultT] : ToString (ManagerNotification VCMetaT ResultT) whe
     match res with
     | .dischargerResult dischargerId res => s!"dischargerResult {dischargerId} {res}"
     | .reset managerId => s!"reset {managerId}"
-    | .startAll => s!"startAll"
-    | .startFiltered _ => s!"startFiltered"
+    | .startAll managerId => s!"startAll {managerId}"
+    | .startFiltered managerId _ => s!"startFiltered {managerId}"
     | .fill => s!"fill"
 
 /-- Resolve the discharger's result promise and notify the manager. `BaseIO`,
