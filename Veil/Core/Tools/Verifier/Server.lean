@@ -39,7 +39,12 @@ def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := sendNoti
 
 def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
 
-/-- Start ready dischargers from the enabled set until the number in flight
+/-- Actual scheduler-started tasks across all manager generations. Access only
+while holding `vcManager`'s mutex. Reset cancels workers cooperatively, but
+cannot release their physical slots before their tasks finish. -/
+private initialize scheduledTasks : IO.Ref (Array SnapshotTreeTask) ← IO.mkRef #[]
+
+/-- Start ready dischargers from the enabled set until the unfinished task count
 reaches the core count: spawn each task (`Discharger.run` only *spawns* — the
 elaboration/solving runs on the thread pool) and write the started discharger
 back into its node. Each observer registers matching tasks from this state.
@@ -55,10 +60,17 @@ private def fillAvailableSlotsLocked (mgr : VCManager VCMetadata SmtResult)
     : BaseIO (VCManager VCMetadata SmtResult) := do
   let mut mgr := mgr
   let numCores ← getNumCores
-  let inFlight ← mgr.inFlightCount
-  let ready := (← mgr.readyTasks).take (numCores - inFlight)
+  let tasks ← (← scheduledTasks.get).filterM fun task => return !(← IO.hasFinished task)
+  scheduledTasks.set tasks
+  let ready := (← mgr.readyTasks).take (numCores - tasks.size)
   for (vc, discharger) in ready do
     let discharger' ← discharger.run
+    if let some task := discharger'.task then
+      scheduledTasks.modify (·.push task)
+      -- This continuation runs after the original task has finished, even if
+      -- its result was published earlier or belongs to an abandoned manager.
+      -- Unlike Task.map, chainTask runs even when its return value is dropped.
+      BaseIO.chainTask task (fun _ => discard <| vcManagerCh.send .fill)
     let vc' := { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }
     mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc' }
   return mgr
