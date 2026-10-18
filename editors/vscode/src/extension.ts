@@ -70,7 +70,9 @@ async function revealSource(source: RunSource): Promise<vscode.TextDocument | un
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('Veil Model Checker');
   // Without a workspace, e.g. for a single file, the results are kept for all windows
-  const store = new ResultStore(vscode.Uri.joinPath(context.storageUri ?? context.globalStorageUri, 'results').fsPath);
+  const store = new ResultStore(
+    vscode.Uri.joinPath(context.storageUri ?? context.globalStorageUri, 'results').fsPath,
+    () => vscode.workspace.getConfiguration('veil.modelChecker').get('maxSavedResults', 50));
   const runs = new RunManager(output, store);
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
   statusBar.command = 'veil.modelCheck.showPanel';

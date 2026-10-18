@@ -101,6 +101,12 @@
           "default": 1,
           "minimum": 1,
           "markdownDescription": "Number of steps that each parallel worker takes before the frontier is merged."
+        },
+        "veil.modelChecker.maxSavedResults": {
+          "type": "integer",
+          "default": 50,
+          "minimum": 1,
+          "markdownDescription": "Maximum number of model checking results saved per workspace, keeping only the latest result of each command. The oldest results are removed when another result is saved. Changes take effect on the next save."
         }
       }
     }

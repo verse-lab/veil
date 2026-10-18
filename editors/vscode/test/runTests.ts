@@ -275,13 +275,52 @@ test('saves the last run of each command, for the next window', withStoreDir(asy
 }));
 
 test('keeps only the newest runs', withStoreDir(async dir => {
-  const store = new ResultStore(dir, 2);
+  const store = new ResultStore(dir, () => 2);
   for (const [i, file] of ['file:///a.lean', 'file:///b.lean', 'file:///c.lean'].entries()) {
     await store.save(sourceOf(file), finished(1000 * (i + 1)));
   }
   assert.strictEqual(store.summary(sourceOf('file:///a.lean')), undefined);
   assert.strictEqual(await store.read(sourceOf('file:///a.lean')), undefined);
   assert.deepStrictEqual(fs.readdirSync(dir).sort().filter(name => name !== 'index.json').length, 2);
+}));
+
+test('applies changed saved-result limits on the next save', withStoreDir(async dir => {
+  let limit = 2;
+  const store = new ResultStore(dir, () => limit);
+  const a = sourceOf('file:///a.lean');
+  const b = sourceOf('file:///a.lean', '#model_check_build Paxos { n := 3 }');
+  const c = sourceOf('file:///b.lean');
+  await store.save(a, finished(1000));
+  await store.save(b, finished(2000));
+  limit = 3;
+  await store.save(c, finished(3000));
+  assert.ok(store.summary(a));
+  limit = 1;
+  assert.ok(store.summary(a));
+  await store.save(b, finished(4000));
+  assert.strictEqual(store.summary(a), undefined);
+  assert.strictEqual(store.summary(c), undefined);
+  assert.strictEqual(await store.read(a), undefined);
+  assert.strictEqual(await store.read(c), undefined);
+  const later = new ResultStore(dir);
+  await later.load();
+  assert.strictEqual(later.summary(a), undefined);
+  assert.strictEqual(later.summary(c), undefined);
+  assert.strictEqual((await later.read(b))?.run.endedAt, 4000);
+}));
+
+test('uses the default for invalid saved-result limits', withStoreDir(async dir => {
+  let limit = 2;
+  const store = new ResultStore(dir, () => limit);
+  const a = sourceOf('file:///a.lean');
+  const b = sourceOf('file:///b.lean');
+  await store.save(a, finished(1000));
+  for (limit of [0, -1, 1.5, NaN]) {
+    await store.save(b, finished(2000));
+    assert.ok(store.summary(a));
+    assert.strictEqual((await store.read(a))?.run.endedAt, 1000);
+    assert.strictEqual((await store.read(b))?.run.endedAt, 2000);
+  }
 }));
 
 test('starts with no saved runs from an index it cannot read', withStoreDir(async dir => {

@@ -55,8 +55,8 @@ export class ResultStore {
   /** The writes to the directory, one after the other */
   private writes: Promise<void> = Promise.resolve();
 
-  /** `limit` is the number of runs kept: saving more removes the oldest */
-  constructor(private readonly dir: string, private readonly limit = 50) {}
+  /** Read the current limit on each save; saving more removes the oldest runs. */
+  constructor(private readonly dir: string, private readonly getLimit: () => number = () => 50) {}
 
   private static key(source: RunSource): string {
     return createHash('sha256').update(`${source.file}\n${source.command}`).digest('hex').slice(0, 24);
@@ -98,9 +98,12 @@ export class ResultStore {
     const key = ResultStore.key(source);
     const { kind, text } = describeRun(run);
     this.summaries.set(key, { source, binary: run.binary, outcome: kind, text, endedAt: run.endedAt ?? Date.now() });
+    const configuredLimit = this.getLimit();
+    // Settings edited as JSON can bypass VS Code's validation.
+    const limit = Number.isInteger(configuredLimit) && configuredLimit >= 1 ? configuredLimit : 50;
     const removed = [...this.summaries.entries()]
       .sort(([, a], [, b]) => b.endedAt - a.endedAt)
-      .slice(this.limit)
+      .slice(limit)
       .map(([k]) => k);
     for (const k of removed) this.summaries.delete(k);
     const saved: SavedRun = { formatVersion: FORMAT_VERSION, source, run };
