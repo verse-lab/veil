@@ -1,0 +1,7 @@
+node_modules/
+dist/
+out/
+*.vsix
+# The repository ignores these everywhere, but the extension needs them
+!*.json
+!.vscode/
