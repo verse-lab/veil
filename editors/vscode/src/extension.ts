@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { findBuildCommands } from './buildCommands';
@@ -6,6 +7,7 @@ import { BuildCommand, BuildCommandLenses, buildCommandsOf, outcomeIcons } from 
 import { ModelCheckPanel, PanelContent } from './panel';
 import { FORMAT_VERSION, Freshness, ResultStore, RunSource, SavedRun, freshness, parseRunFile } from './resultStore';
 import { RunManager, RunTarget, sourceOf } from './runManager';
+import { parallelArgs, parseRunOptions } from './runner';
 import { describeRun } from './snapshot';
 
 function firstLine(text: string): string {
@@ -51,6 +53,32 @@ async function pickCommand(uri?: string, line?: number):
   return item && { document, ...item.command };
 }
 
+/** The arguments of a binary for one run, which the user picks: all cores, sequential, or their own.
+ * The other runs follow the settings. */
+async function pickRunOptions(): Promise<string[] | undefined> {
+  const config = vscode.workspace.getConfiguration('veil.modelChecker');
+  const cores = os.cpus().length;
+  const defaults = { thresholdToParallel: config.get('thresholdToParallel', 20), numSubSteps: config.get('numSubSteps', 1) };
+  const item = await vscode.window.showQuickPick([
+    { label: '$(server-process) All cores', description: `${cores} workers`,
+      args: parallelArgs(0, defaults.thresholdToParallel, defaults.numSubSteps, cores) },
+    { label: '$(arrow-right) Sequential', description: 'the sequential model checker', args: [] },
+    { label: '$(edit) Custom...', description: 'workers, threshold to parallelize, steps', args: undefined },
+  ], { placeHolder: 'How to run this model check: the settings set how the other runs go' });
+  if (!item || item.args) return item?.args;
+  const text = await vscode.window.showInputBox({
+    prompt: 'Workers (0 for all cores, 1 for the sequential model checker), then optionally the frontier size ' +
+      'from which to explore in parallel, and the steps of a worker before the frontier is merged',
+    value: `${config.get('workers', 0)} ${defaults.thresholdToParallel} ${defaults.numSubSteps}`,
+    validateInput: text => {
+      const args = parseRunOptions(text, defaults, cores);
+      return Array.isArray(args) ? undefined : args.error;
+    },
+  });
+  const args = text === undefined ? undefined : parseRunOptions(text, defaults, cores);
+  return Array.isArray(args) ? args : undefined;
+}
+
 /** Open the file of `source` at its command, wherever the command is now in the file */
 async function revealSource(source: RunSource): Promise<vscode.TextDocument | undefined> {
   let document: vscode.TextDocument;
@@ -94,7 +122,8 @@ export function activate(context: vscode.ExtensionContext): void {
     panel.showLive(true);
   };
 
-  const runCommand = (document: vscode.TextDocument, { site, status }: BuildCommand): void => {
+  /** `args` are those of the binary, if the user chose them for this run */
+  const runCommand = (document: vscode.TextDocument, { site, status }: BuildCommand, args?: string[]): void => {
     switch (status.kind) {
       case 'pending':
         void vscode.window.showInformationMessage('Lean has not finished building this model checker yet.');
@@ -104,13 +133,19 @@ export function activate(context: vscode.ExtensionContext): void {
           'Show Problems').then(choice => choice && vscode.commands.executeCommand('workbench.actions.view.problems'));
         return;
       case 'built':
-        start({ uri: document.uri, line: site.line, module: site.module, command: site.command, binary: status.binary });
+        start({ uri: document.uri, line: site.line, module: site.module, command: site.command, binary: status.binary, args });
     }
   };
 
   const run = async (uri?: string, line?: number): Promise<void> => {
     const command = await pickCommand(uri, line);
     if (command) runCommand(command.document, command);
+  };
+
+  const runWithOptions = async (uri?: string, line?: number): Promise<void> => {
+    const command = await pickCommand(uri, line);
+    const args = command && await pickRunOptions();
+    if (command && args) runCommand(command.document, command, args);
   };
 
   /** Run the command of a saved run, if it is still in its file */
@@ -216,6 +251,7 @@ export function activate(context: vscode.ExtensionContext): void {
     output, runs, panel, lenses, statusBar,
     vscode.languages.registerCodeLensProvider({ language: 'lean4' }, lenses),
     vscode.commands.registerCommand('veil.modelCheck.run', run),
+    vscode.commands.registerCommand('veil.modelCheck.runWithOptions', runWithOptions),
     vscode.commands.registerCommand('veil.modelCheck.runAgain', runAgain),
     vscode.commands.registerCommand('veil.modelCheck.stop', () => runs.stop()),
     // The status bar shows the run of this window

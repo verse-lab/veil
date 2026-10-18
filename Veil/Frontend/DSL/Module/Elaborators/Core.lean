@@ -793,12 +793,19 @@ def elabModelCheckBuild : CommandElab := fun stx => do
     | throwUnsupportedSyntax
   let elabConfig := do
     -- As for `#model_check`, the parallel configuration is an argument of the binary
-    for item in Lean.Elab.Tactic.mkConfigItemViews (Lean.Parser.Tactic.getConfigItems cfg) do
+    let items := Lean.Elab.Tactic.mkConfigItemViews (Lean.Parser.Tactic.getConfigItems cfg)
+    for item in items do
       let option := item.option.getId.eraseMacroScopes
       if option matches `sequential | `parallelCfg then
         throwErrorAt item.option "`{option}` is not part of the model checker: pass the parallel \
           configuration to the binary as arguments."
-    elabModelCheckCommandConfig cfg
+    let commandCfg ← elabModelCheckCommandConfig cfg
+    -- A full configuration can set them too
+    if commandCfg.sequential || commandCfg.parallelCfg.isSome then
+      let ref := items.find? (·.option.getId.eraseMacroScopes == `config) |>.map (·.option.raw) |>.getD cfg.raw
+      throwErrorAt ref "`config` sets the parallel configuration, which is not part of the model \
+        checker: pass it to the binary as arguments."
+    return commandCfg
   elabBuildCommand "model_check_build" `veil.perf.elaborator.modelCheckBuild stx modId instTerm
     theoryTerm? elabConfig fun ecctx => do
     let commandCfg := ecctx.config

@@ -33,7 +33,9 @@ effect the next time a result is saved.
 
 The settings `veil.modelChecker.workers` (`0` for all cores, `1` for the sequential
 checker), `veil.modelChecker.thresholdToParallel` and `veil.modelChecker.numSubSteps`
-set how a run is parallelized.
+set how a run is parallelized. **Run with options...** sets it for one run instead,
+which **Check again** repeats. A config file cannot set it: the binary takes it as
+arguments.
 
 ## Develop
 

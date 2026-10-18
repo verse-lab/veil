@@ -34,6 +34,21 @@ export function parallelArgs(workers: number, thresholdToParallel: number, numSu
   return numSubTasks <= 1 ? [] : [`${numSubTasks}`, `${thresholdToParallel}`, `${numSubSteps}`];
 }
 
+/** The arguments of a binary for the options that the user types, `workers [thresholdToParallel
+ * [numSubSteps]]` as in `parallelArgs`, with the missing ones from `defaults`; or why the text is
+ * not such options. */
+export function parseRunOptions(text: string, defaults: { thresholdToParallel: number; numSubSteps: number },
+    cores: number): string[] | { error: string } {
+  const parts = text.trim().split(/\s+/);
+  if (parts.length > 3 || parts.some(part => !/^\d+$/.test(part))) {
+    return { error: 'Give up to three whole numbers: the workers, the threshold to parallelize, and the steps.' };
+  }
+  const [workers, thresholdToParallel = defaults.thresholdToParallel, numSubSteps = defaults.numSubSteps] =
+    parts.map(Number);
+  if (numSubSteps < 1) return { error: 'A worker takes at least one step.' };
+  return parallelArgs(workers, thresholdToParallel, numSubSteps, cores);
+}
+
 /** A running model checker binary. The binary prints a start report and then progress on stderr,
  * and its result on stdout. It exits as soon as its stdin is closed, so the run keeps stdin open
  * until `stop`. */

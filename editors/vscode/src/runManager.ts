@@ -14,6 +14,8 @@ export interface RunTarget {
   /** As `BuildCommandSite.command` */
   command: string;
   binary: string;
+  /** The arguments of the binary, if the user chose them for this run, instead of the settings */
+  args?: string[];
 }
 
 export function sourceOf(target: RunTarget): RunSource {
@@ -59,7 +61,7 @@ export class RunManager implements vscode.Disposable {
   start(target: RunTarget): void {
     if (this.run) throw new Error('A model check is already running');
     const config = vscode.workspace.getConfiguration('veil.modelChecker');
-    const args = parallelArgs(config.get('workers', 0), config.get('thresholdToParallel', 20),
+    const args = target.args ?? parallelArgs(config.get('workers', 0), config.get('thresholdToParallel', 20),
       config.get('numSubSteps', 1), os.cpus().length);
     const snapshot: RunSnapshot = {
       module: target.module,

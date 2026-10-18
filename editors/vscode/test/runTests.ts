@@ -11,7 +11,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { BUILT_PREFIX, ReportedMessage, Severity, buildStatus, findBuildCommands } from '../src/buildCommands';
 import { Progress, StartReport, describeResult, modelCheckMetrics, parseProgressLine, parseStartLine } from '../src/protocol';
 import { FORMAT_VERSION, ResultStore, RunSource, freshness, parseRunFile } from '../src/resultStore';
-import { CheckerRun, parallelArgs } from '../src/runner';
+import { CheckerRun, parallelArgs, parseRunOptions } from '../src/runner';
 import { HistoryPoint, RunSnapshot, describeRun, recordHistory } from '../src/snapshot';
 import { NoRun, RunView, RunViewProps } from '../webview/view';
 
@@ -124,6 +124,17 @@ test('keeps a point of history about every second', () => {
   const history: HistoryPoint[] = [];
   for (const time of [0, 300, 600, 1200, 1500]) recordHistory(history, parseProgressLine(progressLine(time, 1)) as Progress);
   assert.deepStrictEqual(history.map(point => point.timeMs), [0, 1200, 1500]);
+});
+
+test('reads the options that the user types for a run', () => {
+  const defaults = { thresholdToParallel: 20, numSubSteps: 1 };
+  assert.deepStrictEqual(parseRunOptions('4', defaults, 8), ['4', '20', '1']);
+  assert.deepStrictEqual(parseRunOptions(' 4 50 2 ', defaults, 8), ['4', '50', '2']);
+  assert.deepStrictEqual(parseRunOptions('0', defaults, 8), ['8', '20', '1']);
+  assert.deepStrictEqual(parseRunOptions('1 50', defaults, 8), []);
+  for (const wrong of ['', 'four', '4 -1', '4 20 1 1', '4 20 0']) {
+    assert.ok(!Array.isArray(parseRunOptions(wrong, defaults, 8)), `${JSON.stringify(wrong)} is not options`);
+  }
 });
 
 test('passes the parallel settings as arguments', () => {
