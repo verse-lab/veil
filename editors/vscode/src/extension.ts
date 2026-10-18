@@ -148,20 +148,24 @@ export function activate(context: vscode.ExtensionContext): void {
     if (command && args) runCommand(command.document, command, args);
   };
 
-  /** Run the command of a saved run, if it is still in its file */
-  const runSource = async (source: RunSource): Promise<void> => {
+  /** Run the command of a saved run with its original arguments, if it is still in its file */
+  const runSource = async (source: RunSource, args: string[]): Promise<void> => {
     const document = await revealSource(source);
     if (!document) return;
     const command = buildCommandsOf(document).find(c => c.site.command === source.command);
-    if (command) runCommand(document, command);
+    if (command) runCommand(document, command, args);
     else void vscode.window.showWarningMessage('This `#model_check_build` command is no longer in its file.');
   };
 
-  const runAgain = (): void => {
+  const runAgain = async (): Promise<void> => {
     // After a reload, the last run is the one saved last
     const newest = store.newest();
     if (runs.lastTarget) start(runs.lastTarget);
-    else if (newest) void runSource(newest.source);
+    else if (newest) {
+      const saved = await store.read(newest.source);
+      if (saved) await runSource(newest.source, saved.run.args);
+      else void vscode.window.showWarningMessage('This result is no longer saved.');
+    }
   };
 
   /** The run that `shown` shows, as it is exported, once it has ended */
@@ -220,8 +224,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const panel = new ModelCheckPanel(context.extensionUri, runs, {
     stop: () => runs.stop(),
     runAgain: shown => {
-      if (shown.origin === 'live') runAgain();
-      else if (shown.saved.source) void runSource(shown.saved.source);
+      if (shown.origin === 'live') void runAgain();
+      else if (shown.saved.source) void runSource(shown.saved.source, shown.saved.run.args);
     },
     export: shown => void exportRun(shown),
     showOutput: () => output.show(true),
