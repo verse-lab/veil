@@ -25,6 +25,8 @@ export interface RunSnapshot {
   /** Wall-clock times, in ms since the epoch */
   startedAt: number;
   endedAt?: number;
+  /** The labels of all actions, from the start report of the binary */
+  actionLabels?: string[];
   /** The last progress that the binary reported */
   progress?: Progress;
   history: HistoryPoint[];

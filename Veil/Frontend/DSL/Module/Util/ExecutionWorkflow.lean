@@ -65,7 +65,7 @@ def getModelCheckingMode (modeStx : Syntax) : ModelCheckingMode :=
 
 /-- The names of the module's actions, for never-enabled action warnings: the constructors of its
 labels, as the labels' `Display` names them (`ValueDisplay.ctorJson`). -/
-private def actionLabelNames (mod : Module) : List String :=
+def actionLabelNames (mod : Module) : List String :=
   mod.actions.toList.map fun a => match a.name.eraseMacroScopes with
     | .str _ s => s
     | n => toString n
@@ -97,7 +97,7 @@ private def generateCCode (command : ModelChecker.Compilation.CompiledCommandSpe
   -- in `withCompilationDiagnostics`. It would also leave messages and info trees behind,
   -- which `withoutModifyingEnv` does not roll back.
   liftTermElabM <| Term.withoutErrToSorry <| withOptions (·.setBool `compiler.postponeCompile false) do
-    let entry ← `(ModelChecker.Compilation.runMain
+    let entry ← `(ModelChecker.Compilation.runMain $(quote command.actionLabels)
       (fun pcfg progressInstanceId cancelToken finish =>
         $callExpr pcfg progressInstanceId cancelToken (fun result => finish (Lean.toJson result))))
     let expr ← Term.elabTerm entry none
@@ -192,7 +192,10 @@ private def runBinaryForJson (binPath : System.FilePath) (args : Array String)
                   allActionLabels := oldMetrics.allActionLabels
                   history := oldMetrics.history.push historyPoint } }
             | _ => p
-      | .error _ => stderrAccum.modify (· ++ line)
+      | .error _ =>
+        -- The start report is for IDEs, and the progress instance has the labels already
+        unless (Json.parse line).toOption.any (·.getObjVal? "start" |>.isOk) do
+          stderrAccum.modify (· ++ line)
   let stdoutTask ← IO.asTask (prio := .dedicated) child.stdout.readToEnd
   let waitTask ← IO.asTask (prio := .dedicated) child.wait
   -- Monitor for cancellation

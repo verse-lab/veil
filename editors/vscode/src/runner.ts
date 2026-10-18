@@ -1,6 +1,6 @@
 // Runs model checker binaries. This module does not use VS Code, so that the tests can run it.
 import { ChildProcess, spawn } from 'child_process';
-import { Progress, parseProgressLine } from './protocol';
+import { Progress, StartReport, parseProgressLine, parseStartLine } from './protocol';
 
 export interface RunRequest {
   binary: string;
@@ -10,6 +10,7 @@ export interface RunRequest {
 }
 
 export interface RunListener {
+  onStart?(report: StartReport): void;
   onProgress?(progress: Progress): void;
   /** A line of stderr that is not progress, such as a panic message */
   onOutput?(line: string): void;
@@ -33,8 +34,9 @@ export function parallelArgs(workers: number, thresholdToParallel: number, numSu
   return numSubTasks <= 1 ? [] : [`${numSubTasks}`, `${thresholdToParallel}`, `${numSubSteps}`];
 }
 
-/** A running model checker binary. The binary prints progress on stderr and its result on stdout,
- * and exits as soon as its stdin is closed, so the run keeps stdin open until `stop`. */
+/** A running model checker binary. The binary prints a start report and then progress on stderr,
+ * and its result on stdout. It exits as soon as its stdin is closed, so the run keeps stdin open
+ * until `stop`. */
 export class CheckerRun {
   readonly outcome: Promise<RunOutcome>;
   private readonly child: ChildProcess;
@@ -56,8 +58,11 @@ export class CheckerRun {
     const stderrTail: string[] = [];
     let partialLine = '';
     const onStderrLine = (line: string) => {
-      const progress = parseProgressLine(line);
-      if (progress) {
+      const start = parseStartLine(line);
+      const progress = start ? undefined : parseProgressLine(line);
+      if (start) {
+        listener.onStart?.(start);
+      } else if (progress) {
         listener.onProgress?.(progress);
       } else if (line.length > 0) {
         stderrTail.push(line);

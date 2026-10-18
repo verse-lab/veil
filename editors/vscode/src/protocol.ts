@@ -1,7 +1,29 @@
-// The output of a model checker binary. The formats are defined on the Lean side: see `runMain` in
-// `Veil/Core/Tools/ModelChecker/CompiledRuntime.lean` and `Progress` in
+// The output of a model checker binary. The formats are defined on the Lean side: see `runMain` and
+// `StartReport` in `Veil/Core/Tools/ModelChecker/CompiledRuntime.lean`, and `Progress` in
 // `Veil/Core/Tools/ModelChecker/Concrete/Progress.lean`. This module is shared with the webview, so
 // it must not import Node or VS Code modules.
+
+/** What a binary reports once, as `{"start": ...}` on the first line of stderr, before any progress. */
+export interface StartReport {
+  /** The constructor names of the actions' displayed labels, without arguments, e.g. `send` */
+  actionLabels: string[];
+}
+
+function parseObject(line: string): Record<string, unknown> | undefined {
+  if (!line.startsWith('{')) return undefined;
+  try {
+    const json: unknown = JSON.parse(line);
+    return typeof json === 'object' && json !== null ? json as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The start report on a line of stderr, if it is one. */
+export function parseStartLine(line: string): StartReport | undefined {
+  const start = parseObject(line)?.start;
+  return typeof start === 'object' && start !== null ? start as StartReport : undefined;
+}
 
 /** A line of progress on stderr: the JSON of `Veil.ModelChecker.Concrete.Progress`. */
 export interface Progress {
@@ -27,13 +49,14 @@ export interface ModelCheckMetrics {
   /** The states found but not explored yet */
   queue: number;
   actionStats: ActionStat[];
-  /** Always empty in a binary: only Lean knows the actions of the module */
+  /** The labels of all actions, as in `StartReport`. Empty in the progress of a binary, which
+   * reports them only once, when it starts. */
   allActionLabels: string[];
 }
 
 export interface ActionStat {
-  /** The action and its arguments, e.g. `Paxos.Label.send 1 2` */
-  name: string;
+  /** The transition label as its `Display` shows it (`Veil.ValueDisplay.ctorJson` for module labels) */
+  label: unknown;
   statesGenerated: number;
   distinctStates: number;
 }
@@ -45,17 +68,8 @@ export interface SimulationMetrics {
 
 /** The progress on a line of stderr, if it has any. */
 export function parseProgressLine(line: string): Progress | undefined {
-  if (!line.startsWith('{')) return undefined;
-  let json: unknown;
-  try {
-    json = JSON.parse(line);
-  } catch {
-    return undefined;
-  }
-  if (typeof json !== 'object' || json === null || !('details' in json) || !('elapsedMs' in json)) {
-    return undefined;
-  }
-  return json as Progress;
+  const json = parseObject(line);
+  return json && 'details' in json && 'elapsedMs' in json ? json as unknown as Progress : undefined;
 }
 
 export function modelCheckMetrics(progress: Progress): ModelCheckMetrics | undefined {

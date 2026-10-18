@@ -70,6 +70,8 @@ structure ExecutableModule where
   invariants : Array Name
   terminations : Array Name
   stateConstraints : Array Name
+  /-- The constructor names of the actions' displayed labels, without arguments, e.g. `send`. -/
+  actionLabels : Array String
 deriving Inhabited
 
 initialize executableModuleExt :

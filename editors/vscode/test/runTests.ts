@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { BUILT_PREFIX, ReportedMessage, Severity, buildStatus, findBuildCommands } from '../src/buildCommands';
-import { Progress, describeResult, modelCheckMetrics, parseProgressLine } from '../src/protocol';
+import { Progress, StartReport, describeResult, modelCheckMetrics, parseProgressLine, parseStartLine } from '../src/protocol';
 import { CheckerRun, parallelArgs } from '../src/runner';
 import { HistoryPoint, RunSnapshot, recordHistory } from '../src/snapshot';
 import { NoRun, RunView } from '../webview/view';
@@ -85,7 +85,9 @@ function progressLine(elapsedMs: number, distinctStates: number): string {
   return JSON.stringify({
     compilationStatus: { status: 'none' },
     details: { modelCheck: { metrics: {
-      actionStats: [{ distinctStates, name: 'M.Label.finish 0', statesGenerated: distinctStates }],
+      actionStats: [{ distinctStates, label: {
+        $veil: 'ctor', type: 'M.Label', name: 'finish', args: [{ name: 'n', value: '0' }],
+      }, statesGenerated: distinctStates }],
       allActionLabels: [], diameter: 1, distinctStates, history: [], queue: 2, statesFound: distinctStates,
     } } },
     elapsedMs, isCancelled: false, isRunning: true, startTimeMs: 3595464416, status: 'Running...',
@@ -98,6 +100,13 @@ test('parses lines of progress', () => {
   assert.strictEqual(modelCheckMetrics(progress)?.distinctStates, 3);
   assert.strictEqual(parseProgressLine('PANIC at foo'), undefined);
   assert.strictEqual(parseProgressLine('{"other": 1}'), undefined);
+});
+
+test('parses the start report', () => {
+  const line = '{"start":{"actionLabels":["finish","reset"]}}';
+  assert.deepStrictEqual(parseStartLine(line), { actionLabels: ['finish', 'reset'] });
+  assert.strictEqual(parseProgressLine(line), undefined);
+  assert.strictEqual(parseStartLine(progressLine(5, 3)), undefined);
 });
 
 test('describes results as Lean does', () => {
@@ -146,11 +155,17 @@ test('the panel shows the progress of a running check', () => {
   const progress: Progress = {
     status: 'Running...', isRunning: true, isCancelled: false, elapsedMs: 60_000,
     details: { modelCheck: { metrics: {
-      diameter: 7, statesFound: 123456, distinctStates: 65432, queue: 99, allActionLabels: [],
+      diameter: 7, statesFound: 123456, distinctStates: 65432, queue: 99,
+      allActionLabels: ['send', 'decide', 'prepare'],
       actionStats: [
-        { name: 'Paxos.Label.send 0 1', statesGenerated: 10, distinctStates: 5 },
-        { name: 'Paxos.Label.send 1 0', statesGenerated: 4, distinctStates: 2 },
-        { name: 'Paxos.Label.decide', statesGenerated: 0, distinctStates: 0 },
+        { label: { $veil: 'ctor', type: 'Paxos.Label', name: 'send',
+          args: [{ name: 'from', value: '0' }, { name: 'to', value: '1' }] },
+          statesGenerated: 10, distinctStates: 5 },
+        { label: { $veil: 'ctor', type: 'Paxos.Label', name: 'send',
+          args: [{ name: 'from', value: '1' }, { name: 'to', value: '0' }] },
+          statesGenerated: 4, distinctStates: 2 },
+        { label: { $veil: 'ctor', type: 'Paxos.Label', name: 'decide', args: [] },
+          statesGenerated: 0, distinctStates: 0 },
       ],
     } } },
   };
@@ -158,7 +173,7 @@ test('the panel shows the progress of a running check', () => {
     'Paxos', 'MCPaxos.lean:12', 'Running...', 'Stop', '8 workers', 'Diameter:', '123,456', '65,432',
     'Elapsed time:', '1m 3.0s', 'Metrics History (2 samples, 1.0s)', 'Graph', 'Table', 'Copy JSON',
     'States Found', 'Queue Size', '<path class="chart-line"', 'Action Coverage (2 actions',
-    '1 never enabled', 'send', '0 1', 'decide',
+    '2 never enabled', 'Never enabled: decide, prepare', 'send', 'from=0, to=1',
   ]);
 });
 
@@ -240,11 +255,18 @@ function within<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
 if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
   for (const [name, args] of [['sequential', []], ['parallel', ['2', '1', '1']]] as const) {
     test(`a ${name} binary reports its result`, async () => {
-      const outcome = await within(new CheckerRun({ binary: (await binaries()).small, args: [...args] }).outcome,
-        60_000, 'The run');
+      let start: StartReport | undefined;
+      let progress: Progress | undefined;
+      const run = new CheckerRun({ binary: (await binaries()).small, args: [...args] },
+        { onStart: report => { start = report; }, onProgress: p => { progress = p; } });
+      const outcome = await within(run.outcome, 60_000, 'The run');
       assert.strictEqual(outcome.kind, 'finished');
       const result = (outcome as { result: { result: string; explored_states: number } }).result;
       assert.deepStrictEqual([result.result, result.explored_states], ['no_violation_found', 4]);
+      // The start report lists all actions, so the panel tells the one that was never enabled
+      assert.deepStrictEqual(start?.actionLabels, ['finish', 'reset']);
+      assert.deepStrictEqual(progress && modelCheckMetrics(progress)?.allActionLabels, []);
+      assertShows(render(snapshot({ progress, actionLabels: start?.actionLabels })), ['Never enabled: reset']);
     });
   }
 

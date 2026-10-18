@@ -2,6 +2,7 @@
 // (`Veil/Core/UI/Widget/ProgressViewer.lean`), under a header like that of TLC's extension. It
 // does not use the webview API, so that the tests can render it.
 import ModelCheckerView from '@veil/widget/traceDisplay';
+import { formatValue, logicalCtor } from '@veil/widget/veilUtils';
 import * as React from 'react';
 import { ActionStat, VerdictKind, describeResult, modelCheckMetrics } from '../src/protocol';
 import { HistoryPoint, PanelMessage, RunSnapshot } from '../src/snapshot';
@@ -44,6 +45,8 @@ export function RunView({ run, now }: { run: RunSnapshot; now: number }) {
   const send = React.useContext(Send);
   const active = run.status === 'running' || run.status === 'stopping';
   const metrics = run.progress && modelCheckMetrics(run.progress);
+  // A binary reports the labels once, when it starts, rather than in its progress
+  const labels = run.actionLabels ?? metrics?.allActionLabels ?? [];
   const elapsed = (run.endedAt ?? now) - run.startedAt;
   return <>
   <div className="run">
@@ -73,7 +76,8 @@ export function RunView({ run, now }: { run: RunSnapshot; now: number }) {
         <StatRow label="Elapsed time:" value={formatElapsed(elapsed)} />
       </tbody></table>
       {run.history.length >= 2 && <MetricsHistory history={run.history} />}
-      {metrics && metrics.actionStats.length > 0 && <ActionCoverage stats={metrics.actionStats} />}
+      {metrics && (metrics.actionStats.length > 0 || labels.length > 0)
+        && <ActionCoverage stats={metrics.actionStats} labels={labels} />}
     </div>
     {run.status === 'failed' && <pre className="error-box">{run.error}</pre>}
   </div>
@@ -165,20 +169,18 @@ interface ActionGroup {
   variants: { args: string; generated: number; distinct: number }[];
 }
 
-/** `Paxos.Label.send 1 2` is action `send` with arguments `1 2` */
-function splitAction(label: string): [string, string] {
-  const space = label.indexOf(' ');
-  const qualified = space < 0 ? label : label.slice(0, space);
-  const args = space < 0 ? '' : label.slice(space + 1);
-  const marker = '.Label.';
-  const at = qualified.lastIndexOf(marker);
-  return [at < 0 ? qualified : qualified.slice(at + marker.length), args];
+/** A constructor's name and displayed arguments, as in `actionAndArgs` of the infoview. */
+function actionAndArgs(label: unknown): [string, string] {
+  const ctor = logicalCtor(label);
+  if (!ctor) return [formatValue(label), ''];
+  return [ctor.name, ctor.args.map(([name, value]) =>
+    name === undefined ? formatValue(value) : `${name}=${formatValue(value)}`).join(', ')];
 }
 
 function groupActions(stats: ActionStat[]): ActionGroup[] {
   const groups = new Map<string, ActionGroup>();
   for (const stat of stats) {
-    const [name, args] = splitAction(stat.name);
+    const [name, args] = actionAndArgs(stat.label);
     const group = groups.get(name) ?? { name, generated: 0, distinct: 0, variants: [] };
     group.generated += stat.statesGenerated;
     group.distinct += stat.distinctStates;
@@ -194,9 +196,12 @@ function coverageClass(generated: number, variant = false): string {
   return `coverage-row${generated === 0 ? ' never' : ''}${variant ? ' variant' : ''}`;
 }
 
-function ActionCoverage({ stats }: { stats: ActionStat[] }) {
+/** `labels` are those of all actions, so that the actions that are missing from `stats` show as
+ * never enabled, as in `getNeverEnabledActions` of the infoview */
+function ActionCoverage({ stats, labels }: { stats: ActionStat[]; labels: string[] }) {
   const groups = groupActions(stats);
-  const never = groups.filter(group => group.generated === 0).map(group => group.name);
+  const missing = labels.filter(name => !groups.some(group => group.name === name));
+  const never = [...groups.filter(group => group.generated === 0).map(group => group.name), ...missing].sort();
   return <details>
     <summary>
       Action Coverage ({groups.length} actions

@@ -12,3 +12,11 @@ declare module '@veil/widget/traceDisplay' {
   }>;
   export default ModelCheckerView;
 }
+
+declare module '@veil/widget/veilUtils' {
+  export function logicalCtor(value: unknown): {
+    name: string;
+    args: [string | undefined, unknown][];
+  } | undefined;
+  export function formatValue(value: unknown): string;
+}

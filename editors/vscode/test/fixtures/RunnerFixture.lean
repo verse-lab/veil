@@ -25,6 +25,12 @@ action finish (n : node) {
   finished := nodeSet.insert n finished
 }
 
+-- Never enabled, which the progress shows
+action reset {
+  require False
+  finished := nodeSet.empty
+}
+
 invariant [bounded] nodeSet.count finished ≤ limit
 
 #gen_spec

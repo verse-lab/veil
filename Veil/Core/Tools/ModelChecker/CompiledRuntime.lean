@@ -8,12 +8,23 @@ namespace Veil.ModelChecker.Compilation
 
 open Lean
 
+/-- What a model checker executable reports once, as `{"start": ...}` on the first line of stderr,
+before any progress. -/
+structure StartReport where
+  /-- The constructor names of the actions' displayed labels, without arguments, e.g. `send`. The
+  progress counts only the actions that were taken, so these tell those never enabled. -/
+  actionLabels : List String
+  deriving ToJson, FromJson
+
 /-- Entry point shared by the generated model checker executables. `check` runs the model check and
-passes the result to its last argument. -/
-def runMain (check : Option ModelChecker.ParallelConfig → Nat → IO.CancelToken → (Json → IO Unit) → IO Unit)
+passes the result to its last argument. The executable reports a `StartReport` and then its
+progress on stderr, a JSON object per line, and its result on stdout. -/
+def runMain (actionLabels : List String)
+    (check : Option ModelChecker.ParallelConfig → Nat → IO.CancelToken → (Json → IO Unit) → IO Unit)
     (args : List String) : IO Unit := do
   let _ ← IO.asTask (prio := .dedicated) exitWhenParentDies
-  -- Enable progress reporting to stderr for the IDE to read
+  -- Enable progress reporting to stderr for the IDE to read, after what it needs to know once
+  IO.eprintln (Json.mkObj [("start", toJson ({ actionLabels } : StartReport))]).compress
   Veil.ModelChecker.Concrete.enableCompiledModeProgress
   let pcfg : Option Veil.ModelChecker.ParallelConfig :=
     match args with
