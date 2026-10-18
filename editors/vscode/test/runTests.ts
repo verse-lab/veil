@@ -4,14 +4,16 @@
 import * as assert from 'assert';
 import { spawnSync } from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { BUILT_PREFIX, ReportedMessage, Severity, buildStatus, findBuildCommands } from '../src/buildCommands';
 import { Progress, StartReport, describeResult, modelCheckMetrics, parseProgressLine, parseStartLine } from '../src/protocol';
+import { FORMAT_VERSION, ResultStore, RunSource, freshness, parseRunFile } from '../src/resultStore';
 import { CheckerRun, parallelArgs } from '../src/runner';
-import { HistoryPoint, RunSnapshot, recordHistory } from '../src/snapshot';
-import { NoRun, RunView } from '../webview/view';
+import { HistoryPoint, RunSnapshot, describeRun, recordHistory } from '../src/snapshot';
+import { NoRun, RunView, RunViewProps } from '../webview/view';
 
 interface Test {
   name: string;
@@ -32,8 +34,8 @@ test('finds commands and where they end', () => {
     'def x := 1',
   ].join('\n');
   assert.deepStrictEqual(findBuildCommands(text), [
-    { line: 1, character: 0, endLine: 3, module: 'Foo' },
-    { line: 4, character: 2, endLine: 4, module: 'Bar.Baz' },
+    { line: 1, character: 0, endLine: 3, module: 'Foo', command: '#model_check_build Foo { n := Fin 2 } { limit := 2 }' },
+    { line: 4, character: 2, endLine: 4, module: 'Bar.Baz', command: '#model_check_build Bar.Baz {}' },
   ]);
 });
 
@@ -58,7 +60,7 @@ test('leaves out commands in comments and strings', () => {
 
 // ---- Build status ----
 
-const site = { line: 1, character: 0, endLine: 3, module: 'Foo' };
+const site = { line: 1, character: 0, endLine: 3, module: 'Foo', command: '#model_check_build Foo {}' };
 const message = (line: number, severity: Severity, text: string): ReportedMessage => ({ line, severity, message: text });
 
 test('a command is built once Lean reports its binary', () => {
@@ -211,6 +213,108 @@ test('the panel shows why a run failed or that it was stopped', () => {
 
 test('the panel says when no check has run', () => {
   assertShows(renderToStaticMarkup(React.createElement(NoRun)), ['#model_check_build']);
+});
+
+test('the panel tells a saved run, or one from a file, from a run of this window', () => {
+  const view = (props: Partial<RunViewProps>) => renderToStaticMarkup(React.createElement(RunView,
+    { run: snapshot({ status: 'stopped', endedAt: 5000 }), now: 63_000, ...props }));
+  const live = view({});
+  assertShows(live, ['Export...', 'Full output']);
+  assert.ok(!live.includes('Saved result'));
+  const saved = view({ origin: 'saved' });
+  assertShows(saved, ['Saved result', 'Export...']);
+  assert.ok(!saved.includes('Full output'), 'the output channel has the run of this window only');
+  assert.ok(!saved.includes('outdated'));
+  assertShows(view({ origin: 'saved', outdated: true }), ['Saved result · outdated: the model checker has changed']);
+  assertShows(view({ origin: 'file', fileName: 'paxos.json', canRunAgain: false }),
+    ['Opened from paxos.json', '<button class="primary" disabled="">Check again</button>']);
+  // A running check can be neither run again nor exported
+  const running = view({ run: snapshot({}) });
+  assertShows(running, ['<button class="primary" disabled="">Check again</button>']);
+  assert.ok(!running.includes('Export...'));
+});
+
+test('describes how runs ended', () => {
+  assert.deepStrictEqual(describeRun(snapshot({ status: 'failed', error: 'exited with code 1.\nPANIC' })),
+    { kind: 'failed', text: 'Failed: exited with code 1.' });
+  assert.strictEqual(describeRun(snapshot({ status: 'stopped' })).kind, 'stopped');
+  assert.strictEqual(describeRun(snapshot({ status: 'finished', result: { result: 'no_violation_found', explored_states: 4 } })).kind,
+    'success');
+});
+
+// ---- Saved runs ----
+
+const finished = (endedAt: number) => snapshot({
+  status: 'finished', endedAt, result: { result: 'no_violation_found', explored_states: 4 },
+});
+const sourceOf = (file: string, command = '#model_check_build Paxos {}'): RunSource => ({ file, command });
+
+function withStoreDir(run: (dir: string) => Promise<void>): () => Promise<void> {
+  return async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'veil-results-'));
+    try {
+      await run(dir);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  };
+}
+
+test('saves the last run of each command, for the next window', withStoreDir(async dir => {
+  const store = new ResultStore(dir);
+  await store.save(sourceOf('file:///a.lean'), finished(1000));
+  await store.save(sourceOf('file:///a.lean'), snapshot({ status: 'stopped', endedAt: 2000 }));
+  await store.save(sourceOf('file:///b.lean'), finished(3000));
+  const later = new ResultStore(dir);
+  await later.load();
+  assert.deepStrictEqual(later.summary(sourceOf('file:///a.lean')),
+    { source: sourceOf('file:///a.lean'), binary: '/tmp/checker', outcome: 'stopped', text: 'Stopped', endedAt: 2000 });
+  assert.strictEqual(later.summary(sourceOf('file:///a.lean', '#model_check_build Paxos { n := 3 }')), undefined);
+  assert.deepStrictEqual(later.newest()?.source, sourceOf('file:///b.lean'));
+  assert.strictEqual((await later.read(sourceOf('file:///b.lean')))?.run.endedAt, 3000);
+}));
+
+test('keeps only the newest runs', withStoreDir(async dir => {
+  const store = new ResultStore(dir, 2);
+  for (const [i, file] of ['file:///a.lean', 'file:///b.lean', 'file:///c.lean'].entries()) {
+    await store.save(sourceOf(file), finished(1000 * (i + 1)));
+  }
+  assert.strictEqual(store.summary(sourceOf('file:///a.lean')), undefined);
+  assert.strictEqual(await store.read(sourceOf('file:///a.lean')), undefined);
+  assert.deepStrictEqual(fs.readdirSync(dir).sort().filter(name => name !== 'index.json').length, 2);
+}));
+
+test('starts with no saved runs from an index it cannot read', withStoreDir(async dir => {
+  fs.writeFileSync(path.join(dir, 'index.json'), '{ not json');
+  const store = new ResultStore(dir);
+  await store.load();
+  assert.strictEqual(store.newest(), undefined);
+  fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify({ formatVersion: FORMAT_VERSION + 1, runs: [] }));
+  await store.load();
+  assert.strictEqual(store.newest(), undefined);
+}));
+
+test('tells whether a saved run is of the binary that Lean builds now', () => {
+  const built = (binary: string) => ({ kind: 'built' as const, binary });
+  const saved = '/repo/.lake/model_checkers/MC_model_check_build_123';
+  assert.strictEqual(freshness(saved, built(saved)), 'current');
+  // The hash in the name is what counts, e.g. for a run exported on another machine
+  assert.strictEqual(freshness(saved, built('/elsewhere/.lake/model_checkers/MC_model_check_build_123')), 'current');
+  assert.strictEqual(freshness(saved, built('/repo/.lake/model_checkers/MC_model_check_build_456')), 'outdated');
+  assert.strictEqual(freshness(saved, { kind: 'pending' }), 'unknown');
+  assert.strictEqual(freshness(saved, { kind: 'failed', message: 'error' }), 'unknown');
+  assert.strictEqual(freshness('', built(saved)), 'unknown');
+  assert.strictEqual(freshness(undefined as unknown as string, built(saved)), 'unknown');
+});
+
+test('opens exported runs, and the results that binaries print', () => {
+  const exported = { formatVersion: FORMAT_VERSION, source: sourceOf('file:///a.lean'), run: finished(1000) };
+  assert.deepStrictEqual(parseRunFile(JSON.stringify(exported), '/tmp/a.json', 0), exported);
+  const printed = parseRunFile('{"result": "no_violation_found", "explored_states": 4}', '/tmp/ci-run.json', 7000);
+  assert.strictEqual(printed?.source, undefined);
+  assert.deepStrictEqual([printed?.run.module, printed?.run.status, printed?.run.endedAt], ['ci-run.json', 'finished', 7000]);
+  assert.strictEqual(parseRunFile('{"other": 1}', '/tmp/x.json', 0), undefined);
+  assert.strictEqual(parseRunFile('not json', '/tmp/x.json', 0), undefined);
 });
 
 // ---- Running binaries ----

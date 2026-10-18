@@ -15,12 +15,21 @@ export interface BuildCommandSite {
   endLine: number;
   /** The module that the command builds a model checker for */
   module: string;
+  /** The text of the command, as `normalizeCommand` gives it */
+  command: string;
+}
+
+/** `text` with its whitespace collapsed. This identifies a command while its file changes around
+ * it, e.g. its line, and changes once the command does, e.g. its instantiation. */
+export function normalizeCommand(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 /** The `#model_check_build` commands in `text`, leaving out those in comments and strings. A
  * command must start its line. */
 export function findBuildCommands(text: string): BuildCommandSite[] {
-  const sites: Omit<BuildCommandSite, 'endLine'>[] = [];
+  const sites: Omit<BuildCommandSite, 'endLine' | 'command'>[] = [];
+  const lineStarts = [0];
   // The lines whose first character is code, i.e. not whitespace, a comment, or a string
   const topLevelLines: number[] = [];
   let line = 0;
@@ -34,6 +43,7 @@ export function findBuildCommands(text: string): BuildCommandSite[] {
     if (c === '\n') {
       line++;
       lineStart = i + 1;
+      lineStarts.push(lineStart);
       inLineComment = false;
       onlySpaceBefore = true;
       continue;
@@ -75,7 +85,9 @@ export function findBuildCommands(text: string): BuildCommandSite[] {
   return sites.map((site, i) => {
     const nextTopLevel = topLevelLines.find(l => l > site.line) ?? line + 1;
     const nextSite = sites[i + 1]?.line ?? line + 1;
-    return { ...site, endLine: Math.max(site.line, Math.min(nextTopLevel, nextSite) - 1) };
+    const endLine = Math.max(site.line, Math.min(nextTopLevel, nextSite) - 1);
+    const command = normalizeCommand(text.slice(lineStarts[site.line] + site.character, lineStarts[endLine + 1] ?? text.length));
+    return { ...site, endLine, command };
   });
 }
 
