@@ -208,6 +208,11 @@ def writeBuildInputs (buildFolder : System.FilePath) (cCode : String) (imports :
   IO.FS.writeFile (buildFolder / "ModelCheckerMain.c") cCode
   IO.FS.writeFile (buildFolder / "imports.json") (toJson imports).compress
 
+/-- The binary built in `buildFolder`: `veilModelCheckBuild` (in the lakefile) links it there as
+the executable `ModelCheckerMain` (`LeanExe.fileName`). -/
+def buildFolderBinary (buildFolder : System.FilePath) (name : String := "ModelCheckerMain") : System.FilePath :=
+  (buildFolder / name).addExtension System.FilePath.exeExtension
+
 /-- Build folders that checks in this process are using, by progress instance, each with the
 shared lock held on the folder's `use.lock`. -/
 initialize buildFolderUses : IO.Ref (Std.HashMap Nat IO.FS.Handle) ← IO.mkRef {}

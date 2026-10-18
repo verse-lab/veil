@@ -9,19 +9,45 @@ open Lean Meta Elab Term
 
 namespace Veil
 
-/-- Elaborate a concrete `Instantiation` term, filling its type holes (e.g.
-`procSet := OrdList _`, or a bare `procSet := _`) from the module's `instantiate`
-constraints.
+/-- The parameters of the module that an `Instantiation` sets or constrains, as the binders of a
+`∀`-template `∀ binders, Unit`, each with its role and the syntax declaring it. Instantiating the
+template with the concrete values yields the obligations of the `instantiate` constraints, with
+the dependencies between them already in place. -/
+def Module.instantiationTemplate (mod : Module) : TermElabM (Expr × Array (InstantiationBinder × Syntax)) := do
+  -- NOTE: `elabBinders` (used elsewhere in Veil) is deliberately avoided here. It introduces
+  -- fvars and registers the `[inst : C ...]` binders as local instances, so the obligations
+  -- would have to be built by `replaceFVars` and created under the outer local context, or
+  -- the abstract binders could take part in solving the concrete obligations (an `outParam`-only
+  -- class `C ?x` unifies with the local instance `C node`). A closed `∀` type adds nothing to
+  -- the context, and `forallMetaTelescopeReducing` directly gives mvars in the current context.
+  let params := mod.parameters.filter fun p => match p.kind with
+    | .sort _ | .userParameter
+    | .moduleTypeclass .sortAssumption | .moduleTypeclass .userDefined => true
+    | _ => false
+  let template ← elabType (← `(∀ $(← params.mapM (·.binder))*, $(mkIdent ``Unit)))
+  let binders := params.map fun p =>
+    let binder := match p.kind with
+      | .sort _ | .userParameter => .field p.name
+      | .moduleTypeclass .userDefined => .constraint
+      | _ => .sortAssumption
+    (binder, p.userSyntax)
+  return (template, binders)
+
+/-- Elaborate a concrete instantiation `stx` of type `instType`, filling its type holes (e.g.
+`procSet := OrdList _`, or a bare `procSet := _`) from the `instantiate` constraints of the
+module, given by `template` (see `Module.instantiationTemplate`).
 
 Each `instantiate` declaration becomes an ordinary typeclass obligation on the concrete
 instantiation. Lean postpones an obligation whose type still has holes and, once nothing
 else makes progress, tries the class's default instances: unifying such an instance
 head with the obligation assigns the holes. Veil's container defaults are enabled only
 while solving these concrete constraints; other classes opt in with `@[default_instance]`.
-Without a default, the hole stays stuck and is reported at the `instantiate` declaration.
-Fully specified instantiations take the ordinary elaboration path and are not checked here. -/
-def Module.elabInstantiation (mod : Module) (stx : Term) : TermElabM Expr := do
-  let instType ← elabTerm instantiationType none
+Without a default, the hole stays stuck and is reported at the syntax given with the constraint,
+or at `stx` if that has no position.
+Fully specified instantiations take the ordinary elaboration path and are not checked here;
+`template` is only run for instantiations with holes. -/
+def elabInstantiationAgainst (instType : Expr) (stx : Term)
+    (template : TermElabM (Expr × Array (InstantiationBinder × Syntax))) : TermElabM Expr := do
   let inst ← elabTermEnsuringType stx instType
   let hasTypeHole ← (← getMVars inst).anyM fun hole => do
     return (← whnf (← inferType (mkMVar hole))).isSort
@@ -40,39 +66,27 @@ def Module.elabInstantiation (mod : Module) (stx : Term) : TermElabM Expr := do
     -- Running the tactic now makes `inst` fully concrete before any obligation can mention it.
     synthesizeSyntheticMVarsNoPostponing
     return ← instantiateMVars inst
-  -- The module's parameter binders as a `∀`-template: instantiating it with the concrete
-  -- values yields the obligations, with the dependencies between them already in place.
-  -- NOTE: `elabBinders` (used elsewhere in Veil) is deliberately avoided here. It introduces
-  -- fvars and registers the `[inst : C ...]` binders as local instances, so the obligations
-  -- would have to be built by `replaceFVars` and created under the outer local context, or
-  -- the abstract binders could take part in solving the concrete obligations (an `outParam`-only
-  -- class `C ?x` unifies with the local instance `C node`). A closed `∀` type adds nothing to
-  -- the context, and `forallMetaTelescopeReducing` directly gives mvars in the current context.
-  let params := mod.parameters.filter fun p => match p.kind with
-    | .sort _ | .userParameter
-    | .moduleTypeclass .sortAssumption | .moduleTypeclass .userDefined => true
-    | _ => false
-  let template ← elabType (← `(∀ $(← params.mapM (·.binder))*, $(mkIdent ``Unit)))
+  let (template, binders) ← template
   let (vars, _, _) ← forallMetaTelescopeReducing template (kind := .synthetic)
-  let mut obligations : Array (Parameter × MVarId) := #[]
-  for p in params, var in vars do
-    match p.kind with
-    | .sort _ | .userParameter =>
+  let mut obligations : Array (Syntax × MVarId) := #[]
+  for (binder, ref) in binders, var in vars do
+    match binder with
+    | .field name =>
       -- Reduce the projection: an unreduced `inst.node` mentions the whole literal, holes
       -- included, so unifying a hole with it would fail the occurs check.
-      var.mvarId!.assign (← whnf (← mkProjection inst p.name))
-    | .moduleTypeclass .userDefined => obligations := obligations.push (p, var.mvarId!)
-    | _ => pure ()
+      var.mvarId!.assign (← whnf (← mkProjection inst name))
+    | .constraint => obligations := obligations.push (ref, var.mvarId!)
+    | .sortAssumption => pure ()
   -- The auto-generated sort assumptions are only needed where a user constraint mentions them.
-  for p in params, var in vars do
-    if p.kind == .moduleTypeclass .sortAssumption then
+  for (binder, ref) in binders, var in vars do
+    if binder matches .sortAssumption then
       if ← obligations.anyM fun (_, id) => do return (← getMVars (← id.getType)).contains var.mvarId! then
-        obligations := obligations.push (p, var.mvarId!)
+        obligations := obligations.push (ref, var.mvarId!)
   -- Hand the obligations to Lean's standard synthesis loop as typeclass problems; an
-  -- obligation that cannot be solved is reported at its `instantiate` declaration.
+  -- obligation that cannot be solved is reported at the syntax of its constraint.
   -- (The previous handling should ensure that `id` is a typeclass goal.)
-  for (p, id) in obligations do
-    registerSyntheticMVar p.userSyntax id (.typeClass none)
+  for (ref, id) in obligations do
+    registerSyntheticMVar (if ref.getPos?.isSome then ref else stx.raw) id (.typeClass none)
   -- `autoParams` (e.g. `ExtTreeSet`'s `cmp`) are pending tactic mvars. Unifying with an instance
   -- head may assign them before their tactic runs, which Lean then reports as an error. Detach
   -- them, let unification decide, and run the tactic afterwards only if still open.
@@ -93,7 +107,7 @@ def Module.elabInstantiation (mod : Module) (stx : Term) : TermElabM Expr := do
   -- the class's `@[default_instance]`s (`TSet ?β (OrdList ?β)` gives `?α := Fin 4`), keeping
   -- the first one whose premises are then fully solvable. The remaining problems, e.g. the
   -- `Ord ?α` pending since `OrdList _` was elaborated above, follow in later rounds of Lean's
-  -- own loop inside this call (`elabInstantiation` itself does not iterate).
+  -- own loop inside this call (`elabInstantiationAgainst` itself does not iterate).
   --
   -- Container defaults must not infer concrete types for the implicit parameters of
   -- ordinary ghost calls. Change only the extension's state, so these temporary
@@ -119,6 +133,11 @@ def Module.elabInstantiation (mod : Module) (stx : Term) : TermElabM Expr := do
   synthesizeSyntheticMVarsNoPostponing
   instantiateMVars inst
 
+/-- Elaborate a concrete `Instantiation` term of the module, filling its type holes from the
+module's `instantiate` constraints (see `elabInstantiationAgainst`). -/
+def Module.elabInstantiation (mod : Module) (stx : Term) : TermElabM Expr := do
+  elabInstantiationAgainst (← elabTerm instantiationType none) stx mod.instantiationTemplate
+
 /-- Internal wrapper shared by concrete execution entry points. -/
 syntax (name := instantiationWithConstraints) "__veil_instantiation% " term : term
 
@@ -126,5 +145,23 @@ syntax (name := instantiationWithConstraints) "__veil_instantiation% " term : te
 def elabInstantiationWithConstraints : TermElab := fun stx _ => do
   let mod ← getCurrentModule
   mod.elabInstantiation ⟨stx[1]⟩
+
+/-- `__veil_instantiation%` for module `X`, declared in this file or in an imported one, from
+what `#gen_executable` recorded about it. -/
+syntax (name := instantiationOfModule) "__veil_instantiation_of% " ident ppSpace term : term
+
+@[term_elab instantiationOfModule]
+def elabInstantiationOfModule : TermElab := fun stx _ => do
+  let `(__veil_instantiation_of% $modId:ident $instTerm) := stx | throwUnsupportedSyntax
+  let some em ← getExecutableModule? modId.getId
+    | throwErrorAt modId "Module {modId.getId} has no executable definitions here."
+  -- The declarations of the module are in its namespace, whatever is open here
+  let instType ← mkConstWithFreshMVarLevels (em.name ++ instantiationTypeName)
+  elabInstantiationAgainst instType instTerm do
+    let some (template, binders) := em.instantiationTemplate
+      | throwError "The holes of this instantiation of {em.name} cannot be filled here, since \
+          its `instantiate` constraints could not be recorded. Give its types in full."
+    -- The constraints are reported at the instantiation
+    return (template, binders.map (·, .missing))
 
 end Veil
