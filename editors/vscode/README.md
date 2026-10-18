@@ -26,6 +26,11 @@ and a **Last result** lens above the command shows it. **Export...** in the pane
 saves a result to a file, and **Veil: Open Model Checking Result...** shows such a
 file, or a result that a binary printed on the command line.
 
+`veil.modelChecker.maxSavedResults` limits the saved results per workspace
+(default `50`, minimum `1`). Each command keeps only its latest result. When the
+limit is exceeded, the oldest results are removed. Changes to the limit take
+effect the next time a result is saved.
+
 The settings `veil.modelChecker.workers` (`0` for all cores, `1` for the sequential
 checker), `veil.modelChecker.thresholdToParallel` and `veil.modelChecker.numSubSteps`
 set how a run is parallelized.
