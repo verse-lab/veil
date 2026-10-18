@@ -21,6 +21,14 @@ after_init {
 }
 
 action finish (n : node) {
+  require nodeSet.count finished = 0
+  require ¬ nodeSet.contains n finished
+  finished := nodeSet.insert n finished
+}
+
+-- Later steps exercise multiple action arguments in coverage and violation traces.
+action finishAfter (previous : node) (n : node) {
+  require nodeSet.contains previous finished
   require ¬ nodeSet.contains n finished
   finished := nodeSet.insert n finished
 }

@@ -177,6 +177,22 @@ test('the panel shows the progress of a running check', () => {
   ]);
 });
 
+test('the panel sorts multiple action arguments numerically', () => {
+  const progress = parseProgressLine(progressLine(1, 1))!;
+  modelCheckMetrics(progress)!.actionStats = [[10, 1], [2, 10], [2, 2], [1, 10]].map(([previous, n]) => ({
+    label: { $veil: 'ctor', type: 'M.Label', name: 'finishAfter',
+      args: [{ name: 'previous', value: previous }, { name: 'n', value: n }] },
+    statesGenerated: 1, distinctStates: 1,
+  }));
+  const html = render(snapshot({ progress }));
+  const variants = [[1, 10], [2, 2], [2, 10], [10, 1]].map(([previous, n]) =>
+    `<span>previous=${previous}, n=${n}</span>`);
+  assertShows(html, variants);
+  for (let i = 1; i < variants.length; i++) {
+    assert.ok(html.indexOf(variants[i - 1]) < html.indexOf(variants[i]));
+  }
+});
+
 test('the panel shows the result of a finished check with the widget of the infoview', () => {
   const violation = { result: 'found_violation', violation: { kind: 'safety_failure', violates: ['bounded'] } };
   const html = render(snapshot({ status: 'finished', endedAt: 5000, result: violation, args: [] }));
@@ -264,9 +280,10 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
       const result = (outcome as { result: { result: string; explored_states: number } }).result;
       assert.deepStrictEqual([result.result, result.explored_states], ['no_violation_found', 4]);
       // The start report lists all actions, so the panel tells the one that was never enabled
-      assert.deepStrictEqual(start?.actionLabels, ['finish', 'reset']);
+      assert.deepStrictEqual(start?.actionLabels, ['finish', 'finishAfter', 'reset']);
       assert.deepStrictEqual(progress && modelCheckMetrics(progress)?.allActionLabels, []);
-      assertShows(render(snapshot({ progress, actionLabels: start?.actionLabels })), ['Never enabled: reset']);
+      assertShows(render(snapshot({ progress, actionLabels: start?.actionLabels })),
+        ['Never enabled: reset', 'finishAfter', '<span>previous=0, n=1</span>', '<span>previous=1, n=0</span>']);
     });
   }
 
@@ -277,9 +294,11 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
     const result = (outcome as { result: { result: string; violation: { violates: string[] }; trace: { states: unknown[] } } }).result;
     assert.deepStrictEqual([result.result, result.violation.violates, result.trace.states.length],
       ['found_violation', ['bounded'], 3]);
-    assertShows(render(snapshot({ status: 'finished', endedAt: 5000, result })),
+    const html = render(snapshot({ status: 'finished', endedAt: 5000, result }));
+    assertShows(html,
       // The theory section starts collapsed
       ['Safety Violation Found', 'bounded', 'finished', 'Theory', '3 states in trace']);
+    assert.match(html, /finishAfter\((?:previous = 0, n = 1|previous = 1, n = 0)\)/);
   });
 
   test('a run stops once its stdin is closed', async () => {
