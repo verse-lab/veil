@@ -87,11 +87,12 @@ export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Dispo
           lens('$(open-preview) Show progress', 'veil.modelCheck.showPanel'),
         ];
       }
-      const lenses = [
-        status.kind === 'built' ? lens('$(play) Run model checker', 'veil.modelCheck.run', [document.uri.toString(), site.line])
-          : status.kind === 'pending' ? lens('$(sync~spin) Waiting for Lean to build the model checker')
-          : lens('$(error) The model checker could not be built', 'workbench.actions.view.problems'),
-      ];
+      const at = [document.uri.toString(), site.line];
+      const lenses = status.kind === 'built' ? [
+        lens('$(play) Run model checker', 'veil.modelCheck.run', at),
+        lens('$(settings-gear) Run with options...', 'veil.modelCheck.runWithOptions', at),
+      ] : status.kind === 'pending' ? [lens('$(sync~spin) Waiting for Lean to build the model checker')]
+        : [lens('$(error) The model checker could not be built', 'workbench.actions.view.problems')];
       const saved = this.store.summary({ file: document.uri.toString(), command: site.command });
       if (saved && freshness(saved.binary, status) === 'outdated') {
         lenses.push(lens(`$(history) Last result (outdated) · ${when(saved.endedAt)}`, 'veil.modelCheck.showSavedRun',

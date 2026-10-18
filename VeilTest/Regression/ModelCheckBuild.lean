@@ -75,6 +75,19 @@ error: `sequential` is not part of the model checker: pass the parallel configur
   { limit := 2 } (sequential := true)
 
 /--
+error: `config` sets the parallel configuration, which is not part of the model checker: pass it to the binary as arguments.
+-/
+#guard_msgs in
+#model_check_build CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
+  { limit := 2 } (config := { sequential := true })
+
+-- A full configuration without them is fine
+/-- info: Model checker built: -/
+#guard_msgs (substring := true) in
+#model_check_build CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
+  { limit := 2 } (config := { maxDepth := 3 })
+
+/--
 error: Module NotExecutable has no executable definitions here: add `#gen_executable` to the `veil module NotExecutable` block that declares it.
 -/
 #guard_msgs in
