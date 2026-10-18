@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { BUILT_PREFIX, ReportedMessage, Severity, buildStatus, findBuildCommands } from '../src/buildCommands';
-import { Progress, describeResult, modelCheckMetrics, parseProgressLine } from '../src/protocol';
+import { Progress, StartReport, describeResult, modelCheckMetrics, parseProgressLine, parseStartLine } from '../src/protocol';
 import { CheckerRun, parallelArgs } from '../src/runner';
 import { HistoryPoint, RunSnapshot, recordHistory } from '../src/snapshot';
 import { NoRun, RunView } from '../webview/view';
@@ -100,6 +100,13 @@ test('parses lines of progress', () => {
   assert.strictEqual(parseProgressLine('{"other": 1}'), undefined);
 });
 
+test('parses the start report', () => {
+  const line = '{"start":{"actionLabels":["M.Label.finish","M.Label.reset"]}}';
+  assert.deepStrictEqual(parseStartLine(line), { actionLabels: ['M.Label.finish', 'M.Label.reset'] });
+  assert.strictEqual(parseProgressLine(line), undefined);
+  assert.strictEqual(parseStartLine(progressLine(5, 3)), undefined);
+});
+
 test('describes results as Lean does', () => {
   assert.deepStrictEqual(describeResult({ result: 'no_violation_found', explored_states: 4 }),
     { kind: 'success', text: 'No violation (explored 4 states)' });
@@ -146,7 +153,8 @@ test('the panel shows the progress of a running check', () => {
   const progress: Progress = {
     status: 'Running...', isRunning: true, isCancelled: false, elapsedMs: 60_000,
     details: { modelCheck: { metrics: {
-      diameter: 7, statesFound: 123456, distinctStates: 65432, queue: 99, allActionLabels: [],
+      diameter: 7, statesFound: 123456, distinctStates: 65432, queue: 99,
+      allActionLabels: ['Paxos.Label.send', 'Paxos.Label.decide', 'Paxos.Label.prepare'],
       actionStats: [
         { name: 'Paxos.Label.send 0 1', statesGenerated: 10, distinctStates: 5 },
         { name: 'Paxos.Label.send 1 0', statesGenerated: 4, distinctStates: 2 },
@@ -158,7 +166,7 @@ test('the panel shows the progress of a running check', () => {
     'Paxos', 'MCPaxos.lean:12', 'Running...', 'Stop', '8 workers', 'Diameter:', '123,456', '65,432',
     'Elapsed time:', '1m 3.0s', 'Metrics History (2 samples, 1.0s)', 'Graph', 'Table', 'Copy JSON',
     'States Found', 'Queue Size', '<path class="chart-line"', 'Action Coverage (2 actions',
-    '1 never enabled', 'send', '0 1', 'decide',
+    '2 never enabled', 'Never enabled: decide, prepare', 'send', '0 1',
   ]);
 });
 
@@ -240,11 +248,18 @@ function within<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
 if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
   for (const [name, args] of [['sequential', []], ['parallel', ['2', '1', '1']]] as const) {
     test(`a ${name} binary reports its result`, async () => {
-      const outcome = await within(new CheckerRun({ binary: (await binaries()).small, args: [...args] }).outcome,
-        60_000, 'The run');
+      let start: StartReport | undefined;
+      let progress: Progress | undefined;
+      const run = new CheckerRun({ binary: (await binaries()).small, args: [...args] },
+        { onStart: report => { start = report; }, onProgress: p => { progress = p; } });
+      const outcome = await within(run.outcome, 60_000, 'The run');
       assert.strictEqual(outcome.kind, 'finished');
       const result = (outcome as { result: { result: string; explored_states: number } }).result;
       assert.deepStrictEqual([result.result, result.explored_states], ['no_violation_found', 4]);
+      // The start report lists all actions, so the panel tells the one that was never enabled
+      assert.deepStrictEqual(start?.actionLabels, ['RunnerFixture.Label.finish', 'RunnerFixture.Label.reset']);
+      assert.deepStrictEqual(progress && modelCheckMetrics(progress)?.allActionLabels, []);
+      assertShows(render(snapshot({ progress, actionLabels: start?.actionLabels })), ['Never enabled: reset']);
     });
   }
 

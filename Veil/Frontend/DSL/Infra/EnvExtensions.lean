@@ -70,6 +70,9 @@ structure ExecutableModule where
   invariants : Array Name
   terminations : Array Name
   stateConstraints : Array Name
+  /-- The labels of the actions without their arguments, e.g. `Paxos.Label.send`, as the model
+  checker names the actions it takes, e.g. `Paxos.Label.send 1 2` -/
+  actionLabels : Array String
 deriving Inhabited
 
 initialize executableModuleExt :

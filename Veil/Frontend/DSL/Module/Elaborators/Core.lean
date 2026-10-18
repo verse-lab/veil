@@ -276,7 +276,8 @@ private def Module.toExecutableModule (mod : Module)
     assumptions := mod.assumptions.map (·.name)
     invariants := mod.invariants.map (·.name)
     terminations := mod.terminations.map (·.name)
-    stateConstraints := mod.stateConstraints.map (·.name) }
+    stateConstraints := mod.stateConstraints.map (·.name)
+    actionLabels := (← ExecutionWorkflow.getActionLabelNames mod).toArray }
 
 /-- Record what checking `mod` takes, for `#model_check_build`. The instantiation template is
 recorded if it is closed, i.e. unless solving a constraint in it needs the concrete sorts. -/
@@ -755,13 +756,15 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
     if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
       checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
     mod.ensureExecutableModelCheckerDefinitions
+    let executable ← mod.toExecutableModule
     let (callExpr, parallelCfg) ← mkCall {
-      executable := ← mod.toExecutableModule
+      executable
       config := cfg
       instantiation := ← `(__veil_instantiation% $instTerm)
       «theory» := theoryTerm
     }
-    ExecutionWorkflow.run { name := cmdName } kind mod stx mode callExpr parallelCfg
+    ExecutionWorkflow.run { name := cmdName, actionLabels := executable.actionLabels.toList } kind mod stx
+      mode callExpr parallelCfg
 
 /-- Shared elaboration of the build commands, which build the binary of an execution command for
 module `modId`, typically from another file, without running it. -/
@@ -782,7 +785,7 @@ private def elabBuildCommand {α : Type} (cmdName : String) (traceClass : Name) 
     -- its enums and the `ToJson` of its state. They are also needed by the code that `buildOnly`
     -- puts around the call, e.g. to convert its result to JSON.
     withOpenNamespaces [`Veil, em.name] do
-      ExecutionWorkflow.buildOnly { name := cmdName } stx callExpr
+      ExecutionWorkflow.buildOnly { name := cmdName, actionLabels := em.actionLabels.toList } stx callExpr
 
 @[command_elab Veil.modelCheckBuild]
 def elabModelCheckBuild : CommandElab := fun stx => do

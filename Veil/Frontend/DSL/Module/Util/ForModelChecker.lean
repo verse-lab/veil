@@ -71,6 +71,9 @@ inductive Status
 structure CompiledCommandSpec where
   /-- Short identifier of the command, used in registry keys and build folder names. -/
   name : String
+  /-- The labels of the actions of the module, which the executable reports when it starts, so
+  that the actions that were never enabled can be told (see `StartReport`). -/
+  actionLabels : List String := []
 
 /-- Registry key for one compiled command invocation. -/
 structure CompilationKey where

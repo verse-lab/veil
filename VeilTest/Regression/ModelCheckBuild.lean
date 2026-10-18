@@ -35,6 +35,8 @@ run_cmd do
 open Lean Elab Command in
 /--
 info: "found_violation" of ["bounded"], theory {"limit":1}, last state {"finished":["0","1"],"phase":"idle"}
+---
+info: actions ["CheckedElsewhere.Label.finish"]
 -/
 #guard_msgs in
 run_cmd do
@@ -43,7 +45,8 @@ run_cmd do
     | throwError "no binary was built"
   -- The binary exits once its stdin is closed, so keep it open
   let child ← IO.Process.spawn
-    { cmd := binary.path.toString, stdin := .piped, stdout := .piped, stderr := .null }
+    { cmd := binary.path.toString, stdin := .piped, stdout := .piped, stderr := .piped }
+  let stderr ← IO.asTask child.stderr.readToEnd
   let stdout ← child.stdout.readToEnd
   unless (← child.wait) == 0 do throwError "the binary failed"
   let result ← IO.ofExcept (Json.parse stdout)
@@ -51,6 +54,10 @@ run_cmd do
   let states ← IO.ofExcept (cex.getObjValAs? (Array Json) "states")
   logInfo m!"{result.getObjValD "result"} of {(result.getObjValD "violation").getObjValD "violates"}, \
     theory {(cex.getObjValD "theory").compress}, last state {(states.back!.getObjValD "fields").compress}"
+  -- It first reports the actions of the module, so that those never enabled can be told
+  let lines := (← IO.ofExcept (← IO.wait stderr)).splitOn "\n"
+  let start ← IO.ofExcept (Json.parse lines.head!)
+  logInfo m!"actions {((start.getObjValD "start").getObjValD "actionLabels").compress}"
 
 -- A hole that no default instance fills is reported at the instantiation
 /-- error: failed to synthesize instance of type class -/

@@ -65,6 +65,10 @@ export class RunManager implements vscode.Disposable {
     this.output.clear();
     this.output.appendLine(`[${clock()}] ${[target.binary, ...args].join(' ')}`);
     const run = new CheckerRun({ binary: target.binary, args, cwd: path.dirname(target.uri.fsPath) }, {
+      onStart: report => {
+        snapshot.actionLabels = report.actionLabels;
+        this.progressed.fire();
+      },
       onProgress: progress => {
         snapshot.progress = progress;
         recordHistory(snapshot.history, progress);

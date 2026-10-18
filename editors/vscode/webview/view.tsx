@@ -44,6 +44,8 @@ export function RunView({ run, now }: { run: RunSnapshot; now: number }) {
   const send = React.useContext(Send);
   const active = run.status === 'running' || run.status === 'stopping';
   const metrics = run.progress && modelCheckMetrics(run.progress);
+  // A binary reports the labels once, when it starts, rather than in its progress
+  const labels = run.actionLabels ?? metrics?.allActionLabels ?? [];
   const elapsed = (run.endedAt ?? now) - run.startedAt;
   return <>
   <div className="run">
@@ -73,7 +75,8 @@ export function RunView({ run, now }: { run: RunSnapshot; now: number }) {
         <StatRow label="Elapsed time:" value={formatElapsed(elapsed)} />
       </tbody></table>
       {run.history.length >= 2 && <MetricsHistory history={run.history} />}
-      {metrics && metrics.actionStats.length > 0 && <ActionCoverage stats={metrics.actionStats} />}
+      {metrics && (metrics.actionStats.length > 0 || labels.length > 0)
+        && <ActionCoverage stats={metrics.actionStats} labels={labels} />}
     </div>
     {run.status === 'failed' && <pre className="error-box">{run.error}</pre>}
   </div>
@@ -194,9 +197,12 @@ function coverageClass(generated: number, variant = false): string {
   return `coverage-row${generated === 0 ? ' never' : ''}${variant ? ' variant' : ''}`;
 }
 
-function ActionCoverage({ stats }: { stats: ActionStat[] }) {
+/** `labels` are those of all actions, so that the actions that are missing from `stats` show as
+ * never enabled, as in `getNeverEnabledActions` of the infoview */
+function ActionCoverage({ stats, labels }: { stats: ActionStat[]; labels: string[] }) {
   const groups = groupActions(stats);
-  const never = groups.filter(group => group.generated === 0).map(group => group.name);
+  const missing = labels.map(label => splitAction(label)[0]).filter(name => !groups.some(group => group.name === name));
+  const never = [...groups.filter(group => group.generated === 0).map(group => group.name), ...missing].sort();
   return <details>
     <summary>
       Action Coverage ({groups.length} actions
