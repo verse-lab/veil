@@ -112,7 +112,8 @@ private def fmtState (s : Json) (ind : String) : String :=
 
 def formatTrace (j : Json) (ind : String := "  ") : String := Id.run do
   let mut r := ""
-  for (k, v) in #[("Instantiation", j.getObjValD "instantiation"), ("Theory", j.getObjValD "theory")] do
+  for (k, v) in #[("Instantiation", j.getObjValD "instantiation"),
+      ("Bindings", j.getObjValD "bindings"), ("Theory", j.getObjValD "theory")] do
     if let .obj kvs := v then unless kvs.isEmpty do r := r ++ s!"{ind}{k}:\n{fmtFields v (ind ++ "  ")}\n"
   match j.getObjValD "states" with
   | .arr states => r ++ (states.toList.map (fmtState · ind) |> "\n".intercalate)

@@ -73,6 +73,10 @@ structure VeilTrace where
   /-- Values that couldn't be classified -/
   extraVals : Array (Expr × Expr)
 
+  /-- User-declared rigid trace variables, kept separate from theory fields and
+  implementation details. A missing value means the solver did not report it. -/
+  queryBindings : Array (Name × Option (Expr × Expr)) := #[]
+
 /-! ## Name Pattern Matchers -/
 
 /-- Parse a natural number from a string, returning none if it's not a valid number. -/
@@ -228,17 +232,31 @@ def buildLabelFromAction (mod : Module) (sortArgs : Array Expr)
     (specificParams : Std.HashMap (Nat × Nat) Expr)
     (anyActionParams : Std.HashMap (Nat × Name × Nat) Expr)
     (enumAdapts : Array EnumSortAdaptation := #[])
-    : MetaM (Option Expr) :=
-  buildLabelExprCore mod sortArgs actionName (fun idx =>
-    -- First try specific params, then fall back to any-action params
-    specificParams[(trIdx, idx)]? <|> anyActionParams[(trIdx, actionName, idx)]?
-  ) enumAdapts
+    : MetaM (Option Expr) := do
+  let some proc := mod.procedures.find? (·.name == actionName) | return none
+  if proc.info == .initializer then return none
+  let labelName := mod.name ++ `Label ++ actionName
+  let mut ctorType ← Meta.instantiateForall (← Meta.inferType (mkConst labelName)) sortArgs
+  let mut paramValues := #[]
+  for idx in [:proc.params.size] do
+    let .forallE _ expectedType body _ ← Meta.whnf ctorType
+      | throwError "unexpected label constructor type for trace action '{actionName}'"
+    -- Instantiate the telescope one argument at a time: later parameter types
+    -- may depend on values already reconstructed from this model.
+    let value ← match specificParams[(trIdx, idx)]? <|> anyActionParams[(trIdx, actionName, idx)]? with
+      | some value => adaptSmtExprType value expectedType enumAdapts
+      | none => mkAppOptM ``default #[some expectedType, none]
+    paramValues := paramValues.push value
+    ctorType := body.instantiate1 value
+  return some (← mkAppOptM labelName ((sortArgs ++ paramValues).map some))
 
 /-! ## Main Construction -/
 
 /-- Build a VeilTrace from an SMT Model.
     `numTransitions` is the number of transitions in the trace (states = numTransitions + 1). -/
 def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
+    (queryBindings : Array Name := #[])
+    (specifiedArgs : Array (Nat × Nat) := #[])
     : MetaM VeilTrace := do
   let numStates := numTransitions + 1
 
@@ -259,6 +277,19 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
   -- Classify model values
   let (stateFieldMaps, theoryFields, transitionTags, specificParams, anyActionParams, tagToAction, extraVals) ←
     classifyTraceModelValues model mod numStates
+
+  -- Do not replace a user-specified argument with an arbitrary default when
+  -- preprocessing or model reconstruction loses its interpretation.
+  for (trIdx, argIdx) in specifiedArgs do
+    unless specificParams.contains (trIdx, argIdx) do
+      throwError "SMT model did not report explicit argument {argIdx + 1} of trace transition {trIdx}"
+
+  let bindingValues ← queryBindings.mapM fun name => do
+    let value? ← model.values.findM? fun (nameExpr, _) => do
+      return (← getExprName model.ctx nameExpr) == some name
+    return (name, value?)
+  let extraVals ← extraVals.filterM fun (nameExpr, _) => do
+    return !(← getExprName model.ctx nameExpr).any queryBindings.contains
 
   -- Build sort instantiation info
   let sortInstInfo ← (mod.sortParams.zip sortArgs).mapM fun ((sp, _), cardExpr) => do
@@ -285,9 +316,13 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
   let defaultLabel := mkAppOptM ``default #[some labelType, none]
   let labelExprs ← (Array.range numTransitions).mapM fun i => do
     let trIdx := i + 1  -- Tags are 1-indexed (_tr1_tag, _tr2_tag, ...)
-    let some tagExpr := transitionTags[trIdx]? | defaultLabel
-    let some (actionName, _tagValue) ← resolveActionFromTag model.ctx tagExpr tagToAction | defaultLabel
-    let some labelExpr ← buildLabelFromAction mod sortArgs actionName trIdx specificParams anyActionParams enumAdapts | defaultLabel
+    let missingLabel := do
+      if specifiedArgs.any (·.1 == trIdx) then
+        throwError "SMT model did not identify trace transition {trIdx}, which has explicit arguments"
+      else defaultLabel
+    let some tagExpr := transitionTags[trIdx]? | missingLabel
+    let some (actionName, _tagValue) ← resolveActionFromTag model.ctx tagExpr tagToAction | missingLabel
+    let some labelExpr ← buildLabelFromAction mod sortArgs actionName trIdx specificParams anyActionParams enumAdapts | missingLabel
     pure labelExpr
 
   return {
@@ -298,6 +333,7 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
     stateType, stateExprs
     labelType, labelExprs
     extraVals
+    queryBindings := bindingValues
   }
 
 /-! ## JSON Serialization -/
@@ -368,10 +404,22 @@ unsafe def VeilTrace.toJson (vt : VeilTrace) : MetaM Json := do
       let adapted ← adaptSmtExprType valueExpr concreteType vt.enumAdapts
       return (nameStr, ← evalExprToJson (← Meta.inferType adapted) adapted)
 
+  let bindingsJson := Json.mkObj <| ← vt.queryBindings.toList.mapM fun (name, value?) => do
+    let value ← match value? with
+      | none => pure (Json.str "not reported by solver")
+      | some (nameExpr, valueExpr) =>
+        (vt.ctx.toExprWithCtx nameExpr).runMetaM fun nameExpr => do
+          let concreteType := ((← Meta.inferType nameExpr).replaceFVars sortFVars sortTypes).replace
+            fun e => if e.isProp then some (mkConst ``Bool) else none
+          let adapted ← adaptSmtExprType valueExpr concreteType vt.enumAdapts
+          evalExprToJson (← Meta.inferType adapted) adapted
+    return (name.toString, value)
+
   return Json.mkObj [
     ("instantiation", instJson),
     ("theory", theoryJson),
     ("states", Json.arr statesArr),
+    ("bindings", bindingsJson),
     ("extraSorts", extraSortsJson),
     ("extraVals", extraValsJson)
   ]
@@ -387,6 +435,7 @@ unsafe def VeilTrace.toModelCheckingResultJson (vt : VeilTrace) (isExpectedSat :
     ("instantiation", traceJson.getObjValD "instantiation"),
     ("theory", traceJson.getObjValD "theory"),
     ("states", traceJson.getObjValD "states"),
+    ("bindings", traceJson.getObjValD "bindings"),
     ("extraVals", traceJson.getObjValD "extraVals")
   ]
 

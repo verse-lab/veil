@@ -66,6 +66,7 @@ interface TraceData {
     choices?: string[];
   }>;
   instantiation?: Record<string, unknown>;
+  bindings?: Record<string, unknown>;
   extraVals?: Record<string, unknown>;
 }
 
@@ -1042,6 +1043,10 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
             )}
 
             {Object.keys(combinedTheory).length > 0 && <TheorySection theory={combinedTheory} />}
+
+            {traceData?.bindings && Object.keys(traceData.bindings).length > 0 && (
+              <CollapsibleFieldsSection title="Bindings" fields={traceData.bindings} />
+            )}
 
             {trace.length > 0 ? (
               <>

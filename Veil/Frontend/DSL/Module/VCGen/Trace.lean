@@ -31,13 +31,14 @@ namespace Veil
     Unlike the standard `overallSmtResult`, this uses `buildTraceFromModel` for trace queries. -/
 private def overallSmtResultForTrace [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m]
     [MonadLiftT MetaM m] (numTransitions : Nat) (isExpectedSat : Bool)
-    (outputs : Array SmtOutput) : m (Option SmtResult) := do
+    (outputs : Array SmtOutput) (queryBindings : Array Name)
+    (specifiedArgs : Array (Nat × Nat)) : m (Option SmtResult) := do
   let mod ← getCurrentModule
   buildSmtResult outputs (fun sat => do
     sat.filterMapM (fun ce => return ← ce.mapM (fun ce => do
       try
         -- Build trace from model instead of single-step counterexample
-        let veilTrace ← buildTraceFromModel ce mod numTransitions
+        let veilTrace ← buildTraceFromModel ce mod numTransitions queryBindings specifiedArgs
         -- Convert to ModelCheckingResult-like JSON for TraceDisplayViewer
         let structuredJson : Json ← unsafe veilTrace.toModelCheckingResultJson isExpectedSat
         return .some { raw := ce, rawHtml := ← renderSmtModel ce, structuredJson := structuredJson }
@@ -55,16 +56,23 @@ private def mkTraceDischargerResult [Monad m] [MonadEnv m] [MonadError m] [Monad
     [MonadLiftT (EIO Std.CloseableChannel.Error) m] [MonadLiftT MetaM m]
     (expectedName : Name) (numTransitions : Nat) (isExpectedSat : Bool)
     (ch : Std.CloseableChannel ((Name × Nat) × Smt.AsyncOutput))
-    (time : Nat) (ex? : Option Exception := none) : m (DischargerResult SmtResult) := do
+    (time : Nat) (ex? : Option Exception := none)
+    (queryBindings : Array Name := #[]) (specifiedArgs : Array (Nat × Nat) := #[])
+    : m (DischargerResult SmtResult) := do
   let outputs ← collectSmtOutputs ch expectedName
-  let result ← overallSmtResultForTrace numTransitions isExpectedSat outputs
+  let result ← overallSmtResultForTrace numTransitions isExpectedSat outputs queryBindings specifiedArgs
   match result with
   | .none => match ex? with
     | some ex =>
       match ← unknownReasonFromException? ex with
       | some reason => return .unknown (.some (.unknown #[reason])) time
       | none => return .error #[(ex, s!"{← ex.toMessageData.toString}")] time
-    | none => return .proven none .none time
+    | none =>
+      -- Simplification can prove the generated nonexistence proposition without
+      -- invoking SMT (for example, a trace binder of type False). That is UNSAT
+      -- regardless of which polarity the user expected.
+      let result := some (SmtResult.unsat #[])
+      return if isExpectedSat then .disproven result time else .proven none result time
   | .some (.error exs) => return .error exs time
   | .some (.unknown _) => return .unknown result time
   | .some r@(.sat _) | .some r@(.unsat _) =>
@@ -82,11 +90,16 @@ private def mkTraceDischargerResult [Monad m] [MonadEnv m] [MonadError m] [Monad
     - `dischargerId`: Identifier for this discharger
     - `ch`: Channel to communicate with VCManager
     - `cancelTk?`: Optional cancellation token
+    - `queryBindings`: User-declared rigid variables to show with the witness
+    - `specifiedArgs`: Explicit argument positions (one-based transition,
+      zero-based argument) that must never be reconstructed using defaults
 -/
 def TraceDischarger.fromAssertion (numTransitions : Nat) (isExpectedSat : Bool)
     (vcStatement : VCStatement) (dischargerId : DischargerIdentifier)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
-    (_cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
+    (_cancelTk? : Option IO.CancelToken := none)
+    (queryBindings : Array Name := #[]) (specifiedArgs : Array (Nat × Nat) := #[])
+    : CommandElabM (Discharger SmtResult) := do
   let smtTactic ← `(term| by veil_bmc)
   Discharger.fromTermWith smtTactic vcStatement dischargerId ch
     (traceLabel := "trace discharger") fun smtCh data time =>
@@ -94,15 +107,15 @@ def TraceDischarger.fromAssertion (numTransitions : Nat) (isExpectedSat : Bool)
     -- SMT result is what matters — so the witness is dropped and only an
     -- elaboration exception is surfaced.
     mkTraceDischargerResult dischargerId.name numTransitions isExpectedSat smtCh
-      time (ex? := data.getRight?)
+      time (ex? := data.getRight?) (queryBindings := queryBindings) (specifiedArgs := specifiedArgs)
 
 /-! ## Trace VC Statement Building -/
 
 /-- Create a VCStatement for a trace query.
 
-    The statement is either:
-    - For `sat trace`: `∃ binders..., conjunction` (existential)
-    - For `unsat trace`: `∀ binders..., ¬conjunction` (universal negation)
+    Both query polarities use `∀ binders..., ¬conjunction`. A SAT result
+    supplies an execution refuting this statement; the expected result is
+    interpreted by the trace discharger.
 -/
 def mkTraceVCStatement (_mod : Module) (name : Name) (statement : Term)
     : CommandElabM VCStatement := do
