@@ -4,7 +4,7 @@
 import ModelCheckerView from '@veil/widget/traceDisplay';
 import * as React from 'react';
 import { ActionStat, VerdictKind, describeResult, modelCheckMetrics } from '../src/protocol';
-import { HistoryPoint, PanelMessage, RunSnapshot } from '../src/snapshot';
+import { HistoryPoint, PanelMessage, RunOrigin, RunSnapshot } from '../src/snapshot';
 import { CHART_CSS, MetricChart } from './chart';
 
 /** Sends a message to the extension */
@@ -30,7 +30,12 @@ function formatHMS(ms: number): string {
 }
 
 const count = (n: number) => n.toLocaleString('en-US');
-const clock = (epochMs: number) => new Date(epochMs).toLocaleTimeString();
+
+/** The time, with the date for another day than today, which a saved run can be from */
+function clock(epochMs: number): string {
+  const date = new Date(epochMs);
+  return date.toDateString() === new Date().toDateString() ? date.toLocaleTimeString() : date.toLocaleString();
+}
 
 const verdictClass: Record<VerdictKind, string> = {
   success: 'success',
@@ -40,7 +45,17 @@ const verdictClass: Record<VerdictKind, string> = {
   unknown: 'warning',
 };
 
-export function RunView({ run, now }: { run: RunSnapshot; now: number }) {
+export interface RunViewProps {
+  run: RunSnapshot;
+  now: number;
+  /** Where the run comes from, see `PanelState` */
+  origin?: RunOrigin;
+  fileName?: string;
+  canRunAgain?: boolean;
+  outdated?: boolean;
+}
+
+export function RunView({ run, now, origin = 'live', fileName, canRunAgain = true, outdated = false }: RunViewProps) {
   const send = React.useContext(Send);
   const active = run.status === 'running' || run.status === 'stopping';
   const metrics = run.progress && modelCheckMetrics(run.progress);
@@ -55,10 +70,16 @@ export function RunView({ run, now }: { run: RunSnapshot; now: number }) {
         <a className="source" onClick={() => send({ type: 'openSource' })}>{run.source}</a>
       </div>
       <div className="actions">
-        <button className="primary" disabled={active} onClick={() => send({ type: 'runAgain' })}>Check again</button>
-        <button onClick={() => send({ type: 'showOutput' })}>Full output</button>
+        <button className="primary" disabled={active || !canRunAgain} onClick={() => send({ type: 'runAgain' })}>Check again</button>
+        {!active && <button onClick={() => send({ type: 'export' })}>Export...</button>}
+        {/* The output channel has the run of this window only */}
+        {origin === 'live' && <button onClick={() => send({ type: 'showOutput' })}>Full output</button>}
       </div>
     </div>
+    {origin !== 'live' && <div className={outdated ? 'origin outdated' : 'origin'}>
+      {origin === 'file' ? `Opened from ${fileName}` : 'Saved result'}
+      {outdated && ' · outdated: the model checker has changed since this run, e.g. because the model did'}
+    </div>}
     <StatusLine run={run} />
     <div className="muted">
       Started {clock(run.startedAt)}{run.endedAt !== undefined && `, ended ${clock(run.endedAt)}`}
@@ -299,6 +320,8 @@ body {
   background: var(--vscode-inputValidation-errorBackground);
 }
 .result { margin-top: 12px; }
+.origin { margin-top: 4px; font-style: italic; color: var(--vscode-descriptionForeground); }
+.origin.outdated { color: var(--vscode-editorWarning-foreground, #cc6600); }
 .history-toolbar { display: flex; justify-content: space-between; margin: 6px 0 8px; }
 .toggle { display: flex; gap: 4px; }
 .charts { max-width: 720px; }

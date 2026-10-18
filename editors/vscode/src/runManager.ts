@@ -2,6 +2,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { describeResult } from './protocol';
+import { ResultStore, RunSource } from './resultStore';
 import { CheckerRun, parallelArgs } from './runner';
 import { RunSnapshot, recordHistory } from './snapshot';
 
@@ -10,14 +11,21 @@ export interface RunTarget {
   uri: vscode.Uri;
   line: number;
   module: string;
+  /** As `BuildCommandSite.command` */
+  command: string;
   binary: string;
+}
+
+export function sourceOf(target: RunTarget): RunSource {
+  return { file: target.uri.toString(), command: target.command };
 }
 
 function clock(): string {
   return new Date().toLocaleTimeString();
 }
 
-/** Runs one model checker at a time, as TLC's extension does, and keeps the last run to show. */
+/** Runs one model checker at a time, as TLC's extension does, keeps the last run to show, and saves
+ * each run once it ends. */
 export class RunManager implements vscode.Disposable {
   private run: CheckerRun | undefined;
   private target: RunTarget | undefined;
@@ -29,7 +37,7 @@ export class RunManager implements vscode.Disposable {
   /** Fires when the running binary reports progress */
   readonly onDidProgress = this.progressed.event;
 
-  constructor(private readonly output: vscode.OutputChannel) {}
+  constructor(private readonly output: vscode.OutputChannel, private readonly store: ResultStore) {}
 
   /** The current run, or else the last one */
   get snapshot(): RunSnapshot | undefined {
@@ -98,6 +106,8 @@ export class RunManager implements vscode.Disposable {
           break;
       }
       this.run = undefined;
+      this.store.save(sourceOf(target), snapshot).catch(err =>
+        this.output.appendLine(`Could not save the result: ${err instanceof Error ? err.message : err}`));
       this.statusChanged.fire();
     });
     this.statusChanged.fire();

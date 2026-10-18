@@ -21,6 +21,11 @@ Once Lean has built the binary, a **Run model checker** lens appears above the
 command. The run shows in the **Veil Model Checking** panel and in the status bar,
 and **Stop** ends it. The command palette has the same commands under "Veil".
 
+The extension keeps the last result of each command, also after VS Code restarts,
+and a **Last result** lens above the command shows it. **Export...** in the panel
+saves a result to a file, and **Veil: Open Model Checking Result...** shows such a
+file, or a result that a binary printed on the command line.
+
 The settings `veil.modelChecker.workers` (`0` for all cores, `1` for the sequential
 checker), `veil.modelChecker.thresholdToParallel` and `veil.modelChecker.numSubSteps`
 set how a run is parallelized.

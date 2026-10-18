@@ -44,6 +44,21 @@
         "command": "veil.modelCheck.showPanel",
         "title": "Show Model Checking Panel",
         "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.exportResult",
+        "title": "Export Model Checking Result...",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.openResult",
+        "title": "Open Model Checking Result...",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.showSavedRun",
+        "title": "Show Saved Model Checking Result",
+        "category": "Veil"
       }
     ],
     "menus": {
@@ -59,6 +74,10 @@
         {
           "command": "veil.modelCheck.stop",
           "when": "veil.modelCheck.isRunning"
+        },
+        {
+          "command": "veil.modelCheck.showSavedRun",
+          "when": "false"
         }
       ]
     },

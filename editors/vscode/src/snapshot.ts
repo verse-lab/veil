@@ -1,6 +1,6 @@
 // What the panel shows of a run, and the messages between the panel and the extension. This
 // module is shared with the webview, so it must not import Node or VS Code modules.
-import { Progress, modelCheckMetrics } from './protocol';
+import { Progress, VerdictKind, describeResult, modelCheckMetrics } from './protocol';
 
 export type RunStatus = 'running' | 'stopping' | 'finished' | 'stopped' | 'failed';
 
@@ -36,16 +36,49 @@ export interface RunSnapshot {
   error?: string;
 }
 
+export type RunOutcomeKind = VerdictKind | 'running' | 'stopped' | 'failed';
+
+/** What a run came to, in a few words, e.g. for the status bar */
+export function describeRun(run: RunSnapshot): { kind: RunOutcomeKind; text: string } {
+  switch (run.status) {
+    case 'running':
+    case 'stopping':
+      return { kind: 'running', text: 'Running' };
+    case 'stopped':
+      return { kind: 'stopped', text: 'Stopped' };
+    case 'failed':
+      return { kind: 'failed', text: `Failed: ${(run.error ?? '').split('\n', 1)[0]}` };
+    case 'finished':
+      return describeResult(run.result);
+  }
+}
+
+/** Where the run that the panel shows comes from: this window, the runs saved before, or a file
+ * that the user opened */
+export type RunOrigin = 'live' | 'saved' | 'file';
+
+export interface PanelState {
+  run: RunSnapshot;
+  origin: RunOrigin;
+  /** The name of the file, for a run from a file */
+  fileName?: string;
+  /** Whether "Check again" can run the command of the run */
+  canRunAgain: boolean;
+  /** Whether a saved run is of another binary than the one that Lean has built for its command now */
+  outdated?: boolean;
+}
+
 /** The messages that the panel sends to the extension. */
 export type PanelMessage =
   | { type: 'ready' }
   | { type: 'stop' }
   | { type: 'runAgain' }
+  | { type: 'export' }
   | { type: 'showOutput' }
   | { type: 'openSource' };
 
 /** The messages that the extension sends to the panel. */
-export type ExtensionMessage = { type: 'state'; state: RunSnapshot | null };
+export type ExtensionMessage = { type: 'state'; state: PanelState | null };
 
 /** The history keeps a point at least every this many ms, and only the latest point in between */
 const HISTORY_GAP_MS = 1000;
