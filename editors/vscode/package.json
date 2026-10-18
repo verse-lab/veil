@@ -1,0 +1,107 @@
+{
+  "name": "veil-model-checker",
+  "displayName": "Veil Model Checker",
+  "description": "Run the model checkers that #model_check_build builds, and show their progress and results.",
+  "version": "0.0.1",
+  "publisher": "verse-lab",
+  "license": "Apache-2.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/verse-lab/veil"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionDependencies": [
+    "leanprover.lean4"
+  ],
+  "activationEvents": [
+    "onLanguage:lean4"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "veil.modelCheck.run",
+        "title": "Run Model Checker",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.runAgain",
+        "title": "Run Last Model Check Again",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.stop",
+        "title": "Stop Model Checking",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.showPanel",
+        "title": "Show Model Checking Panel",
+        "category": "Veil"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "veil.modelCheck.run",
+          "when": "editorLangId == lean4"
+        },
+        {
+          "command": "veil.modelCheck.runAgain",
+          "when": "veil.modelCheck.canRunAgain"
+        },
+        {
+          "command": "veil.modelCheck.stop",
+          "when": "veil.modelCheck.isRunning"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Veil Model Checker",
+      "properties": {
+        "veil.modelChecker.workers": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "markdownDescription": "Number of parallel workers of a model check. `0` uses all CPU cores, and `1` runs the sequential checker."
+        },
+        "veil.modelChecker.thresholdToParallel": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 0,
+          "markdownDescription": "Frontier size from which a parallel model check explores states in parallel."
+        },
+        "veil.modelChecker.numSubSteps": {
+          "type": "integer",
+          "default": 1,
+          "minimum": 1,
+          "markdownDescription": "Number of steps that each parallel worker takes before the frontier is merged."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node esbuild.mjs --tests && node out/test/runTests.js"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^16.18.126",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/vscode": "~1.80.0",
+    "esbuild": "~0.19.12",
+    "typescript": "~5.4.5"
+  }
+}

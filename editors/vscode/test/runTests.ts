@@ -1,0 +1,280 @@
+// The tests of the parts of the extension that do not use VS Code: `npm test`. The tests with
+// binaries first build those of `fixtures/RunnerFixture.lean` with Lean, which needs `lake` and a
+// built Veil. Set VEIL_SKIP_BINARY_TESTS=1 to skip them.
+import * as assert from 'assert';
+import { spawnSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { BUILT_PREFIX, ReportedMessage, Severity, buildStatus, findBuildCommands } from '../src/buildCommands';
+import { Progress, describeResult, modelCheckMetrics, parseProgressLine } from '../src/protocol';
+import { CheckerRun, parallelArgs } from '../src/runner';
+import { HistoryPoint, RunSnapshot, recordHistory } from '../src/snapshot';
+import { NoRun, RunView } from '../webview/view';
+
+interface Test {
+  name: string;
+  run: () => void | Promise<void>;
+}
+const tests: Test[] = [];
+const test = (name: string, run: Test['run']) => tests.push({ name, run });
+
+// ---- Finding commands ----
+
+test('finds commands and where they end', () => {
+  const text = [
+    'module',
+    '#model_check_build Foo { n := Fin 2 }',
+    '  { limit := 2 }',
+    '',
+    '  #model_check_build Bar.Baz {}',
+    'def x := 1',
+  ].join('\n');
+  assert.deepStrictEqual(findBuildCommands(text), [
+    { line: 1, character: 0, endLine: 3, module: 'Foo' },
+    { line: 4, character: 2, endLine: 4, module: 'Bar.Baz' },
+  ]);
+});
+
+test('leaves out commands in comments and strings', () => {
+  const text = [
+    '-- #model_check_build InLineComment {}',
+    '/- #model_check_build InBlockComment {}',
+    '#model_check_build StillInBlockComment {}',
+    '/- nested -/',
+    '-/',
+    '/-- A docstring',
+    '#model_check_build InDocstring {}',
+    '-/',
+    'def s := "',
+    '#model_check_build InString {}"',
+    '#model_check_build Real {}',
+    'x #model_check_build NotAtLineStart {}',
+    '#model_check_builder NotTheKeyword {}',
+  ].join('\n');
+  assert.deepStrictEqual(findBuildCommands(text).map(site => site.module), ['Real']);
+});
+
+// ---- Build status ----
+
+const site = { line: 1, character: 0, endLine: 3, module: 'Foo' };
+const message = (line: number, severity: Severity, text: string): ReportedMessage => ({ line, severity, message: text });
+
+test('a command is built once Lean reports its binary', () => {
+  assert.deepStrictEqual(buildStatus(site, [message(1, 'information', `${BUILT_PREFIX}/tmp/a b/checker\n`)]),
+    { kind: 'built', binary: '/tmp/a b/checker' });
+});
+
+test('an error in a command means that its binary was not built', () => {
+  assert.deepStrictEqual(
+    buildStatus(site, [message(1, 'information', `${BUILT_PREFIX}/tmp/old`), message(2, 'error', 'failed to synthesize')]),
+    { kind: 'failed', message: 'failed to synthesize' });
+});
+
+test('the messages of other commands do not count', () => {
+  assert.deepStrictEqual(
+    buildStatus(site, [message(0, 'error', 'elsewhere'), message(4, 'information', `${BUILT_PREFIX}/tmp/other`)]),
+    { kind: 'pending' });
+});
+
+// ---- Output of binaries ----
+
+/** A line of progress, as a binary prints it */
+function progressLine(elapsedMs: number, distinctStates: number): string {
+  return JSON.stringify({
+    compilationStatus: { status: 'none' },
+    details: { modelCheck: { metrics: {
+      actionStats: [{ distinctStates, name: 'M.Label.finish 0', statesGenerated: distinctStates }],
+      allActionLabels: [], diameter: 1, distinctStates, history: [], queue: 2, statesFound: distinctStates,
+    } } },
+    elapsedMs, isCancelled: false, isRunning: true, startTimeMs: 3595464416, status: 'Running...',
+  });
+}
+
+test('parses lines of progress', () => {
+  const progress = parseProgressLine(progressLine(5, 3));
+  assert.ok(progress);
+  assert.strictEqual(modelCheckMetrics(progress)?.distinctStates, 3);
+  assert.strictEqual(parseProgressLine('PANIC at foo'), undefined);
+  assert.strictEqual(parseProgressLine('{"other": 1}'), undefined);
+});
+
+test('describes results as Lean does', () => {
+  assert.deepStrictEqual(describeResult({ result: 'no_violation_found', explored_states: 4 }),
+    { kind: 'success', text: 'No violation (explored 4 states)' });
+  assert.deepStrictEqual(
+    describeResult({ result: 'found_violation', violation: { kind: 'safety_failure', violates: ['bounded'] } }),
+    { kind: 'violation', text: 'Violation: safety_failure (violates: bounded)' });
+  assert.strictEqual(describeResult({ error: 'boom' }).kind, 'error');
+});
+
+test('keeps a point of history about every second', () => {
+  const history: HistoryPoint[] = [];
+  for (const time of [0, 300, 600, 1200, 1500]) recordHistory(history, parseProgressLine(progressLine(time, 1)) as Progress);
+  assert.deepStrictEqual(history.map(point => point.timeMs), [0, 1200, 1500]);
+});
+
+test('passes the parallel settings as arguments', () => {
+  assert.deepStrictEqual(parallelArgs(0, 20, 1, 8), ['8', '20', '1']);
+  assert.deepStrictEqual(parallelArgs(4, 20, 2, 8), ['4', '20', '2']);
+  assert.deepStrictEqual(parallelArgs(1, 20, 1, 8), []);
+  assert.deepStrictEqual(parallelArgs(0, 20, 1, 1), []);
+});
+
+// ---- The panel ----
+
+function snapshot(fields: Partial<RunSnapshot>): RunSnapshot {
+  return {
+    module: 'Paxos', source: 'MCPaxos.lean:12', binary: '/tmp/checker', args: ['8', '20', '1'],
+    status: 'running', startedAt: 0, history: [], ...fields,
+  };
+}
+
+/** The panel for `run`, 63 seconds after it started */
+function render(run: RunSnapshot): string {
+  return renderToStaticMarkup(React.createElement(RunView, { run, now: 63_000 }));
+}
+
+function assertShows(html: string, texts: string[]): void {
+  for (const text of texts) assert.ok(html.includes(text), `the panel does not show ${JSON.stringify(text)}`);
+}
+
+const point = (timeMs: number): HistoryPoint => ({ timeMs, diameter: 1, statesFound: 2, distinctStates: 2, queue: 1 });
+
+test('the panel shows the progress of a running check', () => {
+  const progress: Progress = {
+    status: 'Running...', isRunning: true, isCancelled: false, elapsedMs: 60_000,
+    details: { modelCheck: { metrics: {
+      diameter: 7, statesFound: 123456, distinctStates: 65432, queue: 99, allActionLabels: [],
+      actionStats: [
+        { name: 'Paxos.Label.send 0 1', statesGenerated: 10, distinctStates: 5 },
+        { name: 'Paxos.Label.send 1 0', statesGenerated: 4, distinctStates: 2 },
+        { name: 'Paxos.Label.decide', statesGenerated: 0, distinctStates: 0 },
+      ],
+    } } },
+  };
+  assertShows(render(snapshot({ progress, history: [point(0), point(1000)] })), [
+    'Paxos', 'MCPaxos.lean:12', 'Running...', 'Stop', '8 workers', 'Diameter:', '123,456', '65,432',
+    'Elapsed time:', '1m 3.0s', 'Metrics History (2 samples, 1.0s)', 'Action Coverage (2 actions',
+    '1 never enabled', 'send', '0 1', 'decide',
+  ]);
+});
+
+test('the panel shows the result of a finished check', () => {
+  const result = { result: 'found_violation', violation: { kind: 'safety_failure', violates: ['bounded'] } };
+  const html = render(snapshot({ status: 'finished', endedAt: 5000, result, args: [] }));
+  assertShows(html, ['Violation: safety_failure (violates: bounded)', 'sequential', 'Copy JSON', 'found_violation']);
+  assert.ok(!html.includes('>Stop<'));
+});
+
+test('the panel shows why a run failed or that it was stopped', () => {
+  assertShows(render(snapshot({ status: 'failed', endedAt: 5000, error: 'The model checker exited with code 1.' })),
+    ['Failed', 'exited with code 1']);
+  assertShows(render(snapshot({ status: 'stopped', endedAt: 5000 })), ['Stopped']);
+});
+
+test('the panel says when no check has run', () => {
+  assertShows(renderToStaticMarkup(React.createElement(NoRun)), ['#model_check_build']);
+});
+
+// ---- Running binaries ----
+
+const repoRoot = path.resolve(__dirname, '../../../..');
+const fixture = path.join('editors', 'vscode', 'test', 'fixtures', 'RunnerFixture.lean');
+
+/** The binaries of the fixture's commands, by the 1-based line of the command. Lean reports them as
+ * the extension reads them, but through `lean --json` rather than as diagnostics. */
+function buildFixture(): Map<number, string> {
+  const lean = spawnSync('lake', ['env', 'lean', '--json', fixture],
+    { cwd: repoRoot, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  if (lean.error) throw lean.error;
+  const binaries = new Map<number, string>();
+  const errors: string[] = [];
+  for (const line of lean.stdout.split('\n')) {
+    if (!line.startsWith('{')) continue;
+    const reported = JSON.parse(line) as { severity: string; pos: { line: number }; data: string };
+    if (reported.severity === 'information' && reported.data.startsWith(BUILT_PREFIX)) {
+      binaries.set(reported.pos.line, reported.data.slice(BUILT_PREFIX.length).trim());
+    } else if (reported.severity === 'error') {
+      errors.push(reported.data);
+    }
+  }
+  if (lean.status !== 0 || errors.length > 0) {
+    throw new Error(`Lean could not build ${fixture}:\n${errors.join('\n')}\n${lean.stdout}\n${lean.stderr}`);
+  }
+  return binaries;
+}
+
+let fixtureBinaries: Promise<{ small: string; large: string }> | undefined;
+function binaries(): Promise<{ small: string; large: string }> {
+  fixtureBinaries ??= (async () => {
+    const byLine = buildFixture();
+    const sites = findBuildCommands(fs.readFileSync(path.join(repoRoot, fixture), 'utf8'));
+    const [small, large] = sites.map(s => byLine.get(s.line + 1));
+    if (!small || !large) throw new Error(`Lean did not report the binaries of ${fixture}: ${JSON.stringify([...byLine])}`);
+    return { small, large };
+  })();
+  return fixtureBinaries;
+}
+
+function within<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${what} took more than ${ms} ms`)), ms).unref()),
+  ]);
+}
+
+if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
+  for (const [name, args] of [['sequential', []], ['parallel', ['2', '1', '1']]] as const) {
+    test(`a ${name} binary reports its result`, async () => {
+      const outcome = await within(new CheckerRun({ binary: (await binaries()).small, args: [...args] }).outcome,
+        60_000, 'The run');
+      assert.strictEqual(outcome.kind, 'finished');
+      const result = (outcome as { result: { result: string; explored_states: number } }).result;
+      assert.deepStrictEqual([result.result, result.explored_states], ['no_violation_found', 4]);
+    });
+  }
+
+  test('a run stops once its stdin is closed', async () => {
+    let progress: Progress | undefined;
+    let reported!: () => void;
+    const firstProgress = new Promise<void>(resolve => { reported = resolve; });
+    const run = new CheckerRun({ binary: (await binaries()).large, args: [] }, {
+      onProgress: p => {
+        progress = p;
+        reported();
+      },
+    });
+    await within(firstProgress, 60_000, 'The first progress');
+    const stoppedAt = Date.now();
+    run.stop();
+    const outcome = await within(run.outcome, 10_000, 'The stop');
+    assert.strictEqual(outcome.kind, 'stopped');
+    // Well before `stop` would kill the binary
+    assert.ok(Date.now() - stoppedAt < 1500, `the binary took ${Date.now() - stoppedAt} ms to exit`);
+    assert.ok((progress && modelCheckMetrics(progress)?.distinctStates || 0) > 0);
+  });
+
+  test('a binary that cannot run fails', async () => {
+    const outcome = await new CheckerRun({ binary: path.join(repoRoot, 'no-such-binary'), args: [] }).outcome;
+    assert.strictEqual(outcome.kind, 'failed');
+  });
+}
+
+async function main(): Promise<void> {
+  let failures = 0;
+  for (const { name, run } of tests) {
+    try {
+      await run();
+      console.log(`ok   ${name}`);
+    } catch (e) {
+      failures++;
+      console.log(`FAIL ${name}\n${e instanceof Error ? e.stack : e}`);
+    }
+  }
+  console.log(failures === 0 ? `All ${tests.length} tests passed` : `${failures} of ${tests.length} tests failed`);
+  process.exit(failures === 0 ? 0 : 1);
+}
+
+void main();
