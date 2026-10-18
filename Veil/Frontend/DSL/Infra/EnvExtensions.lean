@@ -45,6 +45,46 @@ def getCurrentModule [Monad m] [MonadEnv m] [MonadError m] (errMsg : MessageData
   else
     throwError errMsg
 
+/-- The role of a binder of `Module.instantiationTemplate`. -/
+inductive InstantiationBinder where
+  /-- A parameter set by the field of `Instantiation` of this name. -/
+  | field (name : Name)
+  /-- An `instantiate` constraint. -/
+  | constraint
+  /-- An auto-generated assumption about a sort, which the constraints may mention. -/
+  | sortAssumption
+deriving Inhabited
+
+/-- What checking a module takes, without the module itself. `#gen_executable` records it, so
+that `#model_check_build` can build its model checker in the files importing the one declaring it. -/
+structure ExecutableModule where
+  name : Name
+  /-- The fields of `Instantiation` that set the sorts and parameters, in the order that the
+  definitions of the module take them -/
+  instantiationFields : Array Name
+  /-- `Module.instantiationTemplate`, elaborated where the module is declared. It is missing if
+  it was not closed. -/
+  instantiationTemplate : Option (Expr × Array InstantiationBinder)
+  assumptions : Array Name
+  /-- The invariants and safety properties -/
+  invariants : Array Name
+  terminations : Array Name
+  stateConstraints : Array Name
+deriving Inhabited
+
+initialize executableModuleExt :
+    SimplePersistentEnvExtension ExecutableModule (Std.HashMap Name ExecutableModule) ←
+  registerSimplePersistentEnvExtension {
+    addEntryFn := fun s em => s.insert em.name em
+    addImportedFn := fun ems =>
+      ems.foldl (init := {}) fun s ems => ems.foldl (init := s) fun s em => s.insert em.name em
+  }
+
+/-- What checking module `name` takes, if its executable definitions were generated in this file
+or in an imported one. -/
+def getExecutableModule? [Monad m] [MonadEnv m] (name : Name) : m (Option ExecutableModule) :=
+  return (executableModuleExt.getState (← getEnv))[name]?
+
 def mkNewAssertion [Monad m] [MonadEnv m] [MonadError m] (proc : Name) (stx : Syntax) : m AssertionId := do
   let mod ← getCurrentModule (errMsg := "Cannot have a Veil assertion outside of a module")
   let gctx ← globalEnv.get

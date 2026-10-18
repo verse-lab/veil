@@ -401,6 +401,27 @@ syntax assumptionsHoldBy := "assumptions_hold_by " tacticSeq
 
 scoped syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
 
+/-- Build the model checker that `#model_check compiled` would run for module `X` with the given
+instantiation, theory and options, *without running it*. Use it outside module `X`, typically in a
+file importing the one that declares it: there `X` needs `#gen_executable` (or a `#model_check`,
+which generates the executable definitions too).
+
+```lean
+#model_check_build Paxos { acceptor := Fin 3, value := Fin 2, MsgSet := OrdList _ } {} (maxDepth := 10)
+```
+
+The instantiation and the theory are elaborated as by `#model_check` inside the module, and its
+holes are filled likewise. The options are those of `#model_check`, except `sequential` and
+`parallelCfg`: the binary takes the parallel configuration as arguments.
+
+The build is the one of `#model_check compiled`, in the background: it uses the same build folders
+in `.lake/model_checker_builds`, which are reused and cleaned up as for `#model_check`
+(`veil.modelChecker.maxStoredBuilds`). Once built, the binary is copied to `.lake/model_checkers`
+and reported as `Model checker built: <path>`. The copy is only a mirror of the binary that the
+cleanup of build folders leaves alone, so that it can be run later; it is never used for building.
+The `veil.modelChecker.maxStoredCheckers` most recent copies are kept. -/
+syntax (name := modelCheckBuild) "#model_check_build " ident ppSpace term:max (ppSpace term:max)? Parser.Tactic.optConfig : command
+
 /-- Execute a concrete Veil action/procedure term using the same nondeterministic
 extraction machinery as `#model_check`, and print every possible return value
 and final state. Intended for internal regression tests. -/

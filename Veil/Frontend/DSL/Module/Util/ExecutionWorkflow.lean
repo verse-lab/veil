@@ -150,7 +150,7 @@ private def mkCompilationErrorMsg (result : ModelChecker.Compilation.ProcessResu
 
 /-- Check if the compiled binary exists. Returns `some binPath` if found. -/
 private def verifyBinaryExists (buildFolder : System.FilePath) (instanceId : Nat) : IO (Option System.FilePath) := do
-  let binPath := (buildFolder / "ModelCheckerMain").addExtension System.FilePath.exeExtension
+  let binPath := ModelChecker.Compilation.buildFolderBinary buildFolder
   if ← binPath.pathExists then return some binPath
   ModelChecker.Concrete.finishProgress instanceId (errorJson s!"Binary not found at {binPath}")
   return none
@@ -332,30 +332,41 @@ private def runInterpreted
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := mkTask }
   ModelChecker.displayStreamingProgress stx ctx.instanceId
 
-/-- Handle compiled-only mode: compile and run binary without interpreted fallback. -/
-private def runCompiled (command : ModelChecker.Compilation.CompiledCommandSpec)
-    (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax) (callExpr : Term)
-    (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-  let ctx ← allocExecutionContext mod stx parallelCfg kind
+/-- Compile `callExpr` in the background, then pass the build folder to `withBinary`, with the source
+file and the identity of the command in it. The build folder stays in use until `withBinary`
+returns. Compilation failures are logged at `stx`; `onError` handles the other exceptions. -/
+private def compileThen (command : ModelChecker.Compilation.CompiledCommandSpec) (stx : Syntax)
+    (callExpr : Term) (instanceId : Nat) (cancelToken : IO.CancelToken)
+    (withBinary : (buildFolder : System.FilePath) → (sourceFile commandId : String) → CommandElabM Unit)
+    (onError : Exception → CommandElabM Unit) : CommandElabM Unit := do
   let sourceFile ← getFileName
   let commandId ← getCompiledCommandId s!"#{command.name}" stx
 
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
-      let some buildFolder ← withCompilationDiagnostics stx ctx.instanceId false <|
-        compileModel sourceFile callExpr commandId ctx.instanceId ctx.cancelToken
-        command | return
-      if ← checkCancelled ctx.cancelToken ctx.instanceId then return
-      runBinaryAndLogResult ctx buildFolder sourceFile command commandId
+      let some buildFolder ← withCompilationDiagnostics stx instanceId false <|
+        compileModel sourceFile callExpr commandId instanceId cancelToken command | return
+      if ← checkCancelled cancelToken instanceId then return
+      withBinary buildFolder sourceFile commandId
     catch e : Exception =>
-      handleModelCheckError ctx e
+      onError e
     finally
-      endRunIfCancelled ctx.cancelToken ctx.instanceId
-      releaseBuild ctx.instanceId
-  ) ctx.cancelToken
+      endRunIfCancelled cancelToken instanceId
+      releaseBuild instanceId
+  ) cancelToken
 
   let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
-  Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := compilationTask }
+  Command.logSnapshotTask { stx? := none, cancelTk? := cancelToken, task := compilationTask }
+
+/-- Handle compiled-only mode: compile and run binary without interpreted fallback. -/
+private def runCompiled (command : ModelChecker.Compilation.CompiledCommandSpec)
+    (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax) (callExpr : Term)
+    (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
+  let ctx ← allocExecutionContext mod stx parallelCfg kind
+  compileThen command stx callExpr ctx.instanceId ctx.cancelToken
+    (fun buildFolder sourceFile commandId =>
+      runBinaryAndLogResult ctx buildFolder sourceFile command commandId)
+    (handleModelCheckError ctx)
   ModelChecker.displayStreamingProgress stx ctx.instanceId
 
 /-- Handle default mode: run interpreted + background compile with handoff. -/
@@ -468,5 +479,66 @@ def run (command : ModelChecker.Compilation.CompiledCommandSpec)
   | .interpreted => runInterpreted kind mod stx callExpr parallelCfg
   | .compiled => runCompiled command kind mod stx callExpr parallelCfg
   | .default => runWithHandoff command kind mod stx callExpr parallelCfg
+
+/-- Directory of the binaries that `buildOnly` builds. They are copied there out of their build
+folders, which another check may prune before the binaries run. -/
+private def getCheckerBaseDir : IO System.FilePath := do
+  return (← IO.currentDir) / ".lake" / "model_checkers"
+
+/-- Copy the binary built in `buildFolder` to `dir`, named after the folder. The copy replaces an
+earlier one at once, so a process running the earlier one keeps it. Call it while holding
+`withBuildLock` and the folder's use lock. -/
+private def copyCheckerBinary (buildFolder dir : System.FilePath) : IO System.FilePath := do
+  let name := buildFolder.fileName.getD "ModelCheckerMain"
+  let dest := ModelChecker.Compilation.buildFolderBinary dir name
+  -- Hidden, so that `pruneCheckerBinaries` leaves an unfinished copy alone
+  let tmp := dir / s!".{name}.tmp"
+  IO.FS.createDirAll dir
+  IO.FS.writeBinFile tmp (← IO.FS.readBinFile (ModelChecker.Compilation.buildFolderBinary buildFolder))
+  IO.setAccessRights tmp {
+    user := { read := true, write := true, execution := true }
+    group := { read := true, execution := true }
+    other := { read := true, execution := true } }
+  IO.FS.rename tmp dest
+  return dest
+
+/-- Delete the binaries in `dir` beyond the `keep` most recently copied ones; 0 means no limit. -/
+private def pruneCheckerBinaries (dir : System.FilePath) (keep : Nat) : IO Unit := do
+  if keep == 0 then return
+  let mut binaries : Array (System.FilePath × IO.FS.SystemTime) := #[]
+  for entry in ← dir.readDir do
+    unless entry.fileName.startsWith "." do
+      let copied ← try (·.modified) <$> entry.path.metadata catch _ => pure default
+      binaries := binaries.push (entry.path, copied)
+  let newestFirst := binaries.qsort fun a b => compare a.2 b.2 == .gt
+  for (binary, _) in newestFirst.extract keep do
+    -- A process running the binary keeps it
+    try IO.FS.removeFile binary catch _ => pure ()
+
+/-- Compile `callExpr` into a model checker binary in the background, as `runCompiled` does, but
+without running it, and report where the binary is. The binary is copied out of its build folder,
+which another check may prune before the binary runs. -/
+def buildOnly (command : ModelChecker.Compilation.CompiledCommandSpec) (stx : Syntax) (callExpr : Term) :
+    CommandElabM Unit := do
+  -- The progress instance only follows the compilation, as nothing displays it
+  let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (.modelCheck {})
+  let keep := veil.modelChecker.maxStoredCheckers.get (← getOptions)
+  compileThen command stx callExpr instanceId cancelToken
+    (fun buildFolder sourceFile commandId => do
+      -- Copy under the build lock, so that no other build relinks the binary meanwhile
+      let some binary ← ModelChecker.Compilation.withBuildLock
+          (← ModelChecker.Compilation.getBuildBaseDir) cancelToken do
+          let dir ← getCheckerBaseDir
+          let binary ← copyCheckerBinary buildFolder dir
+          pruneCheckerBinaries dir keep
+          return binary
+        | return
+      ModelChecker.Compilation.markRegistryFinished sourceFile command commandId buildFolder
+      ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [("binary", toJson binary.toString)])
+      logInfoAt stx m!"Model checker built: {binary}")
+    (fun e => do
+      let message ← e.toMessageData.toString
+      ModelChecker.Concrete.finishProgress instanceId (errorJson message)
+      logErrorAt stx message)
 
 end Veil.ExecutionWorkflow
