@@ -778,8 +778,11 @@ private def elabBuildCommand {α : Type} (cmdName : String) (traceClass : Name) 
       instantiation := ← `(__veil_instantiation_of% $modId $instTerm)
       «theory» := ← theoryTerm?.getDM `({}) }
     -- Elaborate the call as the execution commands do inside the module: with `Veil` open
-    -- (since `veil module` does it), and e.g. the scoped instances of the module's enums
-    ExecutionWorkflow.buildOnly { name := cmdName } stx (← `(term| open $(mkIdent `Veil):ident $modId:ident in $callExpr))
+    -- (since `veil module` does it), and the scoped instances of the module active, e.g. those of
+    -- its enums and the `ToJson` of its state. They are also needed by the code that `buildOnly`
+    -- puts around the call, e.g. to convert its result to JSON.
+    withOpenNamespaces [`Veil, em.name] do
+      ExecutionWorkflow.buildOnly { name := cmdName } stx callExpr
 
 @[command_elab Veil.modelCheckBuild]
 def elabModelCheckBuild : CommandElab := fun stx => do

@@ -11,6 +11,7 @@ type node
 type NodeSet
 instantiate nodeSet : TSet node NodeSet
 
+immutable individual limit : Nat
 individual finished : NodeSet
 
 #gen_state
@@ -24,7 +25,7 @@ action finish (n : node) {
   finished := nodeSet.insert n finished
 }
 
-invariant [bounded] nodeSet.count finished ≤ 32
+invariant [bounded] nodeSet.count finished ≤ limit
 
 #gen_spec
 
@@ -33,7 +34,10 @@ invariant [bounded] nodeSet.count finished ≤ 32
 end RunnerFixture
 
 -- Explores the 4 subsets of `Fin 2`
-#model_check_build RunnerFixture { node := Fin 2, NodeSet := OrdList _ }
+#model_check_build RunnerFixture { node := Fin 2, NodeSet := OrdList _ } { limit := 2 }
 
 -- Explores the 2^24 subsets of `Fin 24`: long enough to stop it while it runs
-#model_check_build RunnerFixture { node := Fin 24, NodeSet := OrdList _ }
+#model_check_build RunnerFixture { node := Fin 24, NodeSet := OrdList _ } { limit := 24 }
+
+-- Violates `bounded` once both nodes have finished
+#model_check_build RunnerFixture { node := Fin 2, NodeSet := OrdList _ } { limit := 1 }

@@ -156,16 +156,20 @@ test('the panel shows the progress of a running check', () => {
   };
   assertShows(render(snapshot({ progress, history: [point(0), point(1000)] })), [
     'Paxos', 'MCPaxos.lean:12', 'Running...', 'Stop', '8 workers', 'Diameter:', '123,456', '65,432',
-    'Elapsed time:', '1m 3.0s', 'Metrics History (2 samples, 1.0s)', 'Action Coverage (2 actions',
+    'Elapsed time:', '1m 3.0s', 'Metrics History (2 samples, 1.0s)', 'Graph', 'Table', 'Copy JSON',
+    'States Found', 'Queue Size', '<path class="chart-line"', 'Action Coverage (2 actions',
     '1 never enabled', 'send', '0 1', 'decide',
   ]);
 });
 
-test('the panel shows the result of a finished check', () => {
-  const result = { result: 'found_violation', violation: { kind: 'safety_failure', violates: ['bounded'] } };
-  const html = render(snapshot({ status: 'finished', endedAt: 5000, result, args: [] }));
-  assertShows(html, ['Violation: safety_failure (violates: bounded)', 'sequential', 'Copy JSON', 'found_violation']);
+test('the panel shows the result of a finished check with the widget of the infoview', () => {
+  const violation = { result: 'found_violation', violation: { kind: 'safety_failure', violates: ['bounded'] } };
+  const html = render(snapshot({ status: 'finished', endedAt: 5000, result: violation, args: [] }));
+  assertShows(html, ['Done!', 'sequential', 'Safety Violation Found', 'Violated properties', 'bounded', 'No trace available']);
   assert.ok(!html.includes('>Stop<'));
+  const success = { result: 'no_violation_found', explored_states: 4, termination_reason: { kind: 'explored_all_reachable_states' } };
+  assertShows(render(snapshot({ status: 'finished', endedAt: 5000, result: success })),
+    ['No Violation Found', 'Explored all reachable states (4)']);
 });
 
 test('the panel shows why a run failed or that it was stopped', () => {
@@ -206,14 +210,22 @@ function buildFixture(): Map<number, string> {
   return binaries;
 }
 
-let fixtureBinaries: Promise<{ small: string; large: string }> | undefined;
-function binaries(): Promise<{ small: string; large: string }> {
+interface FixtureBinaries {
+  small: string;
+  large: string;
+  violating: string;
+}
+
+let fixtureBinaries: Promise<FixtureBinaries> | undefined;
+function binaries(): Promise<FixtureBinaries> {
   fixtureBinaries ??= (async () => {
     const byLine = buildFixture();
     const sites = findBuildCommands(fs.readFileSync(path.join(repoRoot, fixture), 'utf8'));
-    const [small, large] = sites.map(s => byLine.get(s.line + 1));
-    if (!small || !large) throw new Error(`Lean did not report the binaries of ${fixture}: ${JSON.stringify([...byLine])}`);
-    return { small, large };
+    const [small, large, violating] = sites.map(s => byLine.get(s.line + 1));
+    if (!small || !large || !violating) {
+      throw new Error(`Lean did not report the binaries of ${fixture}: ${JSON.stringify([...byLine])}`);
+    }
+    return { small, large, violating };
   })();
   return fixtureBinaries;
 }
@@ -235,6 +247,18 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
       assert.deepStrictEqual([result.result, result.explored_states], ['no_violation_found', 4]);
     });
   }
+
+  test('a binary reports a violation with its trace, which the panel shows', async () => {
+    const outcome = await within(new CheckerRun({ binary: (await binaries()).violating, args: [] }).outcome,
+      60_000, 'The run');
+    assert.strictEqual(outcome.kind, 'finished');
+    const result = (outcome as { result: { result: string; violation: { violates: string[] }; trace: { states: unknown[] } } }).result;
+    assert.deepStrictEqual([result.result, result.violation.violates, result.trace.states.length],
+      ['found_violation', ['bounded'], 3]);
+    assertShows(render(snapshot({ status: 'finished', endedAt: 5000, result })),
+      // The theory section starts collapsed
+      ['Safety Violation Found', 'bounded', 'finished', 'Theory', '3 states in trace']);
+  });
 
   test('a run stops once its stdin is closed', async () => {
     let progress: Progress | undefined;
