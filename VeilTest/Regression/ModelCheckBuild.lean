@@ -28,11 +28,14 @@ run_cmd do
 /-- info: Model checker built: -/
 #guard_msgs (substring := true) in
 #model_check_build CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
-  { limit := 2 }
+  { limit := 1 }
 
--- The binary is copied out of its build folder, and runs from there
+-- The binary is copied out of its build folder, and runs from there. Its counterexample shows the
+-- states and the theory, whose `ToJson` instances are scoped in the module.
 open Lean Elab Command in
-/-- info: "no_violation_found", 4 states -/
+/--
+info: "found_violation" of ["bounded"], theory {"limit":1}, last state {"finished":["0","1"],"phase":"idle"}
+-/
 #guard_msgs in
 run_cmd do
   let dir := (← IO.currentDir) / ".lake" / "model_checkers"
@@ -44,7 +47,10 @@ run_cmd do
   let stdout ← child.stdout.readToEnd
   unless (← child.wait) == 0 do throwError "the binary failed"
   let result ← IO.ofExcept (Json.parse stdout)
-  logInfo m!"{result.getObjValD "result"}, {result.getObjValD "explored_states"} states"
+  let cex := result.getObjValD "trace"
+  let states ← IO.ofExcept (cex.getObjValAs? (Array Json) "states")
+  logInfo m!"{result.getObjValD "result"} of {(result.getObjValD "violation").getObjValD "violates"}, \
+    theory {(cex.getObjValD "theory").compress}, last state {(states.back!.getObjValD "fields").compress}"
 
 -- A hole that no default instance fills is reported at the instantiation
 /-- error: failed to synthesize instance of type class -/

@@ -1,9 +1,11 @@
 // The view of the panel. Its layout follows the progress viewer of the Lean infoview
 // (`Veil/Core/UI/Widget/ProgressViewer.lean`), under a header like that of TLC's extension. It
 // does not use the webview API, so that the tests can render it.
+import ModelCheckerView from '@veil/widget/traceDisplay';
 import * as React from 'react';
 import { ActionStat, VerdictKind, describeResult, modelCheckMetrics } from '../src/protocol';
 import { HistoryPoint, PanelMessage, RunSnapshot } from '../src/snapshot';
+import { CHART_CSS, MetricChart } from './chart';
 
 /** Sends a message to the extension */
 export const Send = React.createContext<(message: PanelMessage) => void>(() => {});
@@ -43,7 +45,8 @@ export function RunView({ run, now }: { run: RunSnapshot; now: number }) {
   const active = run.status === 'running' || run.status === 'stopping';
   const metrics = run.progress && modelCheckMetrics(run.progress);
   const elapsed = (run.endedAt ?? now) - run.startedAt;
-  return <div>
+  return <>
+  <div className="run">
     <div className="header">
       <div>
         <span className="title">{run.module}</span>
@@ -72,9 +75,10 @@ export function RunView({ run, now }: { run: RunSnapshot; now: number }) {
       {run.history.length >= 2 && <MetricsHistory history={run.history} />}
       {metrics && metrics.actionStats.length > 0 && <ActionCoverage stats={metrics.actionStats} />}
     </div>
-    {run.status === 'finished' && <ResultJson result={run.result} />}
     {run.status === 'failed' && <pre className="error-box">{run.error}</pre>}
-  </div>;
+  </div>
+  {run.status === 'finished' && <Result result={run.result} />}
+  </>;
 }
 
 function StatusLine({ run }: { run: RunSnapshot }) {
@@ -91,10 +95,9 @@ function StatusLine({ run }: { run: RunSnapshot }) {
       return <div className="status warning">Stopped</div>;
     case 'failed':
       return <div className="status error">Failed</div>;
-    case 'finished': {
-      const verdict = describeResult(run.result);
-      return <div className={`status ${verdictClass[verdict.kind]}`}>{verdict.text}</div>;
-    }
+    case 'finished':
+      // As in Lean, the result below gives the verdict
+      return <div className={`status ${verdictClass[describeResult(run.result).kind]}`}>Done!</div>;
   }
 }
 
@@ -102,24 +105,56 @@ function StatRow({ label, value }: { label: string; value: string }) {
   return <tr><td>{label}</td><td className="num">{value}</td></tr>;
 }
 
+const METRICS: { key: Exclude<keyof HistoryPoint, 'timeMs'>; title: string }[] = [
+  { key: 'diameter', title: 'Diameter' },
+  { key: 'statesFound', title: 'States Found' },
+  { key: 'distinctStates', title: 'Distinct States' },
+  { key: 'queue', title: 'Queue Size' },
+];
+
+/** The history as JSON, in the format of the infoview's "Copy JSON" */
+function historyJson(history: HistoryPoint[]): string {
+  return JSON.stringify(history.map(({ timeMs, diameter, statesFound, distinctStates, queue }) =>
+    ({ timeMs, timeStr: formatHMS(timeMs), diameter, statesFound, distinctStates, queue })));
+}
+
+/** The history as charts, or as TLC's table of states, as in the infoview */
 function MetricsHistory({ history }: { history: HistoryPoint[] }) {
+  const [view, setView] = React.useState<'graph' | 'table'>('graph');
+  const [copied, setCopied] = React.useState(false);
+  const copy = () => void navigator.clipboard.writeText(historyJson(history)).then(() => {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  });
   const span = history[history.length - 1].timeMs - history[0].timeMs;
   return <details>
     <summary>Metrics History ({history.length} samples, {formatElapsed(span)})</summary>
-    <div className="scroll">
-      <table className="history">
-        <thead><tr><th>Time</th><th>Diameter</th><th>Found</th><th>Distinct</th><th>Queue</th></tr></thead>
-        <tbody>
-          {history.map((point, i) => <tr key={i}>
-            <td>{formatHMS(point.timeMs)}</td>
-            <td>{count(point.diameter)}</td>
-            <td>{count(point.statesFound)}</td>
-            <td>{count(point.distinctStates)}</td>
-            <td>{count(point.queue)}</td>
-          </tr>)}
-        </tbody>
-      </table>
+    <div className="history-toolbar">
+      <div className="toggle">
+        <button className={view === 'graph' ? 'primary' : ''} onClick={() => setView('graph')}>Graph</button>
+        <button className={view === 'table' ? 'primary' : ''} onClick={() => setView('table')}>Table</button>
+      </div>
+      <button onClick={copy}>{copied ? 'Copied!' : 'Copy JSON'}</button>
     </div>
+    {view === 'graph'
+      ? <div className="charts">
+          {METRICS.map(({ key, title }) => <MetricChart key={key} title={title}
+            points={history.map(point => ({ timeMs: point.timeMs, value: point[key] }))} />)}
+        </div>
+      : <div className="scroll">
+          <table className="history">
+            <thead><tr><th>Time</th><th>Diameter</th><th>Found</th><th>Distinct</th><th>Queue</th></tr></thead>
+            <tbody>
+              {history.map((point, i) => <tr key={i}>
+                <td>{formatHMS(point.timeMs)}</td>
+                <td>{count(point.diameter)}</td>
+                <td>{count(point.statesFound)}</td>
+                <td>{count(point.distinctStates)}</td>
+                <td>{count(point.queue)}</td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>}
   </details>;
 }
 
@@ -190,14 +225,12 @@ function ActionCoverage({ stats }: { stats: ActionStat[] }) {
   </details>;
 }
 
-function ResultJson({ result }: { result: unknown }) {
-  const send = React.useContext(Send);
-  const text = JSON.stringify(result, null, 2);
-  return <details open={describeResult(result).kind === 'violation'}>
-    <summary>Result</summary>
-    <button className="copy" onClick={() => send({ type: 'copy', text })}>Copy JSON</button>
-    <pre className="raw">{text}</pre>
-  </details>;
+/** The result of a finished run, as `mkFinalResultHtml` shows it in Lean */
+function Result({ result }: { result: unknown }) {
+  const fields = typeof result === 'object' && result !== null ? result as Record<string, unknown> : {};
+  if (fields.error !== undefined && fields.error !== null) return <pre className="error-box">{String(fields.error)}</pre>;
+  if (Object.keys(fields).length === 0) return <p className="warning"><i>No result data available</i></p>;
+  return <div className="result"><ModelCheckerView result={result} layout="vertical" kind="modelCheck" /></div>;
 }
 
 export function NoRun() {
@@ -217,33 +250,33 @@ body {
 }
 .muted { color: var(--vscode-descriptionForeground); }
 .mono { font-family: var(--vscode-editor-font-family); font-size: 12px; margin-top: 8px; }
-.header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-top: 12px; }
+.run .header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-top: 12px; }
 .title { font-size: 1.3em; font-weight: bold; margin-right: 8px; }
 .source { color: var(--vscode-textLink-foreground); cursor: pointer; }
 .actions { display: flex; gap: 6px; }
-button {
+.run button {
   color: var(--vscode-button-secondaryForeground);
   background: var(--vscode-button-secondaryBackground);
   border: none; border-radius: 2px; padding: 3px 10px; cursor: pointer; font-family: inherit;
 }
-button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
-button:disabled { opacity: 0.5; cursor: default; }
-button.primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
-button.primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+.run button:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
+.run button:disabled { opacity: 0.5; cursor: default; }
+.run button.primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
+.run button.primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
 .status { margin: 10px 0 4px; font-weight: bold; display: flex; align-items: center; gap: 12px; }
 .status.running { color: var(--vscode-charts-blue, #3794ff); font-weight: normal; }
 .status.success { color: var(--vscode-testing-iconPassed, #3fb950); }
 .status.error { color: var(--vscode-errorForeground); }
 .status.warning, .warning { color: var(--vscode-editorWarning-foreground, #cc6600); }
-table.stats { border-collapse: collapse; }
-table.stats td { padding: 1px 12px 1px 0; }
+.run table.stats { border-collapse: collapse; }
+.run table.stats td { padding: 1px 12px 1px 0; }
 .num { text-align: right; }
-details { margin-top: 8px; }
-summary { cursor: pointer; color: var(--vscode-descriptionForeground); }
+.run details { margin-top: 8px; }
+.run summary { cursor: pointer; color: var(--vscode-descriptionForeground); }
 .scroll { max-height: 300px; overflow: auto; margin-top: 4px; }
-table.history { border-collapse: collapse; width: 100%; }
-table.history th, table.history td { padding: 2px 8px; text-align: right; border-bottom: 1px solid var(--vscode-panel-border); }
-table.history th { position: sticky; top: 0; background: var(--vscode-editor-background); }
+.run table.history { border-collapse: collapse; width: 100%; }
+.run table.history th, .run table.history td { padding: 2px 8px; text-align: right; border-bottom: 1px solid var(--vscode-panel-border); }
+.run table.history th { position: sticky; top: 0; background: var(--vscode-editor-background); }
 .coverage { margin-top: 4px; }
 .coverage details { margin-top: 0; }
 .coverage-row { display: grid; grid-template-columns: 1fr 80px 70px; gap: 8px; padding: 1px 0; color: var(--vscode-foreground); }
@@ -259,10 +292,8 @@ table.history th { position: sticky; top: 0; background: var(--vscode-editor-bac
   border: 1px solid var(--vscode-inputValidation-errorBorder);
   background: var(--vscode-inputValidation-errorBackground);
 }
-button.copy { margin: 6px 0; }
-pre.raw {
-  max-height: 400px; overflow: auto; margin: 0; padding: 8px;
-  background: var(--vscode-textBlockQuote-background);
-  font-family: var(--vscode-editor-font-family); font-size: 12px;
-}
-`;
+.result { margin-top: 12px; }
+.history-toolbar { display: flex; justify-content: space-between; margin: 6px 0 8px; }
+.toggle { display: flex; gap: 4px; }
+.charts { max-width: 720px; }
+${CHART_CSS}`;

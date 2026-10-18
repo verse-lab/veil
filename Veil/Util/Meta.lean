@@ -810,4 +810,36 @@ elab "remove_unused_binders% " binders:bracketedBinder* "=>" val:term : term => 
     let valExpr ← instantiateMVars valExpr
     mkLambdaFVars vs valExpr (usedOnly := true)
 
+/-- Run the command elaboration action `x` with the namespaces `nss` temporarily open.
+
+The names in `nss` are **used directly as namespace names**; this function does not resolve or
+validate them as the `open` command would. It leaves the current namespace unchanged and:
+
+* adds the namespaces to the command scope's `openDecls` for name resolution;
+* activates their scoped declarations, including instances, notation, and attributes;
+* restores the surrounding command scope and pops the temporary scoped-environment layer when
+  `x` returns or throws. Declarations and global environment changes made by `x` are not rolled back.
+
+This changes the environment in which `x` executes, so terms that `x` elaborates through
+`Command.liftTermElabM` also see the open namespaces and active scoped declarations. A term-level
+`open N in e` covers only the expression `e`. If `x` inserts that term into a larger generated
+expression, additional code outside `e` is outside that `open` scope. For example, opening a
+namespace only around a function being applied does not cover a callback argument containing
+`Lean.toJson result`, which may need a scoped instance from that namespace. This helper makes
+the scope available while elaborating the whole generated expression.
+
+An asynchronous action wrapped with `Command.wrapAsync` or `Command.wrapAsyncAsSnapshot` inside
+`x` captures the current command context and state, including the environment and scopes. It can
+therefore keep using the opened namespaces and scoped declarations after this function returns
+and restores the caller's scope. This relies on capturing that state inside `x`; merely starting
+an arbitrary background task does not provide this guarantee.
+-/
+def withOpenNamespaces {α : Type} (nss : List Name) (x : CommandElabM α) : CommandElabM α := do
+  try
+    Lean.pushScope
+    for ns in nss do activateScoped ns
+    withScope (fun scope => { scope with openDecls := nss.map (OpenDecl.simple · []) ++ scope.openDecls }) x
+  finally
+    Lean.popScope
+
 end Veil

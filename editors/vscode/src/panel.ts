@@ -61,9 +61,6 @@ export class ModelCheckPanel implements vscode.Disposable {
       case 'openSource':
         this.actions.openSource();
         break;
-      case 'copy':
-        void vscode.env.clipboard.writeText(message.text);
-        break;
     }
   }
 

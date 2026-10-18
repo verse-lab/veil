@@ -40,8 +40,7 @@ export type PanelMessage =
   | { type: 'stop' }
   | { type: 'runAgain' }
   | { type: 'showOutput' }
-  | { type: 'openSource' }
-  | { type: 'copy'; text: string };
+  | { type: 'openSource' };
 
 /** The messages that the extension sends to the panel. */
 export type ExtensionMessage = { type: 'state'; state: RunSnapshot | null };
