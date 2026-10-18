@@ -199,6 +199,16 @@ private def splitActionName (name : String) : String × String :=
   | [base] => (base, "")
   | base :: rest => (base, " ".intercalate rest)
 
+/-- Natural order for displayed arguments: compare digit runs as natural numbers.
+Other characters keep their lexical order; this does not interpret Lean terms. -/
+private def compareActionArgs (lhs rhs : String) : Ordering :=
+  let parts (s : String) :=
+    (s.toList.splitBy (fun a b => a.isDigit && b.isDigit)).map String.ofList
+  List.compareLex (fun a b =>
+    match a.toNat?, b.toNat? with
+    | some n, some m => compare n m
+    | _, _ => compare a b) (parts lhs) (parts rhs)
+
 /-- Grouped action statistics for display. -/
 structure ActionGroup where
   baseName : String
@@ -225,7 +235,9 @@ private def groupActionStats (stats : List ActionStatDisplay) : List ActionGroup
         [stat]
       ⟩
   grouped.toList.map (·.2)
-    |>.map (fun g => ⟨g.baseName, g.totalGenerated, g.totalDistinct, g.variants.reverse.mergeSort (·.name < ·.name)⟩)
+    |>.map (fun g => ⟨g.baseName, g.totalGenerated, g.totalDistinct,
+      g.variants.reverse.mergeSort fun a b =>
+        (compareActionArgs (splitActionName a.name).2 (splitActionName b.name).2).isLE⟩)
     |>.mergeSort (·.baseName < ·.baseName)
 
 /-- Base grid row style for action coverage. -/
