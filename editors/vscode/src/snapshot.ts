@@ -14,6 +14,21 @@ export interface HistoryPoint {
   queue: number;
 }
 
+/** Where a declaration of a module is, as Lean gives it: a file, and an LSP position in it */
+export interface DeclSource {
+  /** The name that results give it */
+  name: string;
+  file: string;
+  line: number;
+  character: number;
+}
+
+/** Where the declarations of the module of a run are: the JSON of `Veil.ModuleSources` */
+export interface ModuleSources {
+  actions: DeclSource[];
+  properties: DeclSource[];
+}
+
 export interface RunSnapshot {
   /** The module that is checked */
   module: string;
@@ -27,6 +42,8 @@ export interface RunSnapshot {
   endedAt?: number;
   /** The labels of all actions, from the start report of the binary */
   actionLabels?: string[];
+  /** Where the actions and properties of the module are, if Lean said when the run started */
+  sources?: ModuleSources;
   /** The last progress that the binary reported */
   progress?: Progress;
   history: HistoryPoint[];
@@ -75,7 +92,8 @@ export type PanelMessage =
   | { type: 'runAgain' }
   | { type: 'export' }
   | { type: 'showOutput' }
-  | { type: 'openSource' };
+  | { type: 'openSource' }
+  | { type: 'openLocation'; location: DeclSource };
 
 /** The messages that the extension sends to the panel. */
 export type ExtensionMessage = { type: 'state'; state: PanelState | null };

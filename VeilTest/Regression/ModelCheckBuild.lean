@@ -152,3 +152,29 @@ but is expected to have type
 /-- info: Model checker built: -/
 #guard_msgs (substring := true) in
 #model_check_build CheckedElsewhere { node := _, NodeSet := OrdList (Fin 2), Buffer := _ } { limit := 2 }
+
+-- Where the actions and the properties of `CheckedElsewhere` are, which the VS Code extension links
+-- the results to
+open Lean Meta in
+/--
+info: #[after_init at ModelCheckBuildHelper.lean:36:0, finish at ModelCheckBuildHelper.lean:41:0]
+#[bounded at ModelCheckBuildHelper.lean:47:0]
+-/
+#guard_msgs in
+#eval show MetaM Unit from do
+  let some em ← Veil.getExecutableModule? `CheckedElsewhere | throwError "no executable definitions"
+  let describe (source : Veil.DeclSource) :=
+    s!"{source.name} at {(System.FilePath.mk source.file).fileName.getD ""}:{source.line}:{source.character}"
+  IO.println (em.actionSources.map describe)
+  IO.println (em.propertySources.map describe)
+
+-- The sources that results give the infoview within a module, which link its trace to them: with the
+-- URIs of their files, where a relative file is in the workspace
+open Lean in
+/--
+info: {"actions":[{"character":0,"line":36,"name":"after_init","uri":"file:///repo/M.lean"}],"properties":[{"character":2,"line":47,"name":"bounded","uri":"file:///repo/Examples/M.lean"}]}
+-/
+#guard_msgs in
+#eval IO.println (Veil.ExecutionWorkflow.infoviewSources
+  #[{ name := "after_init", file := "/repo/M.lean", line := 36, character := 0 }]
+  #[{ name := "bounded", file := "Examples/M.lean", line := 47, character := 2 }] "/repo").compress

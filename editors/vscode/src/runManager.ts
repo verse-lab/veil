@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { describeResult } from './protocol';
 import { ResultStore, RunSource } from './resultStore';
 import { CheckerRun, parallelArgs } from './runner';
-import { RunSnapshot, recordHistory } from './snapshot';
+import { ModuleSources, RunSnapshot, recordHistory } from './snapshot';
 
 /** A `#model_check_build` command whose binary is ready. */
 export interface RunTarget {
@@ -16,6 +16,8 @@ export interface RunTarget {
   binary: string;
   /** The arguments of the binary, if the user chose them for this run, instead of the settings */
   args?: string[];
+  /** Where the actions and properties of the module are */
+  sources?: ModuleSources;
 }
 
 export function sourceOf(target: RunTarget): RunSource {
@@ -70,6 +72,7 @@ export class RunManager implements vscode.Disposable {
       args,
       status: 'running',
       startedAt: Date.now(),
+      sources: target.sources,
       history: [],
     };
     this.output.clear();

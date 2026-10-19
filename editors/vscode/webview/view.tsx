@@ -2,10 +2,10 @@
 // (`Veil/Core/UI/Widget/ProgressViewer.lean`), under a header like that of TLC's extension. It
 // does not use the webview API, so that the tests can render it.
 import ModelCheckerView from '@veil/widget/traceDisplay';
-import { formatValue, logicalCtor } from '@veil/widget/veilUtils';
+import { OpenSource, OpenSourceContext, SourceLink, formatValue, logicalCtor } from '@veil/widget/veilUtils';
 import * as React from 'react';
 import { ActionStat, VerdictKind, describeResult, modelCheckMetrics } from '../src/protocol';
-import { HistoryPoint, PanelMessage, RunOrigin, RunSnapshot } from '../src/snapshot';
+import { HistoryPoint, ModuleSources, PanelMessage, RunOrigin, RunSnapshot } from '../src/snapshot';
 import { CHART_CSS, MetricChart } from './chart';
 
 /** Sends a message to the extension */
@@ -56,7 +56,23 @@ export interface RunViewProps {
   outdated?: boolean;
 }
 
-export function RunView({ run, now, origin = 'live', fileName, canRunAgain = true, outdated = false }: RunViewProps) {
+/** Opens the sources of the actions and properties of `sources` */
+function sourceOpener(sources: ModuleSources | undefined, send: (message: PanelMessage) => void): OpenSource | undefined {
+  if (!sources) return undefined;
+  return (kind, name) => {
+    const location = (kind === 'action' ? sources.actions : sources.properties).find(source => source.name === name);
+    return location && (() => send({ type: 'openLocation', location }));
+  };
+}
+
+export function RunView(props: RunViewProps) {
+  const send = React.useContext(Send);
+  const openSource = React.useMemo(() => sourceOpener(props.run.sources, send), [props.run.sources, send]);
+  // The links of the trace and of the coverage to the module
+  return <OpenSourceContext.Provider value={openSource}><RunContent {...props} /></OpenSourceContext.Provider>;
+}
+
+function RunContent({ run, now, origin = 'live', fileName, canRunAgain = true, outdated = false }: RunViewProps) {
   const send = React.useContext(Send);
   const active = run.status === 'running' || run.status === 'stopping';
   const metrics = run.progress && modelCheckMetrics(run.progress);
@@ -232,7 +248,7 @@ function ActionCoverage({ stats, labels }: { stats: ActionStat[]; labels: string
       <div className="coverage-row heading"><span>Action</span><span>Generated</span><span>Distinct</span></div>
       {groups.map(group => {
         const cells = <>
-          <span>{group.name}</span>
+          <span><SourceLink kind="action" name={group.name}>{group.name}</SourceLink></span>
           <span className="num">{count(group.generated)}</span>
           <span className="num">{count(group.distinct)}</span>
         </>;

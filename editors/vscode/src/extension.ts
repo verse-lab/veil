@@ -6,11 +6,26 @@ import { findBuildCommands } from './buildCommands';
 import { checkModel, createConfig } from './checkModel';
 import { BuildCommand, BuildCommandLenses, buildCommandsOf, outcomeIcons } from './codeLens';
 import { ConfigTemplate } from './configTemplate';
+import { askLean } from './leanQueries';
 import { ModelCheckPanel, PanelContent } from './panel';
 import { FORMAT_VERSION, Freshness, ResultStore, RunSource, SavedRun, freshness, parseRunFile } from './resultStore';
 import { RunManager, RunTarget, sourceOf } from './runManager';
 import { parallelArgs, parseRunOptions } from './runner';
-import { describeRun } from './snapshot';
+import { DeclSource, ModuleSources, describeRun } from './snapshot';
+
+/** The kind of the code action that gives where the declarations of a module are, as `moduleSourcesKind` in Lean */
+const MODULE_SOURCES_KIND = 'refactor.veil.modelCheckSources';
+/** How long a run waits for Lean to say where the declarations of its module are, before it starts
+ * without */
+const SOURCES_TIMEOUT_MS = 2000;
+
+/** Where the declarations of the module of `target` are, as Lean says for its command */
+async function requestSources(target: RunTarget): Promise<ModuleSources | undefined> {
+  const asked = vscode.workspace.openTextDocument(target.uri)
+    .then(document => askLean(document, target.line, MODULE_SOURCES_KIND, 'veil.modelCheck.sources'))
+    .then(args => args?.[0] as ModuleSources | undefined, () => undefined);
+  return Promise.race([asked, new Promise<undefined>(resolve => setTimeout(resolve, SOURCES_TIMEOUT_MS))]);
+}
 
 function firstLine(text: string): string {
   return text.split('\n', 1)[0];
@@ -81,6 +96,17 @@ async function pickRunOptions(): Promise<string[] | undefined> {
   return Array.isArray(args) ? args : undefined;
 }
 
+/** Open the file of an action or a property of a module at it */
+async function openLocation(location: DeclSource): Promise<void> {
+  const position = new vscode.Position(location.line, location.character);
+  try {
+    await vscode.window.showTextDocument(vscode.Uri.file(path.normalize(location.file)),
+      { selection: new vscode.Range(position, position), viewColumn: vscode.ViewColumn.One, preview: false });
+  } catch {
+    void vscode.window.showWarningMessage(`${location.file} cannot be opened.`);
+  }
+}
+
 /** Open the file of `source` at its command, wherever the command is now in the file */
 async function revealSource(source: RunSource): Promise<vscode.TextDocument | undefined> {
   let document: vscode.TextDocument;
@@ -107,7 +133,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
   statusBar.command = 'veil.modelCheck.showPanel';
 
-  const start = (target: RunTarget): void => {
+  const start = async (target: RunTarget): Promise<void> => {
     if (runs.isRunning) {
       void vscode.window.showWarningMessage('Another model check is running.', 'Show')
         .then(choice => choice && panel.showLive(false));
@@ -120,7 +146,10 @@ export function activate(context: vscode.ExtensionContext): void {
         .then(choice => choice && vscode.commands.executeCommand('lean4.restartFile'));
       return;
     }
-    runs.start(target);
+    const sources = await requestSources(target);
+    // Another run may have started meanwhile
+    if (runs.isRunning) return;
+    runs.start({ ...target, sources });
     panel.showLive(true);
   };
 
@@ -135,7 +164,7 @@ export function activate(context: vscode.ExtensionContext): void {
           'Show Problems').then(choice => choice && vscode.commands.executeCommand('workbench.actions.view.problems'));
         return;
       case 'built':
-        start({ uri: document.uri, line: site.line, module: site.module, command: site.command, binary: status.binary, args });
+        void start({ uri: document.uri, line: site.line, module: site.module, command: site.command, binary: status.binary, args });
     }
   };
 
@@ -162,7 +191,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const runAgain = async (): Promise<void> => {
     // After a reload, the last run is the one saved last
     const newest = store.newest();
-    if (runs.lastTarget) start(runs.lastTarget);
+    if (runs.lastTarget) void start(runs.lastTarget);
     else if (newest) {
       const saved = await store.read(newest.source);
       if (saved) await runSource(newest.source, saved.run.args);
@@ -235,6 +264,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const source = shown.origin === 'live' ? runs.lastTarget && sourceOf(runs.lastTarget) : shown.saved.source;
       if (source) void revealSource(source);
     },
+    openLocation: location => void openLocation(location),
   }, freshnessOf);
   const lenses = new BuildCommandLenses(runs, store);
 

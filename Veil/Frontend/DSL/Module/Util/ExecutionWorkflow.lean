@@ -37,6 +37,9 @@ private structure ExecutionContext where
   parallelCfg : Option ModelChecker.ParallelConfig
   /-- Which command owns this context; selects the infoview renderer. -/
   resultKind : TraceDisplay.ResultKind
+  /-- Where the actions and the properties of the module are, which the result gives the infoview,
+  if known -/
+  sources : Json := .null
 
 /-- Report compilation failures without stopping an interpreted run during handoff.
 Interruptions produce no diagnostic: a killed build returns `none`, and an interrupt raised
@@ -73,6 +76,32 @@ def actionLabelNames (mod : Module) : List String :=
   mod.actions.toList.map fun a => match a.name.eraseMacroScopes with
     | .str _ s => s
     | n => toString n
+
+/-- Where the actions and the properties of `mod` are in this file, by the names that model checking
+results give them. -/
+def getDeclSources (mod : Module) : CommandElabM (Array DeclSource × Array DeclSource) := do
+  let actions ← mod.procedures.filterMapM fun p => match p.info with
+    -- Traces name the initial step `after_init`
+    | .initializer => source "after_init" p.userSyntax
+    | .action name _ => source name.toString p.userSyntax
+    | .procedure _ => pure none
+  let assertions ← mod.assertions.filterMapM fun a => source a.name.toString a.userSyntax
+  return (actions, assertions)
+where
+  source (name : String) (stx : Syntax) : CommandElabM (Option DeclSource) := do
+    let some pos := stx.getPos? | return none
+    let position := (← getFileMap).utf8PosToLspPos pos
+    return some { name, file := ← getFileName, line := position.line, character := position.character }
+
+/-- The sources of the actions and the properties of a module, as the trace display of the infoview
+links to them (see `widget/src/traceDisplayInfoview.tsx`): with the URIs of their files, a relative
+file being in `workspace`. -/
+def infoviewSources (actions properties : Array DeclSource) (workspace : System.FilePath) : Json :=
+  let entry (source : DeclSource) :=
+    let file : System.FilePath := source.file
+    json% { name: $(source.name), uri: $(System.Uri.pathToUri (if file.isAbsolute then file else workspace / file)),
+            line: $(source.line), character: $(source.character) }
+  json% { actions: $(actions.map entry), properties: $(properties.map entry) }
 
 /-- Stable identity for a single compiled command invocation within a file. -/
 private def getCompiledCommandId (cmdName : String) (stx : Syntax) : CommandElabM String := do
@@ -288,7 +317,9 @@ private def allocExecutionContext (mod : Module) (stx : Syntax)
       pure <|.modelCheck { allActionLabels := actionLabels }
   let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance details
   let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
-  return { stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind }
+  let (actions, properties) ← getDeclSources mod
+  let sources := infoviewSources actions properties (← IO.currentDir)
+  return { stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind, sources }
 
 /-- Handle errors in model checking computations. -/
 private def handleModelCheckError (ctx : ExecutionContext) (e : Exception) : CommandElabM Unit := do
@@ -305,6 +336,8 @@ private def finishWithResult (ctx : ExecutionContext) (json : Json) : CommandEla
   -- publishing a verdict; `checkCancelled` still permits a verdict during handoff.
   if ← checkCancelled ctx.cancelToken ctx.instanceId then return
   let json := enrichJsonWithAssertions json ctx.assertionSources
+  -- For the trace display of the infoview to link the actions and the properties to their sources
+  let json := if json matches .obj _ && !ctx.sources.isNull then json.setObjVal! "sources" ctx.sources else json
   logModelCheckResult ctx.resultKind ctx.stx json
   ModelChecker.Concrete.finishProgress ctx.instanceId json
 

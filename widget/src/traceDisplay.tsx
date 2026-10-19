@@ -3,7 +3,10 @@ import { createPortal } from 'react-dom';
 import { DocumentPosition } from '@leanprover/infoview';
 import {
   ChangeInfo,
+  SourceLink,
+  actionName,
   diffChanges,
+  joinNodes,
   CopyButton,
   fieldsObject,
   formatActionLabel,
@@ -29,6 +32,7 @@ import HtmlDisplay, { Html } from './htmlDisplay';
 interface ParsedState {
   index: number;
   tag?: string; // Optional tag associated with this state (e.g. transition/action label)
+  action?: string; // The name of the action of the transition, for a link to its source
   fields: Record<string, unknown>;
   failing?: boolean; // True if an assertion failed while executing the transition to this state
   choices?: unknown[]; // The picks that led to this state, each a named value (`formatChoice`)
@@ -359,7 +363,7 @@ const StateCard: React.FC<{
     <div className={`state-card ${highlighted ? "is-highlighted" : ""} ${isFailing ? "is-failing" : ""}`}>
       <div className="state-header" onClick={handleHeaderClick}>
         <HoverInfo description={actionDescription}>
-          <span className="action-chip">{st.tag || '(no action)'}</span>
+          <span className="action-chip"><SourceLink kind="action" name={st.action}>{st.tag || '(no action)'}</SourceLink></span>
         </HoverInfo>
         {isFailing && <span className="failing-badge">FAILED</span>}
         <span className="state-id">(index: {st.index})</span>
@@ -497,7 +501,8 @@ const ResultHeader: React.FC<{
         <span className="result-label">{label}</span>
         {(violation.kind === "safety_failure" || violation.kind === "assumption_failure") && violation.violates && violation.violates.length > 0 && (
           <div className="result-details">
-            <strong>{violation.kind === "assumption_failure" ? "Violated assumptions" : "Violated properties"}:</strong> {violation.violates.join(", ")}
+            <strong>{violation.kind === "assumption_failure" ? "Violated assumptions" : "Violated properties"}:</strong>{" "}
+            {joinNodes(violation.violates.map((name) => <SourceLink kind="property" name={name}>{name}</SourceLink>))}
           </div>
         )}
         {violation.kind === "assertion_failure" && violation.assertion_info && (
@@ -569,6 +574,7 @@ function traceDataToStates(traceData: TraceData): ParsedState[] {
   return traceData.states.map((st) => ({
     index: st.index,
     tag: formatActionLabel(st.transition),
+    action: actionName(st.transition),
     fields: fieldsObject(st.fields),
     failing: st.failing,
     choices: st.choices,
@@ -798,6 +804,8 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     }
     .kv-content { display: block; }
     .action-chip { cursor: default; }
+    .source-link { cursor: pointer; color: inherit; text-decoration: underline dotted; }
+    .source-link:hover { text-decoration: underline; }
     .state-choices {
       margin-bottom: 10px;
       padding: 8px 10px;
