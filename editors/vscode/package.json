@@ -140,6 +140,7 @@
   },
   "scripts": {
     "build": "node esbuild.mjs",
+    "build-production": "node esbuild.mjs --production",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "node esbuild.mjs --tests && node out/test/runTests.js"

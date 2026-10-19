@@ -4,6 +4,12 @@ Runs the model checkers that `#model_check_build` builds, and shows their progre
 and results. See [ModelChecker-VSCode-Architecture.md](../../docs/ModelChecker-VSCode-Architecture.md)
 for what the extension does and what Lean does.
 
+## Install
+
+Run `lake script run veilInstallVSCodeExtension` in a workspace that uses Veil,
+reload the window, and choose Install when VS Code offers the recommended
+extensions. See [Installing the Extension](../../docs/ModelChecker-VSCode-Architecture.md#installing-the-extension).
+
 ## Use
 
 Write a config file that imports a module with `#gen_executable`, and build a model
