@@ -5,8 +5,9 @@ meta import Lean.Util.LakePath
 public meta import Veil.Frontend.DSL.Module.Syntax
 public meta import Veil.Frontend.DSL.Module.Util.Instantiation
 
-/-! The template of a config file, which builds the model checker of a module with
-`#model_check_build` in another file. The VS Code extension of Veil asks for it with a code action. -/
+/-! What the VS Code extension of Veil asks Lean for with code actions: the template of a config file,
+which builds the model checker of a module with `#model_check_build` in another file, and where the
+declarations of the module of such a command are. -/
 
 public meta section
 
@@ -86,5 +87,34 @@ def configTemplateCodeAction : CodeAction.CommandCodeAction := fun params snap c
       title := "Create a model checking config"
       command := "veil.modelCheck.createConfig"
       arguments? := #[toJson template, toJson params.textDocument.uri] } } }]
+
+/-- Where the declarations of a module are, by the names that model checking results give them -/
+structure ModuleSources where
+  actions : Array DeclSource
+  properties : Array DeclSource
+  deriving ToJson
+
+/-- The kind of the code action that gives where the declarations of the module of a
+`#model_check_build` command are. As with `configTemplateKind`, only a request for it gets it, and it
+is a `refactor` kind for VS Code to ask Lean. -/
+def moduleSourcesKind : String := "refactor.veil.modelCheckSources"
+
+@[command_code_action Veil.modelCheckBuild]
+def moduleSourcesCodeAction : CodeAction.CommandCodeAction := fun params snap _ node => do
+  unless params.context.only?.any (·.contains moduleSourcesKind) do return #[]
+  let .node (.ofCommandInfo info) _ := node | return #[]
+  let some em := (executableModuleExt.getState snap.env)[info.stx[1].getId]? | return #[]
+  -- The file of a module that `lake build` built is relative to the workspace, where the server is
+  let workspace ← IO.currentDir
+  let absolute (source : DeclSource) : DeclSource :=
+    let file : System.FilePath := source.file
+    { source with file := (if file.isAbsolute then file else workspace / file).toString }
+  let sources : ModuleSources :=
+    { actions := em.actionSources.map absolute, properties := em.propertySources.map absolute }
+  return #[{ eager := {
+    title := s!"Where the declarations of {em.name} are"
+    kind? := moduleSourcesKind
+    -- The extension reads the arguments of the command, and does not run it
+    command? := some { title := "", command := "veil.modelCheck.sources", arguments? := #[toJson sources] } } }]
 
 end Veil

@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import { BuildCommandSite, VeilModuleSite, findBuildCommands, findVeilModules } from './buildCommands';
 import { BuildCommand, buildCommandsOf } from './codeLens';
 import { ConfigTemplate, SnippetPart, configCommand, configFileFor, configHeader, isOfModule } from './configTemplate';
+import { askLean } from './leanQueries';
 
 /** The kind of the code action that gives the template, as `configTemplateKind` in Lean */
 const CONFIG_TEMPLATE_KIND = 'refactor.veil.modelCheckConfig';
@@ -69,15 +70,7 @@ async function findConfigs(name: string): Promise<{ uri: vscode.Uri; site: Build
 /** The template of a config file for the module of `document`, from the code action that Lean gives
  * at its `#gen_executable`, on `line` */
 async function requestTemplate(document: vscode.TextDocument, line: number): Promise<ConfigTemplate | undefined> {
-  // Lean answers with the command that ends at the end of the range or after it: at the start of
-  // the line, that would be the command before
-  const actions = await vscode.commands.executeCommand<(vscode.CodeAction | vscode.Command)[]>(
-    'vscode.executeCodeActionProvider', document.uri, document.lineAt(line).range, CONFIG_TEMPLATE_KIND) ?? [];
-  for (const action of actions) {
-    const command = typeof action.command === 'string' ? action as vscode.Command : (action as vscode.CodeAction).command;
-    if (command?.command === 'veil.modelCheck.createConfig') return command.arguments?.[0] as ConfigTemplate;
-  }
-  return undefined;
+  return (await askLean(document, line, CONFIG_TEMPLATE_KIND, 'veil.modelCheck.createConfig'))?.[0] as ConfigTemplate | undefined;
 }
 
 function toSnippet(parts: SnippetPart[]): vscode.SnippetString {

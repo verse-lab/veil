@@ -234,6 +234,34 @@ export function dequalify(s: string): string {
 }
 
 /** Format an action/label object like {"recv": {"sender": 2}} into "recv(sender = 2)" */
+/** The name of the action of a transition, e.g. `send` for `{"send": {"n": 1}}`, as in `formatActionLabel` */
+export function actionName(label: unknown): string | undefined {
+  if (typeof label === "string") return label;
+  if (typeof label !== "object" || label === null) return undefined;
+  const keys = Object.keys(label);
+  return keys.length === 1 ? keys[0] : undefined;
+}
+
+/** Opens the source of an action or of a property, by the name that the results give it, where the
+ * host of a widget can. The VS Code extension of Veil can; the infoview provides none. */
+export type OpenSource = (kind: "action" | "property", name: string) => (() => void) | undefined;
+
+export const OpenSourceContext = React.createContext<OpenSource | undefined>(undefined);
+
+/** `children`, as a link to the source of an action or of a property when the host can open it */
+export const SourceLink: React.FC<React.PropsWithChildren<{ kind: "action" | "property"; name?: string }>> =
+    ({ kind, name, children }) => {
+  const openSource = React.useContext(OpenSourceContext);
+  const open = name === undefined ? undefined : openSource?.(kind, name);
+  if (!open) return <>{children}</>;
+  return (
+    // Neither the header that it is in nor a `summary` toggles
+    <a className="source-link" title="Go to the source" onClick={(e) => { e.preventDefault(); e.stopPropagation(); open(); }}>
+      {children}
+    </a>
+  );
+};
+
 export function formatActionLabel(label: unknown): string {
   if (typeof label === "string") {
     return label;

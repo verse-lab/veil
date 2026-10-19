@@ -13,7 +13,7 @@ import { ConfigTemplate, configCommand, configFileFor, configHeader, isOfModule,
 import { Progress, StartReport, describeResult, modelCheckMetrics, parseProgressLine, parseStartLine } from '../src/protocol';
 import { FORMAT_VERSION, ResultStore, RunSource, freshness, parseRunFile } from '../src/resultStore';
 import { CheckerRun, parallelArgs, parseRunOptions } from '../src/runner';
-import { HistoryPoint, RunSnapshot, describeRun, recordHistory } from '../src/snapshot';
+import { HistoryPoint, ModuleSources, RunSnapshot, describeRun, recordHistory } from '../src/snapshot';
 import { NoRun, RunView, RunViewProps } from '../webview/view';
 import { pathToFileURL } from 'url';
 import { LeanServer } from './leanServer';
@@ -282,6 +282,49 @@ test('the panel tells a saved run, or one from a file, from a run of this window
   const running = view({ run: snapshot({}) });
   assertShows(running, ['<button class="primary" disabled="">Check again</button>']);
   assert.ok(!running.includes('Export...'));
+});
+
+test('the panel links the actions and properties of a run to their sources', () => {
+  const progress: Progress = {
+    status: 'Done', isRunning: false, isCancelled: false, elapsedMs: 10,
+    details: { modelCheck: { metrics: {
+      diameter: 1, statesFound: 2, distinctStates: 2, queue: 0, allActionLabels: [],
+      actionStats: [{ name: 'M.Label.finish 0', statesGenerated: 1, distinctStates: 1 }],
+    } } },
+  };
+  const result = {
+    result: 'found_violation', violation: { kind: 'safety_failure', violates: ['bounded'] },
+    trace: { theory: {}, states: [
+      { transition: 'after_init', index: 0, fields: { finished: [] } },
+      { transition: { finish: { n: 0 } }, index: 1, fields: { finished: ['0'] } },
+    ] },
+  };
+  const location = (name: string, line: number) => ({ name, file: '/repo/M.lean', line, character: 0 });
+  const sources = { actions: [location('after_init', 3), location('finish', 7)], properties: [location('bounded', 12)] };
+  const run = snapshot({ status: 'finished', endedAt: 5000, progress, result });
+  const link = (text: string) => `<a class="source-link" title="Go to the source">${text}</a>`;
+  // The coverage, the steps of the trace, and the violated property
+  assertShows(render({ ...run, sources }), [link('finish'), link('after_init'), link('finish(n = 0)'), link('bounded')]);
+  // As in the infoview, nothing links without sources
+  assert.ok(!render(run).includes('class="source-link"'));
+});
+
+test('trace links preserve leading underscores in source names without changing displayed labels', () => {
+  for (const name of ['_start', '__start']) {
+    const result = {
+      result: 'found_violation', violation: { kind: 'safety_failure', violates: [] },
+      trace: { theory: {}, states: [
+        { transition: name, index: 0, fields: {} },
+        { transition: { [name]: { self: 1 } }, index: 1, fields: {} },
+      ] },
+    };
+    const sources = {
+      actions: [{ name, file: '/repo/M.lean', line: 7, character: 0 }], properties: [],
+    };
+    const html = render({ ...snapshot({ status: 'finished', endedAt: 5000, result }), sources });
+    const link = (text: string) => `<a class="source-link" title="Go to the source">${text}</a>`;
+    assertShows(html, [link(name), link(`${name.slice(1)}(self = 1)`)]);
+  }
 });
 
 test('describes how runs ended', () => {
@@ -582,6 +625,41 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
         module: 'RunnerFixture',
         theory: [{ name: 'limit', value: '_' }],
       }, uri]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  test('Lean says where the declarations of the module of a config are', async () => {
+    const server = new LeanServer(repoRoot);
+    try {
+      await within(server.request('initialize',
+        { processId: process.pid, rootUri: pathToFileURL(repoRoot).href, capabilities: {} }), 60_000, 'Starting Lean');
+      server.notify('initialized', {});
+      const file = path.join(repoRoot, fixture);
+      const uri = pathToFileURL(file).href;
+      const lines = fs.readFileSync(file, 'utf8').split('\n');
+      // The module, and a config command for it, which builds as the first one of the fixture does
+      const moduleEnd = findVeilModules(lines.join('\n'))[0].endLine!;
+      const command = '#model_check_build RunnerFixture { node := Fin 2, NodeSet := _ } { limit := 2 }';
+      const text = [...lines.slice(0, moduleEnd + 1), '', command].join('\n');
+      server.notify('textDocument/didOpen', { textDocument: { uri, languageId: 'lean4', version: 1, text } });
+      await within(server.request('textDocument/waitForDiagnostics', { uri, version: 1 }), 600_000, 'Processing the config');
+      const line = moduleEnd + 2;
+      const actions = await server.request('textDocument/codeAction', {
+        textDocument: { uri },
+        range: { start: { line, character: 0 }, end: { line, character: command.length } },
+        context: { diagnostics: [], only: ['refactor.veil.modelCheckSources'] },
+      }) as { command?: { command: string; arguments: [ModuleSources] } }[];
+      const sources = actions.find(action => action.command?.command === 'veil.modelCheck.sources')?.command?.arguments[0];
+      assert.ok(sources);
+      const lineOf = (start: string) => lines.findIndex(l => l.startsWith(start));
+      const expected = (name: string, start: string) => ({ name, file, line: lineOf(start), character: 0 });
+      assert.deepStrictEqual(sources, {
+        actions: [expected('after_init', 'after_init'), expected('finish', 'action finish '),
+          expected('finishAfter', 'action finishAfter'), expected('reset', 'action reset')],
+        properties: [expected('bounded', 'invariant [bounded]')],
+      });
     } finally {
       await server.close();
     }

@@ -46,7 +46,8 @@ deriving RpcEncodable
 
 @[widget_module]
 def TraceDisplayViewer : Component TraceDisplayProps where
-  javascript := include_str ".." / ".." / ".." / ".." / ".lake" / "build" / "js" / "traceDisplay.js"
+  -- `traceDisplay.js` in the infoview, which links the trace to the sources of the module
+  javascript := include_str ".." / ".." / ".." / ".." / ".lake" / "build" / "js" / "traceDisplayInfoview.js"
 
 /-- Display a TraceDisplayViewer widget with the given result JSON.
     This can be called with a runtime Json value. -/

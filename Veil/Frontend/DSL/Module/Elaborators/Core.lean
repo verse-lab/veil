@@ -269,6 +269,7 @@ def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
 private def Module.toExecutableModule (mod : Module)
     (instantiationTemplate : Option (Expr × Array InstantiationBinder) := none) :
     CommandElabM ExecutableModule := do
+  let (actions, properties) ← ExecutionWorkflow.getDeclSources mod
   return {
     name := mod.name
     instantiationFields := (← mod.uninterpretedParamIdents).map (·.getId)
@@ -277,7 +278,9 @@ private def Module.toExecutableModule (mod : Module)
     invariants := mod.invariants.map (·.name)
     terminations := mod.terminations.map (·.name)
     stateConstraints := mod.stateConstraints.map (·.name)
-    actionLabels := (← ExecutionWorkflow.getActionLabelNames mod).toArray }
+    actionLabels := (← ExecutionWorkflow.getActionLabelNames mod).toArray
+    actionSources := actions
+    propertySources := properties }
 
 /-- Record what checking `mod` takes, for `#model_check_build`. The instantiation template is
 recorded if it is closed, i.e. unless solving a constraint in it needs the concrete sorts. -/

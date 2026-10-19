@@ -55,6 +55,16 @@ inductive InstantiationBinder where
   | sortAssumption
 deriving Inhabited
 
+/-- Where a declaration of a module is: its file, as `Lean.Elab.getFileName` gives it where the module
+is declared, and its position there, as in LSP (0-based line, UTF-16 character) -/
+structure DeclSource where
+  /-- The name that model checking results give it -/
+  name : String
+  file : String
+  line : Nat
+  character : Nat
+deriving Inhabited, Lean.ToJson
+
 /-- What checking a module takes, without the module itself. `#gen_executable` records it, so
 that `#model_check_build` can build its model checker in the files importing the one declaring it. -/
 structure ExecutableModule where
@@ -73,6 +83,10 @@ structure ExecutableModule where
   /-- The labels of the actions without their arguments, e.g. `Paxos.Label.send`, as the model
   checker names the actions it takes, e.g. `Paxos.Label.send 1 2` -/
   actionLabels : Array String
+  /-- Where the actions are, by the names that traces give them, e.g. `send` and `after_init` -/
+  actionSources : Array DeclSource
+  /-- Where the properties are, e.g. the invariants, by the names that violations give them -/
+  propertySources : Array DeclSource
 deriving Inhabited
 
 initialize executableModuleExt :

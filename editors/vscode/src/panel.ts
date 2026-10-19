@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 import * as vscode from 'vscode';
 import { Freshness, SavedRun } from './resultStore';
 import { RunManager } from './runManager';
-import { ExtensionMessage, PanelMessage, PanelState } from './snapshot';
+import { DeclSource, ExtensionMessage, PanelMessage, PanelState } from './snapshot';
 
 /** How often the panel is updated while a binary reports progress, as in TLC's extension */
 const UPDATE_INTERVAL_MS = 500;
@@ -20,6 +20,8 @@ export interface PanelActions {
   export(shown: PanelContent): void;
   showOutput(): void;
   openSource(shown: PanelContent): void;
+  /** Open the source of an action or a property */
+  openLocation(location: DeclSource): void;
 }
 
 /** The "Veil Model Checking" panel. */
@@ -113,6 +115,9 @@ export class ModelCheckPanel implements vscode.Disposable {
         break;
       case 'openSource':
         this.actions.openSource(this.content);
+        break;
+      case 'openLocation':
+        this.actions.openLocation(message.location);
         break;
     }
   }
