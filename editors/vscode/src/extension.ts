@@ -3,7 +3,9 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { findBuildCommands } from './buildCommands';
+import { checkModel, createConfig } from './checkModel';
 import { BuildCommand, BuildCommandLenses, buildCommandsOf, outcomeIcons } from './codeLens';
+import { ConfigTemplate } from './configTemplate';
 import { ModelCheckPanel, PanelContent } from './panel';
 import { FORMAT_VERSION, Freshness, ResultStore, RunSource, SavedRun, freshness, parseRunFile } from './resultStore';
 import { RunManager, RunTarget, sourceOf } from './runManager';
@@ -256,6 +258,11 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerCodeLensProvider({ language: 'lean4' }, lenses),
     vscode.commands.registerCommand('veil.modelCheck.run', run),
     vscode.commands.registerCommand('veil.modelCheck.runWithOptions', runWithOptions),
+    vscode.commands.registerCommand('veil.modelCheck.checkModel',
+      (uri?: string, line?: number) => checkModel((document, command) => runCommand(document, command), uri, line)),
+    // The command of the code action of Lean that gives the template
+    vscode.commands.registerCommand('veil.modelCheck.createConfig',
+      (template: ConfigTemplate, uri: string) => createConfig(template, vscode.Uri.parse(uri))),
     vscode.commands.registerCommand('veil.modelCheck.runAgain', runAgain),
     vscode.commands.registerCommand('veil.modelCheck.stop', () => runs.stop()),
     // The status bar shows the run of this window

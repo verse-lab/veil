@@ -25,30 +25,37 @@ export function normalizeCommand(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-/** The `#model_check_build` commands in `text`, leaving out those in comments and strings. A
- * command must start its line. */
-export function findBuildCommands(text: string): BuildCommandSite[] {
-  const sites: Omit<BuildCommandSite, 'endLine' | 'command'>[] = [];
-  const lineStarts = [0];
-  // The lines whose first character is code, i.e. not whitespace, a comment, or a string
-  const topLevelLines: number[] = [];
+/** Where the code of a line starts: at its first character that is not whitespace, when that
+ * character is in no comment or string */
+interface CodeStart {
+  line: number;
+  character: number;
+  offset: number;
+}
+
+/** The lines of `text` that start with code, and the offsets where all its lines start */
+function scanLines(text: string): { starts: CodeStart[]; lineOffsets: number[] } {
+  const starts: CodeStart[] = [];
+  const lineOffsets = [0];
   let line = 0;
-  let lineStart = 0;
   let blockCommentDepth = 0;
   let inString = false;
   let inLineComment = false;
-  let onlySpaceBefore = true;
+  // Whether the line has had a character that is not whitespace
+  let started = false;
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
     if (c === '\n') {
       line++;
-      lineStart = i + 1;
-      lineStarts.push(lineStart);
+      lineOffsets.push(i + 1);
       inLineComment = false;
-      onlySpaceBefore = true;
+      started = false;
       continue;
     }
-    if (i === lineStart && blockCommentDepth === 0 && !inString && !/\s/.test(c)) topLevelLines.push(line);
+    if (!started && !/\s/.test(c)) {
+      started = true;
+      if (blockCommentDepth === 0 && !inString) starts.push({ line, character: i - lineOffsets[line], offset: i });
+    }
     if (inLineComment) continue;
     if (inString) {
       if (c === '\\' && text[i + 1] !== '\n') i++;
@@ -70,25 +77,70 @@ export function findBuildCommands(text: string): BuildCommandSite[] {
     } else if (c === '/' && text[i + 1] === '-') {
       blockCommentDepth++;
       i++;
-      onlySpaceBefore = false;
     } else if (c === '"') {
       inString = true;
-      onlySpaceBefore = false;
-    } else if (onlySpaceBefore && text.startsWith(KEYWORD, i) && /^\s?$/.test(text[i + KEYWORD.length] ?? '')) {
-      const name = /^\s+([^\s{}()[\]]+)/.exec(text.slice(i + KEYWORD.length, i + KEYWORD.length + 1000));
-      sites.push({ line, character: i - lineStart, module: name ? name[1] : '' });
-      onlySpaceBefore = false;
-    } else if (!/\s/.test(c)) {
-      onlySpaceBefore = false;
     }
   }
-  return sites.map((site, i) => {
-    const nextTopLevel = topLevelLines.find(l => l > site.line) ?? line + 1;
-    const nextSite = sites[i + 1]?.line ?? line + 1;
+  return { starts, lineOffsets };
+}
+
+/** Whether `word` is at `offset` in `text`, followed by whitespace or the end */
+function wordAt(text: string, offset: number, word: string): boolean {
+  return text.startsWith(word, offset) && /^\s?$/.test(text[offset + word.length] ?? '');
+}
+
+/** The `#model_check_build` commands in `text`, leaving out those in comments and strings. A
+ * command must start its line. */
+export function findBuildCommands(text: string): BuildCommandSite[] {
+  const { starts, lineOffsets } = scanLines(text);
+  const lastLine = lineOffsets.length - 1;
+  // The lines that start with code at column 0
+  const topLevelLines = starts.filter(start => start.character === 0).map(start => start.line);
+  const sites = starts.filter(start => wordAt(text, start.offset, KEYWORD)).map(start => {
+    const name = /^\s+([^\s{}()[\]]+)/.exec(text.slice(start.offset + KEYWORD.length, start.offset + KEYWORD.length + 1000));
+    return { line: start.line, character: start.character, offset: start.offset, module: name ? name[1] : '' };
+  });
+  return sites.map(({ offset, ...site }, i) => {
+    const nextTopLevel = topLevelLines.find(l => l > site.line) ?? lastLine + 1;
+    const nextSite = sites[i + 1]?.line ?? lastLine + 1;
     const endLine = Math.max(site.line, Math.min(nextTopLevel, nextSite) - 1);
-    const command = normalizeCommand(text.slice(lineStarts[site.line] + site.character, lineStarts[endLine + 1] ?? text.length));
+    const command = normalizeCommand(text.slice(offset, lineOffsets[endLine + 1] ?? text.length));
     return { ...site, endLine, command };
   });
+}
+
+/** A `veil module` of a Lean file, with the lines of the commands of it that a config file needs */
+export interface VeilModuleSite {
+  /** The 0-based position of `veil module` */
+  line: number;
+  character: number;
+  name: string;
+  genSpecLine?: number;
+  genExecutableLine?: number;
+  /** The line of its `end`, if it has one */
+  endLine?: number;
+}
+
+/** The `veil module`s in `text`, leaving out those in comments and strings */
+export function findVeilModules(text: string): VeilModuleSite[] {
+  const modules: VeilModuleSite[] = [];
+  let open: VeilModuleSite | undefined;
+  for (const start of scanLines(text).starts) {
+    const rest = text.slice(start.offset, start.offset + 1000);
+    const declared = /^veil\s+module\s+(\S+)/.exec(rest);
+    if (declared) {
+      open = { line: start.line, character: start.character, name: declared[1] };
+      modules.push(open);
+    } else if (open && wordAt(text, start.offset, '#gen_spec')) {
+      open.genSpecLine ??= start.line;
+    } else if (open && wordAt(text, start.offset, '#gen_executable')) {
+      open.genExecutableLine ??= start.line;
+    } else if (open && /^end\s+(\S+)/.exec(rest)?.[1] === open.name) {
+      open.endLine = start.line;
+      open = undefined;
+    }
+  }
+  return modules;
 }
 
 export type Severity = 'error' | 'warning' | 'information' | 'hint';

@@ -33,6 +33,15 @@ def Module.instantiationTemplate (mod : Module) : TermElabM (Expr × Array (Inst
     (binder, p.userSyntax)
   return (template, binders)
 
+/-- The default instances of Veil's containers, which fill the holes of an instantiation (see
+`elabInstantiationAgainst`), e.g. `procSet := _` with `OrdList _` for a `TSet` constraint. -/
+def containerDefaultInstances : Array DefaultInstanceEntry := #[
+  { className := ``TSet, instanceName := ``instTSetOrdList, priority := eval_prio high },
+  { className := ``TSet, instanceName := ``instTSetExtTreeSet, priority := eval_prio default },
+  { className := ``TSet, instanceName := ``instTSetOrdArray, priority := eval_prio low },
+  { className := ``TMultiset, instanceName := ``instTMultiSetWithExtTreeMap, priority := eval_prio default },
+  { className := ``TMap, instanceName := ``instTMapExtTreeMap, priority := eval_prio default }]
+
 /-- Elaborate a concrete instantiation `stx` of type `instType`, filling its type holes (e.g.
 `procSet := OrdList _`, or a bare `procSet := _`) from the `instantiate` constraints of the
 module, given by `template` (see `Module.instantiationTemplate`).
@@ -115,15 +124,9 @@ def elabInstantiationAgainst (instType : Expr) (stx : Term)
   -- ordinary ghost calls. Change only the extension's state, so these temporary
   -- defaults are not exported and elaboration's other environment changes survive.
   let savedDefaults := defaultInstanceExtension.getState (← getEnv)
-  let containerDefaults : Array DefaultInstanceEntry := #[
-    { className := ``TSet, instanceName := ``instTSetOrdList, priority := eval_prio high },
-    { className := ``TSet, instanceName := ``instTSetExtTreeSet, priority := eval_prio default },
-    { className := ``TSet, instanceName := ``instTSetOrdArray, priority := eval_prio low },
-    { className := ``TMultiset, instanceName := ``instTMultiSetWithExtTreeMap, priority := eval_prio default },
-    { className := ``TMap, instanceName := ``instTMapExtTreeMap, priority := eval_prio default }]
   try
     modifyEnv fun env => defaultInstanceExtension.setState env
-      (containerDefaults.foldl addDefaultInstanceEntry savedDefaults)
+      (containerDefaultInstances.foldl addDefaultInstanceEntry savedDefaults)
     synthesizeSyntheticMVarsNoPostponing
   finally
     modifyEnv fun env => defaultInstanceExtension.setState env savedDefaults

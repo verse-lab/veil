@@ -17,6 +17,12 @@ public import MyProject.Paxos
 #model_check_build Paxos { acceptor := Fin 3, value := Fin 2, MsgSet := OrdList _ } {}
 ```
 
+**Check model**, above each `veil module`, does this for you: it runs a config
+file of the module once Lean has built it, or else creates `MC<File>.lean` next to the
+module, with the values to fill in. Lean gives the template, whose values are holes
+(`_`): Lean fills in those that the module's constraints determine, such as `MsgSet`
+above, and reports the others for you to fill in.
+
 Once Lean has built the binary, a **Run model checker** lens appears above the
 command. The run shows in the **Veil Model Checking** panel and in the status bar,
 and **Stop** ends it. The command palette has the same commands under "Veil".
