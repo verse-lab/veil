@@ -46,13 +46,17 @@ private def withCompilationDiagnostics (stx : Syntax) (instanceId : Nat) (handof
   try
     compile
   catch e : Exception =>
-    let message ← e.toMessageData.toString
+    -- `elabTermForExecution` uses `throwAbortTerm` once an error has been logged.
+    -- Mark the build as failed, but keep the original diagnostic instead of reporting the abort.
+    let aborted := isAbortException e
+    let message ← if aborted then pure "Execution configuration elaboration failed." else e.toMessageData.toString
+    let ref := if e.getRef.getPos?.isSome then e.getRef else stx
     ModelChecker.Concrete.updateCompilationStatus instanceId (.failed message)
     if handoff then
-      logWarningAt stx message
+      unless aborted do logWarningAt ref message
     else
       ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [("error", toJson message)])
-      logErrorAt stx message
+      unless aborted do logErrorAt ref message
     return none
 
 /-- Extract the model checking mode from the optional mode syntax. -/
@@ -73,6 +77,39 @@ private def getCompiledCommandId (cmdName : String) (stx : Syntax) : CommandElab
   let some startPos := stx.getPos? | throwError s!"Unexpected error: {cmdName} has no position"
   let some endPos := stx.getTailPos? | throwError s!"Unexpected error: {cmdName} has no end position"
   pure s!"{startPos.1}-{endPos.1}"
+
+/-- Elaborate the complete computation for this workflow's compiled or interpreted entry point.
+Both callers pass expressions directly to the compiler/evaluator rather than elaborating a Lean
+definition or `#eval`. Run normal elaboration and synthesis, abort on logged errors, and reject
+remaining metavariables before that handoff. On failure, supplement the original error with a
+user-hole diagnostic when possible, without replacing it. -/
+private def elabTermForExecution (term : Term) : TermElabM Expr := do
+  try
+    let expr ← Term.elabTerm term none
+    if ← MonadLog.hasErrors then throwAbortTerm
+    Term.synthesizeSyntheticMVarsNoPostponing
+    if ← MonadLog.hasErrors then throwAbortTerm
+    let expr ← instantiateMVars expr
+    if expr.hasMVar then
+      if ← Term.logUnassignedUsingErrorInfos (← Meta.getMVars expr) then throwAbortTerm
+      throwErrorAt term "The execution configuration contains unresolved metavariables. Fill in the remaining placeholders."
+    return expr
+  catch exception =>
+    -- Preserve Lean's internal control-flow exceptions, including aborts.
+    if exception matches .internal .. then throw exception
+    -- An ordinary exception can stop elaboration before any diagnostic is logged. If so,
+    -- add one hint at an unresolved user-written hole, not a generated placeholder.
+    unless ← MonadLog.hasErrors do
+      -- Error infos are prepended; reverse them to inspect holes in registration order.
+      for info in (← get).mvarErrorInfos.reverse do
+        if (info.kind matches .hole) && (info.ref.getHeadInfo matches .original ..) then
+          -- Follow assignments too: a filled hole may still depend on unresolved metavariables.
+          unless (← Meta.getMVars (mkMVar info.mvarId)).isEmpty do
+            -- Print the goal in the hole's local context.
+            info.mvarId.withContext <| info.logError none
+            break
+    -- A remaining hole does not prove it caused the failure; retain the original error as well.
+    throw exception
 
 /-- Compile a temporary entry point in the current snapshot, then emit its C module
 with runtime initialization. -/
@@ -98,9 +135,8 @@ private def generateCCode (command : ModelChecker.Compilation.CompiledCommandSpe
     let entry ← `(ModelChecker.Compilation.runMain $(quote command.actionLabels)
       (fun pcfg progressInstanceId cancelToken finish =>
         $callExpr pcfg progressInstanceId cancelToken (fun result => finish (Lean.toJson result))))
-    let expr ← Term.elabTerm entry none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    discard <| addVeilDefinition `main (← instantiateMVars expr) (addNamespace := false)
+    let expr ← elabTermForExecution entry
+    discard <| addVeilDefinition `main expr (addNamespace := false)
   liftCoreM <| ModelChecker.Compilation.emitCWithRuntimeInitializers `main
 
 /-- Create an error JSON object. -/
@@ -226,9 +262,8 @@ private def elaborateInterpretedComputation (instanceId : Nat) (callExpr : Term)
     Lean.toJson <$> $callExpr ($(quote parallelCfg)) ($(quote instanceId)) refs.cancelToken pure)
   trace[veil.desugar] "{resultExpr}"
   liftTermElabM <| Term.withoutErrToSorry do
-    let expr ← Term.elabTerm resultExpr none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    ModelChecker.Compilation.evalJsonComputation (← instantiateMVars expr)
+    let expr ← elabTermForExecution resultExpr
+    ModelChecker.Compilation.evalJsonComputation expr
 
 /-- Log model checking result. -/
 private def logModelCheckResult (kind : TraceDisplay.ResultKind) (stx : Syntax)

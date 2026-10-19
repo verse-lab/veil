@@ -7,7 +7,7 @@ import { BuildCommand, buildCommandsOf } from './codeLens';
 import { ConfigTemplate, SnippetPart, configCommand, configFileFor, configHeader, isOfModule } from './configTemplate';
 
 /** The kind of the code action that gives the template, as `configTemplateKind` in Lean */
-const CONFIG_TEMPLATE_KIND = 'source.veil.modelCheckConfig';
+const CONFIG_TEMPLATE_KIND = 'refactor.veil.modelCheckConfig';
 
 /** The `veil module` to check: the one that a lens gives, else the one at the cursor, else the only
  * one in the editor, else one that the user picks */

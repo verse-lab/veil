@@ -105,3 +105,50 @@ null
   let some em ← Veil.getExecutableModule? `CheckedElsewhere | throwError "no executable definitions"
   IO.println (toJson (← Veil.configTemplate em `VeilTest.Regression.ModelCheckBuildHelper)).compress
   IO.println ((toJson (← Veil.configTemplate em `_unknown)).getObjValD "import").compress
+
+/-- error: don't know how to synthesize placeholder -/
+#guard_msgs (substring := true) in
+#model_check_build CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } { limit := _ }
+
+/-- Fields missing: `limit` -/
+#guard_msgs (substring := true) in
+#model_check_build CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ }
+
+/-- Fields missing: `limit` -/
+#guard_msgs (substring := true) in
+#model_check_build CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } {}
+
+/-- error: don't know how to synthesize placeholder -/
+#guard_msgs (substring := true) in
+#model_check_build CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } _
+
+/-- error: don't know how to synthesize placeholder -/
+#guard_msgs (substring := true) in
+#model_check_build CheckedElsewhere _ { limit := 2 }
+
+/-- error: don't know how to synthesize placeholder -/
+#guard_msgs (substring := true) in
+#model_check_build CheckedElsewhere { node := _, NodeSet := _, Buffer := _ } { limit := 2 }
+
+/-- error: failed to synthesize instance of type class -/
+#guard_msgs (substring := true) in
+#model_check_build CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := List _ } { limit := 2 }
+
+/--
+error: Type mismatch
+  true
+has type
+  Bool
+but is expected to have type
+  Nat
+-/
+#guard_msgs in
+#model_check_build CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } { limit := true }
+
+/-- error: `unknown` is not a field of structure `CheckedElsewhere.Theory` -/
+#guard_msgs in
+#model_check_build CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } { unknown := 2 }
+
+/-- info: Model checker built: -/
+#guard_msgs (substring := true) in
+#model_check_build CheckedElsewhere { node := _, NodeSet := OrdList (Fin 2), Buffer := _ } { limit := 2 }

@@ -74,6 +74,7 @@ def elabInstantiationAgainst (instType : Expr) (stx : Term)
     -- could assign `?cmp := compare` itself and the tactic would then fail with "no goals".
     -- Running the tactic now makes `inst` fully concrete before any obligation can mention it.
     synthesizeSyntheticMVarsNoPostponing
+    if ← MonadLog.hasErrors then throwAbortTerm
     return ← instantiateMVars inst
   let (template, binders) ← template
   let (vars, _, _) ← forallMetaTelescopeReducing template (kind := .synthetic)
@@ -134,6 +135,7 @@ def elabInstantiationAgainst (instType : Expr) (stx : Term)
       hole.setKind .syntheticOpaque
       registerSyntheticMVar decl.stx hole decl.kind
   synthesizeSyntheticMVarsNoPostponing
+  if ← MonadLog.hasErrors then throwAbortTerm
   instantiateMVars inst
 
 /-- Elaborate a concrete `Instantiation` term of the module, filling its type holes from the
