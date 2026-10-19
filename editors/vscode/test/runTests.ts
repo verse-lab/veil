@@ -527,8 +527,12 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
   test('Lean gives the config template of a module, to a request for its kind only', async () => {
     const server = new LeanServer(repoRoot);
     try {
-      await within(server.request('initialize',
+      const initialized = await within(server.request('initialize',
         { processId: process.pid, rootUri: pathToFileURL(repoRoot).href, capabilities: {} }), 60_000, 'Starting Lean');
+      const kinds = (initialized as { capabilities: { codeActionProvider: { codeActionKinds: string[] } } })
+        .capabilities.codeActionProvider.codeActionKinds;
+      assert.ok(kinds.some(kind => 'refactor.veil.modelCheckConfig' === kind ||
+        'refactor.veil.modelCheckConfig'.startsWith(`${kind}.`)), 'VS Code must select the Lean code action provider');
       server.notify('initialized', {});
       const file = path.join(repoRoot, 'VeilTest', 'Regression', 'ModelCheckBuildHelper.lean');
       const uri = pathToFileURL(file).href;
@@ -545,8 +549,8 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
         range: { start: { line, character: 0 }, end: { line, character: lineEnd } },
         context: { diagnostics: [], ...(only ? { only } : {}) },
       }) as { kind?: string; command?: { command: string; arguments: unknown[] } }[])
-        .filter(action => action.kind === 'source.veil.modelCheckConfig');
-      const [action] = await actionsFor(['source.veil.modelCheckConfig']);
+        .filter(action => action.kind === 'refactor.veil.modelCheckConfig');
+      const [action] = await actionsFor(['refactor.veil.modelCheckConfig']);
       assert.strictEqual(action?.command?.command, 'veil.modelCheck.createConfig');
       assert.deepStrictEqual(action.command.arguments, [{
         import: 'VeilTest.Regression.ModelCheckBuildHelper',
@@ -558,6 +562,90 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
     } finally {
       await server.close();
     }
+  });
+
+  test('Lean gives no import for a file outside the Lake libraries', async () => {
+    const server = new LeanServer(repoRoot);
+    try {
+      await within(server.request('initialize',
+        { processId: process.pid, rootUri: pathToFileURL(repoRoot).href, capabilities: {} }), 60_000, 'Starting Lean');
+      server.notify('initialized', {});
+      const file = path.join(repoRoot, fixture);
+      const uri = pathToFileURL(file).href;
+      const source = fs.readFileSync(file, 'utf8');
+      const site = findVeilModules(source)[0];
+      const text = source.split('\n').slice(0, site.endLine! + 1).join('\n');
+      server.notify('textDocument/didOpen', { textDocument: { uri, languageId: 'lean4', version: 1, text } });
+      await within(server.request('textDocument/waitForDiagnostics', { uri, version: 1 }), 600_000, 'Processing the module');
+      const line = site.genExecutableLine!;
+      const actions = await server.request('textDocument/codeAction', {
+        textDocument: { uri },
+        range: { start: { line, character: 0 }, end: { line, character: text.split('\n')[line].length } },
+        context: { diagnostics: [], only: ['refactor.veil.modelCheckConfig'] },
+      }) as { command?: { command: string; arguments: [ConfigTemplate, string] } }[];
+      const action = actions.find(action => action.command?.command === 'veil.modelCheck.createConfig');
+      assert.ok(action?.command);
+      assert.deepStrictEqual(action.command.arguments, [{
+        import: null,
+        instantiation: [{ name: 'node', value: '_' }, { name: 'NodeSet', value: '_' }],
+        module: 'RunnerFixture',
+        theory: [{ name: 'limit', value: '_' }],
+      }, uri]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  test('unfinished configs report their input holes without compiling a broken main', () => {
+    const cases = [
+      {
+        command: '#model_check_build CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } { limit := _ }',
+        hole: 'limit := _',
+        messages: ["don't know how to synthesize placeholder"],
+        goal: '⊢ Nat',
+      },
+      {
+        command: '#model_check_build CheckedElsewhere { node := _, NodeSet := _, Buffer := _ } { limit := 2 }',
+        hole: 'node := _',
+        messages: ["don't know how to synthesize placeholder", 'typeclass instance problem is stuck'],
+        goal: '⊢ Type',
+      },
+      {
+        command: '#model_check_build CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } _',
+        hole: '} _',
+        messages: ["don't know how to synthesize placeholder"],
+        goal: '⊢ Theory',
+      },
+      {
+        command: '#model_check_build CheckedElsewhere _ { limit := true }',
+        hole: 'CheckedElsewhere _',
+        messages: ["don't know how to synthesize placeholder", 'Type mismatch'],
+        goal: '⊢ Instantiation',
+      },
+    ];
+    const header = 'module\n\npublic import Veil\npublic import VeilTest.Regression.ModelCheckBuildHelper\n\n';
+    const source = header + cases.map(item => item.command).join('\n');
+    const lean = spawnSync('lake', ['env', 'lean', '--json', '--stdin'],
+      { cwd: repoRoot, input: source, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+    if (lean.error) throw lean.error;
+    assert.strictEqual(lean.status, 1);
+    assert.doesNotMatch(lean.stdout + lean.stderr, /PANIC|Compilation failed|declaration has metavariables/);
+    const errors = lean.stdout.split('\n').filter(line => line.startsWith('{'))
+      .map(line => JSON.parse(line) as { severity: string; data: string; pos: { line: number; column: number }; endPos: { column: number } })
+      .filter(message => message.severity === 'error');
+    assert.strictEqual(errors.length, cases.reduce((total, item) => total + item.messages.length, 0), lean.stdout);
+    cases.forEach(item => {
+      const line = source.split('\n').indexOf(item.command) + 1;
+      const diagnostics = errors.filter(error => error.pos.line === line);
+      assert.strictEqual(diagnostics.length, item.messages.length, lean.stdout);
+      item.messages.forEach((message, index) => {
+        assert.ok(diagnostics[index].data.startsWith(message), diagnostics[index].data);
+      });
+      assert.ok(diagnostics[0].data.includes(item.goal), diagnostics[0].data);
+      const column = item.command.indexOf(item.hole) + item.hole.length - 1;
+      assert.deepStrictEqual(diagnostics[0].pos, { line, column });
+      assert.strictEqual(diagnostics[0].endPos.column, column + 1);
+    });
   });
 
   test('a binary that cannot run fails', async () => {

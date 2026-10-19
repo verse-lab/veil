@@ -1,6 +1,7 @@
 module
 
 public meta import Lean.Server.CodeActions
+meta import Lean.Util.LakePath
 public meta import Veil.Frontend.DSL.Module.Syntax
 public meta import Veil.Frontend.DSL.Module.Util.Instantiation
 
@@ -48,8 +49,12 @@ def configTemplate (em : ExecutableModule) (mainModule : Name) : MetaM ConfigTem
 
 /-- The kind of the code action that gives the config template of a module, with
 `veil.modelCheck.createConfig` as its command. It is only given to a request for this kind, which the
-VS Code extension of Veil makes, so that the menus of the editor do not show it. -/
-def configTemplateKind : String := "source.veil.modelCheckConfig"
+VS Code extension of Veil makes, so that the menus of the editor do not show it.
+
+Lean's server advertises `refactor` and `source.organizeImports`, but not all of `source`.
+The `refactor` prefix therefore keeps VS Code from filtering out the Lean provider before sending
+the request, as it would for `source.veil.modelCheckConfig`. -/
+def configTemplateKind : String := "refactor.veil.modelCheckConfig"
 
 @[command_code_action Veil.genExecutable]
 def configTemplateCodeAction : CodeAction.CommandCodeAction := fun params snap ctx _ => do
@@ -58,7 +63,22 @@ def configTemplateCodeAction : CodeAction.CommandCodeAction := fun params snap c
   let env := snap.env
   let some mod := (localEnv.getState env).currentModule | return #[]
   let some em := (executableModuleExt.getState env)[mod.name]? | return #[]
-  let template ← { ctx with env }.runMetaM {} (configTemplate em env.mainModule)
+  -- `env.mainModule` may be path-derived even when the file is outside Lake's libraries.
+  -- Ask Lake for its import name instead, without building dependencies or downloading caches.
+  -- `configTemplate` maps `_unknown` or anonymous names to no import, so the extension can warn
+  -- instead of creating a config that imports an unregistered module.
+  let mainModule ← do
+    let some filePath := System.Uri.fileUriToPath? params.textDocument.uri | pure Name.anonymous
+    let setup ← IO.Process.output {
+      cmd := (← determineLakePath).toString
+      args := #["setup-file", filePath.toString, "--no-build", "--no-cache"] }
+    if setup.exitCode == 2 then pure Name.anonymous
+    else
+      unless setup.exitCode == 0 do
+        throw <| RequestError.internalError s!"Cannot determine the module's Lake library: {setup.stderr}"
+      let json ← IO.ofExcept (Json.parse setup.stdout)
+      IO.ofExcept (json.getObjValAs? Name "name")
+  let template ← { ctx with env }.runMetaM {} (configTemplate em mainModule)
   return #[{ eager := {
     title := s!"Create a model checking config for {mod.name}"
     kind? := configTemplateKind
