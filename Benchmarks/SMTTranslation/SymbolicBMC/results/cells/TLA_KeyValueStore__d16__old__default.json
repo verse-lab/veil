@@ -1,0 +1,115 @@
+{
+  "row": {
+    "cell_id": "TLA_KeyValueStore__d16__old__default",
+    "model": "TLA_KeyValueStore",
+    "path": "Examples/TLA/KeyValueStore.lean",
+    "module": "KeyValueStoreRe",
+    "depth": 16,
+    "variant": "old",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "nextSimp",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_KeyValueStore__default__batch1.lean:486:37: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 498,
+    "batch_id": "TLA_KeyValueStore__default__batch1",
+    "batch_setup_ms": 12170,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/TLA_KeyValueStore__d16__old__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_KeyValueStore__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/TLA_KeyValueStore__d16__old__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_KeyValueStore__d16__old__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_KeyValueStore__d16__old__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_KeyValueStore",
+    "path": "Examples/TLA/KeyValueStore.lean",
+    "module": "KeyValueStoreRe",
+    "cut_line": 161,
+    "query": "assert (¬ (snapshot_isolation ∧ transaction_cleanup))",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "Txlifecycle invariant, line159",
+    "notes": "Both ghost predicates are defined before #gen_spec. Uses partial functions and sets.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "68603d3c98c1c595b2aed77f0d1927ddd6befd277209d3b8a3b7d4e2785c25e7"
+  },
+  "original_sha256": "68603d3c98c1c595b2aed77f0d1927ddd6befd277209d3b8a3b7d4e2785c25e7",
+  "inherited_setup_options": [],
+  "source_sha256": "d76aa7d5a5fde1791f4083ce9c5363d14ea5947452862a3345f67b89d476886a",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_KeyValueStore__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 176361932,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 176362430,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176362430,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 176362556,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_KeyValueStore__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_KeyValueStore__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_KeyValueStore__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 122436,
+    "setup_ms": 12170,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_KeyValueStore__default__batch1.lean"
+    ]
+  }
+}

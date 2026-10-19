@@ -1,0 +1,15 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean:184:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean:207:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean:229:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean:251:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean:274:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean:297:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean:319:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean:341:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean:364:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean:389:37: error: `simp` failed: maximum number of steps exceeded
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean:411:37: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean:431:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed

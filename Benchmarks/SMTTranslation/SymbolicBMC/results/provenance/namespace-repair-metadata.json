@@ -1,0 +1,95 @@
+{
+  "repo": "/home/george/src/veil-issue-123",
+  "commit": "eb41b59673a179ad05773ceca18667ba25b7f079",
+  "script_sha256": "cc0442b8921aa6eb940100a0f9b8523777923ce03f0448afb2dee644b88a41de",
+  "common_script_sha256": "77e3c1e372b9201ee8a6c07f352282f85802a86bc658caec87551d50ee08fd1f",
+  "manifest_sha256": "6ec18dcb816fd8909801f14ea93bf80f726c4acdcdaf198f79476b1cd6fce8f5",
+  "models": [
+    {
+      "model": "TLA_BcastByz",
+      "path": "Examples/TLA/BcastByz.lean",
+      "module": "BcastByz",
+      "cut_line": 202,
+      "query": "assert (∃ p, isCorrect p ∧ pc p = AC)",
+      "query_kind": "derived_reachability",
+      "expected_status": null,
+      "query_source": "PCState.AC and protocol step actions; no declared protocol safety property",
+      "notes": "Uses correct-process acceptance, rather than the static partition/cardinality sanity invariants. Contains collections and an Enumeration parameter.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "f7aa1867b40e8f453d3e227a8d33bf9c557796034b63a25997ab66de5e4d65c1"
+    },
+    {
+      "model": "TLA_MutexViolation",
+      "path": "Examples/TLA/MutexViolation.lean",
+      "module": "MutexViolation",
+      "cut_line": 316,
+      "query": "assert (∃ i j, i ≠ j ∧ pc i = cs ∧ pc j = cs)",
+      "query_kind": "invariant_violation",
+      "expected_status": null,
+      "query_source": "mutual_exclusion invariant, line313",
+      "notes": "Contains list-valued call stacks; symbolic translation may be unsupported independently of the optimization.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "f3c88c8d38d5ea314fdb4b3b04aedce04d2074780fe1f719a3990a3cbcb8ff04"
+    },
+    {
+      "model": "TLA_Room",
+      "path": "Examples/TLA/Room.lean",
+      "module": "RoomMC",
+      "cut_line": 146,
+      "query": "assert (∃ r g1 g2, guestTset.contains g1 (registered r) ∧ guestTset.contains g2 (registered r) ∧ g1 ≠ g2)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "registered_at_most_one safety, lines122–123",
+      "notes": "Collection-based hotel key model.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "2788514236d97e13f50cfeb72326b5a9b4bd70e153bcf2e3b15e93a5963ca2e7"
+    }
+  ],
+  "depths": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "variants": [
+    "old",
+    "early"
+  ],
+  "selected_profile": "default",
+  "query_limits": {
+    "maxHeartbeats": 200000,
+    "maxRecDepth": 512,
+    "simp_maxSteps": 100000
+  },
+  "setup_options": "Preserved from model prefix; per-cell manifest records source options.",
+  "query_trust": true,
+  "embedBool": false,
+  "finiteModelFind": true,
+  "native_cvc5_plugin": "/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+  "native_cvc5_plugin_sha256": "ac9f732f2ecfc268cf9d0e35cd9cdabc63be0ff24ea2a4a35d8b40c6d91b6b34",
+  "execution": "One model setup per batch; independent trace commands and command budgets. Shared process/cache state; variant order alternates per depth/model. Timeout kills process group and restarts unstarted cells.",
+  "setup_timeout_seconds": 60,
+  "query_elaboration_timeout_seconds": 60,
+  "pipeline_timeout_seconds": 60,
+  "solver_timeout_seconds": 10,
+  "samples_per_cell": 1,
+  "trace_semantics": "exactly N actions; does not cover all lengths <= N",
+  "timing": "Completed stage sums exclude model setup, trace VC elaboration, event IO, UI/model reconstruction and kernel proof reconstruction. Process wall times live in batch-events/*.execution.json; do not sum shared setup once per cell.",
+  "proof_status": "Query-extraction declarations deliberately error; no sorry or claimed theorem. Results come from separate trusted solver replay.",
+  "core_source_sha256": "20974a2187f55c796f0619d6420725c1f0ee71bddbe51ab7f357442a5208865f",
+  "core_olean_sha256": "dd848e86680ff5918ff0bcd8258dc707acc9c8f0c4a43928a5530fa6cd157f36"
+}

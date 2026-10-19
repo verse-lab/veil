@@ -1,0 +1,5 @@
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":174381526,"phase":"query_elaboration","status":"begin"}
+{"elapsed_ms":0,"event":"pipeline","maxHeartbeats":200000,"maxRecDepth":512,"mono_ms":174381606,"phase":"pipeline","status":"begin"}
+{"elapsed_ms":0,"event":"stage","mono_ms":174381606,"phase":"nextSimp","status":"begin"}
+{"elapsed_ms":13397,"error":"`simp` failed: maximum number of steps exceeded","event":"stage","mono_ms":174395009,"phase":"nextSimp","status":"failed"}
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":174395318,"phase":"query_elaboration","status":"end"}

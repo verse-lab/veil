@@ -1,0 +1,8 @@
+Final production validation: lake build VeilTest PASSED, 1,226 jobs.
+Log: final-suite-fixed.log. Core.lean and both added regression files were built.
+The only regression-test adjustment was whitespace:=lax on #print axioms guards;
+the axiom lists still match exactly apart from whitespace.
+
+The retained standalone conservative-helper checks also pass. full-suite.log is
+an older 1,225-job run of the preliminary unrestricted-introduction implementation;
+use final-suite-fixed.log for the delivered conservative implementation.

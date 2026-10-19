@@ -1,0 +1,171 @@
+{
+  "row": {
+    "cell_id": "TLA_EPaxos__d32__early__default",
+    "model": "TLA_EPaxos",
+    "path": "Examples/TLA/EPaxos.lean",
+    "module": "EPaxos",
+    "depth": 32,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "destruct",
+    "failure_kind": "heartbeats",
+    "failure_message": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_EPaxos__default__batch1.lean:1754:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached\n\nNote: Use `set_option maxHeartbeats <num>` to set the limit.\n\nHint: Additional diagnostic information may be available using the `set_option diagnostics true` command.\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 1108,
+    "batch_id": "TLA_EPaxos__default__batch1",
+    "batch_setup_ms": 47140,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/TLA_EPaxos__d32__early__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_EPaxos__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/TLA_EPaxos__d32__early__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_EPaxos__d32__early__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_EPaxos__d32__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_EPaxos",
+    "path": "Examples/TLA/EPaxos.lean",
+    "module": "EPaxos",
+    "cut_line": 1388,
+    "query": "assert (∃ i, commitSet.count (committedMap i) > 1)",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "Consistency invariant, lines1378–1379",
+    "notes": "Large collection/message model. Keep backend/elaboration failures as outcomes; do not replace its query with True.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "9f33f0fd15fa5c873302f7c521744277aaaca0373fa43b20d0e255549d742dd4"
+  },
+  "original_sha256": "9f33f0fd15fa5c873302f7c521744277aaaca0373fa43b20d0e255549d742dd4",
+  "inherited_setup_options": [],
+  "source_sha256": "04aa9749d944a7e9146eb281f15eca152052ae69dd21ebcd1925e411f2954205",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_EPaxos__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 175888327,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 175889435,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 175889436,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 811,
+      "event": "stage",
+      "mono_ms": 175890247,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 175890248,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 17843,
+      "event": "stage",
+      "mono_ms": 175908091,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 175908091,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5955,
+      "event": "stage",
+      "mono_ms": 175914046,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 175914337,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 168,
+      "event": "stage",
+      "mono_ms": 175914505,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 175914506,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 175918368,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_EPaxos__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_EPaxos__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_EPaxos__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 215145,
+    "setup_ms": 47140,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_EPaxos__default__batch1.lean"
+    ]
+  }
+}

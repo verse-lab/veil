@@ -1,0 +1,245 @@
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:168:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_current_2_1
+STAGE MultiSigAll_current_2_1 nextSimp ms=2349
+STAGE MultiSigAll_current_2_1 hoist ms=93
+STAGE MultiSigAll_current_2_1 intros ms=3
+STAGE MultiSigAll_current_2_1 destruct ms=125
+STAGE MultiSigAll_current_2_1 dsimp1 ms=28
+STAGE MultiSigAll_current_2_1 smtSimp ms=298
+STAGE MultiSigAll_current_2_1 dsimp2 ms=29
+SMT_STAGE MultiSigAll_current_2_1 pushHints ms=0
+SMT_STAGE MultiSigAll_current_2_1 smt-intros ms=0
+SMT_STAGE MultiSigAll_current_2_1 negateGoal ms=1
+SMT_STAGE MultiSigAll_current_2_1 normalize ms=25
+SMT_STAGE MultiSigAll_current_2_1 embedding ms=6
+SMT_STAGE MultiSigAll_current_2_1 translate ms=91 commands=76
+SMT_STAGE MultiSigAll_current_2_1 serialize ms=181 bytes=20526
+PIPELINE_COMPLETE MultiSigAll_current_2_1
+RUN_COMPLETE MultiSigAll_current_2_1
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:183:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_early_2_1
+STAGE MultiSigAll_early_2_1 early_intros ms=6
+STAGE MultiSigAll_early_2_1 nextSimp ms=457
+STAGE MultiSigAll_early_2_1 hoist ms=10
+STAGE MultiSigAll_early_2_1 intros ms=2
+STAGE MultiSigAll_early_2_1 destruct ms=116
+STAGE MultiSigAll_early_2_1 dsimp1 ms=29
+STAGE MultiSigAll_early_2_1 smtSimp ms=235
+STAGE MultiSigAll_early_2_1 dsimp2 ms=19
+SMT_STAGE MultiSigAll_early_2_1 pushHints ms=0
+SMT_STAGE MultiSigAll_early_2_1 smt-intros ms=0
+SMT_STAGE MultiSigAll_early_2_1 negateGoal ms=1
+SMT_STAGE MultiSigAll_early_2_1 normalize ms=17
+SMT_STAGE MultiSigAll_early_2_1 embedding ms=5
+SMT_STAGE MultiSigAll_early_2_1 translate ms=101 commands=76
+SMT_STAGE MultiSigAll_early_2_1 serialize ms=180 bytes=20526
+PIPELINE_COMPLETE MultiSigAll_early_2_1
+RUN_COMPLETE MultiSigAll_early_2_1
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:199:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_early_2_2
+STAGE MultiSigAll_early_2_2 early_intros ms=7
+STAGE MultiSigAll_early_2_2 nextSimp ms=453
+STAGE MultiSigAll_early_2_2 hoist ms=9
+STAGE MultiSigAll_early_2_2 intros ms=2
+STAGE MultiSigAll_early_2_2 destruct ms=105
+STAGE MultiSigAll_early_2_2 dsimp1 ms=24
+STAGE MultiSigAll_early_2_2 smtSimp ms=278
+STAGE MultiSigAll_early_2_2 dsimp2 ms=21
+RUN_COMPLETE MultiSigAll_early_2_2
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:214:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_current_2_2
+STAGE MultiSigAll_current_2_2 nextSimp ms=2626
+STAGE MultiSigAll_current_2_2 hoist ms=78
+STAGE MultiSigAll_current_2_2 intros ms=2
+STAGE MultiSigAll_current_2_2 destruct ms=99
+STAGE MultiSigAll_current_2_2 dsimp1 ms=25
+STAGE MultiSigAll_current_2_2 smtSimp ms=250
+STAGE MultiSigAll_current_2_2 dsimp2 ms=17
+RUN_COMPLETE MultiSigAll_current_2_2
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:228:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_current_2_3
+STAGE MultiSigAll_current_2_3 nextSimp ms=2771
+STAGE MultiSigAll_current_2_3 hoist ms=92
+STAGE MultiSigAll_current_2_3 intros ms=3
+STAGE MultiSigAll_current_2_3 destruct ms=141
+STAGE MultiSigAll_current_2_3 dsimp1 ms=36
+STAGE MultiSigAll_current_2_3 smtSimp ms=325
+STAGE MultiSigAll_current_2_3 dsimp2 ms=21
+RUN_COMPLETE MultiSigAll_current_2_3
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:242:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_early_2_3
+STAGE MultiSigAll_early_2_3 early_intros ms=7
+STAGE MultiSigAll_early_2_3 nextSimp ms=523
+STAGE MultiSigAll_early_2_3 hoist ms=12
+STAGE MultiSigAll_early_2_3 intros ms=2
+STAGE MultiSigAll_early_2_3 destruct ms=131
+STAGE MultiSigAll_early_2_3 dsimp1 ms=39
+STAGE MultiSigAll_early_2_3 smtSimp ms=347
+STAGE MultiSigAll_early_2_3 dsimp2 ms=25
+RUN_COMPLETE MultiSigAll_early_2_3
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:257:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_early_4_1
+STAGE MultiSigAll_early_4_1 early_intros ms=13
+STAGE MultiSigAll_early_4_1 nextSimp ms=1049
+STAGE MultiSigAll_early_4_1 hoist ms=19
+STAGE MultiSigAll_early_4_1 intros ms=3
+STAGE MultiSigAll_early_4_1 destruct ms=292
+STAGE MultiSigAll_early_4_1 dsimp1 ms=63
+STAGE MultiSigAll_early_4_1 smtSimp ms=587
+STAGE MultiSigAll_early_4_1 dsimp2 ms=52
+SMT_STAGE MultiSigAll_early_4_1 pushHints ms=0
+SMT_STAGE MultiSigAll_early_4_1 smt-intros ms=0
+SMT_STAGE MultiSigAll_early_4_1 negateGoal ms=2
+SMT_STAGE MultiSigAll_early_4_1 normalize ms=51
+SMT_STAGE MultiSigAll_early_4_1 embedding ms=9
+SMT_STAGE MultiSigAll_early_4_1 translate ms=193 commands=130
+SMT_STAGE MultiSigAll_early_4_1 serialize ms=348 bytes=38806
+PIPELINE_COMPLETE MultiSigAll_early_4_1
+RUN_COMPLETE MultiSigAll_early_4_1
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:273:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_current_4_1
+STAGE MultiSigAll_current_4_1 nextSimp ms=9001
+STAGE MultiSigAll_current_4_1 hoist ms=179
+STAGE MultiSigAll_current_4_1 intros ms=4
+STAGE MultiSigAll_current_4_1 destruct ms=255
+STAGE MultiSigAll_current_4_1 dsimp1 ms=65
+STAGE MultiSigAll_current_4_1 smtSimp ms=617
+STAGE MultiSigAll_current_4_1 dsimp2 ms=50
+SMT_STAGE MultiSigAll_current_4_1 pushHints ms=0
+SMT_STAGE MultiSigAll_current_4_1 smt-intros ms=1
+SMT_STAGE MultiSigAll_current_4_1 negateGoal ms=1
+SMT_STAGE MultiSigAll_current_4_1 normalize ms=46
+SMT_STAGE MultiSigAll_current_4_1 embedding ms=9
+SMT_STAGE MultiSigAll_current_4_1 translate ms=201 commands=130
+SMT_STAGE MultiSigAll_current_4_1 serialize ms=394 bytes=38806
+PIPELINE_COMPLETE MultiSigAll_current_4_1
+RUN_COMPLETE MultiSigAll_current_4_1
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:288:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_current_4_2
+STAGE MultiSigAll_current_4_2 nextSimp ms=9174
+STAGE MultiSigAll_current_4_2 hoist ms=202
+STAGE MultiSigAll_current_4_2 intros ms=3
+STAGE MultiSigAll_current_4_2 destruct ms=255
+STAGE MultiSigAll_current_4_2 dsimp1 ms=53
+STAGE MultiSigAll_current_4_2 smtSimp ms=499
+STAGE MultiSigAll_current_4_2 dsimp2 ms=43
+RUN_COMPLETE MultiSigAll_current_4_2
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:302:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_early_4_2
+STAGE MultiSigAll_early_4_2 early_intros ms=12
+STAGE MultiSigAll_early_4_2 nextSimp ms=1012
+STAGE MultiSigAll_early_4_2 hoist ms=20
+STAGE MultiSigAll_early_4_2 intros ms=4
+STAGE MultiSigAll_early_4_2 destruct ms=287
+STAGE MultiSigAll_early_4_2 dsimp1 ms=57
+STAGE MultiSigAll_early_4_2 smtSimp ms=718
+STAGE MultiSigAll_early_4_2 dsimp2 ms=47
+RUN_COMPLETE MultiSigAll_early_4_2
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:317:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_early_4_3
+STAGE MultiSigAll_early_4_3 early_intros ms=14
+STAGE MultiSigAll_early_4_3 nextSimp ms=885
+STAGE MultiSigAll_early_4_3 hoist ms=20
+STAGE MultiSigAll_early_4_3 intros ms=3
+STAGE MultiSigAll_early_4_3 destruct ms=274
+STAGE MultiSigAll_early_4_3 dsimp1 ms=59
+STAGE MultiSigAll_early_4_3 smtSimp ms=655
+STAGE MultiSigAll_early_4_3 dsimp2 ms=41
+RUN_COMPLETE MultiSigAll_early_4_3
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:332:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_current_4_3
+STAGE MultiSigAll_current_4_3 nextSimp ms=9661
+STAGE MultiSigAll_current_4_3 hoist ms=201
+STAGE MultiSigAll_current_4_3 intros ms=4
+STAGE MultiSigAll_current_4_3 destruct ms=274
+STAGE MultiSigAll_current_4_3 dsimp1 ms=69
+STAGE MultiSigAll_current_4_3 smtSimp ms=729
+STAGE MultiSigAll_current_4_3 dsimp2 ms=45
+RUN_COMPLETE MultiSigAll_current_4_3
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:346:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:352:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:353:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:354:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:355:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:356:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:357:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:358:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_BEGIN MultiSigAll_current_8_1
+FAILED MultiSigAll_current_8_1 nextSimp ms=17936: `simp` failed: maximum number of steps exceeded
+RUN_FAILED MultiSigAll_current_8_1
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:361:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_early_8_1
+STAGE MultiSigAll_early_8_1 early_intros ms=37
+STAGE MultiSigAll_early_8_1 nextSimp ms=2000
+STAGE MultiSigAll_early_8_1 hoist ms=38
+STAGE MultiSigAll_early_8_1 intros ms=6
+STAGE MultiSigAll_early_8_1 destruct ms=747
+STAGE MultiSigAll_early_8_1 dsimp1 ms=150
+STAGE MultiSigAll_early_8_1 smtSimp ms=1428
+STAGE MultiSigAll_early_8_1 dsimp2 ms=95
+SMT_STAGE MultiSigAll_early_8_1 pushHints ms=1
+SMT_STAGE MultiSigAll_early_8_1 smt-intros ms=0
+SMT_STAGE MultiSigAll_early_8_1 negateGoal ms=4
+SMT_STAGE MultiSigAll_early_8_1 normalize ms=93
+SMT_STAGE MultiSigAll_early_8_1 embedding ms=17
+SMT_STAGE MultiSigAll_early_8_1 translate ms=339 commands=238
+SMT_STAGE MultiSigAll_early_8_1 serialize ms=742 bytes=75366
+PIPELINE_COMPLETE MultiSigAll_early_8_1
+RUN_COMPLETE MultiSigAll_early_8_1
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:377:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_early_8_2
+STAGE MultiSigAll_early_8_2 early_intros ms=40
+STAGE MultiSigAll_early_8_2 nextSimp ms=1967
+STAGE MultiSigAll_early_8_2 hoist ms=33
+STAGE MultiSigAll_early_8_2 intros ms=5
+STAGE MultiSigAll_early_8_2 destruct ms=667
+STAGE MultiSigAll_early_8_2 dsimp1 ms=105
+STAGE MultiSigAll_early_8_2 smtSimp ms=1316
+STAGE MultiSigAll_early_8_2 dsimp2 ms=81
+RUN_COMPLETE MultiSigAll_early_8_2
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:392:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:396:104: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED MultiSigAll_current_8_2 prior_failure
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:406:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:410:104: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED MultiSigAll_current_8_3 prior_failure
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:420:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_early_8_3
+STAGE MultiSigAll_early_8_3 early_intros ms=48
+STAGE MultiSigAll_early_8_3 nextSimp ms=1994
+STAGE MultiSigAll_early_8_3 hoist ms=41
+STAGE MultiSigAll_early_8_3 intros ms=4
+STAGE MultiSigAll_early_8_3 destruct ms=617
+STAGE MultiSigAll_early_8_3 dsimp1 ms=113
+STAGE MultiSigAll_early_8_3 smtSimp ms=1352
+STAGE MultiSigAll_early_8_3 dsimp2 ms=76
+RUN_COMPLETE MultiSigAll_early_8_3
+/tmp/veil-early-intro-multi/results/sources/MultiSigAll.lean:435:0: warning: declaration uses `sorry`
+RUN_BEGIN MultiSigAll_early_16_1
+STAGE MultiSigAll_early_16_1 early_intros ms=71
+STAGE MultiSigAll_early_16_1 nextSimp ms=3773
+STAGE MultiSigAll_early_16_1 hoist ms=69
+STAGE MultiSigAll_early_16_1 intros ms=9
+STAGE MultiSigAll_early_16_1 destruct ms=2265
+STAGE MultiSigAll_early_16_1 dsimp1 ms=284
+STAGE MultiSigAll_early_16_1 smtSimp ms=3757
+STAGE MultiSigAll_early_16_1 dsimp2 
+PROCESS status=timeout wall_seconds=180.028680

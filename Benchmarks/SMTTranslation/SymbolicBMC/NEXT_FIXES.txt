@@ -1,0 +1,168 @@
+Recommended next fixes after early introduction
+
+The small early-introduction patch should stay separate from the larger fixes
+below. It is an ordinary proof-producing introduction of the outer data/type
+parameters; it neither drops trace constraints nor changes witness scopes.
+First-failure counts are censored by earlier failures: more early-introduction
+cells reaching a backend error do not by themselves show a backend regression.
+The complete suite passes, and paired emitted-query comparisons provide an
+additional check. Solver performance is a separate outcome from translation.
+
+Priority 1: repair backend correctness/coverage failures, then reduce its depth.
+
+Early introduction emits queries for 25 of the 49 files at some sampled depth,
+the same file coverage as the old order. It extends reachable depths but cannot
+repair an unsupported or ill-typed embedding at depth 1. Prioritize the small
+Nat/Fin congruence and instantiated-constant dependency fixes, using the
+functional diagnostic results in the associated appendices. Do not infer one
+root cause for all 49 early embedding type-mismatch cells or all 41 translation
+errors. The latter include 20 universe-count errors, 16 residual-lambda errors,
+and five attempts to translate Type. Another 15 emitted scripts are rejected by
+cvc5 for a dependent Decidable.decide declaration in sort position (five old,
+ten early; see SMT_PARSER_FINDINGS.txt). Their boundaries require distinct repairs.
+
+For Nat-to-Int contextual simplification, mirror Lean's dependency-aware
+implication congruence: bind fresh proof dependencies in the returned expression,
+choose dependent or ordinary congruence as appropriate, and use the expected
+transparency mode. Keep nonnegativity and Fin bounds. Test expression/proof
+well-formedness, no escaped locals, complete SAT/UNSAT and model decoding, and
+untrusted kernel reconstruction. Rat has an analogous source pattern, but no
+Rat failure was established here; avoid claiming it is a confirmed corpus bug.
+
+For constants, retain actual instantiated Expr constants through the dependency
+cache/graph. Reconstructing a polymorphic constant with mkConst name discards
+universe levels. Preserving levels repairs malformed Lean expressions, but does
+not alone implement polymorphism: actual type/instance applications also affect
+SMT signatures. Either support a tested monomorphic instance key or reject the
+unsupported input clearly. Do not just filter DecidableEq from dependencies.
+A direct decide-to-Boolean translator may eliminate irrelevant decision-procedure
+terms; confirm residuals and support proof reconstruction before shipping it.
+
+ReliableBroadcast has a separate frontend gap: a transition-form action
+retains its toTransitionDerived wrapper, which exposes its DecidableEq lambdas
+to SMT. Generate the missing exact derived-relation normalization bridge for
+transition-form declarations, preserving substate/frame semantics. See
+TRANSITION_FORM_FINDINGS.txt; a decide translator is not a substitute.
+
+The existing Smt.Config.mono option is worth a separate experiment. It invokes
+Auto.runMono and reconstructs a proof back to the input, rather than using the
+ordinary pushHints/intros/negateGoal path. That proof direction alone does not
+establish SAT reflection or preservation of displayed countermodels. Its suitability
+as an exact BMC replacement has not been validated; it is not a proven drop-in fix.
+
+Priority 2: normalize each transition locally, with exact equivalence proofs.
+
+This is the central algorithmic fix for larger depths. The old code simplifies
+one formula under a long dependent outer telescope. Early introduction removes
+that telescope from the frontend simplifier, but the trace body is still one
+large conjunction and genuine function-valued witnesses still require hoisting.
+Nine early cells still hit the 100000-step simplifier limit. Merely increasing
+that limit also misses the guarded simproc's fresh inner default simp budget.
+
+Start with the generated Not(trace-conjunction) form after the data prefix:
+introduce the trace hypothesis, split only top-level conjunctions, and normalize
+init/theory/transition/assertion hypotheses individually. Extract leading
+existential witnesses with exact eliminations, preserving dependent order and
+branch scope; retain action disjunctions and one combined SMT query. Do not
+case-split/enumerate action sequences. The current trace construction is already
+a conjunction of per-step disjunctions, not exponential enumeration of traces.
+
+Because the goal is now False, all subsequent dsimp/smtSimp calls must explicitly
+process retained hypotheses. Leaving the existing target-only calls unchanged
+would silently skip the matrices. Preserve shared middle states, all guards,
+frames, parameters and assertions. Existing source-to-abstract transition
+implications are insufficient for SAT semantics; use exact generated transition
+equalities and normalization proofs. Hoisting through an inactive branch needs
+Nonempty; moving a witness across a dependent universal is not generally valid.
+
+Also audit constraint identity at the SMT boundary. Current hint collection
+uses user names, deduplicates them and filters implementation-detail declarations.
+Create unique visible names for retained matrices, track their live FVarIds through
+context changes, and assert that all constraints reach SMT. Test a shadowed-name
+UNSAT pair where dropping either hypothesis turns the result SAT. Prefer a later
+Expr/FVarId-based API over relying permanently on display-name conventions.
+
+LOCAL_NORMALIZATION_DESIGN.txt contains the concrete algorithm, fallback, semantic
+counterexamples and acceptance tests. A separate synthetic hoister experiment
+found 271848 global steps versus 1279 summed local steps at depth 32, under raised
+limits. It excludes splitting, transport, context and kernel costs and is not a
+measured end-to-end speedup. Compare total inner/outer steps and proof/context
+work at the same overall heartbeat budget; fresh simp budgets alone are not an
+algorithmic improvement.
+
+Then cache exact parameterized action normal forms once per model/environment,
+instantiating fresh state/action/witness symbols per occurrence. Common frame
+constraints can be factored by proved equivalences when scopes match. Report
+cold setup plus query cost separately from amortized cached latency. Never cache
+live FVarIds from an old local context or key only by a printed action name.
+
+Priority 3: stop SMT embedding from rebuilding a giant dependent telescope.
+
+The downstream embedding reverts relevant variables/hypotheses and simplifies
+one target, recreating the depth-sensitive structure that early introduction
+removed from Veil. There are 38 early embedding-recursion failures in the primary
+grid. The recursion-only controls isolate the benefit and limits of a resource
+increase without increasing heartbeat budgets; see controls/README.txt.
+
+Design a context-preserving embedding with a shared original-to-embedded variable
+map, or bounded dependency groups. Independent per-hypothesis embeddings that
+create different Int copies of the same Nat variable would change semantics.
+Preserve dependent proofs, nonnegativity, Fin bounds, function guards and the
+proof/core/model maps. Balance conjunctions where useful, but that alone does not
+shorten a large forall telescope. Raising maxRecDepth can be a temporary workaround
+for some cells; it is not a scalability fix and may expose a later heartbeat limit.
+
+Priority 4: make state destruction proportional to useful work.
+
+The deep completed-query profiles show this is substantial, not only a speculative
+cleanup. At early depth 32, PaxosFirstOrder spends 6.313s in destruction, 4.367s in
+nextSimp and 3.596s in smtSimp, out of 16.397s total query stages; hoisting is 0.111s.
+Peterson spends 2.679s in destruction and 2.233s in smtSimp, versus 0.055s in hoisting
+(9.020s total). Ring similarly spends 1.757s in destruction and 1.075s in smtSimp,
+versus 0.036s in hoisting (5.488s total). These are single observed completed
+samples. After early introduction removes avoidable hoisting, normal transition
+simplification, context destruction and final normalization dominate these models.
+Genuine function-choice models still have the separate hoisting bottleneck.
+The raw stages.csv records each component; the graph groups several as other Veil.
+
+
+Current destruction repeatedly scans a growing local context and uses an array
+of full LocalDecls as its visited set. Try an FVarId-indexed worklist with a saved
+full declaration snapshot; revisit when its type/value changes. A visited set of
+FVarIds alone is insufficient after dependent transports. This reduces bookkeeping
+but rcases still rewrites dependent context/proofs, so measure that remaining cost.
+A field-level state representation is a later architectural option, not a necessary
+part of the small worklist patch.
+
+Priority 5: optimize multi-depth reuse and solver behavior after frontend fixes.
+
+Use a persistent query-builder/symbol table and native cvc5 session; the bindings
+already expose push/pop/checkSatAssuming. Assert the common path prefix once,
+append transitions, push the current endpoint assertion, check and retrieve the
+result, then pop. Retaining earlier endpoint assertions changes an exact-depth
+query. Do not freeze previous models or concatenate independently generated
+complete scripts with duplicate declarations. Keep proof/model symbol lifetimes
+and cancellation behavior explicit. Benchmark against fresh solves: retained
+instantiations can hurt as well as help.
+
+This primarily saves repeated work across depths, not a single deep hoisting pass.
+Measure parsing, checkSat and model retrieval separately; current solver_ms includes
+all three plus native setup. Query timeouts already show solving becoming a real
+limit after translation improves. Ordinary first-order define-fun cannot take the
+current function-valued state symbols as function arguments. Prefer host-level
+transition templates first; time-indexed fields or arrays need a separate exact
+encoding, decoder/proof bridge and solver experiment. Output sharing with scoped
+lets may help serialization/memory, but prioritize it only when measured phase
+costs or bytes warrant it. Smaller SMT text is not proof of easier solving.
+
+Acceptance for every follow-up
+
+Keep the exact original trace problem, including SAT witnesses, empty/dependent
+witness cases, shared states, intermediate assertions and proof-valued headers.
+Run trusted SAT/UNSAT and actual untrusted kernel-checked theorems, check decoded
+traces against original relations on finite cases, compare paired emitted formulas
+where meaningful, and repeat this same frozen corpus with identical budgets.
+Separate preprocessing, embedding, query emission and solver outcomes. A later
+failure after removing an earlier one is progress, not a complete fix. Neither
+finite testing nor agreement of solver answers substitutes for an equivalence
+argument for a new encoding.

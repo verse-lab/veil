@@ -1,0 +1,371 @@
+{
+  "row": {
+    "cell_id": "Ivy_MultiSigAll__d4__early__default",
+    "model": "Ivy_MultiSigAll",
+    "path": "Examples/Ivy/MultiSigAll.lean",
+    "module": "MultiSigAll",
+    "depth": 4,
+    "variant": "early",
+    "profile": "default",
+    "status": "unsat",
+    "translation_status": "complete",
+    "solver_status": "unsat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 54,
+    "batch_id": "Ivy_MultiSigAll__default__batch1",
+    "batch_setup_ms": 13837,
+    "preprocessing_ms": 1717,
+    "smt_preprocessing_ms": 55,
+    "translation_ms": 173,
+    "serialization_ms": 0,
+    "query_total_ms": 1945,
+    "solver_ms": 5342,
+    "completed_total_ms": 7287,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 38839,
+    "query_commands": 130,
+    "query_sha256": "6d41b1f7d0de06c3fe30f1e1078891fba72c2a2e81fb7d834db3d37f9053ab03",
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/Ivy_MultiSigAll__d4__early__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigAll__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/Ivy_MultiSigAll__d4__early__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/Ivy_MultiSigAll__d4__early__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_MultiSigAll",
+    "path": "Examples/Ivy/MultiSigAll.lean",
+    "module": "MultiSigAll",
+    "cut_line": 85,
+    "query": "assert (∃ n k v d, cancelled n k v d ∧ ¬ expired d)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "cancelled_after_deadline safety, line78",
+    "notes": "Five sorts and high-arity relations; distinct query from the earlier paid-tuple reachability experiment.",
+    "category": "Ivy",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "7550361739a54ef68b10ce343140bf00a51917b65bb4344b75effb1a1bfbcfdf"
+  },
+  "original_sha256": "7550361739a54ef68b10ce343140bf00a51917b65bb4344b75effb1a1bfbcfdf",
+  "inherited_setup_options": [],
+  "source_sha256": "e0f4ed451a3f19be2f6edc0f6c61f109a4f57b2448cf6dc2c3743cdde5817668",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/Ivy_MultiSigAll__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 173528309,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 173528363,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173528364,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 13,
+      "event": "stage",
+      "mono_ms": 173528377,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173528377,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 818,
+      "event": "stage",
+      "mono_ms": 173529195,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173529196,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 16,
+      "event": "stage",
+      "mono_ms": 173529212,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173529230,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "mono_ms": 173529232,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173529233,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 239,
+      "event": "stage",
+      "mono_ms": 173529472,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173529472,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 60,
+      "event": "stage",
+      "mono_ms": 173529532,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173529532,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 531,
+      "event": "stage",
+      "mono_ms": 173530064,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173530075,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 38,
+      "event": "stage",
+      "mono_ms": 173530113,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 1751,
+      "event": "milestone",
+      "mono_ms": 173530114,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173530114,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "mono_ms": 173530118,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173530118,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "mono_ms": 173530119,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173530119,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173530119,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173530119,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "mono_ms": 173530121,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173530121,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 39,
+      "event": "stage",
+      "mono_ms": 173530160,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173530160,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 9,
+      "event": "stage",
+      "mono_ms": 173530169,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173530169,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 173,
+      "event": "stage",
+      "mono_ms": 173530342,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173530693,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173530693,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 38839,
+      "commands": 130,
+      "elapsed_ms": 2330,
+      "event": "pipeline",
+      "mono_ms": 173530693,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 173530801,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_MultiSigAll__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigAll__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/Ivy_MultiSigAll__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 92966,
+    "setup_ms": 13837,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigAll__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 5342,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unsat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/Ivy_MultiSigAll__d4__early__default.solver.jsonl",
+    "batch_log": "/tmp/veil-symbolic-bmc/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

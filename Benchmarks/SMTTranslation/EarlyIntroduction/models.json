@@ -1,0 +1,37 @@
+[
+  [
+    "Ring",
+    "Examples/Ivy/Ring.lean",
+    "\u2203 l, leader l"
+  ],
+  [
+    "DieHard",
+    "Examples/Puzzles/DieHard.lean",
+    "big = 4"
+  ],
+  [
+    "TwoPhaseCommit",
+    "Examples/Ivy/TwoPhaseCommit.lean",
+    "\u2203 n, decide_commit n"
+  ],
+  [
+    "RicartAgrawala",
+    "Examples/Ivy/RicartAgrawala.lean",
+    "\u2203 n, holds n"
+  ],
+  [
+    "MultiSigAll",
+    "Examples/Ivy/MultiSigAll.lean",
+    "\u2203 n k v d, paid n k v d"
+  ],
+  [
+    "Peterson",
+    "Examples/TLA/Peterson.lean",
+    "\u2203 p, pc p critical \u2228 pc p release"
+  ],
+  [
+    "FloodSet",
+    "Examples/Synchronous/FloodSet.lean",
+    "\u2203 n v, decision n v"
+  ]
+]

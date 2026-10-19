@@ -1,0 +1,53 @@
+Transition-form declarations need a certified normalization bridge
+
+Confirmed production evidence
+  ReliableBroadcast depth 1 fails with a residual lambda implementing DecidableEq.
+  The traced enclosing term is more informative than that final error:
+    VeilM.toTransitionDerived (... byz.ext ... (fun a b => propDecidable ...) ...)
+  The source byz is a `transition`, not an imperative `action` and not a ghost
+  predicate. Its complete semantic wrapper survives the frontend normalization.
+  The translator then walks its computational typeclass arguments and rejects
+  the lambda. A decide translator alone cannot remove this enclosing wrapper.
+
+Concrete source correspondence
+  Action/Elaborators.lean:1196–1216 registers the supplied transition relation
+  and calls defineProcedureCore with deriveTransition=false.
+  defineExternalVerificationDefinitions:1083–1085 skips AuxiliaryDefinitions.
+  defineTransition in that case. That skipped helper normally generates and
+  registers the act.ext.derived_eq equality in nextSimp at 634–650. The transition
+  source avoids recomputing its relation but still needs the exact bridge from
+  the action wrapper used by trace generation back to its supplied relation.
+  The residual production expression is consistent with this missing bridge.
+
+Proposed fix
+  Generate a proved equality for the fully specialized transition-form action
+  and register it in nextSimp, retaining the original supplied relation and
+  appropriate frame/substate behavior. Prove it from Transition.toVeilM's
+  semantics and the generated WP, rather than teaching SMT to encode VeilM,
+  arbitrary typeclass lambdas, or higher-order action implementations.
+
+  Caution: Transition.toVeilM (Semantics/Definitions.lean:354–359) chooses a
+  substate, applies setIn to the existing state, assumes the relation, and sets
+  the result. An unrestricted theorem saying its derived relation equals any
+  arbitrary full-state relation for every IsSubStateOf instance needs additional
+  conditions and may be false. Prove the actual generated specialization, with
+  correct frame constraints; do not silently permit changes outside the chosen
+  substate. The BMC reflexive abstract-state instance is a useful first case.
+
+  Test a minimal transition-form self-loop against the equivalent imperative
+  action, complete ReliableBroadcast translation, transitions with proof/type
+  parameters, and untrusted kernel reconstruction. Add SAT tests where a
+  transition changes a field as well as UNSAT tests preserving a flag. Do not
+  infer that repairing one wrapper fixes all 16 residual-lambda cells in the
+  corpus; SCP/RingFin need their own enclosing-expression audits.
+
+Minimized confirmation
+  TransitionFormMinimal declares a single Bool flag, initializes it false, and
+  uses `transition stay { flag' = flag }`. Its depth 1 trace asserting flag fails
+  on a field-representation lambda while stay.ext.toTransitionDerived remains.
+  ActionFormMinimal replaces that declaration with `action stay { pure () }`;
+  the equivalent query reaches trusted native UNSAT. Thus the gap reproduces
+  without ReliableBroadcast's complex types, ghost predicates or decide update.
+  These retained probes validate the missing normalization path, not a repair.
+  Their outcomes and hashes are listed in DIAGNOSTICS_README.txt.
+This bridge is a follow-up design, not part of the early-introduction patch.

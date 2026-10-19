@@ -1,0 +1,4 @@
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":176362586,"phase":"query_elaboration","status":"begin"}
+{"elapsed_ms":0,"event":"pipeline","maxHeartbeats":200000,"maxRecDepth":512,"mono_ms":176363484,"phase":"pipeline","status":"begin"}
+{"elapsed_ms":0,"event":"stage","mono_ms":176363485,"phase":"nextSimp","status":"begin"}
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":176363696,"phase":"query_elaboration","status":"end"}

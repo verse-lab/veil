@@ -1,0 +1,115 @@
+{
+  "row": {
+    "cell_id": "Ivy_ChordRingMaintenance__d16__old__default",
+    "model": "Ivy_ChordRingMaintenance",
+    "path": "Examples/Ivy/ChordRingMaintenance.lean",
+    "module": "ChordRingMaintenance",
+    "depth": 16,
+    "variant": "old",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "nextSimp",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ChordRingMaintenance__default__batch1.lean:490:37: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 172,
+    "batch_id": "Ivy_ChordRingMaintenance__default__batch1",
+    "batch_setup_ms": 22428,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/Ivy_ChordRingMaintenance__d16__old__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ChordRingMaintenance__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/Ivy_ChordRingMaintenance__d16__old__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/Ivy_ChordRingMaintenance__d16__old__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/Ivy_ChordRingMaintenance__d16__old__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_ChordRingMaintenance",
+    "path": "Examples/Ivy/ChordRingMaintenance.lean",
+    "module": "ChordRingMaintenance",
+    "cut_line": 165,
+    "query": "assert (∃ n, error n)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "no_error safety, line143",
+    "notes": "",
+    "category": "Ivy",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "2eedcdc41c0722fd5a77853fe96a7e9a495c2da32964b222a9c3508ca0051edf"
+  },
+  "original_sha256": "2eedcdc41c0722fd5a77853fe96a7e9a495c2da32964b222a9c3508ca0051edf",
+  "inherited_setup_options": [],
+  "source_sha256": "bd2a4926515ecc600e0aee90d1540de16cf41a2310b230021a0b754eb003e210",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/Ivy_ChordRingMaintenance__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 173427523,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 173427695,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173427695,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 173427812,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_ChordRingMaintenance__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ChordRingMaintenance__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/Ivy_ChordRingMaintenance__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 123286,
+    "setup_ms": 22428,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ChordRingMaintenance__default__batch1.lean"
+    ]
+  }
+}

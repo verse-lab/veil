@@ -1,0 +1,367 @@
+{
+  "row": {
+    "cell_id": "AWS_AWSFixed__d8__old__recursion_only",
+    "model": "AWS_AWSFixed",
+    "path": "Examples/AWS/AWSFixed.lean",
+    "module": "AWSDnsRace",
+    "depth": 8,
+    "variant": "old",
+    "profile": "recursion_only",
+    "status": "solver_timeout",
+    "translation_status": "complete",
+    "solver_status": "timeout",
+    "failure_phase": "solver",
+    "failure_kind": "solver_timeout",
+    "failure_message": "TIMEOUT",
+    "setup_ms": null,
+    "query_elaboration_ms": 44,
+    "batch_id": "AWS_AWSFixed__recursion_only__batch1",
+    "batch_setup_ms": 11433,
+    "preprocessing_ms": 9517,
+    "smt_preprocessing_ms": 17532,
+    "translation_ms": 211,
+    "serialization_ms": 0,
+    "query_total_ms": 27260,
+    "solver_ms": 10024,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 73743,
+    "query_commands": 187,
+    "query_sha256": "f0645fb7de2f955ba2f49fe1db64748fbc05fb78a8bdafe3d3a32311f1f20512",
+    "query_path": "/tmp/veil-symbolic-bmc/controls/aws-recursion/queries/AWS_AWSFixed__d8__old__recursion_only.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/controls/aws-recursion/batch-sources/AWS_AWSFixed__recursion_only__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/controls/aws-recursion/events/AWS_AWSFixed__d8__old__recursion_only.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/controls/aws-recursion/logs/AWS_AWSFixed__d8__old__recursion_only.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/controls/aws-recursion/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "AWS_AWSFixed",
+    "path": "Examples/AWS/AWSFixed.lean",
+    "module": "AWSDnsRace",
+    "cut_line": 164,
+    "query": "assert (dns_valid = false)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "DnsConsistent safety, line125",
+    "notes": "Repaired DNS race variant; include separately from AWSBuggy.",
+    "category": "AWS",
+    "source_options": [
+      {
+        "line": 162,
+        "directive": "set_option veil.solver \"grind+smt\""
+      }
+    ],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "dc2dc5ffb8f19c619effabf68fda7d2e68b4f6cc13cbb6dc518e6f5159c30431"
+  },
+  "original_sha256": "dc2dc5ffb8f19c619effabf68fda7d2e68b4f6cc13cbb6dc518e6f5159c30431",
+  "inherited_setup_options": [
+    {
+      "line": 162,
+      "directive": "set_option veil.solver \"grind+smt\""
+    }
+  ],
+  "source_sha256": "3ce589d31f4ca8b7ee1f890bb2b11c3c0d3168f987e6db7601d5c1f6c5071189",
+  "batch_log": "/tmp/veil-symbolic-bmc/controls/aws-recursion/batch-logs/AWS_AWSFixed__recursion_only__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 200757439,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 10000,
+      "mono_ms": 200757483,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200757483,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 8128,
+      "event": "stage",
+      "mono_ms": 200765612,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200765612,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 241,
+      "event": "stage",
+      "mono_ms": 200765853,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200765989,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "mono_ms": 200765992,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200765992,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 392,
+      "event": "stage",
+      "mono_ms": 200766385,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200766386,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 105,
+      "event": "stage",
+      "mono_ms": 200766491,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200766503,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 572,
+      "event": "stage",
+      "mono_ms": 200767076,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200767076,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 76,
+      "event": "stage",
+      "mono_ms": 200767152,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 9669,
+      "event": "milestone",
+      "mono_ms": 200767152,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200767152,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "mono_ms": 200767156,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200767157,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200767157,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200767157,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200767157,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200767157,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "mono_ms": 200767158,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200767158,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 88,
+      "event": "stage",
+      "mono_ms": 200767246,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200767246,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 17439,
+      "event": "stage",
+      "mono_ms": 200784685,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200784685,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 211,
+      "event": "stage",
+      "mono_ms": 200784896,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200785375,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200785375,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 73743,
+      "commands": 187,
+      "elapsed_ms": 27892,
+      "event": "pipeline",
+      "mono_ms": 200785376,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 200786105,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "AWS_AWSFixed__recursion_only__batch1",
+    "source": "/tmp/veil-symbolic-bmc/controls/aws-recursion/batch-sources/AWS_AWSFixed__recursion_only__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/controls/aws-recursion/batch-logs/AWS_AWSFixed__recursion_only__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 61461,
+    "setup_ms": 11433,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/controls/aws-recursion/batch-sources/AWS_AWSFixed__recursion_only__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "TIMEOUT",
+      "elapsed_ms": 10024,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unknown"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-symbolic-bmc/controls/aws-recursion/events/AWS_AWSFixed__d8__old__recursion_only.solver.jsonl",
+    "batch_log": "/tmp/veil-symbolic-bmc/controls/aws-recursion/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

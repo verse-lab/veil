@@ -1,0 +1,281 @@
+Remaining hoisting and recursion limits: static design notes
+==========================================================
+
+Scope and evidence
+  No new Lean jobs, benchmarks, or production edits were performed for these
+  notes. The concrete observations below are completed cells from the active
+  restarted 49-file sweep with the native launcher, read on 2026-10-19.
+  Proposed follow-ups are not implemented or validated. All source references
+  are relative to the Veil checkout. Final priorities await the complete sweep.
+
+  Blockchain, uniform maxHeartbeats=200000/maxRecDepth=512 query profile:
+    depth   old outcome                      conservative early outcome
+       1    query emitted                     query emitted
+       2    query emitted                     query emitted
+       4    heartbeat exhaustion in hoist     query emitted
+       8    simp steps in nextSimp            simp steps in hoist
+      16    recursion in nextSimp             simp steps in hoist
+      32    recursion in nextSimp             heartbeats in hoist
+  Timing values from the earlier pre-plugin launch have been removed; use the
+  final native-launcher dataset for all performance numbers. The outcome table
+  above was rechecked against the restarted cells and remains unchanged.
+  See results/events/Ivy_Blockchain__d{depth}__{variant}__default.jsonl and
+  the corresponding cell JSON for exact outcomes and errors. A query emission
+  is not a solver verdict; the separate solver sweep supplies that evidence.
+
+  Other completed fresh cells show why the remaining work is broader than
+  hoisting: Ivy_NOPaxos early emits a query at depth 8, exhausts heartbeats in
+  smtSimp at 16, and reaches the simp-step cap in nextSimp at 32. AWS_AWSBuggy
+  early depth 32 exhausts heartbeats during destruct. The phases identify where
+  work stopped, not a full causal attribution or independent phase budget:
+  earlier work consumes the same Lean command heartbeat allowance.
+
+Why this is a real remaining problem
+  Examples/Ivy/Blockchain.lean:70,83–84 havocs whole slices of relations.
+  The resulting choices have function types node→block→Bool,
+  block→time→Bool, and transaction→Bool. The havoc elaborator deliberately
+  preserves capital-index dimensions in the picked type
+  (Veil/Frontend/DSL/Action/DoElab/Assign.lean:535–574).
+
+  These are genuine nested existential function witnesses. Introducing the
+  outer State/Theory/argument parameters cannot remove them. The current
+  optimization removes two avoidable costs: repeatedly rebuilding the outer
+  data telescope, and the HO guard being triggered solely by outer structure
+  parameters. It leaves the actual existential normalizer unchanged
+  (Veil/Frontend/DSL/Tactic/Core.lean:1340–1378).
+
+  Veil/Frontend/DSL/Infra/Quantifiers.lean:291–296 calls a fresh full
+  existsQuantifierSimp pass whenever the guard finds HO quantification.
+  Its rules pull individual witnesses across conjunctions (189–192), across
+  alternatives with Nonempty premises (209–236), and past independent scalar
+  existentials by repeated adjacent swaps (152–175). Generic simp revisits
+  rebuilt expressions and constructs congruence proofs as each witness moves
+  toward the front of the whole trace. A linear final formula does not imply
+  linear normalization work or proof construction.
+
+  PRIOR SYNTHETIC EVIDENCE, NOT THE CURRENT 49-MODEL SWEEP:
+  Benchmarks/SMTTranslation/QuantifierHoistingResults.txt reports depth 32,
+  2 alternatives/transition, 1 function witness/alternative: 271848 global
+  simp steps versus 1279 summed per-transition steps. Both are from the prior
+  hoister-only experiment with raised heartbeat/recursion limits and a large
+  maxSteps budget. It excluded split/reassembly/context/kernel-check costs.
+  In that family, global steps grow roughly cubically while input/output
+  formula size is linear; this is measured behavior, not a universal bound
+  for all formulas or a measured end-to-end speedup for Blockchain.
+
+Recommended next design: normalize one transition at a time
+  After introducing safe data parameters, an ordinary generated trace goal
+  has this form (TraceLang.lean:461–478, path below):
+    ⊢ ¬(Assumptions(th) ∧ Init(th,s0) ∧ T1(s0,s1) ∧ ... ∧ Bad(sd))
+  Introduce the conjunction hypothesis and split only its outer ∧ structure:
+    hA : Assumptions(th), hI : Init(th,s0), hi : Ti(si-1,si), hB : Bad(sd)
+    ⊢ False
+  Normalize each hi independently using the exact transition rules. If its
+  normal form is ∃wi, Mi(wi,si-1,si), eliminate that leading existential:
+    wi : Wi, hi : Mi(wi,si-1,si)
+    ⊢ False
+  Submit all resulting hypotheses to ONE SMT query. The local functions wi
+  become declared function symbols, with first-order applications in Mi.
+
+  This is exact introduction, conjunction elimination, equivalence rewriting,
+  and existential elimination. The witnesses are fresh arbitrary locals for
+  proving False; in the SMT countermodel they are existential choices. Keep
+  the SAME si in neighboring transitions, preserve all guards/frame equations,
+  and retain all matrix constraints. Do not solve each transition separately:
+  locally satisfiable transitions need not form one globally consistent trace.
+
+  Keep action alternatives as ∨ inside each Mi. Splitting the action branches
+  into separate proof goals or enumerating action sequences recreates an
+  exponential search and complicates trace-result aggregation. For example,
+    ((∃f, A(f)) ∨ B) ↔ ∃f, (A(f) ∨ B)
+  requires Nonempty(type(f)); otherwise the inactive branch B may lose models.
+  Bool-valued havoc functions are inhabited. General dependent choices may
+  not be. Existentials under conjunction need no added Nonempty premise.
+
+  A witness may only move past binders on which its type/body does not depend.
+  In particular, ∀x,∃f,P(x,f) cannot become ∃f,∀x,P(x,f). Preserve its scope,
+  or use a separately proved dependency-aware Skolem construction with the
+  right argument types; an unsupported higher-order residual must stay an
+  explicit limitation. Never erase dependencies or introduce arbitrary
+  default witnesses merely to make translation succeed.
+
+  Proof-valued trace-header binders require special care. The current prefix
+  introduction intentionally stops at them: their domains can themselves need
+  normalization. A prototype should support the ordinary no-proof-header form
+  first and fall back to the existing path for other forms, or normalize each
+  such domain before introducing it. Do not regress to unrestricted early
+  intros, which previously left unsupported HO quantifiers in hypotheses.
+
+  With a fixed transition formula, normalization work can become approximately
+  depth × local-normalization-cost; all end-to-end costs still need measuring.
+  Reuse simp contexts, avoid `simp at *` reprocessing previous transitions,
+  preserve action/state naming for model extraction, and retain proof maps.
+  The existing HoistingEquivalences.lean checks conjunction extraction,
+  inactive-branch emptiness, and forbidden crossing of universals.
+
+Acceptance criteria must control the budget granularity
+  Fresh per-transition simp calls each receive a fresh maxSteps counter. At
+  a nominal 100000 steps per call, d calls permit up to d×100000 aggregate
+  steps where one old call allowed only 100000. Therefore "works deeper with
+  the same per-call maxSteps" is not alone evidence of an algorithmic win.
+  Record summed simp steps, total wall time, allocation/proof work, and the
+  command-level heartbeat budget. Retain 200000 command heartbeats for the
+  directly comparable profile, or document any changed allowance explicitly;
+  do not reset the heartbeat counter for each transition. Include splitting,
+  reconstruction, context maintenance and proof checking in end-to-end tests.
+  The prior 1279-versus-271848 summed hoister-only result demonstrates genuine
+  work reduction in that synthetic family, but does not establish the complete
+  production pipeline's cost. A bounded model can also merely move its first
+  failure to a later stage, as the fresh NOPaxos cells demonstrate.
+
+  Budget plumbing is also nested: Quantifiers.lean:291–296 calls
+  `Simp.simp #[existsQuantifierSimp] {} e`, constructing the inner pass with
+  a fresh default config. Increasing maxSteps on the OUTER veil_simp call
+  therefore does not automatically increase the inner hoister's 100000-step
+  cap. A temporary configurable hoister budget must explicitly reach this
+  inner config (and be documented as a limit change, not an algorithmic fix).
+  A future normalizer should report/count inner and outer work and avoid
+  unintentionally multiplying limits through repeated nested simp calls.
+
+Lower-risk context/destruction optimization
+  Core.lean:468–496 repeatedly scans all local declarations and excludes visited
+  declarations with `ignoreHyps : Array LocalDecl` and linear `.contains`.
+  With m accumulated declarations, a full filtering pass can require O(m²)
+  declaration comparisons. Recursive rounds rescan the context, while each
+  structure/exists rcases can itself rewrite a large dependent context/goal
+  (Core.lean:444–462,487–493). The source gives a concrete optimization target;
+  the destruct-phase heartbeat failure does not prove this filter dominates.
+
+  First replace linear visited lookup with a map from FVarId to the last full
+  LocalDecl snapshot, comparing the current declaration against that snapshot
+  before skipping it. Re-resolve each queued id in the current context, discard
+  deleted declarations, and revisit changed declarations. Keep a worklist of
+  newly introduced or changed declarations; retain conservative rescans until
+  the transformations expose reliable context-delta information. This can
+  remove linear membership costs without initially changing traversal order.
+
+  An FVarId-only visited set is insufficient: cases/substitution/simplification
+  can change a declaration's type or value, making an earlier classification
+  stale. Preserve full-declaration/version checks, and invalidate cached whnf
+  classifications when relevant metavariable or local-instance state changes.
+  A new-declaration-index-only queue can miss in-place changes. Retain skip/
+  exclude rules, dependent elimination, generated field names, and observable
+  action arguments; do not clear hypotheses just because they appear unused.
+
+  This worklist is a smaller optimization than generating/destructuring state
+  fields per transition. The latter could avoid repeatedly eliminating every
+  full state record against the entire trace, but it needs exact transition
+  equalities and coherent field identity across neighboring steps. Neither
+  design guarantees a linear total: rcases, dependent substitutions, and
+  later embedding can still traverse large contexts. Measure those separately.
+
+Further improvements and tradeoffs
+  1. Generate/cache exact normalized action transitions once. The existing
+     Action/Elaborators.lean:605–650 already produces a transition definition
+     and equality theorem; a proof-producing BMC normal form could build on
+     this, instantiate at each state pair, and normalize the local action
+     disjunction. It moves cost to model setup and requires cache keys for
+     parameters, instances, dependencies, and unfolding configuration.
+     IMPORTANT: the abstraction bridge at 829–840 is only source→target.
+     Reusing that weakening alone can create spurious SAT traces. BMC needs
+     an exact equality/iff, or independently proved equisatisfiability with
+     recoverable witnesses, rather than only an UNSAT-sound abstraction.
+
+  2. Replace repeated rewrite-driven hoisting with a dedicated proof-producing
+     collector: visit each supported connective once, collect a typed witness
+     telescope plus matrix, rebuild once, and compose small equivalence lemmas.
+     Track binder dependencies and polarity explicitly, use stable sharing,
+     and fall back on unsupported forms. It removes adjacent-swap/rescan work
+     but has more proof engineering and can still build large proofs if it
+     repeatedly copies entire matrices during reconstruction.
+
+  3. Share a same-type witness across mutually exclusive alternatives when
+     `(∃f,A f)∨(∃f,B f) ↔ ∃f,A f∨B f` applies. This equivalence needs no
+     Nonempty premise and can reduce symbols. Never share across conjunctions
+     or different time steps, which imposes extra correlations. Heterogeneous
+     dependent witnesses need a typed sum/selector encoding, plus proof and
+     model-decoding support. This is a secondary optimization, not the main
+     fix for whole-trace traversals.
+
+  4. Short-circuit/cache the HO guard and only inspect relevant witness
+     regions. This saves avoidable traversal, but the prior synthetic guard
+     was only 6 ms against 28012 ms of global normalization at depth 32. It does not
+     address the dominant genuine-witness work by itself.
+
+Proof construction and sharing deserve separate measurements
+  In the prior synthetic depth 32 global run, the normalized formula had 2301
+  tree nodes but the proof had 608230 allocated Expr objects, 11411585 expanded
+  tree occurrences, and 28686 structurally distinct subterms. The distinctions
+  matter: SMT formula size, live expression allocation, expanded proof size,
+  and kernel-checking cost are different metrics. That experiment did not
+  measure kernel checking. Per-action equality theorems can amortize proof
+  construction/checking across depths; a reified formula normalizer with one
+  proved correctness theorem is a larger alternative to constructing a fresh
+  congruence chain for every rewrite.
+
+  Lean 4.32 supplies Lean.ShareCommon.shareCommon (Lean/Util/ShareCommon.lean)
+  and symbolic alpha-sharing utilities. Structural hash-consing is a plausible
+  memory experiment, but applying it only after the costly simp pass cannot
+  recover already-spent traversal/allocation time. Prefer preserving sharing
+  while building expressions/proofs and parameterized theorem reuse. Cache
+  entries must respect free-variable identity, binder context, local instances,
+  and metavariable state. Serializing a shared Expr to a tree can lose sharing
+  again; the separate architecture note covers SMT let/define-fun choices.
+
+  Merely dropping proof production in trusted mode is not the main proposed
+  fix. Trusting the solver does not license changing the query semantics, and
+  a second unverified normalizer adds correctness and maintenance obligations.
+  Keep a proof-producing path and require equivalent/equisatisfiable query
+  validation for any future optimized trusted-only backend.
+
+A separate transparency issue to diagnose
+  The depth 8/16 Blockchain hoist errors include an additional diagnostic:
+  the target is not type-correct at `instances` transparency. An @decide
+  proposition has concrete st0 projections, but its instDecidableOr still
+  mentions abstract FieldRepresentation.get/getFrom terms. These expressions
+  may be definitionally equal at a more permissive transparency; the message
+  is not evidence of kernel unsoundness or proof of the performance cause.
+  Core.lean:298–308 unfolds field-representation machinery in nextSimp, and
+  the subsequent hoister performs its own simp pass (Quantifiers.lean:295).
+  A bounded diagnostic follow-up should enable linter.tacticCheckInstances
+  around those stages, identify the first inconsistent reduction, and fix the
+  equation/congruence or normalize proposition and Decidable evidence together.
+  Avoid claiming local hoisting alone fixes this until checked.
+
+Default recursion-depth mitigation without a blanket limit increase
+  There are at least two distinct sources of long traversals:
+  - TraceLang.lean:72–76 builds right-associated conjunctions/disjunctions;
+    468–478 combines all steps and a long parameter/state telescope. Early
+    introduction already avoids traversing that outer telescope during
+    nextSimp. Local splitting additionally bounds each simplification by one
+    transition. Balanced connective construction can reduce connective-tree
+    height from O(depth) to O(log depth), but does not shorten witness/data
+    telescopes and by itself cannot remove global hoisting work.
+  - lean-smt Preprocess/Embedding.lean:56–89 collects all referenced data,
+    reverts it and the hypotheses, then simpTarget traverses one large
+    telescope again. Preprocess/Normalize.lean:42–49 similarly reverts all
+    hypotheses. Completed AWSFixed depth 8 old/early cells both fail recursion
+    in embedding; early also fails there at 16/32. Thus remaining recursion is
+    not always a Veil hoisting problem. Exact call-stack attribution still
+    needs a separate diagnostic run; phase logs alone establish the stage.
+
+  Backend remedy: preserve a shared old→new variable map and normalize/embed
+  individual hypotheses or bounded dependency groups, instead of reverting
+  the complete context for one simp traversal. Numeric-variable embeddings
+  must be shared consistently across hypotheses, and preserve nonnegativity,
+  Fin bounds, dependent proof fields, unsat-core maps, and reconstruction.
+  A naive independent per-hypothesis embedding can give different images to
+  the same variable and is unsound. Dependency grouping may still yield one
+  large connected group in a trace, so a context-preserving traversal is the
+  stronger design. Flatten iterative telescope/connective traversals where
+  possible and measure proof construction depth as well as formula depth.
+
+  A scoped, size-aware recursion allowance could be a temporary diagnostic
+  fallback, but it does not reduce algorithmic work. Keep it distinct from
+  the structural fixes and retain simp/heartbeat/wall-time protections.
+
+Path shorthand
+  TraceLang.lean = Veil/Core/Tools/ModelChecker/Symbolic/TraceLang.lean
+  Core.lean = Veil/Frontend/DSL/Tactic/Core.lean
+  Action/Elaborators.lean = Veil/Frontend/DSL/Action/Elaborators.lean
+  lean-smt paths are under .lake/packages/smt/Smt/.

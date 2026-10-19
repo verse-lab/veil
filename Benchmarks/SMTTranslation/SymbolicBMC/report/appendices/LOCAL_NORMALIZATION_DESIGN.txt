@@ -1,0 +1,175 @@
+Exact per-transition BMC normalization: implementation-ready design
+==================================================================
+
+Status: design only. No implementation, model run, dependency edit, or
+performance claim. This is a candidate follow-up to conservative early data
+introduction, not a proposed expansion of the current production patch.
+
+Entry point and supported input
+  Add an internal local path immediately after __veil_bmc_intro_data in
+  Veil/Frontend/DSL/Tactic/Core.lean:1366, before the existing whole-target
+  nextSimp/hoist calls. Retain the current path as fallback for inputs outside
+  the initially supported form. The helper should distinguish notApplicable,
+  goalClosed, and transformedGoal; do not conflate fallback with a solved goal.
+
+  The recognizer first inspects the actual target, without reducing arbitrary
+  proof binders into the same shape. Support a visible `Not traceConjunction`
+  after the data prefix. A leading proof-valued forall/implication is initially
+  notApplicable: the current prefix deliberately stops there. Do not introduce
+  it and then silently leave its HO domain unnormalized. Later support can
+  normalize that proof domain before introduction, with dependent transport.
+
+  Ordinary generated traces have exactly this form because
+  Veil/Core/Tools/ModelChecker/Symbolic/TraceLang.lean:461–478 constructs
+    ∀ module/query/tag/theory/state/action parameters,
+      ¬ (Assumptions(th) ∧ Init(th,s0) ∧ T1(s0,s1) ∧ ... ∧ Bad(sd)).
+  Each Ti is an action disjunction from TraceLang.lean:162–169; the builder's
+  conjunctions/disjunctions are right-associated (72–76). The initial prototype
+  needs no change to public trace syntax or VC meaning. Optional metadata for
+  step boundaries may later provide better names and diagnostics, but must be
+  semantically inert. The complete input/output trace states and action tags
+  remain shared outer parameters with their existing names.
+
+Concrete transformation
+  1. Explicitly introduce the hypothesis of the NOT, yielding htrace and False.
+     Syntactic `veil_intros` alone is not this transformation: it can leave
+     `Not traceConjunction` as the target. Use the ordinary proof-producing
+     introduction operation that unfolds this known Not application.
+
+  2. Eliminate only And constructors reachable at the top level of htrace.
+     Stop at Or, Exists, Forall and folded transition/predicate applications.
+     This gives hA, hI, hT1,...,hBad. Splitting nested initial assumptions or
+     the tag/transition pair of a named action is also logically exact; a
+     generic top-level-And worklist handles those without descending into an
+     action alternative. Require one successor goal from these eliminations.
+     Never case-split action Or or enumerate sequences.
+
+  3. For EACH retained formula hypothesis, explicitly apply nextSimp, then
+     the guarded existential normalizer AT THAT HYPOTHESIS. Cache the simp
+     context/config where valid, but do not re-run simp at * after every step.
+     Normalize init, theory assumptions and final assertions as well as Ti.
+     Use normal simpLocalDecl/tactic-at-hypothesis proof transport; do not
+     replace a LocalDecl's type without proving the equivalence.
+
+  4. If a normalized hypothesis starts with Exists, eliminate that prefix to
+     fresh locals and its remaining matrix. Split newly exposed top-level And
+     as needed, keeping Or branches intact. For example:
+       hTi : ∃ wi, Mi(wi,si-1,si)
+         becomes wi : Wi, hTi : Mi(wi,si-1,si).
+     These are arbitrary witnesses in the refutation proof and existential
+     choices in its SMT countermodel, not selected defaults. Preserve any
+     dependency of Wi on previously introduced witnesses.
+
+  5. Destructure required State/Theory/instance records using existing exact
+     eliminations initially. Re-resolve hypothesis identities after each
+     context-changing operation and keep the matrix worklist up to date.
+     Then explicitly run the current dsimp/smtSimp/dsimp sequence on EACH
+     retained formula hypothesis. The current Core calls simplify the TARGET
+     only (Core.lean:901–908); copying them unchanged would simplify False and
+     leave the trace matrices unprocessed. Normalize newly introduced field
+     types as the existing structure destructor does (444–462).
+
+  6. Call veil_smt once on the resulting shared context and goal False. Its
+     hint filter, compatibility options, trusted/untrusted Nonempty handling,
+     preprocessing and solver settings should remain the production ones.
+     If exact simplification already closes False, record UNSAT as the current
+     trace discharger does. A failed/unsupported transform is not UNSAT.
+
+Constraint identity must survive hint collection
+  Core.lean:343–360 currently collects proposition userNames, deduplicates
+  them, filters implementation-detail declarations, and later resolves those
+  names to local hypotheses. The local path must not create two retained
+  matrices with the same visible name, or mark a retained matrix as an
+  implementation detail: an omitted constraint can introduce spurious SAT.
+  Allocate fresh, visible hypothesis names with getUnusedName and a normal
+  LocalDecl kind. Preserve an FVarId-based registry of live matrix hypotheses
+  through splitting, replacement and transport; do not use human names as the
+  registry's identity. Re-resolve each id after a context-changing operation.
+
+  Before calling the backend, resolve getPropsInContext's selected hints and
+  explicitly audit that every retained, live matrix constraint is represented
+  (or has an exact documented replacement). Check after the final simplifier,
+  not just immediately after splitting. An alternative future API can pass
+  proof Expr/FVarId identities directly through Veil's SMT entry point while
+  retaining its intended auxiliary-hypothesis filters, but this is broader
+  than simply adding a local normalization helper. Do not assume current
+  identifier-based hint collection preserves every newly created constraint.
+
+Semantic contract
+  The entire transformed context must have a model iff the original trace
+  conjunction has one, with compatible projected state/action witnesses.
+  Individual steps being satisfiable separately is not enough. Adjacent steps
+  share the SAME si; do not introduce independent copies of the middle state.
+  Preserve the full guards, updates, frames, initial conditions and assertion.
+
+  Use exact transition equalities/iffs, such as the generated definitions and
+  equality artifacts in Action/Elaborators.lean:605–650. The abstraction bridge
+  generated at 829–840 is only source→target; it is insufficient for this path
+  because its extra models can become spurious satisfying traces. Proof
+  preservation for UNSAT alone does not establish the required SAT semantics.
+
+  Hoisting (∃w,P w) across an unrelated conjunction needs no Nonempty premise.
+  Hoisting it across an inactive disjunct or conditional DOES require Nonempty
+  of the witness type. Bool-valued havoc functions are inhabited; arbitrary
+  function/dependent types need not be. Keep existing side-condition proofs.
+  Do not move a witness across a universal on which it may depend, and do not
+  reorder a dependent telescope merely to put function types first.
+
+  Recognize unsupported local forms before committing where possible. A
+  conservative unsupported-form fallback can restore the saved tactic state,
+  but must not erase errors or disguise resource exhaustion as semantic success.
+  Avoid routinely paying for a failed expensive local run followed by a full
+  old run; applicable-form checks and explicit diagnostics are preferable.
+
+Minimum regression set
+  - Actual nondeterministic function-valued choices: both SAT and UNSAT traces,
+    including an action disjunction with a different witness in each branch.
+  - Inactive empty witness: True ∨ (∃ f:Unit→Empty, True) must remain true;
+    its converse hoisting needs Nonempty. If the backend cannot encode the
+    residual, report unsupported, never a false UNSAT. Include kernel-checked
+    logical equivalence/nonequivalence tests independent of SMT support.
+  - Independent witnesses: (∃f, f()=true) ∧ (∃g, g()=false) is satisfiable.
+    Sharing one witness across these conjuncts would incorrectly remove it.
+  - Universal dependency: ∀x:Bool,∃f:Unit→Bool,f()=x is true whereas
+    ∃f,∀x:Bool,f()=x is false. Preserve scope or reject unsupported residuals.
+  - Dependent type: ∃n:Nat,∃w:Fin(n+1),w.val≤n; no invalid binder swap,
+    dangling bvars/fvars, or missing bound proofs.
+  - State sharing: T1 forces s1.flag=true; T2 requires s1.flag=false. Their
+    joint two-step trace is UNSAT although each transition alone has a model.
+  - Proof-valued headers, including False and a domain containing HO witnesses:
+    initial implementation must use the old path without the prior unrestricted
+    early-intros regression. Retain dependent trace/action-argument tests.
+  - Zero-action/empty trace, assertion False, named actions, rigid trace
+    bindings and specified arguments: preserve status and model extraction.
+  - Repeated human hypothesis names and context-changing transports: maintain
+    distinct matrix identities, give them unambiguous visible names, and audit
+    that all live matrices reach the backend. Include an UNSAT pair whose
+    contradiction disappears if either shadowed constraint is omitted; merely
+    checking a SAT case would not detect the lost-constraint regression.
+  - At least one real untrusted kernel-checked UNSAT theorem without sorryAx,
+    alongside trusted SAT/UNSAT and trace-witness decoding checks.
+
+Performance and query acceptance
+  Compare total work at equal command-level heartbeats, not merely the fact
+  that d fresh simp calls each get a new 100000-step budget. Sum inner+outer
+  simp steps and include split/transport/state-cases/context/proof costs.
+  Reuse of model-level normal forms must report cold setup plus query cost
+  separately from amortized repeated-query latency.
+
+  State rcases still rewrites the remaining dependent context, even after the
+  goal becomes False. A hash/worklist visited set removes bookkeeping costs;
+  it does not prove those context/proof rewrites linear. Measure it separately
+  from hoisting and from the backend's later whole-context reversion.
+
+  The new backend may emit several asserts where the old query emitted one
+  conjunction. Equivalence checks must normalize the conjunction of all top-
+  level assertions, preserve quantifier scopes/polarities, and consistently
+  alpha-rename fresh witnesses/declarations; literal command-list equality is
+  insufficient. Splitting assertions may affect solver heuristics despite
+  logical equivalence, so benchmark solver time/outcomes independently.
+
+Source shorthand
+  Core.lean = Veil/Frontend/DSL/Tactic/Core.lean
+  Action/Elaborators.lean = Veil/Frontend/DSL/Action/Elaborators.lean
+  Existing proof sketches: Benchmarks/SMTTranslation/HoistingEquivalences.lean.
+  Longer cost/recursion discussion: HOISTING_FOLLOWUPS.txt.

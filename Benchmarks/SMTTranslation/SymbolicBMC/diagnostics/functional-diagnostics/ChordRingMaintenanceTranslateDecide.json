@@ -1,0 +1,19 @@
+{
+  "group": "parser",
+  "source": "/tmp/veil-symbolic-bmc/paxos-universe-candidates/ChordRingMaintenanceTranslateDecide.lean",
+  "source_sha256": "a0b6094235c30fc5dc0fd29b9d7b2fd6ea3bdd540ecd5d7e2a20f10814947606",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/paxos-universe-candidates/ChordRingMaintenanceTranslateDecide.lean"
+  ],
+  "exit_code": 0,
+  "timeout": false,
+  "wall_ms": 19281,
+  "log": "/tmp/veil-symbolic-bmc/functional-diagnostics/ChordRingMaintenanceTranslateDecide.log",
+  "purpose": "functional diagnostic; not a performance observation"
+}

@@ -1,0 +1,3 @@
+SOLVER_BEGIN Puzzles_RiverCrossing__d7__old__default
+SOLVER_END Puzzles_RiverCrossing__d7__old__default sat solver_ms=23
+SOLVER_END Puzzles_RiverCrossing__d7__early__default sat solver_ms=22

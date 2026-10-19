@@ -1,0 +1,93 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_KVSnap__default__batch1.lean:534:2: error: Application type mismatch: The argument
+  fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun kset.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun kset.insert =>
+                forall_congr fun kset.remove =>
+                  forall_congr fun kset.ofList =>
+                    forall_congr fun kset.toList =>
+                      forall_congr fun kset.filter =>
+                        forall_congr fun kset.union =>
+                          forall_congr fun kset.diff =>
+                            forall_congr fun kset.intersection =>
+                              forall_congr fun kset.subsets =>
+                                forall_congr fun keyEnum.allValues =>
+                                  forall_congr fun txEnum.allValues =>
+                                    forall_congr fun pcLabel_Enum.START =>
+                                      forall_congr fun pcLabel_Enum.READ =>
+                                        forall_congr fun pcLabel_Enum.UPDATE =>
+                                          forall_congr fun pcLabel_Enum.COMMIT =>
+                                            forall_congr fun pcLabel_Enum.Done =>
+                                              forall_congr fun __veil_tag.Start =>
+                                                forall_congr fun __veil_tag.Read =>
+                                                  forall_congr fun __veil_tag.Update =>
+                                                    forall_congr fun __veil_tag.Commit =>
+                                                      forall_congr fun st0.store => ⋯))
+has type
+  ∀ (a : ∀ (a₁ : keySet), f a₁ ≥ 0),
+    (∀ (f_1 : key → keySet → Bool) (kset.empty : keySet) (kset.isEmpty : keySet → Bool)
+        (kset.insert kset.remove : key → keySet → keySet) (kset.ofList : List key → keySet)
+        (kset.toList : keySet → List key) (kset.filter : keySet → (key → Bool) → keySet)
+        (kset.union kset.diff kset.intersection : keySet → keySet → keySet) (kset.subsets : keySet → List keySet)
+        (keyEnum.allValues : List key) (txEnum.allValues : List txId)
+        (pcLabel_Enum.START pcLabel_Enum.READ pcLabel_Enum.UPDATE pcLabel_Enum.COMMIT pcLabel_Enum.Done : pcLabel)
+        (__veil_tag.Start __veil_tag.Read __veil_tag.Update __veil_tag.Commit : ActionTag)
+        (st0.store : key → Option txId) (st0.tx : txId → Bool) (st0.missed : txId → keySet) (st0.pc : txId → pcLabel)
+        (st0.snapshotStore : txId → key → Option txId) (st0.read_keys st0.write_keys : txId → keySet)
+        (st0.ops : txId → List (Operation key (Option txId))) (st1.store : key → Option txId) (st1.tx : txId → Bool)
+        (st1.missed : txId → keySet) (st1.pc : txId → pcLabel) (st1.snapshotStore : txId → key → Option txId)
+        (st1.read_keys st1.write_keys : txId → keySet) (st1.ops : txId → List (Operation key (Option txId)))
+        (st2.store : key → Option txId) (st2.tx : txId → Bool) (st2.missed : txId → keySet) (st2.pc : txId → pcLabel)
+        (st2.snapshotStore : txId → key → Option txId) (st2.read_keys st2.write_keys : txId → keySet)
+        (st2.ops : txId → List (Operation key (Option txId))) (st3.store : key → Option txId) (st3.tx : txId → Bool)
+        (st3.missed : txId → keySet) (st3.pc : txId → pcLabel) (st3.snapshotStore : txId → key → Option txId)
+        (st3.read_keys st3.write_keys : txId → keySet) (st3.ops : txId → List (Operation key (Option txId)))
+        (st4.store : key → Option txId) (st4.tx : txId → Bool) (st4.missed : txId → keySet) (st4.pc : txId → pcLabel)
+        (st4.snapshotStore : txId → key → Option txId) (st4.read_keys st4.write_keys : txId → keySet)
+        (st4.ops : txId → List (Operation key (Option txId))) (st5.store : key → Option txId), ⋯) =
+      ∀ (a_1 : key → keySet → Prop) (a_2 : keySet) (a_3 : keySet → Prop) (a_4 a_5 : key → keySet → keySet)
+        (a_6 : List key → keySet) (a_7 : keySet → List key) (a_8 : keySet → (key → Bool) → keySet)
+        (a_9 a_10 a_11 : keySet → keySet → keySet) (a_12 : keySet → List keySet) (a_13 : List key) (a_14 : List txId)
+        (a_15 a_16 a_17 a_18 a_19 : pcLabel) (a_20 a_21 a_22 a_23 : ActionTag) (a_24 : key → Option txId)
+        (a_25 : txId → Prop) (a_26 : txId → keySet) (a_27 : txId → pcLabel) (a_28 : txId → key → Option txId)
+        (a_29 a_30 : txId → keySet) (a_31 : txId → List (Operation key (Option txId))) (a_32 : key → Option txId)
+        (a_33 : txId → Prop) (a_34 : txId → keySet) (a_35 : txId → pcLabel) (a_36 : txId → key → Option txId)
+        (a_37 a_38 : txId → keySet) (a_39 : txId → List (Operation key (Option txId))) (a_40 : key → Option txId)
+        (a_41 : txId → Prop) (a_42 : txId → keySet) (a_43 : txId → pcLabel) (a_44 : txId → key → Option txId)
+        (a_45 a_46 : txId → keySet) (a_47 : txId → List (Operation key (Option txId))) (a_48 : key → Option txId)
+        (a_49 : txId → Prop) (a_50 : txId → keySet) (a_51 : txId → pcLabel) (a_52 : txId → key → Option txId)
+        (a_53 a_54 : txId → keySet) (a_55 : txId → List (Operation key (Option txId))) (a_56 : key → Option txId)
+        (a_57 : txId → Prop) (a_58 : txId → keySet) (a_59 : txId → pcLabel) (a_60 : txId → key → Option txId)
+        (a_61 a_62 : txId → keySet) (a_63 : txId → List (Operation key (Option txId))) (a_64 : key → Option txId), ⋯
+but is expected to have type
+  (∀ (a₁ : keySet), f a₁ ≥ 0) → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (∀ (a₁ : keySet), f a₁ ≥ 0)) fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun kset.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun kset.insert =>
+                forall_congr fun kset.remove =>
+                  forall_congr fun kset.ofList =>
+                    forall_congr fun kset.toList =>
+                      forall_congr fun kset.filter =>
+                        forall_congr fun kset.union =>
+                          forall_congr fun kset.diff =>
+                            forall_congr fun kset.intersection =>
+                              forall_congr fun kset.subsets =>
+                                forall_congr fun keyEnum.allValues =>
+                                  forall_congr fun txEnum.allValues =>
+                                    forall_congr fun pcLabel_Enum.START =>
+                                      forall_congr fun pcLabel_Enum.READ =>
+                                        forall_congr fun pcLabel_Enum.UPDATE =>
+                                          forall_congr fun pcLabel_Enum.COMMIT =>
+                                            forall_congr fun pcLabel_Enum.Done =>
+                                              forall_congr fun __veil_tag.Start =>
+                                                forall_congr fun __veil_tag.Read =>
+                                                  forall_congr fun __veil_tag.Update =>
+                                                    forall_congr fun __veil_tag.Commit => forall_congr ⋯))

@@ -1,0 +1,6 @@
+BEGIN TLA_EPaxos batch1 cells=2
+  TLA_EPaxos__d1__old__recursion_only translation_timeout phase=embedding kind=wall_timeout query_ms=None
+END TLA_EPaxos__recursion_only__batch1 wall=101.5s setup=41363 timeout=pipeline_timeout remaining=1
+BEGIN TLA_EPaxos batch2 cells=1
+  TLA_EPaxos__d1__early__recursion_only translation_timeout phase=embedding kind=wall_timeout query_ms=None
+END TLA_EPaxos__recursion_only__batch2 wall=102.0s setup=41832 timeout=pipeline_timeout remaining=0

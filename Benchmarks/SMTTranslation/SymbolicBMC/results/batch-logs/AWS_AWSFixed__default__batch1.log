@@ -1,0 +1,27 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSFixed__default__batch1.lean:284:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSFixed__default__batch1.lean:307:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSFixed__default__batch1.lean:329:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSFixed__default__batch1.lean:351:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSFixed__default__batch1.lean:374:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSFixed__default__batch1.lean:397:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSFixed__default__batch1.lean:419:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSFixed__default__batch1.lean:441:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSFixed__default__batch1.lean:464:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSFixed__default__batch1.lean:489:37: error: `simp` failed: maximum number of steps exceeded
+/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSFixed__default__batch1.lean:511:37: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSFixed__default__batch1.lean:531:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information

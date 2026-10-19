@@ -1,0 +1,141 @@
+{
+  "row": {
+    "cell_id": "TLA_Raft__d16__old__default",
+    "model": "TLA_Raft",
+    "path": "Examples/TLA/Raft.lean",
+    "module": "Raft",
+    "depth": 16,
+    "variant": "old",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "nextSimp",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean:1243:37: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 309,
+    "batch_id": "TLA_Raft__default__batch2",
+    "batch_setup_ms": 49448,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/TLA_Raft__d16__old__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/TLA_Raft__d16__old__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_Raft__d16__old__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_Raft__d16__old__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_Raft",
+    "path": "Examples/TLA/Raft.lean",
+    "module": "Raft",
+    "cut_line": 1075,
+    "query": "assert (∃ i j, i ≠ j ∧ currentTerm i = currentTerm j ∧ pcState i Leader ∧ pcState j Leader)",
+    "query_kind": "documented_safety_violation",
+    "expected_status": null,
+    "query_source": "BothLeader/MoreThanOneLeader specification comments, lines1059–1066",
+    "notes": "No active safety/invariant declaration. Tests the documented election-safety condition. Retains source-specific large heartbeat/typeclass limits.",
+    "category": "TLA",
+    "source_options": [
+      {
+        "line": 1071,
+        "directive": "set_option synthInstance.maxHeartbeats 1000000"
+      },
+      {
+        "line": 1072,
+        "directive": "set_option synthInstance.maxSize 200000"
+      },
+      {
+        "line": 1073,
+        "directive": "set_option maxHeartbeats 10000000"
+      }
+    ],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "d3470b019df35dc5338f193755454f3729f6473d879c19062b82eb1e5d5aa6d4"
+  },
+  "original_sha256": "d3470b019df35dc5338f193755454f3729f6473d879c19062b82eb1e5d5aa6d4",
+  "inherited_setup_options": [
+    {
+      "line": 1071,
+      "directive": "set_option synthInstance.maxHeartbeats 1000000"
+    },
+    {
+      "line": 1072,
+      "directive": "set_option synthInstance.maxSize 200000"
+    },
+    {
+      "line": 1073,
+      "directive": "set_option maxHeartbeats 10000000"
+    }
+  ],
+  "source_sha256": "23af2f1cbd5f3e529b55e107b101421b2bc3f85a0cb3817f976c30649ac3e28a",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_Raft__default__batch2.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 177752273,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 177752582,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177752583,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 177753084,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_Raft__default__batch2",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_Raft__default__batch2.log",
+    "exit_code": 1,
+    "wall_ms": 127984,
+    "setup_ms": 49448,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean"
+    ]
+  }
+}

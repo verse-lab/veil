@@ -1,0 +1,330 @@
+{
+  "row": {
+    "cell_id": "TLA_NOPaxos__d1__early__default",
+    "model": "TLA_NOPaxos",
+    "path": "Examples/TLA/NOPaxos.lean",
+    "module": "NOPaxos",
+    "depth": 1,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "type_mismatch",
+    "failure_message": "Application type mismatch: The argument\n  fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun mSet.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun mSet.insert =>\n                forall_congr fun mSet.remove =>\n                  forall_congr fun mSet.ofList =>\n                    forall_congr fun mSet.toList =>\n                      forall_congr fun mSet.filter =>\n                        forall_congr fun mSet.union =>\n                          forall_congr fun mSet.diff =>\n                            forall_congr fun mSet.intersection =>\n                              forall_congr fun mSet.subsets =>\n                                forall_congr fun replicaEnumerable.allValues =>\n                                  forall_congr fun __veil_tag.ClientSendsRequest =>\n                                    forall_congr fun __veil_tag.HandleClientRequest =>\n                                      forall_congr fun __veil_tag.HandleMarkedClientRequest =>\n                                        forall_congr fun __veil_tag.HandleSlotLookup =>\n                                          forall_congr fun __veil_tag.HandleGapCommit =>\n                                            forall_congr fun __veil_tag.HandleGapCommitRep =>\n                                              forall_congr fun __veil_tag.StartLeaderChange =>\n                                                forall_congr fun __veil_tag.HandleViewChangeReq =>\n                                                  forall_congr fun __veil_tag.HandleViewChange =>\n                                                    forall_congr fun __veil_tag.HandleStartView =>\n                                                      forall_congr fun __veil_tag.StartSync => ⋯))\nhas type\n  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),\n    (∀ (f_1 : NOPaxos.NOPaxosMsg replica value f✝³.toNat → MsgSet → Bool) (mSet.empty : MsgSet)\n        (mSet.isEmpty : MsgSet → Bool)\n        (mSet.insert mSet.remove : NOPaxos.NOPaxosMsg replica value f✝³.toNat → MsgSet → MsgSet)\n        (mSet.ofList : List (NOPaxos.NOPaxosMsg replica value f✝³.toNat) → MsgSet)\n        (mSet.toList : MsgSet → List (NOPaxos.NOPaxosMsg replica value f✝³.toNat))\n        (mSet.filter : MsgSet → (NOPaxos.NOPaxosMsg replica value f✝³.toNat → Bool) → MsgSet)\n        (mSet.union mSet.diff mSet.intersection : MsgSet → MsgSet → MsgSet) (mSet.subsets : MsgSet → List MsgSet)\n        (replicaEnumerable.allValues : List replica)\n        (__veil_tag.ClientSendsRequest __veil_tag.HandleClientRequest __veil_tag.HandleMarkedClientRequest\n          __veil_tag.HandleSlotLookup __veil_tag.HandleGapCommit __veil_tag.HandleGapCommitRep\n          __veil_tag.StartLeaderChange __veil_tag.HandleViewChangeReq __veil_tag.HandleViewChange\n          __veil_tag.HandleStartView __veil_tag.StartSync __veil_tag.HandleSyncPrepare __veil_tag.HandleSyncRep\n          __veil_tag.SyncCommit : ActionTag)\n        (th.NoOp : value) (th.MsgCountLimit : Nat) (st0.messages : MsgSet)\n        (st0.seqMsgNums : NOPaxos.SeqTy f✝³.toNat → Nat) (st0.vLog : replica → NOPaxos.LogTy value)\n        (st0.vViewID st0.vLastNormView : replica → NOPaxos.View (NOPaxos.SeqTy f✝³.toNat))\n        (st0.vSessMsgNum : replica → Nat) (st0.vViewChanges st0.vGapCommitReps : replica → MsgSet)\n        (st0.vCurrentGapSlot : replica → Nat) (st0.vReplicaStatus : replica → ReplicaStatus)\n        (st0.vSyncPoint st0.vTentativeSync : replica → Nat) (st0.vSyncReps : replica → MsgSet) (st1.messages : MsgSet)\n        (st1.seqMsgNums : NOPaxos.SeqTy f✝³.toNat → Nat) (st1.vLog : replica → NOPaxos.LogTy value)\n        (st1.vViewID st1.vLastNormView : replica → NOPaxos.View (NOPaxos.SeqTy f✝³.toNat))\n        (st1.vSessMsgNum : replica → Nat) (st1.vViewChanges st1.vGapCommitReps : replica → MsgSet)\n        (st1.vCurrentGapSlot : replica → Nat) (st1.vReplicaStatus : replica → ReplicaStatus)\n        (st1.vSyncPoint st1.vTentativeSync : replica → Nat) (st1.vSyncReps : replica → MsgSet)\n        (th.ReplicaOrder.toList : List replica),\n        (fun a₁ => (f✝² a₁).toNat) rSet.empty = 0 →\n          ∀ (rSet.empty_count : (fun a₁ => (f✝² a₁).toNat) rSet.empty = 0),\n            (∀ (elem : replica), (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem rSet.empty = false) →\n              ∀ (rSet.empty_contains : ∀ (elem : replica), (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem rSet.empty = false),\n                (∀ (s : replicaSet), ((fun a₁ => decide (f✝ a₁)) s = true) = ((fun a₁ => (f✝² a₁).toNat) s = 0)) →\n                  ∀\n                    (rSet.isEmpty_iff_count_zero :\n                      ∀ (s : replicaSet), ((fun a₁ => decide (f✝ a₁)) s = true) = ((fun a₁ => (f✝² a₁).toNat) s = 0)),\n                    (∀ (elem : replica) (s : replicaSet),\n                        (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (rSet.insert elem s) = true) →\n                      ∀\n                        (rSet.contains_insert_self :\n                          ∀ (elem : replica) (s : replicaSet),\n                            (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (rSet.insert elem s) = true),\n                        (∀ (elem₁ elem₂ : replica) (s : replicaSet),\n                            elem₁ ≠ elem₂ →\n                              (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (rSet.insert elem₂ s) =\n                                (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s) →\n                          ∀\n                            (rSet.contains_insert_other :\n                              ∀ (elem₁ elem₂ : replica) (s : replicaSet),\n                                elem₁ ≠ elem₂ →\n                                  (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (rSet.insert elem₂ s) =\n                                    (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s),\n                            (∀ (elem : replica) (s : replicaSet),\n                                rSet.toList (rSet.insert elem (rSet.insert elem s)) =\n                                  rSet.toList (rSet.insert elem s)) →\n                              ∀\n                                (rSet.insert_idempotent :\n                                  ∀ (elem : replica) (s : replicaSet),\n                                    rSet.toList (rSet.insert elem (rSet.insert elem s)) =\n                                      rSet.toList (rSet.insert elem s)),\n                                (∀ (elem : replica) (s : replicaSet), ⋯) →\n                                  ∀ (rSet.count_insert : ∀ (elem : replica), ⋯), ⋯ → ⋯) =\n      ∀ (a_1 : NOPaxos.NOPaxosMsg replica value f✝³.toNat → MsgSet → Prop) (a_2 : MsgSet) (a_3 : MsgSet → Prop)\n        (a_4 a_5 : NOPaxos.NOPaxosMsg replica value f✝³.toNat → MsgSet → MsgSet)\n        (a_6 : List (NOPaxos.NOPaxosMsg replica value f✝³.toNat) → MsgSet)\n        (a_7 : MsgSet → List (NOPaxos.NOPaxosMsg replica value f✝³.toNat))\n        (a_8 : MsgSet → (NOPaxos.NOPaxosMsg replica value f✝³.toNat → Bool) → MsgSet)\n        (a_9 a_10 a_11 : MsgSet → MsgSet → MsgSet) (a_12 : MsgSet → List MsgSet) (a_13 : List replica)\n        (a_14 a_15 a_16 a_17 a_18 a_19 a_20 a_21 a_22 a_23 a_24 a_25 a_26 a_27 : ActionTag) (a_28 : value) (a_29 : Int),\n        a_29 ≥ 0 →\n          ∀ (a_31 : MsgSet) (a_32 : NOPaxos.SeqTy f✝³.toNat → Int),\n            (∀ (a₁ : NOPaxos.SeqTy f✝³.toNat), a_32 a₁ ≥ 0) →\n              ∀ (a_34 : replica → NOPaxos.LogTy value) (a_35 a_36 : replica → NOPaxos.View (NOPaxos.SeqTy f✝³.toNat))\n                (a_37 : replica → Int),\n                (∀ (a₁ : replica), a_37 a₁ ≥ 0) →\n                  ∀ (a_39 a_40 : replica → MsgSet) (a_41 : replica → Int),\n                    (∀ (a₁ : replica), a_41 a₁ ≥ 0) →\n                      ∀ (a_43 : replica → ReplicaStatus) (a_44 : replica → Int),\n                        (∀ (a₁ : replica), a_44 a₁ ≥ 0) →\n                          ∀ (a_46 : replica → Int),\n                            (∀ (a₁ : replica), a_46 a₁ ≥ 0) →\n                       ",
+    "setup_ms": null,
+    "query_elaboration_ms": 215,
+    "batch_id": "TLA_NOPaxos__default__batch1",
+    "batch_setup_ms": 31879,
+    "preprocessing_ms": 6194,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/TLA_NOPaxos__d1__early__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_NOPaxos__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/TLA_NOPaxos__d1__early__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_NOPaxos__d1__early__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_NOPaxos__d1__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_NOPaxos",
+    "path": "Examples/TLA/NOPaxos.lean",
+    "module": "NOPaxos",
+    "cut_line": 955,
+    "query": "assert (¬ Linearizability)",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "linearizability invariant, line944; ghost predicate, line316",
+    "notes": "Large collection/list/array model. Prefix sets veil.deferVCGeneration=true and maxHeartbeats=1600000.",
+    "category": "TLA",
+    "source_options": [
+      {
+        "line": 10,
+        "directive": "set_option veil.deferVCGeneration true"
+      },
+      {
+        "line": 954,
+        "directive": "set_option maxHeartbeats 1600000"
+      }
+    ],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "dba347dc4275045efe9f76d1c576e31e51aac3970aced1a97aae351095d5a566"
+  },
+  "original_sha256": "dba347dc4275045efe9f76d1c576e31e51aac3970aced1a97aae351095d5a566",
+  "inherited_setup_options": [
+    {
+      "line": 10,
+      "directive": "set_option veil.deferVCGeneration true"
+    },
+    {
+      "line": 954,
+      "directive": "set_option maxHeartbeats 1600000"
+    }
+  ],
+  "source_sha256": "9755c4058b291fab7202f0c3b229763ca9be95d0c0c4c44ac763156640a0bc5b",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_NOPaxos__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 176864818,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 176865033,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176865033,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "mono_ms": 176865040,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176865040,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2025,
+      "event": "stage",
+      "mono_ms": 176867065,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176867066,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1014,
+      "event": "stage",
+      "mono_ms": 176868080,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176868098,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 9,
+      "event": "stage",
+      "mono_ms": 176868107,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176868107,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1186,
+      "event": "stage",
+      "mono_ms": 176869293,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176869294,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 598,
+      "event": "stage",
+      "mono_ms": 176869893,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176869895,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1083,
+      "event": "stage",
+      "mono_ms": 176870978,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176871040,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 272,
+      "event": "stage",
+      "mono_ms": 176871313,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 6281,
+      "event": "milestone",
+      "mono_ms": 176871314,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176871314,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 9,
+      "event": "stage",
+      "mono_ms": 176871323,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176871324,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176871324,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176871325,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176871325,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176871325,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "mono_ms": 176871328,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176871328,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1197,
+      "event": "stage",
+      "mono_ms": 176872525,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 176872525,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 41904,
+      "error": "Application type mismatch: The argument\n  fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun mSet.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun mSet.insert =>\n                forall_congr fun mSet.remove =>\n                  forall_congr fun mSet.ofList =>\n                    forall_congr fun mSet.toList =>\n                      forall_congr fun mSet.filter =>\n                        forall_congr fun mSet.union =>\n                          forall_congr fun mSet.diff =>\n                            forall_congr fun mSet.intersection =>\n                              forall_congr fun mSet.subsets =>\n                                forall_congr fun replicaEnumerable.allValues =>\n                                  forall_congr fun __veil_tag.ClientSendsRequest =>\n                                    forall_congr fun __veil_tag.HandleClientRequest =>\n                                      forall_congr fun __veil_tag.HandleMarkedClientRequest =>\n                                        forall_congr fun __veil_tag.HandleSlotLookup =>\n                                          forall_congr fun __veil_tag.HandleGapCommit =>\n                                            forall_congr fun __veil_tag.HandleGapCommitRep =>\n                                              forall_congr fun __veil_tag.StartLeaderChange =>\n                                                forall_congr fun __veil_tag.HandleViewChangeReq =>\n                                                  forall_congr fun __veil_tag.HandleViewChange =>\n                                                    forall_congr fun __veil_tag.HandleStartView =>\n                                                      forall_congr fun __veil_tag.StartSync => ⋯))\nhas type\n  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),\n    (∀ (f_1 : NOPaxos.NOPaxosMsg replica value f✝³.toNat → MsgSet → Bool) (mSet.empty : MsgSet)\n        (mSet.isEmpty : MsgSet → Bool)\n        (mSet.insert mSet.remove : NOPaxos.NOPaxosMsg replica value f✝³.toNat → MsgSet → MsgSet)\n        (mSet.ofList : List (NOPaxos.NOPaxosMsg replica value f✝³.toNat) → MsgSet)\n        (mSet.toList : MsgSet → List (NOPaxos.NOPaxosMsg replica value f✝³.toNat))\n        (mSet.filter : MsgSet → (NOPaxos.NOPaxosMsg replica value f✝³.toNat → Bool) → MsgSet)\n        (mSet.union mSet.diff mSet.intersection : MsgSet → MsgSet → MsgSet) (mSet.subsets : MsgSet → List MsgSet)\n        (replicaEnumerable.allValues : List replica)\n        (__veil_tag.ClientSendsRequest __veil_tag.HandleClientRequest __veil_tag.HandleMarkedClientRequest\n          __veil_tag.HandleSlotLookup __veil_tag.HandleGapCommit __veil_tag.HandleGapCommitRep\n          __veil_tag.StartLeaderChange __veil_tag.HandleViewChangeReq __veil_tag.HandleViewChange\n          __veil_tag.HandleStartView __veil_tag.StartSync __veil_tag.HandleSyncPrepare __veil_tag.HandleSyncRep\n          __veil_tag.SyncCommit : ActionTag)\n        (th.NoOp : value) (th.MsgCountLimit : Nat) (st0.messages : MsgSet)\n        (st0.seqMsgNums : NOPaxos.SeqTy f✝³.toNat → Nat) (st0.vLog : replica → NOPaxos.LogTy value)\n        (st0.vViewID st0.vLastNormView : replica → NOPaxos.View (NOPaxos.SeqTy f✝³.toNat))\n        (st0.vSessMsgNum : replica → Nat) (st0.vViewChanges st0.vGapCommitReps : replica → MsgSet)\n        (st0.vCurrentGapSlot : replica → Nat) (st0.vReplicaStatus : replica → ReplicaStatus)\n        (st0.vSyncPoint st0.vTentativeSync : replica → Nat) (st0.vSyncReps : replica → MsgSet) (st1.messages : MsgSet)\n        (st1.seqMsgNums : NOPaxos.SeqTy f✝³.toNat → Nat) (st1.vLog : replica → NOPaxos.LogTy value)\n        (st1.vViewID st1.vLastNormView : replica → NOPaxos.View (NOPaxos.SeqTy f✝³.toNat))\n        (st1.vSessMsgNum : replica → Nat) (st1.vViewChanges st1.vGapCommitReps : replica → MsgSet)\n        (st1.vCurrentGapSlot : replica → Nat) (st1.vReplicaStatus : replica → ReplicaStatus)\n        (st1.vSyncPoint st1.vTentativeSync : replica → Nat) (st1.vSyncReps : replica → MsgSet)\n        (th.ReplicaOrder.toList : List replica),\n        (fun a₁ => (f✝² a₁).toNat) rSet.empty = 0 →\n          ∀ (rSet.empty_count : (fun a₁ => (f✝² a₁).toNat) rSet.empty = 0),\n            (∀ (elem : replica), (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem rSet.empty = false) →\n              ∀ (rSet.empty_contains : ∀ (elem : replica), (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem rSet.empty = false),\n                (∀ (s : replicaSet), ((fun a₁ => decide (f✝ a₁)) s = true) = ((fun a₁ => (f✝² a₁).toNat) s = 0)) →\n                  ∀\n                    (rSet.isEmpty_iff_count_zero :\n                      ∀ (s : replicaSet), ((fun a₁ => decide (f✝ a₁)) s = true) = ((fun a₁ => (f✝² a₁).toNat) s = 0)),\n                    (∀ (elem : replica) (s : replicaSet),\n                        (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (rSet.insert elem s) = true) →\n                      ∀\n                        (rSet.contains_insert_self :\n                          ∀ (elem : replica) (s : replicaSet),\n                            (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (rSet.insert elem s) = true),\n                        (∀ (elem₁ elem₂ : replica) (s : replicaSet),\n                            elem₁ ≠ elem₂ →\n                              (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (rSet.insert elem₂ s) =\n                                (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s) →\n                          ∀\n                            (rSet.contains_insert_other :\n                              ∀ (elem₁ elem₂ : replica) (s : replicaSet),\n                                elem₁ ≠ elem₂ →\n                                  (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (rSet.insert elem₂ s) =\n                                    (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s),\n                            (∀ (elem : replica) (s : replicaSet),\n                                rSet.toList (rSet.insert elem (rSet.insert elem s)) =\n                                  rSet.toList (rSet.insert elem s)) →\n                              ∀\n                                (rSet.insert_idempotent :\n                                  ∀ (elem : replica) (s : replicaSet),\n                                    rSet.toList (rSet.insert elem (rSet.insert elem s)) =\n                                      rSet.toList (rSet.insert elem s)),\n                                (∀ (elem : replica) (s : replicaSet), ⋯) →\n                                  ∀ (rSet.count_insert : ∀ (elem : replica), ⋯), ⋯ → ⋯) =\n      ∀ (a_1 : NOPaxos.NOPaxosMsg replica value f✝³.toNat → MsgSet → Prop) (a_2 : MsgSet) (a_3 : MsgSet → Prop)\n        (a_4 a_5 : NOPaxos.NOPaxosMsg replica value f✝³.toNat → MsgSet → MsgSet)\n        (a_6 : List (NOPaxos.NOPaxosMsg replica value f✝³.toNat) → MsgSet)\n        (a_7 : MsgSet → List (NOPaxos.NOPaxosMsg replica value f✝³.toNat))\n        (a_8 : MsgSet → (NOPaxos.NOPaxosMsg replica value f✝³.toNat → Bool) → MsgSet)\n        (a_9 a_10 a_11 : MsgSet → MsgSet → MsgSet) (a_12 : MsgSet → List MsgSet) (a_13 : List replica)\n        (a_14 a_15 a_16 a_17 a_18 a_19 a_20 a_21 a_22 a_23 a_24 a_25 a_26 a_27 : ActionTag) (a_28 : value) (a_29 : Int),\n        a_29 ≥ 0 →\n          ∀ (a_31 : MsgSet) (a_32 : NOPaxos.SeqTy f✝³.toNat → Int),\n            (∀ (a₁ : NOPaxos.SeqTy f✝³.toNat), a_32 a₁ ≥ 0) →\n              ∀ (a_34 : replica → NOPaxos.LogTy value) (a_35 a_36 : replica → NOPaxos.View (NOPaxos.SeqTy f✝³.toNat))\n                (a_37 : replica → Int),\n                (∀ (a₁ : replica), a_37 a₁ ≥ 0) →\n                  ∀ (a_39 a_40 : replica → MsgSet) (a_41 : replica → Int),\n                    (∀ (a₁ : replica), a_41 a₁ ≥ 0) →\n                      ∀ (a_43 : replica → ReplicaStatus) (a_44 : replica → Int),\n                        (∀ (a₁ : replica), a_44 a₁ ≥ 0) →\n                          ∀ (a_46 : replica → Int),\n                            (∀ (a₁ : replica), a_46 a₁ ≥ 0) →\n                              ∀ (a_48 : replica → MsgSet) (a_49 : MsgSet) (a_50 : NOPaxos.SeqTy f✝³.toNat → Int),\n                                (∀ (a₁ : NOPaxos.SeqTy f✝³.toNat), a_50 a₁ ≥ 0) →\n                                  ∀ (a_52 : replica → NOPaxos.LogTy value)\n                                    (a_53 a_54 : replica → NOPaxos.View (NOPaxos.SeqTy f✝³.toNat))\n                                    (a_55 : replica → Int),\n                                    (∀ (a₁ : replica), a_55 a₁ ≥ 0) →\n                                      ∀ (a_57 a_58 : replica → MsgSet) (a_59 : replica → Int),\n                                        (∀ (a₁ : replica), a_59 a₁ ≥ 0) →\n                                          ∀ (a_61 : replica → ReplicaStatus) (a_62 : replica → Int),\n                                            (∀ (a₁ : replica), a_62 a₁ ≥ 0) →\n                                              ∀ (a_64 : replica → Int),\n                                                (∀ (a₁ : replica), a_64 a₁ ≥ 0) →\n                                                  ∀ (a_66 : replica → MsgSet) (a_67 : List replica),\n                                                    f✝² rSet.empty = 0 → ∀ (a_69 : f✝² rSet.empty = 0), ⋯\nbut is expected to have type\n  (∀ (a₁ : MsgSet), f a₁ ≥ 0) → ?q₁ = ?q₂\nin the application\n  implies_congr_ctx (Eq.refl (∀ (a₁ : MsgSet), f a₁ ≥ 0)) fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun mSet.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun mSet.insert =>\n                forall_congr fun mSet.remove =>\n                  forall_congr fun mSet.ofList =>\n                    forall_congr fun mSet.toList =>\n                      forall_congr fun mSet.filter =>\n                        forall_congr fun mSet.union =>\n                          forall_congr fun mSet.diff =>\n                            forall_congr fun mSet.intersection =>\n                              forall_congr fun mSet.subsets =>\n                                forall_congr fun replicaEnumerable.allValues =>\n                                  forall_congr fun __veil_tag.ClientSendsRequest =>\n                                    forall_congr fun __veil_tag.HandleClientRequest =>\n                                      forall_congr fun __veil_tag.HandleMarkedClientRequest =>\n                                        forall_congr fun __veil_tag.HandleSlotLookup =>\n                                          forall_congr fun __veil_tag.HandleGapCommit =>\n                                            forall_congr fun __veil_tag.HandleGapCommitRep =>\n                                              forall_congr fun __veil_tag.StartLeaderChange =>\n                                                forall_congr fun __veil_tag.HandleViewChangeReq =>\n                                                  forall_congr fun __veil_tag.HandleViewChange =>\n                                                    forall_congr fun __veil_tag.HandleStartView => forall_congr ⋯))",
+      "event": "stage",
+      "mono_ms": 176917329,
+      "phase": "embedding",
+      "status": "failed"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 176918664,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_NOPaxos__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_NOPaxos__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_NOPaxos__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 363587,
+    "setup_ms": 31879,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_NOPaxos__default__batch1.lean"
+    ]
+  }
+}

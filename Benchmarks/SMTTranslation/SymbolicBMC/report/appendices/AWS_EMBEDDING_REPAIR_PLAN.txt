@@ -1,0 +1,119 @@
+Concrete candidate for the confirmed AWSBuggy embedding failure
+=============================================================
+
+Status: the minimized dependent Fin failure is now reproduced and the
+candidate dependency branch passes expression/equality-proof checks. The
+withDefault-only variant does not fix it. Full AWS and circular-buffer probes
+advance past the original congruence failure but still fail at later translation
+boundaries. No complete backend fix is claimed. See BACKEND_FINDINGS.txt and
+DIAGNOSTICS_README.txt for final outcomes; this document retains the repair design.
+
+Strong source-level correspondence
+  .lake/packages/smt/Smt/Preprocess/Embedding/Nat.lean:285–296 implements a
+  contextual implication simplifier: simplify antecedent p, add a fresh proof
+  hp of the result, simplify q using hp, then build implication congruence.
+  It always uses mkImpCongrCtx and returns a raw forallE with rq.expr as body.
+
+  Lean4.32's own Lean/Meta/Tactic/Simp/Main.lean:333–361 implements essentially
+  the same operation but includes the missing dependency branch:
+    if rq.expr.containsFVar hp.fvarId! then
+      expr   := mkForallFVars #[hp] rq.expr
+      proof  := withDefault (mkImpDepCongrCtx rp.proof (lambda hp => rq.proof))
+    else
+      expr   := e.updateForallE! rp.expr rq.expr
+      proof  := withDefault (mkImpCongrCtx rp.proof (lambda hp => rq.proof))
+  Its comment explains why the default transparency is required when building
+  the congruence application. AppBuilder.lean:691–695 supplies both builders.
+  Init/SimpLemmas.lean:105–111 supplies the exact correctness theorem:
+    p1 = p2 → (∀ h:p2, q1 = q2 h) →
+      (p1 → q1) = (∀ h:p2, q2 h).
+
+  This is directly relevant to the production error: its actual argument has
+  type ∀a:f≥0, q1 = q2(a), but implies_congr_ctx expects f≥0 → ?q1 = ?q2 with
+  a nondependent ?q2. The error includes transported Fin bound proofs using
+  Int.toNat_of_nonneg a. Merely abstracting the equality proof into a lambda
+  does not make the rewritten proposition independent of a.
+
+  Rat.lean:314–325 has the same omission. Correcting it consistently is a
+  plausible companion change, but AWS does not establish a Rat failure.
+
+Repair variants
+  A. Dependency-aware congruence (preferred candidate): mirror Lean's own
+     branch and withDefault calls. This both binds the fresh proof in the
+     resulting expression and proves the dependent equality. The standalone
+     helper also checks e.isArrow, because it does not instantiate q for an
+     originally dependent input binder. Lean's ordinary simpForall already
+     handles original dependent proof binders with forall_prop_domain_congr
+     (Main.lean:365–410); do not send their raw loose-bound body to this helper.
+     The minimized tests validate this missing case; the full-model tests show
+     that it is not sufficient for the complete AWS query or all embeddings.
+
+  B. Conservative fallback: if rq.expr depends on hp, abandon the contextual
+     result and let ordinary simplification continue, or simplify q again
+     without the fresh lemma and use ordinary implication congruence. This
+     avoids an invalid escaping expression and preserves the original formula.
+     It may retain Int.toNat/conditional terms or proof transports that the
+     downstream translator cannot handle, so avoiding the exception is not
+     equivalent to restoring complete SMT support. Returning `.done` with e
+     also skips useful child normalization; returning `.continue` is less
+     invasive but needs care to avoid revisiting the same custom rule forever.
+     The discarded contextual result must not leak its fresh-lemma cache.
+
+  C. Force nondependent congruence by erasing hp from the expression, treating
+     all proof fields as interchangeable without transport, or dropping the
+     nonnegativity/Fin-bound premise is not a valid repair. Proof irrelevance
+     only compares proofs of the same proposition; rewriting a binder's domain
+     changes the type of proof fields and requires the correct transport.
+
+Prepared validation artifacts
+  aws-embedding-candidates/MinimalOriginal.lean and MinimalFixedNat.lean
+  use the candidate shape
+    ∀ z:Int, z≥0 → ∀ h:z.toNat<10, P (⟨z.toNat,h⟩ : Fin10).
+  Simplifying h's domain under z≥0 can introduce a transport using that fresh
+  proof into P's Fin argument. An opaque P prevents the constructor being
+  trivially discarded. A scalar control and an extra-antecedent variant are
+  included. These triggers now reproduce the failure and have been tested against all
+  four attribution variants; see BACKEND_FINDINGS.txt.
+
+  aws-embedding-candidates/AWSBuggyFixedNat.lean preserves the original model,
+  query, imports, options and actual `by veil_bmc`, adding only the local
+  simproc replacement. AWSBuggyFixedNatRat.lean separately imports Smt.Real
+  and installs both replacements; its different environment is explicit.
+  The Nat-only candidates were validated after timed measurements. The Rat/Real
+  companion remains unrun and is not a confirmed fix.
+
+  Attribution variants are also prepared: MinimalWithDefaultOnly.lean and
+  AWSBuggyWithDefaultOnly.lean retain the nondependent congruence/output form
+  but add withDefault; MinimalDependentOnly.lean and AWSBuggyDependentOnly.lean
+  add dependent output abstraction/congruence but omit withDefault. The full
+  Lean recipe changes both, so success of the combined fix cannot by itself
+  identify the causal omission. Compare these variants, including expression
+  type correctness and escaped-local checks, before attributing the failure.
+
+Proof, query and model implications
+  The preferred repair replaces one existing implication with a dependent
+  implication over the same nonnegativity proof; it does not add an independent
+  data variable or remove a bound. The enclosing simpTarget equality transports
+  the proof obligation. Nonetheless, a newly explicit dependency can expose a
+  later unsupported proof binder/Fin constructor to translation. Confirm the
+  entire emitted query and solver outcome, not only the local proof builder.
+
+  Embedding.lean:83–108 reverts/introduces variables and builds its hypothesis
+  map positionally, accounting for added nonnegativity assumptions. The repair
+  should preserve the expected telescope positions, but validate these maps
+  and untrusted proof reconstruction rather than infer that a local equality
+  fixes all downstream bookkeeping. Trusted success alone does not establish
+  kernel proof reconstruction or successful trace/model decoding.
+
+  Validation order: original/fixed small simplification; original/fixed full
+  production AWS at depth1; inspect any changed downstream failure; trusted
+  SAT/UNSAT query replay; untrusted theorem with kernel check and no sorryAx;
+  then finite/dependent examples and the Rat counterpart. Ensure expressions
+  and equality proofs contain no escaped fresh fvars and preserve Fin bounds.
+
+Source paths
+  Lean source root used for the comparison:
+    /home/george/.elan/toolchains/leanprover--lean4---v4.32.0/src/lean/
+  Veil checkout source prefix:
+    /home/george/src/veil-issue-123/
+  See BACKEND_FINDINGS.txt for the confirmed original production log/hash.

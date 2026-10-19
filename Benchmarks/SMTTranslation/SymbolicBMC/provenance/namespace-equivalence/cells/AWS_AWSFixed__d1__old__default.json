@@ -1,0 +1,344 @@
+{
+  "row": {
+    "cell_id": "AWS_AWSFixed__d1__old__default",
+    "model": "AWS_AWSFixed",
+    "path": "Examples/AWS/AWSFixed.lean",
+    "module": "AWSDnsRace",
+    "depth": 1,
+    "variant": "old",
+    "profile": "default",
+    "status": "query_ready",
+    "translation_status": "complete",
+    "solver_status": "not_reached",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 27,
+    "batch_id": "AWS_AWSFixed__default__batch1",
+    "batch_setup_ms": 12654,
+    "preprocessing_ms": 734,
+    "smt_preprocessing_ms": 389,
+    "translation_ms": 46,
+    "serialization_ms": 0,
+    "query_total_ms": 1169,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 10817,
+    "query_commands": 54,
+    "query_sha256": "168e7ea0f443be1a0bed2cec227fb87bd86ede9ae14c710765b7e66db800707e",
+    "query_path": "/tmp/veil-symbolic-bmc/namespace-equivalence/queries/AWS_AWSFixed__d1__old__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/namespace-equivalence/batch-sources/AWS_AWSFixed__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/namespace-equivalence/events/AWS_AWSFixed__d1__old__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/namespace-equivalence/logs/AWS_AWSFixed__d1__old__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/namespace-equivalence/logs/AWS_AWSFixed__d1__old__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "AWS_AWSFixed",
+    "path": "Examples/AWS/AWSFixed.lean",
+    "module": "AWSDnsRace",
+    "cut_line": 164,
+    "query": "assert (dns_valid = false)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "DnsConsistent safety, line125",
+    "notes": "Repaired DNS race variant; include separately from AWSBuggy.",
+    "category": "AWS",
+    "source_options": [
+      {
+        "line": 162,
+        "directive": "set_option veil.solver \"grind+smt\""
+      }
+    ],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "dc2dc5ffb8f19c619effabf68fda7d2e68b4f6cc13cbb6dc518e6f5159c30431"
+  },
+  "original_sha256": "dc2dc5ffb8f19c619effabf68fda7d2e68b4f6cc13cbb6dc518e6f5159c30431",
+  "inherited_setup_options": [
+    {
+      "line": 162,
+      "directive": "set_option veil.solver \"grind+smt\""
+    }
+  ],
+  "source_sha256": "408faa14e437bcbd55a2d42ce5fbd2a548ded43d8776c6c38ff44e799836c6c1",
+  "batch_log": "/tmp/veil-symbolic-bmc/namespace-equivalence/batch-logs/AWS_AWSFixed__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 200411395,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 200411422,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200411422,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 545,
+      "event": "stage",
+      "mono_ms": 200411967,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200411967,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 36,
+      "event": "stage",
+      "mono_ms": 200412004,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412013,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "mono_ms": 200412014,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412014,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 44,
+      "event": "stage",
+      "mono_ms": 200412058,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412058,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 19,
+      "event": "stage",
+      "mono_ms": 200412077,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412078,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 76,
+      "event": "stage",
+      "mono_ms": 200412154,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412154,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 13,
+      "event": "stage",
+      "mono_ms": 200412167,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 745,
+      "event": "milestone",
+      "mono_ms": 200412167,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412167,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "mono_ms": 200412171,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412171,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412171,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412171,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412171,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412171,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "mono_ms": 200412172,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412172,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 14,
+      "event": "stage",
+      "mono_ms": 200412186,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412186,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 370,
+      "event": "stage",
+      "mono_ms": 200412556,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412556,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 46,
+      "event": "stage",
+      "mono_ms": 200412602,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412691,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200412691,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 10817,
+      "commands": 54,
+      "elapsed_ms": 1269,
+      "event": "pipeline",
+      "mono_ms": 200412691,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 200412824,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "AWS_AWSFixed__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/namespace-equivalence/batch-sources/AWS_AWSFixed__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/namespace-equivalence/batch-logs/AWS_AWSFixed__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 15336,
+    "setup_ms": 12654,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/namespace-equivalence/batch-sources/AWS_AWSFixed__default__batch1.lean"
+    ]
+  }
+}

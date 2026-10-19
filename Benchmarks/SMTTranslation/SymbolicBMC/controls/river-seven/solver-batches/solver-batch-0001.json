@@ -1,0 +1,29 @@
+{
+  "batch_id": "solver-batch-0001",
+  "cells": [
+    "Puzzles_RiverCrossing__d7__old__default",
+    "Puzzles_RiverCrossing__d7__early__default"
+  ],
+  "source": "/tmp/veil-symbolic-bmc/controls/river-seven/solver-sources/solver-batch-0001.lean",
+  "source_sha256": "db328e2588a01f074ffb2735113e69c8232af6108d95fe9be9fb4cbe3c6699c9",
+  "log": "/tmp/veil-symbolic-bmc/controls/river-seven/logs/solver-batch-0001.log",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/controls/river-seven/solver-sources/solver-batch-0001.lean"
+  ],
+  "solver_timeout_seconds": 10,
+  "query_watchdog_seconds": 15,
+  "setup_watchdog_seconds": 60,
+  "attribution": "solver_ms is measured inside Smt.solve; batch wall time is separate",
+  "exit_code": 0,
+  "batch_wall_ms": 2113,
+  "completed_cells": [
+    "Puzzles_RiverCrossing__d7__old__default",
+    "Puzzles_RiverCrossing__d7__early__default"
+  ]
+}

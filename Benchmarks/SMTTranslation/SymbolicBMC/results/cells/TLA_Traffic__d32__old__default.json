@@ -1,0 +1,123 @@
+{
+  "row": {
+    "cell_id": "TLA_Traffic__d32__old__default",
+    "model": "TLA_Traffic",
+    "path": "Examples/TLA/Traffic.lean",
+    "module": "Traffic",
+    "depth": 32,
+    "variant": "old",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "nextSimp",
+    "failure_kind": "simp_steps",
+    "failure_message": "`simp` failed: maximum number of steps exceeded",
+    "setup_ms": null,
+    "query_elaboration_ms": 86,
+    "batch_id": "TLA_Traffic__default__batch1",
+    "batch_setup_ms": 7731,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/TLA_Traffic__d32__old__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Traffic__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/TLA_Traffic__d32__old__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_Traffic__d32__old__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_Traffic__d32__old__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_Traffic",
+    "path": "Examples/TLA/Traffic.lean",
+    "module": "Traffic",
+    "cut_line": 74,
+    "query": "assert (at_light = false)",
+    "query_kind": "puzzle_reachability",
+    "expected_status": null,
+    "query_source": "Negation of puzzle_unsolvable safety, lines70–72",
+    "notes": "Reaches the intended puzzle goal: the car leaves the light.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "8418d4a7338b69616502eda57d3e360af78fa2208f43ee990a267aa263b86a16"
+  },
+  "original_sha256": "8418d4a7338b69616502eda57d3e360af78fa2208f43ee990a267aa263b86a16",
+  "inherited_setup_options": [],
+  "source_sha256": "d2c305007923e1642f658a546b6bad9b76642c0b0796f27f276b2839920b681f",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_Traffic__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 178022878,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 178022964,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 178022964,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 16420,
+      "error": "`simp` failed: maximum number of steps exceeded",
+      "event": "stage",
+      "mono_ms": 178039388,
+      "phase": "nextSimp",
+      "status": "failed"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 178039679,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_Traffic__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Traffic__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_Traffic__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 55900,
+    "setup_ms": 7731,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Traffic__default__batch1.lean"
+    ]
+  }
+}

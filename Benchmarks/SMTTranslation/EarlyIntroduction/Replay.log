@@ -1,0 +1,24 @@
+REPLAY_RESULT DieHard_old_4 status=unsat solver_ms=232 bytes=6867
+REPLAY_RESULT DieHard_early_4 status=unsat solver_ms=170 bytes=6867
+REPLAY_RESULT DieHard_old_8 status=sat solver_ms=591 bytes=13339
+REPLAY_RESULT DieHard_early_8 status=sat solver_ms=393 bytes=13339
+REPLAY_RESULT TwoPhaseCommit_old_4 status=sat solver_ms=73 bytes=22994
+REPLAY_RESULT TwoPhaseCommit_early_4 status=sat solver_ms=82 bytes=22994
+REPLAY_RESULT TwoPhaseCommit_old_8 status=sat solver_ms=152 bytes=44466
+REPLAY_RESULT TwoPhaseCommit_early_8 status=sat solver_ms=165 bytes=44466
+REPLAY_RESULT RicartAgrawala_old_4 status=sat solver_ms=37 bytes=11842
+REPLAY_RESULT RicartAgrawala_early_4 status=sat solver_ms=37 bytes=11842
+REPLAY_RESULT RicartAgrawala_old_8 status=sat solver_ms=69 bytes=22802
+REPLAY_RESULT RicartAgrawala_early_8 status=sat solver_ms=74 bytes=22802
+REPLAY_RESULT MultiSigAll_old_4 status=unknown:TIMEOUT solver_ms=10058 bytes=38795
+REPLAY_RESULT MultiSigAll_early_4 status=unsat solver_ms=6819 bytes=38795
+REPLAY_MISSING MultiSigAll_old_8
+REPLAY_RESULT MultiSigAll_early_8 status=unknown:TIMEOUT solver_ms=10109 bytes=75355
+REPLAY_RESULT Peterson_old_4 status=sat solver_ms=434 bytes=13993
+REPLAY_RESULT Peterson_early_4 status=sat solver_ms=516 bytes=13993
+REPLAY_RESULT Peterson_old_8 status=sat solver_ms=482 bytes=25885
+REPLAY_RESULT Peterson_early_8 status=sat solver_ms=548 bytes=25885
+REPLAY_RESULT FloodSet_old_4 status=sat solver_ms=79 bytes=12219
+REPLAY_RESULT FloodSet_early_4 status=sat solver_ms=88 bytes=12219
+REPLAY_RESULT FloodSet_old_8 status=sat solver_ms=364 bytes=22996
+REPLAY_RESULT FloodSet_early_8 status=sat solver_ms=343 bytes=22996

@@ -1,0 +1,29 @@
+model,depth,mode,status,initial_status,isolated_solver_ms,nonisolated_solver_ms,smt_prep_ms,query_bytes,smt_commands_equal_ignoring_order,smt_commands_equal_after_uncurrying,assertion,source
+Ring,4,old,sat,,138,,,9765,False,True,"∃ l, leader l",Examples/Ivy/Ring.lean
+Ring,4,early,sat,,82,,,9773,False,True,"∃ l, leader l",Examples/Ivy/Ring.lean
+Ring,8,old,sat,,278,,,18033,False,True,"∃ l, leader l",Examples/Ivy/Ring.lean
+Ring,8,early,sat,,308,,,18049,False,True,"∃ l, leader l",Examples/Ivy/Ring.lean
+DieHard,4,old,unsat,unsat,232,154,256,6866,True,True,big = 4,Examples/Puzzles/DieHard.lean
+DieHard,4,early,unsat,unsat,170,139,230,6866,True,True,big = 4,Examples/Puzzles/DieHard.lean
+DieHard,8,old,sat,sat,591,465,465,13338,True,True,big = 4,Examples/Puzzles/DieHard.lean
+DieHard,8,early,sat,sat,393,341,543,13338,True,True,big = 4,Examples/Puzzles/DieHard.lean
+TwoPhaseCommit,4,old,sat,sat,73,49,997,22993,True,True,"∃ n, decide_commit n",Examples/Ivy/TwoPhaseCommit.lean
+TwoPhaseCommit,4,early,sat,sat,82,169,946,22993,True,True,"∃ n, decide_commit n",Examples/Ivy/TwoPhaseCommit.lean
+TwoPhaseCommit,8,old,sat,sat,152,94,1242,44465,True,True,"∃ n, decide_commit n",Examples/Ivy/TwoPhaseCommit.lean
+TwoPhaseCommit,8,early,sat,sat,165,169,1934,44465,True,True,"∃ n, decide_commit n",Examples/Ivy/TwoPhaseCommit.lean
+RicartAgrawala,4,old,sat,sat,37,42,430,11841,True,True,"∃ n, holds n",Examples/Ivy/RicartAgrawala.lean
+RicartAgrawala,4,early,sat,sat,37,83,513,11841,True,True,"∃ n, holds n",Examples/Ivy/RicartAgrawala.lean
+RicartAgrawala,8,old,sat,sat,69,65,750,22801,True,True,"∃ n, holds n",Examples/Ivy/RicartAgrawala.lean
+RicartAgrawala,8,early,sat,sat,74,174,853,22801,True,True,"∃ n, holds n",Examples/Ivy/RicartAgrawala.lean
+MultiSigAll,4,old,unknown:TIMEOUT,unknown:TIMEOUT,10058,10033,1605,38794,True,True,"∃ n k v d, paid n k v d",Examples/Ivy/MultiSigAll.lean
+MultiSigAll,4,early,unsat,unknown:TIMEOUT,6819,10034,1276,38794,True,True,"∃ n k v d, paid n k v d",Examples/Ivy/MultiSigAll.lean
+MultiSigAll,8,old,preprocessing_failed_or_incomplete,,,,,,,,"∃ n k v d, paid n k v d",Examples/Ivy/MultiSigAll.lean
+MultiSigAll,8,early,unknown:TIMEOUT,unknown:TIMEOUT,10109,10054,2595,75354,,,"∃ n k v d, paid n k v d",Examples/Ivy/MultiSigAll.lean
+Peterson,4,old,sat,sat,434,1092,673,13992,True,True,"∃ p, pc p critical ∨ pc p release",Examples/TLA/Peterson.lean
+Peterson,4,early,sat,sat,516,767,891,13992,True,True,"∃ p, pc p critical ∨ pc p release",Examples/TLA/Peterson.lean
+Peterson,8,old,sat,sat,482,932,771,25884,True,True,"∃ p, pc p critical ∨ pc p release",Examples/TLA/Peterson.lean
+Peterson,8,early,sat,sat,548,808,814,25884,True,True,"∃ p, pc p critical ∨ pc p release",Examples/TLA/Peterson.lean
+FloodSet,4,old,sat,sat,79,118,3322,12218,True,True,"∃ n v, decision n v",Examples/Synchronous/FloodSet.lean
+FloodSet,4,early,sat,sat,88,263,2637,12218,True,True,"∃ n v, decision n v",Examples/Synchronous/FloodSet.lean
+FloodSet,8,old,sat,sat,364,403,9794,22995,True,True,"∃ n v, decision n v",Examples/Synchronous/FloodSet.lean
+FloodSet,8,early,sat,sat,343,877,11224,22995,True,True,"∃ n v, decision n v",Examples/Synchronous/FloodSet.lean

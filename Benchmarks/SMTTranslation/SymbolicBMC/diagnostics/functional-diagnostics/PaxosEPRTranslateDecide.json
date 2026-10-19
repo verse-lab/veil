@@ -1,0 +1,19 @@
+{
+  "group": "decide",
+  "source": "/tmp/veil-symbolic-bmc/paxos-universe-candidates/PaxosEPRTranslateDecide.lean",
+  "source_sha256": "01b0686756e173ae4090a217768200a501ae121755d7ae93ecb6e88a9828a012",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/paxos-universe-candidates/PaxosEPRTranslateDecide.lean"
+  ],
+  "exit_code": 0,
+  "timeout": false,
+  "wall_ms": 13863,
+  "log": "/tmp/veil-symbolic-bmc/functional-diagnostics/PaxosEPRTranslateDecide.log",
+  "purpose": "functional diagnostic; not a performance observation"
+}

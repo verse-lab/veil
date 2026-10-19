@@ -1,0 +1,19 @@
+{
+  "group": "transition",
+  "source": "/tmp/veil-symbolic-bmc/paxos-universe-candidates/ActionFormMinimal.lean",
+  "source_sha256": "ef801ab14fd425284fc45041796cda0c603dc8fca176f1f7119dcafdab414039",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/paxos-universe-candidates/ActionFormMinimal.lean"
+  ],
+  "exit_code": 0,
+  "timeout": false,
+  "wall_ms": 3427,
+  "log": "/tmp/veil-symbolic-bmc/functional-diagnostics/ActionFormMinimal.log",
+  "purpose": "functional diagnostic; not a performance observation"
+}

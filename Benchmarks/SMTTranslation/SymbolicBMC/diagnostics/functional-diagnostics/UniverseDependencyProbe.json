@@ -1,0 +1,19 @@
+{
+  "group": "universe",
+  "source": "/tmp/veil-symbolic-bmc/paxos-universe-candidates/UniverseDependencyProbe.lean",
+  "source_sha256": "c7fb03375524fbb37e99f9400bde7c09e33281c31874b5a6dd7fad239ee8a2aa",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/paxos-universe-candidates/UniverseDependencyProbe.lean"
+  ],
+  "exit_code": 0,
+  "timeout": false,
+  "wall_ms": 2373,
+  "log": "/tmp/veil-symbolic-bmc/functional-diagnostics/UniverseDependencyProbe.log",
+  "purpose": "functional diagnostic; not a performance observation"
+}

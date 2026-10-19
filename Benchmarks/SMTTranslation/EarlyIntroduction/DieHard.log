@@ -1,0 +1,8 @@
+SOLVER_RESULT DieHard_old_4 status=unsat solver_ms=154 smt_prep_ms=256 bytes=6866
+/tmp/veil-early-intro-multi/DieHard.lean:100:0: warning: declaration uses `sorry`
+SOLVER_RESULT DieHard_early_4 status=unsat solver_ms=139 smt_prep_ms=230 bytes=6866
+/tmp/veil-early-intro-multi/DieHard.lean:114:0: warning: declaration uses `sorry`
+SOLVER_RESULT DieHard_old_8 status=sat solver_ms=465 smt_prep_ms=465 bytes=13338
+/tmp/veil-early-intro-multi/DieHard.lean:129:0: warning: declaration uses `sorry`
+SOLVER_RESULT DieHard_early_8 status=sat solver_ms=341 smt_prep_ms=543 bytes=13338
+/tmp/veil-early-intro-multi/DieHard.lean:143:0: warning: declaration uses `sorry`

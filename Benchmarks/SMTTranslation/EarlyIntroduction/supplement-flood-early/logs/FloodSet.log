@@ -1,0 +1,47 @@
+/tmp/veil-early-intro-multi/supplement-flood-early/sources/FloodSet.lean:300:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/supplement-flood-early/sources/FloodSet.lean:308:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/supplement-flood-early/sources/FloodSet.lean:309:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/supplement-flood-early/sources/FloodSet.lean:310:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/supplement-flood-early/sources/FloodSet.lean:311:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/supplement-flood-early/sources/FloodSet.lean:312:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/supplement-flood-early/sources/FloodSet.lean:313:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/supplement-flood-early/sources/FloodSet.lean:314:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_BEGIN FloodSet_early_32_1
+STAGE FloodSet_early_32_1 early_intros ms=18
+STAGE FloodSet_early_32_1 nextSimp ms=2875
+FAILED FloodSet_early_32_1 hoist ms=20977: `simp` failed: maximum number of steps exceeded
+
+Note: The target expression is not type-correct under the `instances` transparency level, which may have triggered the failure. This is usually caused by unfolding of semireducible definitions in prior tactic steps. Use `set_option linter.tacticCheckInstances true` to investigate the source of the issue.
+Full error:
+  Application type mismatch: The argument
+    (fun deadToAliveDelivery __veil_state N V => instDecidableOr) x✝¹ (getFrom st0) x✝ x
+  has type
+    Decidable
+      ((∃ m, (getFrom st0).5 m = true ∧ (getFrom st0).4 m x = true) ∨
+        ∃ d, (getFrom st0).7 d = true ∧ x✝¹ d x✝ = true ∧ (getFrom st0).4 d x = true)
+  but is expected to have type
+    Decidable
+      ((∃ m, st0.alive m = true ∧ st0.seen m x = true) ∨
+        ∃ d, st0.crashedInThisRound d = true ∧ x✝¹ d x✝ = true ∧ st0.seen d x = true)
+  in the application
+    @decide
+      ((∃ m, st0.alive m = true ∧ st0.seen m x = true) ∨
+        ∃ d, st0.crashedInThisRound d = true ∧ x✝¹ d x✝ = true ∧ st0.seen d x = true)
+      ((fun deadToAliveDelivery __veil_state N V => instDecidableOr) x✝¹ (getFrom st0) x✝ x)
+RUN_FAILED FloodSet_early_32_1
+
+PROCESS status=exit0 wall_seconds=35.854858

@@ -1,0 +1,80 @@
+Universe dependencies and residual decide: confirmed diagnoses
+
+Production confirmation
+  Actual production `by veil_bmc` reproduces PaxosEPR's depth 1 error:
+    incorrect number of universe levels DecidableEq
+  The primary old and early orders both encounter it. Every early sampled depth
+  through 32 fails at this boundary. It is not caused by early introduction.
+
+  UniverseDependencyProbe.lean starts with valid DecidableEq.{1}, translates it,
+  obtains the name-only dependency, reconstructs it using the existing Query
+  routine's mkConst name, and confirms that inferType rejects the lost universe
+  arguments. This standalone probe passes. It isolates a real bookkeeping defect,
+  independent of whether the solver should support DecidableEq itself.
+
+Source cause
+  Smt/Translate.lean:42 uses a NameSet for constant dependencies. The generic
+  const branch at 155–157 discards the actual universe levels. The expression
+  translation cache propagates this name-only payload. Translate/Query.lean:61–69
+  recreates each unknown constant with mkConst nm, supplying zero universe levels;
+  buildDependencyGraph at 237 then infers the type of this malformed expression.
+  A valid polymorphic constant thus becomes an invalid Lean term.
+
+Confirmed model-level precursor
+  Production query tracing shows PaxosEPR's left_rnd update retaining:
+    Decidable.decide (old-left-rnd = true OR NOT order-relation) instance
+  The instance contains instDecidableEqBool and Classical.propDecidable. Generic
+  application traversal follows these computational arguments, eventually reaching
+  DecidableEq. The source left_rnd update uses decide; Translate/Bool.lean has no
+  dedicated translator for it in this dependency revision.
+  The persistent observer trace records incoming constants and residual terms;
+  functional-diagnostics/PaxosEPRDiagnostic.log retains the full context.
+
+Tested trusted-only candidate
+  TranslateDecide.inc.lean recognizes decide p instance and translates p directly
+  to the SMT Boolean term. Both Lean Bool and Prop use SMT Bool in this trusted
+  encoding. The decision procedure is a proof-computation implementation detail,
+  not an additional logical variable to serialize.
+
+  With that standalone translator, the actual depth 1 production tactic finishes
+  UNSAT for PaxosEPR. The same candidate also gives UNSAT for ChordRingMaintenance
+  and SuzukiKasami, whose original scripts fail parsing with a dependent
+  Decidable.decide declaration in sort position. These three probes exit0 with
+  the expected trusted-mode `declaration uses sorry` warning: they establish
+  native trusted outcomes, not reconstructed kernel proofs. No dependency source
+  or compiled library was changed, and the candidate is not in implementation.patch.
+
+  ReliableBroadcast still fails with a DecidableEq lambda. Its enclosing term is
+  the unnormalized byz.ext transition wrapper, not a residual decide application.
+  See TRANSITION_FORM_FINDINGS.txt. The negative candidate result is useful evidence
+  that these failures should not be assigned one blanket cause.
+
+Required production fixes
+  1. Preserve instantiated constant Exprs (name and actual universe arguments)
+     through dependency collection, caches, graphs and symbol generation. Update
+     custom translators/datatype handling consistently. Do not replace missing
+     levels with unrelated fresh metavariables. Preserving levels fixes malformed
+     terms but is not full polymorphism support: different applied type/instance
+     arguments can share universe levels while requiring different SMT signatures.
+     Use tested monomorphic instance identities, or reject unsupported inputs clearly.
+
+  2. Add exact decide lowering with tests for nested Bool/Prop uses, conditionals,
+     equality, arbitrary valid Decidable instances, and trusted SAT as well as UNSAT.
+     Validate untrusted reconstruction and model-value correspondence. Trusted
+     successes on these three examples do not establish all of those properties.
+     Do not simply filter DecidableEq out of dependencies while leaving an undeclared
+     computational application in the formula.
+
+  3. Reject residual dependent/polymorphic computational types at a clear boundary
+     before emitting invalid sorts. The current universe-count and parser exceptions
+     obscure the original Lean term and invite irrelevant resource-limit increases.
+     List-level universe failures and German's residual Type need separate support
+     work; a decide translator is not a general solution for them.
+
+Artifacts and interpretation
+  Production, observer, minimized dependency and candidate sources are under
+  diagnostics/paxos-universe-candidates in the delivered package. JSON checkpoints
+  record source hashes and commands; logs are under diagnostics/functional-diagnostics.
+  Diagnostic whole-process times are not performance samples. The first observer
+  used rollback-prone logInfo; the retained rerun uses persistent query tracing.
+  See DIAGNOSTICS_README.txt for every executed probe and explicit unrun candidates.

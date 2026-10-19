@@ -1,0 +1,146 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_NOPaxos__default__batch1.lean:1097:2: error: Application type mismatch: The argument
+  fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun mSet.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun mSet.insert =>
+                forall_congr fun mSet.remove =>
+                  forall_congr fun mSet.ofList =>
+                    forall_congr fun mSet.toList =>
+                      forall_congr fun mSet.filter =>
+                        forall_congr fun mSet.union =>
+                          forall_congr fun mSet.diff =>
+                            forall_congr fun mSet.intersection =>
+                              forall_congr fun mSet.subsets =>
+                                forall_congr fun replicaEnumerable.allValues =>
+                                  forall_congr fun __veil_tag.ClientSendsRequest =>
+                                    forall_congr fun __veil_tag.HandleClientRequest =>
+                                      forall_congr fun __veil_tag.HandleMarkedClientRequest =>
+                                        forall_congr fun __veil_tag.HandleSlotLookup =>
+                                          forall_congr fun __veil_tag.HandleGapCommit =>
+                                            forall_congr fun __veil_tag.HandleGapCommitRep =>
+                                              forall_congr fun __veil_tag.StartLeaderChange =>
+                                                forall_congr fun __veil_tag.HandleViewChangeReq =>
+                                                  forall_congr fun __veil_tag.HandleViewChange =>
+                                                    forall_congr fun __veil_tag.HandleStartView =>
+                                                      forall_congr fun __veil_tag.StartSync => ⋯))
+has type
+  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),
+    (∀ (f_1 : NOPaxosMsg replica value f✝³.toNat → MsgSet → Bool) (mSet.empty : MsgSet) (mSet.isEmpty : MsgSet → Bool)
+        (mSet.insert mSet.remove : NOPaxosMsg replica value f✝³.toNat → MsgSet → MsgSet)
+        (mSet.ofList : List (NOPaxosMsg replica value f✝³.toNat) → MsgSet)
+        (mSet.toList : MsgSet → List (NOPaxosMsg replica value f✝³.toNat))
+        (mSet.filter : MsgSet → (NOPaxosMsg replica value f✝³.toNat → Bool) → MsgSet)
+        (mSet.union mSet.diff mSet.intersection : MsgSet → MsgSet → MsgSet) (mSet.subsets : MsgSet → List MsgSet)
+        (replicaEnumerable.allValues : List replica)
+        (__veil_tag.ClientSendsRequest __veil_tag.HandleClientRequest __veil_tag.HandleMarkedClientRequest
+          __veil_tag.HandleSlotLookup __veil_tag.HandleGapCommit __veil_tag.HandleGapCommitRep
+          __veil_tag.StartLeaderChange __veil_tag.HandleViewChangeReq __veil_tag.HandleViewChange
+          __veil_tag.HandleStartView __veil_tag.StartSync __veil_tag.HandleSyncPrepare __veil_tag.HandleSyncRep
+          __veil_tag.SyncCommit : ActionTag)
+        (th.NoOp : value) (th.MsgCountLimit : Nat) (st0.messages : MsgSet) (st0.seqMsgNums : SeqTy f✝³.toNat → Nat)
+        (st0.vLog : replica → LogTy value) (st0.vViewID st0.vLastNormView : replica → View (SeqTy f✝³.toNat))
+        (st0.vSessMsgNum : replica → Nat) (st0.vViewChanges st0.vGapCommitReps : replica → MsgSet)
+        (st0.vCurrentGapSlot : replica → Nat) (st0.vReplicaStatus : replica → ReplicaStatus)
+        (st0.vSyncPoint st0.vTentativeSync : replica → Nat) (st0.vSyncReps : replica → MsgSet) (st1.messages : MsgSet)
+        (st1.seqMsgNums : SeqTy f✝³.toNat → Nat) (st1.vLog : replica → LogTy value)
+        (st1.vViewID st1.vLastNormView : replica → View (SeqTy f✝³.toNat)) (st1.vSessMsgNum : replica → Nat)
+        (st1.vViewChanges st1.vGapCommitReps : replica → MsgSet) (st1.vCurrentGapSlot : replica → Nat)
+        (st1.vReplicaStatus : replica → ReplicaStatus) (st1.vSyncPoint st1.vTentativeSync : replica → Nat)
+        (st1.vSyncReps : replica → MsgSet) (th.ReplicaOrder.toList : List replica),
+        (fun a₁ => (f✝² a₁).toNat) rSet.empty = 0 →
+          ∀ (rSet.empty_count : (fun a₁ => (f✝² a₁).toNat) rSet.empty = 0),
+            (∀ (elem : replica), (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem rSet.empty = false) →
+              ∀ (rSet.empty_contains : ∀ (elem : replica), (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem rSet.empty = false),
+                (∀ (s : replicaSet), ((fun a₁ => decide (f✝ a₁)) s = true) = ((fun a₁ => (f✝² a₁).toNat) s = 0)) →
+                  ∀
+                    (rSet.isEmpty_iff_count_zero :
+                      ∀ (s : replicaSet), ((fun a₁ => decide (f✝ a₁)) s = true) = ((fun a₁ => (f✝² a₁).toNat) s = 0)),
+                    (∀ (elem : replica) (s : replicaSet),
+                        (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (rSet.insert elem s) = true) →
+                      ∀
+                        (rSet.contains_insert_self :
+                          ∀ (elem : replica) (s : replicaSet),
+                            (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (rSet.insert elem s) = true),
+                        (∀ (elem₁ elem₂ : replica) (s : replicaSet),
+                            elem₁ ≠ elem₂ →
+                              (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (rSet.insert elem₂ s) =
+                                (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s) →
+                          ∀
+                            (rSet.contains_insert_other :
+                              ∀ (elem₁ elem₂ : replica) (s : replicaSet),
+                                elem₁ ≠ elem₂ →
+                                  (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (rSet.insert elem₂ s) =
+                                    (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s),
+                            (∀ (elem : replica) (s : replicaSet),
+                                rSet.toList (rSet.insert elem (rSet.insert elem s)) =
+                                  rSet.toList (rSet.insert elem s)) →
+                              ∀
+                                (rSet.insert_idempotent :
+                                  ∀ (elem : replica) (s : replicaSet),
+                                    rSet.toList (rSet.insert elem (rSet.insert elem s)) =
+                                      rSet.toList (rSet.insert elem s)),
+                                (∀ (elem : replica) (s : replicaSet), ⋯) →
+                                  ∀ (rSet.count_insert : ∀ (elem : replica), ⋯), ⋯ → ⋯) =
+      ∀ (a_1 : NOPaxosMsg replica value f✝³.toNat → MsgSet → Prop) (a_2 : MsgSet) (a_3 : MsgSet → Prop)
+        (a_4 a_5 : NOPaxosMsg replica value f✝³.toNat → MsgSet → MsgSet)
+        (a_6 : List (NOPaxosMsg replica value f✝³.toNat) → MsgSet)
+        (a_7 : MsgSet → List (NOPaxosMsg replica value f✝³.toNat))
+        (a_8 : MsgSet → (NOPaxosMsg replica value f✝³.toNat → Bool) → MsgSet) (a_9 a_10 a_11 : MsgSet → MsgSet → MsgSet)
+        (a_12 : MsgSet → List MsgSet) (a_13 : List replica)
+        (a_14 a_15 a_16 a_17 a_18 a_19 a_20 a_21 a_22 a_23 a_24 a_25 a_26 a_27 : ActionTag) (a_28 : value) (a_29 : Int),
+        a_29 ≥ 0 →
+          ∀ (a_31 : MsgSet) (a_32 : SeqTy f✝³.toNat → Int),
+            (∀ (a₁ : SeqTy f✝³.toNat), a_32 a₁ ≥ 0) →
+              ∀ (a_34 : replica → LogTy value) (a_35 a_36 : replica → View (SeqTy f✝³.toNat)) (a_37 : replica → Int),
+                (∀ (a₁ : replica), a_37 a₁ ≥ 0) →
+                  ∀ (a_39 a_40 : replica → MsgSet) (a_41 : replica → Int),
+                    (∀ (a₁ : replica), a_41 a₁ ≥ 0) →
+                      ∀ (a_43 : replica → ReplicaStatus) (a_44 : replica → Int),
+                        (∀ (a₁ : replica), a_44 a₁ ≥ 0) →
+                          ∀ (a_46 : replica → Int),
+                            (∀ (a₁ : replica), a_46 a₁ ≥ 0) →
+                              ∀ (a_48 : replica → MsgSet) (a_49 : MsgSet) (a_50 : SeqTy f✝³.toNat → Int),
+                                (∀ (a₁ : SeqTy f✝³.toNat), a_50 a₁ ≥ 0) →
+                                  ∀ (a_52 : replica → LogTy value) (a_53 a_54 : replica → View (SeqTy f✝³.toNat))
+                                    (a_55 : replica → Int),
+                                    (∀ (a₁ : replica), a_55 a₁ ≥ 0) →
+                                      ∀ (a_57 a_58 : replica → MsgSet) (a_59 : replica → Int),
+                                        (∀ (a₁ : replica), a_59 a₁ ≥ 0) →
+                                          ∀ (a_61 : replica → ReplicaStatus) (a_62 : replica → Int),
+                                            (∀ (a₁ : replica), a_62 a₁ ≥ 0) →
+                                              ∀ (a_64 : replica → Int),
+                                                (∀ (a₁ : replica), a_64 a₁ ≥ 0) →
+                                                  ∀ (a_66 : replica → MsgSet) (a_67 : List replica),
+                                                    f✝² rSet.empty = 0 → ∀ (a_69 : f✝² rSet.empty = 0), ⋯
+but is expected to have type
+  (∀ (a₁ : MsgSet), f a₁ ≥ 0) → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (∀ (a₁ : MsgSet), f a₁ ≥ 0)) fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun mSet.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun mSet.insert =>
+                forall_congr fun mSet.remove =>
+                  forall_congr fun mSet.ofList =>
+                    forall_congr fun mSet.toList =>
+                      forall_congr fun mSet.filter =>
+                        forall_congr fun mSet.union =>
+                          forall_congr fun mSet.diff =>
+                            forall_congr fun mSet.intersection =>
+                              forall_congr fun mSet.subsets =>
+                                forall_congr fun replicaEnumerable.allValues =>
+                                  forall_congr fun __veil_tag.ClientSendsRequest =>
+                                    forall_congr fun __veil_tag.HandleClientRequest =>
+                                      forall_congr fun __veil_tag.HandleMarkedClientRequest =>
+                                        forall_congr fun __veil_tag.HandleSlotLookup =>
+                                          forall_congr fun __veil_tag.HandleGapCommit =>
+                                            forall_congr fun __veil_tag.HandleGapCommitRep =>
+                                              forall_congr fun __veil_tag.StartLeaderChange =>
+                                                forall_congr fun __veil_tag.HandleViewChangeReq =>
+                                                  forall_congr fun __veil_tag.HandleViewChange =>
+                                                    forall_congr fun __veil_tag.HandleStartView => forall_congr ⋯))

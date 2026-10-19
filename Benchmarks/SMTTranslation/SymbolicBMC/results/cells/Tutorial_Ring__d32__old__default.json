@@ -1,0 +1,115 @@
+{
+  "row": {
+    "cell_id": "Tutorial_Ring__d32__old__default",
+    "model": "Tutorial_Ring",
+    "path": "Examples/Tutorial/Ring.lean",
+    "module": "Ring",
+    "depth": 32,
+    "variant": "old",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "nextSimp",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_Ring__default__batch1.lean:599:37: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 73,
+    "batch_id": "Tutorial_Ring__default__batch1",
+    "batch_setup_ms": 5604,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/Tutorial_Ring__d32__old__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_Ring__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/Tutorial_Ring__d32__old__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/Tutorial_Ring__d32__old__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/Tutorial_Ring__d32__old__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Tutorial_Ring",
+    "path": "Examples/Tutorial/Ring.lean",
+    "module": "Ring",
+    "cut_line": 229,
+    "query": "assert (∃ l1 l2, leader l1 ∧ leader l2 ∧ l1 ≠ l2)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "single_leader safety, line217",
+    "notes": "Tutorial relational Ring, retained separately from Ivy/Ring and POPL26/RingDec.",
+    "category": "Tutorial",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "3cb4e2274ab3192d8d2064ca93661527b26f0a0af14da77ff103be53f42d1be2"
+  },
+  "original_sha256": "3cb4e2274ab3192d8d2064ca93661527b26f0a0af14da77ff103be53f42d1be2",
+  "inherited_setup_options": [],
+  "source_sha256": "7664377bf23ab300a04a72829cb9a11416b0b57e970746fe5515b7438402fc8d",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/Tutorial_Ring__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 178422735,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 178422808,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 178422808,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 178422875,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Tutorial_Ring__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_Ring__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/Tutorial_Ring__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 44926,
+    "setup_ms": 5604,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_Ring__default__batch1.lean"
+    ]
+  }
+}

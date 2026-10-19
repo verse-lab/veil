@@ -1,0 +1,39 @@
+{
+  "repo": "/home/george/src/veil-issue-123",
+  "commit": "eb41b59673a179ad05773ceca18667ba25b7f079",
+  "lean": "Lean (version 4.32.0, x86_64-unknown-linux-gnu, commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, Release)",
+  "models": [
+    [
+      "FloodSet",
+      "Examples/Synchronous/FloodSet.lean",
+      "\u2203 n v, decision n v",
+      "Higher-order delivery choices; arithmetic"
+    ]
+  ],
+  "depths": [
+    32
+  ],
+  "modes": [
+    "early"
+  ],
+  "repeats": 1,
+  "timeout_seconds": 180.0,
+  "budget_seconds": 185.0,
+  "resources": {
+    "maxHeartbeats": 0,
+    "maxRecDepth": 10000,
+    "simp_maxSteps": 100000
+  },
+  "source_hashes": {
+    "FloodSet": "71e30b3e1e732b752052029b4a31e037cab323758a94cfc2edef3f6a772c5f0e"
+  },
+  "solver_executed": false,
+  "elab_async": false,
+  "cpu": "AMD EPYC 9645 96-Core Processor",
+  "platform": "Linux-6.12.113+deb13-amd64-x86_64-with-glibc2.41",
+  "script_sha256": "032550f3e4262ead72bd0267f91dda1dd26481e1499a49f749fb79e95170bebf",
+  "core_sha256": "20974a2187f55c796f0619d6420725c1f0ee71bddbe51ab7f357442a5208865f",
+  "ordering": "model-major; depths increasing; original/early order alternates per repetition and depth",
+  "timing": "Sequential processes and synchronous Lean elaboration; stage wall time; excludes startup/modelgen/instrumentation/solver. SMT output measured only repetition1. Same-process repetitions include warm caches; variants alternate order.",
+  "elapsed_seconds": 35.85637999098981
+}

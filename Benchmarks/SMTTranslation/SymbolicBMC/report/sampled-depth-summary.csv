@@ -1,0 +1,50 @@
+model,path,old_serialized_depths,old_highest_sampled_serialized_depth,old_definite_solver_depths,old_highest_sampled_definite_solver_depth,old_solver_answer_at_highest_sample,old_preprocessing_discharge_depths,old_highest_sampled_preprocessing_discharge_depth,early_serialized_depths,early_highest_sampled_serialized_depth,early_definite_solver_depths,early_highest_sampled_definite_solver_depth,early_solver_answer_at_highest_sample,early_preprocessing_discharge_depths,early_highest_sampled_preprocessing_discharge_depth,interpretation
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,1 2 4,4,1 2,2,unsat,,,1 2 4,4,1 2 4,4,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,1 2,2,1 2,2,unsat,,,1 2 4,4,1 2 4,4,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,1 2,2,,,,,,1 2 4 8 16,16,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,1 2 4 8,8,1 2 4 8,8,unsat,,,1 2 4 8 16 32,32,1 2 4 8 16 32,32,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,1 2 4,4,1 2 4,4,unsat,,,1 2 4 8 16,16,1 2 4,4,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,1 2 4,4,1 2 4,4,unsat,,,1 2 4 8 16,16,1 2 4,4,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,1,1,1,1,unsat,,,1 2 4 8,8,1 2 4,4,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,1 2 4,4,1 2,2,unsat,,,1 2 4 8 16 32,32,1 2,2,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,1 2 4 8,8,1 2 4,4,unsat,,,1 2 4 8 16 32,32,1 2 4,4,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_Ring,Examples/Ivy/Ring.lean,1 2 4 8,8,1 2 4,4,unsat,,,1 2 4 8 16 32,32,1 2 4,4,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,1 2 4,4,,,,,,1 2 4 8 16,16,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,1 2 4 8,8,1 2 4 8,8,unsat,,,1 2 4 8 16 32,32,1 2 4 8,8,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,1 2 4 8 16,16,1 2 4 8,8,sat,,,1 2 4 8 16,16,1 2 4 8,8,sat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,1 2 4 8 16,16,1 2 4 8,8,sat,,,1 2 4 8 16,16,1 2 4 8,8,sat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,1 2 4 8 16,16,1 2 4 8 16,16,unsat,,,1 2 4 8 16 32,32,1 2 4 8 16 32,32,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,1 2 4 8,8,1 2 4 8,8,sat,,,1 2 4 8 16 32,32,1 2 4 8,8,sat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,1 2 4 8,8,1 2 4 8,8,sat,,,1 2 4 8 16 32,32,1 2 4 8 16 32,32,sat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,1 2 4 8,8,1 2 4,4,unsat,,,1 2 4 8 16 32,32,1 2,2,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,1 2 4 8,8,1 2,2,unsat,,,1 2 4 8,8,1 2,2,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_Bakery,Examples/TLA/Bakery.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_BcastByz,Examples/TLA/BcastByz.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_EPaxos,Examples/TLA/EPaxos.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_EWD840,Examples/TLA/EWD840.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_German,Examples/TLA/German.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_KVSnap,Examples/TLA/KVSnap.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_Paxos,Examples/TLA/Paxos.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_Peterson,Examples/TLA/Peterson.lean,1 2 4 8,8,1 2 4,4,unsat,,,1 2 4 8 16 32,32,1 2 4,4,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_Raft,Examples/TLA/Raft.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_Room,Examples/TLA/Room.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_Traffic,Examples/TLA/Traffic.lean,1 2 4 8 16,16,1 2 4 8 16,16,sat,,,1 2 4 8 16 32,32,1 2 4 8 16 32,32,sat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,1 2 4 8,8,1 2 4,4,unsat,,,1 2 4 8 16 32,32,1 2 4,4,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,1 2 4 8,8,1 2,2,unsat,,,1 2 4 8,8,1 2,2,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,1 2 4 8,8,1 2 4,4,unsat,,,1 2 4 8 16 32,32,1 2 4,4,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,,,,,,,,,,,,,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.
+Tutorial_Ring,Examples/Tutorial/Ring.lean,1 2 4 8,8,1 2 4,4,unsat,,,1 2 4 8 16 32,32,1 2 4,4,unsat,,,Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim.

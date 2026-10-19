@@ -1,0 +1,244 @@
+diff --git a/Veil/Frontend/DSL/Tactic/Core.lean b/Veil/Frontend/DSL/Tactic/Core.lean
+index 81f300f0..b6f87747 100644
+--- a/Veil/Frontend/DSL/Tactic/Core.lean
++++ b/Veil/Frontend/DSL/Tactic/Core.lean
+@@ -1336,6 +1336,21 @@ def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
+   else
+     veilWithMainContext <| veilEvalTactic <| ← `(tactic| veil_intros; __veil_solve_tr_conservative)
+ 
++/-- Introduce outer data parameters before normalizing a trace. Stop at proof
++binders: their domains still need the same simplification and higher-order
++quantifier hoisting as the target. Moving them into the context too early can
++leave unsupported function quantifiers in hypotheses. -/
++private partial def introBmcDataPrefix (goal : MVarId) : MetaM MVarId := goal.withContext do
++  let target ← instantiateMVars (← goal.getType)
++  let .forallE _ domain _ _ := target.consumeMData | return goal
++  if ← isProp domain then return goal
++  -- Match `unhygienic intros`, including its handling of name collisions.
++  let (_, goal') ← withOptions (fun opts => opts.setBool `tactic.hygienic false) goal.intro1
++  introBmcDataPrefix goal'
++
++elab "__veil_bmc_intro_data" : tactic => do
++  liftMetaTactic1 fun goal => return some (← introBmcDataPrefix goal)
++
+ @[inherit_doc veil_bmc]
+ def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
+   -- FIXME: sometimes we still have abstract dispatchers in the types, so as a
+@@ -1343,7 +1358,22 @@ def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
+   let dsimpLemmas := #[mkIdent ``Inhabited.default, fieldAbstractDispatcher, fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
+   let dsimpTac←  `(tactic| try dsimp +$(mkIdent `instances) [$[$dsimpLemmas:ident],*])
+   let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
+-  let tac ← `(tacticSeq| $inferNonemptyTac:tactic; veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]; veil_simp +$(mkIdent `instances) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; $inferNonemptyTac:tactic; veil_destruct; $dsimpTac; veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]; $dsimpTac; veil_smt)
++  -- Avoid rebuilding the outer data telescope during simplification. Its
++  -- State/Theory binders also trigger the HO guard without nested witnesses.
++  -- Keep proof binders in the target until their domains have been normalized,
++  -- and retain the later intros for binders exposed by that normalization.
++  let tac ← `(tacticSeq|
++    __veil_bmc_intro_data
++    $inferNonemptyTac:tactic
++    veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]
++    veil_simp +$(mkIdent `instances) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]
++    veil_intros
++    $inferNonemptyTac:tactic
++    veil_destruct
++    $dsimpTac:tactic
++    veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]
++    $dsimpTac:tactic
++    veil_smt)
+   veilEvalTactic tac
+ 
+ def elabVeilSplitIfs : DesugarTacticM Unit := veilWithMainContext do
+diff --git a/VeilTest/Regression/TraceEarlyIntroduction.lean b/VeilTest/Regression/TraceEarlyIntroduction.lean
+new file mode 100644
+--- /dev/null
++++ b/VeilTest/Regression/TraceEarlyIntroduction.lean
+@@ -0,0 +1,138 @@
++module
++
++public import Veil
++
++/-!
++Introducing trace binders before normalization must preserve both SAT and UNSAT
++results, including actions with function-valued nondeterministic choices.
++These checks exercise the production `veil_bmc` tactic without an override.
++-/
++
++veil module TraceEarlyIntroduction
++
++type node
++relation marked : node → Bool
++
++after_init { marked N := false }
++
++action fill {
++  let f ← pick (node → Bool)
++  require ∀ n, f n
++  marked N := f N
++}
++
++action clear { marked N := false }
++
++invariant True
++
++#gen_spec
++
++section TrustedChecks
++
++set_option veil.smt.trust true
++
++-- A real higher-order choice must remain available to the solver.
++#guard_msgs(drop info, drop warning) in
++sat trace [fill_all] {
++  fill
++  assert (∀ n, marked n)
++}
++
++#guard_msgs(drop info, drop warning) in
++unsat trace [fill_cannot_leave_unmarked] {
++  fill
++  assert (∃ n, ¬ marked n)
++}
++
++#guard_msgs(drop info, drop warning) in
++sat trace [choose_fill] {
++  any 3 actions
++  assert (∃ n, marked n)
++}
++
++#guard_msgs(drop info, drop warning) in
++unsat trace [always_uniform] {
++  any 3 actions
++  assert ((∃ n, marked n) ∧ (∃ n, ¬ marked n))
++}
++
++end TrustedChecks
++
++-- Repeat with proof reconstruction enabled for UNSAT results.
++section UntrustedChecks
++
++set_option veil.smt.trust false
++
++#guard_msgs(drop info, drop warning) in
++sat trace [fill_all_untrusted] {
++  fill
++  assert (∀ n, marked n)
++}
++
++#guard_msgs(drop info, drop warning) in
++unsat trace [fill_cannot_leave_unmarked_untrusted] {
++  fill
++  assert (∃ n, ¬ marked n)
++}
++
++#guard_msgs(drop info, drop warning) in
++sat trace [choose_fill_untrusted] {
++  any 3 actions
++  assert (∃ n, marked n)
++}
++
++#guard_msgs(drop info, drop warning) in
++unsat trace [always_uniform_untrusted] {
++  any 3 actions
++  assert ((∃ n, marked n) ∧ (∃ n, ¬ marked n))
++}
++
++-- A manual trace proof must close every goal. The automatic trace discharger
++-- can report an SMT result without retaining a complete Lean proof.
++unsat trace [fill_cannot_leave_unmarked_checked] {
++  fill
++  assert (∃ n, ¬ marked n)
++} by
++  veil_bmc
++
++/-- info: 'TraceEarlyIntroduction.fill_cannot_leave_unmarked_checked' depends on axioms: [propext, Classical.choice, Quot.sound] -/
++#guard_msgs (whitespace := lax) in
++#print axioms fill_cannot_leave_unmarked_checked
++
++end UntrustedChecks
++
++end TraceEarlyIntroduction
++
++/-!
++Proof-valued trace binders must stay in the goal until normalization processes
++their domains. Introducing this header too early leaves higher-order
++existentials in a context hypothesis, which the SMT translator cannot encode.
++This UNSAT query worked before early introduction and must remain supported.
++-/
++veil module TraceEarlyIntroductionProofHeader
++
++type node
++individual flag : Bool
++
++#gen_state
++
++after_init { flag := false }
++action stay { pure () }
++invariant True
++
++#gen_spec
++
++set_option veil.smt.trust false
++
++unsat trace [preserves_higher_order_proof_header]
++    (_h : (∃ f : node → Bool, ∀ n, f n) ∨ (∃ g : node → Bool, ∀ n, ¬ g n)) {
++  stay
++  assert flag
++} by
++  veil_bmc
++
++/-- info: 'TraceEarlyIntroductionProofHeader.preserves_higher_order_proof_header' depends on axioms: [propext, Classical.choice, Quot.sound] -/
++#guard_msgs (whitespace := lax) in
++#print axioms preserves_higher_order_proof_header
++
++end TraceEarlyIntroductionProofHeader
+diff --git a/VeilTest/Performance/DeepBmcTranslation.lean b/VeilTest/Performance/DeepBmcTranslation.lean
+new file mode 100644
+--- /dev/null
++++ b/VeilTest/Performance/DeepBmcTranslation.lean
+@@ -0,0 +1,46 @@
++module
++public import Veil
++
++veil module DeepBmcTranslation
++
++type node
++relation marked : node → Bool
++relation edge : node → node → Bool
++individual failed : Bool
++
++#gen_state
++
++after_init {
++  marked N := false
++  edge N M := false
++  failed := false
++}
++
++action mark (n m : node) {
++  marked n := true
++  edge n m := true
++}
++
++action clear (n m : node) {
++  marked n := false
++  edge n m := false
++}
++
++invariant ¬ failed
++#gen_spec
++
++-- This checks that the ordinary BMC pipeline reaches a real UNSAT solver result
++-- at a larger depth. Before the early-introduction fix, global normalization
++-- under the state binders exhausted simp's default 100,000-step budget here.
++-- The two actions change the relations but preserve `failed = false`, keeping
++-- solving easy even though preprocessing must traverse every transition.
++-- Use the default trusted solver path for this scaling regression; separate
++-- semantic tests cover proof reconstruction. No resource limit is raised.
++set_option veil.smt.trust true
++#guard_msgs(drop info, drop warning) in
++unsat trace [failed_unreachable] {
++  any 32 actions
++  assert failed
++}
++
++end DeepBmcTranslation

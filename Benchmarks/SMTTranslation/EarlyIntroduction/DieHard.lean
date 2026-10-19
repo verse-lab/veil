@@ -1,0 +1,158 @@
+module
+
+public import Veil
+
+open Lean Elab Tactic Meta Veil
+elab "check_solver_outcome " label:str : tactic => withMainContext do
+  let start ← IO.monoMsNow
+  try
+    let hs := (← getFVarIds (← Veil.getPropsInContext)).map Expr.fvar
+    let original ← getMainGoal
+    let mut mv := (← Meta.mkFreshExprMVar (← original.getType)).mvarId!
+    mv ← mv.cleanup (← hs.foldlM (fun s h => return (← (Expr.collectFVars h).run s).snd) {}).fvarIds
+    let steps := #[Smt.Preprocess.pushHintsToCtx, Smt.Preprocess.intros, Smt.Preprocess.negateGoal,
+      Smt.Preprocess.normalize, Smt.Preprocess.embeddingWithConfig { embedBool := false }]
+    let ⟨_, hs, normalizedGoal⟩ ← mv.withContext <| Smt.Preprocess.applySteps mv hs steps
+    let cmds ← normalizedGoal.withContext do
+      let (fvNames, _) ← Smt.genUniqueFVarNames
+      Smt.prepareSmtQuery hs.toList fvNames
+    let cmds := Smt.Translate.Command.setLogic "ALL" :: cmds
+    let query := Smt.Translate.Command.cmdsAsQuery cmds
+    let path := "/tmp/veil-early-intro-multi/" ++ label.getString ++ ".smt2"
+    IO.FS.writeFile path (Smt.Translate.Command.cmdsAsQuery (cmds ++ [.checkSat]))
+    let prepared ← IO.monoMsNow
+    let options := Smt.defaultSolverOptions ++ [("finite-model-find", "true"),
+      ("nl-ext-tplanes", "true"), ("enum-inst-interleave", "true")]
+    let result ← Smt.solve query (some 10) false options
+    let status := match result with
+      | .ok (.sat _) => "sat"
+      | .ok (.unsat _ _) => "unsat"
+      | .ok (.unknown reason) => "unknown:" ++ reason.toString
+      | .error err => "error:" ++ err.toString
+    IO.println s!"SOLVER_RESULT {label.getString} status={status} solver_ms={(← IO.monoMsNow)-prepared} smt_prep_ms={prepared-start} bytes={query.utf8ByteSize}"
+  catch ex =>
+    IO.println s!"SOLVER_FAILURE {label.getString}: {← ex.toMessageData.toString}"
+    throw ex
+
+
+
+veil module DieHard
+
+individual big : Nat
+individual small : Nat
+
+#gen_state
+
+after_init {
+  big := 0
+  small := 0
+}
+
+
+action FillSmallJug {
+  small := 3
+  big := big
+}
+
+
+action FillBigJug  {
+  big := 5
+  small := small
+}
+
+
+action EmptySmallJug {
+  small := 0
+  big := big
+}
+
+
+action EmptyBigJug {
+  big := 0
+  small := small
+}
+
+
+action SmallToBig {
+  let tmp := big
+  big := if big + small < 5 then big + small else 5
+  small := small - (big - tmp)
+}
+
+
+
+action BigToSmall {
+  let tmp := small
+  small := if big + small < 3 then big + small else 3
+  big := big - (small - tmp)
+}
+
+
+invariant [typeOK] small≤ 3 ∧ big ≤ 5
+invariant [not_solved] big ≠ 4
+termination big > 0
+
+#gen_spec
+
+set_option maxHeartbeats 0
+set_option maxRecDepth 10000
+
+unsat trace [solver_old_4] {
+  any 4 actions
+  assert (big = 4)
+} by
+  veil_simp +instances only [nextSimp]
+  veil_simp +instances only [↓ existsQuantifierSimpGuarded]
+  veil_intros
+  veil_destruct
+  try dsimp +instances [Inhabited.default, FieldAbstractType, State.Label.toDomain, State.Label.toCodomain]
+  veil_simp +instances only [smtSimp]
+  try dsimp +instances [Inhabited.default, FieldAbstractType, State.Label.toDomain, State.Label.toCodomain]
+  check_solver_outcome "DieHard_old_4"
+  sorry
+
+unsat trace [solver_early_4] {
+  any 4 actions
+  assert (big = 4)
+} by
+  veil_intros
+  veil_simp +instances only [nextSimp]
+  veil_simp +instances only [↓ existsQuantifierSimpGuarded]
+  veil_intros
+  veil_destruct
+  try dsimp +instances [Inhabited.default, FieldAbstractType, State.Label.toDomain, State.Label.toCodomain]
+  veil_simp +instances only [smtSimp]
+  try dsimp +instances [Inhabited.default, FieldAbstractType, State.Label.toDomain, State.Label.toCodomain]
+  check_solver_outcome "DieHard_early_4"
+  sorry
+
+unsat trace [solver_old_8] {
+  any 8 actions
+  assert (big = 4)
+} by
+  veil_simp +instances only [nextSimp]
+  veil_simp +instances only [↓ existsQuantifierSimpGuarded]
+  veil_intros
+  veil_destruct
+  try dsimp +instances [Inhabited.default, FieldAbstractType, State.Label.toDomain, State.Label.toCodomain]
+  veil_simp +instances only [smtSimp]
+  try dsimp +instances [Inhabited.default, FieldAbstractType, State.Label.toDomain, State.Label.toCodomain]
+  check_solver_outcome "DieHard_old_8"
+  sorry
+
+unsat trace [solver_early_8] {
+  any 8 actions
+  assert (big = 4)
+} by
+  veil_intros
+  veil_simp +instances only [nextSimp]
+  veil_simp +instances only [↓ existsQuantifierSimpGuarded]
+  veil_intros
+  veil_destruct
+  try dsimp +instances [Inhabited.default, FieldAbstractType, State.Label.toDomain, State.Label.toCodomain]
+  veil_simp +instances only [smtSimp]
+  try dsimp +instances [Inhabited.default, FieldAbstractType, State.Label.toDomain, State.Label.toCodomain]
+  check_solver_outcome "DieHard_early_8"
+  sorry
+
+end DieHard

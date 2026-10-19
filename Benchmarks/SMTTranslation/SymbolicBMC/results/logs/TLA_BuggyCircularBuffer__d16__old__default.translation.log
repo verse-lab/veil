@@ -1,0 +1,515 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_BuggyCircularBuffer__default__batch1.lean:360:2: error: Application type mismatch: The argument
+  fun a =>
+    implies_congr (Eq.refl (distinctN [__veil_tag.Put, __veil_tag.Get]))
+      (implies_congr (Eq.refl (∀ (__veil_x : ActionTag), __veil_x = __veil_tag.Put ∨ __veil_x = __veil_tag.Get))
+        (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 2))
+          (forall_prop_domain_congr
+            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 2))
+            fun st0.tail.isLt =>
+            implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 2))
+              (forall_prop_domain_congr
+                (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 2))
+                fun st1.tail.isLt =>
+                implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 2))
+                  (forall_prop_domain_congr
+                    (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 2))
+                    fun st2.tail.isLt =>
+                    implies_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 2))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 2))
+                        fun st3.tail.isLt =>
+                        implies_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 2))
+                          (forall_prop_domain_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 2))
+                            fun st4.tail.isLt =>
+                            implies_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 2))
+                              (forall_prop_domain_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 2))
+                                fun st5.tail.isLt =>
+                                implies_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 2))
+                                  (forall_prop_domain_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 2))
+                                    fun st6.tail.isLt =>
+                                    implies_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 2))
+                                      (forall_prop_domain_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 2))
+                                        fun st7.tail.isLt =>
+                                        implies_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 2))
+                                          (forall_prop_domain_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 2))
+                                            fun st8.tail.isLt =>
+                                            implies_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 2))
+                                              (forall_prop_domain_congr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 2))
+                                                fun st9.tail.isLt =>
+                                                implies_congr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 2))
+                                                  (forall_prop_domain_congr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 2))
+                                                    fun st10.tail.isLt =>
+                                                    implies_congr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 2))
+                                                      (forall_prop_domain_congr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 2))
+                                                        fun st11.tail.isLt =>
+                                                        implies_congr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 2))
+                                                          (forall_prop_domain_congr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 2))
+                                                            fun st12.tail.isLt =>
+                                                            implies_congr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                  2))
+                                                              (forall_prop_domain_congr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                    2))
+                                                                fun st13.tail.isLt =>
+                                                                implies_congr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun'
+                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 2))
+                                                                  (forall_prop_domain_congr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 2))
+                                                                    fun st14.tail.isLt =>
+                                                                    implies_congr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                                                                      (forall_prop_domain_congr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun'
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                            2))
+                                                                        fun st15.tail.isLt => ⋯))))))))))))))))))
+has type
+  ∀ (a : f ≥ 0),
+    (distinctN [__veil_tag.Put, __veil_tag.Get] →
+        (∀ (__veil_x : ActionTag), __veil_x = __veil_tag.Put ∨ __veil_x = __veil_tag.Get) →
+          f✝¹⁵.toNat < BUFFER_SIZE →
+            ∀ (a : f✝¹⁵.toNat < BUFFER_SIZE),
+              f✝¹⁴.toNat < BUFFER_SIZE →
+                ∀ (st1.tail.isLt : f✝¹⁴.toNat < BUFFER_SIZE),
+                  f✝¹³.toNat < BUFFER_SIZE →
+                    ∀ (st2.tail.isLt : f✝¹³.toNat < BUFFER_SIZE),
+                      f✝¹².toNat < BUFFER_SIZE →
+                        ∀ (st3.tail.isLt : f✝¹².toNat < BUFFER_SIZE),
+                          f✝¹¹.toNat < BUFFER_SIZE →
+                            ∀ (st4.tail.isLt : f✝¹¹.toNat < BUFFER_SIZE),
+                              f✝¹⁰.toNat < BUFFER_SIZE →
+                                ∀ (st5.tail.isLt : f✝¹⁰.toNat < BUFFER_SIZE),
+                                  f✝⁹.toNat < BUFFER_SIZE →
+                                    ∀ (st6.tail.isLt : f✝⁹.toNat < BUFFER_SIZE),
+                                      f✝⁸.toNat < BUFFER_SIZE →
+                                        ∀ (st7.tail.isLt : f✝⁸.toNat < BUFFER_SIZE),
+                                          f✝⁷.toNat < BUFFER_SIZE →
+                                            ∀ (st8.tail.isLt : f✝⁷.toNat < BUFFER_SIZE),
+                                              f✝⁶.toNat < BUFFER_SIZE →
+                                                ∀ (st9.tail.isLt : f✝⁶.toNat < BUFFER_SIZE),
+                                                  f✝⁵.toNat < BUFFER_SIZE →
+                                                    ∀ (st10.tail.isLt : f✝⁵.toNat < BUFFER_SIZE),
+                                                      f✝⁴.toNat < BUFFER_SIZE →
+                                                        ∀ (st11.tail.isLt : f✝⁴.toNat < BUFFER_SIZE),
+                                                          f✝³.toNat < BUFFER_SIZE →
+                                                            ∀ (st12.tail.isLt : f✝³.toNat < BUFFER_SIZE),
+                                                              f✝².toNat < BUFFER_SIZE →
+                                                                ∀ (st13.tail.isLt : f✝².toNat < BUFFER_SIZE),
+                                                                  f✝¹.toNat < BUFFER_SIZE →
+                                                                    ∀ (st14.tail.isLt : f✝¹.toNat < BUFFER_SIZE),
+                                                                      f✝.toNat < BUFFER_SIZE →
+                                                                        ∀ (st15.tail.isLt : f✝.toNat < BUFFER_SIZE),
+                                                                          f.toNat < BUFFER_SIZE →
+                                                                            ∀ (st16.tail.isLt : f.toNat < BUFFER_SIZE),
+                                                                              ¬¬(((∀ (a : Fin BUFFER_SIZE),
+                                                                                          ⟨0, initializer.do._proof_1⟩ =
+                                                                                            st0.buffer a) ∧
+                                                                                        0 = f✝⁴⁹.toNat ∧
+                                                                                          0 = ⟨f✝¹⁵.toNat, a⟩ ∧
+                                                                                            0 = f✝⁴⁸.toNat) ∧
+                                                                                      ((_tr1_tag = __veil_tag.Put ∧
+                                                                                            ∃ x h,
+                                                                                              (∀
+                                                                                                  (a_1 :
+                                                                                                    Fin BUFFER_SIZE),
+                                                                                                  ⋯) ∧
+                                                                                                f✝⁴⁹.toNat =
+                                                                                                    f✝⁴⁷.toNat ∧
+                                                                                                  ⋯) ∨
+                                                                                          _tr1_tag = __veil_tag.Get ∧
+                                                                                            f✝⁴⁸.toNat > 0 ∧
+                                                                                              (∀ (a : Fin BUFFER_SIZE),
+                                                                                                  st0.buffer a =
+                                                                                                    st1.buffer a) ∧
+                                                                                                (f✝⁴⁹.toNat + 1) %
+                                                                                                      BUFFER_SIZE =
+                                                                                                    f✝⁴⁷.toNat ∧
+                                                                                                  ⟨f✝¹⁵.toNat, a⟩ =
+                                                                                                      ⟨f✝¹⁴.toNat,
+                                                                                                        st1.tail.isLt⟩ ∧
+                                                                                                    f✝⁴⁸.toNat - 1 =
+                                                                                                      f✝⁴⁶.toNat) ∧
+                                                                                        ((_tr2_tag = __veil_tag.Put ∧
+                                                                                              ∃ x h, ⋯ ∧ ⋯) ∨
+                                                                                            _tr2_tag = __veil_tag.Get ∧
+                                                                                              f✝⁴⁶.toNat > 0 ∧
+                                                                                                (∀
+                                                                                                    (a :
+                                                                                                      Fin BUFFER_SIZE),
+                                                                                                    st1.buffer a =
+                                                                                                      st2.buffer a) ∧
+                                                                                                  (f✝⁴⁷.toNat + 1) %
+                                                                                                        BUFFER_SIZE =
+                                                                                                      f✝⁴⁵.toNat ∧
+                                                                                                    ⟨f✝¹⁴.toNat,
+                                                                                                          st1.tail.isLt⟩ =
+                                                                                                        ⟨f✝¹³.toNat,
+                                                                                                          st2.tail.isLt⟩ ∧
+                                                                                                      f✝⁴⁶.toNat - 1 =
+                                                                                                        f✝⁴⁴.toNat) ∧
+                                                                                          ((_tr3_tag = __veil_tag.Put ∧
+                                                                                                ∃ x h, ⋯) ∨
+                                                                                              _tr3_tag =
+                                                                                                  __veil_tag.Get ∧
+                                                                                                f✝⁴⁴.toNat > 0 ∧
+                                                                                                  (∀
+                                                                                                      (a :
+                                                                                                        Fin
+                                                                                                          BUFFER_SIZE),
+                                                                                                      st2.buffer a =
+                                                                                                        st3.buffer a) ∧
+                                                                                                    (f✝⁴⁵.toNat + 1) %
+                                                                                                          BUFFER_SIZE =
+                                                                                                        f✝⁴³.toNat ∧
+                                                                                                      ⟨f✝¹³.toNat,
+                                                                                                            st2.tail.isLt⟩ =
+                                                                                                          ⟨f✝¹².toNat,
+                                                                                                            st3.tail.isLt⟩ ∧
+                                                                                                        f✝⁴⁴.toNat - 1 =
+                                                                                                          f✝⁴².toNat) ∧
+                                                                                            ((_tr4_tag =
+                                                                                                    __veil_tag.Put ∧
+                                                                                                  ∃ x, Exists ⋯) ∨
+                                                                                                _tr4_tag =
+                                                                                                    __veil_tag.Get ∧
+                                                                                                  f✝⁴².toNat > 0 ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            BUFFER_SIZE),
+                                                                                                        st3.buffer a =
+                                                                                                          st4.buffer
+                                                                                                            a) ∧
+                                                                                                      ⋯ ∧
+                                                                                                        ⟨f✝¹².toNat,
+                                                                                                              st3.tail.isLt⟩ =
+                                                                                                            ⟨f✝¹¹.toNat,
+                                                                                                              st4.tail.isLt⟩ ∧
+                                                                                                          f✝⁴².toNat -
+                                                                                                              1 =
+                                                                                                            f✝⁴⁰.toNat) ∧
+                                                                                              ((_tr5_tag =
+                                                                                                      __veil_tag.Put ∧
+                                                                                                    ∃ x, ⋯) ∨
+                                                                                                  _tr5_tag =
+                                                                                                      __veil_tag.Get ∧
+                                                                                                    f✝⁴⁰.toNat > 0 ∧
+                                                                                                      (∀
+                                                                                                          (a :
+                                                                                                            Fin
+                                                                                                              BUFFER_SIZE),
+                                                                                                          st4.buffer a =
+                                                                                                            st5.buffer
+                                                                                                              a) ∧
+                                                                                                        ⋯) ∧
+                                                                                                (_tr6_tag =
+                                                                                                        __veil_tag.Put ∧
+                                                                                                      Exists ⋯ ∨
+                                                                                                    _tr6_tag =
+                                                                                                        __veil_tag.Get ∧
+                                                                                                      f✝³⁸.toNat > 0 ∧
+                                                                                                        ⋯) ∧
+                                                                                                  (_tr7_tag =
+                                                                                                          __veil_tag.Put ∧
+                                                                                                        ⋯ ∨
+                                                                                                      _tr7_tag =
+                                                                                                          __veil_tag.Get ∧
+                                                                                                        ⋯) ∧
+                                                                                                    (⋯ ∨ ⋯) ∧ ⋯ ∧ ⋯) →
+                                                                                False) =
+      (distinctN [__veil_tag.Put, __veil_tag.Get] →
+        (∀ (__veil_x : ActionTag), __veil_x = __veil_tag.Put ∨ __veil_x = __veil_tag.Get) →
+          f✝¹⁵ < 2 →
+            ∀ (a_4 : f✝¹⁵ < 2),
+              f✝¹⁴ < 2 →
+                ∀ (st1.tail.isLt : f✝¹⁴ < 2),
+                  f✝¹³ < 2 →
+                    ∀ (st2.tail.isLt : f✝¹³ < 2),
+                      f✝¹² < 2 →
+                        ∀ (st3.tail.isLt : f✝¹² < 2),
+                          f✝¹¹ < 2 →
+                            ∀ (st4.tail.isLt : f✝¹¹ < 2),
+                              f✝¹⁰ < 2 →
+                                ∀ (st5.tail.isLt : f✝¹⁰ < 2),
+                                  f✝⁹ < 2 →
+                                    ∀ (st6.tail.isLt : f✝⁹ < 2),
+                                      f✝⁸ < 2 →
+                                        ∀ (st7.tail.isLt : f✝⁸ < 2),
+                                          f✝⁷ < 2 →
+                                            ∀ (st8.tail.isLt : f✝⁷ < 2),
+                                              f✝⁶ < 2 →
+                                                ∀ (st9.tail.isLt : f✝⁶ < 2),
+                                                  f✝⁵ < 2 →
+                                                    ∀ (st10.tail.isLt : f✝⁵ < 2),
+                                                      f✝⁴ < 2 →
+                                                        ∀ (st11.tail.isLt : f✝⁴ < 2),
+                                                          f✝³ < 2 →
+                                                            ∀ (st12.tail.isLt : f✝³ < 2),
+                                                              f✝² < 2 →
+                                                                ∀ (st13.tail.isLt : f✝² < 2),
+                                                                  f✝¹ < 2 →
+                                                                    ∀ (st14.tail.isLt : f✝¹ < 2),
+                                                                      f✝ < 2 →
+                                                                        ∀ (st15.tail.isLt : f✝ < 2),
+                                                                          f < 2 →
+                                                                            ∀ (st16.tail.isLt : f < 2),
+                                                                              ¬¬(((∀ (a : Fin BUFFER_SIZE),
+                                                                                          ⟨0, initializer.do._proof_1⟩ =
+                                                                                            st0.buffer a) ∧
+                                                                                        0 = f✝⁴⁹ ∧
+                                                                                          0 = ⟨f✝¹⁵.toNat, ⋯⟩ ∧
+                                                                                            0 = f✝⁴⁸) ∧
+                                                                                      ((_tr1_tag = __veil_tag.Put ∧
+                                                                                            ∃ x,
+                                                                                              x ≥ 0 ∧
+                                                                                                (x ≥ 0 → ∃ h, ⋯)) ∨
+                                                                                          _tr1_tag = __veil_tag.Get ∧
+                                                                                            0 < f✝⁴⁸ ∧
+                                                                                              (∀ (a : Fin BUFFER_SIZE),
+                                                                                                  st0.buffer a =
+                                                                                                    st1.buffer a) ∧
+                                                                                                (f✝⁴⁹ + 1) % 2 = f✝⁴⁷ ∧
+                                                                                                  ⟨f✝¹⁵.toNat, ⋯⟩ =
+                                                                                                      ⟨f✝¹⁴.toNat, ⋯⟩ ∧
+                                                                                                    (if 1 ≤ f✝⁴⁸ then
+                                                                                                        f✝⁴⁸ - 1
+                                                                                                      else 0) =
+                                                                                                      f✝⁴⁶) ∧
+                                                                                        ((_tr2_tag = __veil_tag.Put ∧
+                                                                                              ∃ x,
+                                                                                                x ≥ 0 ∧
+                                                                                                  (x ≥ 0 → Exists ⋯)) ∨
+                                                                                            _tr2_tag = __veil_tag.Get ∧
+                                                                                              0 < f✝⁴⁶ ∧
+                                                                                                (∀
+                                                                                                    (a :
+                                                                                                      Fin BUFFER_SIZE),
+                                                                                                    st1.buffer a =
+                                                                                                      st2.buffer a) ∧
+                                                                                                  (f✝⁴⁷ + 1) % 2 =
+                                                                                                      f✝⁴⁵ ∧
+                                                                                                    ⋯ = ⋯ ∧
+                                                                                                      (if 1 ≤ f✝⁴⁶ then
+                                                                                                          f✝⁴⁶ - 1
+                                                                                                        else 0) =
+                                                                                                        f✝⁴⁴) ∧
+                                                                                          ((_tr3_tag = __veil_tag.Put ∧
+                                                                                                ∃ x,
+                                                                                                  x ≥ 0 ∧ (x ≥ 0 → ⋯)) ∨
+                                                                                              _tr3_tag =
+                                                                                                  __veil_tag.Get ∧
+                                                                                                0 < f✝⁴⁴ ∧
+                                                                                                  (∀
+                                                                                                      (a :
+                                                                                                        Fin
+                                                                                                          BUFFER_SIZE),
+                                                                                                      st2.buffer a =
+                                                                                                        st3.buffer a) ∧
+                                                                                                    (f✝⁴⁵ + 1) % 2 =
+                                                                                                        f✝⁴³ ∧
+                                                                                                      ⋯ ∧
+                                                                                                        (if
+                                                                                                              1 ≤
+                                                                                                                f✝⁴⁴ then
+                                                                                                            f✝⁴⁴ - 1
+                                                                                                          else 0) =
+                                                                                                          f✝⁴²) ∧
+                                                                                            ((_tr4_tag =
+                                                                                                    __veil_tag.Put ∧
+                                                                                                  ∃ x, x ≥ 0 ∧ ⋯) ∨
+                                                                                                _tr4_tag =
+                                                                                                    __veil_tag.Get ∧
+                                                                                                  0 < f✝⁴² ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            BUFFER_SIZE),
+                                                                                                        st3.buffer a =
+                                                                                                          st4.buffer
+                                                                                                            a) ∧
+                                                                                                      (f✝⁴³ + 1) % 2 =
+                                                                                                          f✝⁴¹ ∧
+                                                                                                        ⋯) ∧
+                                                                                              ((_tr5_tag =
+                                                                                                      __veil_tag.Put ∧
+                                                                                                    ∃ x, ⋯) ∨
+                                                                                                  _tr5_tag =
+                                                                                                      __veil_tag.Get ∧
+                                                                                                    0 < f✝⁴⁰ ∧
+                                                                                                      (∀
+                                                                                                          (a :
+                                                                                                            Fin
+                                                                                                              BUFFER_SIZE),
+                                                                                                          st4.buffer a =
+                                                                                                            st5.buffer
+                                                                                                              a) ∧
+                                                                                                        ⋯) ∧
+                                                                                                (_tr6_tag =
+                                                                                                        __veil_tag.Put ∧
+                                                                                                      Exists ⋯ ∨
+                                                                                                    _tr6_tag =
+                                                                                                        __veil_tag.Get ∧
+                                                                                                      0 < f✝³⁸ ∧ ⋯) ∧
+                                                                                                  (_tr7_tag =
+                                                                                                          __veil_tag.Put ∧
+                                                                                                        ⋯ ∨
+                                                                                                      _tr7_tag =
+                                                                                                          __veil_tag.Get ∧
+                                                                                                        ⋯) ∧
+                                                                                                    (⋯ ∨ ⋯) ∧ ⋯ ∧ ⋯) →
+                                                                                False)
+but is expected to have type
+  f ≥ 0 → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (f ≥ 0)) fun a =>
+    implies_congr (Eq.refl (distinctN [__veil_tag.Put, __veil_tag.Get]))
+      (implies_congr (Eq.refl (∀ (__veil_x : ActionTag), __veil_x = __veil_tag.Put ∨ __veil_x = __veil_tag.Get))
+        (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 2))
+          (forall_prop_domain_congr
+            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 2))
+            fun st0.tail.isLt =>
+            implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 2))
+              (forall_prop_domain_congr
+                (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 2))
+                fun st1.tail.isLt =>
+                implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 2))
+                  (forall_prop_domain_congr
+                    (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 2))
+                    fun st2.tail.isLt =>
+                    implies_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 2))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 2))
+                        fun st3.tail.isLt =>
+                        implies_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 2))
+                          (forall_prop_domain_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 2))
+                            fun st4.tail.isLt =>
+                            implies_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 2))
+                              (forall_prop_domain_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 2))
+                                fun st5.tail.isLt =>
+                                implies_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 2))
+                                  (forall_prop_domain_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 2))
+                                    fun st6.tail.isLt =>
+                                    implies_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 2))
+                                      (forall_prop_domain_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 2))
+                                        fun st7.tail.isLt =>
+                                        implies_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 2))
+                                          (forall_prop_domain_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 2))
+                                            fun st8.tail.isLt =>
+                                            implies_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 2))
+                                              (forall_prop_domain_congr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 2))
+                                                fun st9.tail.isLt =>
+                                                implies_congr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 2))
+                                                  (forall_prop_domain_congr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 2))
+                                                    fun st10.tail.isLt =>
+                                                    implies_congr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 2))
+                                                      (forall_prop_domain_congr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 2))
+                                                        fun st11.tail.isLt =>
+                                                        implies_congr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 2))
+                                                          (forall_prop_domain_congr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 2))
+                                                            fun st12.tail.isLt =>
+                                                            implies_congr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                  2))
+                                                              (forall_prop_domain_congr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                    2))
+                                                                fun st13.tail.isLt =>
+                                                                implies_congr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun'
+                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 2))
+                                                                  (forall_prop_domain_congr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 2))
+                                                                    fun st14.tail.isLt =>
+                                                                    implies_congr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                                                                      (forall_prop_domain_congr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun'
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                            2))
+                                                                        ⋯))))))))))))))))))

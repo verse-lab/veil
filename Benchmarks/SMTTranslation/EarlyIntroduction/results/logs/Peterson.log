@@ -1,0 +1,371 @@
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:206:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_current_2_1
+STAGE Peterson_current_2_1 nextSimp ms=741
+STAGE Peterson_current_2_1 hoist ms=51
+STAGE Peterson_current_2_1 intros ms=2
+STAGE Peterson_current_2_1 destruct ms=68
+STAGE Peterson_current_2_1 dsimp1 ms=13
+STAGE Peterson_current_2_1 smtSimp ms=112
+STAGE Peterson_current_2_1 dsimp2 ms=10
+SMT_STAGE Peterson_current_2_1 pushHints ms=1
+SMT_STAGE Peterson_current_2_1 smt-intros ms=0
+SMT_STAGE Peterson_current_2_1 negateGoal ms=0
+SMT_STAGE Peterson_current_2_1 normalize ms=18
+SMT_STAGE Peterson_current_2_1 embedding ms=2
+SMT_STAGE Peterson_current_2_1 translate ms=41 commands=47
+SMT_STAGE Peterson_current_2_1 serialize ms=81 bytes=8058
+PIPELINE_COMPLETE Peterson_current_2_1
+RUN_COMPLETE Peterson_current_2_1
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:221:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_2_1
+STAGE Peterson_early_2_1 early_intros ms=1
+STAGE Peterson_early_2_1 nextSimp ms=157
+STAGE Peterson_early_2_1 hoist ms=6
+STAGE Peterson_early_2_1 intros ms=1
+STAGE Peterson_early_2_1 destruct ms=60
+STAGE Peterson_early_2_1 dsimp1 ms=12
+STAGE Peterson_early_2_1 smtSimp ms=138
+STAGE Peterson_early_2_1 dsimp2 ms=7
+SMT_STAGE Peterson_early_2_1 pushHints ms=1
+SMT_STAGE Peterson_early_2_1 smt-intros ms=0
+SMT_STAGE Peterson_early_2_1 negateGoal ms=0
+SMT_STAGE Peterson_early_2_1 normalize ms=14
+SMT_STAGE Peterson_early_2_1 embedding ms=1
+SMT_STAGE Peterson_early_2_1 translate ms=34 commands=47
+SMT_STAGE Peterson_early_2_1 serialize ms=76 bytes=8058
+PIPELINE_COMPLETE Peterson_early_2_1
+RUN_COMPLETE Peterson_early_2_1
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:237:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_2_2
+STAGE Peterson_early_2_2 early_intros ms=2
+STAGE Peterson_early_2_2 nextSimp ms=213
+STAGE Peterson_early_2_2 hoist ms=6
+STAGE Peterson_early_2_2 intros ms=2
+STAGE Peterson_early_2_2 destruct ms=75
+STAGE Peterson_early_2_2 dsimp1 ms=15
+STAGE Peterson_early_2_2 smtSimp ms=166
+STAGE Peterson_early_2_2 dsimp2 ms=10
+RUN_COMPLETE Peterson_early_2_2
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:252:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_current_2_2
+STAGE Peterson_current_2_2 nextSimp ms=783
+STAGE Peterson_current_2_2 hoist ms=52
+STAGE Peterson_current_2_2 intros ms=2
+STAGE Peterson_current_2_2 destruct ms=59
+STAGE Peterson_current_2_2 dsimp1 ms=13
+STAGE Peterson_current_2_2 smtSimp ms=107
+STAGE Peterson_current_2_2 dsimp2 ms=7
+RUN_COMPLETE Peterson_current_2_2
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:266:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_current_2_3
+STAGE Peterson_current_2_3 nextSimp ms=722
+STAGE Peterson_current_2_3 hoist ms=43
+STAGE Peterson_current_2_3 intros ms=1
+STAGE Peterson_current_2_3 destruct ms=49
+STAGE Peterson_current_2_3 dsimp1 ms=11
+STAGE Peterson_current_2_3 smtSimp ms=97
+STAGE Peterson_current_2_3 dsimp2 ms=7
+RUN_COMPLETE Peterson_current_2_3
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:280:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_2_3
+STAGE Peterson_early_2_3 early_intros ms=2
+STAGE Peterson_early_2_3 nextSimp ms=165
+STAGE Peterson_early_2_3 hoist ms=5
+STAGE Peterson_early_2_3 intros ms=1
+STAGE Peterson_early_2_3 destruct ms=52
+STAGE Peterson_early_2_3 dsimp1 ms=12
+STAGE Peterson_early_2_3 smtSimp ms=107
+STAGE Peterson_early_2_3 dsimp2 ms=8
+RUN_COMPLETE Peterson_early_2_3
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:295:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_4_1
+STAGE Peterson_early_4_1 early_intros ms=3
+STAGE Peterson_early_4_1 nextSimp ms=337
+STAGE Peterson_early_4_1 hoist ms=8
+STAGE Peterson_early_4_1 intros ms=2
+STAGE Peterson_early_4_1 destruct ms=110
+STAGE Peterson_early_4_1 dsimp1 ms=21
+STAGE Peterson_early_4_1 smtSimp ms=229
+STAGE Peterson_early_4_1 dsimp2 ms=16
+SMT_STAGE Peterson_early_4_1 pushHints ms=0
+SMT_STAGE Peterson_early_4_1 smt-intros ms=0
+SMT_STAGE Peterson_early_4_1 negateGoal ms=1
+SMT_STAGE Peterson_early_4_1 normalize ms=36
+SMT_STAGE Peterson_early_4_1 embedding ms=3
+SMT_STAGE Peterson_early_4_1 translate ms=77 commands=67
+SMT_STAGE Peterson_early_4_1 serialize ms=129 bytes=14004
+PIPELINE_COMPLETE Peterson_early_4_1
+RUN_COMPLETE Peterson_early_4_1
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:311:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_current_4_1
+STAGE Peterson_current_4_1 nextSimp ms=2460
+STAGE Peterson_current_4_1 hoist ms=101
+STAGE Peterson_current_4_1 intros ms=3
+STAGE Peterson_current_4_1 destruct ms=160
+STAGE Peterson_current_4_1 dsimp1 ms=34
+STAGE Peterson_current_4_1 smtSimp ms=342
+STAGE Peterson_current_4_1 dsimp2 ms=22
+SMT_STAGE Peterson_current_4_1 pushHints ms=0
+SMT_STAGE Peterson_current_4_1 smt-intros ms=1
+SMT_STAGE Peterson_current_4_1 negateGoal ms=0
+SMT_STAGE Peterson_current_4_1 normalize ms=46
+SMT_STAGE Peterson_current_4_1 embedding ms=7
+SMT_STAGE Peterson_current_4_1 translate ms=90 commands=67
+SMT_STAGE Peterson_current_4_1 serialize ms=134 bytes=14004
+PIPELINE_COMPLETE Peterson_current_4_1
+RUN_COMPLETE Peterson_current_4_1
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:326:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_current_4_2
+STAGE Peterson_current_4_2 nextSimp ms=2203
+STAGE Peterson_current_4_2 hoist ms=71
+STAGE Peterson_current_4_2 intros ms=2
+STAGE Peterson_current_4_2 destruct ms=111
+STAGE Peterson_current_4_2 dsimp1 ms=26
+STAGE Peterson_current_4_2 smtSimp ms=239
+STAGE Peterson_current_4_2 dsimp2 ms=17
+RUN_COMPLETE Peterson_current_4_2
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:340:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_4_2
+STAGE Peterson_early_4_2 early_intros ms=4
+STAGE Peterson_early_4_2 nextSimp ms=405
+STAGE Peterson_early_4_2 hoist ms=9
+STAGE Peterson_early_4_2 intros ms=2
+STAGE Peterson_early_4_2 destruct ms=120
+STAGE Peterson_early_4_2 dsimp1 ms=22
+STAGE Peterson_early_4_2 smtSimp ms=244
+STAGE Peterson_early_4_2 dsimp2 ms=14
+RUN_COMPLETE Peterson_early_4_2
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:355:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_4_3
+STAGE Peterson_early_4_3 early_intros ms=4
+STAGE Peterson_early_4_3 nextSimp ms=311
+STAGE Peterson_early_4_3 hoist ms=9
+STAGE Peterson_early_4_3 intros ms=2
+STAGE Peterson_early_4_3 destruct ms=107
+STAGE Peterson_early_4_3 dsimp1 ms=22
+STAGE Peterson_early_4_3 smtSimp ms=237
+STAGE Peterson_early_4_3 dsimp2 ms=18
+RUN_COMPLETE Peterson_early_4_3
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:370:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_current_4_3
+STAGE Peterson_current_4_3 nextSimp ms=2116
+STAGE Peterson_current_4_3 hoist ms=83
+STAGE Peterson_current_4_3 intros ms=2
+STAGE Peterson_current_4_3 destruct ms=107
+STAGE Peterson_current_4_3 dsimp1 ms=19
+STAGE Peterson_current_4_3 smtSimp ms=210
+STAGE Peterson_current_4_3 dsimp2 ms=13
+RUN_COMPLETE Peterson_current_4_3
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:384:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_current_8_1
+STAGE Peterson_current_8_1 nextSimp ms=7411
+STAGE Peterson_current_8_1 hoist ms=167
+STAGE Peterson_current_8_1 intros ms=2
+STAGE Peterson_current_8_1 destruct ms=262
+STAGE Peterson_current_8_1 dsimp1 ms=43
+STAGE Peterson_current_8_1 smtSimp ms=454
+STAGE Peterson_current_8_1 dsimp2 ms=29
+SMT_STAGE Peterson_current_8_1 pushHints ms=0
+SMT_STAGE Peterson_current_8_1 smt-intros ms=0
+SMT_STAGE Peterson_current_8_1 negateGoal ms=1
+SMT_STAGE Peterson_current_8_1 normalize ms=60
+SMT_STAGE Peterson_current_8_1 embedding ms=6
+SMT_STAGE Peterson_current_8_1 translate ms=110 commands=107
+SMT_STAGE Peterson_current_8_1 serialize ms=251 bytes=25896
+PIPELINE_COMPLETE Peterson_current_8_1
+RUN_COMPLETE Peterson_current_8_1
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:399:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_8_1
+STAGE Peterson_early_8_1 early_intros ms=7
+STAGE Peterson_early_8_1 nextSimp ms=658
+STAGE Peterson_early_8_1 hoist ms=17
+STAGE Peterson_early_8_1 intros ms=4
+STAGE Peterson_early_8_1 destruct ms=289
+STAGE Peterson_early_8_1 dsimp1 ms=35
+STAGE Peterson_early_8_1 smtSimp ms=540
+STAGE Peterson_early_8_1 dsimp2 ms=29
+SMT_STAGE Peterson_early_8_1 pushHints ms=0
+SMT_STAGE Peterson_early_8_1 smt-intros ms=0
+SMT_STAGE Peterson_early_8_1 negateGoal ms=1
+SMT_STAGE Peterson_early_8_1 normalize ms=73
+SMT_STAGE Peterson_early_8_1 embedding ms=10
+SMT_STAGE Peterson_early_8_1 translate ms=119 commands=107
+SMT_STAGE Peterson_early_8_1 serialize ms=245 bytes=25896
+PIPELINE_COMPLETE Peterson_early_8_1
+RUN_COMPLETE Peterson_early_8_1
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:415:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_8_2
+STAGE Peterson_early_8_2 early_intros ms=7
+STAGE Peterson_early_8_2 nextSimp ms=668
+STAGE Peterson_early_8_2 hoist ms=22
+STAGE Peterson_early_8_2 intros ms=4
+STAGE Peterson_early_8_2 destruct ms=309
+STAGE Peterson_early_8_2 dsimp1 ms=41
+STAGE Peterson_early_8_2 smtSimp ms=499
+STAGE Peterson_early_8_2 dsimp2 ms=41
+RUN_COMPLETE Peterson_early_8_2
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:430:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_current_8_2
+STAGE Peterson_current_8_2 nextSimp ms=7431
+STAGE Peterson_current_8_2 hoist ms=179
+STAGE Peterson_current_8_2 intros ms=3
+STAGE Peterson_current_8_2 destruct ms=258
+STAGE Peterson_current_8_2 dsimp1 ms=40
+STAGE Peterson_current_8_2 smtSimp ms=477
+STAGE Peterson_current_8_2 dsimp2 ms=29
+RUN_COMPLETE Peterson_current_8_2
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:444:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_current_8_3
+STAGE Peterson_current_8_3 nextSimp ms=7635
+STAGE Peterson_current_8_3 hoist ms=151
+STAGE Peterson_current_8_3 intros ms=3
+STAGE Peterson_current_8_3 destruct ms=238
+STAGE Peterson_current_8_3 dsimp1 ms=33
+STAGE Peterson_current_8_3 smtSimp ms=406
+STAGE Peterson_current_8_3 dsimp2 ms=26
+RUN_COMPLETE Peterson_current_8_3
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:458:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_8_3
+STAGE Peterson_early_8_3 early_intros ms=7
+STAGE Peterson_early_8_3 nextSimp ms=675
+STAGE Peterson_early_8_3 hoist ms=14
+STAGE Peterson_early_8_3 intros ms=2
+STAGE Peterson_early_8_3 destruct ms=273
+STAGE Peterson_early_8_3 dsimp1 ms=45
+STAGE Peterson_early_8_3 smtSimp ms=473
+STAGE Peterson_early_8_3 dsimp2 ms=26
+RUN_COMPLETE Peterson_early_8_3
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:473:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_16_1
+STAGE Peterson_early_16_1 early_intros ms=22
+STAGE Peterson_early_16_1 nextSimp ms=1456
+STAGE Peterson_early_16_1 hoist ms=28
+STAGE Peterson_early_16_1 intros ms=6
+STAGE Peterson_early_16_1 destruct ms=815
+STAGE Peterson_early_16_1 dsimp1 ms=74
+STAGE Peterson_early_16_1 smtSimp ms=1179
+STAGE Peterson_early_16_1 dsimp2 ms=54
+SMT_STAGE Peterson_early_16_1 pushHints ms=1
+SMT_STAGE Peterson_early_16_1 smt-intros ms=0
+SMT_STAGE Peterson_early_16_1 negateGoal ms=2
+SMT_STAGE Peterson_early_16_1 normalize ms=131
+SMT_STAGE Peterson_early_16_1 embedding ms=14
+SMT_STAGE Peterson_early_16_1 translate ms=262 commands=187
+SMT_STAGE Peterson_early_16_1 serialize ms=508 bytes=50189
+PIPELINE_COMPLETE Peterson_early_16_1
+RUN_COMPLETE Peterson_early_16_1
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:489:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:495:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:496:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:497:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:498:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:499:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:500:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:501:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_BEGIN Peterson_current_16_1
+FAILED Peterson_current_16_1 nextSimp ms=16028: `simp` failed: maximum number of steps exceeded
+RUN_FAILED Peterson_current_16_1
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:504:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:508:99: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED Peterson_current_16_2 prior_failure
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:518:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_16_2
+STAGE Peterson_early_16_2 early_intros ms=29
+STAGE Peterson_early_16_2 nextSimp ms=1546
+STAGE Peterson_early_16_2 hoist ms=29
+STAGE Peterson_early_16_2 intros ms=4
+STAGE Peterson_early_16_2 destruct ms=882
+STAGE Peterson_early_16_2 dsimp1 ms=91
+STAGE Peterson_early_16_2 smtSimp ms=1269
+STAGE Peterson_early_16_2 dsimp2 ms=79
+RUN_COMPLETE Peterson_early_16_2
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:533:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_16_3
+STAGE Peterson_early_16_3 early_intros ms=17
+STAGE Peterson_early_16_3 nextSimp ms=1517
+STAGE Peterson_early_16_3 hoist ms=25
+STAGE Peterson_early_16_3 intros ms=4
+STAGE Peterson_early_16_3 destruct ms=893
+STAGE Peterson_early_16_3 dsimp1 ms=89
+STAGE Peterson_early_16_3 smtSimp ms=1037
+STAGE Peterson_early_16_3 dsimp2 ms=47
+RUN_COMPLETE Peterson_early_16_3
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:548:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:552:99: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED Peterson_current_16_3 prior_failure
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:562:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:566:99: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED Peterson_current_32_1 prior_failure
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:577:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_32_1
+STAGE Peterson_early_32_1 early_intros ms=50
+STAGE Peterson_early_32_1 nextSimp ms=2809
+STAGE Peterson_early_32_1 hoist ms=52
+STAGE Peterson_early_32_1 intros ms=6
+STAGE Peterson_early_32_1 destruct ms=2793
+STAGE Peterson_early_32_1 dsimp1 ms=200
+STAGE Peterson_early_32_1 smtSimp ms=2454
+STAGE Peterson_early_32_1 dsimp2 ms=140
+SMT_STAGE Peterson_early_32_1 pushHints ms=0
+SMT_STAGE Peterson_early_32_1 smt-intros ms=0
+SMT_STAGE Peterson_early_32_1 negateGoal ms=4
+SMT_STAGE Peterson_early_32_1 normalize ms=255
+SMT_STAGE Peterson_early_32_1 embedding ms=28
+SMT_STAGE Peterson_early_32_1 translate ms=460 commands=347
+SMT_STAGE Peterson_early_32_1 serialize ms=1057 bytes=98973
+PIPELINE_COMPLETE Peterson_early_32_1
+RUN_COMPLETE Peterson_early_32_1
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:593:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_32_2
+STAGE Peterson_early_32_2 early_intros ms=62
+STAGE Peterson_early_32_2 nextSimp ms=2853
+STAGE Peterson_early_32_2 hoist ms=60
+STAGE Peterson_early_32_2 intros ms=9
+STAGE Peterson_early_32_2 destruct ms=3025
+STAGE Peterson_early_32_2 dsimp1 ms=191
+STAGE Peterson_early_32_2 smtSimp ms=2725
+STAGE Peterson_early_32_2 dsimp2 ms=127
+RUN_COMPLETE Peterson_early_32_2
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:608:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:612:99: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED Peterson_current_32_2 prior_failure
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:622:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:626:99: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED Peterson_current_32_3 prior_failure
+/tmp/veil-early-intro-multi/results/sources/Peterson.lean:636:0: warning: declaration uses `sorry`
+RUN_BEGIN Peterson_early_32_3
+STAGE Peterson_early_32_3 early_intros ms=43
+STAGE Peterson_early_32_3 nextSimp ms=3173
+STAGE Peterson_early_32_3 hoist ms=53
+STAGE Peterson_early_32_3 intros ms=9
+STAGE Peterson_early_32_3 destruct ms=3194
+STAGE Peterson_early_32_3 dsimp1 ms=205
+STAGE Peterson_early_32_3 smtSimp ms=2581
+STAGE Peterson_early_32_3 dsimp2 ms=95
+RUN_COMPLETE Peterson_early_32_3
+
+PROCESS status=exit0 wall_seconds=137.575544

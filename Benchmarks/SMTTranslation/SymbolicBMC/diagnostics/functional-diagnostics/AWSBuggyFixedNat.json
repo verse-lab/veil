@@ -1,0 +1,19 @@
+{
+  "group": "aws",
+  "source": "/tmp/veil-symbolic-bmc/aws-embedding-candidates/AWSBuggyFixedNat.lean",
+  "source_sha256": "3c952a09d82c1e70d2f0fbd786809d6177ff30f396a08740c59f0df7b57c5527",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/aws-embedding-candidates/AWSBuggyFixedNat.lean"
+  ],
+  "exit_code": 1,
+  "timeout": false,
+  "wall_ms": 13470,
+  "log": "/tmp/veil-symbolic-bmc/functional-diagnostics/AWSBuggyFixedNat.log",
+  "purpose": "functional diagnostic; not a performance observation"
+}

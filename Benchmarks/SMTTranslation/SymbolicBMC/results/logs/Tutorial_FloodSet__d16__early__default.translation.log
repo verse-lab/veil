@@ -1,0 +1,15 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_FloodSet__default__batch1.lean:667:34: error: `simp` failed: maximum number of steps exceeded
+
+Note: The target expression is not type-correct under the `instances` transparency level, which may have triggered the failure. This is usually caused by unfolding of semireducible definitions in prior tactic steps. Use `set_option linter.tacticCheckInstances true` to investigate the source of the issue.
+Full error:
+  Application type mismatch: The argument
+    (fun delivery __veil_state N V => instDecidableOr) x✝¹ (getFrom st0) x✝ x
+  has type
+    Decidable
+      ((getFrom st0).3 x✝ x = true ∨
+        ¬(getFrom st0).5 x✝ = true ∧ ∃ sender, x✝¹ sender x✝ = true ∧ (getFrom st0).3 sender x = true)
+  but is expected to have type
+    Decidable (st0.W x✝ x = true ∨ ¬st0.crashed x✝ = true ∧ ∃ sender, x✝¹ sender x✝ = true ∧ st0.W sender x = true)
+  in the application
+    @decide (st0.W x✝ x = true ∨ ¬st0.crashed x✝ = true ∧ ∃ sender, x✝¹ sender x✝ = true ∧ st0.W sender x = true)
+      ((fun delivery __veil_state N V => instDecidableOr) x✝¹ (getFrom st0) x✝ x)

@@ -1,0 +1,82 @@
+{
+  "repo": "/home/george/src/veil-issue-123",
+  "commit": "eb41b59673a179ad05773ceca18667ba25b7f079",
+  "lean": "Lean (version 4.32.0, x86_64-unknown-linux-gnu, commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, Release)",
+  "models": [
+    [
+      "Ring",
+      "Examples/Ivy/Ring.lean",
+      "\u2203 l, leader l",
+      "Ordered ring; quantified binary relations"
+    ],
+    [
+      "DieHard",
+      "Examples/Puzzles/DieHard.lean",
+      "big = 4",
+      "Scalar natural numbers; six actions"
+    ],
+    [
+      "TwoPhaseCommit",
+      "Examples/Ivy/TwoPhaseCommit.lean",
+      "\u2203 n, decide_commit n",
+      "Commit protocol; quantified relations"
+    ],
+    [
+      "RicartAgrawala",
+      "Examples/Ivy/RicartAgrawala.lean",
+      "\u2203 n, holds n",
+      "Mutual exclusion; two actions"
+    ],
+    [
+      "MultiSigAll",
+      "Examples/Ivy/MultiSigAll.lean",
+      "\u2203 n k v d, paid n k v d",
+      "Five sorts; high-arity relations"
+    ],
+    [
+      "Peterson",
+      "Examples/TLA/Peterson.lean",
+      "\u2203 p, pc p critical \u2228 pc p release",
+      "Finite enums; mutual exclusion"
+    ],
+    [
+      "FloodSet",
+      "Examples/Synchronous/FloodSet.lean",
+      "\u2203 n v, decision n v",
+      "Higher-order delivery choices; arithmetic"
+    ]
+  ],
+  "depths": [
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "repeats": 3,
+  "timeout_seconds": 180,
+  "budget_seconds": 1260,
+  "resources": {
+    "maxHeartbeats": 0,
+    "maxRecDepth": 10000,
+    "simp_maxSteps": 100000
+  },
+  "source_hashes": {
+    "Ring": "b07c460e7767a50bd27801f02c3e7bdc73e68ccbe7fbcc59634845863b9b4d66",
+    "DieHard": "003f896257b7ed5578ff76197e57ef5876e3458879851989661adfe1f00386d2",
+    "TwoPhaseCommit": "e2e1976595f147e9f56d3d08f1b0b57cb6586352b4435d8a768348805bcb54fd",
+    "RicartAgrawala": "6bfdbe383c29168a92026857c38b3debe29e394acdff217cbaf3b58ca6c13d2b",
+    "MultiSigAll": "7550361739a54ef68b10ce343140bf00a51917b65bb4344b75effb1a1bfbcfdf",
+    "Peterson": "9c457ac1ab56f8e611c756bc584c4b1cd2502994a1376b56870ee40fb5c4731a",
+    "FloodSet": "71e30b3e1e732b752052029b4a31e037cab323758a94cfc2edef3f6a772c5f0e"
+  },
+  "solver_executed": false,
+  "elab_async": false,
+  "cpu": "AMD EPYC 9645 96-Core Processor",
+  "platform": "Linux-6.12.113+deb13-amd64-x86_64-with-glibc2.41",
+  "script_sha256": "13b2f5676404d734900587105a6fc791952e71145604334a7a31c7407cbdaf7e",
+  "core_sha256": "3ef194c8d28866365ec974eb4a159e27552ce18fbe3e9ab02b73604c09d9609d",
+  "ordering": "model-major; depths increasing; original/early order alternates per repetition and depth",
+  "timing": "Sequential processes and synchronous Lean elaboration; stage wall time; excludes startup/modelgen/instrumentation/solver. SMT output measured only repetition1. Same-process repetitions include warm caches; variants alternate order.",
+  "elapsed_seconds": 957.2099202529935
+}

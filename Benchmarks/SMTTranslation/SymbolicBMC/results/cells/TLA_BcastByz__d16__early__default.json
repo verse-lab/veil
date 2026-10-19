@@ -1,0 +1,304 @@
+{
+  "row": {
+    "cell_id": "TLA_BcastByz__d16__early__default",
+    "model": "TLA_BcastByz",
+    "path": "Examples/TLA/BcastByz.lean",
+    "module": "BcastByz",
+    "depth": 16,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-symbolic-bmc/namespace-repair/batch-sources/TLA_BcastByz__default__batch1.lean:527:2: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 106,
+    "batch_id": "TLA_BcastByz__default__batch1",
+    "batch_setup_ms": 11817,
+    "preprocessing_ms": 2674,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/namespace-repair/queries/TLA_BcastByz__d16__early__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/namespace-repair/batch-sources/TLA_BcastByz__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/namespace-repair/events/TLA_BcastByz__d16__early__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/namespace-repair/logs/TLA_BcastByz__d16__early__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/namespace-repair/logs/TLA_BcastByz__d16__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_BcastByz",
+    "path": "Examples/TLA/BcastByz.lean",
+    "module": "BcastByz",
+    "cut_line": 202,
+    "query": "assert (∃ p, isCorrect p ∧ pc p = AC)",
+    "query_kind": "derived_reachability",
+    "expected_status": null,
+    "query_source": "PCState.AC and protocol step actions; no declared protocol safety property",
+    "notes": "Uses correct-process acceptance, rather than the static partition/cardinality sanity invariants. Contains collections and an Enumeration parameter.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "f7aa1867b40e8f453d3e227a8d33bf9c557796034b63a25997ab66de5e4d65c1"
+  },
+  "original_sha256": "f7aa1867b40e8f453d3e227a8d33bf9c557796034b63a25997ab66de5e4d65c1",
+  "inherited_setup_options": [],
+  "source_sha256": "25376f1b55541eaec13fc487de9ca89edd9e4bac6fbb0e4475d585b961807ddd",
+  "batch_log": "/tmp/veil-symbolic-bmc/namespace-repair/batch-logs/TLA_BcastByz__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 200505755,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 200505861,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200505861,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 15,
+      "event": "stage",
+      "mono_ms": 200505876,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200505876,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1203,
+      "event": "stage",
+      "mono_ms": 200507079,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200507079,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 26,
+      "event": "stage",
+      "mono_ms": 200507106,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200507126,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "mono_ms": 200507130,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200507130,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 806,
+      "event": "stage",
+      "mono_ms": 200507936,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200507936,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 61,
+      "event": "stage",
+      "mono_ms": 200507997,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200507997,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 509,
+      "event": "stage",
+      "mono_ms": 200508507,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200508536,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 50,
+      "event": "stage",
+      "mono_ms": 200508586,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 2725,
+      "event": "milestone",
+      "mono_ms": 200508586,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200508586,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "mono_ms": 200508591,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200508591,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200508591,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200508591,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200508591,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200508591,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "mono_ms": 200508593,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200508593,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 236,
+      "event": "stage",
+      "mono_ms": 200508829,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 200508829,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 200509196,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_BcastByz__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/namespace-repair/batch-sources/TLA_BcastByz__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/namespace-repair/batch-logs/TLA_BcastByz__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 82691,
+    "setup_ms": 11817,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/namespace-repair/batch-sources/TLA_BcastByz__default__batch1.lean"
+    ]
+  }
+}

@@ -1,0 +1,1 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_POPL26_RingFin__default__batch1.lean:356:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas

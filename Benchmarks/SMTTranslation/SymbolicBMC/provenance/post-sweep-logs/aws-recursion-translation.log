@@ -1,0 +1,4 @@
+BEGIN AWS_AWSFixed batch1 cells=2
+  AWS_AWSFixed__d8__old__recursion_only query_ready phase=None kind=None query_ms=27260
+  AWS_AWSFixed__d8__early__recursion_only query_ready phase=None kind=None query_ms=19327
+END AWS_AWSFixed__recursion_only__batch1 wall=61.5s setup=11433 timeout=None remaining=0

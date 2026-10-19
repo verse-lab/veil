@@ -1,0 +1,371 @@
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:180:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_current_2_1
+STAGE TwoPhaseCommit_current_2_1 nextSimp ms=647
+STAGE TwoPhaseCommit_current_2_1 hoist ms=61
+STAGE TwoPhaseCommit_current_2_1 intros ms=1
+STAGE TwoPhaseCommit_current_2_1 destruct ms=41
+STAGE TwoPhaseCommit_current_2_1 dsimp1 ms=12
+STAGE TwoPhaseCommit_current_2_1 smtSimp ms=80
+STAGE TwoPhaseCommit_current_2_1 dsimp2 ms=8
+SMT_STAGE TwoPhaseCommit_current_2_1 pushHints ms=0
+SMT_STAGE TwoPhaseCommit_current_2_1 smt-intros ms=1
+SMT_STAGE TwoPhaseCommit_current_2_1 negateGoal ms=0
+SMT_STAGE TwoPhaseCommit_current_2_1 normalize ms=9
+SMT_STAGE TwoPhaseCommit_current_2_1 embedding ms=3
+SMT_STAGE TwoPhaseCommit_current_2_1 translate ms=45 commands=48
+SMT_STAGE TwoPhaseCommit_current_2_1 serialize ms=101 bytes=12269
+PIPELINE_COMPLETE TwoPhaseCommit_current_2_1
+RUN_COMPLETE TwoPhaseCommit_current_2_1
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:195:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_2_1
+STAGE TwoPhaseCommit_early_2_1 early_intros ms=2
+STAGE TwoPhaseCommit_early_2_1 nextSimp ms=195
+STAGE TwoPhaseCommit_early_2_1 hoist ms=6
+STAGE TwoPhaseCommit_early_2_1 intros ms=1
+STAGE TwoPhaseCommit_early_2_1 destruct ms=47
+STAGE TwoPhaseCommit_early_2_1 dsimp1 ms=14
+STAGE TwoPhaseCommit_early_2_1 smtSimp ms=87
+STAGE TwoPhaseCommit_early_2_1 dsimp2 ms=11
+SMT_STAGE TwoPhaseCommit_early_2_1 pushHints ms=0
+SMT_STAGE TwoPhaseCommit_early_2_1 smt-intros ms=0
+SMT_STAGE TwoPhaseCommit_early_2_1 negateGoal ms=0
+SMT_STAGE TwoPhaseCommit_early_2_1 normalize ms=11
+SMT_STAGE TwoPhaseCommit_early_2_1 embedding ms=3
+SMT_STAGE TwoPhaseCommit_early_2_1 translate ms=53 commands=48
+SMT_STAGE TwoPhaseCommit_early_2_1 serialize ms=107 bytes=12269
+PIPELINE_COMPLETE TwoPhaseCommit_early_2_1
+RUN_COMPLETE TwoPhaseCommit_early_2_1
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:211:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_2_2
+STAGE TwoPhaseCommit_early_2_2 early_intros ms=2
+STAGE TwoPhaseCommit_early_2_2 nextSimp ms=172
+STAGE TwoPhaseCommit_early_2_2 hoist ms=5
+STAGE TwoPhaseCommit_early_2_2 intros ms=1
+STAGE TwoPhaseCommit_early_2_2 destruct ms=41
+STAGE TwoPhaseCommit_early_2_2 dsimp1 ms=14
+STAGE TwoPhaseCommit_early_2_2 smtSimp ms=92
+STAGE TwoPhaseCommit_early_2_2 dsimp2 ms=8
+RUN_COMPLETE TwoPhaseCommit_early_2_2
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:226:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_current_2_2
+STAGE TwoPhaseCommit_current_2_2 nextSimp ms=555
+STAGE TwoPhaseCommit_current_2_2 hoist ms=53
+STAGE TwoPhaseCommit_current_2_2 intros ms=2
+STAGE TwoPhaseCommit_current_2_2 destruct ms=51
+STAGE TwoPhaseCommit_current_2_2 dsimp1 ms=14
+STAGE TwoPhaseCommit_current_2_2 smtSimp ms=85
+STAGE TwoPhaseCommit_current_2_2 dsimp2 ms=11
+RUN_COMPLETE TwoPhaseCommit_current_2_2
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:240:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_current_2_3
+STAGE TwoPhaseCommit_current_2_3 nextSimp ms=681
+STAGE TwoPhaseCommit_current_2_3 hoist ms=60
+STAGE TwoPhaseCommit_current_2_3 intros ms=2
+STAGE TwoPhaseCommit_current_2_3 destruct ms=49
+STAGE TwoPhaseCommit_current_2_3 dsimp1 ms=19
+STAGE TwoPhaseCommit_current_2_3 smtSimp ms=122
+STAGE TwoPhaseCommit_current_2_3 dsimp2 ms=12
+RUN_COMPLETE TwoPhaseCommit_current_2_3
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:254:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_2_3
+STAGE TwoPhaseCommit_early_2_3 early_intros ms=2
+STAGE TwoPhaseCommit_early_2_3 nextSimp ms=238
+STAGE TwoPhaseCommit_early_2_3 hoist ms=6
+STAGE TwoPhaseCommit_early_2_3 intros ms=2
+STAGE TwoPhaseCommit_early_2_3 destruct ms=55
+STAGE TwoPhaseCommit_early_2_3 dsimp1 ms=17
+STAGE TwoPhaseCommit_early_2_3 smtSimp ms=112
+STAGE TwoPhaseCommit_early_2_3 dsimp2 ms=10
+RUN_COMPLETE TwoPhaseCommit_early_2_3
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:269:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_4_1
+STAGE TwoPhaseCommit_early_4_1 early_intros ms=4
+STAGE TwoPhaseCommit_early_4_1 nextSimp ms=357
+STAGE TwoPhaseCommit_early_4_1 hoist ms=9
+STAGE TwoPhaseCommit_early_4_1 intros ms=1
+STAGE TwoPhaseCommit_early_4_1 destruct ms=88
+STAGE TwoPhaseCommit_early_4_1 dsimp1 ms=27
+STAGE TwoPhaseCommit_early_4_1 smtSimp ms=209
+STAGE TwoPhaseCommit_early_4_1 dsimp2 ms=24
+SMT_STAGE TwoPhaseCommit_early_4_1 pushHints ms=0
+SMT_STAGE TwoPhaseCommit_early_4_1 smt-intros ms=0
+SMT_STAGE TwoPhaseCommit_early_4_1 negateGoal ms=2
+SMT_STAGE TwoPhaseCommit_early_4_1 normalize ms=34
+SMT_STAGE TwoPhaseCommit_early_4_1 embedding ms=5
+SMT_STAGE TwoPhaseCommit_early_4_1 translate ms=90 commands=76
+SMT_STAGE TwoPhaseCommit_early_4_1 serialize ms=260 bytes=23005
+PIPELINE_COMPLETE TwoPhaseCommit_early_4_1
+RUN_COMPLETE TwoPhaseCommit_early_4_1
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:285:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_current_4_1
+STAGE TwoPhaseCommit_current_4_1 nextSimp ms=1704
+STAGE TwoPhaseCommit_current_4_1 hoist ms=99
+STAGE TwoPhaseCommit_current_4_1 intros ms=2
+STAGE TwoPhaseCommit_current_4_1 destruct ms=73
+STAGE TwoPhaseCommit_current_4_1 dsimp1 ms=18
+STAGE TwoPhaseCommit_current_4_1 smtSimp ms=131
+STAGE TwoPhaseCommit_current_4_1 dsimp2 ms=14
+SMT_STAGE TwoPhaseCommit_current_4_1 pushHints ms=0
+SMT_STAGE TwoPhaseCommit_current_4_1 smt-intros ms=0
+SMT_STAGE TwoPhaseCommit_current_4_1 negateGoal ms=0
+SMT_STAGE TwoPhaseCommit_current_4_1 normalize ms=16
+SMT_STAGE TwoPhaseCommit_current_4_1 embedding ms=4
+SMT_STAGE TwoPhaseCommit_current_4_1 translate ms=76 commands=76
+SMT_STAGE TwoPhaseCommit_current_4_1 serialize ms=224 bytes=23005
+PIPELINE_COMPLETE TwoPhaseCommit_current_4_1
+RUN_COMPLETE TwoPhaseCommit_current_4_1
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:300:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_current_4_2
+STAGE TwoPhaseCommit_current_4_2 nextSimp ms=1784
+STAGE TwoPhaseCommit_current_4_2 hoist ms=121
+STAGE TwoPhaseCommit_current_4_2 intros ms=3
+STAGE TwoPhaseCommit_current_4_2 destruct ms=113
+STAGE TwoPhaseCommit_current_4_2 dsimp1 ms=30
+STAGE TwoPhaseCommit_current_4_2 smtSimp ms=197
+STAGE TwoPhaseCommit_current_4_2 dsimp2 ms=19
+RUN_COMPLETE TwoPhaseCommit_current_4_2
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:314:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_4_2
+STAGE TwoPhaseCommit_early_4_2 early_intros ms=3
+STAGE TwoPhaseCommit_early_4_2 nextSimp ms=437
+STAGE TwoPhaseCommit_early_4_2 hoist ms=15
+STAGE TwoPhaseCommit_early_4_2 intros ms=3
+STAGE TwoPhaseCommit_early_4_2 destruct ms=102
+STAGE TwoPhaseCommit_early_4_2 dsimp1 ms=34
+STAGE TwoPhaseCommit_early_4_2 smtSimp ms=207
+STAGE TwoPhaseCommit_early_4_2 dsimp2 ms=24
+RUN_COMPLETE TwoPhaseCommit_early_4_2
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:329:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_4_3
+STAGE TwoPhaseCommit_early_4_3 early_intros ms=3
+STAGE TwoPhaseCommit_early_4_3 nextSimp ms=451
+STAGE TwoPhaseCommit_early_4_3 hoist ms=11
+STAGE TwoPhaseCommit_early_4_3 intros ms=3
+STAGE TwoPhaseCommit_early_4_3 destruct ms=118
+STAGE TwoPhaseCommit_early_4_3 dsimp1 ms=31
+STAGE TwoPhaseCommit_early_4_3 smtSimp ms=205
+STAGE TwoPhaseCommit_early_4_3 dsimp2 ms=25
+RUN_COMPLETE TwoPhaseCommit_early_4_3
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:344:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_current_4_3
+STAGE TwoPhaseCommit_current_4_3 nextSimp ms=1870
+STAGE TwoPhaseCommit_current_4_3 hoist ms=92
+STAGE TwoPhaseCommit_current_4_3 intros ms=3
+STAGE TwoPhaseCommit_current_4_3 destruct ms=103
+STAGE TwoPhaseCommit_current_4_3 dsimp1 ms=31
+STAGE TwoPhaseCommit_current_4_3 smtSimp ms=191
+STAGE TwoPhaseCommit_current_4_3 dsimp2 ms=21
+RUN_COMPLETE TwoPhaseCommit_current_4_3
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:358:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_current_8_1
+STAGE TwoPhaseCommit_current_8_1 nextSimp ms=6194
+STAGE TwoPhaseCommit_current_8_1 hoist ms=204
+STAGE TwoPhaseCommit_current_8_1 intros ms=3
+STAGE TwoPhaseCommit_current_8_1 destruct ms=250
+STAGE TwoPhaseCommit_current_8_1 dsimp1 ms=56
+STAGE TwoPhaseCommit_current_8_1 smtSimp ms=403
+STAGE TwoPhaseCommit_current_8_1 dsimp2 ms=35
+SMT_STAGE TwoPhaseCommit_current_8_1 pushHints ms=1
+SMT_STAGE TwoPhaseCommit_current_8_1 smt-intros ms=0
+SMT_STAGE TwoPhaseCommit_current_8_1 negateGoal ms=1
+SMT_STAGE TwoPhaseCommit_current_8_1 normalize ms=41
+SMT_STAGE TwoPhaseCommit_current_8_1 embedding ms=10
+SMT_STAGE TwoPhaseCommit_current_8_1 translate ms=162 commands=132
+SMT_STAGE TwoPhaseCommit_current_8_1 serialize ms=416 bytes=44477
+PIPELINE_COMPLETE TwoPhaseCommit_current_8_1
+RUN_COMPLETE TwoPhaseCommit_current_8_1
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:373:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_8_1
+STAGE TwoPhaseCommit_early_8_1 early_intros ms=6
+STAGE TwoPhaseCommit_early_8_1 nextSimp ms=545
+STAGE TwoPhaseCommit_early_8_1 hoist ms=15
+STAGE TwoPhaseCommit_early_8_1 intros ms=2
+STAGE TwoPhaseCommit_early_8_1 destruct ms=193
+STAGE TwoPhaseCommit_early_8_1 dsimp1 ms=41
+STAGE TwoPhaseCommit_early_8_1 smtSimp ms=363
+STAGE TwoPhaseCommit_early_8_1 dsimp2 ms=33
+SMT_STAGE TwoPhaseCommit_early_8_1 pushHints ms=1
+SMT_STAGE TwoPhaseCommit_early_8_1 smt-intros ms=0
+SMT_STAGE TwoPhaseCommit_early_8_1 negateGoal ms=1
+SMT_STAGE TwoPhaseCommit_early_8_1 normalize ms=35
+SMT_STAGE TwoPhaseCommit_early_8_1 embedding ms=8
+SMT_STAGE TwoPhaseCommit_early_8_1 translate ms=155 commands=132
+SMT_STAGE TwoPhaseCommit_early_8_1 serialize ms=392 bytes=44477
+PIPELINE_COMPLETE TwoPhaseCommit_early_8_1
+RUN_COMPLETE TwoPhaseCommit_early_8_1
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:389:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_8_2
+STAGE TwoPhaseCommit_early_8_2 early_intros ms=6
+STAGE TwoPhaseCommit_early_8_2 nextSimp ms=707
+STAGE TwoPhaseCommit_early_8_2 hoist ms=17
+STAGE TwoPhaseCommit_early_8_2 intros ms=3
+STAGE TwoPhaseCommit_early_8_2 destruct ms=274
+STAGE TwoPhaseCommit_early_8_2 dsimp1 ms=50
+STAGE TwoPhaseCommit_early_8_2 smtSimp ms=388
+STAGE TwoPhaseCommit_early_8_2 dsimp2 ms=47
+RUN_COMPLETE TwoPhaseCommit_early_8_2
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:404:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_current_8_2
+STAGE TwoPhaseCommit_current_8_2 nextSimp ms=5616
+STAGE TwoPhaseCommit_current_8_2 hoist ms=202
+STAGE TwoPhaseCommit_current_8_2 intros ms=2
+STAGE TwoPhaseCommit_current_8_2 destruct ms=215
+STAGE TwoPhaseCommit_current_8_2 dsimp1 ms=43
+STAGE TwoPhaseCommit_current_8_2 smtSimp ms=344
+STAGE TwoPhaseCommit_current_8_2 dsimp2 ms=41
+RUN_COMPLETE TwoPhaseCommit_current_8_2
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:418:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_current_8_3
+STAGE TwoPhaseCommit_current_8_3 nextSimp ms=5707
+STAGE TwoPhaseCommit_current_8_3 hoist ms=178
+STAGE TwoPhaseCommit_current_8_3 intros ms=3
+STAGE TwoPhaseCommit_current_8_3 destruct ms=234
+STAGE TwoPhaseCommit_current_8_3 dsimp1 ms=53
+STAGE TwoPhaseCommit_current_8_3 smtSimp ms=386
+STAGE TwoPhaseCommit_current_8_3 dsimp2 ms=34
+RUN_COMPLETE TwoPhaseCommit_current_8_3
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:432:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_8_3
+STAGE TwoPhaseCommit_early_8_3 early_intros ms=6
+STAGE TwoPhaseCommit_early_8_3 nextSimp ms=675
+STAGE TwoPhaseCommit_early_8_3 hoist ms=17
+STAGE TwoPhaseCommit_early_8_3 intros ms=3
+STAGE TwoPhaseCommit_early_8_3 destruct ms=248
+STAGE TwoPhaseCommit_early_8_3 dsimp1 ms=50
+STAGE TwoPhaseCommit_early_8_3 smtSimp ms=337
+STAGE TwoPhaseCommit_early_8_3 dsimp2 ms=38
+RUN_COMPLETE TwoPhaseCommit_early_8_3
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:447:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_16_1
+STAGE TwoPhaseCommit_early_16_1 early_intros ms=20
+STAGE TwoPhaseCommit_early_16_1 nextSimp ms=1307
+STAGE TwoPhaseCommit_early_16_1 hoist ms=29
+STAGE TwoPhaseCommit_early_16_1 intros ms=4
+STAGE TwoPhaseCommit_early_16_1 destruct ms=751
+STAGE TwoPhaseCommit_early_16_1 dsimp1 ms=94
+STAGE TwoPhaseCommit_early_16_1 smtSimp ms=801
+STAGE TwoPhaseCommit_early_16_1 dsimp2 ms=68
+SMT_STAGE TwoPhaseCommit_early_16_1 pushHints ms=0
+SMT_STAGE TwoPhaseCommit_early_16_1 smt-intros ms=0
+SMT_STAGE TwoPhaseCommit_early_16_1 negateGoal ms=3
+SMT_STAGE TwoPhaseCommit_early_16_1 normalize ms=77
+SMT_STAGE TwoPhaseCommit_early_16_1 embedding ms=17
+SMT_STAGE TwoPhaseCommit_early_16_1 translate ms=304 commands=244
+SMT_STAGE TwoPhaseCommit_early_16_1 serialize ms=802 bytes=88526
+PIPELINE_COMPLETE TwoPhaseCommit_early_16_1
+RUN_COMPLETE TwoPhaseCommit_early_16_1
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:463:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:469:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:470:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:471:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:472:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:473:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:474:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:475:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_BEGIN TwoPhaseCommit_current_16_1
+FAILED TwoPhaseCommit_current_16_1 nextSimp ms=14458: `simp` failed: maximum number of steps exceeded
+RUN_FAILED TwoPhaseCommit_current_16_1
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:478:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:482:111: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED TwoPhaseCommit_current_16_2 prior_failure
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:492:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_16_2
+STAGE TwoPhaseCommit_early_16_2 early_intros ms=16
+STAGE TwoPhaseCommit_early_16_2 nextSimp ms=1475
+STAGE TwoPhaseCommit_early_16_2 hoist ms=29
+STAGE TwoPhaseCommit_early_16_2 intros ms=6
+STAGE TwoPhaseCommit_early_16_2 destruct ms=708
+STAGE TwoPhaseCommit_early_16_2 dsimp1 ms=93
+STAGE TwoPhaseCommit_early_16_2 smtSimp ms=856
+STAGE TwoPhaseCommit_early_16_2 dsimp2 ms=61
+RUN_COMPLETE TwoPhaseCommit_early_16_2
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:507:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_16_3
+STAGE TwoPhaseCommit_early_16_3 early_intros ms=17
+STAGE TwoPhaseCommit_early_16_3 nextSimp ms=1411
+STAGE TwoPhaseCommit_early_16_3 hoist ms=29
+STAGE TwoPhaseCommit_early_16_3 intros ms=3
+STAGE TwoPhaseCommit_early_16_3 destruct ms=718
+STAGE TwoPhaseCommit_early_16_3 dsimp1 ms=117
+STAGE TwoPhaseCommit_early_16_3 smtSimp ms=884
+STAGE TwoPhaseCommit_early_16_3 dsimp2 ms=86
+RUN_COMPLETE TwoPhaseCommit_early_16_3
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:522:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:526:111: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED TwoPhaseCommit_current_16_3 prior_failure
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:536:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:540:111: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED TwoPhaseCommit_current_32_1 prior_failure
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:551:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_32_1
+STAGE TwoPhaseCommit_early_32_1 early_intros ms=39
+STAGE TwoPhaseCommit_early_32_1 nextSimp ms=2717
+STAGE TwoPhaseCommit_early_32_1 hoist ms=67
+STAGE TwoPhaseCommit_early_32_1 intros ms=9
+STAGE TwoPhaseCommit_early_32_1 destruct ms=2722
+STAGE TwoPhaseCommit_early_32_1 dsimp1 ms=208
+STAGE TwoPhaseCommit_early_32_1 smtSimp ms=1992
+STAGE TwoPhaseCommit_early_32_1 dsimp2 ms=163
+SMT_STAGE TwoPhaseCommit_early_32_1 pushHints ms=0
+SMT_STAGE TwoPhaseCommit_early_32_1 smt-intros ms=0
+SMT_STAGE TwoPhaseCommit_early_32_1 negateGoal ms=4
+SMT_STAGE TwoPhaseCommit_early_32_1 normalize ms=169
+SMT_STAGE TwoPhaseCommit_early_32_1 embedding ms=59
+SMT_STAGE TwoPhaseCommit_early_32_1 translate ms=615 commands=468
+SMT_STAGE TwoPhaseCommit_early_32_1 serialize ms=1758 bytes=177102
+PIPELINE_COMPLETE TwoPhaseCommit_early_32_1
+RUN_COMPLETE TwoPhaseCommit_early_32_1
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:567:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_32_2
+STAGE TwoPhaseCommit_early_32_2 early_intros ms=55
+STAGE TwoPhaseCommit_early_32_2 nextSimp ms=3071
+STAGE TwoPhaseCommit_early_32_2 hoist ms=80
+STAGE TwoPhaseCommit_early_32_2 intros ms=9
+STAGE TwoPhaseCommit_early_32_2 destruct ms=2926
+STAGE TwoPhaseCommit_early_32_2 dsimp1 ms=223
+STAGE TwoPhaseCommit_early_32_2 smtSimp ms=2390
+STAGE TwoPhaseCommit_early_32_2 dsimp2 ms=169
+RUN_COMPLETE TwoPhaseCommit_early_32_2
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:582:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:586:111: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED TwoPhaseCommit_current_32_2 prior_failure
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:596:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:600:111: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED TwoPhaseCommit_current_32_3 prior_failure
+/tmp/veil-early-intro-multi/results/sources/TwoPhaseCommit.lean:610:0: warning: declaration uses `sorry`
+RUN_BEGIN TwoPhaseCommit_early_32_3
+STAGE TwoPhaseCommit_early_32_3 early_intros ms=48
+STAGE TwoPhaseCommit_early_32_3 nextSimp ms=3120
+STAGE TwoPhaseCommit_early_32_3 hoist ms=97
+STAGE TwoPhaseCommit_early_32_3 intros ms=15
+STAGE TwoPhaseCommit_early_32_3 destruct ms=3875
+STAGE TwoPhaseCommit_early_32_3 dsimp1 ms=253
+STAGE TwoPhaseCommit_early_32_3 smtSimp ms=2367
+STAGE TwoPhaseCommit_early_32_3 dsimp2 ms=140
+RUN_COMPLETE TwoPhaseCommit_early_32_3
+
+PROCESS status=exit0 wall_seconds=132.231444

@@ -1,0 +1,4 @@
+SOLVER_BEGIN AWS_AWSFixed__d8__old__recursion_only
+SOLVER_END AWS_AWSFixed__d8__old__recursion_only solver_timeout solver_ms=10024
+SOLVER_BEGIN AWS_AWSFixed__d8__early__recursion_only
+SOLVER_END AWS_AWSFixed__d8__early__recursion_only solver_timeout solver_ms=10029

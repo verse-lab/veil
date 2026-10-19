@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Position",
+    "baseline": [],
+    "unscoped": [
+      {
+        "type": "Type",
+        "fields": [],
+        "constant": "Lean.Position",
+        "compatible_type": true
+      }
+    ]
+  },
+  {
+    "name": "process",
+    "baseline": [],
+    "unscoped": [
+      {
+        "type": "String → Environment → Options → optParam (Option String) none → IO (Environment × MessageLog)",
+        "fields": [],
+        "constant": "Lean.Elab.process",
+        "compatible_type": false
+      }
+    ]
+  }
+]

@@ -1,0 +1,362 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_MultiPaxos__default__batch1.lean:491:2: error: Application type mismatch: The argument
+  fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun acSet.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun acSet.insert =>
+                forall_congr fun acSet.remove =>
+                  forall_congr fun acSet.ofList =>
+                    forall_congr fun acSet.toList =>
+                      forall_congr fun acSet.filter =>
+                        forall_congr fun acSet.union =>
+                          forall_congr fun acSet.diff =>
+                            forall_congr fun acSet.intersection =>
+                              forall_congr fun acSet.subsets =>
+                                forall_congr fun mem.mem =>
+                                  forall_congr fun slotEnumerable.allValues =>
+                                    forall_congr fun __veil_tag.Phase1a =>
+                                      forall_congr fun __veil_tag.Phase1b =>
+                                        forall_congr fun __veil_tag.Phase2a =>
+                                          forall_congr fun __veil_tag.Phase2b =>
+                                            forall_congr fun st0.sent =>
+                                              forall_congr fun st1.sent =>
+                                                implies_congr
+                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                    (congrFun'
+                                                      (congrArg Eq
+                                                        (Int.toNat_of_nonneg
+                                                          (of_eq_true ((fun a₁ => eq_true (a✝³ a₁)) voteSet.empty))))
+                                                      0))
+                                                  (forall_prop_domain_congr
+                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                      (congrFun'
+                                                        (congrArg Eq
+                                                          (Int.toNat_of_nonneg
+                                                            (of_eq_true ((fun a₁ => eq_true (a✝³ a₁)) voteSet.empty))))
+                                                        0))
+                                                    fun voteSet.empty_count =>
+                                                    implies_congr
+                                                      (forall_congr fun elem =>
+                                                        Eq.trans (propext Bool.eq_eq_true) (congr ⋯ Bool.false_eq_true))
+                                                      (forall_prop_domain_congr (forall_congr fun elem => Eq.trans ⋯ ⋯)
+                                                        fun voteSet.empty_contains =>
+                                                        implies_congr (forall_congr ⋯)
+                                                          (forall_prop_domain_congr ⋯ ⋯)))))
+has type
+  ∀ (a : ∀ (a₁ : AcceptorSet), f a₁ ≥ 0),
+    (∀ (f_1 : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet) (acSet.isEmpty : AcceptorSet → Bool)
+        (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet) (acSet.ofList : List acceptor → AcceptorSet)
+        (acSet.toList : AcceptorSet → List acceptor) (acSet.filter : AcceptorSet → (acceptor → Bool) → AcceptorSet)
+        (acSet.union acSet.diff acSet.intersection : AcceptorSet → AcceptorSet → AcceptorSet)
+        (acSet.subsets : AcceptorSet → List AcceptorSet) (mem.mem : quorum → acceptor → Prop)
+        (slotEnumerable.allValues : List slot)
+        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag)
+        (st0.sent st1.sent : MsgSet),
+        (fun a₁ => (f✝⁸ a₁).toNat) voteSet.empty = 0 →
+          ∀ (voteSet.empty_count : (fun a₁ => (f✝⁸ a₁).toNat) voteSet.empty = 0),
+            (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value),
+                (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem voteSet.empty = false) →
+              ∀
+                (voteSet.empty_contains :
+                  ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value),
+                    (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem voteSet.empty = false),
+                (∀ (s : VotedSet), ((fun a₁ => decide (f✝⁶ a₁)) s = true) = ((fun a₁ => (f✝⁸ a₁).toNat) s = 0)) →
+                  ∀
+                    (voteSet.isEmpty_iff_count_zero :
+                      ∀ (s : VotedSet), ((fun a₁ => decide (f✝⁶ a₁)) s = true) = ((fun a₁ => (f✝⁸ a₁).toNat) s = 0)),
+                    (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                        (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem (voteSet.insert elem s) = true) →
+                      ∀
+                        (voteSet.contains_insert_self :
+                          ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                            (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem (voteSet.insert elem s) = true),
+                        (∀ (elem₁ elem₂ : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                            elem₁ ≠ elem₂ →
+                              (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem₁ (voteSet.insert elem₂ s) =
+                                (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem₁ s) →
+                          ∀
+                            (voteSet.contains_insert_other :
+                              ∀ (elem₁ elem₂ : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                elem₁ ≠ elem₂ →
+                                  (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem₁ (voteSet.insert elem₂ s) =
+                                    (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem₁ s),
+                            (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                voteSet.toList (voteSet.insert elem (voteSet.insert elem s)) =
+                                  voteSet.toList (voteSet.insert elem s)) →
+                              ∀
+                                (voteSet.insert_idempotent :
+                                  ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                    voteSet.toList (voteSet.insert elem (voteSet.insert elem s)) =
+                                      voteSet.toList (voteSet.insert elem s)),
+                                (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                    (fun a₁ => (f✝⁸ a₁).toNat) (voteSet.insert elem s) =
+                                      if (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s = true then
+                                        (fun a₁ => (f✝⁸ a₁).toNat) s
+                                      else (fun a₁ => (f✝⁸ a₁).toNat) s + 1) →
+                                  ∀
+                                    (voteSet.count_insert :
+                                      ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                        (fun a₁ => (f✝⁸ a₁).toNat) (voteSet.insert elem s) =
+                                          if (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s = true then
+                                            (fun a₁ => (f✝⁸ a₁).toNat) s
+                                          else (fun a₁ => (f✝⁸ a₁).toNat) s + 1),
+                                    (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                        (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem (voteSet.remove elem s) = false) →
+                                      ∀
+                                        (voteSet.contains_remove_self :
+                                          ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                            (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem (voteSet.remove elem s) = false),
+                                        (∀ (elem₁ elem₂ : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                            elem₁ ≠ elem₂ →
+                                              (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem₁ (voteSet.remove elem₂ s) =
+                                                (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem₁ s) →
+                                          ∀
+                                            (voteSet.contains_remove_other :
+                                              ∀ (elem₁ elem₂ : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                                elem₁ ≠ elem₂ →
+                                                  (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem₁ (voteSet.remove elem₂ s) =
+                                                    (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem₁ s),
+                                            (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                                (fun a₁ => (f✝⁸ a₁).toNat) (voteSet.remove elem s) =
+                                                  if (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s = true then
+                                                    (fun a₁ => (f✝⁸ a₁).toNat) s - 1
+                                                  else (fun a₁ => (f✝⁸ a₁).toNat) s) →
+                                              ∀
+                                                (voteSet.count_remove :
+                                                  ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                                    (fun a₁ => (f✝⁸ a₁).toNat) (voteSet.remove elem s) =
+                                                      if (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s = true then
+                                                        (fun a₁ => (f✝⁸ a₁).toNat) s - 1
+                                                      else (fun a₁ => (f✝⁸ a₁).toNat) s),
+                                                (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s1 s2 : VotedSet),
+                                                    (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem (voteSet.union s1 s2) =
+                                                      ((fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s1 ||
+                                                        (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s2)) →
+                                                  ∀
+                                                    (voteSet.contains_union :
+                                                      ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value)
+                                                        (s1 s2 : VotedSet),
+                                                        (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem (voteSet.union s1 s2) =
+                                                          ((fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s1 ||
+                                                            (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s2)),
+                                                    (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s1 s2 : VotedSet),
+                                                        (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem (voteSet.diff s1 s2) =
+                                                          ((fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s1 &&
+                                                            !(fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s2)) →
+                                                      ∀
+                                                        (voteSet.contains_diff :
+                                                          ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value)
+                                                            (s1 s2 : VotedSet),
+                                                            (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem
+                                                                (voteSet.diff s1 s2) =
+                                                              ((fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s1 &&
+                                                                !(fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s2)),
+                                                        (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                                            ((fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s = true) =
+                                                              (elem ∈ voteSet.toList s)) →
+                                                          ∀
+                                                            (voteSet.toList_contains_iff :
+                                                              ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value)
+                                                                (s : VotedSet),
+                                                                ((fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s = true) =
+                                                                  (elem ∈ voteSet.toList s)),
+                                                            (∀ (s1 s2 : VotedSet),
+                                                                (s1 ∈ voteSet.subsets s2) =
+                                                                  ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value),
+                                                                    (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s1 = true →
+                                                                      (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s2 =
+                                                                        true) →
+                                                              ∀
+                                                                (voteSet.subsets_iff :
+                                                                  ∀ (s1 s2 : VotedSet),
+                                                                    (s1 ∈ voteSet.subsets s2) =
+                                                                      ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value),
+                                                                        (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s1 =
+                                                                            true →
+                                                                          (fun a₁ a₂ => decide (f✝⁷ a₁ a₂)) elem s2 =
+                                                                            true),
+                                                                (fun a₁ => (f✝⁵ a₁).toNat) decSet.empty = 0 →
+                                                                  ∀
+                                                                    (decSet.empty_count :
+                                                                      (fun a₁ => (f✝⁵ a₁).toNat) decSet.empty = 0),
+                                                                    (∀ (elem : Decree slot value),
+                                                                        (fun a₁ a₂ => decide (f✝⁴ a₁ a₂)) elem
+                                                                            decSet.empty =
+                                                                          false) →
+                                                                      ∀
+                                                                        (decSet.empty_contains :
+                                                                          ∀ (elem : Decree slot value),
+                                                                            (fun a₁ a₂ => decide (f✝⁴ a₁ a₂)) elem
+                                                                                decSet.empty =
+                                                                              false),
+                                                                        (∀ (s : DecreeSet),
+                                                                            ((fun a₁ => decide (f✝³ a₁)) s = true) =
+                                                                              ((fun a₁ => (f✝⁵ a₁).toNat) s = 0)) →
+                                                                          ∀
+                                                                            (decSet.isEmpty_iff_count_zero :
+                                                                              ∀ (s : DecreeSet),
+                                                                                ((fun a₁ => decide (f✝³ a₁)) s = true) =
+                                                                                  ((fun a₁ => (f✝⁵ a₁).toNat) s = 0)),
+                                                                            (∀ (elem : Decree slot value)
+                                                                                (s : DecreeSet),
+                                                                                (fun a₁ a₂ => decide (f✝⁴ a₁ a₂)) elem
+                                                                                    (decSet.insert elem s) =
+                                                                                  true) →
+                                                                              ∀ (decSet.contains_insert_self : ⋯), ⋯) =
+      ∀ (a_1 : acceptor → AcceptorSet → Prop) (a_2 : AcceptorSet) (a_3 : AcceptorSet → Prop)
+        (a_4 a_5 : acceptor → AcceptorSet → AcceptorSet) (a_6 : List acceptor → AcceptorSet)
+        (a_7 : AcceptorSet → List acceptor) (a_8 : AcceptorSet → (acceptor → Bool) → AcceptorSet)
+        (a_9 a_10 a_11 : AcceptorSet → AcceptorSet → AcceptorSet) (a_12 : AcceptorSet → List AcceptorSet)
+        (a_13 : quorum → acceptor → Prop) (a_14 : List slot) (a_15 a_16 a_17 a_18 : ActionTag) (a_19 a_20 : MsgSet),
+        f✝⁸ voteSet.empty = 0 →
+          ∀ (a_22 : f✝⁸ voteSet.empty = 0),
+            (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value), f✝⁷ elem voteSet.empty = False) →
+              ∀
+                (voteSet.empty_contains :
+                  ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value), f✝⁷ elem voteSet.empty = False),
+                (∀ (s : VotedSet), f✝⁶ s = (f✝⁸ s = 0)) →
+                  ∀ (voteSet.isEmpty_iff_count_zero : ∀ (s : VotedSet), f✝⁶ s = (f✝⁸ s = 0)),
+                    (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet), f✝⁷ elem (voteSet.insert elem s)) →
+                      ∀
+                        (voteSet.contains_insert_self :
+                          ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                            f✝⁷ elem (voteSet.insert elem s)),
+                        (∀ (elem₁ elem₂ : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                            elem₁ ≠ elem₂ → f✝⁷ elem₁ (voteSet.insert elem₂ s) = f✝⁷ elem₁ s) →
+                          ∀
+                            (voteSet.contains_insert_other :
+                              ∀ (elem₁ elem₂ : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                elem₁ ≠ elem₂ → f✝⁷ elem₁ (voteSet.insert elem₂ s) = f✝⁷ elem₁ s),
+                            (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                voteSet.toList (voteSet.insert elem (voteSet.insert elem s)) =
+                                  voteSet.toList (voteSet.insert elem s)) →
+                              ∀
+                                (voteSet.insert_idempotent :
+                                  ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                    voteSet.toList (voteSet.insert elem (voteSet.insert elem s)) =
+                                      voteSet.toList (voteSet.insert elem s)),
+                                (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                    f✝⁸ (voteSet.insert elem s) = if f✝⁷ elem s then f✝⁸ s else f✝⁸ s + 1) →
+                                  ∀
+                                    (voteSet.count_insert :
+                                      ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                        f✝⁸ (voteSet.insert elem s) = if f✝⁷ elem s then f✝⁸ s else f✝⁸ s + 1),
+                                    (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                        f✝⁷ elem (voteSet.remove elem s) = False) →
+                                      ∀
+                                        (voteSet.contains_remove_self :
+                                          ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                            f✝⁷ elem (voteSet.remove elem s) = False),
+                                        (∀ (elem₁ elem₂ : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                            elem₁ ≠ elem₂ → f✝⁷ elem₁ (voteSet.remove elem₂ s) = f✝⁷ elem₁ s) →
+                                          ∀
+                                            (voteSet.contains_remove_other :
+                                              ∀ (elem₁ elem₂ : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                                elem₁ ≠ elem₂ → f✝⁷ elem₁ (voteSet.remove elem₂ s) = f✝⁷ elem₁ s),
+                                            (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                                f✝⁸ (voteSet.remove elem s) =
+                                                  if f✝⁷ elem s then if 1 ≤ f✝⁸ s then f✝⁸ s - 1 else 0 else f✝⁸ s) →
+                                              ∀
+                                                (voteSet.count_remove :
+                                                  ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                                    f✝⁸ (voteSet.remove elem s) =
+                                                      if f✝⁷ elem s then if 1 ≤ f✝⁸ s then f✝⁸ s - 1 else 0 else f✝⁸ s),
+                                                (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s1 s2 : VotedSet),
+                                                    f✝⁷ elem (voteSet.union s1 s2) = (f✝⁷ elem s1 ∨ f✝⁷ elem s2)) →
+                                                  ∀
+                                                    (voteSet.contains_union :
+                                                      ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value)
+                                                        (s1 s2 : VotedSet),
+                                                        f✝⁷ elem (voteSet.union s1 s2) = (f✝⁷ elem s1 ∨ f✝⁷ elem s2)),
+                                                    (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s1 s2 : VotedSet),
+                                                        f✝⁷ elem (voteSet.diff s1 s2) =
+                                                          (f✝⁷ elem s1 ∧ f✝⁷ elem s2 ≠ True)) →
+                                                      ∀
+                                                        (voteSet.contains_diff :
+                                                          ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value)
+                                                            (s1 s2 : VotedSet),
+                                                            f✝⁷ elem (voteSet.diff s1 s2) =
+                                                              (f✝⁷ elem s1 ∧ f✝⁷ elem s2 ≠ True)),
+                                                        (∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                                            f✝⁷ elem s = (elem ∈ voteSet.toList s)) →
+                                                          ∀
+                                                            (voteSet.toList_contains_iff :
+                                                              ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value)
+                                                                (s : VotedSet), f✝⁷ elem s = (elem ∈ voteSet.toList s)),
+                                                            (∀ (s1 s2 : VotedSet),
+                                                                (s1 ∈ voteSet.subsets s2) =
+                                                                  ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value),
+                                                                    f✝⁷ elem s1 → f✝⁷ elem s2) →
+                                                              ∀
+                                                                (voteSet.subsets_iff :
+                                                                  ∀ (s1 s2 : VotedSet),
+                                                                    (s1 ∈ voteSet.subsets s2) =
+                                                                      ∀ (elem : MultiPaxosVoted f✝⁹.toNat slot value),
+                                                                        f✝⁷ elem s1 → f✝⁷ elem s2),
+                                                                f✝⁵ decSet.empty = 0 →
+                                                                  ∀ (decSet.empty_count : f✝⁵ decSet.empty = 0),
+                                                                    (∀ (elem : Decree slot value),
+                                                                        f✝⁴ elem decSet.empty = False) →
+                                                                      ∀
+                                                                        (decSet.empty_contains :
+                                                                          ∀ (elem : Decree slot value),
+                                                                            f✝⁴ elem decSet.empty = False),
+                                                                        (∀ (s : DecreeSet), f✝³ s = (f✝⁵ s = 0)) →
+                                                                          ∀
+                                                                            (decSet.isEmpty_iff_count_zero :
+                                                                              ∀ (s : DecreeSet), f✝³ s = (f✝⁵ s = 0)),
+                                                                            (∀ (elem : Decree slot value)
+                                                                                (s : DecreeSet),
+                                                                                f✝⁴ elem (decSet.insert elem s)) →
+                                                                              ∀
+                                                                                (decSet.contains_insert_self :
+                                                                                  ∀ (elem : Decree slot value)
+                                                                                    (s : DecreeSet),
+                                                                                    f✝⁴ elem (decSet.insert elem s)),
+                                                                                ⋯
+but is expected to have type
+  (∀ (a₁ : AcceptorSet), f a₁ ≥ 0) → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f a₁ ≥ 0)) fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun acSet.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun acSet.insert =>
+                forall_congr fun acSet.remove =>
+                  forall_congr fun acSet.ofList =>
+                    forall_congr fun acSet.toList =>
+                      forall_congr fun acSet.filter =>
+                        forall_congr fun acSet.union =>
+                          forall_congr fun acSet.diff =>
+                            forall_congr fun acSet.intersection =>
+                              forall_congr fun acSet.subsets =>
+                                forall_congr fun mem.mem =>
+                                  forall_congr fun slotEnumerable.allValues =>
+                                    forall_congr fun __veil_tag.Phase1a =>
+                                      forall_congr fun __veil_tag.Phase1b =>
+                                        forall_congr fun __veil_tag.Phase2a =>
+                                          forall_congr fun __veil_tag.Phase2b =>
+                                            forall_congr fun st0.sent =>
+                                              forall_congr fun st1.sent =>
+                                                implies_congr
+                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                    (congrFun'
+                                                      (congrArg Eq
+                                                        (Int.toNat_of_nonneg
+                                                          (of_eq_true ((fun a₁ => eq_true (a✝³ a₁)) voteSet.empty))))
+                                                      0))
+                                                  (forall_prop_domain_congr
+                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                      (congrFun'
+                                                        (congrArg Eq
+                                                          (Int.toNat_of_nonneg
+                                                            (of_eq_true ((fun a₁ => eq_true (a✝³ a₁)) voteSet.empty))))
+                                                        0))
+                                                    fun voteSet.empty_count =>
+                                                    implies_congr (forall_congr fun elem => Eq.trans ⋯ ⋯)
+                                                      (forall_prop_domain_congr (forall_congr fun elem => ⋯)
+                                                        fun voteSet.empty_contains => implies_congr ⋯ ⋯))))

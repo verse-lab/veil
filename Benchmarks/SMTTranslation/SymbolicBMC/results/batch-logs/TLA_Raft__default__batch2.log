@@ -1,0 +1,1008 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean:1001:35: warning: Variable name `j` is not explicitly referenced.
+
+The binding can be removed (if unused) or named `_` (if used implicitly).
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean:1014:42: warning: Variable name `j` is not explicitly referenced.
+
+The binding can be removed (if unused) or named `_` (if used implicitly).
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean:1082:0: warning: unable to generate wp_local_eq for Receive.ext: wp_local_eq step 3 (eliminate field rep) failed for Receive.ext
+  step3SimpResult: ∀ (m : Message value server),
+  TMultiset.contains m (FieldRepresentation.get (getFrom a✝).messages) = true →
+    if m.mterm > FieldRepresentation.get (getFrom a✝).currentTerm m.mdest then
+      if m.mterm > FieldRepresentation.get (getFrom a✝).currentTerm m.mdest then
+        LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests (readFrom a✝¹).fixServer
+          (readFrom a✝¹).SIZE (FieldRepresentation.get (getFrom a✝).messages)
+          (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+          (CanonicalField.set (inferInstance, PUnit.unit) (FieldRepresentation.get (getFrom a✝).currentTerm)
+            (some m.mdest, ()) fun x => m.mterm)
+          (CanonicalField.set (inferInstance, inferInstance, PUnit.unit) (FieldRepresentation.get (getFrom a✝).pcState)
+            (some m.mdest, none, ()) fun x T => T == Follower)
+          (CanonicalField.set (inferInstance, inferInstance, PUnit.unit) (FieldRepresentation.get (getFrom a✝).votedFor)
+            (some m.mdest, none, ()) fun x R => false)
+          (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+          (FieldRepresentation.get (getFrom a✝).commitIndex) (FieldRepresentation.get (getFrom a✝).committedLog)
+          (FieldRepresentation.get (getFrom a✝).committedLogDecrease) (FieldRepresentation.get (getFrom a✝).votesSent)
+          (FieldRepresentation.get (getFrom a✝).votesGranted) (FieldRepresentation.get (getFrom a✝).voterLog)
+          (FieldRepresentation.get (getFrom a✝).nextIndex) (FieldRepresentation.get (getFrom a✝).matchIndex)
+      else __veil_handler 13
+    else
+      if m.mtype = MsgType.RequestVoteRequest then
+        if m.mterm ≤ FieldRepresentation.get (getFrom a✝).currentTerm m.mdest then
+          if
+              m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                ((m.mlastLogTerm >
+                      if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                      else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∨
+                    (m.mlastLogTerm =
+                        if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                        else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∧
+                      m.mlastLogIndex ≥ List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) ∧
+                  ∀ (P : server), FieldRepresentation.get (getFrom a✝).votedFor m.mdest P = true → P = m.msource then
+            if
+                TMultiset.contains
+                    { mtype := MsgType.RequestVoteResponse,
+                      mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                      mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                      mvoteGranted :=
+                        decide
+                          (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                            ((m.mlastLogTerm >
+                                  if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                  else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∨
+                                (m.mlastLogTerm =
+                                    if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                    else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∧
+                                  m.mlastLogIndex ≥ List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) ∧
+                              ∀ (P : server),
+                                FieldRepresentation.get (getFrom a✝).votedFor m.mdest P = true → P = m.msource),
+                      mlog := FieldRepresentation.get (getFrom a✝).logs m.mdest, mprevLogIndex := 0, mprevLogTerm := 0,
+                      mentries := [], mcommitIndex := 0, msuccess := false, mmatchIndex := 0 }
+                    (FieldRepresentation.get (getFrom a✝).messages) =
+                  true then
+              if
+                  TMultiset.count
+                      { mtype := MsgType.RequestVoteResponse,
+                        mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                        mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                        mvoteGranted :=
+                          decide
+                            (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                              ((m.mlastLogTerm >
+                                    if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                    else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∨
+                                  (m.mlastLogTerm =
+                                      if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                      else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∧
+                                    m.mlastLogIndex ≥ List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) ∧
+                                ∀ (P : server),
+                                  FieldRepresentation.get (getFrom a✝).votedFor m.mdest P = true → P = m.msource),
+                        mlog := FieldRepresentation.get (getFrom a✝).logs m.mdest, mprevLogIndex := 0,
+                        mprevLogTerm := 0, mentries := [], mcommitIndex := 0, msuccess := false, mmatchIndex := 0 }
+                      (FieldRepresentation.get (getFrom a✝).messages) <
+                    2 then
+                LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                  (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                  (CanonicalField.set PUnit.unit
+                    (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                      (TMultiset.insert
+                        { mtype := MsgType.RequestVoteResponse,
+                          mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                          mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                          mvoteGranted :=
+                            decide
+                              (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                                ((m.mlastLogTerm >
+                                      if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                      else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∨
+                                    (m.mlastLogTerm =
+                                        if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                        else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∧
+                                      m.mlastLogIndex ≥
+                                        List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) ∧
+                                  ∀ (P : server),
+                                    FieldRepresentation.get (getFrom a✝).votedFor m.mdest P = true → P = m.msource),
+                          mlog := FieldRepresentation.get (getFrom a✝).logs m.mdest, mprevLogIndex := 0,
+                          mprevLogTerm := 0, mentries := [], mcommitIndex := 0, msuccess := false, mmatchIndex := 0 }
+                        (FieldRepresentation.get (getFrom a✝).messages)))
+                    ()
+                    (TMultiset.remove m
+                      (TMultiset.insert
+                        { mtype := MsgType.RequestVoteResponse,
+                          mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                          mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                          mvoteGranted :=
+                            decide
+                              (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                                ((m.mlastLogTerm >
+                                      if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                      else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∨
+                                    (m.mlastLogTerm =
+                                        if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                        else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∧
+                                      m.mlastLogIndex ≥
+                                        List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) ∧
+                                  ∀ (P : server),
+                                    FieldRepresentation.get (getFrom a✝).votedFor m.mdest P = true → P = m.msource),
+                          mlog := FieldRepresentation.get (getFrom a✝).logs m.mdest, mprevLogIndex := 0,
+                          mprevLogTerm := 0, mentries := [], mcommitIndex := 0, msuccess := false, mmatchIndex := 0 }
+                        (FieldRepresentation.get (getFrom a✝).messages))))
+                  (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                  (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                  (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                    (FieldRepresentation.get (getFrom a✝).votedFor) (some m.mdest, none, ()) fun x R => R == m.msource)
+                  (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                  (FieldRepresentation.get (getFrom a✝).commitIndex) (FieldRepresentation.get (getFrom a✝).committedLog)
+                  (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                  (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                  (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                  (FieldRepresentation.get (getFrom a✝).matchIndex)
+              else
+                LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                  (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                  (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                    (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                  (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                  (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                  (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                    (FieldRepresentation.get (getFrom a✝).votedFor) (some m.mdest, none, ()) fun x R => R == m.msource)
+                  (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                  (FieldRepresentation.get (getFrom a✝).commitIndex) (FieldRepresentation.get (getFrom a✝).committedLog)
+                  (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                  (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                  (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                  (FieldRepresentation.get (getFrom a✝).matchIndex)
+            else
+              LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                (CanonicalField.set PUnit.unit
+                  (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                    (TMultiset.insert
+                      { mtype := MsgType.RequestVoteResponse,
+                        mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                        mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                        mvoteGranted :=
+                          decide
+                            (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                              ((m.mlastLogTerm >
+                                    if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                    else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∨
+                                  (m.mlastLogTerm =
+                                      if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                      else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∧
+                                    m.mlastLogIndex ≥ List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) ∧
+                                ∀ (P : server),
+                                  FieldRepresentation.get (getFrom a✝).votedFor m.mdest P = true → P = m.msource),
+                        mlog := FieldRepresentation.get (getFrom a✝).logs m.mdest, mprevLogIndex := 0,
+                        mprevLogTerm := 0, mentries := [], mcommitIndex := 0, msuccess := false, mmatchIndex := 0 }
+                      (FieldRepresentation.get (getFrom a✝).messages)))
+                  ()
+                  (TMultiset.remove m
+                    (TMultiset.insert
+                      { mtype := MsgType.RequestVoteResponse,
+                        mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                        mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                        mvoteGranted :=
+                          decide
+                            (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                              ((m.mlastLogTerm >
+                                    if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                    else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∨
+                                  (m.mlastLogTerm =
+                                      if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                      else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∧
+                                    m.mlastLogIndex ≥ List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) ∧
+                                ∀ (P : server),
+                                  FieldRepresentation.get (getFrom a✝).votedFor m.mdest P = true → P = m.msource),
+                        mlog := FieldRepresentation.get (getFrom a✝).logs m.mdest, mprevLogIndex := 0,
+                        mprevLogTerm := 0, mentries := [], mcommitIndex := 0, msuccess := false, mmatchIndex := 0 }
+                      (FieldRepresentation.get (getFrom a✝).messages))))
+                (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                  (FieldRepresentation.get (getFrom a✝).votedFor) (some m.mdest, none, ()) fun x R => R == m.msource)
+                (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                (FieldRepresentation.get (getFrom a✝).commitIndex) (FieldRepresentation.get (getFrom a✝).committedLog)
+                (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                (FieldRepresentation.get (getFrom a✝).matchIndex)
+          else
+            if
+                TMultiset.contains
+                    { mtype := MsgType.RequestVoteResponse,
+                      mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                      mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                      mvoteGranted :=
+                        decide
+                          (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                            ((m.mlastLogTerm >
+                                  if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                  else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∨
+                                (m.mlastLogTerm =
+                                    if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                    else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∧
+                                  m.mlastLogIndex ≥ List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) ∧
+                              ∀ (P : server),
+                                FieldRepresentation.get (getFrom a✝).votedFor m.mdest P = true → P = m.msource),
+                      mlog := FieldRepresentation.get (getFrom a✝).logs m.mdest, mprevLogIndex := 0, mprevLogTerm := 0,
+                      mentries := [], mcommitIndex := 0, msuccess := false, mmatchIndex := 0 }
+                    (FieldRepresentation.get (getFrom a✝).messages) =
+                  true then
+              if
+                  TMultiset.count
+                      { mtype := MsgType.RequestVoteResponse,
+                        mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                        mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                        mvoteGranted :=
+                          decide
+                            (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                              ((m.mlastLogTerm >
+                                    if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                    else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∨
+                                  (m.mlastLogTerm =
+                                      if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                      else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∧
+                                    m.mlastLogIndex ≥ List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) ∧
+                                ∀ (P : server),
+                                  FieldRepresentation.get (getFrom a✝).votedFor m.mdest P = true → P = m.msource),
+                        mlog := FieldRepresentation.get (getFrom a✝).logs m.mdest, mprevLogIndex := 0,
+                        mprevLogTerm := 0, mentries := [], mcommitIndex := 0, msuccess := false, mmatchIndex := 0 }
+                      (FieldRepresentation.get (getFrom a✝).messages) <
+                    2 then
+                LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                  (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                  (CanonicalField.set PUnit.unit
+                    (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                      (TMultiset.insert
+                        { mtype := MsgType.RequestVoteResponse,
+                          mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                          mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                          mvoteGranted :=
+                            decide
+                              (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                                ((m.mlastLogTerm >
+                                      if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                      else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∨
+                                    (m.mlastLogTerm =
+                                        if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                        else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∧
+                                      m.mlastLogIndex ≥
+                                        List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) ∧
+                                  ∀ (P : server),
+                                    FieldRepresentation.get (getFrom a✝).votedFor m.mdest P = true → P = m.msource),
+                          mlog := FieldRepresentation.get (getFrom a✝).logs m.mdest, mprevLogIndex := 0,
+                          mprevLogTerm := 0, mentries := [], mcommitIndex := 0, msuccess := false, mmatchIndex := 0 }
+                        (FieldRepresentation.get (getFrom a✝).messages)))
+                    ()
+                    (TMultiset.remove m
+                      (TMultiset.insert
+                        { mtype := MsgType.RequestVoteResponse,
+                          mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                          mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                          mvoteGranted :=
+                            decide
+                              (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                                ((m.mlastLogTerm >
+                                      if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                      else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∨
+                                    (m.mlastLogTerm =
+                                        if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                        else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∧
+                                      m.mlastLogIndex ≥
+                                        List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) ∧
+                                  ∀ (P : server),
+                                    FieldRepresentation.get (getFrom a✝).votedFor m.mdest P = true → P = m.msource),
+                          mlog := FieldRepresentation.get (getFrom a✝).logs m.mdest, mprevLogIndex := 0,
+                          mprevLogTerm := 0, mentries := [], mcommitIndex := 0, msuccess := false, mmatchIndex := 0 }
+                        (FieldRepresentation.get (getFrom a✝).messages))))
+                  (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                  (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                  (FieldRepresentation.get (getFrom a✝).votedFor) (FieldRepresentation.get (getFrom a✝).clientRequests)
+                  (FieldRepresentation.get (getFrom a✝).logs) (FieldRepresentation.get (getFrom a✝).commitIndex)
+                  (FieldRepresentation.get (getFrom a✝).committedLog)
+                  (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                  (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                  (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                  (FieldRepresentation.get (getFrom a✝).matchIndex)
+              else
+                LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                  (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                  (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                    (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                  (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                  (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                  (FieldRepresentation.get (getFrom a✝).votedFor) (FieldRepresentation.get (getFrom a✝).clientRequests)
+                  (FieldRepresentation.get (getFrom a✝).logs) (FieldRepresentation.get (getFrom a✝).commitIndex)
+                  (FieldRepresentation.get (getFrom a✝).committedLog)
+                  (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                  (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                  (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                  (FieldRepresentation.get (getFrom a✝).matchIndex)
+            else
+              LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                (CanonicalField.set PUnit.unit
+                  (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                    (TMultiset.insert
+                      { mtype := MsgType.RequestVoteResponse,
+                        mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                        mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                        mvoteGranted :=
+                          decide
+                            (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                              ((m.mlastLogTerm >
+                                    if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                    else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∨
+                                  (m.mlastLogTerm =
+                                      if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                      else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∧
+                                    m.mlastLogIndex ≥ List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) ∧
+                                ∀ (P : server),
+                                  FieldRepresentation.get (getFrom a✝).votedFor m.mdest P = true → P = m.msource),
+                        mlog := FieldRepresentation.get (getFrom a✝).logs m.mdest, mprevLogIndex := 0,
+                        mprevLogTerm := 0, mentries := [], mcommitIndex := 0, msuccess := false, mmatchIndex := 0 }
+                      (FieldRepresentation.get (getFrom a✝).messages)))
+                  ()
+                  (TMultiset.remove m
+                    (TMultiset.insert
+                      { mtype := MsgType.RequestVoteResponse,
+                        mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                        mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                        mvoteGranted :=
+                          decide
+                            (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                              ((m.mlastLogTerm >
+                                    if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                    else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∨
+                                  (m.mlastLogTerm =
+                                      if List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = 0 then 0
+                                      else (List.getLast! (FieldRepresentation.get (getFrom a✝).logs m.mdest)).term) ∧
+                                    m.mlastLogIndex ≥ List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) ∧
+                                ∀ (P : server),
+                                  FieldRepresentation.get (getFrom a✝).votedFor m.mdest P = true → P = m.msource),
+                        mlog := FieldRepresentation.get (getFrom a✝).logs m.mdest, mprevLogIndex := 0,
+                        mprevLogTerm := 0, mentries := [], mcommitIndex := 0, msuccess := false, mmatchIndex := 0 }
+                      (FieldRepresentation.get (getFrom a✝).messages))))
+                (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                (FieldRepresentation.get (getFrom a✝).votedFor) (FieldRepresentation.get (getFrom a✝).clientRequests)
+                (FieldRepresentation.get (getFrom a✝).logs) (FieldRepresentation.get (getFrom a✝).commitIndex)
+                (FieldRepresentation.get (getFrom a✝).committedLog)
+                (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                (FieldRepresentation.get (getFrom a✝).matchIndex)
+        else __veil_handler 9
+      else
+        if m.mtype = MsgType.RequestVoteResponse then
+          if m.mterm < FieldRepresentation.get (getFrom a✝).currentTerm m.mdest then
+            if m.mterm < FieldRepresentation.get (getFrom a✝).currentTerm m.mdest then
+              LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                  (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                (FieldRepresentation.get (getFrom a✝).votedFor) (FieldRepresentation.get (getFrom a✝).clientRequests)
+                (FieldRepresentation.get (getFrom a✝).logs) (FieldRepresentation.get (getFrom a✝).commitIndex)
+                (FieldRepresentation.get (getFrom a✝).committedLog)
+                (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                (FieldRepresentation.get (getFrom a✝).matchIndex)
+            else __veil_handler 14
+          else
+            if m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest then
+              if m.mvoteGranted = true then
+                LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                  (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                  (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                    (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                  (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                  (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                  (FieldRepresentation.get (getFrom a✝).votedFor) (FieldRepresentation.get (getFrom a✝).clientRequests)
+                  (FieldRepresentation.get (getFrom a✝).logs) (FieldRepresentation.get (getFrom a✝).commitIndex)
+                  (FieldRepresentation.get (getFrom a✝).committedLog)
+                  (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                  (FieldRepresentation.get (getFrom a✝).votesSent)
+                  (CanonicalField.set (inferInstance, PUnit.unit) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                    (some m.mdest, ()) fun x =>
+                    TSet.insert m.msource (FieldRepresentation.get (getFrom a✝).votesGranted m.mdest))
+                  (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                    (FieldRepresentation.get (getFrom a✝).voterLog) (some m.mdest, some m.msource, ()) fun x x_1 =>
+                    m.mlog)
+                  (FieldRepresentation.get (getFrom a✝).nextIndex) (FieldRepresentation.get (getFrom a✝).matchIndex)
+              else
+                LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                  (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                  (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                    (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                  (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                  (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                  (FieldRepresentation.get (getFrom a✝).votedFor) (FieldRepresentation.get (getFrom a✝).clientRequests)
+                  (FieldRepresentation.get (getFrom a✝).logs) (FieldRepresentation.get (getFrom a✝).commitIndex)
+                  (FieldRepresentation.get (getFrom a✝).committedLog)
+                  (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                  (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                  (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                  (FieldRepresentation.get (getFrom a✝).matchIndex)
+            else __veil_handler 10
+        else
+          if m.mtype = MsgType.AppendEntriesRequest then
+            if m.mterm ≤ FieldRepresentation.get (getFrom a✝).currentTerm m.mdest then
+              if
+                  (decide (m.mterm < FieldRepresentation.get (getFrom a✝).currentTerm m.mdest) ||
+                      decide (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest) &&
+                          FieldRepresentation.get (getFrom a✝).pcState m.mdest Follower &&
+                        !(decide (m.mprevLogIndex = 0) ||
+                            decide (m.mprevLogIndex > 0) &&
+                                decide
+                                  (m.mprevLogIndex ≤ List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) &&
+                              match (FieldRepresentation.get (getFrom a✝).logs m.mdest)[m.mprevLogIndex - 1]? with
+                              | some entry => decide (entry.term = m.mprevLogTerm)
+                              | none => false)) =
+                    true then
+                if
+                    TMultiset.contains
+                        { mtype := MsgType.AppendEntriesResponse,
+                          mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                          mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0, mvoteGranted := false, mlog := [],
+                          mprevLogIndex := 0, mprevLogTerm := 0, mentries := [], mcommitIndex := 0, msuccess := false,
+                          mmatchIndex := 0 }
+                        (FieldRepresentation.get (getFrom a✝).messages) =
+                      true then
+                  if
+                      TMultiset.count
+                          { mtype := MsgType.AppendEntriesResponse,
+                            mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                            mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0, mvoteGranted := false,
+                            mlog := [], mprevLogIndex := 0, mprevLogTerm := 0, mentries := [], mcommitIndex := 0,
+                            msuccess := false, mmatchIndex := 0 }
+                          (FieldRepresentation.get (getFrom a✝).messages) <
+                        2 then
+                    LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                      (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                      (CanonicalField.set PUnit.unit
+                        (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                          (TMultiset.insert
+                            { mtype := MsgType.AppendEntriesResponse,
+                              mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                              mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0, mvoteGranted := false,
+                              mlog := [], mprevLogIndex := 0, mprevLogTerm := 0, mentries := [], mcommitIndex := 0,
+                              msuccess := false, mmatchIndex := 0 }
+                            (FieldRepresentation.get (getFrom a✝).messages)))
+                        ()
+                        (TMultiset.remove m
+                          (TMultiset.insert
+                            { mtype := MsgType.AppendEntriesResponse,
+                              mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                              mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0, mvoteGranted := false,
+                              mlog := [], mprevLogIndex := 0, mprevLogTerm := 0, mentries := [], mcommitIndex := 0,
+                              msuccess := false, mmatchIndex := 0 }
+                            (FieldRepresentation.get (getFrom a✝).messages))))
+                      (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                      (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                      (FieldRepresentation.get (getFrom a✝).votedFor)
+                      (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                      (FieldRepresentation.get (getFrom a✝).commitIndex)
+                      (FieldRepresentation.get (getFrom a✝).committedLog)
+                      (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                      (FieldRepresentation.get (getFrom a✝).votesSent)
+                      (FieldRepresentation.get (getFrom a✝).votesGranted)
+                      (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                      (FieldRepresentation.get (getFrom a✝).matchIndex)
+                  else
+                    LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                      (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                      (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                        (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                      (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                      (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                      (FieldRepresentation.get (getFrom a✝).votedFor)
+                      (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                      (FieldRepresentation.get (getFrom a✝).commitIndex)
+                      (FieldRepresentation.get (getFrom a✝).committedLog)
+                      (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                      (FieldRepresentation.get (getFrom a✝).votesSent)
+                      (FieldRepresentation.get (getFrom a✝).votesGranted)
+                      (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                      (FieldRepresentation.get (getFrom a✝).matchIndex)
+                else
+                  LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                    (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                    (CanonicalField.set PUnit.unit
+                      (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                        (TMultiset.insert
+                          { mtype := MsgType.AppendEntriesResponse,
+                            mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                            mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0, mvoteGranted := false,
+                            mlog := [], mprevLogIndex := 0, mprevLogTerm := 0, mentries := [], mcommitIndex := 0,
+                            msuccess := false, mmatchIndex := 0 }
+                          (FieldRepresentation.get (getFrom a✝).messages)))
+                      ()
+                      (TMultiset.remove m
+                        (TMultiset.insert
+                          { mtype := MsgType.AppendEntriesResponse,
+                            mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                            mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0, mvoteGranted := false,
+                            mlog := [], mprevLogIndex := 0, mprevLogTerm := 0, mentries := [], mcommitIndex := 0,
+                            msuccess := false, mmatchIndex := 0 }
+                          (FieldRepresentation.get (getFrom a✝).messages))))
+                    (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                    (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                    (FieldRepresentation.get (getFrom a✝).votedFor)
+                    (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                    (FieldRepresentation.get (getFrom a✝).commitIndex)
+                    (FieldRepresentation.get (getFrom a✝).committedLog)
+                    (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                    (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                    (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                    (FieldRepresentation.get (getFrom a✝).matchIndex)
+              else
+                if
+                    m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                      FieldRepresentation.get (getFrom a✝).pcState m.mdest Candidate = true then
+                  LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                    (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE (FieldRepresentation.get (getFrom a✝).messages)
+                    (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                    (FieldRepresentation.get (getFrom a✝).currentTerm)
+                    (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                      (FieldRepresentation.get (getFrom a✝).pcState) (some m.mdest, none, ()) fun x T => T == Follower)
+                    (FieldRepresentation.get (getFrom a✝).votedFor)
+                    (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                    (FieldRepresentation.get (getFrom a✝).commitIndex)
+                    (FieldRepresentation.get (getFrom a✝).committedLog)
+                    (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                    (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                    (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                    (FieldRepresentation.get (getFrom a✝).matchIndex)
+                else
+                  if
+                      (m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest ∧
+                          FieldRepresentation.get (getFrom a✝).pcState m.mdest Follower = true) ∧
+                        (decide (m.mprevLogIndex = 0) ||
+                            decide (m.mprevLogIndex > 0) &&
+                                decide
+                                  (m.mprevLogIndex ≤ List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest)) &&
+                              match (FieldRepresentation.get (getFrom a✝).logs m.mdest)[m.mprevLogIndex - 1]? with
+                              | some entry => decide (entry.term = m.mprevLogTerm)
+                              | none => false) =
+                          true then
+                    if
+                        (m.mentries.isEmpty ||
+                            decide
+                                (List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) ≥
+                                  m.mprevLogIndex + 1) &&
+                              match (FieldRepresentation.get (getFrom a✝).logs m.mdest)[m.mprevLogIndex + 1 - 1]? with
+                              | some entry =>
+                                match m.mentries.head? with
+                                | some firstEntry => decide (entry.term = firstEntry.term)
+                                | none => false
+                              | none => false) =
+                          true then
+                      if
+                          TMultiset.contains
+                              { mtype := MsgType.AppendEntriesResponse,
+                                mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                                mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0, mvoteGranted := false,
+                                mlog := [], mprevLogIndex := 0, mprevLogTerm := 0, mentries := [], mcommitIndex := 0,
+                                msuccess := true, mmatchIndex := m.mprevLogIndex + m.mentries.length }
+                              (FieldRepresentation.get (getFrom a✝).messages) =
+                            true then
+                        if
+                            TMultiset.count
+                                { mtype := MsgType.AppendEntriesResponse,
+                                  mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                                  mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0, mvoteGranted := false,
+                                  mlog := [], mprevLogIndex := 0, mprevLogTerm := 0, mentries := [], mcommitIndex := 0,
+                                  msuccess := true, mmatchIndex := m.mprevLogIndex + m.mentries.length }
+                                (FieldRepresentation.get (getFrom a✝).messages) <
+                              2 then
+                          LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                            (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                            (CanonicalField.set PUnit.unit
+                              (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                                (TMultiset.insert
+                                  { mtype := MsgType.AppendEntriesResponse,
+                                    mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest,
+                                    msource := m.mdest, mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                                    mvoteGranted := false, mlog := [], mprevLogIndex := 0, mprevLogTerm := 0,
+                                    mentries := [], mcommitIndex := 0, msuccess := true,
+                                    mmatchIndex := m.mprevLogIndex + m.mentries.length }
+                                  (FieldRepresentation.get (getFrom a✝).messages)))
+                              ()
+                              (TMultiset.remove m
+                                (TMultiset.insert
+                                  { mtype := MsgType.AppendEntriesResponse,
+                                    mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest,
+                                    msource := m.mdest, mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0,
+                                    mvoteGranted := false, mlog := [], mprevLogIndex := 0, mprevLogTerm := 0,
+                                    mentries := [], mcommitIndex := 0, msuccess := true,
+                                    mmatchIndex := m.mprevLogIndex + m.mentries.length }
+                                  (FieldRepresentation.get (getFrom a✝).messages))))
+                            (FieldRepresentation.get (getFrom a✝).elections)
+                            (FieldRepresentation.get (getFrom a✝).allLogs)
+                            (FieldRepresentation.get (getFrom a✝).currentTerm)
+                            (FieldRepresentation.get (getFrom a✝).pcState)
+                            (FieldRepresentation.get (getFrom a✝).votedFor)
+                            (FieldRepresentation.get (getFrom a✝).clientRequests)
+                            (FieldRepresentation.get (getFrom a✝).logs)
+                            (CanonicalField.set (inferInstance, PUnit.unit)
+                              (FieldRepresentation.get (getFrom a✝).commitIndex) (some m.mdest, ()) fun x =>
+                              m.mcommitIndex)
+                            (FieldRepresentation.get (getFrom a✝).committedLog)
+                            (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                            (FieldRepresentation.get (getFrom a✝).votesSent)
+                            (FieldRepresentation.get (getFrom a✝).votesGranted)
+                            (FieldRepresentation.get (getFrom a✝).voterLog)
+                            (FieldRepresentation.get (getFrom a✝).nextIndex)
+                            (FieldRepresentation.get (getFrom a✝).matchIndex)
+                        else
+                          LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                            (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                            (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                              (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                            (FieldRepresentation.get (getFrom a✝).elections)
+                            (FieldRepresentation.get (getFrom a✝).allLogs)
+                            (FieldRepresentation.get (getFrom a✝).currentTerm)
+                            (FieldRepresentation.get (getFrom a✝).pcState)
+                            (FieldRepresentation.get (getFrom a✝).votedFor)
+                            (FieldRepresentation.get (getFrom a✝).clientRequests)
+                            (FieldRepresentation.get (getFrom a✝).logs)
+                            (CanonicalField.set (inferInstance, PUnit.unit)
+                              (FieldRepresentation.get (getFrom a✝).commitIndex) (some m.mdest, ()) fun x =>
+                              m.mcommitIndex)
+                            (FieldRepresentation.get (getFrom a✝).committedLog)
+                            (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                            (FieldRepresentation.get (getFrom a✝).votesSent)
+                            (FieldRepresentation.get (getFrom a✝).votesGranted)
+                            (FieldRepresentation.get (getFrom a✝).voterLog)
+                            (FieldRepresentation.get (getFrom a✝).nextIndex)
+                            (FieldRepresentation.get (getFrom a✝).matchIndex)
+                      else
+                        LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                          (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                          (CanonicalField.set PUnit.unit
+                            (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                              (TMultiset.insert
+                                { mtype := MsgType.AppendEntriesResponse,
+                                  mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                                  mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0, mvoteGranted := false,
+                                  mlog := [], mprevLogIndex := 0, mprevLogTerm := 0, mentries := [], mcommitIndex := 0,
+                                  msuccess := true, mmatchIndex := m.mprevLogIndex + m.mentries.length }
+                                (FieldRepresentation.get (getFrom a✝).messages)))
+                            ()
+                            (TMultiset.remove m
+                              (TMultiset.insert
+                                { mtype := MsgType.AppendEntriesResponse,
+                                  mterm := FieldRepresentation.get (getFrom a✝).currentTerm m.mdest, msource := m.mdest,
+                                  mdest := m.msource, mlastLogTerm := 0, mlastLogIndex := 0, mvoteGranted := false,
+                                  mlog := [], mprevLogIndex := 0, mprevLogTerm := 0, mentries := [], mcommitIndex := 0,
+                                  msuccess := true, mmatchIndex := m.mprevLogIndex + m.mentries.length }
+                                (FieldRepresentation.get (getFrom a✝).messages))))
+                          (FieldRepresentation.get (getFrom a✝).elections)
+                          (FieldRepresentation.get (getFrom a✝).allLogs)
+                          (FieldRepresentation.get (getFrom a✝).currentTerm)
+                          (FieldRepresentation.get (getFrom a✝).pcState) (FieldRepresentation.get (getFrom a✝).votedFor)
+                          (FieldRepresentation.get (getFrom a✝).clientRequests)
+                          (FieldRepresentation.get (getFrom a✝).logs)
+                          (CanonicalField.set (inferInstance, PUnit.unit)
+                            (FieldRepresentation.get (getFrom a✝).commitIndex) (some m.mdest, ()) fun x =>
+                            m.mcommitIndex)
+                          (FieldRepresentation.get (getFrom a✝).committedLog)
+                          (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                          (FieldRepresentation.get (getFrom a✝).votesSent)
+                          (FieldRepresentation.get (getFrom a✝).votesGranted)
+                          (FieldRepresentation.get (getFrom a✝).voterLog)
+                          (FieldRepresentation.get (getFrom a✝).nextIndex)
+                          (FieldRepresentation.get (getFrom a✝).matchIndex)
+                    else
+                      if
+                          ((!m.mentries.isEmpty) = true ∧
+                              List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) ≥ m.mprevLogIndex + 1) ∧
+                            (match (FieldRepresentation.get (getFrom a✝).logs m.mdest)[m.mprevLogIndex + 1 - 1]? with
+                              | some entry =>
+                                match m.mentries.head? with
+                                | some firstEntry => decide ¬entry.term = firstEntry.term
+                                | none => false
+                              | none => false) =
+                              true then
+                        LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                          (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE (FieldRepresentation.get (getFrom a✝).messages)
+                          (FieldRepresentation.get (getFrom a✝).elections)
+                          (FieldRepresentation.get (getFrom a✝).allLogs)
+                          (FieldRepresentation.get (getFrom a✝).currentTerm)
+                          (FieldRepresentation.get (getFrom a✝).pcState) (FieldRepresentation.get (getFrom a✝).votedFor)
+                          (FieldRepresentation.get (getFrom a✝).clientRequests)
+                          (CanonicalField.set (inferInstance, PUnit.unit) (FieldRepresentation.get (getFrom a✝).logs)
+                            (some m.mdest, ()) fun x =>
+                            List.take (List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) - 1)
+                              (FieldRepresentation.get (getFrom a✝).logs m.mdest))
+                          (FieldRepresentation.get (getFrom a✝).commitIndex)
+                          (FieldRepresentation.get (getFrom a✝).committedLog)
+                          (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                          (FieldRepresentation.get (getFrom a✝).votesSent)
+                          (FieldRepresentation.get (getFrom a✝).votesGranted)
+                          (FieldRepresentation.get (getFrom a✝).voterLog)
+                          (FieldRepresentation.get (getFrom a✝).nextIndex)
+                          (FieldRepresentation.get (getFrom a✝).matchIndex)
+                      else
+                        if
+                            (!m.mentries.isEmpty) = true ∧
+                              List.length (FieldRepresentation.get (getFrom a✝).logs m.mdest) = m.mprevLogIndex then
+                          LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                            (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE (FieldRepresentation.get (getFrom a✝).messages)
+                            (FieldRepresentation.get (getFrom a✝).elections)
+                            (FieldRepresentation.get (getFrom a✝).allLogs)
+                            (FieldRepresentation.get (getFrom a✝).currentTerm)
+                            (FieldRepresentation.get (getFrom a✝).pcState)
+                            (FieldRepresentation.get (getFrom a✝).votedFor)
+                            (FieldRepresentation.get (getFrom a✝).clientRequests)
+                            (CanonicalField.set (inferInstance, PUnit.unit) (FieldRepresentation.get (getFrom a✝).logs)
+                              (some m.mdest, ()) fun x =>
+                              FieldRepresentation.get (getFrom a✝).logs m.mdest ++
+                                match m.mentries.head? with
+                                | some firstEntry => [firstEntry]
+                                | none => [])
+                            (FieldRepresentation.get (getFrom a✝).commitIndex)
+                            (FieldRepresentation.get (getFrom a✝).committedLog)
+                            (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                            (FieldRepresentation.get (getFrom a✝).votesSent)
+                            (FieldRepresentation.get (getFrom a✝).votesGranted)
+                            (FieldRepresentation.get (getFrom a✝).voterLog)
+                            (FieldRepresentation.get (getFrom a✝).nextIndex)
+                            (FieldRepresentation.get (getFrom a✝).matchIndex)
+                        else
+                          LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                            (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE (FieldRepresentation.get (getFrom a✝).messages)
+                            (FieldRepresentation.get (getFrom a✝).elections)
+                            (FieldRepresentation.get (getFrom a✝).allLogs)
+                            (FieldRepresentation.get (getFrom a✝).currentTerm)
+                            (FieldRepresentation.get (getFrom a✝).pcState)
+                            (FieldRepresentation.get (getFrom a✝).votedFor)
+                            (FieldRepresentation.get (getFrom a✝).clientRequests)
+                            (FieldRepresentation.get (getFrom a✝).logs)
+                            (FieldRepresentation.get (getFrom a✝).commitIndex)
+                            (FieldRepresentation.get (getFrom a✝).committedLog)
+                            (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                            (FieldRepresentation.get (getFrom a✝).votesSent)
+                            (FieldRepresentation.get (getFrom a✝).votesGranted)
+                            (FieldRepresentation.get (getFrom a✝).voterLog)
+                            (FieldRepresentation.get (getFrom a✝).nextIndex)
+                            (FieldRepresentation.get (getFrom a✝).matchIndex)
+                  else
+                    LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                      (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE (FieldRepresentation.get (getFrom a✝).messages)
+                      (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                      (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                      (FieldRepresentation.get (getFrom a✝).votedFor)
+                      (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                      (FieldRepresentation.get (getFrom a✝).commitIndex)
+                      (FieldRepresentation.get (getFrom a✝).committedLog)
+                      (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                      (FieldRepresentation.get (getFrom a✝).votesSent)
+                      (FieldRepresentation.get (getFrom a✝).votesGranted)
+                      (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                      (FieldRepresentation.get (getFrom a✝).matchIndex)
+            else __veil_handler 11
+          else
+            if m.mtype = MsgType.AppendEntriesResponse then
+              if m.mterm < FieldRepresentation.get (getFrom a✝).currentTerm m.mdest then
+                if m.mterm < FieldRepresentation.get (getFrom a✝).currentTerm m.mdest then
+                  LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                    (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                    (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                      (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                    (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                    (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                    (FieldRepresentation.get (getFrom a✝).votedFor)
+                    (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                    (FieldRepresentation.get (getFrom a✝).commitIndex)
+                    (FieldRepresentation.get (getFrom a✝).committedLog)
+                    (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                    (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                    (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                    (FieldRepresentation.get (getFrom a✝).matchIndex)
+                else __veil_handler 14
+              else
+                if m.mterm = FieldRepresentation.get (getFrom a✝).currentTerm m.mdest then
+                  if m.msuccess = true then
+                    LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                      (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                      (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                        (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                      (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                      (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                      (FieldRepresentation.get (getFrom a✝).votedFor)
+                      (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                      (FieldRepresentation.get (getFrom a✝).commitIndex)
+                      (FieldRepresentation.get (getFrom a✝).committedLog)
+                      (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                      (FieldRepresentation.get (getFrom a✝).votesSent)
+                      (FieldRepresentation.get (getFrom a✝).votesGranted)
+                      (FieldRepresentation.get (getFrom a✝).voterLog)
+                      (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                        (FieldRepresentation.get (getFrom a✝).nextIndex) (some m.mdest, some m.msource, ()) fun x x_1 =>
+                        m.mmatchIndex + 1)
+                      (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                        (FieldRepresentation.get (getFrom a✝).matchIndex) (some m.mdest, some m.msource, ())
+                        fun x x_1 => m.mmatchIndex)
+                  else
+                    LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                      (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE
+                      (CanonicalField.set PUnit.unit (FieldRepresentation.get (getFrom a✝).messages) ()
+                        (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                      (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                      (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                      (FieldRepresentation.get (getFrom a✝).votedFor)
+                      (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                      (FieldRepresentation.get (getFrom a✝).commitIndex)
+                      (FieldRepresentation.get (getFrom a✝).committedLog)
+                      (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                      (FieldRepresentation.get (getFrom a✝).votesSent)
+                      (FieldRepresentation.get (getFrom a✝).votesGranted)
+                      (FieldRepresentation.get (getFrom a✝).voterLog)
+                      (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                        (FieldRepresentation.get (getFrom a✝).nextIndex) (some m.mdest, some m.msource, ()) fun x x_1 =>
+                        (FieldRepresentation.get (getFrom a✝).nextIndex m.mdest m.msource - 1).max 1)
+                      (FieldRepresentation.get (getFrom a✝).matchIndex)
+                else __veil_handler 12
+            else
+              LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE (FieldRepresentation.get (getFrom a✝).messages)
+                (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                (FieldRepresentation.get (getFrom a✝).votedFor) (FieldRepresentation.get (getFrom a✝).clientRequests)
+                (FieldRepresentation.get (getFrom a✝).logs) (FieldRepresentation.get (getFrom a✝).commitIndex)
+                (FieldRepresentation.get (getFrom a✝).committedLog)
+                (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                (FieldRepresentation.get (getFrom a✝).matchIndex)
+  step3Target: Receive.ext.wp (Theory server serverSet serverStates value logSet msetMsg electionSet)
+  (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+  serverStates value logSet msetMsg electionSet
+  (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) __veil_handler
+  (fun __veil_u __veil_th __veil_st =>
+    Theory.casesOn __veil_th fun Nil MaxClientRequests fixServer SIZE =>
+      State.casesOn __veil_st
+        fun messages elections allLogs currentTerm pcState votedFor clientRequests logs commitIndex committedLog
+          committedLogDecrease votesSent votesGranted voterLog nextIndex matchIndex =>
+        LocalRProp.core χ (__veil_post ()) Nil MaxClientRequests fixServer SIZE messages elections allLogs currentTerm
+          pcState votedFor clientRequests logs commitIndex committedLog committedLogDecrease votesSent votesGranted
+          voterLog nextIndex matchIndex)
+  (readFrom a✝¹)
+  (State.casesOn (getFrom a✝)
+    fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+      logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+      voterLog_conc nextIndex_conc matchIndex_conc =>
+    let messages := FieldRepresentation.get messages_conc;
+    let elections := FieldRepresentation.get elections_conc;
+    let allLogs := FieldRepresentation.get allLogs_conc;
+    let currentTerm := FieldRepresentation.get currentTerm_conc;
+    let pcState := FieldRepresentation.get pcState_conc;
+    let votedFor := FieldRepresentation.get votedFor_conc;
+    let clientRequests := FieldRepresentation.get clientRequests_conc;
+    let logs := FieldRepresentation.get logs_conc;
+    let commitIndex := FieldRepresentation.get commitIndex_conc;
+    let committedLog := FieldRepresentation.get committedLog_conc;
+    let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+    let votesSent := FieldRepresentation.get votesSent_conc;
+    let votesGranted := FieldRepresentation.get votesGranted_conc;
+    let voterLog := FieldRepresentation.get voterLog_conc;
+    let nextIndex := FieldRepresentation.get nextIndex_conc;
+    let matchIndex := FieldRepresentation.get matchIndex_conc;
+    { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm, pcState := pcState,
+      votedFor := votedFor, clientRequests := clientRequests, logs := logs, commitIndex := commitIndex,
+      committedLog := committedLog, committedLogDecrease := committedLogDecrease, votesSent := votesSent,
+      votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex, matchIndex := matchIndex })
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean:1082:0: warning: unable to generate transition weakening theorem for Receive.ext: Failed to prove source → target (via transitionWeakeningLemma) for Receive.ext in defineTransitionAbstract, goal: Receive.ext.tr
+    ρ σ server serverSet serverStates value logSet msetMsg electionSet χ r₀ s₀ s₁ →
+  Receive.ext.tr (Theory server serverSet serverStates value logSet msetMsg electionSet)
+    (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+    serverStates value logSet msetMsg electionSet
+    (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) (readFrom r₀)
+    (State.casesOn (getFrom s₀)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+        voterLog_conc nextIndex_conc matchIndex_conc =>
+      let messages := FieldRepresentation.get messages_conc;
+      let elections := FieldRepresentation.get elections_conc;
+      let allLogs := FieldRepresentation.get allLogs_conc;
+      let currentTerm := FieldRepresentation.get currentTerm_conc;
+      let pcState := FieldRepresentation.get pcState_conc;
+      let votedFor := FieldRepresentation.get votedFor_conc;
+      let clientRequests := FieldRepresentation.get clientRequests_conc;
+      let logs := FieldRepresentation.get logs_conc;
+      let commitIndex := FieldRepresentation.get commitIndex_conc;
+      let committedLog := FieldRepresentation.get committedLog_conc;
+      let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+      let votesSent := FieldRepresentation.get votesSent_conc;
+      let votesGranted := FieldRepresentation.get votesGranted_conc;
+      let voterLog := FieldRepresentation.get voterLog_conc;
+      let nextIndex := FieldRepresentation.get nextIndex_conc;
+      let matchIndex := FieldRepresentation.get matchIndex_conc;
+      { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm,
+        pcState := pcState, votedFor := votedFor, clientRequests := clientRequests, logs := logs,
+        commitIndex := commitIndex, committedLog := committedLog, committedLogDecrease := committedLogDecrease,
+        votesSent := votesSent, votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex,
+        matchIndex := matchIndex })
+    (State.casesOn (getFrom s₁)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+        voterLog_conc nextIndex_conc matchIndex_conc =>
+      let messages := FieldRepresentation.get messages_conc;
+      let elections := FieldRepresentation.get elections_conc;
+      let allLogs := FieldRepresentation.get allLogs_conc;
+      let currentTerm := FieldRepresentation.get currentTerm_conc;
+      let pcState := FieldRepresentation.get pcState_conc;
+      let votedFor := FieldRepresentation.get votedFor_conc;
+      let clientRequests := FieldRepresentation.get clientRequests_conc;
+      let logs := FieldRepresentation.get logs_conc;
+      let commitIndex := FieldRepresentation.get commitIndex_conc;
+      let committedLog := FieldRepresentation.get committedLog_conc;
+      let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+      let votesSent := FieldRepresentation.get votesSent_conc;
+      let votesGranted := FieldRepresentation.get votesGranted_conc;
+      let voterLog := FieldRepresentation.get voterLog_conc;
+      let nextIndex := FieldRepresentation.get nextIndex_conc;
+      let matchIndex := FieldRepresentation.get matchIndex_conc;
+      { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm,
+        pcState := pcState, votedFor := votedFor, clientRequests := clientRequests, logs := logs,
+        commitIndex := commitIndex, committedLog := committedLog, committedLogDecrease := committedLogDecrease,
+        votesSent := votesSent, votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex,
+        matchIndex :=
+          matchIndex }), proof script: by
+  classical
+  have h :=
+    @_transitionWeakeningLemma ρ σ server server_dec_eq server_inhabited serverSet serverSet_dec_eq serverSet_inhabited
+      sSet serverStates serverStates_dec_eq serverStates_inhabited serverStates_Enum value value_dec_eq value_inhabited
+      logSet logSet_dec_eq logSet_inhabited lSet msetMsg msetMsg_dec_eq msetMsg_inhabited mSet electionSet
+      electionSet_dec_eq electionSet_inhabited eSet χ χ_rep χ_rep_lawful σ_sub ρ_sub r₀ s₀ s₁ (__veil_tr :=
+      fun ρ_ σ_ χ_ χ_rep_ χ_rep_lawful_ σ_sub_ ρ_sub_ =>
+      (@Receive.ext.tr ρ_ σ_ server _ _ serverSet _ _ _ serverStates _ _ _ value _ _ logSet _ _ _ msetMsg _ _ _
+        electionSet _ _ _ χ_ _ _ _ _ _))
+      (__veil_act := fun ρ_ σ_ χ_ χ_rep_ χ_rep_lawful_ σ_sub_ ρ_sub_ =>
+      (@Receive.ext ρ_ σ_ server _ _ serverSet _ _ _ serverStates _ _ _ value _ _ logSet _ _ _ msetMsg _ _ _ electionSet
+        _ _ _ χ_ _ _ _ _ _))
+      (__veil_pred :=
+      @Receive.ext.wp_local_eq.pred server server_dec_eq server_inhabited serverSet serverSet_dec_eq serverSet_inhabited
+        sSet serverStates serverStates_dec_eq serverStates_inhabited serverStates_Enum value value_dec_eq
+        value_inhabited logSet logSet_dec_eq logSet_inhabited lSet msetMsg msetMsg_dec_eq msetMsg_inhabited mSet
+        electionSet electionSet_dec_eq electionSet_inhabited eSet)
+      (__veil_tr_derived_eq := by intros; rw [Receive.ext.derived_eq]) (__veil_wp_local_eq := by intros;
+      rw [Receive.ext.wp_local_eq]) (__veil_wp_eq := by intros; rw [Receive.ext.wp_eq, Receive.ext.wp_eq.local])
+  __veil_neutralize_decidable_inst  at *
+  exact
+    h, error: Invalid field `wp_local_eq`: The environment does not contain `NonDetT.wp_local_eq`, so it is not possible to project the field `wp_local_eq` from an expression
+  Receive.ext
+of type
+  NonDetT (VeilExecM Mode.external ?m.602 ?m.603) Unit
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean:1177:0: warning: you have not defined any invariants for this specification; did you forget?
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean:1177:0: warning: unable to prove Next.tr_abstract: Unknown constant `Receive.ext.tr_abstract`
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean:1194:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean:1217:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean:1243:37: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean:1265:37: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch2.lean:1284:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.

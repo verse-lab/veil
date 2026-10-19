@@ -1,0 +1,32 @@
+Emitted text can still be rejected by cvc5
+
+The primary sweep emits 15 scripts that cvc5 rejects before solving:
+  ChordRingMaintenance: old depths1,2; early depths1,2,4,8,16.
+  SuzukiKasami: old depths1,2,4; early depths1,2,4,8,16.
+All report: Expected SMT-LIBv2 sort constructor, got `(` (LPAREN_TOK).
+These count as emitted queries and solver errors, never as solved queries or
+valid SMT inputs. The same failure at depth1 in both variants makes this a
+pre-existing backend issue, not an early-introduction regression.
+
+The raw scripts contain the invalid declaration:
+  (declare-sort Decidable 1)
+  (declare-const Decidable.decide (forall ((p Bool)) ((Decidable p) -> Bool)))
+The second command places a dependent Lean function-type translation where
+SMT-LIB requires a sort. This is not a resource-limit failure. Generic translation
+must not silently serialize this form as a valid sort. Either lower its intended
+Boolean operation exactly, or reject unsupported dependent computational types
+with a diagnostic identifying the original Lean term before emitting a script.
+
+The direct decide translator in diagnostics/ is a targeted trusted-only candidate:
+translate decide p to the SMT Boolean formula for p, excluding its proof-computation
+instance from term dependencies. This needs the same reconstruction/model tests
+as discussed in PAXOS_UNIVERSE_FINDINGS.txt. A similar-looking residual is a reason
+to test the candidate on both models, not proof it fixes all related failures.
+Post-sweep production probes reproduce both parser failures, and the standalone
+decide candidate reaches UNSAT at depth1 for both models. These are trusted-only
+checks; no kernel reconstruction or SAT model decoding is established by them.
+Full results are recorded in DIAGNOSTICS_README.txt.
+
+Reporting consequence: query emission, successful SMT parsing, and a definite
+solver answer are distinct milestones. The report retains parser errors in the
+outcome strips and excludes their elapsed time from completed-solver curves.

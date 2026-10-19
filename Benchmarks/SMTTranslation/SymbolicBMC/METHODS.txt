@@ -1,0 +1,101 @@
+Symbolic BMC query-generation and solver sweep for Veil issue #123
+
+Scope
+  The inventory includes all 49 Examples files declaring a Veil model. The
+  supporting SCPTheory file is excluded as a benchmark row and retained as an
+  import. Each source is extracted before its first real #gen_spec, then the
+  specification is generated once. See manifest.json and INVENTORY_METHODS.txt
+  for each source, extraction boundary, query, original options and caveats.
+
+  Every model is requested at exactly 1, 2, 4, 8, 16 and 32 actions, for both
+  pipelines. These samples do not check every length <= N. Depth 1 uses the
+  DSL's `any action` syntax; larger depths use `any N actions`. No deeper cell
+  is inferred from an earlier failure. A model setup failure prevents query
+  attempts and is reported as blocked_model_setup, not as a failed BMC query.
+
+Pipelines and results
+  old: the original nextSimp -> guarded existential hoist -> intros/destruct ->
+       dispatcher dsimp -> smtSimp -> dispatcher dsimp pipeline.
+  early: the same pipeline, preceded by the conservative data-prefix helper
+       which stops before the first proposition-valued binder.
+
+  Both are explicit, so comparison does not depend on which production order
+  is installed. Backend preprocessing reproduces Veil's trusted SMT path:
+  cleanup -> pushHints -> intros -> negateGoal -> normalize -> embedding with
+  embedBool=false -> query translation -> serialization using logic ALL.
+  Production's backwards-compatibility options and withoutRecover behavior
+  are retained. Reconstruction maps and async UI callbacks are omitted because
+  they do not feed the generated query.
+
+  Query extraction deliberately raises a terminal error after writing the
+  SMT-LIB file. Generated scaffolds contain no sorry and provide no verified
+  theorem. An expected terminal extraction error is not classified as a
+  translation failure. Separate solver replay checks the exact recorded query
+  SHA-256. Outcomes are SAT/UNSAT/unknown/timeout/error, not a claim of kernel
+  proof reconstruction or model/trace UI reconstruction. Goal closure during
+  preprocessing is reported separately as unsat_preprocessing.
+
+Limits
+  Original model setup options remain in force until #gen_spec completes.
+  Each query explicitly uses maxHeartbeats=200000, maxRecDepth=512 (this Lean
+  version's defaults), and the usual simp maxSteps=100000. Query translation
+  uses trust=true, finiteModelFind=true uniformly, including models whose
+  original source sets a different option. This is a standardized query
+  profile, not a claim to preserve every example's original solver settings.
+
+  Model setup, query elaboration, and the timed translation pipeline each have
+  a 60-second external cap. A process-group watchdog kills a timed-out active
+  cell; completed cells survive, and unstarted cells are retried after fresh
+  model setup. Native cvc5 replay uses a 10-second checkSat cap (tlimit-per)
+  and a 15-second external watchdog around the entire Smt.solve call. Solver
+  creation, SMT-LIB parsing and native model/unsat-core retrieval fall outside
+  tlimit-per but inside that external watchdog. The optional relaxed profile (0 heartbeats, recursion
+  10000) is diagnostic only and uses distinct cell/profile names.
+
+Execution and timing
+  Translation batches share one model setup, then execute separate trace
+  commands with fresh Lean command budgets. Original/early order alternates
+  across depth and model. Elab.async=false is set immediately after imports,
+  before model declarations. All measured processes run sequentially.
+  Shared caches can influence single-sample timings; these data are a broad
+  capability/status sweep, not statistical speed estimates. Earlier repeated
+  seven-model measurements remain a separate dataset.
+
+  Both translation and solver processes load the native cvc5 plugin: some
+  model setup commands invoke SMT before the measured query. The initial run
+  without that plugin was discarded in full and retained only under
+  superseded-pre-plugin for debugging; it is not part of final results.
+
+  Individual successful stage wall times exclude event-file IO. Completed
+  query time is the sum of successful Veil and SMT preprocessing, translation
+  and serialization stages; it excludes model setup, trace VC elaboration,
+  process startup and solver time. Solver time covers all of Smt.solve:
+  solver creation, SMT-LIB parsing, checkSat and native model/unsat-core
+  retrieval; it is not pure checkSat time. The
+  completed-total column sums query stages and a definite SAT/UNSAT solve.
+  It is not end-to-end wall time. Shared process wall/setup times are recorded
+  separately under batch-events and solver-batches, never apportioned or
+  repeatedly summed across cells. Failure elapsed time is never substituted
+  for completed work.
+
+Artifacts
+  results/metadata.json: model inventory, options, versions/hashes, methods.
+  results/runner-snapshot/: exact runner and inventory copies for this run.
+  results/requested-cells.json: all 588 requested model/depth/variant cells.
+  results/cells/*.json: per-cell status, stage events and execution provenance.
+  results/runs.csv and stages.csv: report-friendly summaries. Error summaries
+    are capped at 8 KiB; full raw errors remain in events and batch logs.
+  results/queries/*.smt2: successfully emitted exact solver inputs.
+  results/batch-sources and batch-logs: model-batched Lean source and raw output.
+  results/batch-events/*.execution.json: translation process wall/setup times.
+  results/solver-sources and solver-batches: replay source and batch provenance.
+
+Reproduction (after lake build Veil)
+  python3 run_batch.py --repo /path/to/veil --out results
+  python3 solve_batch.py --repo /path/to/veil --out results --solver-timeout 10
+
+  Existing completed checkpoints are retained on resume. Use a fresh output
+  directory when changing model/query definitions, helper code, or resource
+  profile. A partially interrupted model batch can repeat its unfinished work.
+  The standalone run.py runner is retained for isolated-cell diagnostics;
+  it is intentionally not mixed into the main batched timing dataset.

@@ -1,0 +1,12 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_POPL26_RingFin__default__batch1.lean:176:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_POPL26_RingFin__default__batch1.lean:198:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_POPL26_RingFin__default__batch1.lean:221:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_POPL26_RingFin__default__batch1.lean:244:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_POPL26_RingFin__default__batch1.lean:266:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_POPL26_RingFin__default__batch1.lean:288:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_POPL26_RingFin__default__batch1.lean:311:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_POPL26_RingFin__default__batch1.lean:334:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_POPL26_RingFin__default__batch1.lean:356:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_POPL26_RingFin__default__batch1.lean:378:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_POPL26_RingFin__default__batch1.lean:401:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_POPL26_RingFin__default__batch1.lean:426:37: error: `simp` failed: maximum number of steps exceeded

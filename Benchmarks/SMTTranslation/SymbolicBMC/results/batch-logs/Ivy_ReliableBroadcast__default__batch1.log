@@ -1,0 +1,18 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:321:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:343:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:366:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:389:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:411:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:433:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:456:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:481:37: error: `simp` failed: maximum number of steps exceeded
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:503:37: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:523:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:546:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:571:37: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information

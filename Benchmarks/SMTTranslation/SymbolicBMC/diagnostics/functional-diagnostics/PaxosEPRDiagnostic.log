@@ -1,0 +1,492 @@
+/tmp/veil-symbolic-bmc/paxos-universe-candidates/PaxosEPRDiagnostic.lean:159:2: error: incorrect number of universe levels DecidableEq
+[smt.translate.query] 💥️ 
+  [smt.translate.query] Provided Hints: [__veil_tag.complete,
+       __veil_tag.distinct,
+       tot.le_total,
+       tot.le_antisymm,
+       tot.le_trans,
+       tot.le_refl,
+       a✝]
+  [smt.translate.query] Definitions: []
+  [smt.translate.query] processing __veil_tag.complete : ∀ (__veil_x : ActionTag),
+        Or (@Eq.{1} ActionTag __veil_x __veil_tag.send_1a)
+          (Or (@Eq.{1} ActionTag __veil_x __veil_tag.join_round)
+            (Or (@Eq.{1} ActionTag __veil_x __veil_tag.propose)
+              (Or (@Eq.{1} ActionTag __veil_x __veil_tag.cast_vote) (@Eq.{1} ActionTag __veil_x __veil_tag.decide))))
+  [smt.translate.query] deps: [__veil_tag.propose,
+       __veil_tag.send_1a,
+       __veil_tag.decide,
+       ActionTag,
+       __veil_tag.cast_vote,
+       __veil_tag.join_round]
+  [smt.translate.query] processing __veil_tag.propose : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] processing ActionTag : Type
+  [smt.translate.query] Type : Type 1
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing __veil_tag.send_1a : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] processing __veil_tag.decide : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] processing __veil_tag.cast_vote : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] processing __veil_tag.join_round : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] processing __veil_tag.distinct : @distinctN.{0} ActionTag
+        (@List.cons.{0} ActionTag __veil_tag.send_1a
+          (@List.cons.{0} ActionTag __veil_tag.join_round
+            (@List.cons.{0} ActionTag __veil_tag.propose
+              (@List.cons.{0} ActionTag __veil_tag.cast_vote
+                (@List.cons.{0} ActionTag __veil_tag.decide (@List.nil.{0} ActionTag))))))
+  [smt.translate.query] deps: [__veil_tag.propose,
+       __veil_tag.send_1a,
+       __veil_tag.decide,
+       __veil_tag.cast_vote,
+       __veil_tag.join_round]
+  [smt.translate.query] processing tot.le_total : ∀ (x y : round), Or (tot.le x y) (tot.le y x)
+  [smt.translate.query] deps: [tot.le, round]
+  [smt.translate.query] processing tot.le : round → round → Prop
+  [smt.translate.query] round → round → Prop : Type
+  [smt.translate.query] deps: [round]
+  [smt.translate.query] processing round : Type
+  [smt.translate.query] Type : Type 1
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing tot.le_antisymm : ∀ (x y : round), tot.le x y → tot.le y x → @Eq.{1} round x y
+  [smt.translate.query] deps: [tot.le, round]
+  [smt.translate.query] processing tot.le_trans : ∀ (x y z : round), tot.le x y → tot.le y z → tot.le x z
+  [smt.translate.query] deps: [tot.le, round]
+  [smt.translate.query] processing tot.le_refl : ∀ (x : round), tot.le x x
+  [smt.translate.query] deps: [tot.le, round]
+  [smt.translate.query] processing a✝ : Not
+        (Not
+          (And
+            (And
+              (∀ (Q1 Q2 : quorum),
+                @Exists.{1} node fun N => And (@Eq.{1} Bool (th.member N Q1) true) (@Eq.{1} Bool (th.member N Q2) true))
+              (And (@Eq.{1} round round_inhabited.default st0.none)
+                (And (∀ (a : round), @Eq.{1} Bool false (st0.one_a a))
+                  (And
+                    (∀ (a : node) (a_1 a_2 : round) (a_3 : value),
+                      @Eq.{1} Bool false (st0.one_b_max_vote a a_1 a_2 a_3))
+                    (And (∀ (a : node) (a_1 : round), @Eq.{1} Bool false (st0.one_b a a_1))
+                      (And (∀ (a : node) (a_1 : round), @Eq.{1} Bool false (st0.left_rnd a a_1))
+                        (And (∀ (a : round) (a_1 : value), @Eq.{1} Bool false (st0.proposal a a_1))
+                          (And (∀ (a : node) (a_1 : round) (a_2 : value), @Eq.{1} Bool false (st0.vote a a_1 a_2))
+                            (∀ (a : node) (a_1 : round) (a_2 : value),
+                              @Eq.{1} Bool false (st0.decision a a_1 a_2))))))))))
+            (And
+              (Or
+                (And (@Eq.{1} ActionTag _tr1_tag __veil_tag.send_1a)
+                  (And (Not (@Eq.{1} round _tr1_act_send_1a_arg0_r st0.none))
+                    (And (@Eq.{1} round st0.none st1.none)
+                      (And
+                        (∀ (a : round),
+                          @Eq.{1} Bool
+                            (@ite.{1} Bool (@Eq.{1} round _tr1_act_send_1a_arg0_r a)
+                              (round_dec_eq _tr1_act_send_1a_arg0_r a) true (st0.one_a a))
+                            (st1.one_a a))
+                        (And
+                          (∀ (a : node) (a_1 a_2 : round) (a_3 : value),
+                            @Eq.{1} Bool (st0.one_b_max_vote a a_1 a_2 a_3) (st1.one_b_max_vote a a_1 a_2 a_3))
+                          (And (∀ (a : node) (a_1 : round), @Eq.{1} Bool (st0.one_b a a_1) (st1.one_b a a_1))
+                            (And (∀ (a : node) (a_1 : round), @Eq.{1} Bool (st0.left_rnd a a_1) (st1.left_rnd a a_1))
+                              (And (∀ (a : round) (a_1 : value), @Eq.{1} Bool (st0.proposal a a_1) (st1.proposal a a_1))
+                                (And
+                                  (∀ (a : node) (a_1 : round) (a_2 : value),
+                                    @Eq.{1} Bool (st0.vote a a_1 a_2) (st1.vote a a_1 a_2))
+                                  (∀ (a : node) (a_1 : round) (a_2 : value),
+                                    @Eq.{1} Bool (st0.decision a a_1 a_2) (st1.decision a a_1 a_2)))))))))))
+                (Or
+                  (And (@Eq.{1} ActionTag _tr1_tag __veil_tag.join_round)
+                    (And (Not (@Eq.{1} round _tr1_act_join_round_arg1_r st0.none))
+                      (And (@Eq.{1} Bool (st0.one_a _tr1_act_join_round_arg1_r) true)
+                        (And
+                          (Not (@Eq.{1} Bool (st0.left_rnd _tr1_act_join_round_arg0_n _tr1_act_join_round_arg1_r) true))
+                          (@Exists.{1} round fun x =>
+                            @Exists.{1} value fun x_1 =>
+                              And
+                                (Or
+                                  (And (@Eq.{1} round x st0.none)
+                                    (∀ (mAXR : round) (v' : value),
+                                      Not (tot.le _tr1_act_join_round_arg1_r mAXR) →
+                                        Not (@Eq.{1} Bool (st0.vote _tr1_act_join_round_arg0_n mAXR v') true)))
+                                  (And (Not (@Eq.{1} round x st0.none))
+                                    (And (Not (tot.le _tr1_act_join_round_arg1_r x))
+                                      (And (@Eq.{1} Bool (st0.vote _tr1_act_join_round_arg0_n x x_1) true)
+                                        (∀ (mAXR : round) (v' : value),
+                                          Not (tot.le _tr1_act_join_round_arg1_r mAXR) →
+                                            @Eq.{1} Bool (st0.vote _tr1_act_join_round_arg0_n mAXR v') true →
+                                              tot.le mAXR x)))))
+                                (And (@Eq.{1} round st0.none st1.none)
+                                  (And (∀ (a : round), @Eq.{1} Bool (st0.one_a a) (st1.one_a a))
+                                    (And
+                                      (∀ (a : node) (a_1 a_2 : round) (a_3 : value),
+                                        @Eq.{1} Bool
+                                          (@ite.{1} Bool
+                                            (And (@Eq.{1} node _tr1_act_join_round_arg0_n a)
+                                              (And (@Eq.{1} round _tr1_act_join_round_arg1_r a_1)
+                                                (And (@Eq.{1} round x a_2) (@Eq.{1} value x_1 a_3))))
+                                            (@instDecidableAnd (@Eq.{1} node _tr1_act_join_round_arg0_n a)
+                                              (And (@Eq.{1} round _tr1_act_join_round_arg1_r a_1)
+                                                (And (@Eq.{1} round x a_2) (@Eq.{1} value x_1 a_3)))
+                                              (node_dec_eq _tr1_act_join_round_arg0_n a)
+                                              (@instDecidableAnd (@Eq.{1} round _tr1_act_join_round_arg1_r a_1)
+                                                (And (@Eq.{1} round x a_2) (@Eq.{1} value x_1 a_3))
+                                                (round_dec_eq _tr1_act_join_round_arg1_r a_1)
+                                                (@instDecidableAnd (@Eq.{1} round x a_2) (@Eq.{1} value x_1 a_3)
+                                                  (round_dec_eq x a_2) (value_dec_eq x_1 a_3))))
+                                            true (st0.one_b_max_vote a a_1 a_2 a_3))
+                                          (st1.one_b_max_vote a a_1 a_2 a_3))
+                                      (And
+                                        (∀ (a : node) (a_1 : round),
+                                          @Eq.{1} Bool
+                                            (@ite.{1} Bool
+                                              (And (@Eq.{1} node _tr1_act_join_round_arg0_n a)
+                                                (@Eq.{1} round _tr1_act_join_round_arg1_r a_1))
+                                              (@instDecidableAnd (@Eq.{1} node _tr1_act_join_round_arg0_n a)
+                                                (@Eq.{1} round _tr1_act_join_round_arg1_r a_1)
+                                                (node_dec_eq _tr1_act_join_round_arg0_n a)
+                                                (round_dec_eq _tr1_act_join_round_arg1_r a_1))
+                                              true (st0.one_b a a_1))
+                                            (st1.one_b a a_1))
+                                        (And
+                                          (∀ (a : node) (a_1 : round),
+                                            @Eq.{1} Bool
+                                              (@ite.{1} Bool (@Eq.{1} node _tr1_act_join_round_arg0_n a)
+                                                (node_dec_eq _tr1_act_join_round_arg0_n a)
+                                                (@Decidable.decide
+                                                  (Or (@Eq.{1} Bool (st0.left_rnd _tr1_act_join_round_arg0_n a_1) true)
+                                                    (Not (tot.le _tr1_act_join_round_arg1_r a_1)))
+                                                  (@instDecidableOr
+                                                    (@Eq.{1} Bool (st0.left_rnd _tr1_act_join_round_arg0_n a_1) true)
+                                                    (Not (tot.le _tr1_act_join_round_arg1_r a_1))
+                                                    (instDecidableEqBool (st0.left_rnd _tr1_act_join_round_arg0_n a_1)
+                                                      true)
+                                                    (@instDecidableNot (tot.le _tr1_act_join_round_arg1_r a_1)
+                                                      (Classical.propDecidable
+                                                        (tot.le _tr1_act_join_round_arg1_r a_1)))))
+                                                (st0.left_rnd a a_1))
+                                              (st1.left_rnd a a_1))
+                                          (And
+                                            (∀ (a : round) (a_1 : value),
+                                              @Eq.{1} Bool (st0.proposal a a_1) (st1.proposal a a_1))
+                                            (And
+                                              (∀ (a : node) (a_1 : round) (a_2 : value),
+                                                @Eq.{1} Bool (st0.vote a a_1 a_2) (st1.vote a a_1 a_2))
+                                              (∀ (a : node) (a_1 : round) (a_2 : value),
+                                                @Eq.{1} Bool (st0.decision a a_1 a_2)
+                                                  (st1.decision a a_1 a_2))))))))))))))
+                  (Or
+                    (And (@Eq.{1} ActionTag _tr1_tag __veil_tag.propose)
+                      (And (Not (@Eq.{1} round _tr1_act_propose_arg0_r st0.none))
+                        (And (∀ (V : value), Not (@Eq.{1} Bool (st0.proposal _tr1_act_propose_arg0_r V) true))
+                          (And
+                            (∀ (N : node),
+                              @Eq.{1} Bool (th.member N _tr1_act_propose_arg1_q) true →
+                                @Eq.{1} Bool (st0.one_b N _tr1_act_propose_arg0_r) true)
+                            (@Exists.{1} round fun x =>
+                              @Exists.{1} value fun x_1 =>
+                                And
+                                  (∀ (N : node),
+                                    Or
+                                      (And (@Eq.{1} round x st0.none)
+                                        (∀ (n : node) (mAXR : round) (v' : value),
+                                          @Eq.{1} Bool (th.member n _tr1_act_propose_arg1_q) true →
+                                            Not (tot.le _tr1_act_propose_arg0_r mAXR) →
+                                              Not (@Eq.{1} Bool (st0.vote n mAXR v') true)))
+                                      (And (Not (@Eq.{1} round x st0.none))
+                                        (And
+                                          (@Exists.{1} node fun n =>
+                                            And (@Eq.{1} Bool (th.member n _tr1_act_propose_arg1_q) true)
+                                              (And (Not (tot.le _tr1_act_propose_arg0_r x))
+                                                (@Eq.{1} Bool (st0.vote n x x_1) true)))
+                                          (∀ (n : node) (mAXR : round) (v' : value),
+                                            @Eq.{1} Bool (th.member n _tr1_act_propose_arg1_q) true →
+                                              Not (tot.le _tr1_act_propose_arg0_r mAXR) →
+                                                @Eq.{1} Bool (st0.vote N mAXR v') true → tot.le mAXR x))))
+                                  (And (@Eq.{1} round st0.none st1.none)
+                                    (And (∀ (a : round), @Eq.{1} Bool (st0.one_a a) (st1.one_a a))
+                                      (And
+                                        (∀ (a : node) (a_1 a_2 : round) (a_3 : value),
+                                          @Eq.{1} Bool (st0.one_b_max_vote a a_1 a_2 a_3)
+                                            (st1.one_b_max_vote a a_1 a_2 a_3))
+                                        (And
+                                          (∀ (a : node) (a_1 : round), @Eq.{1} Bool (st0.one_b a a_1) (st1.one_b a a_1))
+                                          (And
+                                            (∀ (a : node) (a_1 : round),
+                                              @Eq.{1} Bool (st0.left_rnd a a_1) (st1.left_rnd a a_1))
+                                            (And
+                                              (∀ (a : round) (a_1 : value),
+                                                @Eq.{1} Bool
+                                                  (@ite.{1} Bool
+                                                    (And (@Eq.{1} round _tr1_act_propose_arg0_r a)
+                                                      (@Eq.{1} value x_1 a_1))
+                                                    (@instDecidableAnd (@Eq.{1} round _tr1_act_propose_arg0_r a)
+                                                      (@Eq.{1} value x_1 a_1) (round_dec_eq _tr1_act_propose_arg0_r a)
+                                                      (value_dec_eq x_1 a_1))
+                                                    true (st0.proposal a a_1))
+                                                  (st1.proposal a a_1))
+                                              (And
+                                                (∀ (a : node) (a_1 : round) (a_2 : value),
+                                                  @Eq.{1} Bool (st0.vote a a_1 a_2) (st1.vote a a_1 a_2))
+                                                (∀ (a : node) (a_1 : round) (a_2 : value),
+                                                  @Eq.{1} Bool (st0.decision a a_1 a_2)
+                                                    (st1.decision a a_1 a_2))))))))))))))
+                    (Or
+                      (And (@Eq.{1} ActionTag _tr1_tag __veil_tag.cast_vote)
+                        (And (Not (@Eq.{1} round _tr1_act_cast_vote_arg2_r st0.none))
+                          (And
+                            (Not (@Eq.{1} Bool (st0.left_rnd _tr1_act_cast_vote_arg0_n _tr1_act_cast_vote_arg2_r) true))
+                            (And (@Eq.{1} Bool (st0.proposal _tr1_act_cast_vote_arg2_r _tr1_act_cast_vote_arg1_v) true)
+                              (And (@Eq.{1} round st0.none st1.none)
+                                (And (∀ (a : round), @Eq.{1} Bool (st0.one_a a) (st1.one_a a))
+                                  (And
+                                    (∀ (a : node) (a_1 a_2 : round) (a_3 : value),
+                                      @Eq.{1} Bool (st0.one_b_max_vote a a_1 a_2 a_3)
+                                        (st1.one_b_max_vote a a_1 a_2 a_3))
+                                    (And (∀ (a : node) (a_1 : round), @Eq.{1} Bool (st0.one_b a a_1) (st1.one_b a a_1))
+                                      (And
+                                        (∀ (a : node) (a_1 : round),
+                                          @Eq.{1} Bool (st0.left_rnd a a_1) (st1.left_rnd a a_1))
+                                        (And
+                                          (∀ (a : round) (a_1 : value),
+                                            @Eq.{1} Bool (st0.proposal a a_1) (st1.proposal a a_1))
+                                          (And
+                                            (∀ (a : node) (a_1 : round) (a_2 : value),
+                                              @Eq.{1} Bool
+                                                (@ite.{1} Bool
+                                                  (And (@Eq.{1} node _tr1_act_cast_vote_arg0_n a)
+                                                    (And (@Eq.{1} round _tr1_act_cast_vote_arg2_r a_1)
+                                                      (@Eq.{1} value _tr1_act_cast_vote_arg1_v a_2)))
+                                                  (@instDecidableAnd (@Eq.{1} node _tr1_act_cast_vote_arg0_n a)
+                                                    (And (@Eq.{1} round _tr1_act_cast_vote_arg2_r a_1)
+                                                      (@Eq.{1} value _tr1_act_cast_vote_arg1_v a_2))
+                                                    (node_dec_eq _tr1_act_cast_vote_arg0_n a)
+                                                    (@instDecidableAnd (@Eq.{1} round _tr1_act_cast_vote_arg2_r a_1)
+                                                      (@Eq.{1} value _tr1_act_cast_vote_arg1_v a_2)
+                                                      (round_dec_eq _tr1_act_cast_vote_arg2_r a_1)
+                                                      (value_dec_eq _tr1_act_cast_vote_arg1_v a_2)))
+                                                  true (st0.vote a a_1 a_2))
+                                                (st1.vote a a_1 a_2))
+                                            (∀ (a : node) (a_1 : round) (a_2 : value),
+                                              @Eq.{1} Bool (st0.decision a a_1 a_2) (st1.decision a a_1 a_2)))))))))))))
+                      (And (@Eq.{1} ActionTag _tr1_tag __veil_tag.decide)
+                        (And (Not (@Eq.{1} round _tr1_act_decide_arg1_r st0.none))
+                          (And
+                            (∀ (N : node),
+                              @Eq.{1} Bool (th.member N _tr1_act_decide_arg3_q) true →
+                                @Eq.{1} Bool (st0.vote N _tr1_act_decide_arg1_r _tr1_act_decide_arg2_v) true)
+                            (And (@Eq.{1} round st0.none st1.none)
+                              (And (∀ (a : round), @Eq.{1} Bool (st0.one_a a) (st1.one_a a))
+                                (And
+                                  (∀ (a : node) (a_1 a_2 : round) (a_3 : value),
+                                    @Eq.{1} Bool (st0.one_b_max_vote a a_1 a_2 a_3) (st1.one_b_max_vote a a_1 a_2 a_3))
+                                  (And (∀ (a : node) (a_1 : round), @Eq.{1} Bool (st0.one_b a a_1) (st1.one_b a a_1))
+                                    (And
+                                      (∀ (a : node) (a_1 : round),
+                                        @Eq.{1} Bool (st0.left_rnd a a_1) (st1.left_rnd a a_1))
+                                      (And
+                                        (∀ (a : round) (a_1 : value),
+                                          @Eq.{1} Bool (st0.proposal a a_1) (st1.proposal a a_1))
+                                        (And
+                                          (∀ (a : node) (a_1 : round) (a_2 : value),
+                                            @Eq.{1} Bool (st0.vote a a_1 a_2) (st1.vote a a_1 a_2))
+                                          (∀ (a : node) (a_1 : round) (a_2 : value),
+                                            @Eq.{1} Bool
+                                              (@ite.{1} Bool
+                                                (And (@Eq.{1} node _tr1_act_decide_arg0_n a)
+                                                  (And (@Eq.{1} round _tr1_act_decide_arg1_r a_1)
+                                                    (@Eq.{1} value _tr1_act_decide_arg2_v a_2)))
+                                                (@instDecidableAnd (@Eq.{1} node _tr1_act_decide_arg0_n a)
+                                                  (And (@Eq.{1} round _tr1_act_decide_arg1_r a_1)
+                                                    (@Eq.{1} value _tr1_act_decide_arg2_v a_2))
+                                                  (node_dec_eq _tr1_act_decide_arg0_n a)
+                                                  (@instDecidableAnd (@Eq.{1} round _tr1_act_decide_arg1_r a_1)
+                                                    (@Eq.{1} value _tr1_act_decide_arg2_v a_2)
+                                                    (round_dec_eq _tr1_act_decide_arg1_r a_1)
+                                                    (value_dec_eq _tr1_act_decide_arg2_v a_2)))
+                                                true (st0.decision a a_1 a_2))
+                                              (st1.decision a a_1 a_2))))))))))))))))
+              (@Exists.{1} node fun n1 =>
+                @Exists.{1} round fun r1 =>
+                  @Exists.{1} value fun v1 =>
+                    @Exists.{1} node fun n2 =>
+                      @Exists.{1} round fun r2 =>
+                        @Exists.{1} value fun v2 =>
+                          And (@Eq.{1} Bool (st1.decision n1 r1 v1) true)
+                            (And (@Eq.{1} Bool (st1.decision n2 r2 v2) true) (Not (@Eq.{1} value v1 v2)))))))
+  [smt.translate.query] ISSUE123_RESIDUAL_DECIDE: @Decidable.decide
+        (Or (@Eq.{1} Bool (st0.left_rnd _tr1_act_join_round_arg0_n a_1) true)
+          (Not (tot.le _tr1_act_join_round_arg1_r a_1)))
+        (@instDecidableOr (@Eq.{1} Bool (st0.left_rnd _tr1_act_join_round_arg0_n a_1) true)
+          (Not (tot.le _tr1_act_join_round_arg1_r a_1))
+          (instDecidableEqBool (st0.left_rnd _tr1_act_join_round_arg0_n a_1) true)
+          (@instDecidableNot (tot.le _tr1_act_join_round_arg1_r a_1)
+            (Classical.propDecidable (tot.le _tr1_act_join_round_arg1_r a_1))))
+  [smt.translate.query] deps: [_tr1_act_decide_arg1_r,
+       st0.vote,
+       __veil_tag.propose,
+       __veil_tag.send_1a,
+       _tr1_act_cast_vote_arg0_n,
+       __veil_tag.decide,
+       st1.one_a,
+       st0.one_b,
+       quorum,
+       st0.one_a,
+       st1.decision,
+       _tr1_act_decide_arg2_v,
+       _tr1_act_propose_arg1_q,
+       st1.one_b,
+       _tr1_act_cast_vote_arg2_r,
+       st0.proposal,
+       st1.one_b_max_vote,
+       st0.none,
+       _tr1_act_decide_arg3_q,
+       value,
+       st1.proposal,
+       _tr1_act_send_1a_arg0_r,
+       _tr1_act_cast_vote_arg1_v,
+       _tr1_act_join_round_arg1_r,
+       th.member,
+       round_inhabited.default,
+       st1.vote,
+       __veil_tag.cast_vote,
+       _tr1_act_join_round_arg0_n,
+       __veil_tag.join_round,
+       node,
+       _tr1_tag,
+       st1.left_rnd,
+       tot.le,
+       st0.decision,
+       st0.left_rnd,
+       round,
+       st1.none,
+       _tr1_act_propose_arg0_r,
+       st0.one_b_max_vote,
+       _tr1_act_decide_arg0_n,
+       @instDecidableNot,
+       Classical.propDecidable,
+       instDecidableEqBool,
+       Decidable.decide,
+       @instDecidableOr]
+  [smt.translate.query] processing _tr1_act_decide_arg1_r : round
+  [smt.translate.query] round : Type
+  [smt.translate.query] deps: [round]
+  [smt.translate.query] processing st0.vote : node → round → value → Bool
+  [smt.translate.query] node → round → value → Bool : Type
+  [smt.translate.query] deps: [value, node, round]
+  [smt.translate.query] processing value : Type
+  [smt.translate.query] Type : Type 1
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing node : Type
+  [smt.translate.query] Type : Type 1
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing _tr1_act_cast_vote_arg0_n : node
+  [smt.translate.query] node : Type
+  [smt.translate.query] deps: [node]
+  [smt.translate.query] processing st1.one_a : round → Bool
+  [smt.translate.query] round → Bool : Type
+  [smt.translate.query] deps: [round]
+  [smt.translate.query] processing st0.one_b : node → round → Bool
+  [smt.translate.query] node → round → Bool : Type
+  [smt.translate.query] deps: [node, round]
+  [smt.translate.query] processing quorum : Type
+  [smt.translate.query] Type : Type 1
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing st0.one_a : round → Bool
+  [smt.translate.query] round → Bool : Type
+  [smt.translate.query] deps: [round]
+  [smt.translate.query] processing st1.decision : node → round → value → Bool
+  [smt.translate.query] node → round → value → Bool : Type
+  [smt.translate.query] deps: [value, node, round]
+  [smt.translate.query] processing _tr1_act_decide_arg2_v : value
+  [smt.translate.query] value : Type
+  [smt.translate.query] deps: [value]
+  [smt.translate.query] processing _tr1_act_propose_arg1_q : quorum
+  [smt.translate.query] quorum : Type
+  [smt.translate.query] deps: [quorum]
+  [smt.translate.query] processing st1.one_b : node → round → Bool
+  [smt.translate.query] node → round → Bool : Type
+  [smt.translate.query] deps: [node, round]
+  [smt.translate.query] processing _tr1_act_cast_vote_arg2_r : round
+  [smt.translate.query] round : Type
+  [smt.translate.query] deps: [round]
+  [smt.translate.query] processing st0.proposal : round → value → Bool
+  [smt.translate.query] round → value → Bool : Type
+  [smt.translate.query] deps: [value, round]
+  [smt.translate.query] processing st1.one_b_max_vote : node → round → round → value → Bool
+  [smt.translate.query] node → round → round → value → Bool : Type
+  [smt.translate.query] deps: [value, node, round]
+  [smt.translate.query] processing st0.none : round
+  [smt.translate.query] round : Type
+  [smt.translate.query] deps: [round]
+  [smt.translate.query] processing _tr1_act_decide_arg3_q : quorum
+  [smt.translate.query] quorum : Type
+  [smt.translate.query] deps: [quorum]
+  [smt.translate.query] processing st1.proposal : round → value → Bool
+  [smt.translate.query] round → value → Bool : Type
+  [smt.translate.query] deps: [value, round]
+  [smt.translate.query] processing _tr1_act_send_1a_arg0_r : round
+  [smt.translate.query] round : Type
+  [smt.translate.query] deps: [round]
+  [smt.translate.query] processing _tr1_act_cast_vote_arg1_v : value
+  [smt.translate.query] value : Type
+  [smt.translate.query] deps: [value]
+  [smt.translate.query] processing _tr1_act_join_round_arg1_r : round
+  [smt.translate.query] round : Type
+  [smt.translate.query] deps: [round]
+  [smt.translate.query] processing th.member : node → quorum → Bool
+  [smt.translate.query] node → quorum → Bool : Type
+  [smt.translate.query] deps: [quorum, node]
+  [smt.translate.query] processing round_inhabited.default : round
+  [smt.translate.query] round : Type
+  [smt.translate.query] deps: [round]
+  [smt.translate.query] processing st1.vote : node → round → value → Bool
+  [smt.translate.query] node → round → value → Bool : Type
+  [smt.translate.query] deps: [value, node, round]
+  [smt.translate.query] processing _tr1_act_join_round_arg0_n : node
+  [smt.translate.query] node : Type
+  [smt.translate.query] deps: [node]
+  [smt.translate.query] processing _tr1_tag : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] processing st1.left_rnd : node → round → Bool
+  [smt.translate.query] node → round → Bool : Type
+  [smt.translate.query] deps: [node, round]
+  [smt.translate.query] processing st0.decision : node → round → value → Bool
+  [smt.translate.query] node → round → value → Bool : Type
+  [smt.translate.query] deps: [value, node, round]
+  [smt.translate.query] processing st0.left_rnd : node → round → Bool
+  [smt.translate.query] node → round → Bool : Type
+  [smt.translate.query] deps: [node, round]
+  [smt.translate.query] processing st1.none : round
+  [smt.translate.query] round : Type
+  [smt.translate.query] deps: [round]
+  [smt.translate.query] processing _tr1_act_propose_arg0_r : round
+  [smt.translate.query] round : Type
+  [smt.translate.query] deps: [round]
+  [smt.translate.query] processing st0.one_b_max_vote : node → round → round → value → Bool
+  [smt.translate.query] node → round → round → value → Bool : Type
+  [smt.translate.query] deps: [value, node, round]
+  [smt.translate.query] processing _tr1_act_decide_arg0_n : node
+  [smt.translate.query] node : Type
+  [smt.translate.query] deps: [node]
+  [smt.translate.query] processing @instDecidableNot : {p : Prop} → [dp : Decidable p] → Decidable (Not p)
+  [smt.translate.query] {p : Prop} → [dp : Decidable p] → Decidable (Not p) : Type
+  [smt.translate.query] deps: [Decidable]
+  [smt.translate.query] processing Decidable : Prop → Type
+  [smt.translate.query] Prop → Type : Type 1
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing Classical.propDecidable : (a : Prop) → Decidable a
+  [smt.translate.query] (a : Prop) → Decidable a : Type
+  [smt.translate.query] deps: [Decidable]
+  [smt.translate.query] processing instDecidableEqBool : DecidableEq.{1} Bool
+  [smt.translate.query] DecidableEq.{1} Bool : Type
+  [smt.translate.query] ISSUE123_INCOMING_DECIDABLE_EQ: levels=[Lean.Level.succ (Lean.Level.zero)], declared=[u]
+  [smt.translate.query] ISSUE123_VALID_DECIDABLE_EQ: type=Type → Type
+  [smt.translate.query] deps: [DecidableEq]

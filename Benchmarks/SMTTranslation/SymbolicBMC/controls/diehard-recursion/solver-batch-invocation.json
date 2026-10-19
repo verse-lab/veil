@@ -1,0 +1,9 @@
+{
+  "repo": "/home/george/src/veil-issue-123",
+  "ready_cells": 2,
+  "script_sha256": "c0d8ba0a8466d2ccbcef18924f1b9b69dfd9333035c67e12699124f40207f614",
+  "solver_timeout_seconds": 10,
+  "solver_configuration": "Veil trusted default options, finite-model-find=true, nl-ext-tplanes=true, enum-inst-interleave=true",
+  "proof_status": "No reconstructed proof or measurement theorem",
+  "measurement": "Sequential Smt.solve calls, shared import/process setup, per-cell atomic checkpoints; no process wall-time apportionment"
+}

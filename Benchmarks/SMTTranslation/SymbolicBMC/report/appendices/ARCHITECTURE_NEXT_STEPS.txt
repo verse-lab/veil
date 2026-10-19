@@ -1,0 +1,357 @@
+Incremental and direct transition encoding: an implementation plan
+
+Status and scope
+
+Only conservative early introduction is implemented by this investigation. Everything
+below is a proposed follow-up, based on the checked-out Veil and dependency sources.
+The complete corpus measurements decide which bottleneck to address first; this
+appendix does not claim that incremental solving, direct encoding, or arrays were
+benchmarked or implemented. HOISTING_FOLLOWUPS.txt / NEXT_FIXES.txt discuss local
+normalization, hoister proof construction, and backend recursion separately.
+
+The original issue's LamportMutexV1 branch is unavailable. Improvements on the current
+examples must not be reported as a fix verified on that exact original program.
+
+1. Preserve the existing mathematical problem
+
+For a fixed exact depth N, the current trace language asks satisfiability of:
+
+  Assumptions(th) AND Init(th, st0)
+    AND T1(th, st0, st1, choice1)
+    AND ... AND TN(th, st[N-1], stN, choiceN)
+    AND the user's assertions at their original positions.
+
+An "any action" transition is one disjunction of tagged action relations. It is not
+an enumeration of A^N whole traces. The trace builder expands "any N actions" into N
+entries, accumulates constraints, and wraps their conjunction in a universally bound
+nonexistence proposition. The SMT preprocessing negates that proposition to look for
+a witness. SAT and UNSAT queries use the same proposition and differ in the expected
+result. The construction is already linear in the number of transitions at this
+level; the expensive work is repeatedly normalizing and embedding the full formula.
+
+Source anchors:
+  Veil/Core/Tools/ModelChecker/Symbolic/TraceLang.lean:153-169,254-297,437-478
+  Veil/Frontend/DSL/Module/VCGen/Trace.lean:114-127
+
+A direct encoder must preserve ALL of the following, not just action guards:
+
+* The same background theory and rigid query variables throughout one trace; one
+  fresh mutable state per position, shared by its adjacent transitions.
+* Initializer, assumptions, untouched-field/frame constraints, action tags and enum
+  axioms, and assertions at intermediate positions as well as at the end.
+* Action parameters fresh per transition/branch; internal nondeterministic witnesses
+  fresh per action invocation and occurrence. Reusing a witness across steps can
+  remove executions and produce false UNSAT answers.
+* Preserve the current argument telescope when moving branch-local witnesses. The
+  any-action builder allocates parameters for every action outside the disjunction;
+  changing this placement needs inhabitedness side conditions for unused domains.
+  Do not silently assume those conditions for arbitrary dependent/proof parameters.
+* Proper quantifier dependencies. A witness chosen under a universally bound node
+  can depend on that node; a witness chosen outside that quantifier cannot. Hoisting
+  it with the wrong dependency can add or remove executions.
+* Explicit arguments evaluated in the action's SOURCE state; dependent argument
+  types specialized in telescope order; wildcards treated as fresh choices. Current
+  code also keeps observable equalities for explicit arguments using eqWithoutSubst.
+* User proof binders and nontrivial header assumptions. The new early-introduction
+  helper deliberately stops before proof binders. A new direct path should either
+  support their complete semantics or retain the current path as a visible fallback.
+* No silent finite bound on abstract sorts, no assumed instance laws absent from the
+  Lean context, and no assertion of a candidate invariant at every step unless the
+  original trace includes it. Such shortcuts can turn a real violation into UNSAT.
+
+Named arguments and their observable values are handled at TraceLang.lean:216-252.
+The current trace itself already uses the module's abstract field representation at
+TraceLang.lean:454-478; there is no reason to insert a new one-way abstraction step.
+
+2. First architectural step: certified templates, instantiated per transition
+
+Recommended target: normalize each action's exact transition relation once, under
+formal theory/pre-state/post-state/argument parameters. Store its normalized body
+and an equality or iff theorem. Instantiate this template with fresh per-step field
+symbols, then add that step's disjunction to a flat list of constraints. Keep the
+formula local while moving any genuinely higher-order witnesses; do not repeatedly
+rewrite a right-associated conjunction containing all earlier/later transitions.
+
+This has a concrete starting point. defineTransition already computes act.ext.tr,
+proves tr_eq_wpSucc, and proves derived_eq connecting the original action to that
+relation. These equalities are exact. In contrast, tr_abstract is only an implication
+from a concrete transition to its abstract counterpart. The latter is useful for
+proving safety over an over-approximation, but replacing an exact BMC relation with
+it alone can create spurious SAT traces. It is not a bidirectional BMC encoding.
+
+Source anchors:
+  Veil/Frontend/DSL/Action/Elaborators.lean:605-651 (exact relation and theorems)
+  Veil/Frontend/DSL/Util.lean:40-55 (actual generated theorem names)
+  Veil/Frontend/DSL/Action/Elaborators.lean:792-840 (one-way tr_abstract)
+  Veil/Frontend/DSL/Tactic/Core.lean:215-228 (abstract TR verification path)
+
+An initial implementation need not invent a new trusted DSL compiler. Keep the
+existing Lean-derived relation, normalize a bounded-size template using proved
+rewrites, and use ordinary theorem application for each step. A later typed IR could
+record declarations, assertions, binders, dependency edges, and source metadata while
+also carrying the equality proofs. This separates frontend proof work from backend
+serialization without immediately changing the meaning of a trace.
+
+The template is also the right place for proved structural reductions. If every
+action branch contains the identical frame equality F(st[i+1]) = F(st[i]), factor
+that equality outside the disjunction once, using an exact equivalence such as
+(G1 AND F) OR (G2 AND F) <-> (G1 OR G2) AND F. Keep the action tags and
+branch-parameter/witness scopes in G1/G2; unused-branch witness placement must not
+change the domain or dependency assumptions. If a field is provably unchanged through
+a step, a versioned-field representation can reuse its previous symbol. This can
+reduce A-times-per-step copies of frame constraints before hoisting/embedding. Derive
+such facts from the exact transition body (including nested calls and havoc), not
+an unsound syntactic guess about writes. Factor only expressions with valid common
+binder scope, and retain equality proofs/model aliases for reconstruction. These are
+measurable template optimizations, not an assertion that all state constraints can
+be eliminated or that the current simplifier never performs similar reductions.
+There is no measured performance claim for this factoring proposal.
+
+Cache closed, parameterized templates rather than live expressions containing old
+FVarIds. Keys must cover module/action definition identity, monomorphic types,
+relevant options and simp environment, and dependency revisions. State/witness
+substitution must be capture-avoiding and preserve dependent types. A global cache
+keyed only by a pretty-printed action name or expression would be unsafe.
+
+Expected benefit is a hypothesis to measure: for a fixed model, the expensive local
+normalization can be paid once per template rather than repeatedly over a growing
+trace. Per-step instantiation and emitted constraints still cost work proportional
+to the number of steps. This does not imply linear solver runtime, or even a linear
+whole Lean pipeline without measuring proof/context operations and embedding. A
+new simp call resets its local step counter: succeeding after splitting work into
+many calls is not alone evidence of an algorithmic improvement. Retain the overall
+query heartbeat budget, aggregate local rewrite steps, and measure end-to-end time,
+proof/context cost and peak memory. Template compilation shifts some work into model
+setup; report both cold setup-plus-query cost and amortized repeated-query cost,
+rather than presenting cached latency as a free reduction of total work.
+
+3. Reuse declarations and translation state, not concatenated complete queries
+
+lean-smt already memoizes expression translation and constructs a dependency graph.
+This is not a case of a translator with no cache. TranslationM.State has an Expr
+cache, dependency sets, and FVarId-to-SMT-name mapping; generateQuery initializes fresh
+translation and query-builder states for every invocation. The command graph avoids
+re-emitting a dependency within a query, then topologically orders declarations and
+assertions. Its assertion ordering is intentionally relevant to proof reconstruction.
+
+Source anchors:
+  .lake/packages/smt/Smt/Translate.lean:39-57,86-107,129-175
+  .lake/packages/smt/Smt/Translate/Query.lean:33-64,226-256,296-323
+  .lake/packages/smt/Smt/Tactic/Smt.lean:178-220
+
+A session-aware query builder should own a typed symbol table and emitted-declaration
+set. Shared sorts, enum constructors, immutable theory functions, and definitions are
+declared once. Every new state/branch/witness gets a new identity and declaration.
+Declare a symbol only when its dependencies are available; reject incompatible
+redeclarations. Keep stable maps back to Lean/source objects. Do not concatenate
+several complete generateQuery outputs: duplicate declarations, fresh sanitization
+choices, renamed local variables, and differing monomorphic type instances can all
+make that wrong. Do not deduplicate function declarations by display name alone.
+
+First expose the existing builder state as an explicit API, then benchmark a local
+per-transition pipeline feeding it. This changes less than bypassing lean-smt's
+supported type translations. The preprocessing/embedding environment needs the same
+care: caching SMT text does not stop an earlier whole-context normalize/revert pass
+from traversing every state at each depth. A persistent solver alone will not fix
+that frontend bottleneck.
+
+4. Why "define-fun Next(s,s') once" is not a small change
+
+Many Veil state fields are functions or predicates, e.g. leader : node -> Prop and
+msg : node -> node -> Prop. The current first-order SMT representation uses separate
+uninterpreted function symbols for those fields. Ordinary first-order SMT define-fun
+parameters are values of first-order sorts; one cannot simply pass these function
+symbols as higher-order arguments to a generic Next definition in the current
+encoding. Defining Next as an unconstrained uninterpreted predicate is also unsound.
+
+Conservative option: retain a host-level/Lean template and substitute per-step SMT
+symbols before emitting it. This shares normalization/proof work even though the
+per-step SMT text still repeats the transition body. It avoids changing theories.
+
+A more ambitious alternative is a time-indexed representation, e.g. msg(i,x,y),
+where i is a distinct state index. Then an exact define-fun action(i,j,args) can refer
+to those first-order functions. Havoc/witness functions need their own step/action/
+occurrence indices and correct dependencies. Proving equivalence requires an explicit
+bijection or extension argument between independent finite state tuples and the
+indexed function interpretation, including type inhabitation/dependent-field cases.
+It changes model reconstruction and may introduce solver costs from the new index
+sort. It is an experiment after the template path, not an immediate optimization.
+
+Arrays are another separate experiment: encode functional fields as first-class SMT
+arrays, updates as store/select, and extensional equality with the array theory. This
+can permit first-order state parameters and shared definitions, but changes the
+encoding, proof bridge, quantified-array behavior, and model decoder. It has unknown
+solver tradeoffs for these examples. It must not be described as a semantics-free
+replacement or as eliminating all higher-order problems by itself.
+
+Even an exact define-fun can be expanded internally by the solver. Smaller SMT-LIB
+text is not evidence of less quantifier instantiation or faster solving.
+
+5. Persistent solver sessions: API support exists, integration is missing
+
+The native bindings already expose:
+  cvc5.Solver.push                         cvc5.lean:2662
+  cvc5.Solver.assertFormula               cvc5.lean:2732
+  cvc5.Solver.checkSat / checkSatAssuming  cvc5.lean:2735-2741
+  cvc5.Solver.pop                          cvc5.lean:3175
+  InputParser.setIncrementalStringInput /
+    appendIncrementalStringInput           cvc5.lean:2605-2618
+  InputParser.new solver (some sm)         cvc5.lean:571-588
+
+The SymbolManager retains parser declarations and can be shared across parser calls
+(cvc5.lean:517-527). Binding unit tests exercise repeated assumption checks with
+incremental=true and reject repeated checks with incremental=false
+(cvc5Test/Unit/ApiSolver.lean:166-185). These are source-level capability checks, not a
+benchmark of Veil's quantified queries or proof-production configuration.
+
+Current Smt.solve creates a new TermManager and Solver for every call, parses the
+entire query, and invokes one checkSat, followed by native model-domain/value or
+unsat-core retrieval. The sweep's solver_ms measures this entire wrapper, not only
+checkSat; its 10-second tlimit-per limits checkSat, while a separate 15-second
+watchdog covers the active wrapper call. Its runQuery helper also creates a new parser
+with an initially empty symbol manager. Therefore simply calling runQuery repeatedly
+on the same Solver does not provide the required declaration-name continuity.
+
+Source: .lake/packages/smt/Smt/Reconstruct.lean:263-321.
+
+A persistent BMC session should own TermManager + Solver + SymbolManager (or a
+persistent incremental parser), the query-builder symbol map, emitted declarations,
+and the proof/model mapping. Enable incremental=true before assertions. Retain per-
+check tlimit-per and explicit cancellation/process/memory limits. Get a SAT model or
+UNSAT proof/core before popping the query frame. Do not share mutable sessions across
+unrelated Lean elaborations without lifecycle/locking rules; FVarIds and local
+contexts have lifetimes, and cancellation must not leave a half-mutated live session.
+
+There is also a generic subprocess-based Smt.Translate.Solver with a persistent
+stdin/stdout process and incremental cvc5 command-line defaults (Solver.lean:69-88,
+113-145,177-208). However its typed Command currently has no push/pop/check-sat-assuming
+constructors (Commands.lean:20-34), and it is not the native path used by Smt.smt. Using
+it is an alternative integration with different model/proof plumbing, not a flag on
+the currently used solver.
+
+For a uniform exact-depth sweep with a final predicate P:
+
+  create session; declare shared symbols; assert Assumptions AND Init
+  for k = 1,2,...:
+    append fresh state/choice declarations and exact transition Tk
+    if k is requested:
+      push
+      assert P(stk)              # the actual selected assertion, not its opposite
+      checkSat; collect model/proof/core
+      pop                       # remove P(stk), retain the path prefix
+
+Do not retain earlier endpoint predicates when extending the path: that would require
+P at multiple times and change later queries. Likewise, do not freeze the preceding
+SAT model's theory or field values; the next satisfiability query may choose a new
+interpretation. Prefix reuse is valid only when initial assumptions, rigid binders,
+transition choices/explicit arguments, and intermediate assertions really share a
+prefix. Exact-depth UNSAT does not imply all shorter or longer depths are UNSAT.
+
+Assumption literals are an alternative: assert qk -> P(stk), then checkSatAssuming qk.
+Other endpoint activations must remain unconstrained/disabled, not asserted true; they
+must not accidentally conjoin earlier properties. push/pop is simpler for the first
+prototype. Both mechanisms require testing with the existing finite-model-find,
+quantifier, proof and timeout options; API availability alone does not establish
+compatibility or performance. Incremental state can grow and retain unhelpful
+instantiations, so compare against fresh solves and allow periodic resets.
+
+Also time checkSat separately from parsing and model retrieval in that experiment.
+Current Smt.solve retrieves every declared sort domain and function value on SAT
+(Reconstruct.lean:304-308). Re-reading all earlier states/branch arguments at every
+depth can itself add substantial cumulative work even if incremental search is cheap.
+A session API could defer model materialization until the caller requests a displayed
+trace, or retrieve only the needed symbols, while preserving explicit arguments and
+rigid bindings. Do not silently omit a trace the user requested; this is an API and
+measurement separation, not permission to report SAT without required witness data.
+
+This mainly saves repeated work across depths. It does not by itself make one depth-N
+formula's nextSimp, hoisting, or embedding cheaper. The per-transition frontend is the
+part that targets single-query scalability.
+
+6. Preserve trace display and proof guarantees
+
+The current SAT decoder depends on st0.field, st1.field, ..., _tr1_tag, and specific/
+any-action parameter name patterns. It reconstructs sort interpretations, enum values,
+field functions, tags, user query bindings, and explicit arguments. It deliberately
+fails rather than inventing a default for an explicit argument lost by preprocessing.
+
+Source: Veil/Core/UI/Verifier/TraceCounterexample.lean:20-33,86-136,255-290.
+The trace discharger consumes asynchronous SMT outputs and passes those metadata to
+buildTraceFromModel (Veil/Frontend/DSL/Module/VCGen/Trace.lean:30-47,97-110).
+
+For the conservative prototype, keep these symbol names and user-name maps. A more
+robust later interface is a typed symbol-to-(state,field,tag,argument,source binder)
+manifest rather than parsing display names. An indexed-field or array encoding needs
+an adapter to recover each requested state/function interpretation. Query only active
+branch arguments for the chosen label, but preserve explicit/rigid bindings even if a
+simplifier would otherwise erase their observable equalities.
+
+Trust and proofs are separate from frontend equivalence. Smt.smt's trusted mode admits
+the original goal on UNSAT; its untrusted mode reconstructs the core/proof and maps it
+through preprocessing (Tactic/Smt.lean:231-269). The standalone reconstruction API
+makes definitions assumptions in the resulting theorem, so a reusable define-fun must
+be linked to its exact Lean definition, not treated as a theorem without that premise
+(Reconstruct.lean:323-427). Preserve assertion identity/order and each original-to-
+normalized proposition map. Per-transition equality theorems should let an untrusted
+path compose back to the original trace; a direct trusted emitter must explicitly
+state its larger encoding trust boundary instead of silently replacing that path.
+
+The current broad benchmark omits proof reconstruction and trace/model rendering. A
+new backend must test those separately before being called a replacement for veil_bmc.
+
+7. Serialization and DAG sharing are lower-level, separately measurable work
+
+Expression memoization and the command dependency graph already exist, but emitted
+Term values are serialized structurally to S-expressions. There is no automatic
+common-subexpression extraction in this serializer. Term supports letT and Command
+supports defineFun; repeated compound bodies can still be printed repeatedly.
+
+Source: Smt/Translate/Term.lean:20-35,64-101; Commands.lean:20-34,50-94.
+
+A future emitter can hash-cons terms, emit scoped let bindings, stream commands to a
+buffer/parser, and reuse exact named definitions. Sharing must respect binder scope:
+a repeated subformula depending on x under forall x cannot become a single global
+Boolean constant. Capture-avoiding local lets or correctly parameterized definitions
+are needed. Avoid turning a definitional equality into a one-direction implication.
+Also distinguish host memory/proof DAG sharing, SMT text size, parser cost and solver
+DAG behavior; they are different metrics. The existing dag-thresh solver option does
+not itself add sharing to Lean's outgoing serializer.
+
+Prioritize this only if final phase timings/bytes show translation, serialization or
+memory dominating. It cannot repair a formula that already failed in hoisting or
+embedding, and smaller output alone does not establish a solver speedup.
+
+8. Concrete staged delivery and acceptance criteria
+
+A. Keep the implemented early-introduction change and regression suite. Fix measured
+   remaining local normalization and embedding failures as described in NEXT_FIXES.
+   Instrument before/after formula size, proof allocation, per-phase time, and memory.
+
+B. Add an experimental exact per-action normal-form cache, instantiated for individual
+   transitions; keep one-shot Smt.solve and current state/field naming. Retain a
+   conservative fallback for headers/types outside the supported fragment. Prove the
+   template equality, compare emitted assertions where possible, and run the same
+   corpus with completed-preprocessing and completed-query timings separated.
+
+C. Expose a stateful declaration/query builder and then a native solver session.
+   Compare repeated one-shot checks against incremental checks at the SAME exact
+   depths and assertions. Record frontend time, delta bytes, solver time, peak memory,
+   outcomes, and timeouts independently. Introduce no new finite domain restriction.
+
+D. Only after B/C identify the dominant costs, trial indexed-field definitions,
+   array-based states, or stronger SMT DAG sharing behind explicit experimental flags.
+   Each needs an equivalence/model-decoding design and a solver tradeoff study.
+
+Required semantic regressions include: two steps needing different nondeterministic
+witnesses; a witness legitimately depending on a quantified index; one shared state
+between adjacent transitions; dependent explicit arguments evaluated in the pre-state;
+a contradictory proof header; intermediate assertions; zero-action/empty-action
+behavior; and nonmonotone exact-depth SAT/UNSAT outcomes. Check SAT witnesses against
+the original relations on finite test instances and retain kernel-checked bridge
+proofs for symbolic templates. Agreement on a finite sample of solver answers is
+useful regression evidence, not a proof of a new encoding's equivalence.
+
+The clean architectural objective is to pay model normalization once, instantiate only
+the newly added transition, and preserve an exact correspondence to the original
+Lean trace. Solver reuse and compact serialization complement that objective; neither
+substitutes for fixing whole-formula normalization and embedding.

@@ -1,0 +1,371 @@
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:138:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_current_2_1
+STAGE RicartAgrawala_current_2_1 nextSimp ms=558
+STAGE RicartAgrawala_current_2_1 hoist ms=37
+STAGE RicartAgrawala_current_2_1 intros ms=1
+STAGE RicartAgrawala_current_2_1 destruct ms=38
+STAGE RicartAgrawala_current_2_1 dsimp1 ms=13
+STAGE RicartAgrawala_current_2_1 smtSimp ms=80
+STAGE RicartAgrawala_current_2_1 dsimp2 ms=10
+SMT_STAGE RicartAgrawala_current_2_1 pushHints ms=1
+SMT_STAGE RicartAgrawala_current_2_1 smt-intros ms=0
+SMT_STAGE RicartAgrawala_current_2_1 negateGoal ms=0
+SMT_STAGE RicartAgrawala_current_2_1 normalize ms=14
+SMT_STAGE RicartAgrawala_current_2_1 embedding ms=3
+SMT_STAGE RicartAgrawala_current_2_1 translate ms=50 commands=32
+SMT_STAGE RicartAgrawala_current_2_1 serialize ms=67 bytes=6373
+PIPELINE_COMPLETE RicartAgrawala_current_2_1
+RUN_COMPLETE RicartAgrawala_current_2_1
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:153:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_2_1
+STAGE RicartAgrawala_early_2_1 early_intros ms=2
+STAGE RicartAgrawala_early_2_1 nextSimp ms=158
+STAGE RicartAgrawala_early_2_1 hoist ms=5
+STAGE RicartAgrawala_early_2_1 intros ms=2
+STAGE RicartAgrawala_early_2_1 destruct ms=27
+STAGE RicartAgrawala_early_2_1 dsimp1 ms=12
+STAGE RicartAgrawala_early_2_1 smtSimp ms=70
+STAGE RicartAgrawala_early_2_1 dsimp2 ms=9
+SMT_STAGE RicartAgrawala_early_2_1 pushHints ms=0
+SMT_STAGE RicartAgrawala_early_2_1 smt-intros ms=0
+SMT_STAGE RicartAgrawala_early_2_1 negateGoal ms=0
+SMT_STAGE RicartAgrawala_early_2_1 normalize ms=12
+SMT_STAGE RicartAgrawala_early_2_1 embedding ms=2
+SMT_STAGE RicartAgrawala_early_2_1 translate ms=35 commands=32
+SMT_STAGE RicartAgrawala_early_2_1 serialize ms=68 bytes=6373
+PIPELINE_COMPLETE RicartAgrawala_early_2_1
+RUN_COMPLETE RicartAgrawala_early_2_1
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:169:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_2_2
+STAGE RicartAgrawala_early_2_2 early_intros ms=2
+STAGE RicartAgrawala_early_2_2 nextSimp ms=155
+STAGE RicartAgrawala_early_2_2 hoist ms=4
+STAGE RicartAgrawala_early_2_2 intros ms=1
+STAGE RicartAgrawala_early_2_2 destruct ms=31
+STAGE RicartAgrawala_early_2_2 dsimp1 ms=16
+STAGE RicartAgrawala_early_2_2 smtSimp ms=75
+STAGE RicartAgrawala_early_2_2 dsimp2 ms=9
+RUN_COMPLETE RicartAgrawala_early_2_2
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:184:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_current_2_2
+STAGE RicartAgrawala_current_2_2 nextSimp ms=597
+STAGE RicartAgrawala_current_2_2 hoist ms=40
+STAGE RicartAgrawala_current_2_2 intros ms=3
+STAGE RicartAgrawala_current_2_2 destruct ms=40
+STAGE RicartAgrawala_current_2_2 dsimp1 ms=17
+STAGE RicartAgrawala_current_2_2 smtSimp ms=90
+STAGE RicartAgrawala_current_2_2 dsimp2 ms=12
+RUN_COMPLETE RicartAgrawala_current_2_2
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:198:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_current_2_3
+STAGE RicartAgrawala_current_2_3 nextSimp ms=556
+STAGE RicartAgrawala_current_2_3 hoist ms=33
+STAGE RicartAgrawala_current_2_3 intros ms=1
+STAGE RicartAgrawala_current_2_3 destruct ms=32
+STAGE RicartAgrawala_current_2_3 dsimp1 ms=11
+STAGE RicartAgrawala_current_2_3 smtSimp ms=62
+STAGE RicartAgrawala_current_2_3 dsimp2 ms=10
+RUN_COMPLETE RicartAgrawala_current_2_3
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:212:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_2_3
+STAGE RicartAgrawala_early_2_3 early_intros ms=2
+STAGE RicartAgrawala_early_2_3 nextSimp ms=143
+STAGE RicartAgrawala_early_2_3 hoist ms=5
+STAGE RicartAgrawala_early_2_3 intros ms=1
+STAGE RicartAgrawala_early_2_3 destruct ms=25
+STAGE RicartAgrawala_early_2_3 dsimp1 ms=10
+STAGE RicartAgrawala_early_2_3 smtSimp ms=59
+STAGE RicartAgrawala_early_2_3 dsimp2 ms=7
+RUN_COMPLETE RicartAgrawala_early_2_3
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:227:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_4_1
+STAGE RicartAgrawala_early_4_1 early_intros ms=3
+STAGE RicartAgrawala_early_4_1 nextSimp ms=228
+STAGE RicartAgrawala_early_4_1 hoist ms=8
+STAGE RicartAgrawala_early_4_1 intros ms=1
+STAGE RicartAgrawala_early_4_1 destruct ms=59
+STAGE RicartAgrawala_early_4_1 dsimp1 ms=20
+STAGE RicartAgrawala_early_4_1 smtSimp ms=117
+STAGE RicartAgrawala_early_4_1 dsimp2 ms=11
+SMT_STAGE RicartAgrawala_early_4_1 pushHints ms=0
+SMT_STAGE RicartAgrawala_early_4_1 smt-intros ms=0
+SMT_STAGE RicartAgrawala_early_4_1 negateGoal ms=1
+SMT_STAGE RicartAgrawala_early_4_1 normalize ms=14
+SMT_STAGE RicartAgrawala_early_4_1 embedding ms=3
+SMT_STAGE RicartAgrawala_early_4_1 translate ms=59 commands=52
+SMT_STAGE RicartAgrawala_early_4_1 serialize ms=115 bytes=11853
+PIPELINE_COMPLETE RicartAgrawala_early_4_1
+RUN_COMPLETE RicartAgrawala_early_4_1
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:243:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_current_4_1
+STAGE RicartAgrawala_current_4_1 nextSimp ms=1363
+STAGE RicartAgrawala_current_4_1 hoist ms=66
+STAGE RicartAgrawala_current_4_1 intros ms=1
+STAGE RicartAgrawala_current_4_1 destruct ms=53
+STAGE RicartAgrawala_current_4_1 dsimp1 ms=16
+STAGE RicartAgrawala_current_4_1 smtSimp ms=106
+STAGE RicartAgrawala_current_4_1 dsimp2 ms=13
+SMT_STAGE RicartAgrawala_current_4_1 pushHints ms=0
+SMT_STAGE RicartAgrawala_current_4_1 smt-intros ms=1
+SMT_STAGE RicartAgrawala_current_4_1 negateGoal ms=0
+SMT_STAGE RicartAgrawala_current_4_1 normalize ms=15
+SMT_STAGE RicartAgrawala_current_4_1 embedding ms=3
+SMT_STAGE RicartAgrawala_current_4_1 translate ms=65 commands=52
+SMT_STAGE RicartAgrawala_current_4_1 serialize ms=125 bytes=11853
+PIPELINE_COMPLETE RicartAgrawala_current_4_1
+RUN_COMPLETE RicartAgrawala_current_4_1
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:258:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_current_4_2
+STAGE RicartAgrawala_current_4_2 nextSimp ms=1679
+STAGE RicartAgrawala_current_4_2 hoist ms=80
+STAGE RicartAgrawala_current_4_2 intros ms=2
+STAGE RicartAgrawala_current_4_2 destruct ms=61
+STAGE RicartAgrawala_current_4_2 dsimp1 ms=19
+STAGE RicartAgrawala_current_4_2 smtSimp ms=120
+STAGE RicartAgrawala_current_4_2 dsimp2 ms=14
+RUN_COMPLETE RicartAgrawala_current_4_2
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:272:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_4_2
+STAGE RicartAgrawala_early_4_2 early_intros ms=3
+STAGE RicartAgrawala_early_4_2 nextSimp ms=232
+STAGE RicartAgrawala_early_4_2 hoist ms=8
+STAGE RicartAgrawala_early_4_2 intros ms=1
+STAGE RicartAgrawala_early_4_2 destruct ms=51
+STAGE RicartAgrawala_early_4_2 dsimp1 ms=22
+STAGE RicartAgrawala_early_4_2 smtSimp ms=145
+STAGE RicartAgrawala_early_4_2 dsimp2 ms=14
+RUN_COMPLETE RicartAgrawala_early_4_2
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:287:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_4_3
+STAGE RicartAgrawala_early_4_3 early_intros ms=3
+STAGE RicartAgrawala_early_4_3 nextSimp ms=372
+STAGE RicartAgrawala_early_4_3 hoist ms=8
+STAGE RicartAgrawala_early_4_3 intros ms=1
+STAGE RicartAgrawala_early_4_3 destruct ms=63
+STAGE RicartAgrawala_early_4_3 dsimp1 ms=18
+STAGE RicartAgrawala_early_4_3 smtSimp ms=117
+STAGE RicartAgrawala_early_4_3 dsimp2 ms=16
+RUN_COMPLETE RicartAgrawala_early_4_3
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:302:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_current_4_3
+STAGE RicartAgrawala_current_4_3 nextSimp ms=1569
+STAGE RicartAgrawala_current_4_3 hoist ms=68
+STAGE RicartAgrawala_current_4_3 intros ms=2
+STAGE RicartAgrawala_current_4_3 destruct ms=61
+STAGE RicartAgrawala_current_4_3 dsimp1 ms=22
+STAGE RicartAgrawala_current_4_3 smtSimp ms=138
+STAGE RicartAgrawala_current_4_3 dsimp2 ms=15
+RUN_COMPLETE RicartAgrawala_current_4_3
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:316:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_current_8_1
+STAGE RicartAgrawala_current_8_1 nextSimp ms=5177
+STAGE RicartAgrawala_current_8_1 hoist ms=166
+STAGE RicartAgrawala_current_8_1 intros ms=3
+STAGE RicartAgrawala_current_8_1 destruct ms=215
+STAGE RicartAgrawala_current_8_1 dsimp1 ms=69
+STAGE RicartAgrawala_current_8_1 smtSimp ms=373
+STAGE RicartAgrawala_current_8_1 dsimp2 ms=36
+SMT_STAGE RicartAgrawala_current_8_1 pushHints ms=0
+SMT_STAGE RicartAgrawala_current_8_1 smt-intros ms=0
+SMT_STAGE RicartAgrawala_current_8_1 negateGoal ms=2
+SMT_STAGE RicartAgrawala_current_8_1 normalize ms=46
+SMT_STAGE RicartAgrawala_current_8_1 embedding ms=6
+SMT_STAGE RicartAgrawala_current_8_1 translate ms=117 commands=92
+SMT_STAGE RicartAgrawala_current_8_1 serialize ms=270 bytes=22813
+PIPELINE_COMPLETE RicartAgrawala_current_8_1
+RUN_COMPLETE RicartAgrawala_current_8_1
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:331:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_8_1
+STAGE RicartAgrawala_early_8_1 early_intros ms=5
+STAGE RicartAgrawala_early_8_1 nextSimp ms=601
+STAGE RicartAgrawala_early_8_1 hoist ms=26
+STAGE RicartAgrawala_early_8_1 intros ms=3
+STAGE RicartAgrawala_early_8_1 destruct ms=175
+STAGE RicartAgrawala_early_8_1 dsimp1 ms=56
+STAGE RicartAgrawala_early_8_1 smtSimp ms=323
+STAGE RicartAgrawala_early_8_1 dsimp2 ms=32
+SMT_STAGE RicartAgrawala_early_8_1 pushHints ms=0
+SMT_STAGE RicartAgrawala_early_8_1 smt-intros ms=0
+SMT_STAGE RicartAgrawala_early_8_1 negateGoal ms=2
+SMT_STAGE RicartAgrawala_early_8_1 normalize ms=43
+SMT_STAGE RicartAgrawala_early_8_1 embedding ms=8
+SMT_STAGE RicartAgrawala_early_8_1 translate ms=145 commands=92
+SMT_STAGE RicartAgrawala_early_8_1 serialize ms=245 bytes=22813
+PIPELINE_COMPLETE RicartAgrawala_early_8_1
+RUN_COMPLETE RicartAgrawala_early_8_1
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:347:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_8_2
+STAGE RicartAgrawala_early_8_2 early_intros ms=5
+STAGE RicartAgrawala_early_8_2 nextSimp ms=513
+STAGE RicartAgrawala_early_8_2 hoist ms=16
+STAGE RicartAgrawala_early_8_2 intros ms=3
+STAGE RicartAgrawala_early_8_2 destruct ms=186
+STAGE RicartAgrawala_early_8_2 dsimp1 ms=41
+STAGE RicartAgrawala_early_8_2 smtSimp ms=307
+STAGE RicartAgrawala_early_8_2 dsimp2 ms=34
+RUN_COMPLETE RicartAgrawala_early_8_2
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:362:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_current_8_2
+STAGE RicartAgrawala_current_8_2 nextSimp ms=4624
+STAGE RicartAgrawala_current_8_2 hoist ms=126
+STAGE RicartAgrawala_current_8_2 intros ms=2
+STAGE RicartAgrawala_current_8_2 destruct ms=159
+STAGE RicartAgrawala_current_8_2 dsimp1 ms=40
+STAGE RicartAgrawala_current_8_2 smtSimp ms=242
+STAGE RicartAgrawala_current_8_2 dsimp2 ms=25
+RUN_COMPLETE RicartAgrawala_current_8_2
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:376:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_current_8_3
+STAGE RicartAgrawala_current_8_3 nextSimp ms=4886
+STAGE RicartAgrawala_current_8_3 hoist ms=124
+STAGE RicartAgrawala_current_8_3 intros ms=3
+STAGE RicartAgrawala_current_8_3 destruct ms=149
+STAGE RicartAgrawala_current_8_3 dsimp1 ms=34
+STAGE RicartAgrawala_current_8_3 smtSimp ms=261
+STAGE RicartAgrawala_current_8_3 dsimp2 ms=29
+RUN_COMPLETE RicartAgrawala_current_8_3
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:390:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_8_3
+STAGE RicartAgrawala_early_8_3 early_intros ms=5
+STAGE RicartAgrawala_early_8_3 nextSimp ms=484
+STAGE RicartAgrawala_early_8_3 hoist ms=14
+STAGE RicartAgrawala_early_8_3 intros ms=3
+STAGE RicartAgrawala_early_8_3 destruct ms=150
+STAGE RicartAgrawala_early_8_3 dsimp1 ms=34
+STAGE RicartAgrawala_early_8_3 smtSimp ms=230
+STAGE RicartAgrawala_early_8_3 dsimp2 ms=27
+RUN_COMPLETE RicartAgrawala_early_8_3
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:405:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_16_1
+STAGE RicartAgrawala_early_16_1 early_intros ms=18
+STAGE RicartAgrawala_early_16_1 nextSimp ms=1020
+STAGE RicartAgrawala_early_16_1 hoist ms=27
+STAGE RicartAgrawala_early_16_1 intros ms=4
+STAGE RicartAgrawala_early_16_1 destruct ms=556
+STAGE RicartAgrawala_early_16_1 dsimp1 ms=76
+STAGE RicartAgrawala_early_16_1 smtSimp ms=636
+STAGE RicartAgrawala_early_16_1 dsimp2 ms=48
+SMT_STAGE RicartAgrawala_early_16_1 pushHints ms=0
+SMT_STAGE RicartAgrawala_early_16_1 smt-intros ms=0
+SMT_STAGE RicartAgrawala_early_16_1 negateGoal ms=2
+SMT_STAGE RicartAgrawala_early_16_1 normalize ms=67
+SMT_STAGE RicartAgrawala_early_16_1 embedding ms=13
+SMT_STAGE RicartAgrawala_early_16_1 translate ms=226 commands=172
+SMT_STAGE RicartAgrawala_early_16_1 serialize ms=449 bytes=45205
+PIPELINE_COMPLETE RicartAgrawala_early_16_1
+RUN_COMPLETE RicartAgrawala_early_16_1
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:421:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:427:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:428:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:429:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:430:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:431:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:432:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:433:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_BEGIN RicartAgrawala_current_16_1
+FAILED RicartAgrawala_current_16_1 nextSimp ms=12830: `simp` failed: maximum number of steps exceeded
+RUN_FAILED RicartAgrawala_current_16_1
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:436:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:440:111: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED RicartAgrawala_current_16_2 prior_failure
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:450:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_16_2
+STAGE RicartAgrawala_early_16_2 early_intros ms=15
+STAGE RicartAgrawala_early_16_2 nextSimp ms=1535
+STAGE RicartAgrawala_early_16_2 hoist ms=37
+STAGE RicartAgrawala_early_16_2 intros ms=4
+STAGE RicartAgrawala_early_16_2 destruct ms=635
+STAGE RicartAgrawala_early_16_2 dsimp1 ms=71
+STAGE RicartAgrawala_early_16_2 smtSimp ms=657
+STAGE RicartAgrawala_early_16_2 dsimp2 ms=69
+RUN_COMPLETE RicartAgrawala_early_16_2
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:465:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_16_3
+STAGE RicartAgrawala_early_16_3 early_intros ms=22
+STAGE RicartAgrawala_early_16_3 nextSimp ms=1129
+STAGE RicartAgrawala_early_16_3 hoist ms=27
+STAGE RicartAgrawala_early_16_3 intros ms=3
+STAGE RicartAgrawala_early_16_3 destruct ms=601
+STAGE RicartAgrawala_early_16_3 dsimp1 ms=73
+STAGE RicartAgrawala_early_16_3 smtSimp ms=748
+STAGE RicartAgrawala_early_16_3 dsimp2 ms=56
+RUN_COMPLETE RicartAgrawala_early_16_3
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:480:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:484:111: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED RicartAgrawala_current_16_3 prior_failure
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:494:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:498:111: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED RicartAgrawala_current_32_1 prior_failure
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:509:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_32_1
+STAGE RicartAgrawala_early_32_1 early_intros ms=52
+STAGE RicartAgrawala_early_32_1 nextSimp ms=2590
+STAGE RicartAgrawala_early_32_1 hoist ms=94
+STAGE RicartAgrawala_early_32_1 intros ms=8
+STAGE RicartAgrawala_early_32_1 destruct ms=2372
+STAGE RicartAgrawala_early_32_1 dsimp1 ms=219
+STAGE RicartAgrawala_early_32_1 smtSimp ms=1765
+STAGE RicartAgrawala_early_32_1 dsimp2 ms=127
+SMT_STAGE RicartAgrawala_early_32_1 pushHints ms=0
+SMT_STAGE RicartAgrawala_early_32_1 smt-intros ms=0
+SMT_STAGE RicartAgrawala_early_32_1 negateGoal ms=5
+SMT_STAGE RicartAgrawala_early_32_1 normalize ms=182
+SMT_STAGE RicartAgrawala_early_32_1 embedding ms=44
+SMT_STAGE RicartAgrawala_early_32_1 translate ms=514 commands=332
+SMT_STAGE RicartAgrawala_early_32_1 serialize ms=1193 bytes=90165
+PIPELINE_COMPLETE RicartAgrawala_early_32_1
+RUN_COMPLETE RicartAgrawala_early_32_1
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:525:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_32_2
+STAGE RicartAgrawala_early_32_2 early_intros ms=60
+STAGE RicartAgrawala_early_32_2 nextSimp ms=2768
+STAGE RicartAgrawala_early_32_2 hoist ms=82
+STAGE RicartAgrawala_early_32_2 intros ms=12
+STAGE RicartAgrawala_early_32_2 destruct ms=2528
+STAGE RicartAgrawala_early_32_2 dsimp1 ms=225
+STAGE RicartAgrawala_early_32_2 smtSimp ms=1875
+STAGE RicartAgrawala_early_32_2 dsimp2 ms=112
+RUN_COMPLETE RicartAgrawala_early_32_2
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:540:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:544:111: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED RicartAgrawala_current_32_2 prior_failure
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:554:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:558:111: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED RicartAgrawala_current_32_3 prior_failure
+/tmp/veil-early-intro-multi/results/sources/RicartAgrawala.lean:568:0: warning: declaration uses `sorry`
+RUN_BEGIN RicartAgrawala_early_32_3
+STAGE RicartAgrawala_early_32_3 early_intros ms=59
+STAGE RicartAgrawala_early_32_3 nextSimp ms=2630
+STAGE RicartAgrawala_early_32_3 hoist ms=58
+STAGE RicartAgrawala_early_32_3 intros ms=12
+STAGE RicartAgrawala_early_32_3 destruct ms=2602
+STAGE RicartAgrawala_early_32_3 dsimp1 ms=192
+STAGE RicartAgrawala_early_32_3 smtSimp ms=1465
+STAGE RicartAgrawala_early_32_3 dsimp2 ms=116
+RUN_COMPLETE RicartAgrawala_early_32_3
+
+PROCESS status=exit0 wall_seconds=106.457905

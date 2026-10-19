@@ -1,0 +1,577 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSBuggy__default__batch1.lean:344:2: error: Application type mismatch: The argument
+  fun a =>
+    implies_congr
+      (Eq.refl
+        (distinctN
+          [EnactorPC_Enum.Receive, EnactorPC_Enum.Apply, EnactorPC_Enum.Cleanup, EnactorPC_Enum.RemoveActiveDNS]))
+      (implies_congr
+        (Eq.refl
+          (∀ (__veil_x : EnactorPC),
+            __veil_x = EnactorPC_Enum.Receive ∨
+              __veil_x = EnactorPC_Enum.Apply ∨
+                __veil_x = EnactorPC_Enum.Cleanup ∨ __veil_x = EnactorPC_Enum.RemoveActiveDNS))
+        (implies_congr
+          (Eq.refl
+            (distinctN
+              [__veil_tag.PlannerNewPlan, __veil_tag.EnactorReceive, __veil_tag.EnactorApply,
+                __veil_tag.EnactorCleanupScanOne, __veil_tag.EnactorRemoveDNSRecords]))
+          (implies_congr
+            (Eq.refl
+              (∀ (__veil_x : ActionTag),
+                __veil_x = __veil_tag.PlannerNewPlan ∨
+                  __veil_x = __veil_tag.EnactorReceive ∨
+                    __veil_x = __veil_tag.EnactorApply ∨
+                      __veil_x = __veil_tag.EnactorCleanupScanOne ∨ __veil_x = __veil_tag.EnactorRemoveDNSRecords))
+            (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 10))
+              (forall_prop_domain_congr
+                (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 10))
+                fun th.max_plan.isLt =>
+                implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 10))
+                  (forall_prop_domain_congr
+                    (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 10))
+                    fun th.plan_age_threshold.isLt =>
+                    implies_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 10))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 10))
+                        fun st0.current_plan.isLt =>
+                        implies_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 10))
+                          (forall_prop_domain_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 10))
+                            fun st0.latest_plan.isLt =>
+                            implies_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 10))
+                              (forall_prop_domain_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 10))
+                                fun st0.highest_plan_applied.isLt =>
+                                implies_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 10))
+                                  (forall_prop_domain_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 10))
+                                    fun st1.current_plan.isLt =>
+                                    implies_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 10))
+                                      (forall_prop_domain_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 10))
+                                        fun st1.latest_plan.isLt =>
+                                        implies_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 10))
+                                          (forall_prop_domain_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 10))
+                                            fun st1.highest_plan_applied.isLt =>
+                                            implies_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 10))
+                                              (forall_prop_domain_congr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 10))
+                                                fun st2.current_plan.isLt =>
+                                                implies_congr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                                                  (forall_prop_domain_congr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                                                    fun st2.latest_plan.isLt =>
+                                                    implies_congr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                                                      (forall_prop_domain_congr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                                                        fun st2.highest_plan_applied.isLt =>
+                                                        implies_congr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                                                          (forall_prop_domain_congr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                                                            fun st3.current_plan.isLt =>
+                                                            implies_congr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))
+                                                                  10))
+                                                              (forall_prop_domain_congr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))
+                                                                    10))
+                                                                fun st3.latest_plan.isLt =>
+                                                                implies_congr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun'
+                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                                                  (forall_prop_domain_congr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                                                    fun st3.highest_plan_applied.isLt =>
+                                                                    implies_congr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                          10))
+                                                                      (forall_prop_domain_congr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun'
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                            10))
+                                                                        fun st4.current_plan.isLt =>
+                                                                        implies_congr
+                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                            (congrFun'
+                                                                              (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                              10))
+                                                                          ⋯)))))))))))))))))))
+has type
+  ∀ (a : f ≥ 0),
+    (distinctN [EnactorPC_Enum.Receive, EnactorPC_Enum.Apply, EnactorPC_Enum.Cleanup, EnactorPC_Enum.RemoveActiveDNS] →
+        (∀ (__veil_x : EnactorPC),
+            __veil_x = EnactorPC_Enum.Receive ∨
+              __veil_x = EnactorPC_Enum.Apply ∨
+                __veil_x = EnactorPC_Enum.Cleanup ∨ __veil_x = EnactorPC_Enum.RemoveActiveDNS) →
+          distinctN
+              [__veil_tag.PlannerNewPlan, __veil_tag.EnactorReceive, __veil_tag.EnactorApply,
+                __veil_tag.EnactorCleanupScanOne, __veil_tag.EnactorRemoveDNSRecords] →
+            (∀ (__veil_x : ActionTag),
+                __veil_x = __veil_tag.PlannerNewPlan ∨
+                  __veil_x = __veil_tag.EnactorReceive ∨
+                    __veil_x = __veil_tag.EnactorApply ∨
+                      __veil_x = __veil_tag.EnactorCleanupScanOne ∨ __veil_x = __veil_tag.EnactorRemoveDNSRecords) →
+              f✝¹⁵.toNat < 10 →
+                ∀ (a : f✝¹⁵.toNat < 10),
+                  f✝¹⁴.toNat < 10 →
+                    ∀ (th.plan_age_threshold.isLt : f✝¹⁴.toNat < 10),
+                      f✝¹³.toNat < 10 →
+                        ∀ (st0.current_plan.isLt : f✝¹³.toNat < 10),
+                          f✝¹².toNat < 10 →
+                            ∀ (st0.latest_plan.isLt : f✝¹².toNat < 10),
+                              f✝¹¹.toNat < 10 →
+                                ∀ (st0.highest_plan_applied.isLt : f✝¹¹.toNat < 10),
+                                  f✝¹⁰.toNat < 10 →
+                                    ∀ (st1.current_plan.isLt : f✝¹⁰.toNat < 10),
+                                      f✝⁹.toNat < 10 →
+                                        ∀ (st1.latest_plan.isLt : f✝⁹.toNat < 10),
+                                          f✝⁸.toNat < 10 →
+                                            ∀ (st1.highest_plan_applied.isLt : f✝⁸.toNat < 10),
+                                              f✝⁷.toNat < 10 →
+                                                ∀ (st2.current_plan.isLt : f✝⁷.toNat < 10),
+                                                  f✝⁶.toNat < 10 →
+                                                    ∀ (st2.latest_plan.isLt : f✝⁶.toNat < 10),
+                                                      f✝⁵.toNat < 10 →
+                                                        ∀ (st2.highest_plan_applied.isLt : f✝⁵.toNat < 10),
+                                                          f✝⁴.toNat < 10 →
+                                                            ∀ (st3.current_plan.isLt : f✝⁴.toNat < 10),
+                                                              f✝³.toNat < 10 →
+                                                                ∀ (st3.latest_plan.isLt : f✝³.toNat < 10),
+                                                                  f✝².toNat < 10 →
+                                                                    ∀ (st3.highest_plan_applied.isLt : f✝².toNat < 10),
+                                                                      f✝¹.toNat < 10 →
+                                                                        ∀ (st4.current_plan.isLt : f✝¹.toNat < 10),
+                                                                          f✝.toNat < 10 →
+                                                                            ∀ (st4.latest_plan.isLt : f✝.toNat < 10),
+                                                                              f.toNat < 10 →
+                                                                                ∀
+                                                                                  (st4.highest_plan_applied.isLt :
+                                                                                    f.toNat < 10),
+                                                                                  ¬¬((0 =
+                                                                                              ⟨f✝¹³.toNat,
+                                                                                                st0.current_plan.isLt⟩ ∧
+                                                                                            true = decide x✝³ ∧
+                                                                                              0 =
+                                                                                                  ⟨f✝¹².toNat,
+                                                                                                    st0.latest_plan.isLt⟩ ∧
+                                                                                                0 =
+                                                                                                    ⟨f✝¹¹.toNat,
+                                                                                                      st0.highest_plan_applied.isLt⟩ ∧
+                                                                                                  (∀ (a : Fin 10),
+                                                                                                      false =
+                                                                                                        (fun a₁ =>
+                                                                                                            decide
+                                                                                                              (f✝²⁵ a₁))
+                                                                                                          a) ∧
+                                                                                                    (∀ (a : Fin 10),
+                                                                                                        false =
+                                                                                                          (fun a₁ =>
+                                                                                                              decide
+                                                                                                                (f✝²⁴
+                                                                                                                  a₁))
+                                                                                                            a) ∧
+                                                                                                      (∀ (a : Enactor),
+                                                                                                          0 =
+                                                                                                            st0.enactor_processing
+                                                                                                              a) ∧
+                                                                                                        ⋯) ∧
+                                                                                          (_tr1_tag =
+                                                                                                  __veil_tag.PlannerNewPlan ∧
+                                                                                                ⟨f✝¹².toNat,
+                                                                                                      st0.latest_plan.isLt⟩ <
+                                                                                                    ⟨f✝¹⁵.toNat, a⟩ ∧
+                                                                                                  ⟨f✝¹².toNat,
+                                                                                                          st0.latest_plan.isLt⟩ +
+                                                                                                        1 ≤
+                                                                                                      ⟨f✝¹⁵.toNat, a⟩ ∧
+                                                                                                    ⟨f✝¹³.toNat,
+                                                                                                          st0.current_plan.isLt⟩ =
+                                                                                                        ⟨f✝¹⁰.toNat,
+                                                                                                          st1.current_plan.isLt⟩ ∧
+                                                                                                      decide x✝³ =
+                                                                                                          decide x✝² ∧
+                                                                                                        ⋯ ∨
+                                                                                              (_tr1_tag =
+                                                                                                    __veil_tag.EnactorReceive ∧
+                                                                                                  ∃ x,
+                                                                                                    (∃ p,
+                                                                                                        (fun a₁ =>
+                                                                                                              decide
+                                                                                                                (f✝²⁴
+                                                                                                                  a₁))
+                                                                                                            p =
+                                                                                                          true) ∧
+                                                                                                      ⋯) ∨
+                                                                                                (_tr1_tag =
+                                                                                                      __veil_tag.EnactorApply ∧
+                                                                                                    st0.enactor_pc
+                                                                                                          _tr1_act_EnactorApply_arg0_self =
+                                                                                                        EnactorPC_Enum.Apply ∧
+                                                                                                      if ⋯ then ⋯
+                                                                                                      else ⋯) ∨
+                                                                                                  _tr1_tag =
+                                                                                                        __veil_tag.EnactorCleanupScanOne ∧
+                                                                                                      st0.enactor_pc
+                                                                                                            _tr1_act_EnactorCleanupScanOne_arg0_self =
+                                                                                                          EnactorPC_Enum.Cleanup ∧
+                                                                                                        ⋯ ∨
+                                                                                                    _tr1_tag =
+                                                                                                        __veil_tag.EnactorRemoveDNSRecords ∧
+                                                                                                      st0.enactor_pc
+                                                                                                            _tr1_act_EnactorRemoveDNSRecords_arg0_self =
+                                                                                                          EnactorPC_Enum.RemoveActiveDNS ∧
+                                                                                                        ⋯) ∧
+                                                                                            (_tr2_tag =
+                                                                                                    __veil_tag.PlannerNewPlan ∧
+                                                                                                  ⟨f✝⁹.toNat,
+                                                                                                        st1.latest_plan.isLt⟩ <
+                                                                                                      ⟨f✝¹⁵.toNat, a⟩ ∧
+                                                                                                    ⟨f✝⁹.toNat,
+                                                                                                            st1.latest_plan.isLt⟩ +
+                                                                                                          1 ≤
+                                                                                                        ⟨f✝¹⁵.toNat,
+                                                                                                          a⟩ ∧
+                                                                                                      ⟨f✝¹⁰.toNat,
+                                                                                                            st1.current_plan.isLt⟩ =
+                                                                                                          ⟨f✝⁷.toNat,
+                                                                                                            st2.current_plan.isLt⟩ ∧
+                                                                                                        ⋯ ∨
+                                                                                                (_tr2_tag =
+                                                                                                      __veil_tag.EnactorReceive ∧
+                                                                                                    ∃ x, ⋯) ∨
+                                                                                                  _tr2_tag =
+                                                                                                        __veil_tag.EnactorApply ∧
+                                                                                                      st1.enactor_pc
+                                                                                                            _tr2_act_EnactorApply_arg0_self =
+                                                                                                          EnactorPC_Enum.Apply ∧
+                                                                                                        ⋯ ∨
+                                                                                                    _tr2_tag =
+                                                                                                          __veil_tag.EnactorCleanupScanOne ∧
+                                                                                                        ⋯ ∨
+                                                                                                      _tr2_tag =
+                                                                                                          __veil_tag.EnactorRemoveDNSRecords ∧
+                                                                                                        ⋯) ∧
+                                                                                              (_tr3_tag =
+                                                                                                      __veil_tag.PlannerNewPlan ∧
+                                                                                                    ⟨f✝⁶.toNat,
+                                                                                                          st2.latest_plan.isLt⟩ <
+                                                                                                        ⟨f✝¹⁵.toNat,
+                                                                                                          a⟩ ∧
+                                                                                                      ⋯ ∧ ⋯ ∨
+                                                                                                  _tr3_tag =
+                                                                                                        __veil_tag.EnactorReceive ∧
+                                                                                                      Exists ⋯ ∨
+                                                                                                    _tr3_tag =
+                                                                                                          __veil_tag.EnactorApply ∧
+                                                                                                        ⋯ ∨
+                                                                                                      ⋯ ∨ ⋯) ∧
+                                                                                                (_tr4_tag =
+                                                                                                        __veil_tag.PlannerNewPlan ∧
+                                                                                                      ⟨f✝³.toNat,
+                                                                                                            st3.latest_plan.isLt⟩ <
+                                                                                                          ⟨f✝¹⁵.toNat,
+                                                                                                            a⟩ ∧
+                                                                                                        ⋯ ∨
+                                                                                                    _tr4_tag =
+                                                                                                          __veil_tag.EnactorReceive ∧
+                                                                                                        ⋯ ∨
+                                                                                                      ⋯ ∨ ⋯) ∧
+                                                                                                  decide x = false) →
+                                                                                    False) =
+      (distinctN
+          [EnactorPC_Enum.Receive, EnactorPC_Enum.Apply, EnactorPC_Enum.Cleanup, EnactorPC_Enum.RemoveActiveDNS] →
+        (∀ (__veil_x : EnactorPC),
+            __veil_x = EnactorPC_Enum.Receive ∨
+              __veil_x = EnactorPC_Enum.Apply ∨
+                __veil_x = EnactorPC_Enum.Cleanup ∨ __veil_x = EnactorPC_Enum.RemoveActiveDNS) →
+          distinctN
+              [__veil_tag.PlannerNewPlan, __veil_tag.EnactorReceive, __veil_tag.EnactorApply,
+                __veil_tag.EnactorCleanupScanOne, __veil_tag.EnactorRemoveDNSRecords] →
+            (∀ (__veil_x : ActionTag),
+                __veil_x = __veil_tag.PlannerNewPlan ∨
+                  __veil_x = __veil_tag.EnactorReceive ∨
+                    __veil_x = __veil_tag.EnactorApply ∨
+                      __veil_x = __veil_tag.EnactorCleanupScanOne ∨ __veil_x = __veil_tag.EnactorRemoveDNSRecords) →
+              f✝¹⁵ < 10 →
+                ∀ (a_6 : f✝¹⁵ < 10),
+                  f✝¹⁴ < 10 →
+                    ∀ (th.plan_age_threshold.isLt : f✝¹⁴ < 10),
+                      f✝¹³ < 10 →
+                        ∀ (st0.current_plan.isLt : f✝¹³ < 10),
+                          f✝¹² < 10 →
+                            ∀ (st0.latest_plan.isLt : f✝¹² < 10),
+                              f✝¹¹ < 10 →
+                                ∀ (st0.highest_plan_applied.isLt : f✝¹¹ < 10),
+                                  f✝¹⁰ < 10 →
+                                    ∀ (st1.current_plan.isLt : f✝¹⁰ < 10),
+                                      f✝⁹ < 10 →
+                                        ∀ (st1.latest_plan.isLt : f✝⁹ < 10),
+                                          f✝⁸ < 10 →
+                                            ∀ (st1.highest_plan_applied.isLt : f✝⁸ < 10),
+                                              f✝⁷ < 10 →
+                                                ∀ (st2.current_plan.isLt : f✝⁷ < 10),
+                                                  f✝⁶ < 10 →
+                                                    ∀ (st2.latest_plan.isLt : f✝⁶ < 10),
+                                                      f✝⁵ < 10 →
+                                                        ∀ (st2.highest_plan_applied.isLt : f✝⁵ < 10),
+                                                          f✝⁴ < 10 →
+                                                            ∀ (st3.current_plan.isLt : f✝⁴ < 10),
+                                                              f✝³ < 10 →
+                                                                ∀ (st3.latest_plan.isLt : f✝³ < 10),
+                                                                  f✝² < 10 →
+                                                                    ∀ (st3.highest_plan_applied.isLt : f✝² < 10),
+                                                                      f✝¹ < 10 →
+                                                                        ∀ (st4.current_plan.isLt : f✝¹ < 10),
+                                                                          f✝ < 10 →
+                                                                            ∀ (st4.latest_plan.isLt : f✝ < 10),
+                                                                              f < 10 →
+                                                                                ∀
+                                                                                  (st4.highest_plan_applied.isLt :
+                                                                                    f < 10),
+                                                                                  ¬¬((0 = ⟨f✝¹³.toNat, ⋯⟩ ∧
+                                                                                            True = x✝³ ∧
+                                                                                              0 = ⟨f✝¹².toNat, ⋯⟩ ∧
+                                                                                                0 = ⟨f✝¹¹.toNat, ⋯⟩ ∧
+                                                                                                  (∀ (a : Fin 10),
+                                                                                                      False = f✝²⁵ a) ∧
+                                                                                                    (∀ (a : Fin 10),
+                                                                                                        False =
+                                                                                                          f✝²⁴ a) ∧
+                                                                                                      (∀ (a : Enactor),
+                                                                                                          0 =
+                                                                                                            st0.enactor_processing
+                                                                                                              a) ∧
+                                                                                                        ⋯) ∧
+                                                                                          (_tr1_tag =
+                                                                                                  __veil_tag.PlannerNewPlan ∧
+                                                                                                ⟨f✝¹².toNat, ⋯⟩ <
+                                                                                                    ⟨f✝¹⁵.toNat, ⋯⟩ ∧
+                                                                                                  ⋯ + 1 ≤
+                                                                                                      ⟨f✝¹⁵.toNat, ⋯⟩ ∧
+                                                                                                    ⋯ = ⋯ ∧
+                                                                                                      x✝³ = x✝² ∧ ⋯ ∨
+                                                                                              (_tr1_tag =
+                                                                                                    __veil_tag.EnactorReceive ∧
+                                                                                                  ∃ x,
+                                                                                                    (∃ p, f✝²⁴ p) ∧ ⋯) ∨
+                                                                                                (_tr1_tag =
+                                                                                                      __veil_tag.EnactorApply ∧
+                                                                                                    st0.enactor_pc
+                                                                                                          _tr1_act_EnactorApply_arg0_self =
+                                                                                                        EnactorPC_Enum.Apply ∧
+                                                                                                      if ⋯ then ⋯
+                                                                                                      else ⋯) ∨
+                                                                                                  _tr1_tag =
+                                                                                                        __veil_tag.EnactorCleanupScanOne ∧
+                                                                                                      st0.enactor_pc
+                                                                                                            _tr1_act_EnactorCleanupScanOne_arg0_self =
+                                                                                                          EnactorPC_Enum.Cleanup ∧
+                                                                                                        ⋯ ∨
+                                                                                                    _tr1_tag =
+                                                                                                        __veil_tag.EnactorRemoveDNSRecords ∧
+                                                                                                      st0.enactor_pc
+                                                                                                            _tr1_act_EnactorRemoveDNSRecords_arg0_self =
+                                                                                                          EnactorPC_Enum.RemoveActiveDNS ∧
+                                                                                                        ⋯) ∧
+                                                                                            (_tr2_tag =
+                                                                                                    __veil_tag.PlannerNewPlan ∧
+                                                                                                  ⟨f✝⁹.toNat, ⋯⟩ <
+                                                                                                      ⟨f✝¹⁵.toNat, ⋯⟩ ∧
+                                                                                                    ⋯ ≤ ⋯ ∧ ⋯ ∧ ⋯ ∨
+                                                                                                (_tr2_tag =
+                                                                                                      __veil_tag.EnactorReceive ∧
+                                                                                                    ∃ x, ⋯) ∨
+                                                                                                  _tr2_tag =
+                                                                                                        __veil_tag.EnactorApply ∧
+                                                                                                      st1.enactor_pc
+                                                                                                            _tr2_act_EnactorApply_arg0_self =
+                                                                                                          EnactorPC_Enum.Apply ∧
+                                                                                                        ⋯ ∨
+                                                                                                    _tr2_tag =
+                                                                                                          __veil_tag.EnactorCleanupScanOne ∧
+                                                                                                        ⋯ ∨
+                                                                                                      _tr2_tag =
+                                                                                                          __veil_tag.EnactorRemoveDNSRecords ∧
+                                                                                                        ⋯) ∧
+                                                                                              (_tr3_tag =
+                                                                                                      __veil_tag.PlannerNewPlan ∧
+                                                                                                    ⋯ < ⋯ ∧ ⋯ ∧ ⋯ ∨
+                                                                                                  _tr3_tag =
+                                                                                                        __veil_tag.EnactorReceive ∧
+                                                                                                      Exists ⋯ ∨
+                                                                                                    _tr3_tag =
+                                                                                                          __veil_tag.EnactorApply ∧
+                                                                                                        ⋯ ∨
+                                                                                                      ⋯ ∨ ⋯) ∧
+                                                                                                (_tr4_tag =
+                                                                                                        __veil_tag.PlannerNewPlan ∧
+                                                                                                      ⋯ ∧ ⋯ ∨
+                                                                                                    _tr4_tag =
+                                                                                                          __veil_tag.EnactorReceive ∧
+                                                                                                        ⋯ ∨
+                                                                                                      ⋯ ∨ ⋯) ∧
+                                                                                                  x = False) →
+                                                                                    False)
+but is expected to have type
+  f ≥ 0 → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (f ≥ 0)) fun a =>
+    implies_congr
+      (Eq.refl
+        (distinctN
+          [EnactorPC_Enum.Receive, EnactorPC_Enum.Apply, EnactorPC_Enum.Cleanup, EnactorPC_Enum.RemoveActiveDNS]))
+      (implies_congr
+        (Eq.refl
+          (∀ (__veil_x : EnactorPC),
+            __veil_x = EnactorPC_Enum.Receive ∨
+              __veil_x = EnactorPC_Enum.Apply ∨
+                __veil_x = EnactorPC_Enum.Cleanup ∨ __veil_x = EnactorPC_Enum.RemoveActiveDNS))
+        (implies_congr
+          (Eq.refl
+            (distinctN
+              [__veil_tag.PlannerNewPlan, __veil_tag.EnactorReceive, __veil_tag.EnactorApply,
+                __veil_tag.EnactorCleanupScanOne, __veil_tag.EnactorRemoveDNSRecords]))
+          (implies_congr
+            (Eq.refl
+              (∀ (__veil_x : ActionTag),
+                __veil_x = __veil_tag.PlannerNewPlan ∨
+                  __veil_x = __veil_tag.EnactorReceive ∨
+                    __veil_x = __veil_tag.EnactorApply ∨
+                      __veil_x = __veil_tag.EnactorCleanupScanOne ∨ __veil_x = __veil_tag.EnactorRemoveDNSRecords))
+            (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 10))
+              (forall_prop_domain_congr
+                (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 10))
+                fun th.max_plan.isLt =>
+                implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 10))
+                  (forall_prop_domain_congr
+                    (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 10))
+                    fun th.plan_age_threshold.isLt =>
+                    implies_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 10))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 10))
+                        fun st0.current_plan.isLt =>
+                        implies_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 10))
+                          (forall_prop_domain_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 10))
+                            fun st0.latest_plan.isLt =>
+                            implies_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 10))
+                              (forall_prop_domain_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 10))
+                                fun st0.highest_plan_applied.isLt =>
+                                implies_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 10))
+                                  (forall_prop_domain_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 10))
+                                    fun st1.current_plan.isLt =>
+                                    implies_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 10))
+                                      (forall_prop_domain_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 10))
+                                        fun st1.latest_plan.isLt =>
+                                        implies_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 10))
+                                          (forall_prop_domain_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 10))
+                                            fun st1.highest_plan_applied.isLt =>
+                                            implies_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 10))
+                                              (forall_prop_domain_congr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 10))
+                                                fun st2.current_plan.isLt =>
+                                                implies_congr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                                                  (forall_prop_domain_congr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                                                    fun st2.latest_plan.isLt =>
+                                                    implies_congr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                                                      (forall_prop_domain_congr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                                                        fun st2.highest_plan_applied.isLt =>
+                                                        implies_congr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                                                          (forall_prop_domain_congr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                                                            fun st3.current_plan.isLt =>
+                                                            implies_congr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))
+                                                                  10))
+                                                              (forall_prop_domain_congr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))
+                                                                    10))
+                                                                fun st3.latest_plan.isLt =>
+                                                                implies_congr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun'
+                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                                                  (forall_prop_domain_congr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                                                    fun st3.highest_plan_applied.isLt =>
+                                                                    implies_congr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                          10))
+                                                                      (forall_prop_domain_congr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun'
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                            10))
+                                                                        fun st4.current_plan.isLt =>
+                                                                        ⋯)))))))))))))))))))

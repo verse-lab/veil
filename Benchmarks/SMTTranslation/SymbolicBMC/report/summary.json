@@ -1,0 +1,106 @@
+{
+  "model_files": 49,
+  "depths": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "requested_cells": 588,
+  "recorded_cells": 588,
+  "attempted_query_cells": 588,
+  "outcome_counts": {
+    "old": {
+      "embedding": 46,
+      "recursion": 61,
+      "simp_steps": 54,
+      "unsat": 60,
+      "solver_timeout": 15,
+      "heartbeat": 10,
+      "solver_error": 5,
+      "translation": 28,
+      "sat": 12,
+      "other": 2,
+      "process_timeout": 1
+    },
+    "early": {
+      "embedding": 50,
+      "recursion": 38,
+      "heartbeat": 23,
+      "unsat": 66,
+      "simp_steps": 9,
+      "solver_error": 10,
+      "solver_timeout": 41,
+      "translation": 41,
+      "sat": 15,
+      "other": 1
+    }
+  },
+  "completed_query_cells": {
+    "old": 92,
+    "early": 132
+  },
+  "matched_completed_query_pairs": 92,
+  "definite_answer_disagreements": [],
+  "definite_solver_disagreements": [],
+  "query_completion_changes": {
+    "early_only": 40,
+    "old_only": 0
+  },
+  "pipeline_entered_cells": 588,
+  "pipeline_entered_files": 49,
+  "model_setup_blocked_cells": 0,
+  "model_setup_blocked_files": 0,
+  "not_started_cells": 0,
+  "completed_preprocessing_cells": {
+    "old": 171,
+    "early": 261
+  },
+  "matched_completed_preprocessing_pairs": 171,
+  "outcome_file_counts": {
+    "old": {
+      "sat": 5,
+      "unsat": 22,
+      "simp_steps": 43,
+      "recursion": 39,
+      "heartbeat": 10,
+      "embedding": 14,
+      "translation": 8,
+      "solver_timeout": 13,
+      "solver_error": 2,
+      "process_timeout": 1,
+      "other": 1
+    },
+    "early": {
+      "sat": 5,
+      "unsat": 22,
+      "simp_steps": 5,
+      "recursion": 20,
+      "heartbeat": 18,
+      "embedding": 15,
+      "translation": 8,
+      "solver_timeout": 17,
+      "solver_error": 2,
+      "other": 1
+    }
+  },
+  "observed_matched_query_ratios": {
+    "minimum": 1.3050058207217696,
+    "median": 3.1607613666935706,
+    "maximum": 9.20986920332937,
+    "description": "Original / early time across matched cells; one observation per cell, heterogeneous models/depths, no uncertainty estimate."
+  },
+  "paired_query_comparison": {
+    "pairs": 294,
+    "both_queries": 92,
+    "same_after_implication_currying": 83,
+    "different_after_implication_currying": 9,
+    "parser_errors": 0
+  },
+  "paired_logical_comparison": {
+    "pairs": 92,
+    "matched": 92
+  }
+}

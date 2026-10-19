@@ -1,0 +1,8 @@
+SOLVER_RESULT FloodSet_old_4 status=sat solver_ms=118 smt_prep_ms=3322 bytes=12218
+/tmp/veil-early-intro-multi/FloodSet.lean:252:0: warning: declaration uses `sorry`
+SOLVER_RESULT FloodSet_early_4 status=sat solver_ms=263 smt_prep_ms=2637 bytes=12218
+/tmp/veil-early-intro-multi/FloodSet.lean:266:0: warning: declaration uses `sorry`
+SOLVER_RESULT FloodSet_old_8 status=sat solver_ms=403 smt_prep_ms=9794 bytes=22995
+/tmp/veil-early-intro-multi/FloodSet.lean:281:0: warning: declaration uses `sorry`
+SOLVER_RESULT FloodSet_early_8 status=sat solver_ms=877 smt_prep_ms=11224 bytes=22995
+/tmp/veil-early-intro-multi/FloodSet.lean:295:0: warning: declaration uses `sorry`

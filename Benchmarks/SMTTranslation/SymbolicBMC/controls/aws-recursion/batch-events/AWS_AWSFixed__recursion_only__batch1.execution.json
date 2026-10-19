@@ -1,0 +1,19 @@
+{
+  "batch_id": "AWS_AWSFixed__recursion_only__batch1",
+  "source": "/tmp/veil-symbolic-bmc/controls/aws-recursion/batch-sources/AWS_AWSFixed__recursion_only__batch1.lean",
+  "log": "/tmp/veil-symbolic-bmc/controls/aws-recursion/batch-logs/AWS_AWSFixed__recursion_only__batch1.log",
+  "exit_code": 1,
+  "wall_ms": 61461,
+  "setup_ms": 11433,
+  "timeout": null,
+  "active_cell": null,
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/controls/aws-recursion/batch-sources/AWS_AWSFixed__recursion_only__batch1.lean"
+  ]
+}

@@ -1,0 +1,7 @@
+SOLVER_RESULT MultiSigAll_old_4 status=unknown:TIMEOUT solver_ms=10033 smt_prep_ms=1605 bytes=38794
+/tmp/veil-early-intro-multi/MultiSigAll.lean:123:0: warning: declaration uses `sorry`
+SOLVER_RESULT MultiSigAll_early_4 status=unknown:TIMEOUT solver_ms=10034 smt_prep_ms=1276 bytes=38794
+/tmp/veil-early-intro-multi/MultiSigAll.lean:137:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/MultiSigAll.lean:156:2: error: `simp` failed: maximum number of steps exceeded
+SOLVER_RESULT MultiSigAll_early_8 status=unknown:TIMEOUT solver_ms=10054 smt_prep_ms=2595 bytes=75354
+/tmp/veil-early-intro-multi/MultiSigAll.lean:166:0: warning: declaration uses `sorry`

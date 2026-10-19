@@ -1336,6 +1336,21 @@ def elabVeilSolveTr : DesugarTacticM Unit := veilWithMainContext do
   else
     veilWithMainContext <| veilEvalTactic <| ← `(tactic| veil_intros; __veil_solve_tr_conservative)
 
+/-- Introduce outer data parameters before normalizing a trace. Stop at proof
+binders: their domains still need the same simplification and higher-order
+quantifier hoisting as the target. Moving them into the context too early can
+leave unsupported function quantifiers in hypotheses. -/
+private partial def introBmcDataPrefix (goal : MVarId) : MetaM MVarId := goal.withContext do
+  let target ← instantiateMVars (← goal.getType)
+  let .forallE _ domain _ _ := target.consumeMData | return goal
+  if ← isProp domain then return goal
+  -- Match `unhygienic intros`, including its handling of name collisions.
+  let (_, goal') ← withOptions (fun opts => opts.setBool `tactic.hygienic false) goal.intro1
+  introBmcDataPrefix goal'
+
+elab "__veil_bmc_intro_data" : tactic => do
+  liftMetaTactic1 fun goal => return some (← introBmcDataPrefix goal)
+
 @[inherit_doc veil_bmc]
 def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
   -- FIXME: sometimes we still have abstract dispatchers in the types, so as a
@@ -1343,7 +1358,22 @@ def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
   let dsimpLemmas := #[mkIdent ``Inhabited.default, fieldAbstractDispatcher, fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
   let dsimpTac←  `(tactic| try dsimp +$(mkIdent `instances) [$[$dsimpLemmas:ident],*])
   let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
-  let tac ← `(tacticSeq| $inferNonemptyTac:tactic; veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]; veil_simp +$(mkIdent `instances) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; $inferNonemptyTac:tactic; veil_destruct; $dsimpTac; veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]; $dsimpTac; veil_smt)
+  -- Avoid rebuilding the outer data telescope during simplification. Its
+  -- State/Theory binders also trigger the HO guard without nested witnesses.
+  -- Keep proof binders in the target until their domains have been normalized,
+  -- and retain the later intros for binders exposed by that normalization.
+  let tac ← `(tacticSeq|
+    __veil_bmc_intro_data
+    $inferNonemptyTac:tactic
+    veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]
+    veil_simp +$(mkIdent `instances) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]
+    veil_intros
+    $inferNonemptyTac:tactic
+    veil_destruct
+    $dsimpTac:tactic
+    veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]
+    $dsimpTac:tactic
+    veil_smt)
   veilEvalTactic tac
 
 def elabVeilSplitIfs : DesugarTacticM Unit := veilWithMainContext do

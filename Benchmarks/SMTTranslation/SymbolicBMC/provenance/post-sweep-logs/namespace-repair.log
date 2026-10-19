@@ -1,0 +1,42 @@
+BEGIN TLA_BcastByz batch1 cells=12
+  TLA_BcastByz__d1__old__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d1__early__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d2__early__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d2__old__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d4__old__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d4__early__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d8__early__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d8__old__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d16__old__default translation_failed phase=nextSimp kind=simp_steps query_ms=None
+  TLA_BcastByz__d16__early__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_BcastByz__d32__early__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_BcastByz__d32__old__default translation_failed phase=nextSimp kind=recursion query_ms=None
+END TLA_BcastByz__default__batch1 wall=82.7s setup=11817 timeout=None remaining=0
+BEGIN TLA_MutexViolation batch1 cells=12
+  TLA_MutexViolation__d1__early__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_MutexViolation__d1__old__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_MutexViolation__d2__old__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_MutexViolation__d2__early__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_MutexViolation__d4__early__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_MutexViolation__d4__old__default translation_failed phase=destruct kind=heartbeats query_ms=None
+  TLA_MutexViolation__d8__old__default translation_failed phase=nextSimp kind=simp_steps query_ms=None
+  TLA_MutexViolation__d8__early__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MutexViolation__d16__early__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MutexViolation__d16__old__default translation_failed phase=nextSimp kind=recursion query_ms=None
+  TLA_MutexViolation__d32__old__default translation_failed phase=nextSimp kind=recursion query_ms=None
+  TLA_MutexViolation__d32__early__default translation_failed phase=destruct kind=heartbeats query_ms=None
+END TLA_MutexViolation__default__batch1 wall=112.1s setup=16809 timeout=None remaining=0
+BEGIN TLA_Room batch1 cells=12
+  TLA_Room__d1__old__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d1__early__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d2__early__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d2__old__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d4__old__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d4__early__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d8__early__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d8__old__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d16__old__default translation_failed phase=nextSimp kind=simp_steps query_ms=None
+  TLA_Room__d16__early__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Room__d32__early__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Room__d32__old__default translation_failed phase=nextSimp kind=recursion query_ms=None
+END TLA_Room__default__batch1 wall=101.8s setup=10094 timeout=None remaining=0

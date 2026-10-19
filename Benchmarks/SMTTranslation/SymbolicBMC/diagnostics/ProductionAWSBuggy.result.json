@@ -1,0 +1,12 @@
+{
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/ProductionAWSBuggy.lean"
+  ],
+  "exit": 1,
+  "seconds": 15.977004796004621,
+  "log": "/tmp/veil-symbolic-bmc/ProductionAWSBuggy.log"
+}

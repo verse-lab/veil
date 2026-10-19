@@ -1,0 +1,140 @@
+Issue #123: existing Ring model, preprocessing stages
+
+Veil eb41b59673a179ad05773ceca18667ba25b7f079, Lean v4.32.0.
+Measured 2026-10-19 after a fresh successful lake build Veil (1085 jobs).
+Timings are milliseconds, single observations with concurrent investigation
+jobs, intended as scaling evidence rather than stable CI budgets.
+
+Reproduce from repository root:
+  python3 Benchmarks/SMTTranslation/ring_stages.py
+
+current = existing veil_bmc order.
+early = add veil_intros before the existing order.
+local = introduce binders, assume and split the trace conjunction, then
+        simplify hypotheses individually (retain all disjunctions).
+
+No SMT solver or proof reconstruction is run in these stage probes. They
+finish with sorry; measured times exclude model generation and startup.
+maxHeartbeats=0 and maxRecDepth=10000 isolate simp's default maxSteps=100000.
+The target_nodes field counts target expression objects only, excluding
+hypotheses and proof terms. Local mode's target is False (one node); this
+does NOT mean its constraints have disappeared.
+
+All early/local runs below complete. Current depth16/32 fail in nextSimp,
+before existential hoisting or SMT. A separate true-HO benchmark isolates
+existential hoisting; see QuantifierHoisting.lean and its results file.
+
+The generic conjunction splitter is itself not linear: an additional local
+Ring64 experiment took about 5.1 s in split_conj. A production implementation
+should avoid repeatedly reconstructing the growing local context.
+
+current depth=4
+  STAGE nextSimp ms=1053 goals=1 target_nodes=1236
+  STAGE hoist ms=1025 goals=1 target_nodes=1300
+  STAGE intros ms=2 goals=1 target_nodes=1150
+  STAGE destruct ms=68 goals=1 target_nodes=1230
+  STAGE dsimp1 ms=14 goals=1 target_nodes=985
+  STAGE smtSimp ms=106 goals=1 target_nodes=1019
+  STAGE dsimp2 ms=11 goals=1 target_nodes=1019
+  exit=0
+current depth=8
+  STAGE nextSimp ms=4314 goals=1 target_nodes=2360
+  STAGE hoist ms=4596 goals=1 target_nodes=2488
+  STAGE intros ms=3 goals=1 target_nodes=2226
+  STAGE destruct ms=174 goals=1 target_nodes=2342
+  STAGE dsimp1 ms=32 goals=1 target_nodes=1921
+  STAGE smtSimp ms=235 goals=1 target_nodes=1987
+  STAGE dsimp2 ms=23 goals=1 target_nodes=1987
+  exit=0
+current depth=16
+  /home/george/src/veil-issue-123/.veil.tmp/issue123/ring/current_16.lean:71:26: error: `simp` failed: maximum number of steps exceeded
+  FAILED nextSimp ms=15871: `simp` failed: maximum number of steps exceeded
+  exit=1
+current depth=32
+  /home/george/src/veil-issue-123/.veil.tmp/issue123/ring/current_32.lean:71:26: error: `simp` failed: maximum number of steps exceeded
+  FAILED nextSimp ms=16776: `simp` failed: maximum number of steps exceeded
+  exit=1
+early depth=4
+  STAGE early_intros ms=1 goals=1 target_nodes=271
+  STAGE nextSimp ms=261 goals=1 target_nodes=1090
+  STAGE hoist ms=9 goals=1 target_nodes=1090
+  STAGE intros ms=1 goals=1 target_nodes=1090
+  STAGE destruct ms=68 goals=1 target_nodes=1170
+  STAGE dsimp1 ms=23 goals=1 target_nodes=985
+  STAGE smtSimp ms=135 goals=1 target_nodes=1019
+  STAGE dsimp2 ms=18 goals=1 target_nodes=1019
+  exit=0
+early depth=8
+  STAGE early_intros ms=2 goals=1 target_nodes=383
+  STAGE nextSimp ms=445 goals=1 target_nodes=2110
+  STAGE hoist ms=11 goals=1 target_nodes=2110
+  STAGE intros ms=1 goals=1 target_nodes=2110
+  STAGE destruct ms=157 goals=1 target_nodes=2226
+  STAGE dsimp1 ms=45 goals=1 target_nodes=1921
+  STAGE smtSimp ms=248 goals=1 target_nodes=1987
+  STAGE dsimp2 ms=29 goals=1 target_nodes=1987
+  exit=0
+early depth=16
+  STAGE early_intros ms=3 goals=1 target_nodes=607
+  STAGE nextSimp ms=899 goals=1 target_nodes=4150
+  STAGE hoist ms=17 goals=1 target_nodes=4150
+  STAGE intros ms=2 goals=1 target_nodes=4150
+  STAGE destruct ms=431 goals=1 target_nodes=4338
+  STAGE dsimp1 ms=74 goals=1 target_nodes=3793
+  STAGE smtSimp ms=425 goals=1 target_nodes=3923
+  STAGE dsimp2 ms=39 goals=1 target_nodes=3923
+  exit=0
+early depth=32
+  STAGE early_intros ms=3 goals=1 target_nodes=1055
+  STAGE nextSimp ms=1928 goals=1 target_nodes=8230
+  STAGE hoist ms=35 goals=1 target_nodes=8230
+  STAGE intros ms=7 goals=1 target_nodes=8230
+  STAGE destruct ms=1592 goals=1 target_nodes=8562
+  STAGE dsimp1 ms=151 goals=1 target_nodes=7537
+  STAGE smtSimp ms=1069 goals=1 target_nodes=7795
+  STAGE dsimp2 ms=132 goals=1 target_nodes=7795
+  exit=0
+local depth=4
+  STAGE intros ms=3 goals=1 target_nodes=271
+  STAGE trace_hyp ms=0 goals=1 target_nodes=1
+  STAGE split_conj ms=22 goals=1 target_nodes=1
+  STAGE nextSimp_local ms=294 goals=1 target_nodes=1
+  STAGE hoist_local ms=12 goals=1 target_nodes=1
+  STAGE destruct ms=37 goals=1 target_nodes=1
+  STAGE dsimp1 ms=29 goals=1 target_nodes=1
+  STAGE smtSimp ms=122 goals=1 target_nodes=1
+  STAGE dsimp2 ms=14 goals=1 target_nodes=1
+  exit=0
+local depth=8
+  STAGE intros ms=2 goals=1 target_nodes=383
+  STAGE trace_hyp ms=0 goals=1 target_nodes=1
+  STAGE split_conj ms=65 goals=1 target_nodes=1
+  STAGE nextSimp_local ms=524 goals=1 target_nodes=1
+  STAGE hoist_local ms=15 goals=1 target_nodes=1
+  STAGE destruct ms=45 goals=1 target_nodes=1
+  STAGE dsimp1 ms=44 goals=1 target_nodes=1
+  STAGE smtSimp ms=287 goals=1 target_nodes=1
+  STAGE dsimp2 ms=29 goals=1 target_nodes=1
+  exit=0
+local depth=16
+  STAGE intros ms=2 goals=1 target_nodes=607
+  STAGE trace_hyp ms=0 goals=1 target_nodes=1
+  STAGE split_conj ms=148 goals=1 target_nodes=1
+  STAGE nextSimp_local ms=1057 goals=1 target_nodes=1
+  STAGE hoist_local ms=45 goals=1 target_nodes=1
+  STAGE destruct ms=139 goals=1 target_nodes=1
+  STAGE dsimp1 ms=103 goals=1 target_nodes=1
+  STAGE smtSimp ms=596 goals=1 target_nodes=1
+  STAGE dsimp2 ms=67 goals=1 target_nodes=1
+  exit=0
+local depth=32
+  STAGE intros ms=3 goals=1 target_nodes=1055
+  STAGE trace_hyp ms=0 goals=1 target_nodes=1
+  STAGE split_conj ms=717 goals=1 target_nodes=1
+  STAGE nextSimp_local ms=2011 goals=1 target_nodes=1
+  STAGE hoist_local ms=55 goals=1 target_nodes=1
+  STAGE destruct ms=271 goals=1 target_nodes=1
+  STAGE dsimp1 ms=132 goals=1 target_nodes=1
+  STAGE smtSimp ms=1127 goals=1 target_nodes=1
+  STAGE dsimp2 ms=108 goals=1 target_nodes=1
+  exit=0

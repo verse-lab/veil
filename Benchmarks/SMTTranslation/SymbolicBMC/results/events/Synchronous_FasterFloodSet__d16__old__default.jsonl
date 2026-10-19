@@ -1,0 +1,10 @@
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":175078007,"phase":"query_elaboration","status":"begin"}
+{"elapsed_ms":0,"event":"pipeline","maxHeartbeats":200000,"maxRecDepth":512,"mono_ms":175078076,"phase":"pipeline","status":"begin"}
+{"elapsed_ms":0,"event":"stage","mono_ms":175078076,"phase":"nextSimp","status":"begin"}
+{"elapsed_ms":11093,"event":"stage","mono_ms":175089170,"phase":"nextSimp","status":"complete"}
+{"elapsed_ms":0,"event":"stage","mono_ms":175089170,"phase":"hoist","status":"begin"}
+{"elapsed_ms":15086,"event":"stage","mono_ms":175104256,"phase":"hoist","status":"complete"}
+{"elapsed_ms":0,"event":"stage","mono_ms":175104518,"phase":"intros","status":"begin"}
+{"elapsed_ms":4,"event":"stage","mono_ms":175104522,"phase":"intros","status":"complete"}
+{"elapsed_ms":0,"event":"stage","mono_ms":175104522,"phase":"destruct","status":"begin"}
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":175105521,"phase":"query_elaboration","status":"end"}

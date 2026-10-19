@@ -1,0 +1,59 @@
+Nat/Fin embedding: reproduced defect and limits of the candidate repair
+
+Observed production failure
+  AWSBuggy's exact manifest depth 1 query (`assert dns_valid = false`) fails in
+  actual production `by veil_bmc`, independently of the benchmark instrumentation.
+  Both tactic orders fail in the primary sweep. The exception is an application
+  type mismatch at implies_congr_ctx. No query or solver verdict is produced.
+
+Minimized, validated cause
+  The original standalone embedding simplifier fails on the closed proposition:
+    forall z:Int, z>=0 -> forall h:z.toNat<10, P (Fin.mk z.toNat h)
+  for an opaque P : Fin10 -> Prop. A scalar Nat-to-Int control passes. Simplifying
+  the inner bound under a fresh proof hp of z>=0 inserts a transport depending on
+  hp into the Fin argument. The rewritten consequent therefore depends on hp,
+  but the current simproc uses nondependent implication congruence and returns
+  the raw consequent without binding that new dependency.
+
+  Smt/Preprocess/Embedding/Nat.lean:285–295 is the offending pattern. Lean4.32's
+  own simpArrow (Lean/Meta/Tactic/Simp/Main.lean:333–361) checks for this dependency,
+  constructs mkForallFVars when necessary and uses mkImpDepCongrCtx, with the
+  expected transparency mode. Rat.lean:314–324 has an analogous source pattern,
+  but no actual Rat failure has been established.
+
+Attribution checks
+  MinimalOriginal: scalar passes; both dependent Fin cases fail.
+  MinimalWithDefaultOnly: same dependent failures. Transparency alone is insufficient.
+  MinimalDependentOnly: all three cases pass expression/equality-proof checking,
+    including explicit checks that no free variable escapes the closed input.
+  MinimalFixedNat (dependency branch plus withDefault): all three pass those checks.
+  Thus dependency handling is necessary for these reproductions; withDefault is
+  consistent with Lean's implementation but is not the explanation of this failure.
+
+Full model results, with candidate activation explicitly checked
+  ProductionAWSBuggy: original congruence type mismatch.
+  AWSBuggyWithDefaultOnly: original congruence type mismatch remains.
+  AWSBuggyDependentOnly / AWSBuggyFixedNat: remove that error, then fail later at
+    translation with `cannot translate 0`. No complete SMT query/answer is claimed.
+  BuggyCircularBufferOriginal: congruence type mismatch.
+  BuggyCircularBufferFixedNat: removes it, then translation rejects
+    `fun n => n ∈ BUFFER_ELEMS` as an unsupported lambda.
+
+  Each retained full-model candidate checks that the original contextual Nat
+  simproc is disabled and the candidate is active before the query. Earlier
+  probes with module-visibility/scoped-erasure defects were discarded. Sources,
+  hashes, exits and logs are retained under diagnostics/, separately from timings.
+
+What this establishes
+  There is a concrete dependency-congruence bug and a small tested repair direction.
+  It is not yet a complete AWS or circular-buffer fix, nor proof that all 49 early
+  embedding type-mismatch cells share this cause. Preserve nonnegativity and Fin
+  bounds; inspect/lower residual dependent Fin constructions and subtype predicates
+  after the congruence fix rather than dropping guards or permitting arbitrary
+  lambdas. A literal-translation error by itself does not establish its full cause.
+
+  Before changing the dependency, add a kernel-checked minimized equality theorem,
+  full trusted SAT/UNSAT cases, untrusted reconstruction and model-decoding tests,
+  plus dependent numeric/function domains. The current Meta expression/proof checks
+  and trusted downstream probes do not supply all of those guarantees. No backend
+  candidate is installed by the early-introduction implementation.patch.

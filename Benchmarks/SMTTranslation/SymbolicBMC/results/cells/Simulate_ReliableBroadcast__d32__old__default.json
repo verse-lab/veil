@@ -1,0 +1,115 @@
+{
+  "row": {
+    "cell_id": "Simulate_ReliableBroadcast__d32__old__default",
+    "model": "Simulate_ReliableBroadcast",
+    "path": "Examples/Simulate/ReliableBroadcast.lean",
+    "module": "ReliableBroadcastSim",
+    "depth": 32,
+    "variant": "old",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "nextSimp",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean:411:37: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 140,
+    "batch_id": "Simulate_ReliableBroadcast__default__batch1",
+    "batch_setup_ms": 8030,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/Simulate_ReliableBroadcast__d32__old__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/Simulate_ReliableBroadcast__d32__old__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/Simulate_ReliableBroadcast__d32__old__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/Simulate_ReliableBroadcast__d32__old__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Simulate_ReliableBroadcast",
+    "path": "Examples/Simulate/ReliableBroadcast.lean",
+    "module": "ReliableBroadcastSim",
+    "cut_line": 64,
+    "query": "assert (∃ n1 n2 v1 v2, delivered n1 v1 ∧ delivered n2 v2 ∧ v1 ≠ v2)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "agreement safety, lines61–62",
+    "notes": "Simplified simulation model, distinct from Ivy/ReliableBroadcast.",
+    "category": "Simulate",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "8ea7d65d03ceec84cf591eb9f55add7414bf1384dbdae0280bd8039ea20535ab"
+  },
+  "original_sha256": "8ea7d65d03ceec84cf591eb9f55add7414bf1384dbdae0280bd8039ea20535ab",
+  "inherited_setup_options": [],
+  "source_sha256": "cbdb7267fc1e3f3af2042f13cf3a9fabd116889680f15ee074c2b9e0e9eedce7",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/Simulate_ReliableBroadcast__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 174826962,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 174827102,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174827103,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 174827218,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Simulate_ReliableBroadcast__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/Simulate_ReliableBroadcast__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 67265,
+    "setup_ms": 8030,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_ReliableBroadcast__default__batch1.lean"
+    ]
+  }
+}

@@ -1,0 +1,84 @@
+BEGIN Ring elapsed=0.0s
+  Ring current 2 r1:complete/1288,r2:complete/1187,r3:complete/1111
+  Ring early 2 r1:complete/291,r2:complete/286,r3:complete/304
+  Ring current 4 r1:complete/3034,r2:complete/3583,r3:complete/3220
+  Ring early 4 r1:complete/626,r2:complete/543,r3:complete/623
+  Ring current 8 r1:complete/10177,r2:complete/9937,r3:complete/9559
+  Ring early 8 r1:complete/851,r2:complete/981,r3:complete/1325
+  Ring current 16 r1:failed/,r2:skipped_prior_failure/,r3:skipped_prior_failure/
+  Ring early 16 r1:complete/1998,r2:complete/2229,r3:complete/1943
+  Ring current 32 r1:skipped_prior_failure/,r2:skipped_prior_failure/,r3:skipped_prior_failure/
+  Ring early 32 r1:complete/5134,r2:complete/5776,r3:complete/4965
+END Ring exit0 wall=114.8s
+BEGIN DieHard elapsed=114.8s
+  DieHard current 2 r1:complete/237,r2:complete/218,r3:complete/166
+  DieHard early 2 r1:complete/156,r2:complete/141,r3:complete/125
+  DieHard current 4 r1:complete/420,r2:complete/375,r3:complete/456
+  DieHard early 4 r1:complete/241,r2:complete/244,r3:complete/248
+  DieHard current 8 r1:complete/1027,r2:complete/1075,r3:complete/940
+  DieHard early 8 r1:complete/600,r2:complete/466,r3:complete/424
+  DieHard current 16 r1:complete/3094,r2:complete/3400,r3:complete/3485
+  DieHard early 16 r1:complete/1017,r2:complete/963,r3:complete/1075
+  DieHard current 32 r1:complete/10229,r2:complete/9982,r3:complete/10777
+  DieHard early 32 r1:complete/2630,r2:complete/2516,r3:complete/2609
+END DieHard exit0 wall=106.0s
+BEGIN TwoPhaseCommit elapsed=220.8s
+  TwoPhaseCommit current 2 r1:complete/850,r2:complete/771,r3:complete/945
+  TwoPhaseCommit early 2 r1:complete/363,r2:complete/335,r3:complete/442
+  TwoPhaseCommit current 4 r1:complete/2041,r2:complete/2267,r3:complete/2311
+  TwoPhaseCommit early 4 r1:complete/719,r2:complete/825,r3:complete/847
+  TwoPhaseCommit current 8 r1:complete/7145,r2:complete/6463,r3:complete/6595
+  TwoPhaseCommit early 8 r1:complete/1198,r2:complete/1492,r3:complete/1374
+  TwoPhaseCommit current 16 r1:failed/,r2:skipped_prior_failure/,r3:skipped_prior_failure/
+  TwoPhaseCommit early 16 r1:complete/3074,r2:complete/3244,r3:complete/3265
+  TwoPhaseCommit current 32 r1:skipped_prior_failure/,r2:skipped_prior_failure/,r3:skipped_prior_failure/
+  TwoPhaseCommit early 32 r1:complete/7917,r2:complete/8923,r3:complete/9915
+END TwoPhaseCommit exit0 wall=132.2s
+BEGIN RicartAgrawala elapsed=353.1s
+  RicartAgrawala current 2 r1:complete/737,r2:complete/799,r3:complete/705
+  RicartAgrawala early 2 r1:complete/285,r2:complete/293,r3:complete/252
+  RicartAgrawala current 4 r1:complete/1618,r2:complete/1975,r3:complete/1875
+  RicartAgrawala early 4 r1:complete/447,r2:complete/476,r3:complete/598
+  RicartAgrawala current 8 r1:complete/6039,r2:complete/5218,r3:complete/5486
+  RicartAgrawala early 8 r1:complete/1221,r2:complete/1105,r3:complete/947
+  RicartAgrawala current 16 r1:failed/,r2:skipped_prior_failure/,r3:skipped_prior_failure/
+  RicartAgrawala early 16 r1:complete/2385,r2:complete/3023,r3:complete/2659
+  RicartAgrawala current 32 r1:skipped_prior_failure/,r2:skipped_prior_failure/,r3:skipped_prior_failure/
+  RicartAgrawala early 32 r1:complete/7227,r2:complete/7662,r3:complete/7134
+END RicartAgrawala exit0 wall=106.5s
+BEGIN MultiSigAll elapsed=459.5s
+  MultiSigAll current 2 r1:complete/2925,r2:complete/3097,r3:complete/3389
+  MultiSigAll early 2 r1:complete/874,r2:complete/899,r3:complete/1086
+  MultiSigAll current 4 r1:complete/10171,r2:complete/10229,r3:complete/10983
+  MultiSigAll early 4 r1:complete/2078,r2:complete/2157,r3:complete/1951
+  MultiSigAll current 8 r1:failed/,r2:skipped_prior_failure/,r3:skipped_prior_failure/
+  MultiSigAll early 8 r1:complete/4501,r2:complete/4214,r3:complete/4245
+  MultiSigAll current 16 r1:not_started/,r2:not_started/,r3:not_started/
+  MultiSigAll early 16 r1:interrupted/,r2:not_started/,r3:not_started/
+  MultiSigAll current 32 r1:not_started/,r2:not_started/,r3:not_started/
+  MultiSigAll early 32 r1:not_started/,r2:not_started/,r3:not_started/
+END MultiSigAll timeout wall=180.0s
+BEGIN Peterson elapsed=639.6s
+  Peterson current 2 r1:complete/997,r2:complete/1023,r3:complete/930
+  Peterson early 2 r1:complete/382,r2:complete/489,r3:complete/352
+  Peterson current 4 r1:complete/3122,r2:complete/2669,r3:complete/2550
+  Peterson early 4 r1:complete/726,r2:complete/820,r3:complete/710
+  Peterson current 8 r1:complete/8368,r2:complete/8417,r3:complete/8492
+  Peterson early 8 r1:complete/1579,r2:complete/1591,r3:complete/1515
+  Peterson current 16 r1:failed/,r2:skipped_prior_failure/,r3:skipped_prior_failure/
+  Peterson early 16 r1:complete/3634,r2:complete/3929,r3:complete/3629
+  Peterson current 32 r1:skipped_prior_failure/,r2:skipped_prior_failure/,r3:skipped_prior_failure/
+  Peterson early 32 r1:complete/8504,r2:complete/9052,r3:complete/9353
+END Peterson exit0 wall=137.6s
+BEGIN FloodSet elapsed=777.2s
+  FloodSet current 2 r1:complete/1343,r2:complete/1190,r3:complete/1199
+  FloodSet early 2 r1:complete/510,r2:complete/408,r3:complete/470
+  FloodSet current 4 r1:complete/2994,r2:complete/2898,r3:complete/3190
+  FloodSet early 4 r1:complete/1097,r2:complete/1122,r3:complete/1111
+  FloodSet current 8 r1:complete/10536,r2:complete/10700,r3:complete/12145
+  FloodSet early 8 r1:complete/3492,r2:complete/3736,r3:complete/3464
+  FloodSet current 16 r1:not_started/,r2:not_started/,r3:not_started/
+  FloodSet early 16 r1:complete/18064,r2:not_started/,r3:not_started/
+  FloodSet current 32 r1:not_started/,r2:not_started/,r3:not_started/
+  FloodSet early 32 r1:not_started/,r2:not_started/,r3:not_started/
+END FloodSet timeout wall=180.0s

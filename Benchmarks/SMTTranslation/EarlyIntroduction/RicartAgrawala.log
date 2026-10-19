@@ -1,0 +1,8 @@
+SOLVER_RESULT RicartAgrawala_old_4 status=sat solver_ms=42 smt_prep_ms=430 bytes=11841
+/tmp/veil-early-intro-multi/RicartAgrawala.lean:93:0: warning: declaration uses `sorry`
+SOLVER_RESULT RicartAgrawala_early_4 status=sat solver_ms=83 smt_prep_ms=513 bytes=11841
+/tmp/veil-early-intro-multi/RicartAgrawala.lean:107:0: warning: declaration uses `sorry`
+SOLVER_RESULT RicartAgrawala_old_8 status=sat solver_ms=65 smt_prep_ms=750 bytes=22801
+/tmp/veil-early-intro-multi/RicartAgrawala.lean:122:0: warning: declaration uses `sorry`
+SOLVER_RESULT RicartAgrawala_early_8 status=sat solver_ms=174 smt_prep_ms=853 bytes=22801
+/tmp/veil-early-intro-multi/RicartAgrawala.lean:136:0: warning: declaration uses `sorry`

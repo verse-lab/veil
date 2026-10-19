@@ -1,0 +1,371 @@
+{
+  "row": {
+    "cell_id": "Simulate_CheckpointLeaseFailover__d4__early__default",
+    "model": "Simulate_CheckpointLeaseFailover",
+    "path": "Examples/Simulate/CheckpointLeaseFailover.lean",
+    "module": "CheckpointLeaseFailover",
+    "depth": 4,
+    "variant": "early",
+    "profile": "default",
+    "status": "sat",
+    "translation_status": "complete",
+    "solver_status": "sat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 37,
+    "batch_id": "Simulate_CheckpointLeaseFailover__default__batch1",
+    "batch_setup_ms": 7975,
+    "preprocessing_ms": 473,
+    "smt_preprocessing_ms": 19,
+    "translation_ms": 58,
+    "serialization_ms": 0,
+    "query_total_ms": 550,
+    "solver_ms": 304,
+    "completed_total_ms": 854,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 15784,
+    "query_commands": 79,
+    "query_sha256": "ca87d552e7cc6ae6c15cd276a4098f8850a09f9bbdb419089a100743304fb537",
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/Simulate_CheckpointLeaseFailover__d4__early__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/Simulate_CheckpointLeaseFailover__d4__early__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/Simulate_CheckpointLeaseFailover__d4__early__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Simulate_CheckpointLeaseFailover",
+    "path": "Examples/Simulate/CheckpointLeaseFailover.lean",
+    "module": "CheckpointLeaseFailover",
+    "cut_line": 82,
+    "query": "assert (∃ l expiry now, checkpointed_until l expiry ∧ current_epoch now ∧ epochOrd.le expiry now ∧ active_on_leader l)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "checkpointed_expiry_respected safety, lines77–80",
+    "notes": "Designed for simulation, but retained to expose symbolic-backend limitations.",
+    "category": "Simulate",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "cf9464cb7f1597fcdb4496ba5db410466042dc1da365f9c15e32916cccc61493"
+  },
+  "original_sha256": "cf9464cb7f1597fcdb4496ba5db410466042dc1da365f9c15e32916cccc61493",
+  "inherited_setup_options": [],
+  "source_sha256": "2e3618a05f55e92eacc1265a5007a28c46d6e76cdb516bf69b41d2fddfe490b3",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/Simulate_CheckpointLeaseFailover__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 174682882,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 174682919,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174682919,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "mono_ms": 174682924,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174682924,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 220,
+      "event": "stage",
+      "mono_ms": 174683144,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683144,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "mono_ms": 174683151,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683154,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "mono_ms": 174683155,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683156,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 69,
+      "event": "stage",
+      "mono_ms": 174683225,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683226,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 11,
+      "event": "stage",
+      "mono_ms": 174683237,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683237,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 152,
+      "event": "stage",
+      "mono_ms": 174683389,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683391,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 9,
+      "event": "stage",
+      "mono_ms": 174683401,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 482,
+      "event": "milestone",
+      "mono_ms": 174683401,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683401,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "mono_ms": 174683404,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683404,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683404,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683404,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683404,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683404,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "mono_ms": 174683405,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683405,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 12,
+      "event": "stage",
+      "mono_ms": 174683417,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683417,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "mono_ms": 174683420,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683420,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 58,
+      "event": "stage",
+      "mono_ms": 174683478,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683619,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 174683619,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 15784,
+      "commands": 79,
+      "elapsed_ms": 700,
+      "event": "pipeline",
+      "mono_ms": 174683619,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 174683677,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Simulate_CheckpointLeaseFailover__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/Simulate_CheckpointLeaseFailover__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 47060,
+    "setup_ms": 7975,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 304,
+      "event": "solver",
+      "phase": "solver",
+      "status": "sat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/Simulate_CheckpointLeaseFailover__d4__early__default.solver.jsonl",
+    "batch_log": "/tmp/veil-symbolic-bmc/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

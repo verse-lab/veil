@@ -1,0 +1,155 @@
+{
+  "row": {
+    "cell_id": "TLA_NOPaxos__d16__early__default",
+    "model": "TLA_NOPaxos",
+    "path": "Examples/TLA/NOPaxos.lean",
+    "module": "NOPaxos",
+    "depth": 16,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "nextSimp",
+    "failure_kind": "simp_steps",
+    "failure_message": "`simp` failed: maximum number of steps exceeded",
+    "setup_ms": null,
+    "query_elaboration_ms": 602,
+    "batch_id": "TLA_NOPaxos__default__batch1",
+    "batch_setup_ms": 31879,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/TLA_NOPaxos__d16__early__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_NOPaxos__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/TLA_NOPaxos__d16__early__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_NOPaxos__d16__early__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_NOPaxos__d16__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_NOPaxos",
+    "path": "Examples/TLA/NOPaxos.lean",
+    "module": "NOPaxos",
+    "cut_line": 955,
+    "query": "assert (¬ Linearizability)",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "linearizability invariant, line944; ghost predicate, line316",
+    "notes": "Large collection/list/array model. Prefix sets veil.deferVCGeneration=true and maxHeartbeats=1600000.",
+    "category": "TLA",
+    "source_options": [
+      {
+        "line": 10,
+        "directive": "set_option veil.deferVCGeneration true"
+      },
+      {
+        "line": 954,
+        "directive": "set_option maxHeartbeats 1600000"
+      }
+    ],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "dba347dc4275045efe9f76d1c576e31e51aac3970aced1a97aae351095d5a566"
+  },
+  "original_sha256": "dba347dc4275045efe9f76d1c576e31e51aac3970aced1a97aae351095d5a566",
+  "inherited_setup_options": [
+    {
+      "line": 10,
+      "directive": "set_option veil.deferVCGeneration true"
+    },
+    {
+      "line": 954,
+      "directive": "set_option maxHeartbeats 1600000"
+    }
+  ],
+  "source_sha256": "9755c4058b291fab7202f0c3b229763ca9be95d0c0c4c44ac763156640a0bc5b",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_NOPaxos__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 177066895,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 177067497,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177067497,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 53,
+      "event": "stage",
+      "mono_ms": 177067550,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177067550,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 22747,
+      "error": "`simp` failed: maximum number of steps exceeded",
+      "event": "stage",
+      "mono_ms": 177090309,
+      "phase": "nextSimp",
+      "status": "failed"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 177090826,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_NOPaxos__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_NOPaxos__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_NOPaxos__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 363587,
+    "setup_ms": 31879,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_NOPaxos__default__batch1.lean"
+    ]
+  }
+}

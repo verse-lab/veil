@@ -1,0 +1,4 @@
+REPLAY_RESULT Ring_old_4 status=sat solver_ms=138 bytes=9765
+REPLAY_RESULT Ring_early_4 status=sat solver_ms=82 bytes=9773
+REPLAY_RESULT Ring_old_8 status=sat solver_ms=278 bytes=18033
+REPLAY_RESULT Ring_early_8 status=sat solver_ms=308 bytes=18049

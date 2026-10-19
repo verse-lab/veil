@@ -1,0 +1,123 @@
+{
+  "row": {
+    "cell_id": "Tutorial_FloodSet__d32__old__default",
+    "model": "Tutorial_FloodSet",
+    "path": "Examples/Tutorial/FloodSet.lean",
+    "module": "FloodSet",
+    "depth": 32,
+    "variant": "old",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "nextSimp",
+    "failure_kind": "simp_steps",
+    "failure_message": "`simp` failed: maximum number of steps exceeded",
+    "setup_ms": null,
+    "query_elaboration_ms": 79,
+    "batch_id": "Tutorial_FloodSet__default__batch1",
+    "batch_setup_ms": 15252,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/Tutorial_FloodSet__d32__old__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_FloodSet__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/Tutorial_FloodSet__d32__old__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/Tutorial_FloodSet__d32__old__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/Tutorial_FloodSet__d32__old__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Tutorial_FloodSet",
+    "path": "Examples/Tutorial/FloodSet.lean",
+    "module": "FloodSet",
+    "cut_line": 341,
+    "query": "assert (¬ (∀ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 → v1 = v2))",
+    "query_kind": "existing_safety_violation",
+    "expected_status": null,
+    "query_source": "Existing agreement_violation trace, lines392–395",
+    "notes": "Tutorial variant overlaps Synchronous/FloodSet but is retained as its own model-bearing file.",
+    "category": "Tutorial",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "1681ed0b9021af0c86687c2dc8f931b9d09b801d7b14cc59a25998f1039df8d4"
+  },
+  "original_sha256": "1681ed0b9021af0c86687c2dc8f931b9d09b801d7b14cc59a25998f1039df8d4",
+  "inherited_setup_options": [],
+  "source_sha256": "21f440954dae3bc70ff60e1d624e421f3a3af91c93ed3381692dd2b07e1cb77a",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/Tutorial_FloodSet__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 178210316,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 178210395,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 178210395,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 14271,
+      "error": "`simp` failed: maximum number of steps exceeded",
+      "event": "stage",
+      "mono_ms": 178224672,
+      "phase": "nextSimp",
+      "status": "failed"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 178224996,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Tutorial_FloodSet__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_FloodSet__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/Tutorial_FloodSet__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 130482,
+    "setup_ms": 15252,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/Tutorial_FloodSet__default__batch1.lean"
+    ]
+  }
+}

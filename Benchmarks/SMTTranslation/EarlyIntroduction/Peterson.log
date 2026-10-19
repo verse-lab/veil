@@ -1,0 +1,8 @@
+SOLVER_RESULT Peterson_old_4 status=sat solver_ms=1092 smt_prep_ms=673 bytes=13992
+/tmp/veil-early-intro-multi/Peterson.lean:161:0: warning: declaration uses `sorry`
+SOLVER_RESULT Peterson_early_4 status=sat solver_ms=767 smt_prep_ms=891 bytes=13992
+/tmp/veil-early-intro-multi/Peterson.lean:175:0: warning: declaration uses `sorry`
+SOLVER_RESULT Peterson_old_8 status=sat solver_ms=932 smt_prep_ms=771 bytes=25884
+/tmp/veil-early-intro-multi/Peterson.lean:190:0: warning: declaration uses `sorry`
+SOLVER_RESULT Peterson_early_8 status=sat solver_ms=808 smt_prep_ms=814 bytes=25884
+/tmp/veil-early-intro-multi/Peterson.lean:204:0: warning: declaration uses `sorry`

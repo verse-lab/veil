@@ -1,0 +1,548 @@
+/tmp/veil-symbolic-bmc/paxos-universe-candidates/ReliableBroadcastDiagnostic.lean:239:2: error: cannot translate fun a b => Classical.propDecidable (@Eq.{1} nodeset a b), SMT-LIB does not support lambdas
+[smt.translate.query] 💥️ 
+  [smt.translate.query] Provided Hints: [__veil_tag.complete,
+       __veil_tag.distinct,
+       nset.greater_than_third_nonempty,
+       nset.supermajority_greater_than_third,
+       nset.greater_than_third_one_honest,
+       nset.supermajorities_intersect_in_honest,
+       a✝]
+  [smt.translate.query] Definitions: []
+  [smt.translate.query] processing __veil_tag.complete : ∀ (__veil_x : ActionTag),
+        Or (@Eq.{1} ActionTag __veil_x __veil_tag.byz)
+          (Or (@Eq.{1} ActionTag __veil_x __veil_tag.broadcast)
+            (Or (@Eq.{1} ActionTag __veil_x __veil_tag.echo)
+              (Or (@Eq.{1} ActionTag __veil_x __veil_tag.vote) (@Eq.{1} ActionTag __veil_x __veil_tag.deliver))))
+  [smt.translate.query] deps: [__veil_tag.broadcast,
+       ActionTag,
+       __veil_tag.byz,
+       __veil_tag.echo,
+       __veil_tag.deliver,
+       __veil_tag.vote]
+  [smt.translate.query] processing __veil_tag.broadcast : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] processing ActionTag : Type
+  [smt.translate.query] Type : Type 1
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing __veil_tag.byz : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] processing __veil_tag.echo : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] processing __veil_tag.deliver : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] processing __veil_tag.vote : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] processing __veil_tag.distinct : @distinctN.{0} ActionTag
+        (@List.cons.{0} ActionTag __veil_tag.byz
+          (@List.cons.{0} ActionTag __veil_tag.broadcast
+            (@List.cons.{0} ActionTag __veil_tag.echo
+              (@List.cons.{0} ActionTag __veil_tag.vote
+                (@List.cons.{0} ActionTag __veil_tag.deliver (@List.nil.{0} ActionTag))))))
+  [smt.translate.query] deps: [__veil_tag.broadcast,
+       __veil_tag.byz,
+       __veil_tag.echo,
+       __veil_tag.deliver,
+       __veil_tag.vote]
+  [smt.translate.query] processing nset.greater_than_third_nonempty : ∀ (s : nodeset),
+        nset.greater_than_third s → Not (nset.is_empty s)
+  [smt.translate.query] deps: [nset.greater_than_third, nset.is_empty, nodeset]
+  [smt.translate.query] processing nset.greater_than_third : nodeset → Prop
+  [smt.translate.query] nodeset → Prop : Type
+  [smt.translate.query] deps: [nodeset]
+  [smt.translate.query] processing nodeset : Type
+  [smt.translate.query] Type : Type 1
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing nset.is_empty : nodeset → Prop
+  [smt.translate.query] nodeset → Prop : Type
+  [smt.translate.query] deps: [nodeset]
+  [smt.translate.query] processing nset.supermajority_greater_than_third : ∀ (s : nodeset),
+        nset.supermajority s → nset.greater_than_third s
+  [smt.translate.query] deps: [nset.greater_than_third, nodeset, nset.supermajority]
+  [smt.translate.query] processing nset.supermajority : nodeset → Prop
+  [smt.translate.query] nodeset → Prop : Type
+  [smt.translate.query] deps: [nodeset]
+  [smt.translate.query] processing nset.greater_than_third_one_honest : ∀ (s : nodeset),
+        nset.greater_than_third s →
+          @Exists.{1} address fun a =>
+            And (@Eq.{1} Bool (nset.member a s) true) (Not (@Eq.{1} Bool (nset.is_byz a) true))
+  [smt.translate.query] deps: [address, nset.greater_than_third, nodeset, nset.member, nset.is_byz]
+  [smt.translate.query] processing address : Type
+  [smt.translate.query] Type : Type 1
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing nset.member : address → nodeset → Bool
+  [smt.translate.query] address → nodeset → Bool : Type
+  [smt.translate.query] deps: [address, nodeset]
+  [smt.translate.query] processing nset.is_byz : address → Bool
+  [smt.translate.query] address → Bool : Type
+  [smt.translate.query] deps: [address]
+  [smt.translate.query] processing nset.supermajorities_intersect_in_honest : ∀ (s1 s2 : nodeset),
+        nset.supermajority s1 →
+          nset.supermajority s2 →
+            @Exists.{1} address fun a =>
+              And (@Eq.{1} Bool (nset.member a s1) true)
+                (And (@Eq.{1} Bool (nset.member a s2) true) (Not (@Eq.{1} Bool (nset.is_byz a) true)))
+  [smt.translate.query] deps: [address, nodeset, nset.member, nset.is_byz, nset.supermajority]
+  [smt.translate.query] processing a✝ : Not
+        (Not
+          (And
+            (And (∀ (a a_1 : address) (a_2 : round) (a_3 : value), @Eq.{1} Bool false (st0.initial_msg a a_1 a_2 a_3))
+              (And
+                (∀ (a a_1 a_2 : address) (a_3 : round) (a_4 : value),
+                  @Eq.{1} Bool false (st0.echo_msg a a_1 a_2 a_3 a_4))
+                (And
+                  (∀ (a a_1 a_2 : address) (a_3 : round) (a_4 : value),
+                    @Eq.{1} Bool false (st0.vote_msg a a_1 a_2 a_3 a_4))
+                  (And (∀ (a : address) (a_1 : round), @Eq.{1} Bool false (st0.sent a a_1))
+                    (And
+                      (∀ (a a_1 : address) (a_2 : round) (a_3 : value), @Eq.{1} Bool false (st0.echoed a a_1 a_2 a_3))
+                      (And
+                        (∀ (a a_1 : address) (a_2 : round) (a_3 : value), @Eq.{1} Bool false (st0.voted a a_1 a_2 a_3))
+                        (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                          @Eq.{1} Bool false (st0.delivered a a_1 a_2 a_3))))))))
+            (And
+              (Or
+                (And (@Eq.{1} ActionTag _tr1_tag __veil_tag.byz)
+                  (@VeilM.toTransitionDerived Mode.external (Theory nodeset address round value)
+                    (State (FieldAbstractType nodeset address round value)) Unit
+                    (@byz.ext (Theory nodeset address round value)
+                      (State (FieldAbstractType nodeset address round value)) nodeset
+                      (fun a b => Classical.propDecidable (@Eq.{1} nodeset a b))
+                      (@Inhabited.mk.{1} nodeset nodeset_inhabited.default) address
+                      (fun a b => Classical.propDecidable (@Eq.{1} address a b))
+                      (@Inhabited.mk.{1} address address_inhabited.default) round
+                      (fun a b => Classical.propDecidable (@Eq.{1} round a b))
+                      (@Inhabited.mk.{1} round round_inhabited.default) value
+                      (fun a b => Classical.propDecidable (@Eq.{1} value a b))
+                      (@Inhabited.mk.{1} value value_inhabited.default)
+                      (@ByzNodeSet.mk.{0} address nodeset nset.is_byz nset.member nset.is_empty nset.greater_than_third
+                        nset.supermajority nset.supermajorities_intersect_in_honest nset.greater_than_third_one_honest
+                        nset.supermajority_greater_than_third nset.greater_than_third_nonempty)
+                      (FieldAbstractType nodeset address round value)
+                      (fun __veil_f =>
+                        @instAbstractFieldRepresentation nodeset address round value
+                          (fun a b => Classical.propDecidable (@Eq.{1} nodeset a b))
+                          (fun a b => Classical.propDecidable (@Eq.{1} address a b))
+                          (fun a b => Classical.propDecidable (@Eq.{1} round a b))
+                          (fun a b => Classical.propDecidable (@Eq.{1} value a b)) __veil_f)
+                      ⋯
+                      (@IsSubStateOf.mk (State (FieldAbstractType nodeset address round value))
+                        (State (FieldAbstractType nodeset address round value)) (fun σₛ σ => σₛ)
+                        (@id.{1} (State (FieldAbstractType nodeset address round value))) ⋯ ⋯ ⋯)
+                      (@IsSubReaderOf.mk (Theory nodeset address round value) (Theory nodeset address round value)
+                        (@id.{1} (Theory nodeset address round value)))
+                      fun st st' =>
+                      @instDecidableAnd
+                        (And (@Eq.{1} (address → round → Bool) st.4 st'.4)
+                          (And (@Eq.{1} (address → address → round → value → Bool) st.5 st'.5)
+                            (And (@Eq.{1} (address → address → round → value → Bool) st.6 st'.6)
+                              (@Eq.{1} (address → address → round → value → Bool) st.7 st'.7))))
+                        (And
+                          (∀ (src dst : address) (r : round) (v : value),
+                            Or
+                              (And (Not (@Eq.{1} Bool (nset.is_byz src) true))
+                                (Iff (@Eq.{1} Bool (st.1 src dst r v) true) (@Eq.{1} Bool (st'.1 src dst r v) true)))
+                              (And (@Eq.{1} Bool (nset.is_byz src) true)
+                                (@Eq.{1} Bool
+                                    (@State.initial_msg (FieldAbstractType nodeset address round value) st src dst r v)
+                                    true →
+                                  @Eq.{1} Bool (st'.1 src dst r v) true)))
+                          (And
+                            (∀ (src dst originator : address) (r : round) (v : value),
+                              Or
+                                (And (Not (@Eq.{1} Bool (nset.is_byz src) true))
+                                  (Iff (@Eq.{1} Bool (st.2 src dst originator r v) true)
+                                    (@Eq.{1} Bool (st'.2 src dst originator r v) true)))
+                                (And (@Eq.{1} Bool (nset.is_byz src) true)
+                                  (@Eq.{1} Bool
+                                      (@State.echo_msg (FieldAbstractType nodeset address round value) st src dst
+                                        originator r v)
+                                      true →
+                                    @Eq.{1} Bool (st'.2 src dst originator r v) true)))
+                            (∀ (src dst originator : address) (r : round) (v : value),
+                              Or
+                                (And (Not (@Eq.{1} Bool (nset.is_byz src) true))
+                                  (Iff (@Eq.{1} Bool (st.3 src dst originator r v) true)
+                                    (@Eq.{1} Bool (st'.3 src dst originator r v) true)))
+                                (And (@Eq.{1} Bool (nset.is_byz src) true)
+                                  (@Eq.{1} Bool
+                                      (@State.vote_msg (FieldAbstractType nodeset address round value) st src dst
+                                        originator r v)
+                                      true →
+                                    @Eq.{1} Bool (st'.3 src dst originator r v) true)))))
+                        (@instDecidableAnd (@Eq.{1} (address → round → Bool) st.4 st'.4)
+                          (And (@Eq.{1} (address → address → round → value → Bool) st.5 st'.5)
+                            (And (@Eq.{1} (address → address → round → value → Bool) st.6 st'.6)
+                              (@Eq.{1} (address → address → round → value → Bool) st.7 st'.7)))
+                          (Classical.propDecidable (@Eq.{1} (address → round → Bool) st.4 st'.4))
+                          (@instDecidableAnd (@Eq.{1} (address → address → round → value → Bool) st.5 st'.5)
+                            (And (@Eq.{1} (address → address → round → value → Bool) st.6 st'.6)
+                              (@Eq.{1} (address → address → round → value → Bool) st.7 st'.7))
+                            (Classical.propDecidable (@Eq.{1} (address → address → round → value → Bool) st.5 st'.5))
+                            (@instDecidableAnd (@Eq.{1} (address → address → round → value → Bool) st.6 st'.6)
+                              (@Eq.{1} (address → address → round → value → Bool) st.7 st'.7)
+                              (Classical.propDecidable (@Eq.{1} (address → address → round → value → Bool) st.6 st'.6))
+                              (Classical.propDecidable
+                                (@Eq.{1} (address → address → round → value → Bool) st.7 st'.7)))))
+                        (@instDecidableAnd
+                          (∀ (src dst : address) (r : round) (v : value),
+                            Or
+                              (And (Not (@Eq.{1} Bool (nset.is_byz src) true))
+                                (Iff (@Eq.{1} Bool (st.1 src dst r v) true) (@Eq.{1} Bool (st'.1 src dst r v) true)))
+                              (And (@Eq.{1} Bool (nset.is_byz src) true)
+                                (@Eq.{1} Bool
+                                    (@State.initial_msg (FieldAbstractType nodeset address round value) st src dst r v)
+                                    true →
+                                  @Eq.{1} Bool (st'.1 src dst r v) true)))
+                          (And
+                            (∀ (src dst originator : address) (r : round) (v : value),
+                              Or
+                                (And (Not (@Eq.{1} Bool (nset.is_byz src) true))
+                                  (Iff (@Eq.{1} Bool (st.2 src dst originator r v) true)
+                                    (@Eq.{1} Bool (st'.2 src dst originator r v) true)))
+                                (And (@Eq.{1} Bool (nset.is_byz src) true)
+                                  (@Eq.{1} Bool
+                                      (@State.echo_msg (FieldAbstractType nodeset address round value) st src dst
+                                        originator r v)
+                                      true →
+                                    @Eq.{1} Bool (st'.2 src dst originator r v) true)))
+                            (∀ (src dst originator : address) (r : round) (v : value),
+                              Or
+                                (And (Not (@Eq.{1} Bool (nset.is_byz src) true))
+                                  (Iff (@Eq.{1} Bool (st.3 src dst originator r v) true)
+                                    (@Eq.{1} Bool (st'.3 src dst originator r v) true)))
+                                (And (@Eq.{1} Bool (nset.is_byz src) true)
+                                  (@Eq.{1} Bool
+                                      (@State.vote_msg (FieldAbstractType nodeset address round value) st src dst
+                                        originator r v)
+                                      true →
+                                    @Eq.{1} Bool (st'.3 src dst originator r v) true))))
+                          (Classical.propDecidable
+                            (∀ (src dst : address) (r : round) (v : value),
+                              Or
+                                (And (Not (@Eq.{1} Bool (nset.is_byz src) true))
+                                  (Iff (@Eq.{1} Bool (st.1 src dst r v) true) (@Eq.{1} Bool (st'.1 src dst r v) true)))
+                                (And (@Eq.{1} Bool (nset.is_byz src) true)
+                                  (@Eq.{1} Bool
+                                      (@State.initial_msg (FieldAbstractType nodeset address round value) st src dst r
+                                        v)
+                                      true →
+                                    @Eq.{1} Bool (st'.1 src dst r v) true))))
+                          (@instDecidableAnd
+                            (∀ (src dst originator : address) (r : round) (v : value),
+                              Or
+                                (And (Not (@Eq.{1} Bool (nset.is_byz src) true))
+                                  (Iff (@Eq.{1} Bool (st.2 src dst originator r v) true)
+                                    (@Eq.{1} Bool (st'.2 src dst originator r v) true)))
+                                (And (@Eq.{1} Bool (nset.is_byz src) true)
+                                  (@Eq.{1} Bool
+                                      (@State.echo_msg (FieldAbstractType nodeset address round value) st src dst
+                                        originator r v)
+                                      true →
+                                    @Eq.{1} Bool (st'.2 src dst originator r v) true)))
+                            (∀ (src dst originator : address) (r : round) (v : value),
+                              Or
+                                (And (Not (@Eq.{1} Bool (nset.is_byz src) true))
+                                  (Iff (@Eq.{1} Bool (st.3 src dst originator r v) true)
+                                    (@Eq.{1} Bool (st'.3 src dst originator r v) true)))
+                                (And (@Eq.{1} Bool (nset.is_byz src) true)
+                                  (@Eq.{1} Bool
+                                      (@State.vote_msg (FieldAbstractType nodeset address round value) st src dst
+                                        originator r v)
+                                      true →
+                                    @Eq.{1} Bool (st'.3 src dst originator r v) true)))
+                            (Classical.propDecidable
+                              (∀ (src dst originator : address) (r : round) (v : value),
+                                Or
+                                  (And (Not (@Eq.{1} Bool (nset.is_byz src) true))
+                                    (Iff (@Eq.{1} Bool (st.2 src dst originator r v) true)
+                                      (@Eq.{1} Bool (st'.2 src dst originator r v) true)))
+                                  (And (@Eq.{1} Bool (nset.is_byz src) true)
+                                    (@Eq.{1} Bool
+                                        (@State.echo_msg (FieldAbstractType nodeset address round value) st src dst
+                                          originator r v)
+                                        true →
+                                      @Eq.{1} Bool (st'.2 src dst originator r v) true))))
+                            (Classical.propDecidable
+                              (∀ (src dst originator : address) (r : round) (v : value),
+                                Or
+                                  (And (Not (@Eq.{1} Bool (nset.is_byz src) true))
+                                    (Iff (@Eq.{1} Bool (st.3 src dst originator r v) true)
+                                      (@Eq.{1} Bool (st'.3 src dst originator r v) true)))
+                                  (And (@Eq.{1} Bool (nset.is_byz src) true)
+                                    (@Eq.{1} Bool
+                                        (@State.vote_msg (FieldAbstractType nodeset address round value) st src dst
+                                          originator r v)
+                                        true →
+                                      @Eq.{1} Bool (st'.3 src dst originator r v) true)))))))
+                    (@Theory.mk nodeset address round value)
+                    (@State.mk (FieldAbstractType nodeset address round value) st0.initial_msg st0.echo_msg st0.vote_msg
+                      st0.sent st0.echoed st0.voted st0.delivered)
+                    (@State.mk (FieldAbstractType nodeset address round value) st1.initial_msg st1.echo_msg st1.vote_msg
+                      st1.sent st1.echoed st1.voted st1.delivered)))
+                (Or
+                  (And (@Eq.{1} ActionTag _tr1_tag __veil_tag.broadcast)
+                    (And (Not (@Eq.{1} Bool (st0.sent _tr1_act_broadcast_arg0_n _tr1_act_broadcast_arg1_r) true))
+                      (And
+                        (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                          @Eq.{1} Bool
+                            (@ite.{1} Bool
+                              (And (@Eq.{1} address _tr1_act_broadcast_arg0_n a)
+                                (And (@Eq.{1} round _tr1_act_broadcast_arg1_r a_2)
+                                  (@Eq.{1} value _tr1_act_broadcast_arg2_v a_3)))
+                              (@instDecidableAnd (@Eq.{1} address _tr1_act_broadcast_arg0_n a)
+                                (And (@Eq.{1} round _tr1_act_broadcast_arg1_r a_2)
+                                  (@Eq.{1} value _tr1_act_broadcast_arg2_v a_3))
+                                (address_dec_eq _tr1_act_broadcast_arg0_n a)
+                                (@instDecidableAnd (@Eq.{1} round _tr1_act_broadcast_arg1_r a_2)
+                                  (@Eq.{1} value _tr1_act_broadcast_arg2_v a_3)
+                                  (round_dec_eq _tr1_act_broadcast_arg1_r a_2)
+                                  (value_dec_eq _tr1_act_broadcast_arg2_v a_3)))
+                              true (st0.initial_msg a a_1 a_2 a_3))
+                            (st1.initial_msg a a_1 a_2 a_3))
+                        (And
+                          (∀ (a a_1 a_2 : address) (a_3 : round) (a_4 : value),
+                            @Eq.{1} Bool (st0.echo_msg a a_1 a_2 a_3 a_4) (st1.echo_msg a a_1 a_2 a_3 a_4))
+                          (And
+                            (∀ (a a_1 a_2 : address) (a_3 : round) (a_4 : value),
+                              @Eq.{1} Bool (st0.vote_msg a a_1 a_2 a_3 a_4) (st1.vote_msg a a_1 a_2 a_3 a_4))
+                            (And
+                              (∀ (a : address) (a_1 : round),
+                                @Eq.{1} Bool
+                                  (@ite.{1} Bool
+                                    (And (@Eq.{1} address _tr1_act_broadcast_arg0_n a)
+                                      (@Eq.{1} round _tr1_act_broadcast_arg1_r a_1))
+                                    (@instDecidableAnd (@Eq.{1} address _tr1_act_broadcast_arg0_n a)
+                                      (@Eq.{1} round _tr1_act_broadcast_arg1_r a_1)
+                                      (address_dec_eq _tr1_act_broadcast_arg0_n a)
+                                      (round_dec_eq _tr1_act_broadcast_arg1_r a_1))
+                                    true (st0.sent a a_1))
+                                  (st1.sent a a_1))
+                              (And
+                                (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                                  @Eq.{1} Bool (st0.echoed a a_1 a_2 a_3) (st1.echoed a a_1 a_2 a_3))
+                                (And
+                                  (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                                    @Eq.{1} Bool (st0.voted a a_1 a_2 a_3) (st1.voted a a_1 a_2 a_3))
+                                  (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                                    @Eq.{1} Bool (st0.delivered a a_1 a_2 a_3) (st1.delivered a a_1 a_2 a_3))))))))))
+                  (Or
+                    (And (@Eq.{1} ActionTag _tr1_tag __veil_tag.echo)
+                      (And
+                        (@Eq.{1} Bool
+                          (st0.initial_msg _tr1_act_echo_arg1_originator _tr1_act_echo_arg0_n _tr1_act_echo_arg2_r
+                            _tr1_act_echo_arg3_v)
+                          true)
+                        (And
+                          (∀ (V : value),
+                            Not
+                              (@Eq.{1} Bool
+                                (st0.echoed _tr1_act_echo_arg0_n _tr1_act_echo_arg1_originator _tr1_act_echo_arg2_r V)
+                                true))
+                          (And
+                            (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                              @Eq.{1} Bool (st0.initial_msg a a_1 a_2 a_3) (st1.initial_msg a a_1 a_2 a_3))
+                            (And
+                              (∀ (a a_1 a_2 : address) (a_3 : round) (a_4 : value),
+                                @Eq.{1} Bool
+                                  (@ite.{1} Bool
+                                    (And (@Eq.{1} address _tr1_act_echo_arg0_n a)
+                                      (And (@Eq.{1} address _tr1_act_echo_arg1_originator a_2)
+                                        (And (@Eq.{1} round _tr1_act_echo_arg2_r a_3)
+                                          (@Eq.{1} value _tr1_act_echo_arg3_v a_4))))
+                                    (@instDecidableAnd (@Eq.{1} address _tr1_act_echo_arg0_n a)
+                                      (And (@Eq.{1} address _tr1_act_echo_arg1_originator a_2)
+                                        (And (@Eq.{1} round _tr1_act_echo_arg2_r a_3)
+                                          (@Eq.{1} value _tr1_act_echo_arg3_v a_4)))
+                                      (address_dec_eq _tr1_act_echo_arg0_n a)
+                                      (@instDecidableAnd (@Eq.{1} address _tr1_act_echo_arg1_originator a_2)
+                                        (And (@Eq.{1} round _tr1_act_echo_arg2_r a_3)
+                                          (@Eq.{1} value _tr1_act_echo_arg3_v a_4))
+                                        (address_dec_eq _tr1_act_echo_arg1_originator a_2)
+                                        (@instDecidableAnd (@Eq.{1} round _tr1_act_echo_arg2_r a_3)
+                                          (@Eq.{1} value _tr1_act_echo_arg3_v a_4)
+                                          (round_dec_eq _tr1_act_echo_arg2_r a_3)
+                                          (value_dec_eq _tr1_act_echo_arg3_v a_4))))
+                                    true (st0.echo_msg a a_1 a_2 a_3 a_4))
+                                  (st1.echo_msg a a_1 a_2 a_3 a_4))
+                              (And
+                                (∀ (a a_1 a_2 : address) (a_3 : round) (a_4 : value),
+                                  @Eq.{1} Bool (st0.vote_msg a a_1 a_2 a_3 a_4) (st1.vote_msg a a_1 a_2 a_3 a_4))
+                                (And (∀ (a : address) (a_1 : round), @Eq.{1} Bool (st0.sent a a_1) (st1.sent a a_1))
+                                  (And
+                                    (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                                      @Eq.{1} Bool
+                                        (@ite.{1} Bool
+                                          (And (@Eq.{1} address _tr1_act_echo_arg0_n a)
+                                            (And (@Eq.{1} address _tr1_act_echo_arg1_originator a_1)
+                                              (And (@Eq.{1} round _tr1_act_echo_arg2_r a_2)
+                                                (@Eq.{1} value _tr1_act_echo_arg3_v a_3))))
+                                          (@instDecidableAnd (@Eq.{1} address _tr1_act_echo_arg0_n a)
+                                            (And (@Eq.{1} address _tr1_act_echo_arg1_originator a_1)
+                                              (And (@Eq.{1} round _tr1_act_echo_arg2_r a_2)
+                                                (@Eq.{1} value _tr1_act_echo_arg3_v a_3)))
+                                            (address_dec_eq _tr1_act_echo_arg0_n a)
+                                            (@instDecidableAnd (@Eq.{1} address _tr1_act_echo_arg1_originator a_1)
+                                              (And (@Eq.{1} round _tr1_act_echo_arg2_r a_2)
+                                                (@Eq.{1} value _tr1_act_echo_arg3_v a_3))
+                                              (address_dec_eq _tr1_act_echo_arg1_originator a_1)
+                                              (@instDecidableAnd (@Eq.{1} round _tr1_act_echo_arg2_r a_2)
+                                                (@Eq.{1} value _tr1_act_echo_arg3_v a_3)
+                                                (round_dec_eq _tr1_act_echo_arg2_r a_2)
+                                                (value_dec_eq _tr1_act_echo_arg3_v a_3))))
+                                          true (st0.echoed a a_1 a_2 a_3))
+                                        (st1.echoed a a_1 a_2 a_3))
+                                    (And
+                                      (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                                        @Eq.{1} Bool (st0.voted a a_1 a_2 a_3) (st1.voted a a_1 a_2 a_3))
+                                      (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                                        @Eq.{1} Bool (st0.delivered a a_1 a_2 a_3)
+                                          (st1.delivered a a_1 a_2 a_3)))))))))))
+                    (Or
+                      (And (@Eq.{1} ActionTag _tr1_tag __veil_tag.vote)
+                        (And
+                          (Or
+                            (@Exists.{1} nodeset fun q =>
+                              And (nset.supermajority q)
+                                (∀ (src : address),
+                                  @Eq.{1} Bool (nset.member src q) true →
+                                    @Eq.{1} Bool
+                                      (st0.echo_msg src _tr1_act_vote_arg0_n _tr1_act_vote_arg1_originator
+                                        _tr1_act_vote_arg2_r _tr1_act_vote_arg3_v)
+                                      true))
+                            (@Exists.{1} nodeset fun q =>
+                              And (nset.greater_than_third q)
+                                (∀ (src : address),
+                                  @Eq.{1} Bool (nset.member src q) true →
+                                    @Eq.{1} Bool
+                                      (st0.vote_msg src _tr1_act_vote_arg0_n _tr1_act_vote_arg1_originator
+                                        _tr1_act_vote_arg2_r _tr1_act_vote_arg3_v)
+                                      true)))
+                          (And
+                            (∀ (V : value),
+                              Not
+                                (@Eq.{1} Bool
+                                  (st0.voted _tr1_act_vote_arg0_n _tr1_act_vote_arg1_originator _tr1_act_vote_arg2_r V)
+                                  true))
+                            (And
+                              (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                                @Eq.{1} Bool (st0.initial_msg a a_1 a_2 a_3) (st1.initial_msg a a_1 a_2 a_3))
+                              (And
+                                (∀ (a a_1 a_2 : address) (a_3 : round) (a_4 : value),
+                                  @Eq.{1} Bool (st0.echo_msg a a_1 a_2 a_3 a_4) (st1.echo_msg a a_1 a_2 a_3 a_4))
+                                (And
+                                  (∀ (a a_1 a_2 : address) (a_3 : round) (a_4 : value),
+                                    @Eq.{1} Bool
+                                      (@ite.{1} Bool
+                                        (And (@Eq.{1} address _tr1_act_vote_arg0_n a)
+                                          (And (@Eq.{1} address _tr1_act_vote_arg1_originator a_2)
+                                            (And (@Eq.{1} round _tr1_act_vote_arg2_r a_3)
+                                              (@Eq.{1} value _tr1_act_vote_arg3_v a_4))))
+                                        (@instDecidableAnd (@Eq.{1} address _tr1_act_vote_arg0_n a)
+                                          (And (@Eq.{1} address _tr1_act_vote_arg1_originator a_2)
+                                            (And (@Eq.{1} round _tr1_act_vote_arg2_r a_3)
+                                              (@Eq.{1} value _tr1_act_vote_arg3_v a_4)))
+                                          (address_dec_eq _tr1_act_vote_arg0_n a)
+                                          (@instDecidableAnd (@Eq.{1} address _tr1_act_vote_arg1_originator a_2)
+                                            (And (@Eq.{1} round _tr1_act_vote_arg2_r a_3)
+                                              (@Eq.{1} value _tr1_act_vote_arg3_v a_4))
+                                            (address_dec_eq _tr1_act_vote_arg1_originator a_2)
+                                            (@instDecidableAnd (@Eq.{1} round _tr1_act_vote_arg2_r a_3)
+                                              (@Eq.{1} value _tr1_act_vote_arg3_v a_4)
+                                              (round_dec_eq _tr1_act_vote_arg2_r a_3)
+                                              (value_dec_eq _tr1_act_vote_arg3_v a_4))))
+                                        true (st0.vote_msg a a_1 a_2 a_3 a_4))
+                                      (st1.vote_msg a a_1 a_2 a_3 a_4))
+                                  (And (∀ (a : address) (a_1 : round), @Eq.{1} Bool (st0.sent a a_1) (st1.sent a a_1))
+                                    (And
+                                      (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                                        @Eq.{1} Bool (st0.echoed a a_1 a_2 a_3) (st1.echoed a a_1 a_2 a_3))
+                                      (And
+                                        (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                                          @Eq.{1} Bool
+                                            (@ite.{1} Bool
+                                              (And (@Eq.{1} address _tr1_act_vote_arg0_n a)
+                                                (And (@Eq.{1} address _tr1_act_vote_arg1_originator a_1)
+                                                  (And (@Eq.{1} round _tr1_act_vote_arg2_r a_2)
+                                                    (@Eq.{1} value _tr1_act_vote_arg3_v a_3))))
+                                              (@instDecidableAnd (@Eq.{1} address _tr1_act_vote_arg0_n a)
+                                                (And (@Eq.{1} address _tr1_act_vote_arg1_originator a_1)
+                                                  (And (@Eq.{1} round _tr1_act_vote_arg2_r a_2)
+                                                    (@Eq.{1} value _tr1_act_vote_arg3_v a_3)))
+                                                (address_dec_eq _tr1_act_vote_arg0_n a)
+                                                (@instDecidableAnd (@Eq.{1} address _tr1_act_vote_arg1_originator a_1)
+                                                  (And (@Eq.{1} round _tr1_act_vote_arg2_r a_2)
+                                                    (@Eq.{1} value _tr1_act_vote_arg3_v a_3))
+                                                  (address_dec_eq _tr1_act_vote_arg1_originator a_1)
+                                                  (@instDecidableAnd (@Eq.{1} round _tr1_act_vote_arg2_r a_2)
+                                                    (@Eq.{1} value _tr1_act_vote_arg3_v a_3)
+                                                    (round_dec_eq _tr1_act_vote_arg2_r a_2)
+                                                    (value_dec_eq _tr1_act_vote_arg3_v a_3))))
+                                              true (st0.voted a a_1 a_2 a_3))
+                                            (st1.voted a a_1 a_2 a_3))
+                                        (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                                          @Eq.{1} Bool (st0.delivered a a_1 a_2 a_3)
+                                            (st1.delivered a a_1 a_2 a_3)))))))))))
+                      (And (@Eq.{1} ActionTag _tr1_tag __veil_tag.deliver)
+                        (And
+                          (@Exists.{1} nodeset fun q =>
+                            And (nset.supermajority q)
+                              (∀ (src : address),
+                                @Eq.{1} Bool (nset.member src q) true →
+                                  @Eq.{1} Bool
+                                    (st0.vote_msg src _tr1_act_deliver_arg0_n _tr1_act_deliver_arg1_originator
+                                      _tr1_act_deliver_arg2_r _tr1_act_deliver_arg3_v)
+                                    true))
+                          (And
+                            (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                              @Eq.{1} Bool (st0.initial_msg a a_1 a_2 a_3) (st1.initial_msg a a_1 a_2 a_3))
+                            (And
+                              (∀ (a a_1 a_2 : address) (a_3 : round) (a_4 : value),
+                                @Eq.{1} Bool (st0.echo_msg a a_1 a_2 a_3 a_4) (st1.echo_msg a a_1 a_2 a_3 a_4))
+                              (And
+                                (∀ (a a_1 a_2 : address) (a_3 : round) (a_4 : value),
+                                  @Eq.{1} Bool (st0.vote_msg a a_1 a_2 a_3 a_4) (st1.vote_msg a a_1 a_2 a_3 a_4))
+                                (And (∀ (a : address) (a_1 : round), @Eq.{1} Bool (st0.sent a a_1) (st1.sent a a_1))
+                                  (And
+                                    (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                                      @Eq.{1} Bool (st0.echoed a a_1 a_2 a_3) (st1.echoed a a_1 a_2 a_3))
+                                    (And
+                                      (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                                        @Eq.{1} Bool (st0.voted a a_1 a_2 a_3) (st1.voted a a_1 a_2 a_3))
+                                      (∀ (a a_1 : address) (a_2 : round) (a_3 : value),
+                                        @Eq.{1} Bool
+                                          (@ite.{1} Bool
+                                            (And (@Eq.{1} address _tr1_act_deliver_arg0_n a)
+                                              (And (@Eq.{1} address _tr1_act_deliver_arg1_originator a_1)
+                                                (And (@Eq.{1} round _tr1_act_deliver_arg2_r a_2)
+                                                  (@Eq.{1} value _tr1_act_deliver_arg3_v a_3))))
+                                            (@instDecidableAnd (@Eq.{1} address _tr1_act_deliver_arg0_n a)
+                                              (And (@Eq.{1} address _tr1_act_deliver_arg1_originator a_1)
+                                                (And (@Eq.{1} round _tr1_act_deliver_arg2_r a_2)
+                                                  (@Eq.{1} value _tr1_act_deliver_arg3_v a_3)))
+                                              (address_dec_eq _tr1_act_deliver_arg0_n a)
+                                              (@instDecidableAnd (@Eq.{1} address _tr1_act_deliver_arg1_originator a_1)
+                                                (And (@Eq.{1} round _tr1_act_deliver_arg2_r a_2)
+                                                  (@Eq.{1} value _tr1_act_deliver_arg3_v a_3))
+                                                (address_dec_eq _tr1_act_deliver_arg1_originator a_1)
+                                                (@instDecidableAnd (@Eq.{1} round _tr1_act_deliver_arg2_r a_2)
+                                                  (@Eq.{1} value _tr1_act_deliver_arg3_v a_3)
+                                                  (round_dec_eq _tr1_act_deliver_arg2_r a_2)
+                                                  (value_dec_eq _tr1_act_deliver_arg3_v a_3))))
+                                            true (st0.delivered a a_1 a_2 a_3))
+                                          (st1.delivered a a_1 a_2 a_3))))))))))))))
+              (@Exists.{1} address fun src =>
+                @Exists.{1} address fun dst =>
+                  @Exists.{1} round fun r =>
+                    @Exists.{1} value fun v =>
+                      And (Not (@Eq.{1} Bool (nset.is_byz src) true))
+                        (And (Not (@Eq.{1} Bool (nset.is_byz dst) true))
+                          (And (@Eq.{1} Bool (st1.voted dst src r v) true)
+                            (Not
+                              (And (@Eq.{1} Bool (st1.sent src r) true)
+                                (∀ (dst : address), @Eq.{1} Bool (st1.initial_msg src dst r v) true)))))))))
+  [smt.translate.query] ISSUE123_RESIDUAL_LAMBDA: fun a b => Classical.propDecidable (@Eq.{1} nodeset a b)

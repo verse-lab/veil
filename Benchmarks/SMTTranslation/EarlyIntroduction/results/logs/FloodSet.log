@@ -1,0 +1,268 @@
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:297:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_current_2_1
+STAGE FloodSet_current_2_1 nextSimp ms=545
+STAGE FloodSet_current_2_1 hoist ms=614
+STAGE FloodSet_current_2_1 intros ms=2
+STAGE FloodSet_current_2_1 destruct ms=69
+STAGE FloodSet_current_2_1 dsimp1 ms=13
+STAGE FloodSet_current_2_1 smtSimp ms=89
+STAGE FloodSet_current_2_1 dsimp2 ms=11
+SMT_STAGE FloodSet_current_2_1 pushHints ms=1
+SMT_STAGE FloodSet_current_2_1 smt-intros ms=0
+SMT_STAGE FloodSet_current_2_1 negateGoal ms=0
+SMT_STAGE FloodSet_current_2_1 normalize ms=12
+SMT_STAGE FloodSet_current_2_1 embedding ms=297
+SMT_STAGE FloodSet_current_2_1 translate ms=44 commands=52
+SMT_STAGE FloodSet_current_2_1 serialize ms=42 bytes=6907
+PIPELINE_COMPLETE FloodSet_current_2_1
+RUN_COMPLETE FloodSet_current_2_1
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:312:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_early_2_1
+STAGE FloodSet_early_2_1 early_intros ms=2
+STAGE FloodSet_early_2_1 nextSimp ms=199
+STAGE FloodSet_early_2_1 hoist ms=152
+STAGE FloodSet_early_2_1 intros ms=1
+STAGE FloodSet_early_2_1 destruct ms=61
+STAGE FloodSet_early_2_1 dsimp1 ms=10
+STAGE FloodSet_early_2_1 smtSimp ms=77
+STAGE FloodSet_early_2_1 dsimp2 ms=8
+SMT_STAGE FloodSet_early_2_1 pushHints ms=0
+SMT_STAGE FloodSet_early_2_1 smt-intros ms=0
+SMT_STAGE FloodSet_early_2_1 negateGoal ms=1
+SMT_STAGE FloodSet_early_2_1 normalize ms=7
+SMT_STAGE FloodSet_early_2_1 embedding ms=345
+SMT_STAGE FloodSet_early_2_1 translate ms=39 commands=52
+SMT_STAGE FloodSet_early_2_1 serialize ms=40 bytes=6907
+PIPELINE_COMPLETE FloodSet_early_2_1
+RUN_COMPLETE FloodSet_early_2_1
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:328:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_early_2_2
+STAGE FloodSet_early_2_2 early_intros ms=1
+STAGE FloodSet_early_2_2 nextSimp ms=154
+STAGE FloodSet_early_2_2 hoist ms=120
+STAGE FloodSet_early_2_2 intros ms=2
+STAGE FloodSet_early_2_2 destruct ms=50
+STAGE FloodSet_early_2_2 dsimp1 ms=9
+STAGE FloodSet_early_2_2 smtSimp ms=65
+STAGE FloodSet_early_2_2 dsimp2 ms=7
+RUN_COMPLETE FloodSet_early_2_2
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:343:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_current_2_2
+STAGE FloodSet_current_2_2 nextSimp ms=414
+STAGE FloodSet_current_2_2 hoist ms=591
+STAGE FloodSet_current_2_2 intros ms=2
+STAGE FloodSet_current_2_2 destruct ms=65
+STAGE FloodSet_current_2_2 dsimp1 ms=14
+STAGE FloodSet_current_2_2 smtSimp ms=96
+STAGE FloodSet_current_2_2 dsimp2 ms=8
+RUN_COMPLETE FloodSet_current_2_2
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:357:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_current_2_3
+STAGE FloodSet_current_2_3 nextSimp ms=472
+STAGE FloodSet_current_2_3 hoist ms=559
+STAGE FloodSet_current_2_3 intros ms=2
+STAGE FloodSet_current_2_3 destruct ms=64
+STAGE FloodSet_current_2_3 dsimp1 ms=12
+STAGE FloodSet_current_2_3 smtSimp ms=82
+STAGE FloodSet_current_2_3 dsimp2 ms=8
+RUN_COMPLETE FloodSet_current_2_3
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:371:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_early_2_3
+STAGE FloodSet_early_2_3 early_intros ms=2
+STAGE FloodSet_early_2_3 nextSimp ms=156
+STAGE FloodSet_early_2_3 hoist ms=151
+STAGE FloodSet_early_2_3 intros ms=1
+STAGE FloodSet_early_2_3 destruct ms=61
+STAGE FloodSet_early_2_3 dsimp1 ms=12
+STAGE FloodSet_early_2_3 smtSimp ms=78
+STAGE FloodSet_early_2_3 dsimp2 ms=9
+RUN_COMPLETE FloodSet_early_2_3
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:386:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_early_4_1
+STAGE FloodSet_early_4_1 early_intros ms=2
+STAGE FloodSet_early_4_1 nextSimp ms=279
+STAGE FloodSet_early_4_1 hoist ms=520
+STAGE FloodSet_early_4_1 intros ms=2
+STAGE FloodSet_early_4_1 destruct ms=112
+STAGE FloodSet_early_4_1 dsimp1 ms=16
+STAGE FloodSet_early_4_1 smtSimp ms=152
+STAGE FloodSet_early_4_1 dsimp2 ms=14
+SMT_STAGE FloodSet_early_4_1 pushHints ms=0
+SMT_STAGE FloodSet_early_4_1 smt-intros ms=0
+SMT_STAGE FloodSet_early_4_1 negateGoal ms=1
+SMT_STAGE FloodSet_early_4_1 normalize ms=14
+SMT_STAGE FloodSet_early_4_1 embedding ms=876
+SMT_STAGE FloodSet_early_4_1 translate ms=61 commands=78
+SMT_STAGE FloodSet_early_4_1 serialize ms=72 bytes=12230
+PIPELINE_COMPLETE FloodSet_early_4_1
+RUN_COMPLETE FloodSet_early_4_1
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:402:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_current_4_1
+STAGE FloodSet_current_4_1 nextSimp ms=1053
+STAGE FloodSet_current_4_1 hoist ms=1654
+STAGE FloodSet_current_4_1 intros ms=3
+STAGE FloodSet_current_4_1 destruct ms=123
+STAGE FloodSet_current_4_1 dsimp1 ms=21
+STAGE FloodSet_current_4_1 smtSimp ms=126
+STAGE FloodSet_current_4_1 dsimp2 ms=14
+SMT_STAGE FloodSet_current_4_1 pushHints ms=1
+SMT_STAGE FloodSet_current_4_1 smt-intros ms=0
+SMT_STAGE FloodSet_current_4_1 negateGoal ms=0
+SMT_STAGE FloodSet_current_4_1 normalize ms=12
+SMT_STAGE FloodSet_current_4_1 embedding ms=814
+SMT_STAGE FloodSet_current_4_1 translate ms=67 commands=78
+SMT_STAGE FloodSet_current_4_1 serialize ms=84 bytes=12230
+PIPELINE_COMPLETE FloodSet_current_4_1
+RUN_COMPLETE FloodSet_current_4_1
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:417:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_current_4_2
+STAGE FloodSet_current_4_2 nextSimp ms=978
+STAGE FloodSet_current_4_2 hoist ms=1609
+STAGE FloodSet_current_4_2 intros ms=2
+STAGE FloodSet_current_4_2 destruct ms=123
+STAGE FloodSet_current_4_2 dsimp1 ms=20
+STAGE FloodSet_current_4_2 smtSimp ms=150
+STAGE FloodSet_current_4_2 dsimp2 ms=16
+RUN_COMPLETE FloodSet_current_4_2
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:431:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_early_4_2
+STAGE FloodSet_early_4_2 early_intros ms=2
+STAGE FloodSet_early_4_2 nextSimp ms=288
+STAGE FloodSet_early_4_2 hoist ms=514
+STAGE FloodSet_early_4_2 intros ms=2
+STAGE FloodSet_early_4_2 destruct ms=130
+STAGE FloodSet_early_4_2 dsimp1 ms=22
+STAGE FloodSet_early_4_2 smtSimp ms=149
+STAGE FloodSet_early_4_2 dsimp2 ms=15
+RUN_COMPLETE FloodSet_early_4_2
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:446:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_early_4_3
+STAGE FloodSet_early_4_3 early_intros ms=2
+STAGE FloodSet_early_4_3 nextSimp ms=289
+STAGE FloodSet_early_4_3 hoist ms=487
+STAGE FloodSet_early_4_3 intros ms=2
+STAGE FloodSet_early_4_3 destruct ms=152
+STAGE FloodSet_early_4_3 dsimp1 ms=22
+STAGE FloodSet_early_4_3 smtSimp ms=142
+STAGE FloodSet_early_4_3 dsimp2 ms=15
+RUN_COMPLETE FloodSet_early_4_3
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:461:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_current_4_3
+STAGE FloodSet_current_4_3 nextSimp ms=1048
+STAGE FloodSet_current_4_3 hoist ms=1847
+STAGE FloodSet_current_4_3 intros ms=2
+STAGE FloodSet_current_4_3 destruct ms=120
+STAGE FloodSet_current_4_3 dsimp1 ms=15
+STAGE FloodSet_current_4_3 smtSimp ms=143
+STAGE FloodSet_current_4_3 dsimp2 ms=15
+RUN_COMPLETE FloodSet_current_4_3
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:475:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_current_8_1
+STAGE FloodSet_current_8_1 nextSimp ms=3041
+STAGE FloodSet_current_8_1 hoist ms=6826
+STAGE FloodSet_current_8_1 intros ms=2
+STAGE FloodSet_current_8_1 destruct ms=304
+STAGE FloodSet_current_8_1 dsimp1 ms=35
+STAGE FloodSet_current_8_1 smtSimp ms=305
+STAGE FloodSet_current_8_1 dsimp2 ms=23
+SMT_STAGE FloodSet_current_8_1 pushHints ms=0
+SMT_STAGE FloodSet_current_8_1 smt-intros ms=0
+SMT_STAGE FloodSet_current_8_1 negateGoal ms=1
+SMT_STAGE FloodSet_current_8_1 normalize ms=28
+SMT_STAGE FloodSet_current_8_1 embedding ms=4540
+SMT_STAGE FloodSet_current_8_1 translate ms=122 commands=130
+SMT_STAGE FloodSet_current_8_1 serialize ms=133 bytes=23007
+PIPELINE_COMPLETE FloodSet_current_8_1
+RUN_COMPLETE FloodSet_current_8_1
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:490:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_early_8_1
+STAGE FloodSet_early_8_1 early_intros ms=4
+STAGE FloodSet_early_8_1 nextSimp ms=573
+STAGE FloodSet_early_8_1 hoist ms=2243
+STAGE FloodSet_early_8_1 intros ms=3
+STAGE FloodSet_early_8_1 destruct ms=306
+STAGE FloodSet_early_8_1 dsimp1 ms=39
+STAGE FloodSet_early_8_1 smtSimp ms=296
+STAGE FloodSet_early_8_1 dsimp2 ms=28
+SMT_STAGE FloodSet_early_8_1 pushHints ms=0
+SMT_STAGE FloodSet_early_8_1 smt-intros ms=0
+SMT_STAGE FloodSet_early_8_1 negateGoal ms=2
+SMT_STAGE FloodSet_early_8_1 normalize ms=32
+SMT_STAGE FloodSet_early_8_1 embedding ms=4751
+SMT_STAGE FloodSet_early_8_1 translate ms=133 commands=130
+SMT_STAGE FloodSet_early_8_1 serialize ms=136 bytes=23007
+PIPELINE_COMPLETE FloodSet_early_8_1
+RUN_COMPLETE FloodSet_early_8_1
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:506:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_early_8_2
+STAGE FloodSet_early_8_2 early_intros ms=3
+STAGE FloodSet_early_8_2 nextSimp ms=562
+STAGE FloodSet_early_8_2 hoist ms=2320
+STAGE FloodSet_early_8_2 intros ms=3
+STAGE FloodSet_early_8_2 destruct ms=364
+STAGE FloodSet_early_8_2 dsimp1 ms=42
+STAGE FloodSet_early_8_2 smtSimp ms=418
+STAGE FloodSet_early_8_2 dsimp2 ms=24
+RUN_COMPLETE FloodSet_early_8_2
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:521:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_current_8_2
+STAGE FloodSet_current_8_2 nextSimp ms=2762
+STAGE FloodSet_current_8_2 hoist ms=7092
+STAGE FloodSet_current_8_2 intros ms=3
+STAGE FloodSet_current_8_2 destruct ms=363
+STAGE FloodSet_current_8_2 dsimp1 ms=39
+STAGE FloodSet_current_8_2 smtSimp ms=412
+STAGE FloodSet_current_8_2 dsimp2 ms=29
+RUN_COMPLETE FloodSet_current_8_2
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:535:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_current_8_3
+STAGE FloodSet_current_8_3 nextSimp ms=3300
+STAGE FloodSet_current_8_3 hoist ms=8123
+STAGE FloodSet_current_8_3 intros ms=3
+STAGE FloodSet_current_8_3 destruct ms=343
+STAGE FloodSet_current_8_3 dsimp1 ms=36
+STAGE FloodSet_current_8_3 smtSimp ms=316
+STAGE FloodSet_current_8_3 dsimp2 ms=24
+RUN_COMPLETE FloodSet_current_8_3
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:549:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_early_8_3
+STAGE FloodSet_early_8_3 early_intros ms=4
+STAGE FloodSet_early_8_3 nextSimp ms=591
+STAGE FloodSet_early_8_3 hoist ms=2156
+STAGE FloodSet_early_8_3 intros ms=3
+STAGE FloodSet_early_8_3 destruct ms=340
+STAGE FloodSet_early_8_3 dsimp1 ms=42
+STAGE FloodSet_early_8_3 smtSimp ms=299
+STAGE FloodSet_early_8_3 dsimp2 ms=29
+RUN_COMPLETE FloodSet_early_8_3
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:564:0: warning: declaration uses `sorry`
+RUN_BEGIN FloodSet_early_16_1
+STAGE FloodSet_early_16_1 early_intros ms=8
+STAGE FloodSet_early_16_1 nextSimp ms=1092
+STAGE FloodSet_early_16_1 hoist ms=15047
+STAGE FloodSet_early_16_1 intros ms=7
+STAGE FloodSet_early_16_1 destruct ms=975
+STAGE FloodSet_early_16_1 dsimp1 ms=91
+STAGE FloodSet_early_16_1 smtSimp ms=791
+STAGE FloodSet_early_16_1 dsimp2 ms=53
+SMT_STAGE FloodSet_early_16_1 pushHints ms=0
+SMT_STAGE FloodSet_early_16_1 smt-intros ms=0
+SMT_STAGE FloodSet_early_16_1 negateGoal ms=2
+SMT_STAGE FloodSet_early_16_1 normalize ms=52
+SMT_STAGE FloodSet_early_16_1 embedding ms=23837
+SMT_STAGE FloodSet_early_16_1 translate ms=227 commands=234
+SMT_STAGE FloodSet_early_16_1 serialize ms=267 bytes=45116
+PIPELINE_COMPLETE FloodSet_early_16_1
+RUN_COMPLETE FloodSet_early_16_1
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:580:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:587:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:588:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:589:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/FloodSet.lean:590:4: warning: this tactic is never exec
+PROCESS status=timeout wall_seconds=180.035835

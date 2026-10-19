@@ -1,0 +1,19 @@
+{
+  "group": "parser",
+  "source": "/tmp/veil-symbolic-bmc/paxos-universe-candidates/SuzukiKasamiTranslateDecide.lean",
+  "source_sha256": "d41bfe872eb4977b2aba9c8dbef0bb54dba0c2a7cf7ef72525af2c35306c50fe",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/paxos-universe-candidates/SuzukiKasamiTranslateDecide.lean"
+  ],
+  "exit_code": 0,
+  "timeout": false,
+  "wall_ms": 17027,
+  "log": "/tmp/veil-symbolic-bmc/functional-diagnostics/SuzukiKasamiTranslateDecide.log",
+  "purpose": "functional diagnostic; not a performance observation"
+}

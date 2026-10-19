@@ -1,0 +1,2 @@
+ISSUE123: candidate active; original contextual Nat simproc disabled
+/tmp/veil-symbolic-bmc/aws-embedding-candidates/AWSBuggyFixedNat.lean:209:2: error: cannot translate 0

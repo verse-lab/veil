@@ -1,0 +1,85 @@
+AWSBuggy: observed dependent-Fin / Nat-to-Int embedding failure
+
+Status
+  A production backend failure is confirmed by an actual `by veil_bmc` run of
+  ProductionAWSBuggy.lean, independently of the instrumentation. The candidate
+  root cause below remains static analysis; no repair has been implemented,
+  proved, or reduced to a minimized standalone lean-smt regression.
+
+  The initial extraction helper omitted Veil.elabVeilSmt's
+  withBackwardsCompatibility wrapper (Veil/Frontend/DSL/Tactic.lean:35).
+  Veil/Util/Meta.lean:89–94 sets backward.isDefEq.respectTransparency=false and
+  backward.defeqAttrib.useBackward=true inside that wrapper. The helper was
+  corrected; both old and early pipelines still fail at depths 1 and 2, and the
+  actual production tactic also reports Application type mismatch at the same
+  implies_congr_ctx application. Thus the missing wrapper did not cause this
+  particular failure. The finalized sweep includes the wrapper.
+
+  Production reproduction artifacts:
+    ProductionAWSBuggy.lean:144 (`veil_bmc`)
+    ProductionAWSBuggy.log
+  Production log bytes: 257018
+  Production log SHA256:
+    a3cbbfa3b3dccb05261ad9eb88dc0335860746d33fb711f9f04f3d9f0cf1158b
+  The runner measured 15.98 seconds for the complete reproduction process;
+  this is not an isolated embedding or solver time.
+
+Observed evidence
+  Model: Examples/AWS/AWSBuggy.lean, any1action, assert (dns_valid = false).
+  Both old and early pipelines reach the lean-smt embedding stage, then fail
+  with Application type mismatch. They have not emitted a query or called cvc5.
+  These are neither simp-resource failures nor SAT/UNSAT verdicts.
+
+  Raw event files:
+    smoke2/events/AWS_AWSBuggy__d1__old__default.jsonl
+    smoke2/events/AWS_AWSBuggy__d1__early__default.jsonl
+  Extracted error strings are byte-identical:
+    characters: 252727
+    UTF-8 bytes: 256956
+    SHA256: f9e3ca9a429a781c8e17426aeb09e7083e0e8842f7983d06d833a047f15580aa
+
+  The rejected application is implies_congr_ctx. Its expected argument type is
+    f >= 0 -> ?q1 = ?q2
+  The actual argument is a lambda over the nonnegativity proof, with a large
+  consequent equality containing Fin value/bound-proof fields, including
+  th.max_plan.isLt and th.plan_age_threshold.isLt. The expression contains
+  Int.toNat_of_nonneg and forall_prop_domain_congr rewrites. Do not inline the
+  quarter-megabyte error in the report; retain these raw event files instead.
+
+Relevant source locations (relative to the Veil checkout)
+  Examples/AWS/AWSBuggy.lean:7
+    PlanId is Fin10. Both theory parameters and multiple state fields use it.
+  .lake/packages/smt/Smt/Preprocess/Embedding.lean:85–90
+    Embedding reverts dependent free variables/hypotheses, then calls simpTarget
+    using the embedding theorem/simproc set.
+  .lake/packages/smt/Smt/Preprocess/Embedding/Nat.lean:285–295
+    addIntGtZeroLemma creates hp for the rewritten nonnegativity antecedent,
+    simplifies the consequent using hp, abstracts the proof with mkLambdaFVars,
+    and constructs the equality using mkImpCongrCtx. The returned forall body
+    is rq.expr without explicit abstraction over hp.
+  .lake/packages/smt/Smt/Preprocess/Embedding/Rat.lean:314–324
+    An analogous contextual congruence pattern exists for rational embeddings;
+    no failure in that path was tested here.
+
+Static diagnosis
+  Contextual simplification can use hp in computational proof fields of Fin
+  values. The rewritten consequent/equality can then depend on hp, while
+  mkImpCongrCtx expects the ordinary nondependent implication-congruence shape.
+  The reported type mismatch is consistent with exactly that unsupported
+  dependency. Identical old/early failures place this downstream limitation
+  outside the difference between the two early-introduction variants. This
+  agrees with the separate production reproduction under its compatibility
+  options.
+
+Candidate repair direction
+  Minimize the example to a Fin10-valued theory/state expression containing
+  arithmetic and bound proofs. Then make contextual embedding simplification
+  preserve/abstract proof dependencies using appropriate dependent forall
+  congruence, or eliminate those dependencies before invoking nondependent
+  implication congruence. Check both the returned expression and proof. A fix
+  must preserve Fin bounds and Nat nonnegativity; omitting constraints or merely
+  admitting the failed congruence proof would not be a semantics-preserving fix.
+
+  This confirmed production failure persists beyond faster Veil preprocessing:
+  a larger trace still needs a supported lean-smt embedding before any
+  solver-performance conclusion is possible.

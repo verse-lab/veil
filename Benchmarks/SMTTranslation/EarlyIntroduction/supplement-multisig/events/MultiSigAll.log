@@ -1,0 +1,38 @@
+RUN_BEGIN MultiSigAll_early_16_1
+STAGE MultiSigAll_early_16_1 early_intros ms=68
+STAGE MultiSigAll_early_16_1 nextSimp ms=4548
+STAGE MultiSigAll_early_16_1 hoist ms=82
+STAGE MultiSigAll_early_16_1 intros ms=9
+STAGE MultiSigAll_early_16_1 destruct ms=2428
+STAGE MultiSigAll_early_16_1 dsimp1 ms=275
+STAGE MultiSigAll_early_16_1 smtSimp ms=3239
+STAGE MultiSigAll_early_16_1 dsimp2 ms=183
+PREPROCESS_COMPLETE MultiSigAll_early_16_1
+SMT_STAGE MultiSigAll_early_16_1 pushHints ms=0
+SMT_STAGE MultiSigAll_early_16_1 smt-intros ms=0
+SMT_STAGE MultiSigAll_early_16_1 negateGoal ms=8
+SMT_STAGE MultiSigAll_early_16_1 normalize ms=233
+SMT_STAGE MultiSigAll_early_16_1 embedding ms=41
+SMT_STAGE MultiSigAll_early_16_1 translate ms=765 commands=454
+SMT_STAGE MultiSigAll_early_16_1 serialize ms=1530 bytes=149725
+PIPELINE_COMPLETE MultiSigAll_early_16_1
+RUN_COMPLETE MultiSigAll_early_16_1
+RUN_BEGIN MultiSigAll_early_32_1
+STAGE MultiSigAll_early_32_1 early_intros ms=211
+STAGE MultiSigAll_early_32_1 nextSimp ms=8160
+STAGE MultiSigAll_early_32_1 hoist ms=151
+STAGE MultiSigAll_early_32_1 intros ms=30
+STAGE MultiSigAll_early_32_1 destruct ms=8520
+STAGE MultiSigAll_early_32_1 dsimp1 ms=540
+STAGE MultiSigAll_early_32_1 smtSimp ms=7897
+STAGE MultiSigAll_early_32_1 dsimp2 ms=385
+PREPROCESS_COMPLETE MultiSigAll_early_32_1
+SMT_STAGE MultiSigAll_early_32_1 pushHints ms=0
+SMT_STAGE MultiSigAll_early_32_1 smt-intros ms=0
+SMT_STAGE MultiSigAll_early_32_1 negateGoal ms=20
+SMT_STAGE MultiSigAll_early_32_1 normalize ms=343
+SMT_STAGE MultiSigAll_early_32_1 embedding ms=74
+SMT_STAGE MultiSigAll_early_32_1 translate ms=1410 commands=886
+SMT_STAGE MultiSigAll_early_32_1 serialize ms=2796 bytes=298909
+PIPELINE_COMPLETE MultiSigAll_early_32_1
+RUN_COMPLETE MultiSigAll_early_32_1

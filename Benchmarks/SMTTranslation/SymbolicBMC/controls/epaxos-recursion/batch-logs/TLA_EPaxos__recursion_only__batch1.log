@@ -1,0 +1,121 @@
+/tmp/veil-symbolic-bmc/controls/epaxos-recursion/batch-sources/TLA_EPaxos__recursion_only__batch1.lean:732:6: warning: Variable name `localCom` is not explicitly referenced.
+
+The binding can be removed (if unused) or named `_` (if used implicitly).
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+/tmp/veil-symbolic-bmc/controls/epaxos-recursion/batch-sources/TLA_EPaxos__recursion_only__batch1.lean:1336:6: warning: Variable name `otherRecs` is not explicitly referenced.
+
+The binding can be removed (if unused) or named `_` (if used implicitly).
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+/tmp/veil-symbolic-bmc/controls/epaxos-recursion/batch-sources/TLA_EPaxos__recursion_only__batch1.lean:1489:0: warning: unable to prove locality for state predicate Nontriviality: Application type mismatch: The argument
+  fun th st =>
+    congrArg (Theory.casesOn (readFrom th))
+      (funext fun none =>
+        funext fun maxBallot =>
+          funext fun one =>
+            funext fun oneSeq =>
+              funext fun fastQuorumMember =>
+                funext fun slowQuorumMember =>
+                  funext fun inFastQuorum =>
+                    funext fun inSlowQuorum =>
+                      congrArg (State.casesOn (getFrom st))
+                        (funext fun cmdLog_conc =>
+                          funext fun proposed_conc =>
+                            funext fun sentMsg_conc =>
+                              funext fun crtInst_conc =>
+                                funext fun leaderOfInst_conc =>
+                                  funext fun committedMap_conc =>
+                                    funext fun ballots_conc =>
+                                      funext fun preparing_conc =>
+                                        let cmdLog := FieldRepresentation.get cmdLog_conc;
+                                        let proposed := FieldRepresentation.get proposed_conc;
+                                        let sentMsg := FieldRepresentation.get sentMsg_conc;
+                                        let crtInst := FieldRepresentation.get crtInst_conc;
+                                        let leaderOfInst := FieldRepresentation.get leaderOfInst_conc;
+                                        let committedMap := FieldRepresentation.get committedMap_conc;
+                                        let ballots := FieldRepresentation.get ballots_conc;
+                                        let preparing := FieldRepresentation.get preparing_conc;
+                                        forall_congr fun i =>
+                                          congrFun'
+                                            (congrArg Eq
+                                              (congrArg (TSet.toList (committedMap i)).all
+                                                (funext fun ct => congrArg ⋯ ⋯)))
+                                            true))
+has type
+  ∀ (th : autoParam ρ Nontriviality._auto_1) (st : autoParam σ Nontriviality._auto_2),
+    (Theory.casesOn (readFrom th) fun x x_1 x_2 x_3 x_4 x_5 x_6 x_7 =>
+        State.casesOn (getFrom st) fun x_8 x_9 x_10 x_11 x_12 x_13 x_14 x_15 =>
+          ∀ (a : Instance replica seqNum),
+            ((TSet.toList (FieldRepresentation.get x_13 a)).all fun ct =>
+                decide
+                  (isProposedOrNone ct.cmd
+                    { none := x, maxBallot := x_1, one := x_2, oneSeq := x_3, fastQuorumMember := x_4,
+                      slowQuorumMember := x_5, inFastQuorum := x_6, inSlowQuorum := x_7 }
+                    { cmdLog := x_8, proposed := x_9, sentMsg := x_10, crtInst := x_11, leaderOfInst := x_12,
+                      committedMap := x_13, ballots := x_14, preparing := x_15 })) =
+              true) =
+      Theory.casesOn (readFrom th) fun x x_1 x_2 x_3 x_4 x_5 x_6 x_7 =>
+        State.casesOn (getFrom st) fun x_8 x_9 x_10 x_11 x_12 x_13 x_14 x_15 =>
+          ∀ (a : Instance replica seqNum),
+            ((TSet.toList (FieldRepresentation.get x_13 a)).all fun ct =>
+                decide
+                  (isProposedOrNone ct.cmd
+                    { none := x, maxBallot := x_1, one := x_2, oneSeq := x_3, fastQuorumMember := x_4,
+                      slowQuorumMember := x_5, inFastQuorum := x_6, inSlowQuorum := x_7 }
+                    { cmdLog := x_8, proposed := x_9, sentMsg := x_10, crtInst := x_11, leaderOfInst := x_12,
+                      committedMap := x_13, ballots := x_14, preparing := x_15 })) =
+              true
+but is expected to have type
+  ∀ (th : ρ) (st : σ),
+    Nontriviality th st =
+      Theory.casesOn (readFrom th)
+        fun none maxBallot one oneSeq fastQuorumMember slowQuorumMember inFastQuorum inSlowQuorum =>
+        State.casesOn (getFrom st)
+          fun cmdLog_conc_1 proposed_conc_1 sentMsg_conc_1 crtInst_conc_1 leaderOfInst_conc_1 committedMap_conc_1
+            ballots_conc_1 preparing_conc_1 =>
+          let cmdLog := FieldRepresentation.get cmdLog_conc_1;
+          let proposed := FieldRepresentation.get proposed_conc_1;
+          let sentMsg := FieldRepresentation.get sentMsg_conc_1;
+          let crtInst := FieldRepresentation.get crtInst_conc_1;
+          let leaderOfInst := FieldRepresentation.get leaderOfInst_conc_1;
+          let committedMap := FieldRepresentation.get committedMap_conc_1;
+          let ballots := FieldRepresentation.get ballots_conc_1;
+          let preparing := FieldRepresentation.get preparing_conc_1;
+          ∀ (i : Instance replica seqNum),
+            ((TSet.toList (committedMap i)).all fun ct =>
+                decide
+                  (isProposedOrNone ct.cmd
+                    { none := none, maxBallot := maxBallot, one := one, oneSeq := oneSeq,
+                      fastQuorumMember := fastQuorumMember, slowQuorumMember := slowQuorumMember,
+                      inFastQuorum := inFastQuorum, inSlowQuorum := inSlowQuorum }
+                    { cmdLog := cmdLog_conc, proposed := proposed_conc, sentMsg := sentMsg_conc,
+                      crtInst := crtInst_conc, leaderOfInst := leaderOfInst_conc, committedMap := committedMap_conc,
+                      ballots := ballots_conc, preparing := preparing_conc })) =
+              true
+in the application
+  {
+    core :=
+      fun none maxBallot one oneSeq fastQuorumMember slowQuorumMember inFastQuorum inSlowQuorum cmdLog proposed sentMsg
+        crtInst leaderOfInst committedMap ballots preparing =>
+      ∀ (i : Instance replica seqNum),
+        ((TSet.toList (committedMap i)).all fun ct =>
+            decide
+              (isProposedOrNone ct.cmd
+                { none := none, maxBallot := maxBallot, one := one, oneSeq := oneSeq,
+                  fastQuorumMember := fastQuorumMember, slowQuorumMember := slowQuorumMember,
+                  inFastQuorum := inFastQuorum, inSlowQuorum := inSlowQuorum }
+                { cmdLog := cmdLog_conc, proposed := proposed_conc, sentMsg := sentMsg_conc, crtInst := crtInst_conc,
+                  leaderOfInst := leaderOfInst_conc, committedMap := committedMap_conc, ballots := ballots_conc,
+                  preparing := preparing_conc })) =
+          true,
+    core_eq := ⋯ }
+/tmp/veil-symbolic-bmc/controls/epaxos-recursion/batch-sources/TLA_EPaxos__recursion_only__batch1.lean:1489:0: warning: unable to generate local abstract equality for state predicate Nontriviality: failed to synthesize
+  LocalRProp ρ σ command replica seqNum ballot_num Status InstanceSet CommandSet ReplicaSet SeqNumSet LogEntrySet
+    CommittedTupleSet MsgSet χ
+    (@Nontriviality ρ σ command command_dec_eq command_inhabited replica replica_dec_eq replica_inhabited seqNum
+      seqNum_dec_eq seqNum_inhabited ballot_num ballot_num_dec_eq ballot_num_inhabited Status Status_dec_eq
+      Status_inhabited Status_Enum InstanceSet InstanceSet_dec_eq InstanceSet_inhabited CommandSet CommandSet_dec_eq
+      CommandSet_inhabited ReplicaSet ReplicaSet_dec_eq ReplicaSet_inhabited SeqNumSet SeqNumSet_dec_eq
+      SeqNumSet_inhabited LogEntrySet LogEntrySet_dec_eq LogEntrySet_inhabited CommittedTupleSet
+      CommittedTupleSet_dec_eq CommittedTupleSet_inhabited MsgSet MsgSet_dec_eq Ms

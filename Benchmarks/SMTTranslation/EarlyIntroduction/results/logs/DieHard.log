@@ -1,0 +1,397 @@
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:145:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_2_1
+STAGE DieHard_current_2_1 nextSimp ms=145
+STAGE DieHard_current_2_1 hoist ms=19
+STAGE DieHard_current_2_1 intros ms=1
+STAGE DieHard_current_2_1 destruct ms=32
+STAGE DieHard_current_2_1 dsimp1 ms=8
+STAGE DieHard_current_2_1 smtSimp ms=25
+STAGE DieHard_current_2_1 dsimp2 ms=7
+SMT_STAGE DieHard_current_2_1 pushHints ms=0
+SMT_STAGE DieHard_current_2_1 smt-intros ms=0
+SMT_STAGE DieHard_current_2_1 negateGoal ms=0
+SMT_STAGE DieHard_current_2_1 normalize ms=8
+SMT_STAGE DieHard_current_2_1 embedding ms=54
+SMT_STAGE DieHard_current_2_1 translate ms=20 commands=24
+SMT_STAGE DieHard_current_2_1 serialize ms=28 bytes=3835
+PIPELINE_COMPLETE DieHard_current_2_1
+RUN_COMPLETE DieHard_current_2_1
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:160:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_2_1
+STAGE DieHard_early_2_1 early_intros ms=1
+STAGE DieHard_early_2_1 nextSimp ms=85
+STAGE DieHard_early_2_1 hoist ms=3
+STAGE DieHard_early_2_1 intros ms=1
+STAGE DieHard_early_2_1 destruct ms=28
+STAGE DieHard_early_2_1 dsimp1 ms=8
+STAGE DieHard_early_2_1 smtSimp ms=24
+STAGE DieHard_early_2_1 dsimp2 ms=6
+SMT_STAGE DieHard_early_2_1 pushHints ms=1
+SMT_STAGE DieHard_early_2_1 smt-intros ms=0
+SMT_STAGE DieHard_early_2_1 negateGoal ms=0
+SMT_STAGE DieHard_early_2_1 normalize ms=8
+SMT_STAGE DieHard_early_2_1 embedding ms=55
+SMT_STAGE DieHard_early_2_1 translate ms=19 commands=24
+SMT_STAGE DieHard_early_2_1 serialize ms=29 bytes=3835
+PIPELINE_COMPLETE DieHard_early_2_1
+RUN_COMPLETE DieHard_early_2_1
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:176:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_2_2
+STAGE DieHard_early_2_2 early_intros ms=0
+STAGE DieHard_early_2_2 nextSimp ms=81
+STAGE DieHard_early_2_2 hoist ms=3
+STAGE DieHard_early_2_2 intros ms=1
+STAGE DieHard_early_2_2 destruct ms=19
+STAGE DieHard_early_2_2 dsimp1 ms=7
+STAGE DieHard_early_2_2 smtSimp ms=25
+STAGE DieHard_early_2_2 dsimp2 ms=5
+RUN_COMPLETE DieHard_early_2_2
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:191:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_2_2
+STAGE DieHard_current_2_2 nextSimp ms=140
+STAGE DieHard_current_2_2 hoist ms=18
+STAGE DieHard_current_2_2 intros ms=1
+STAGE DieHard_current_2_2 destruct ms=21
+STAGE DieHard_current_2_2 dsimp1 ms=9
+STAGE DieHard_current_2_2 smtSimp ms=22
+STAGE DieHard_current_2_2 dsimp2 ms=7
+RUN_COMPLETE DieHard_current_2_2
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:205:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_2_3
+STAGE DieHard_current_2_3 nextSimp ms=107
+STAGE DieHard_current_2_3 hoist ms=13
+STAGE DieHard_current_2_3 intros ms=1
+STAGE DieHard_current_2_3 destruct ms=17
+STAGE DieHard_current_2_3 dsimp1 ms=6
+STAGE DieHard_current_2_3 smtSimp ms=17
+STAGE DieHard_current_2_3 dsimp2 ms=5
+RUN_COMPLETE DieHard_current_2_3
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:219:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_2_3
+STAGE DieHard_early_2_3 early_intros ms=1
+STAGE DieHard_early_2_3 nextSimp ms=67
+STAGE DieHard_early_2_3 hoist ms=3
+STAGE DieHard_early_2_3 intros ms=1
+STAGE DieHard_early_2_3 destruct ms=18
+STAGE DieHard_early_2_3 dsimp1 ms=7
+STAGE DieHard_early_2_3 smtSimp ms=22
+STAGE DieHard_early_2_3 dsimp2 ms=6
+RUN_COMPLETE DieHard_early_2_3
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:234:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_4_1
+STAGE DieHard_early_4_1 early_intros ms=0
+STAGE DieHard_early_4_1 nextSimp ms=140
+STAGE DieHard_early_4_1 hoist ms=4
+STAGE DieHard_early_4_1 intros ms=1
+STAGE DieHard_early_4_1 destruct ms=37
+STAGE DieHard_early_4_1 dsimp1 ms=13
+STAGE DieHard_early_4_1 smtSimp ms=37
+STAGE DieHard_early_4_1 dsimp2 ms=9
+SMT_STAGE DieHard_early_4_1 pushHints ms=0
+SMT_STAGE DieHard_early_4_1 smt-intros ms=0
+SMT_STAGE DieHard_early_4_1 negateGoal ms=1
+SMT_STAGE DieHard_early_4_1 normalize ms=9
+SMT_STAGE DieHard_early_4_1 embedding ms=100
+SMT_STAGE DieHard_early_4_1 translate ms=26 commands=34
+SMT_STAGE DieHard_early_4_1 serialize ms=45 bytes=6878
+PIPELINE_COMPLETE DieHard_early_4_1
+RUN_COMPLETE DieHard_early_4_1
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:250:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_4_1
+STAGE DieHard_current_4_1 nextSimp ms=299
+STAGE DieHard_current_4_1 hoist ms=24
+STAGE DieHard_current_4_1 intros ms=1
+STAGE DieHard_current_4_1 destruct ms=34
+STAGE DieHard_current_4_1 dsimp1 ms=11
+STAGE DieHard_current_4_1 smtSimp ms=43
+STAGE DieHard_current_4_1 dsimp2 ms=8
+SMT_STAGE DieHard_current_4_1 pushHints ms=0
+SMT_STAGE DieHard_current_4_1 smt-intros ms=0
+SMT_STAGE DieHard_current_4_1 negateGoal ms=0
+SMT_STAGE DieHard_current_4_1 normalize ms=10
+SMT_STAGE DieHard_current_4_1 embedding ms=101
+SMT_STAGE DieHard_current_4_1 translate ms=28 commands=34
+SMT_STAGE DieHard_current_4_1 serialize ms=45 bytes=6878
+PIPELINE_COMPLETE DieHard_current_4_1
+RUN_COMPLETE DieHard_current_4_1
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:265:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_4_2
+STAGE DieHard_current_4_2 nextSimp ms=256
+STAGE DieHard_current_4_2 hoist ms=23
+STAGE DieHard_current_4_2 intros ms=1
+STAGE DieHard_current_4_2 destruct ms=36
+STAGE DieHard_current_4_2 dsimp1 ms=11
+STAGE DieHard_current_4_2 smtSimp ms=38
+STAGE DieHard_current_4_2 dsimp2 ms=10
+RUN_COMPLETE DieHard_current_4_2
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:279:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_4_2
+STAGE DieHard_early_4_2 early_intros ms=1
+STAGE DieHard_early_4_2 nextSimp ms=138
+STAGE DieHard_early_4_2 hoist ms=5
+STAGE DieHard_early_4_2 intros ms=1
+STAGE DieHard_early_4_2 destruct ms=38
+STAGE DieHard_early_4_2 dsimp1 ms=12
+STAGE DieHard_early_4_2 smtSimp ms=38
+STAGE DieHard_early_4_2 dsimp2 ms=11
+RUN_COMPLETE DieHard_early_4_2
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:294:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_4_3
+STAGE DieHard_early_4_3 early_intros ms=1
+STAGE DieHard_early_4_3 nextSimp ms=133
+STAGE DieHard_early_4_3 hoist ms=4
+STAGE DieHard_early_4_3 intros ms=2
+STAGE DieHard_early_4_3 destruct ms=38
+STAGE DieHard_early_4_3 dsimp1 ms=14
+STAGE DieHard_early_4_3 smtSimp ms=47
+STAGE DieHard_early_4_3 dsimp2 ms=9
+RUN_COMPLETE DieHard_early_4_3
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:309:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_4_3
+STAGE DieHard_current_4_3 nextSimp ms=305
+STAGE DieHard_current_4_3 hoist ms=27
+STAGE DieHard_current_4_3 intros ms=1
+STAGE DieHard_current_4_3 destruct ms=44
+STAGE DieHard_current_4_3 dsimp1 ms=17
+STAGE DieHard_current_4_3 smtSimp ms=51
+STAGE DieHard_current_4_3 dsimp2 ms=11
+RUN_COMPLETE DieHard_current_4_3
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:323:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_8_1
+STAGE DieHard_current_8_1 nextSimp ms=773
+STAGE DieHard_current_8_1 hoist ms=51
+STAGE DieHard_current_8_1 intros ms=1
+STAGE DieHard_current_8_1 destruct ms=101
+STAGE DieHard_current_8_1 dsimp1 ms=19
+STAGE DieHard_current_8_1 smtSimp ms=67
+STAGE DieHard_current_8_1 dsimp2 ms=15
+SMT_STAGE DieHard_current_8_1 pushHints ms=0
+SMT_STAGE DieHard_current_8_1 smt-intros ms=0
+SMT_STAGE DieHard_current_8_1 negateGoal ms=0
+SMT_STAGE DieHard_current_8_1 normalize ms=19
+SMT_STAGE DieHard_current_8_1 embedding ms=294
+SMT_STAGE DieHard_current_8_1 translate ms=44 commands=54
+SMT_STAGE DieHard_current_8_1 serialize ms=80 bytes=13350
+PIPELINE_COMPLETE DieHard_current_8_1
+RUN_COMPLETE DieHard_current_8_1
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:338:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_8_1
+STAGE DieHard_early_8_1 early_intros ms=2
+STAGE DieHard_early_8_1 nextSimp ms=302
+STAGE DieHard_early_8_1 hoist ms=6
+STAGE DieHard_early_8_1 intros ms=2
+STAGE DieHard_early_8_1 destruct ms=118
+STAGE DieHard_early_8_1 dsimp1 ms=30
+STAGE DieHard_early_8_1 smtSimp ms=118
+STAGE DieHard_early_8_1 dsimp2 ms=22
+SMT_STAGE DieHard_early_8_1 pushHints ms=0
+SMT_STAGE DieHard_early_8_1 smt-intros ms=0
+SMT_STAGE DieHard_early_8_1 negateGoal ms=1
+SMT_STAGE DieHard_early_8_1 normalize ms=25
+SMT_STAGE DieHard_early_8_1 embedding ms=333
+SMT_STAGE DieHard_early_8_1 translate ms=46 commands=54
+SMT_STAGE DieHard_early_8_1 serialize ms=81 bytes=13350
+PIPELINE_COMPLETE DieHard_early_8_1
+RUN_COMPLETE DieHard_early_8_1
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:354:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_8_2
+STAGE DieHard_early_8_2 early_intros ms=1
+STAGE DieHard_early_8_2 nextSimp ms=237
+STAGE DieHard_early_8_2 hoist ms=5
+STAGE DieHard_early_8_2 intros ms=2
+STAGE DieHard_early_8_2 destruct ms=88
+STAGE DieHard_early_8_2 dsimp1 ms=24
+STAGE DieHard_early_8_2 smtSimp ms=89
+STAGE DieHard_early_8_2 dsimp2 ms=20
+RUN_COMPLETE DieHard_early_8_2
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:369:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_8_2
+STAGE DieHard_current_8_2 nextSimp ms=807
+STAGE DieHard_current_8_2 hoist ms=49
+STAGE DieHard_current_8_2 intros ms=2
+STAGE DieHard_current_8_2 destruct ms=98
+STAGE DieHard_current_8_2 dsimp1 ms=25
+STAGE DieHard_current_8_2 smtSimp ms=78
+STAGE DieHard_current_8_2 dsimp2 ms=16
+RUN_COMPLETE DieHard_current_8_2
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:383:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_8_3
+STAGE DieHard_current_8_3 nextSimp ms=727
+STAGE DieHard_current_8_3 hoist ms=37
+STAGE DieHard_current_8_3 intros ms=1
+STAGE DieHard_current_8_3 destruct ms=76
+STAGE DieHard_current_8_3 dsimp1 ms=17
+STAGE DieHard_current_8_3 smtSimp ms=67
+STAGE DieHard_current_8_3 dsimp2 ms=15
+RUN_COMPLETE DieHard_current_8_3
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:397:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_8_3
+STAGE DieHard_early_8_3 early_intros ms=1
+STAGE DieHard_early_8_3 nextSimp ms=216
+STAGE DieHard_early_8_3 hoist ms=5
+STAGE DieHard_early_8_3 intros ms=2
+STAGE DieHard_early_8_3 destruct ms=86
+STAGE DieHard_early_8_3 dsimp1 ms=23
+STAGE DieHard_early_8_3 smtSimp ms=76
+STAGE DieHard_early_8_3 dsimp2 ms=15
+RUN_COMPLETE DieHard_early_8_3
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:412:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_16_1
+STAGE DieHard_early_16_1 early_intros ms=3
+STAGE DieHard_early_16_1 nextSimp ms=462
+STAGE DieHard_early_16_1 hoist ms=10
+STAGE DieHard_early_16_1 intros ms=2
+STAGE DieHard_early_16_1 destruct ms=295
+STAGE DieHard_early_16_1 dsimp1 ms=50
+STAGE DieHard_early_16_1 smtSimp ms=170
+STAGE DieHard_early_16_1 dsimp2 ms=25
+SMT_STAGE DieHard_early_16_1 pushHints ms=0
+SMT_STAGE DieHard_early_16_1 smt-intros ms=0
+SMT_STAGE DieHard_early_16_1 negateGoal ms=1
+SMT_STAGE DieHard_early_16_1 normalize ms=37
+SMT_STAGE DieHard_early_16_1 embedding ms=1181
+SMT_STAGE DieHard_early_16_1 translate ms=86 commands=94
+SMT_STAGE DieHard_early_16_1 serialize ms=154 bytes=26573
+PIPELINE_COMPLETE DieHard_early_16_1
+RUN_COMPLETE DieHard_early_16_1
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:428:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_16_1
+STAGE DieHard_current_16_1 nextSimp ms=2410
+STAGE DieHard_current_16_1 hoist ms=108
+STAGE DieHard_current_16_1 intros ms=2
+STAGE DieHard_current_16_1 destruct ms=296
+STAGE DieHard_current_16_1 dsimp1 ms=53
+STAGE DieHard_current_16_1 smtSimp ms=188
+STAGE DieHard_current_16_1 dsimp2 ms=37
+SMT_STAGE DieHard_current_16_1 pushHints ms=0
+SMT_STAGE DieHard_current_16_1 smt-intros ms=0
+SMT_STAGE DieHard_current_16_1 negateGoal ms=0
+SMT_STAGE DieHard_current_16_1 normalize ms=44
+SMT_STAGE DieHard_current_16_1 embedding ms=1278
+SMT_STAGE DieHard_current_16_1 translate ms=90 commands=94
+SMT_STAGE DieHard_current_16_1 serialize ms=171 bytes=26573
+PIPELINE_COMPLETE DieHard_current_16_1
+RUN_COMPLETE DieHard_current_16_1
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:443:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_16_2
+STAGE DieHard_current_16_2 nextSimp ms=2800
+STAGE DieHard_current_16_2 hoist ms=122
+STAGE DieHard_current_16_2 intros ms=3
+STAGE DieHard_current_16_2 destruct ms=238
+STAGE DieHard_current_16_2 dsimp1 ms=36
+STAGE DieHard_current_16_2 smtSimp ms=174
+STAGE DieHard_current_16_2 dsimp2 ms=27
+RUN_COMPLETE DieHard_current_16_2
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:457:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_16_2
+STAGE DieHard_early_16_2 early_intros ms=3
+STAGE DieHard_early_16_2 nextSimp ms=465
+STAGE DieHard_early_16_2 hoist ms=10
+STAGE DieHard_early_16_2 intros ms=2
+STAGE DieHard_early_16_2 destruct ms=248
+STAGE DieHard_early_16_2 dsimp1 ms=43
+STAGE DieHard_early_16_2 smtSimp ms=160
+STAGE DieHard_early_16_2 dsimp2 ms=32
+RUN_COMPLETE DieHard_early_16_2
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:472:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_16_3
+STAGE DieHard_early_16_3 early_intros ms=3
+STAGE DieHard_early_16_3 nextSimp ms=488
+STAGE DieHard_early_16_3 hoist ms=12
+STAGE DieHard_early_16_3 intros ms=2
+STAGE DieHard_early_16_3 destruct ms=332
+STAGE DieHard_early_16_3 dsimp1 ms=37
+STAGE DieHard_early_16_3 smtSimp ms=173
+STAGE DieHard_early_16_3 dsimp2 ms=28
+RUN_COMPLETE DieHard_early_16_3
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:487:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_16_3
+STAGE DieHard_current_16_3 nextSimp ms=2728
+STAGE DieHard_current_16_3 hoist ms=114
+STAGE DieHard_current_16_3 intros ms=3
+STAGE DieHard_current_16_3 destruct ms=375
+STAGE DieHard_current_16_3 dsimp1 ms=49
+STAGE DieHard_current_16_3 smtSimp ms=178
+STAGE DieHard_current_16_3 dsimp2 ms=38
+RUN_COMPLETE DieHard_current_16_3
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:501:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_32_1
+STAGE DieHard_current_32_1 nextSimp ms=8710
+STAGE DieHard_current_32_1 hoist ms=175
+STAGE DieHard_current_32_1 intros ms=4
+STAGE DieHard_current_32_1 destruct ms=968
+STAGE DieHard_current_32_1 dsimp1 ms=62
+STAGE DieHard_current_32_1 smtSimp ms=243
+STAGE DieHard_current_32_1 dsimp2 ms=67
+SMT_STAGE DieHard_current_32_1 pushHints ms=0
+SMT_STAGE DieHard_current_32_1 smt-intros ms=0
+SMT_STAGE DieHard_current_32_1 negateGoal ms=2
+SMT_STAGE DieHard_current_32_1 normalize ms=100
+SMT_STAGE DieHard_current_32_1 embedding ms=9183
+SMT_STAGE DieHard_current_32_1 translate ms=151 commands=174
+SMT_STAGE DieHard_current_32_1 serialize ms=312 bytes=53898
+PIPELINE_COMPLETE DieHard_current_32_1
+RUN_COMPLETE DieHard_current_32_1
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:516:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_32_1
+STAGE DieHard_early_32_1 early_intros ms=8
+STAGE DieHard_early_32_1 nextSimp ms=1117
+STAGE DieHard_early_32_1 hoist ms=19
+STAGE DieHard_early_32_1 intros ms=3
+STAGE DieHard_early_32_1 destruct ms=1024
+STAGE DieHard_early_32_1 dsimp1 ms=92
+STAGE DieHard_early_32_1 smtSimp ms=313
+STAGE DieHard_early_32_1 dsimp2 ms=54
+SMT_STAGE DieHard_early_32_1 pushHints ms=0
+SMT_STAGE DieHard_early_32_1 smt-intros ms=1
+SMT_STAGE DieHard_early_32_1 negateGoal ms=1
+SMT_STAGE DieHard_early_32_1 normalize ms=92
+SMT_STAGE DieHard_early_32_1 embedding ms=9903
+SMT_STAGE DieHard_early_32_1 translate ms=180 commands=174
+SMT_STAGE DieHard_early_32_1 serialize ms=298 bytes=53898
+PIPELINE_COMPLETE DieHard_early_32_1
+RUN_COMPLETE DieHard_early_32_1
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:532:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_32_2
+STAGE DieHard_early_32_2 early_intros ms=10
+STAGE DieHard_early_32_2 nextSimp ms=1018
+STAGE DieHard_early_32_2 hoist ms=18
+STAGE DieHard_early_32_2 intros ms=4
+STAGE DieHard_early_32_2 destruct ms=1020
+STAGE DieHard_early_32_2 dsimp1 ms=87
+STAGE DieHard_early_32_2 smtSimp ms=297
+STAGE DieHard_early_32_2 dsimp2 ms=62
+RUN_COMPLETE DieHard_early_32_2
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:547:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_32_2
+STAGE DieHard_current_32_2 nextSimp ms=8322
+STAGE DieHard_current_32_2 hoist ms=183
+STAGE DieHard_current_32_2 intros ms=3
+STAGE DieHard_current_32_2 destruct ms=979
+STAGE DieHard_current_32_2 dsimp1 ms=83
+STAGE DieHard_current_32_2 smtSimp ms=341
+STAGE DieHard_current_32_2 dsimp2 ms=71
+RUN_COMPLETE DieHard_current_32_2
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:561:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_current_32_3
+STAGE DieHard_current_32_3 nextSimp ms=9067
+STAGE DieHard_current_32_3 hoist ms=225
+STAGE DieHard_current_32_3 intros ms=3
+STAGE DieHard_current_32_3 destruct ms=1012
+STAGE DieHard_current_32_3 dsimp1 ms=89
+STAGE DieHard_current_32_3 smtSimp ms=314
+STAGE DieHard_current_32_3 dsimp2 ms=67
+RUN_COMPLETE DieHard_current_32_3
+/tmp/veil-early-intro-multi/results/sources/DieHard.lean:575:0: warning: declaration uses `sorry`
+RUN_BEGIN DieHard_early_32_3
+STAGE DieHard_early_32_3 early_intros ms=8
+STAGE DieHard_early_32_3 nextSimp ms=1133
+STAGE DieHard_early_32_3 hoist ms=21
+STAGE DieHard_early_32_3 intros ms=5
+STAGE DieHard_early_32_3 destruct ms=992
+STAGE DieHard_early_32_3 dsimp1 ms=76
+STAGE DieHard_early_32_3 smtSimp ms=310
+STAGE DieHard_early_32_3 dsimp2 ms=64
+RUN_COMPLETE DieHard_early_32_3
+
+PROCESS status=exit0 wall_seconds=105.992180

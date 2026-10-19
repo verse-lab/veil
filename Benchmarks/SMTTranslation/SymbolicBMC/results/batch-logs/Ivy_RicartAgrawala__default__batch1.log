@@ -1,0 +1,15 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean:175:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean:198:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean:220:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean:242:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean:265:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean:288:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean:310:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean:332:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean:355:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean:380:37: error: `simp` failed: maximum number of steps exceeded
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean:402:37: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean:422:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed

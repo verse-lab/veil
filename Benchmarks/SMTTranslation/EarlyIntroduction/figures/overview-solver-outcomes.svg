@@ -1,0 +1,486 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="801pt" height="536.772822pt" viewBox="0 0 801 536.772822" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-10-19T12:34:45.166993</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 536.772822 
+L 801 536.772822 
+L 801 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 218.151818 161.272461 
+L 354.019091 161.272461 
+L 354.019091 125.106597 
+L 218.151818 125.106597 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 361.17 161.272461 
+L 497.037273 161.272461 
+L 497.037273 125.106597 
+L 361.17 125.106597 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 504.188182 161.272461 
+L 640.055455 161.272461 
+L 640.055455 125.106597 
+L 504.188182 125.106597 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 647.206364 161.272461 
+L 783.073636 161.272461 
+L 783.073636 125.106597 
+L 647.206364 125.106597 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 218.151818 205.377173 
+L 354.019091 205.377173 
+L 354.019091 169.211309 
+L 218.151818 169.211309 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #dce9f4; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 361.17 205.377173 
+L 497.037273 205.377173 
+L 497.037273 169.211309 
+L 361.17 169.211309 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #dce9f4; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 504.188182 205.377173 
+L 640.055455 205.377173 
+L 640.055455 169.211309 
+L 504.188182 169.211309 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 647.206364 205.377173 
+L 783.073636 205.377173 
+L 783.073636 169.211309 
+L 647.206364 169.211309 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 218.151818 249.481885 
+L 354.019091 249.481885 
+L 354.019091 213.316021 
+L 218.151818 213.316021 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_11">
+    <path d="M 361.17 249.481885 
+L 497.037273 249.481885 
+L 497.037273 213.316021 
+L 361.17 213.316021 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_12">
+    <path d="M 504.188182 249.481885 
+L 640.055455 249.481885 
+L 640.055455 213.316021 
+L 504.188182 213.316021 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_13">
+    <path d="M 647.206364 249.481885 
+L 783.073636 249.481885 
+L 783.073636 213.316021 
+L 647.206364 213.316021 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_14">
+    <path d="M 218.151818 293.586597 
+L 354.019091 293.586597 
+L 354.019091 257.420733 
+L 218.151818 257.420733 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_15">
+    <path d="M 361.17 293.586597 
+L 497.037273 293.586597 
+L 497.037273 257.420733 
+L 361.17 257.420733 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_16">
+    <path d="M 504.188182 293.586597 
+L 640.055455 293.586597 
+L 640.055455 257.420733 
+L 504.188182 257.420733 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_17">
+    <path d="M 647.206364 293.586597 
+L 783.073636 293.586597 
+L 783.073636 257.420733 
+L 647.206364 257.420733 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_18">
+    <path d="M 218.151818 337.691309 
+L 354.019091 337.691309 
+L 354.019091 301.525445 
+L 218.151818 301.525445 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #f9e7c5; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_19">
+    <path d="M 361.17 337.691309 
+L 497.037273 337.691309 
+L 497.037273 301.525445 
+L 361.17 301.525445 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #f9e7c5; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_20">
+    <path d="M 504.188182 337.691309 
+L 640.055455 337.691309 
+L 640.055455 301.525445 
+L 504.188182 301.525445 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #e9edf0; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_21">
+    <path d="M 647.206364 337.691309 
+L 783.073636 337.691309 
+L 783.073636 301.525445 
+L 647.206364 301.525445 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #f9e7c5; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_22">
+    <path d="M 218.151818 381.796021 
+L 354.019091 381.796021 
+L 354.019091 345.630157 
+L 218.151818 345.630157 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_23">
+    <path d="M 361.17 381.796021 
+L 497.037273 381.796021 
+L 497.037273 345.630157 
+L 361.17 345.630157 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_24">
+    <path d="M 504.188182 381.796021 
+L 640.055455 381.796021 
+L 640.055455 345.630157 
+L 504.188182 345.630157 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_25">
+    <path d="M 647.206364 381.796021 
+L 783.073636 381.796021 
+L 783.073636 345.630157 
+L 647.206364 345.630157 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_26">
+    <path d="M 218.151818 425.900733 
+L 354.019091 425.900733 
+L 354.019091 389.734869 
+L 218.151818 389.734869 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_27">
+    <path d="M 361.17 425.900733 
+L 497.037273 425.900733 
+L 497.037273 389.734869 
+L 361.17 389.734869 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_28">
+    <path d="M 504.188182 425.900733 
+L 640.055455 425.900733 
+L 640.055455 389.734869 
+L 504.188182 389.734869 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_29">
+    <path d="M 647.206364 425.900733 
+L 783.073636 425.900733 
+L 783.073636 389.734869 
+L 647.206364 389.734869 
+z
+" clip-path="url(#p7dcfd24fb7)" style="fill: #d8efe6; stroke: #ffffff; stroke-width: 1.5; stroke-linejoin: miter"/>
+   </g>
+   <g id="line2d_1">
+    <path d="M 500.612727 429.42911 
+L 500.612727 83.20712 
+" clip-path="url(#p7dcfd24fb7)" style="fill: none; stroke: #afbac3; stroke-linecap: square"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172b3a" x="197.414182" y="146.307185" transform="rotate(-0 197.414182 146.307185)">Ring</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="286.085455" y="141.636479" transform="rotate(-0 286.085455 141.636479)">SAT</text>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="286.085455" y="152.584173" transform="rotate(-0 286.085455 152.584173)">0.12 s</text>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="429.103636" y="141.636479" transform="rotate(-0 429.103636 141.636479)">SAT</text>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="429.103636" y="152.584173" transform="rotate(-0 429.103636 152.584173)">0.12 s</text>
+   </g>
+   <g id="text_6">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="572.121818" y="141.636479" transform="rotate(-0 572.121818 141.636479)">SAT</text>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="572.121818" y="152.584173" transform="rotate(-0 572.121818 152.584173)">0.19 s</text>
+   </g>
+   <g id="text_8">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="715.14" y="141.636479" transform="rotate(-0 715.14 141.636479)">SAT</text>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="715.14" y="152.584173" transform="rotate(-0 715.14 152.584173)">0.35 s</text>
+   </g>
+   <g id="text_10">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172b3a" x="197.414182" y="190.411897" transform="rotate(-0 197.414182 190.411897)">DieHard</text>
+   </g>
+   <g id="text_11">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #235678" x="286.085455" y="185.741192" transform="rotate(-0 286.085455 185.741192)">UNSAT</text>
+   </g>
+   <g id="text_12">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #235678" x="286.085455" y="196.688885" transform="rotate(-0 286.085455 196.688885)">0.20 s</text>
+   </g>
+   <g id="text_13">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #235678" x="429.103636" y="185.741192" transform="rotate(-0 429.103636 185.741192)">UNSAT</text>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #235678" x="429.103636" y="196.688885" transform="rotate(-0 429.103636 196.688885)">0.23 s</text>
+   </g>
+   <g id="text_15">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="572.121818" y="185.741192" transform="rotate(-0 572.121818 185.741192)">SAT</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="572.121818" y="196.688885" transform="rotate(-0 572.121818 196.688885)">0.52 s</text>
+   </g>
+   <g id="text_17">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="715.14" y="185.741192" transform="rotate(-0 715.14 185.741192)">SAT</text>
+   </g>
+   <g id="text_18">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="715.14" y="196.688885" transform="rotate(-0 715.14 196.688885)">0.63 s</text>
+   </g>
+   <g id="text_19">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172b3a" x="197.414182" y="234.516609" transform="rotate(-0 197.414182 234.516609)">TwoPhaseCommit</text>
+   </g>
+   <g id="text_20">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="286.085455" y="229.845904" transform="rotate(-0 286.085455 229.845904)">SAT</text>
+   </g>
+   <g id="text_21">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="286.085455" y="240.793597" transform="rotate(-0 286.085455 240.793597)">0.10 s</text>
+   </g>
+   <g id="text_22">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="429.103636" y="229.845904" transform="rotate(-0 429.103636 229.845904)">SAT</text>
+   </g>
+   <g id="text_23">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="429.103636" y="240.793597" transform="rotate(-0 429.103636 240.793597)">0.08 s</text>
+   </g>
+   <g id="text_24">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="572.121818" y="229.845904" transform="rotate(-0 572.121818 229.845904)">SAT</text>
+   </g>
+   <g id="text_25">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="572.121818" y="240.793597" transform="rotate(-0 572.121818 240.793597)">0.20 s</text>
+   </g>
+   <g id="text_26">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="715.14" y="229.845904" transform="rotate(-0 715.14 229.845904)">SAT</text>
+   </g>
+   <g id="text_27">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="715.14" y="240.793597" transform="rotate(-0 715.14 240.793597)">0.20 s</text>
+   </g>
+   <g id="text_28">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172b3a" x="197.414182" y="278.621321" transform="rotate(-0 197.414182 278.621321)">RicartAgrawala</text>
+   </g>
+   <g id="text_29">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="286.085455" y="273.950616" transform="rotate(-0 286.085455 273.950616)">SAT</text>
+   </g>
+   <g id="text_30">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="286.085455" y="284.898309" transform="rotate(-0 286.085455 284.898309)">0.06 s</text>
+   </g>
+   <g id="text_31">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="429.103636" y="273.950616" transform="rotate(-0 429.103636 273.950616)">SAT</text>
+   </g>
+   <g id="text_32">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="429.103636" y="284.898309" transform="rotate(-0 429.103636 284.898309)">0.05 s</text>
+   </g>
+   <g id="text_33">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="572.121818" y="273.950616" transform="rotate(-0 572.121818 273.950616)">SAT</text>
+   </g>
+   <g id="text_34">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="572.121818" y="284.898309" transform="rotate(-0 572.121818 284.898309)">0.10 s</text>
+   </g>
+   <g id="text_35">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="715.14" y="273.950616" transform="rotate(-0 715.14 273.950616)">SAT</text>
+   </g>
+   <g id="text_36">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="715.14" y="284.898309" transform="rotate(-0 715.14 284.898309)">0.08 s</text>
+   </g>
+   <g id="text_37">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172b3a" x="197.414182" y="322.726033" transform="rotate(-0 197.414182 322.726033)">MultiSigAll</text>
+   </g>
+   <g id="text_38">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #805510" x="286.085455" y="318.055328" transform="rotate(-0 286.085455 318.055328)">TIMEOUT</text>
+   </g>
+   <g id="text_39">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #805510" x="286.085455" y="329.003373" transform="rotate(-0 286.085455 329.003373)">10 s limit</text>
+   </g>
+   <g id="text_40">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #805510" x="429.103636" y="318.055328" transform="rotate(-0 429.103636 318.055328)">TIMEOUT</text>
+   </g>
+   <g id="text_41">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #805510" x="429.103636" y="329.003373" transform="rotate(-0 429.103636 329.003373)">10 s limit</text>
+   </g>
+   <g id="text_42">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #596771" x="572.121818" y="318.055328" transform="rotate(-0 572.121818 318.055328)">No query</text>
+   </g>
+   <g id="text_43">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #596771" x="572.121818" y="329.003373" transform="rotate(-0 572.121818 329.003373)">preprocessing failed</text>
+   </g>
+   <g id="text_44">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #805510" x="715.14" y="318.055328" transform="rotate(-0 715.14 318.055328)">TIMEOUT</text>
+   </g>
+   <g id="text_45">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #805510" x="715.14" y="329.003373" transform="rotate(-0 715.14 329.003373)">10 s limit</text>
+   </g>
+   <g id="text_46">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172b3a" x="197.414182" y="366.830277" transform="rotate(-0 197.414182 366.830277)">Peterson</text>
+   </g>
+   <g id="text_47">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="286.085455" y="362.16004" transform="rotate(-0 286.085455 362.16004)">SAT</text>
+   </g>
+   <g id="text_48">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="286.085455" y="373.107734" transform="rotate(-0 286.085455 373.107734)">0.64 s</text>
+   </g>
+   <g id="text_49">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="429.103636" y="362.16004" transform="rotate(-0 429.103636 362.16004)">SAT</text>
+   </g>
+   <g id="text_50">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="429.103636" y="373.107734" transform="rotate(-0 429.103636 373.107734)">0.70 s</text>
+   </g>
+   <g id="text_51">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="572.121818" y="362.16004" transform="rotate(-0 572.121818 362.16004)">SAT</text>
+   </g>
+   <g id="text_52">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="572.121818" y="373.107734" transform="rotate(-0 572.121818 373.107734)">0.94 s</text>
+   </g>
+   <g id="text_53">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="715.14" y="362.16004" transform="rotate(-0 715.14 362.16004)">SAT</text>
+   </g>
+   <g id="text_54">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="715.14" y="373.107734" transform="rotate(-0 715.14 373.107734)">0.98 s</text>
+   </g>
+   <g id="text_55">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #172b3a" x="197.414182" y="410.935457" transform="rotate(-0 197.414182 410.935457)">FloodSet</text>
+   </g>
+   <g id="text_56">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="286.085455" y="406.264752" transform="rotate(-0 286.085455 406.264752)">SAT</text>
+   </g>
+   <g id="text_57">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="286.085455" y="417.212446" transform="rotate(-0 286.085455 417.212446)">0.11 s</text>
+   </g>
+   <g id="text_58">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="429.103636" y="406.264752" transform="rotate(-0 429.103636 406.264752)">SAT</text>
+   </g>
+   <g id="text_59">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="429.103636" y="417.212446" transform="rotate(-0 429.103636 417.212446)">0.11 s</text>
+   </g>
+   <g id="text_60">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="572.121818" y="406.264752" transform="rotate(-0 572.121818 406.264752)">SAT</text>
+   </g>
+   <g id="text_61">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="572.121818" y="417.212446" transform="rotate(-0 572.121818 417.212446)">0.40 s</text>
+   </g>
+   <g id="text_62">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="715.14" y="406.264752" transform="rotate(-0 715.14 406.264752)">SAT</text>
+   </g>
+   <g id="text_63">
+    <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #195e48" x="715.14" y="417.212446" transform="rotate(-0 715.14 417.212446)">0.48 s</text>
+   </g>
+   <g id="text_64">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172b3a" x="357.594545" y="92.028063" transform="rotate(-0 357.594545 92.028063)">Depth 4</text>
+   </g>
+   <g id="text_65">
+    <text style="font-weight: 700; font-size: 13px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172b3a" x="643.630909" y="92.028063" transform="rotate(-0 643.630909 92.028063)">Depth 8</text>
+   </g>
+   <g id="text_66">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172b3a" x="286.085455" y="113.198325" transform="rotate(-0 286.085455 113.198325)">Original</text>
+   </g>
+   <g id="text_67">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172b3a" x="429.103636" y="113.198325" transform="rotate(-0 429.103636 113.198325)">Early introduction</text>
+   </g>
+   <g id="text_68">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172b3a" x="572.121818" y="113.198325" transform="rotate(-0 572.121818 113.198325)">Original</text>
+   </g>
+   <g id="text_69">
+    <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #172b3a" x="715.14" y="113.198325" transform="rotate(-0 715.14 113.198325)">Early introduction</text>
+   </g>
+  </g>
+  <g id="text_70">
+   <text style="font-weight: 700; font-size: 19px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #172b3a" x="15.48" y="21.637031" transform="rotate(-0 15.48 21.637031)">SMT outcomes for the measured trace queries</text>
+  </g>
+  <g id="text_71">
+   <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #53626d" x="15.48" y="52.128" transform="rotate(-0 15.48 52.128)">One isolated solver run per query; timeout cells are censored, not completed solves.</text>
+  </g>
+  <g id="text_72">
+   <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; fill: #53626d" transform="translate(15.48 506.275352)">Queries come from the finalized data-prefix helper benchmark. cvc5 uses the trusted Veil options and a 10-second limit.</text>
+   <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; fill: #53626d" transform="translate(15.48 516.477676)">SAT/UNSAT refer to the selected bounded trace assertions, not protocol safety in general. These samples do not establish a solver speedup.</text>
+   <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; fill: #53626d" transform="translate(15.48 526.68)">A missing query records preprocessing failure; it is distinct from a solver timeout. Exact results and assertions are retained in the solver CSV.</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p7dcfd24fb7">
+   <rect x="7.2" y="63.36" width="786.6" height="421.2"/>
+  </clipPath>
+ </defs>
+</svg>

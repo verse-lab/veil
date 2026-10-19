@@ -1,0 +1,302 @@
+{
+  "room-plain": {
+    "complete": true,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/setup-diagnostics/Room-plain.lean"
+    ],
+    "cwd": "/home/george/src/veil-issue-123",
+    "exit_code": 0,
+    "wall_ms": 9850,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/room-plain.log"
+  },
+  "room-scoped": {
+    "complete": true,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/setup-diagnostics/Room-scoped.lean"
+    ],
+    "cwd": "/home/george/src/veil-issue-123",
+    "exit_code": 0,
+    "wall_ms": 9998,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/room-scoped.log"
+  },
+  "primary-solver-replay": {
+    "complete": true,
+    "command": [
+      "/usr/bin/python3",
+      "/tmp/veil-symbolic-bmc/solve_batch.py",
+      "--repo",
+      "/home/george/src/veil-issue-123",
+      "--out",
+      "/tmp/veil-symbolic-bmc/results",
+      "--solver-timeout",
+      "10"
+    ],
+    "cwd": "/tmp/veil-symbolic-bmc",
+    "exit_code": 0,
+    "wall_ms": 672453,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/primary-solver-replay.log"
+  },
+  "namespace-equivalence": {
+    "complete": true,
+    "command": [
+      "/usr/bin/python3",
+      "/tmp/veil-symbolic-bmc/run_batch.py",
+      "--repo",
+      "/home/george/src/veil-issue-123",
+      "--out",
+      "/tmp/veil-symbolic-bmc/namespace-equivalence",
+      "--models",
+      "AWS_AWSFixed",
+      "Ivy_PaxosFirstOrder",
+      "Ivy_Ring",
+      "--depths",
+      "1"
+    ],
+    "cwd": "/tmp/veil-symbolic-bmc",
+    "exit_code": 0,
+    "wall_ms": 37836,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/namespace-equivalence.log"
+  },
+  "namespace-repair": {
+    "complete": true,
+    "command": [
+      "/usr/bin/python3",
+      "/tmp/veil-symbolic-bmc/run_batch.py",
+      "--repo",
+      "/home/george/src/veil-issue-123",
+      "--out",
+      "/tmp/veil-symbolic-bmc/namespace-repair",
+      "--models",
+      "TLA_BcastByz",
+      "TLA_MutexViolation",
+      "TLA_Room"
+    ],
+    "cwd": "/tmp/veil-symbolic-bmc",
+    "exit_code": 0,
+    "wall_ms": 296793,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/namespace-repair.log"
+  },
+  "merged_repairs": [
+    "TLA_BcastByz",
+    "TLA_MutexViolation",
+    "TLA_Room"
+  ],
+  "river-seven-translation": {
+    "complete": true,
+    "command": [
+      "/usr/bin/python3",
+      "/tmp/veil-symbolic-bmc/run_batch.py",
+      "--repo",
+      "/home/george/src/veil-issue-123",
+      "--out",
+      "/tmp/veil-symbolic-bmc/controls/river-seven",
+      "--models",
+      "Puzzles_RiverCrossing",
+      "--depths",
+      "7",
+      "--profile",
+      "default"
+    ],
+    "cwd": "/tmp/veil-symbolic-bmc",
+    "exit_code": 0,
+    "wall_ms": 10361,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/river-seven-translation.log"
+  },
+  "river-seven-solver": {
+    "complete": true,
+    "command": [
+      "/usr/bin/python3",
+      "/tmp/veil-symbolic-bmc/solve_batch.py",
+      "--repo",
+      "/home/george/src/veil-issue-123",
+      "--out",
+      "/tmp/veil-symbolic-bmc/controls/river-seven",
+      "--solver-timeout",
+      "10"
+    ],
+    "cwd": "/tmp/veil-symbolic-bmc",
+    "exit_code": 0,
+    "wall_ms": 2157,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/river-seven-solver.log"
+  },
+  "aws-recursion-translation": {
+    "complete": true,
+    "command": [
+      "/usr/bin/python3",
+      "/tmp/veil-symbolic-bmc/run_batch.py",
+      "--repo",
+      "/home/george/src/veil-issue-123",
+      "--out",
+      "/tmp/veil-symbolic-bmc/controls/aws-recursion",
+      "--models",
+      "AWS_AWSFixed",
+      "--depths",
+      "8",
+      "--profile",
+      "recursion_only"
+    ],
+    "cwd": "/tmp/veil-symbolic-bmc",
+    "exit_code": 0,
+    "wall_ms": 61545,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/aws-recursion-translation.log"
+  },
+  "aws-recursion-solver": {
+    "complete": true,
+    "command": [
+      "/usr/bin/python3",
+      "/tmp/veil-symbolic-bmc/solve_batch.py",
+      "--repo",
+      "/home/george/src/veil-issue-123",
+      "--out",
+      "/tmp/veil-symbolic-bmc/controls/aws-recursion",
+      "--solver-timeout",
+      "10"
+    ],
+    "cwd": "/tmp/veil-symbolic-bmc",
+    "exit_code": 0,
+    "wall_ms": 22179,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/aws-recursion-solver.log"
+  },
+  "diehard-recursion-translation": {
+    "complete": true,
+    "command": [
+      "/usr/bin/python3",
+      "/tmp/veil-symbolic-bmc/run_batch.py",
+      "--repo",
+      "/home/george/src/veil-issue-123",
+      "--out",
+      "/tmp/veil-symbolic-bmc/controls/diehard-recursion",
+      "--models",
+      "Puzzles_DieHard",
+      "--depths",
+      "32",
+      "--profile",
+      "recursion_only"
+    ],
+    "cwd": "/tmp/veil-symbolic-bmc",
+    "exit_code": 0,
+    "wall_ms": 31055,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/diehard-recursion-translation.log"
+  },
+  "diehard-recursion-solver": {
+    "complete": true,
+    "command": [
+      "/usr/bin/python3",
+      "/tmp/veil-symbolic-bmc/solve_batch.py",
+      "--repo",
+      "/home/george/src/veil-issue-123",
+      "--out",
+      "/tmp/veil-symbolic-bmc/controls/diehard-recursion",
+      "--solver-timeout",
+      "10"
+    ],
+    "cwd": "/tmp/veil-symbolic-bmc",
+    "exit_code": 0,
+    "wall_ms": 22128,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/diehard-recursion-solver.log"
+  },
+  "flood-recursion-translation": {
+    "complete": true,
+    "command": [
+      "/usr/bin/python3",
+      "/tmp/veil-symbolic-bmc/run_batch.py",
+      "--repo",
+      "/home/george/src/veil-issue-123",
+      "--out",
+      "/tmp/veil-symbolic-bmc/controls/flood-recursion",
+      "--models",
+      "Synchronous_FloodSet",
+      "--depths",
+      "16",
+      "--profile",
+      "recursion_only"
+    ],
+    "cwd": "/tmp/veil-symbolic-bmc",
+    "exit_code": 0,
+    "wall_ms": 46988,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/flood-recursion-translation.log"
+  },
+  "flood-recursion-solver": {
+    "complete": true,
+    "command": [
+      "/usr/bin/python3",
+      "/tmp/veil-symbolic-bmc/solve_batch.py",
+      "--repo",
+      "/home/george/src/veil-issue-123",
+      "--out",
+      "/tmp/veil-symbolic-bmc/controls/flood-recursion",
+      "--solver-timeout",
+      "10"
+    ],
+    "cwd": "/tmp/veil-symbolic-bmc",
+    "exit_code": 0,
+    "wall_ms": 40,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/flood-recursion-solver.log"
+  },
+  "epaxos-recursion-translation": {
+    "complete": true,
+    "command": [
+      "/usr/bin/python3",
+      "/tmp/veil-symbolic-bmc/run_batch.py",
+      "--repo",
+      "/home/george/src/veil-issue-123",
+      "--out",
+      "/tmp/veil-symbolic-bmc/controls/epaxos-recursion",
+      "--models",
+      "TLA_EPaxos",
+      "--depths",
+      "1",
+      "--profile",
+      "recursion_only"
+    ],
+    "cwd": "/tmp/veil-symbolic-bmc",
+    "exit_code": 0,
+    "wall_ms": 203584,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/epaxos-recursion-translation.log"
+  },
+  "epaxos-recursion-solver": {
+    "complete": true,
+    "command": [
+      "/usr/bin/python3",
+      "/tmp/veil-symbolic-bmc/solve_batch.py",
+      "--repo",
+      "/home/george/src/veil-issue-123",
+      "--out",
+      "/tmp/veil-symbolic-bmc/controls/epaxos-recursion",
+      "--solver-timeout",
+      "10"
+    ],
+    "cwd": "/tmp/veil-symbolic-bmc",
+    "exit_code": 0,
+    "wall_ms": 52,
+    "timeout": false,
+    "log": "/tmp/veil-symbolic-bmc/post-sweep-logs/epaxos-recursion-solver.log"
+  },
+  "all_timed_work_complete": true
+}

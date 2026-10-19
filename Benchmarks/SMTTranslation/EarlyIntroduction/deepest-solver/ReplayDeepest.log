@@ -1,0 +1,7 @@
+REPLAY_RESULT Ring_early_32 status=unknown:TIMEOUT solver_ms=2084 bytes=68985
+REPLAY_RESULT DieHard_early_32 status=unknown:TIMEOUT solver_ms=2061 bytes=53887
+REPLAY_RESULT TwoPhaseCommit_early_32 status=sat solver_ms=675 bytes=177091
+REPLAY_RESULT RicartAgrawala_early_32 status=sat solver_ms=431 bytes=90154
+REPLAY_RESULT MultiSigAll_early_32 status=unknown:TIMEOUT solver_ms=2328 bytes=298898
+REPLAY_RESULT Peterson_early_32 status=unknown:TIMEOUT solver_ms=2109 bytes=98962
+REPLAY_RESULT FloodSet_early_16 status=sat solver_ms=1465 bytes=45105

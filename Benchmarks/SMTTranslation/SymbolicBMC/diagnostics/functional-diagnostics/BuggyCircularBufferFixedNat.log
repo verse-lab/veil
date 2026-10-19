@@ -1,0 +1,2 @@
+ISSUE123: candidate active; original contextual Nat simproc disabled
+/tmp/veil-symbolic-bmc/aws-embedding-candidates/BuggyCircularBufferFixedNat.lean:135:2: error: cannot translate fun n => n ∈ BUFFER_ELEMS, SMT-LIB does not support lambdas

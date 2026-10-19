@@ -1,0 +1,56 @@
+Semantics and paired-query audit
+
+The implementation moves only ordinary introduction of the outer data/type/
+Type-valued-instance prefix before nextSimp and existential hoisting. A goal
+  forall parameters, Not(trace parameters)
+becomes the same Not(trace parameters) goal under arbitrary local parameters.
+The introduction rule is exact. It neither chooses fixed values nor reorders
+internal quantifiers nor discards a transition or premise. Proof-domain binders
+remain in the target until their domains are normalized, and the original later
+intros/hoisting/destruction/backend path remains. This restriction fixes the
+regression found with unrestricted early intros on a higher-order proof header.
+
+The tests exercise trusted and untrusted SAT/UNSAT with function-valued picks,
+including an explicit untrusted theorem whose axioms are only propext,
+Classical.choice and Quot.sound. A second kernel-checked theorem covers the
+higher-order proof header. The default-limit depth32 regression reaches a real
+UNSAT solver result. The full VeilTest build passed 1226 jobs.
+
+The primary sweep has 92 pairs where both variants emit text. Of these, 83 have
+identical command sets after command ordering and implication currying. Nine
+require additional elementary logical identities:
+  - Ivy_TwoPhaseCommit depths1,2,4,8: the final assertion uses exists x, not P x
+    on one side and not (forall x, P x) on the other, with bound-name changes.
+  - RiverCrossing depths1,2,4,8,16: one side retains implications with conclusion
+    true inside an action branch. Those conjuncts are tautologies.
+These are expected differences in normalization, not changed trace constraints.
+
+compare_logical_forms.py performs a second reproducible check on all pairs:
+alpha-normalize bound variables with scope-aware identities, expand implication,
+use classical quantifier negation/De Morgan/double negation, and simplify Boolean
+identity/absorbing constants. It does not change solver inputs, reorder quantifier
+prefixes, erase declarations, or equate unrelated free variables. Its boundary
+checks reject capture, forall/exists swaps, dropped constraints and p versus not p.
+All 92 pairs have identical normal forms under this second check, with no
+remaining differences. The result is recorded in
+query-comparison/logical.{json,csv}; thus all 87 solver-accepted paired inputs
+also match. The remaining five pairs are invalid scripts, as qualified below.
+
+This comparator is not an SMT type checker. Five of the 92 paired scripts are
+rejected by cvc5 for an invalid Decidable.decide declaration (two models). They
+must not be counted as solver-accepted inputs merely because their texts match.
+The remaining 87 paired scripts were accepted by the native solver; some checks
+then timed out. See SMT_PARSER_FINDINGS.txt for the invalid-script diagnosis.
+
+There are no contradictory paired definite SAT/UNSAT answers. Agreement of
+solver answers is useful regression evidence, not the proof of equivalence.
+Preserving semantics does not guarantee preserving solver heuristics or timing:
+Simulate_ReliableBroadcast at depth4 returned UNSAT in 5907 ms with the old order
+and timed out at 10022 ms with early introduction, even though the basic query
+audit matches their normalized formulas. Command order and other presentation
+choices may matter to cvc5; this single observation does not isolate which does.
+
+The comprehensive benchmark uses the production trusted preprocessing and native
+solver wrapper, but omits Lean proof reconstruction and trace rendering. Those
+are covered by separate production regression tests, not inferred for every
+benchmark case. Existing backend encoding/support limitations remain.

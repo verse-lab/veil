@@ -1,0 +1,371 @@
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:131:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_current_2_1
+STAGE Ring_current_2_1 nextSimp ms=532
+STAGE Ring_current_2_1 hoist ms=610
+STAGE Ring_current_2_1 intros ms=2
+STAGE Ring_current_2_1 destruct ms=46
+STAGE Ring_current_2_1 dsimp1 ms=11
+STAGE Ring_current_2_1 smtSimp ms=77
+STAGE Ring_current_2_1 dsimp2 ms=10
+SMT_STAGE Ring_current_2_1 pushHints ms=0
+SMT_STAGE Ring_current_2_1 smt-intros ms=0
+SMT_STAGE Ring_current_2_1 negateGoal ms=0
+SMT_STAGE Ring_current_2_1 normalize ms=12
+SMT_STAGE Ring_current_2_1 embedding ms=1
+SMT_STAGE Ring_current_2_1 translate ms=42 commands=35
+SMT_STAGE Ring_current_2_1 serialize ms=55 bytes=5642
+PIPELINE_COMPLETE Ring_current_2_1
+RUN_COMPLETE Ring_current_2_1
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:146:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_2_1
+STAGE Ring_early_2_1 early_intros ms=2
+STAGE Ring_early_2_1 nextSimp ms=159
+STAGE Ring_early_2_1 hoist ms=5
+STAGE Ring_early_2_1 intros ms=1
+STAGE Ring_early_2_1 destruct ms=36
+STAGE Ring_early_2_1 dsimp1 ms=14
+STAGE Ring_early_2_1 smtSimp ms=65
+STAGE Ring_early_2_1 dsimp2 ms=9
+SMT_STAGE Ring_early_2_1 pushHints ms=1
+SMT_STAGE Ring_early_2_1 smt-intros ms=0
+SMT_STAGE Ring_early_2_1 negateGoal ms=0
+SMT_STAGE Ring_early_2_1 normalize ms=12
+SMT_STAGE Ring_early_2_1 embedding ms=1
+SMT_STAGE Ring_early_2_1 translate ms=38 commands=35
+SMT_STAGE Ring_early_2_1 serialize ms=51 bytes=5646
+PIPELINE_COMPLETE Ring_early_2_1
+RUN_COMPLETE Ring_early_2_1
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:162:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_2_2
+STAGE Ring_early_2_2 early_intros ms=2
+STAGE Ring_early_2_2 nextSimp ms=152
+STAGE Ring_early_2_2 hoist ms=8
+STAGE Ring_early_2_2 intros ms=2
+STAGE Ring_early_2_2 destruct ms=44
+STAGE Ring_early_2_2 dsimp1 ms=10
+STAGE Ring_early_2_2 smtSimp ms=60
+STAGE Ring_early_2_2 dsimp2 ms=8
+RUN_COMPLETE Ring_early_2_2
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:177:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_current_2_2
+STAGE Ring_current_2_2 nextSimp ms=592
+STAGE Ring_current_2_2 hoist ms=467
+STAGE Ring_current_2_2 intros ms=1
+STAGE Ring_current_2_2 destruct ms=46
+STAGE Ring_current_2_2 dsimp1 ms=11
+STAGE Ring_current_2_2 smtSimp ms=63
+STAGE Ring_current_2_2 dsimp2 ms=7
+RUN_COMPLETE Ring_current_2_2
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:191:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_current_2_3
+STAGE Ring_current_2_3 nextSimp ms=483
+STAGE Ring_current_2_3 hoist ms=469
+STAGE Ring_current_2_3 intros ms=2
+STAGE Ring_current_2_3 destruct ms=49
+STAGE Ring_current_2_3 dsimp1 ms=15
+STAGE Ring_current_2_3 smtSimp ms=84
+STAGE Ring_current_2_3 dsimp2 ms=9
+RUN_COMPLETE Ring_current_2_3
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:205:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_2_3
+STAGE Ring_early_2_3 early_intros ms=1
+STAGE Ring_early_2_3 nextSimp ms=157
+STAGE Ring_early_2_3 hoist ms=4
+STAGE Ring_early_2_3 intros ms=1
+STAGE Ring_early_2_3 destruct ms=44
+STAGE Ring_early_2_3 dsimp1 ms=13
+STAGE Ring_early_2_3 smtSimp ms=78
+STAGE Ring_early_2_3 dsimp2 ms=6
+RUN_COMPLETE Ring_early_2_3
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:220:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_4_1
+STAGE Ring_early_4_1 early_intros ms=3
+STAGE Ring_early_4_1 nextSimp ms=360
+STAGE Ring_early_4_1 hoist ms=7
+STAGE Ring_early_4_1 intros ms=2
+STAGE Ring_early_4_1 destruct ms=88
+STAGE Ring_early_4_1 dsimp1 ms=25
+STAGE Ring_early_4_1 smtSimp ms=126
+STAGE Ring_early_4_1 dsimp2 ms=15
+SMT_STAGE Ring_early_4_1 pushHints ms=0
+SMT_STAGE Ring_early_4_1 smt-intros ms=0
+SMT_STAGE Ring_early_4_1 negateGoal ms=1
+SMT_STAGE Ring_early_4_1 normalize ms=22
+SMT_STAGE Ring_early_4_1 embedding ms=3
+SMT_STAGE Ring_early_4_1 translate ms=60 commands=51
+SMT_STAGE Ring_early_4_1 serialize ms=99 bytes=9784
+PIPELINE_COMPLETE Ring_early_4_1
+RUN_COMPLETE Ring_early_4_1
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:236:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_current_4_1
+STAGE Ring_current_4_1 nextSimp ms=1366
+STAGE Ring_current_4_1 hoist ms=1368
+STAGE Ring_current_4_1 intros ms=2
+STAGE Ring_current_4_1 destruct ms=97
+STAGE Ring_current_4_1 dsimp1 ms=23
+STAGE Ring_current_4_1 smtSimp ms=158
+STAGE Ring_current_4_1 dsimp2 ms=20
+SMT_STAGE Ring_current_4_1 pushHints ms=0
+SMT_STAGE Ring_current_4_1 smt-intros ms=0
+SMT_STAGE Ring_current_4_1 negateGoal ms=1
+SMT_STAGE Ring_current_4_1 normalize ms=25
+SMT_STAGE Ring_current_4_1 embedding ms=2
+SMT_STAGE Ring_current_4_1 translate ms=61 commands=51
+SMT_STAGE Ring_current_4_1 serialize ms=100 bytes=9776
+PIPELINE_COMPLETE Ring_current_4_1
+RUN_COMPLETE Ring_current_4_1
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:251:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_current_4_2
+STAGE Ring_current_4_2 nextSimp ms=1491
+STAGE Ring_current_4_2 hoist ms=1747
+STAGE Ring_current_4_2 intros ms=3
+STAGE Ring_current_4_2 destruct ms=98
+STAGE Ring_current_4_2 dsimp1 ms=28
+STAGE Ring_current_4_2 smtSimp ms=192
+STAGE Ring_current_4_2 dsimp2 ms=24
+RUN_COMPLETE Ring_current_4_2
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:265:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_4_2
+STAGE Ring_early_4_2 early_intros ms=2
+STAGE Ring_early_4_2 nextSimp ms=280
+STAGE Ring_early_4_2 hoist ms=9
+STAGE Ring_early_4_2 intros ms=2
+STAGE Ring_early_4_2 destruct ms=81
+STAGE Ring_early_4_2 dsimp1 ms=21
+STAGE Ring_early_4_2 smtSimp ms=131
+STAGE Ring_early_4_2 dsimp2 ms=17
+RUN_COMPLETE Ring_early_4_2
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:280:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_4_3
+STAGE Ring_early_4_3 early_intros ms=2
+STAGE Ring_early_4_3 nextSimp ms=336
+STAGE Ring_early_4_3 hoist ms=9
+STAGE Ring_early_4_3 intros ms=2
+STAGE Ring_early_4_3 destruct ms=77
+STAGE Ring_early_4_3 dsimp1 ms=29
+STAGE Ring_early_4_3 smtSimp ms=149
+STAGE Ring_early_4_3 dsimp2 ms=19
+RUN_COMPLETE Ring_early_4_3
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:295:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_current_4_3
+STAGE Ring_current_4_3 nextSimp ms=1514
+STAGE Ring_current_4_3 hoist ms=1419
+STAGE Ring_current_4_3 intros ms=2
+STAGE Ring_current_4_3 destruct ms=90
+STAGE Ring_current_4_3 dsimp1 ms=21
+STAGE Ring_current_4_3 smtSimp ms=157
+STAGE Ring_current_4_3 dsimp2 ms=17
+RUN_COMPLETE Ring_current_4_3
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:309:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_current_8_1
+STAGE Ring_current_8_1 nextSimp ms=4790
+STAGE Ring_current_8_1 hoist ms=4846
+STAGE Ring_current_8_1 intros ms=2
+STAGE Ring_current_8_1 destruct ms=210
+STAGE Ring_current_8_1 dsimp1 ms=43
+STAGE Ring_current_8_1 smtSimp ms=266
+STAGE Ring_current_8_1 dsimp2 ms=20
+SMT_STAGE Ring_current_8_1 pushHints ms=1
+SMT_STAGE Ring_current_8_1 smt-intros ms=0
+SMT_STAGE Ring_current_8_1 negateGoal ms=0
+SMT_STAGE Ring_current_8_1 normalize ms=33
+SMT_STAGE Ring_current_8_1 embedding ms=5
+SMT_STAGE Ring_current_8_1 translate ms=89 commands=83
+SMT_STAGE Ring_current_8_1 serialize ms=176 bytes=18044
+PIPELINE_COMPLETE Ring_current_8_1
+RUN_COMPLETE Ring_current_8_1
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:324:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_8_1
+STAGE Ring_early_8_1 early_intros ms=4
+STAGE Ring_early_8_1 nextSimp ms=426
+STAGE Ring_early_8_1 hoist ms=10
+STAGE Ring_early_8_1 intros ms=2
+STAGE Ring_early_8_1 destruct ms=142
+STAGE Ring_early_8_1 dsimp1 ms=35
+STAGE Ring_early_8_1 smtSimp ms=211
+STAGE Ring_early_8_1 dsimp2 ms=21
+SMT_STAGE Ring_early_8_1 pushHints ms=0
+SMT_STAGE Ring_early_8_1 smt-intros ms=0
+SMT_STAGE Ring_early_8_1 negateGoal ms=1
+SMT_STAGE Ring_early_8_1 normalize ms=28
+SMT_STAGE Ring_early_8_1 embedding ms=5
+SMT_STAGE Ring_early_8_1 translate ms=89 commands=83
+SMT_STAGE Ring_early_8_1 serialize ms=177 bytes=18060
+PIPELINE_COMPLETE Ring_early_8_1
+RUN_COMPLETE Ring_early_8_1
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:340:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_8_2
+STAGE Ring_early_8_2 early_intros ms=5
+STAGE Ring_early_8_2 nextSimp ms=503
+STAGE Ring_early_8_2 hoist ms=15
+STAGE Ring_early_8_2 intros ms=2
+STAGE Ring_early_8_2 destruct ms=150
+STAGE Ring_early_8_2 dsimp1 ms=35
+STAGE Ring_early_8_2 smtSimp ms=246
+STAGE Ring_early_8_2 dsimp2 ms=25
+RUN_COMPLETE Ring_early_8_2
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:355:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_current_8_2
+STAGE Ring_current_8_2 nextSimp ms=4387
+STAGE Ring_current_8_2 hoist ms=5023
+STAGE Ring_current_8_2 intros ms=3
+STAGE Ring_current_8_2 destruct ms=201
+STAGE Ring_current_8_2 dsimp1 ms=40
+STAGE Ring_current_8_2 smtSimp ms=256
+STAGE Ring_current_8_2 dsimp2 ms=27
+RUN_COMPLETE Ring_current_8_2
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:369:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_current_8_3
+STAGE Ring_current_8_3 nextSimp ms=4465
+STAGE Ring_current_8_3 hoist ms=4554
+STAGE Ring_current_8_3 intros ms=2
+STAGE Ring_current_8_3 destruct ms=219
+STAGE Ring_current_8_3 dsimp1 ms=36
+STAGE Ring_current_8_3 smtSimp ms=255
+STAGE Ring_current_8_3 dsimp2 ms=28
+RUN_COMPLETE Ring_current_8_3
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:383:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_8_3
+STAGE Ring_early_8_3 early_intros ms=5
+STAGE Ring_early_8_3 nextSimp ms=672
+STAGE Ring_early_8_3 hoist ms=17
+STAGE Ring_early_8_3 intros ms=2
+STAGE Ring_early_8_3 destruct ms=224
+STAGE Ring_early_8_3 dsimp1 ms=55
+STAGE Ring_early_8_3 smtSimp ms=321
+STAGE Ring_early_8_3 dsimp2 ms=29
+RUN_COMPLETE Ring_early_8_3
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:398:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_16_1
+STAGE Ring_early_16_1 early_intros ms=10
+STAGE Ring_early_16_1 nextSimp ms=942
+STAGE Ring_early_16_1 hoist ms=19
+STAGE Ring_early_16_1 intros ms=3
+STAGE Ring_early_16_1 destruct ms=424
+STAGE Ring_early_16_1 dsimp1 ms=67
+STAGE Ring_early_16_1 smtSimp ms=485
+STAGE Ring_early_16_1 dsimp2 ms=48
+SMT_STAGE Ring_early_16_1 pushHints ms=0
+SMT_STAGE Ring_early_16_1 smt-intros ms=0
+SMT_STAGE Ring_early_16_1 negateGoal ms=2
+SMT_STAGE Ring_early_16_1 normalize ms=69
+SMT_STAGE Ring_early_16_1 embedding ms=9
+SMT_STAGE Ring_early_16_1 translate ms=243 commands=147
+SMT_STAGE Ring_early_16_1 serialize ms=426 bytes=34996
+PIPELINE_COMPLETE Ring_early_16_1
+RUN_COMPLETE Ring_early_16_1
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:414:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:420:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:421:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:422:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:423:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:424:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:425:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:426:4: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_BEGIN Ring_current_16_1
+FAILED Ring_current_16_1 nextSimp ms=13810: `simp` failed: maximum number of steps exceeded
+RUN_FAILED Ring_current_16_1
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:429:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:433:91: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED Ring_current_16_2 prior_failure
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:443:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_16_2
+STAGE Ring_early_16_2 early_intros ms=11
+STAGE Ring_early_16_2 nextSimp ms=1083
+STAGE Ring_early_16_2 hoist ms=21
+STAGE Ring_early_16_2 intros ms=3
+STAGE Ring_early_16_2 destruct ms=456
+STAGE Ring_early_16_2 dsimp1 ms=71
+STAGE Ring_early_16_2 smtSimp ms=534
+STAGE Ring_early_16_2 dsimp2 ms=50
+RUN_COMPLETE Ring_early_16_2
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:458:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_16_3
+STAGE Ring_early_16_3 early_intros ms=13
+STAGE Ring_early_16_3 nextSimp ms=833
+STAGE Ring_early_16_3 hoist ms=18
+STAGE Ring_early_16_3 intros ms=3
+STAGE Ring_early_16_3 destruct ms=465
+STAGE Ring_early_16_3 dsimp1 ms=61
+STAGE Ring_early_16_3 smtSimp ms=497
+STAGE Ring_early_16_3 dsimp2 ms=53
+RUN_COMPLETE Ring_early_16_3
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:473:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:477:91: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED Ring_current_16_3 prior_failure
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:487:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:491:91: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED Ring_current_32_1 prior_failure
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:502:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_32_1
+STAGE Ring_early_32_1 early_intros ms=45
+STAGE Ring_early_32_1 nextSimp ms=2105
+STAGE Ring_early_32_1 hoist ms=41
+STAGE Ring_early_32_1 intros ms=5
+STAGE Ring_early_32_1 destruct ms=1626
+STAGE Ring_early_32_1 dsimp1 ms=172
+STAGE Ring_early_32_1 smtSimp ms=1038
+STAGE Ring_early_32_1 dsimp2 ms=102
+SMT_STAGE Ring_early_32_1 pushHints ms=0
+SMT_STAGE Ring_early_32_1 smt-intros ms=0
+SMT_STAGE Ring_early_32_1 negateGoal ms=3
+SMT_STAGE Ring_early_32_1 normalize ms=119
+SMT_STAGE Ring_early_32_1 embedding ms=18
+SMT_STAGE Ring_early_32_1 translate ms=302 commands=275
+SMT_STAGE Ring_early_32_1 serialize ms=679 bytes=68996
+PIPELINE_COMPLETE Ring_early_32_1
+RUN_COMPLETE Ring_early_32_1
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:518:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_32_2
+STAGE Ring_early_32_2 early_intros ms=51
+STAGE Ring_early_32_2 nextSimp ms=2145
+STAGE Ring_early_32_2 hoist ms=42
+STAGE Ring_early_32_2 intros ms=6
+STAGE Ring_early_32_2 destruct ms=1828
+STAGE Ring_early_32_2 dsimp1 ms=166
+STAGE Ring_early_32_2 smtSimp ms=1404
+STAGE Ring_early_32_2 dsimp2 ms=134
+RUN_COMPLETE Ring_early_32_2
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:533:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:537:91: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED Ring_current_32_2 prior_failure
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:547:0: warning: declaration uses `sorry`
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:551:91: warning: this tactic is never executed
+
+Note: This linter can be disabled with `set_option linter.unreachableTactic false`
+RUN_SKIPPED Ring_current_32_3 prior_failure
+/tmp/veil-early-intro-multi/results/sources/Ring.lean:561:0: warning: declaration uses `sorry`
+RUN_BEGIN Ring_early_32_3
+STAGE Ring_early_32_3 early_intros ms=34
+STAGE Ring_early_32_3 nextSimp ms=1940
+STAGE Ring_early_32_3 hoist ms=39
+STAGE Ring_early_32_3 intros ms=5
+STAGE Ring_early_32_3 destruct ms=1676
+STAGE Ring_early_32_3 dsimp1 ms=148
+STAGE Ring_early_32_3 smtSimp ms=1018
+STAGE Ring_early_32_3 dsimp2 ms=105
+RUN_COMPLETE Ring_early_32_3
+
+PROCESS status=exit0 wall_seconds=114.794643

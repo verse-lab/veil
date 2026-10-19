@@ -1,0 +1,34 @@
+Scope correction: exploratory seven-model dataset
+
+This earlier experiment used different selected assertions and raised heartbeat
+and recursion limits. Its backend helper omitted the production compatibility
+wrapper. Its explicit Veil-preprocessing timings remain useful exploratory
+evidence, but its backend translation/solver measurements do not establish
+production pipeline behavior and must not be merged with the comprehensive
+49-file default-limit sweep. Use the sibling SymbolicBMC report (worktree) or
+veil-symbolic-bmc/report/index.html (download package) for that comparison.
+The new sweep includes the compatibility wrapper, withoutRecover and native
+cvc5 plugin, and retains a frozen inventory and per-cell provenance.
+
+Completed preprocessing comparison (median of 3 repetitions):
+model,depth,original_seconds,early_seconds,speedup
+Ring,8,9.937,0.981,10.129
+DieHard,8,1.027,0.466,2.204
+TwoPhaseCommit,8,6.595,1.374,4.800
+RicartAgrawala,8,5.486,1.105,4.965
+MultiSigAll,4,10.229,2.078,4.923
+Peterson,8,8.417,1.579,5.331
+FloodSet,8,10.700,3.492,3.064
+
+Actual failed stages (elapsed failure time is not a completed timing):
+Ring current depth16 nextSimp failed after 13.810s
+TwoPhaseCommit current depth16 nextSimp failed after 14.458s
+RicartAgrawala current depth16 nextSimp failed after 12.830s
+MultiSigAll current depth8 nextSimp failed after 17.936s
+Peterson current depth16 nextSimp failed after 16.028s
+FloodSet current depth16 hoist failed after 15.541s
+FloodSet early depth32 hoist failed after 20.977s
+
+All six non-FloodSet early models complete depth32 and serialize SMT.
+MultiSigAll16/32 and FloodSet16 use one completed observation; other plotted complete cells use3 repetitions.
+FloodSet early16: 18.064s Veil preprocess, including15.047s hoist;24.385s downstream, including23.837s embedding;45116-byte SMT query.

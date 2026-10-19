@@ -1,0 +1,5 @@
+{
+  "path": "/home/george/src/veil-issue-123/.lake/build/lib/lean/Veil/Frontend/DSL/Tactic/Core.olean",
+  "sha256": "e803a0b57027db2fa90a524f64377fc6ecbad7db3ed279b689e80a3a78c0d15f",
+  "recorded": "After original main batch and MultiSig supplement, before finalized conservative production rebuild. Root confirms no dependency rebuild during timing suite. Explicit benchmark tactic pipelines do not call production veil_bmc."
+}

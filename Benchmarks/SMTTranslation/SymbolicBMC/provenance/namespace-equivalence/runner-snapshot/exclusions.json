@@ -1,0 +1,6 @@
+[
+  {
+    "path": "Examples/StellarConsensus/SCPTheory.lean",
+    "reason": "Support-only file: no veil module declaration; retained as an import dependency where needed."
+  }
+]

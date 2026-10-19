@@ -1,0 +1,12 @@
+BEGIN AWS_AWSFixed batch1 cells=2
+  AWS_AWSFixed__d1__old__default query_ready phase=None kind=None query_ms=1169
+  AWS_AWSFixed__d1__early__default query_ready phase=None kind=None query_ms=744
+END AWS_AWSFixed__default__batch1 wall=15.3s setup=12654 timeout=None remaining=0
+BEGIN Ivy_PaxosFirstOrder batch1 cells=2
+  Ivy_PaxosFirstOrder__d1__early__default query_ready phase=None kind=None query_ms=550
+  Ivy_PaxosFirstOrder__d1__old__default query_ready phase=None kind=None query_ms=1577
+END Ivy_PaxosFirstOrder__default__batch1 wall=16.2s setup=13353 timeout=None remaining=0
+BEGIN Ivy_Ring batch1 cells=2
+  Ivy_Ring__d1__old__default query_ready phase=None kind=None query_ms=416
+  Ivy_Ring__d1__early__default query_ready phase=None kind=None query_ms=169
+END Ivy_Ring__default__batch1 wall=6.2s setup=5191 timeout=None remaining=0

@@ -1,0 +1,29 @@
+{
+  "batch_id": "solver-batch-0001",
+  "cells": [
+    "AWS_AWSFixed__d8__old__recursion_only",
+    "AWS_AWSFixed__d8__early__recursion_only"
+  ],
+  "source": "/tmp/veil-symbolic-bmc/controls/aws-recursion/solver-sources/solver-batch-0001.lean",
+  "source_sha256": "665658d19b9c0a1209fe35ebc971ebb7ee33b11f9f7223e21dc34c980f05ee66",
+  "log": "/tmp/veil-symbolic-bmc/controls/aws-recursion/logs/solver-batch-0001.log",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/controls/aws-recursion/solver-sources/solver-batch-0001.lean"
+  ],
+  "solver_timeout_seconds": 10,
+  "query_watchdog_seconds": 15,
+  "setup_watchdog_seconds": 60,
+  "attribution": "solver_ms is measured inside Smt.solve; batch wall time is separate",
+  "exit_code": 0,
+  "batch_wall_ms": 22136,
+  "completed_cells": [
+    "AWS_AWSFixed__d8__old__recursion_only",
+    "AWS_AWSFixed__d8__early__recursion_only"
+  ]
+}

@@ -1,0 +1,297 @@
+{
+  "row": {
+    "cell_id": "TLA_EPaxos__d1__early__recursion_only",
+    "model": "TLA_EPaxos",
+    "path": "Examples/TLA/EPaxos.lean",
+    "module": "EPaxos",
+    "depth": 1,
+    "variant": "early",
+    "profile": "recursion_only",
+    "status": "translation_timeout",
+    "translation_status": "timeout",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "wall_timeout",
+    "failure_message": "",
+    "setup_ms": null,
+    "query_elaboration_ms": 57,
+    "batch_id": "TLA_EPaxos__recursion_only__batch2",
+    "batch_setup_ms": 41832,
+    "preprocessing_ms": 2248,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/controls/epaxos-recursion/queries/TLA_EPaxos__d1__early__recursion_only.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/controls/epaxos-recursion/batch-sources/TLA_EPaxos__recursion_only__batch2.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/controls/epaxos-recursion/events/TLA_EPaxos__d1__early__recursion_only.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/controls/epaxos-recursion/logs/TLA_EPaxos__d1__early__recursion_only.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/controls/epaxos-recursion/logs/TLA_EPaxos__d1__early__recursion_only.solver.log",
+    "translation_exit": -9,
+    "solver_exit": null,
+    "translation_timeout": "pipeline_timeout",
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_EPaxos",
+    "path": "Examples/TLA/EPaxos.lean",
+    "module": "EPaxos",
+    "cut_line": 1388,
+    "query": "assert (∃ i, commitSet.count (committedMap i) > 1)",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "Consistency invariant, lines1378–1379",
+    "notes": "Large collection/message model. Keep backend/elaboration failures as outcomes; do not replace its query with True.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "9f33f0fd15fa5c873302f7c521744277aaaca0373fa43b20d0e255549d742dd4"
+  },
+  "original_sha256": "9f33f0fd15fa5c873302f7c521744277aaaca0373fa43b20d0e255549d742dd4",
+  "inherited_setup_options": [],
+  "source_sha256": "84a1f260fd2129733fba9ca5a1218e1cfec177118b554104045601800bf212e4",
+  "batch_log": "/tmp/veil-symbolic-bmc/controls/epaxos-recursion/batch-logs/TLA_EPaxos__recursion_only__batch2.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 201073276,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 10000,
+      "mono_ms": 201073333,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201073333,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 11,
+      "event": "stage",
+      "mono_ms": 201073344,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201073345,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 964,
+      "event": "stage",
+      "mono_ms": 201074309,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201074309,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 131,
+      "event": "stage",
+      "mono_ms": 201074440,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201074455,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "mono_ms": 201074460,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201074460,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 766,
+      "event": "stage",
+      "mono_ms": 201075226,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201075227,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 47,
+      "event": "stage",
+      "mono_ms": 201075274,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201075274,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 289,
+      "event": "stage",
+      "mono_ms": 201075563,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201075604,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 36,
+      "event": "stage",
+      "mono_ms": 201075640,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 2307,
+      "event": "milestone",
+      "mono_ms": 201075640,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201075640,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 8,
+      "event": "stage",
+      "mono_ms": 201075648,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201075648,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "mono_ms": 201075649,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201075649,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201075649,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201075649,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "mono_ms": 201075651,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201075651,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 284,
+      "event": "stage",
+      "mono_ms": 201075935,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 201075935,
+      "phase": "embedding",
+      "status": "begin"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_EPaxos__recursion_only__batch2",
+    "source": "/tmp/veil-symbolic-bmc/controls/epaxos-recursion/batch-sources/TLA_EPaxos__recursion_only__batch2.lean",
+    "log": "/tmp/veil-symbolic-bmc/controls/epaxos-recursion/batch-logs/TLA_EPaxos__recursion_only__batch2.log",
+    "exit_code": -9,
+    "wall_ms": 101967,
+    "setup_ms": 41832,
+    "timeout": "pipeline_timeout",
+    "active_cell": "TLA_EPaxos__d1__early__recursion_only",
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/controls/epaxos-recursion/batch-sources/TLA_EPaxos__recursion_only__batch2.lean"
+    ]
+  }
+}

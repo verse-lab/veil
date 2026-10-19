@@ -1,0 +1,6 @@
+/tmp/veil-early-intro-tests/ProofHeaderHODataChecked.lean:58:5: warning: Variable name `h` is not explicitly referenced.
+
+The binding can be removed (if unused) or named `_` (if used implicitly).
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+'TraceProofHeaderHO.header_unsat' depends on axioms: [propext, Classical.choice, Quot.sound]

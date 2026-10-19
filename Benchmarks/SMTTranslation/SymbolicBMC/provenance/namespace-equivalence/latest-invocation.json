@@ -1,0 +1,100 @@
+{
+  "repo": "/home/george/src/veil-issue-123",
+  "commit": "eb41b59673a179ad05773ceca18667ba25b7f079",
+  "script_sha256": "cc0442b8921aa6eb940100a0f9b8523777923ce03f0448afb2dee644b88a41de",
+  "common_script_sha256": "77e3c1e372b9201ee8a6c07f352282f85802a86bc658caec87551d50ee08fd1f",
+  "manifest_sha256": "6ec18dcb816fd8909801f14ea93bf80f726c4acdcdaf198f79476b1cd6fce8f5",
+  "models": [
+    {
+      "model": "AWS_AWSFixed",
+      "path": "Examples/AWS/AWSFixed.lean",
+      "module": "AWSDnsRace",
+      "cut_line": 164,
+      "query": "assert (dns_valid = false)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "DnsConsistent safety, line125",
+      "notes": "Repaired DNS race variant; include separately from AWSBuggy.",
+      "category": "AWS",
+      "source_options": [
+        {
+          "line": 162,
+          "directive": "set_option veil.solver \"grind+smt\""
+        }
+      ],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "dc2dc5ffb8f19c619effabf68fda7d2e68b4f6cc13cbb6dc518e6f5159c30431"
+    },
+    {
+      "model": "Ivy_PaxosFirstOrder",
+      "path": "Examples/Ivy/PaxosFirstOrder.lean",
+      "module": "PaxosFirstOrder",
+      "cut_line": 128,
+      "query": "assert (∃ n1 r1 v1 n2 r2 v2, decision n1 r1 v1 ∧ decision n2 r2 v2 ∧ v1 ≠ v2)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "coherence safety, line99",
+      "notes": "Distinct first-order variant of PaxosEPR.",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "f3af1a3b0eb631451d186185a655b463954c3bde3c9227e55122e0296c7f7059"
+    },
+    {
+      "model": "Ivy_Ring",
+      "path": "Examples/Ivy/Ring.lean",
+      "module": "Ring",
+      "cut_line": 48,
+      "query": "assert (∃ n1 n2, n1 ≠ n2 ∧ leader n1 ∧ leader n2)",
+      "query_kind": "existing_safety_violation",
+      "expected_status": null,
+      "query_source": "Existing unsat trace, lines57–60; single_leader safety, line42",
+      "notes": "Relational ring; overlaps Tutorial/Ring and POPL26/RingDec. Prefix explicitly sets veil.smt.trust=false.",
+      "category": "Ivy",
+      "source_options": [
+        {
+          "line": 47,
+          "directive": "set_option veil.smt.trust false"
+        }
+      ],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "b07c460e7767a50bd27801f02c3e7bdc73e68ccbe7fbcc59634845863b9b4d66"
+    }
+  ],
+  "depths": [
+    1
+  ],
+  "variants": [
+    "old",
+    "early"
+  ],
+  "selected_profile": "default",
+  "query_limits": {
+    "maxHeartbeats": 200000,
+    "maxRecDepth": 512,
+    "simp_maxSteps": 100000
+  },
+  "setup_options": "Preserved from model prefix; per-cell manifest records source options.",
+  "query_trust": true,
+  "embedBool": false,
+  "finiteModelFind": true,
+  "native_cvc5_plugin": "/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+  "native_cvc5_plugin_sha256": "ac9f732f2ecfc268cf9d0e35cd9cdabc63be0ff24ea2a4a35d8b40c6d91b6b34",
+  "execution": "One model setup per batch; independent trace commands and command budgets. Shared process/cache state; variant order alternates per depth/model. Timeout kills process group and restarts unstarted cells.",
+  "setup_timeout_seconds": 60,
+  "query_elaboration_timeout_seconds": 60,
+  "pipeline_timeout_seconds": 60,
+  "solver_timeout_seconds": 10,
+  "samples_per_cell": 1,
+  "trace_semantics": "exactly N actions; does not cover all lengths <= N",
+  "timing": "Completed stage sums exclude model setup, trace VC elaboration, event IO, UI/model reconstruction and kernel proof reconstruction. Process wall times live in batch-events/*.execution.json; do not sum shared setup once per cell.",
+  "proof_status": "Query-extraction declarations deliberately error; no sorry or claimed theorem. Results come from separate trusted solver replay.",
+  "core_source_sha256": "20974a2187f55c796f0619d6420725c1f0ee71bddbe51ab7f357442a5208865f",
+  "core_olean_sha256": "dd848e86680ff5918ff0bcd8258dc707acc9c8f0c4a43928a5530fa6cd157f36"
+}

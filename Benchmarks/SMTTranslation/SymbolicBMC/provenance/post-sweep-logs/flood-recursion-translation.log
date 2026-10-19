@@ -1,0 +1,4 @@
+BEGIN Synchronous_FloodSet batch1 cells=2
+  Synchronous_FloodSet__d16__old__recursion_only translation_failed phase=hoist kind=heartbeats query_ms=None
+  Synchronous_FloodSet__d16__early__recursion_only translation_failed phase=embedding kind=heartbeats query_ms=None
+END Synchronous_FloodSet__recursion_only__batch1 wall=46.9s setup=9435 timeout=None remaining=0

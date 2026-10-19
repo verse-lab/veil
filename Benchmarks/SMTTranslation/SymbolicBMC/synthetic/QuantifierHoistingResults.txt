@@ -1,0 +1,59 @@
+Issue #123: synthetic existential-hoisting measurements
+
+Source: Benchmarks/SMTTranslation/QuantifierHoisting.lean
+Command: lake env lean Benchmarks/SMTTranslation/QuantifierHoisting.lean
+Base commit: eb41b59673a179ad05773ceca18667ba25b7f079
+Lean: leanprover/lean4:v4.32.0
+Measured: 2026-10-19, after rebuilding the current Veil library.
+Wall-clock values are illustrative: other investigations ran on this machine.
+Simp steps and expression sizes are the more reliable scaling evidence.
+
+Each transition has two alternatives with one higher-order existential witness,
+unless b/w indicate otherwise. An opaque predicate of type Nat -> Bool -> Prop
+is applied to f 0, so no matrix predicate takes a function-valued argument.
+The final matrix is checked for residual existentials, and the outer prefix
+must contain exactly d*b*w witnesses. This measures normalization only, not
+kernel proof checking or complete SMT translation.
+
+Global normalization versus independently normalizing each transition:
+ depth   input/output nodes   global steps   local steps   global ms   local ms
+     8                  573          4,968           319         375         20
+    16                1,149         35,560           639       3,034         43
+    32                2,301        271,848         1,279      28,012         75
+
+At depth 32 the normalized formula has exactly the input's 2,301 tree nodes,
+but its normalization proof contains 608,230 allocated Expr objects and
+11,411,585 tree occurrences. Structurally distinct proof subterms number
+28,686. Thus linear formula size coexists with roughly cubic simplifier work
+and proof allocation in this series. The guard remains small. Splitting trace
+hypotheses early can avoid this normalization cost; local timings exclude
+splitting/reassembly/context proof costs and do not establish linear end-to-end
+behavior. The simp context is reused in local mode and setup is excluded.
+
+With maxSteps=100000, depth 22 passes (90,088 steps), while 23 fails. The main
+timing series raises maxSteps to expose scaling; raising that limit is not a
+proposed fix. Heartbeat and recursion limits are also raised in every case.
+
+Recorded main run (includes extra depth-24/25 default-budget probes):
+HOIST mode=global d=1 b=2 w=1 budget=100000000 in=69 out=69 witnesses=2 proofDistinct=91 proofObjects=142 proofTree=671 guard=true guardMs=1 simpMs=6 guardHB=5536 simpHB=50998 steps=39
+HOIST mode=global d=2 b=2 w=1 budget=100000000 in=141 out=141 witnesses=4 proofDistinct=246 proofObjects=655 proofTree=5545 guard=true guardMs=1 simpMs=17 guardHB=6630 simpHB=217676 steps=168
+HOIST mode=global d=4 b=2 w=1 budget=100000000 in=285 out=285 witnesses=8 proofDistinct=686 proofObjects=2772 proofTree=32385 guard=true guardMs=2 simpMs=71 guardHB=12522 simpHB=1044377 steps=808
+HOIST mode=global d=8 b=2 w=1 budget=100000000 in=573 out=573 witnesses=16 proofDistinct=2190 proofObjects=14242 proofTree=209985 guard=true guardMs=2 simpMs=375 guardHB=24282 simpHB=6371489 steps=4968
+HOIST mode=global d=16 b=2 w=1 budget=100000000 in=1149 out=1149 witnesses=32 proofDistinct=7694 proofObjects=87630 proofTree=1505281 guard=true guardMs=3 simpMs=3034 guardHB=47778 simpHB=46378695 steps=35560
+HOIST mode=global d=32 b=2 w=1 budget=100000000 in=2301 out=2301 witnesses=64 proofDistinct=28686 proofObjects=608230 proofTree=11411585 guard=true guardMs=6 simpMs=28012 guardHB=94746 simpHB=377019985 steps=271848
+HOIST mode=local d=1 b=2 w=1 budget=100000000 in=69 out=69 witnesses=2 proofDistinct=91 proofObjects=142 proofTree=671 guard=true guardMs=1 simpMs=4 guardHB=3647 simpHB=50478 steps=39
+HOIST mode=local d=2 b=2 w=1 budget=100000000 in=141 out=138 witnesses=4 proofDistinct=186 proofObjects=289 proofTree=1342 guard=true guardMs=1 simpMs=8 guardHB=6630 simpHB=95966 steps=79
+HOIST mode=local d=4 b=2 w=1 budget=100000000 in=285 out=276 witnesses=8 proofDistinct=376 proofObjects=583 proofTree=2684 guard=true guardMs=2 simpMs=16 guardHB=12522 simpHB=186862 steps=159
+HOIST mode=local d=8 b=2 w=1 budget=100000000 in=573 out=552 witnesses=16 proofDistinct=756 proofObjects=1171 proofTree=5368 guard=true guardMs=3 simpMs=20 guardHB=24282 simpHB=368754 steps=319
+HOIST mode=local d=16 b=2 w=1 budget=100000000 in=1149 out=1104 witnesses=32 proofDistinct=1516 proofObjects=2347 proofTree=10736 guard=true guardMs=3 simpMs=43 guardHB=47778 simpHB=732488 steps=639
+HOIST mode=local d=32 b=2 w=1 budget=100000000 in=2301 out=2208 witnesses=64 proofDistinct=3036 proofObjects=4699 proofTree=21472 guard=true guardMs=6 simpMs=75 guardHB=94746 simpHB=1460494 steps=1279
+HOIST mode=global d=8 b=4 w=2 budget=100000000 in=2301 out=2301 witnesses=64 proofDistinct=14941 proofObjects=172687 proofTree=3465629 guard=true guardMs=6 simpMs=6060 guardHB=94202 simpHB=104079172 steps=75343
+HOIST mode=local d=8 b=4 w=2 budget=100000000 in=2301 out=2280 witnesses=64 proofDistinct=4332 proofObjects=18976 proofTree=229368 guard=true guardMs=6 simpMs=393 guardHB=94203 simpHB=7183129 steps=5735
+HOIST mode=global d=16 b=2 w=1 budget=100000 in=1149 out=1149 witnesses=32 proofDistinct=7694 proofObjects=87630 proofTree=1505281 guard=true guardMs=3 simpMs=2749 guardHB=47778 simpHB=46377734 steps=35560
+HOIST mode=global d=24 b=2 w=1 budget=100000 failedMs=8411 error=`simp` failed: maximum number of steps exceeded
+HOIST mode=global d=25 b=2 w=1 budget=100000 failedMs=8446 error=`simp` failed: maximum number of steps exceeded
+HOIST mode=global d=32 b=2 w=1 budget=100000 failedMs=8260 error=`simp` failed: maximum number of steps exceeded
+
+Adjacent default-budget probes (same harness, separate invocation):
+HOIST mode=global d=22 b=2 w=1 budget=100000 in=1581 out=1581 witnesses=44 proofDistinct=14006 proofObjects=211005 proofTree=3799305 guard=true guardMs=4 simpMs=7925 guardHB=60389 simpHB=120110448 steps=90088
+HOIST mode=global d=23 b=2 w=1 budget=100000 failedMs=8567 error=`simp` failed: maximum number of steps exceeded

@@ -1,0 +1,330 @@
+{
+  "row": {
+    "cell_id": "TLA_Raft__d1__early__default",
+    "model": "TLA_Raft",
+    "path": "Examples/TLA/Raft.lean",
+    "module": "Raft",
+    "depth": 1,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch1.lean:1195:2: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_opti",
+    "setup_ms": null,
+    "query_elaboration_ms": 59,
+    "batch_id": "TLA_Raft__default__batch1",
+    "batch_setup_ms": 48961,
+    "preprocessing_ms": 6743,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/TLA_Raft__d1__early__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/TLA_Raft__d1__early__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_Raft__d1__early__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/TLA_Raft__d1__early__default.solver.log",
+    "translation_exit": -9,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_Raft",
+    "path": "Examples/TLA/Raft.lean",
+    "module": "Raft",
+    "cut_line": 1075,
+    "query": "assert (∃ i j, i ≠ j ∧ currentTerm i = currentTerm j ∧ pcState i Leader ∧ pcState j Leader)",
+    "query_kind": "documented_safety_violation",
+    "expected_status": null,
+    "query_source": "BothLeader/MoreThanOneLeader specification comments, lines1059–1066",
+    "notes": "No active safety/invariant declaration. Tests the documented election-safety condition. Retains source-specific large heartbeat/typeclass limits.",
+    "category": "TLA",
+    "source_options": [
+      {
+        "line": 1071,
+        "directive": "set_option synthInstance.maxHeartbeats 1000000"
+      },
+      {
+        "line": 1072,
+        "directive": "set_option synthInstance.maxSize 200000"
+      },
+      {
+        "line": 1073,
+        "directive": "set_option maxHeartbeats 10000000"
+      }
+    ],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "d3470b019df35dc5338f193755454f3729f6473d879c19062b82eb1e5d5aa6d4"
+  },
+  "original_sha256": "d3470b019df35dc5338f193755454f3729f6473d879c19062b82eb1e5d5aa6d4",
+  "inherited_setup_options": [
+    {
+      "line": 1071,
+      "directive": "set_option synthInstance.maxHeartbeats 1000000"
+    },
+    {
+      "line": 1072,
+      "directive": "set_option synthInstance.maxSize 200000"
+    },
+    {
+      "line": 1073,
+      "directive": "set_option maxHeartbeats 10000000"
+    }
+  ],
+  "source_sha256": "d52f461f12ca5e7d55fd6588c7c1956f5893f06fe686e491025826d4d58ddee1",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_Raft__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 177414508,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 177414567,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177414568,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "mono_ms": 177414575,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177414576,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1656,
+      "event": "stage",
+      "mono_ms": 177416232,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177416232,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 705,
+      "event": "stage",
+      "mono_ms": 177416937,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177416955,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 11,
+      "event": "stage",
+      "mono_ms": 177416966,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177416966,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3018,
+      "event": "stage",
+      "mono_ms": 177419984,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177419985,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 397,
+      "event": "stage",
+      "mono_ms": 177420382,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177420437,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 695,
+      "event": "stage",
+      "mono_ms": 177421132,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177421132,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 254,
+      "event": "stage",
+      "mono_ms": 177421386,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 6818,
+      "event": "milestone",
+      "mono_ms": 177421386,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177421387,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "mono_ms": 177421394,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177421395,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177421395,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177421395,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177421395,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177421395,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6,
+      "event": "stage",
+      "mono_ms": 177421401,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177421401,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1588,
+      "event": "stage",
+      "mono_ms": 177422989,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 177422989,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 177424459,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_Raft__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_Raft__default__batch1.log",
+    "exit_code": -9,
+    "wall_ms": 288081,
+    "setup_ms": 48961,
+    "timeout": "pipeline_timeout",
+    "active_cell": "TLA_Raft__d8__old__default",
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch1.lean"
+    ]
+  }
+}

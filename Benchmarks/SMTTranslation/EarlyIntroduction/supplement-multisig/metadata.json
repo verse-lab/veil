@@ -1,0 +1,40 @@
+{
+  "repo": "/home/george/src/veil-issue-123",
+  "commit": "eb41b59673a179ad05773ceca18667ba25b7f079",
+  "lean": "Lean (version 4.32.0, x86_64-unknown-linux-gnu, commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, Release)",
+  "models": [
+    [
+      "MultiSigAll",
+      "Examples/Ivy/MultiSigAll.lean",
+      "\u2203 n k v d, paid n k v d",
+      "Five sorts; high-arity relations"
+    ]
+  ],
+  "depths": [
+    16,
+    32
+  ],
+  "modes": [
+    "early"
+  ],
+  "repeats": 1,
+  "timeout_seconds": 180.0,
+  "budget_seconds": 190.0,
+  "resources": {
+    "maxHeartbeats": 0,
+    "maxRecDepth": 10000,
+    "simp_maxSteps": 100000
+  },
+  "source_hashes": {
+    "MultiSigAll": "7550361739a54ef68b10ce343140bf00a51917b65bb4344b75effb1a1bfbcfdf"
+  },
+  "solver_executed": false,
+  "elab_async": false,
+  "cpu": "AMD EPYC 9645 96-Core Processor",
+  "platform": "Linux-6.12.113+deb13-amd64-x86_64-with-glibc2.41",
+  "script_sha256": "032550f3e4262ead72bd0267f91dda1dd26481e1499a49f749fb79e95170bebf",
+  "core_sha256": "3ef194c8d28866365ec974eb4a159e27552ce18fbe3e9ab02b73604c09d9609d",
+  "ordering": "model-major; depths increasing; original/early order alternates per repetition and depth",
+  "timing": "Sequential processes and synchronous Lean elaboration; stage wall time; excludes startup/modelgen/instrumentation/solver. SMT output measured only repetition1. Same-process repetitions include warm caches; variants alternate order.",
+  "elapsed_seconds": 76.13083608599845
+}

@@ -1,0 +1,4 @@
+BEGIN Puzzles_RiverCrossing batch1 cells=2
+  Puzzles_RiverCrossing__d7__old__default query_ready phase=None kind=None query_ms=2102
+  Puzzles_RiverCrossing__d7__early__default query_ready phase=None kind=None query_ms=491
+END Puzzles_RiverCrossing__default__batch1 wall=10.3s setup=6747 timeout=None remaining=0

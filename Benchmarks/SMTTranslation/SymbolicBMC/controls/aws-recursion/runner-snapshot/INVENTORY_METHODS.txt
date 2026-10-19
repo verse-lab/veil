@@ -1,0 +1,100 @@
+Inventory and query audit
+
+Scope
+  manifest.json contains all 49 model-bearing Lean files under Examples at the
+  recorded source revision. The only excluded file is
+  Examples/StellarConsensus/SCPTheory.lean: it defines support theory, not a Veil
+  transition system. Its import is retained by the SCP benchmark.
+
+  All model variants remain separate, including tutorial, optimized, relational,
+  collection-based, and concrete implementations. Their path-based IDs avoid
+  collisions between repeated Veil namespaces such as Ring, FloodSet, NOPaxos,
+  AWSDnsRace, and TwoPhaseCommit. This is complete file coverage, not a claim of
+  49 independent protocol designs. Correlated tutorial Ring/FloodSet variants
+  must not be counted as independent evidence in statistical summaries.
+
+Extraction
+  cut_line is the first excluded 1-based source line: the first active #gen_spec
+  or #time #gen_spec command. Copy original source lines[:cut_line-1], append
+  #gen_spec, then the generated trace, then end <module>. The generator strips
+  nested comments only to find commands; it does not rewrite the copied prefix.
+  All model definitions, theory assumptions, initialization, actions, ghost
+  predicates, safety declarations, and invariants preceding #gen_spec remain.
+  Later #model_check, #simulate, #gen_executable, invariant checks, manual proofs,
+  and existing trace invocations are omitted. A static check found no earlier
+  execution/verification commands in the selected prefixes.
+
+  Every chosen ghost predicate is defined before the extraction boundary,
+  including KVSnap.serialization and CC support definitions, NOPaxos.Linearizability,
+  KeyValueStore snapshot predicates, Paxos Chosen predicates, EWD840 termination
+  predicates, and Peterson.lockcs. The only extra model import is
+  Examples.StellarConsensus.SCPTheory; KVSnap also imports
+  Veil.Util.Permutations. Both compiled modules were present during inventory.
+
+Query selection
+  Most rows negate one existing safety or invariant declaration. If a chosen
+  declaration is itself a conjunction, all its conjuncts are retained: this is
+  explicit for Ivy.Blockchain and Ivy.TwoPhaseCommit. Selecting the first named
+  safety declaration does not claim to check every other safety declaration in
+  that file. query_source identifies the precise property covered by each row.
+
+  Free uppercase variables introduced by Veil's source declaration syntax have
+  been replaced with explicitly quantified query variables. Ordinary logical,
+  Bool, or Nat negations are used where direct: e.g. a mutual-exclusion violation
+  is an existential pair of distinct holders, and a Nat bound violation is >.
+  No abstract collection laws are assumed when reformulating a predicate.
+  In particular, SimpleAllocator negates its original intersection/isEmpty
+  expression exactly: TSet does not supply an intersection-membership axiom,
+  so a shared-element query would not be an equivalent abstract specification.
+  KVSnap, KeyValueStore and TLA/NOPaxos preserve their complete ghost predicates;
+  list-based Ring variants retain their length property. TLA.TwoPhaseCommit
+  preserves the source Bool equality expressions.
+
+  Exceptions are deliberate and labeled:
+    - DieHard, RiverCrossing, Traffic: reach the existing puzzle objective,
+      expressed by negating the source's not-solved invariant/safety property.
+    - BcastByz: reach a correct process in AC (accepted) control state. The file
+      declares partition/cardinality sanity invariants, but no protocol safety
+      assertion; this is a meaningful protocol-progress query, not True.
+    - Raft: violate the documented BothLeader/MoreThanOneLeader election-safety
+      condition in the source comments. The file has no active safety invariant.
+
+Interpretation
+  The harness inserts any N actions before the final-state assertion. This is
+  exactly N steps, not at most N. UNSAT can therefore reflect absence of any
+  length-N execution (e.g. a deadlock), as well as absence of a violating state.
+  These bounded outcomes do not prove the unbounded protocol invariant.
+
+  Concrete domain sizes and immutable-parameter assignments supplied later to
+  #model_check or #simulate are intentionally not imported. Symbolic queries
+  retain only the original model's theory assumptions. A SAT result can expose
+  an underconstrained symbolic parameter rather than the behavior of the
+  concrete example configuration. This particularly matters for Prisoners'
+  cardPrisoner and list-based Ring's topology. expected_status is null for every
+  row: the inventory does not assume that source properties or finite model
+  checks determine all these bounded symbolic outcomes.
+
+  Some examples intentionally use lists, arrays, finite/dependent types,
+  higher-order choices, collection dictionaries or enumeration functions that
+  the SMT backend may not support. Keep preprocessing, embedding, translation,
+  solver, and setup failures distinct; do not exclude a model merely because
+  its symbolic query fails. A formula/syntax error in the measurement query is
+  instead a harness defect and must be corrected before a result is retained.
+
+Options and validation
+  source_options records every active prefix set_option, with original lines.
+  Examples include large heartbeat limits in Raft/NOPaxos/Bakery, trust=false
+  in Ivy.Ring, and grind+smt in AWSFixed. Retain these for source/model setup.
+  The runner's uniform trusted query profile explicitly overrides trust and
+  sets its documented query resource limits; it is not an untouched execution
+  of each source file's individual solver/resource configuration.
+
+  This inventory was independently audited against source and abstract-class
+  definitions without running Lean jobs. Operational elaboration/translation
+  validation belongs to the runner. source_sha256 and the frozen manifest hash
+  let the runner detect stale extraction boundaries or changed query choices.
+
+Reproduction
+  python3 make_manifest.py --repo /path/to/veil --output /tmp/veil-symbolic-bmc
+  Do not regenerate/replace a manifest used by an active sweep. Preserve its
+  content hash together with the run metadata.

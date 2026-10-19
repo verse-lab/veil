@@ -1,0 +1,5 @@
+# JSON metadata is part of the reproducible benchmark evidence.
+!*.json
+!**/*.json
+__pycache__/
+.mplconfig/

@@ -1,0 +1,1 @@
+/tmp/veil-symbolic-bmc/paxos-universe-candidates/SuzukiKasamiProduction.lean:142:2: error: cvc5.Error.error "Expected SMT-LIBv2 sort constructor, got `(` (LPAREN_TOK)."

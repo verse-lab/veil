@@ -1,0 +1,1 @@
+Separate exploratory hoister-only experiment, under raised limits. Not part of the 49-file primary sweep. Timings had concurrent machine activity; simp steps/proof sizes are the relevant evidence. Local figures exclude context splitting, transport and full backend execution. See HOISTING_FOLLOWUPS.txt for interpretation.

@@ -1,0 +1,19 @@
+{
+  "group": "circular",
+  "source": "/tmp/veil-symbolic-bmc/aws-embedding-candidates/BuggyCircularBufferOriginal.lean",
+  "source_sha256": "879d9ec8a48cb79d55c0e57462276d3bc7884b1158fb6fd64268a5bd27ca7b28",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/aws-embedding-candidates/BuggyCircularBufferOriginal.lean"
+  ],
+  "exit_code": 1,
+  "timeout": false,
+  "wall_ms": 4831,
+  "log": "/tmp/veil-symbolic-bmc/functional-diagnostics/BuggyCircularBufferOriginal.log",
+  "purpose": "functional diagnostic; not a performance observation"
+}

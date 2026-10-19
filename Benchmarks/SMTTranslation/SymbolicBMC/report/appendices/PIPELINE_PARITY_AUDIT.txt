@@ -1,0 +1,98 @@
+Trusted symbolic BMC extraction/replay audit
+==========================================
+
+Scope
+  This audit compares run.py HELPER/TAIL/REPLAY, used by run_batch.py and
+  solve_batch.py, with the checked-out production Veil/lean-smt sources. It is
+  a static audit plus the runner's bounded smoke comparisons; it is not a
+  formal equivalence proof for the instrumentation. The sweep tests trusted
+  query generation and solver outcomes, not kernel proof reconstruction or
+  counterexample rendering. The manifest SHA256 is
+  6ec18dcb816fd8909801f14ea93bf80f726c4acdcdaf198f79476b1cd6fce8f5.
+
+Veil preprocessing
+  The old and early variants execute the same existing elabVeilBmc stages;
+  only early introduces the leading data/type/instance telescope, stopping
+  before a proposition-valued binder. The helper implements the production
+  conservative algorithm, including instantiateMVars, consumeMData, isProp,
+  intro1 under tactic.hygienic=false, and recursion under goal.withContext.
+  Both retain the later veil_intros. inferNonemptyIfUntrusted is omitted
+  because the sweep explicitly uses veil.smt.trust=true; that production
+  helper is a no-op in this configuration.
+
+  A final audit correction wrapped both instrumentation evalTactic calls in
+  withoutRecover, matching Veil/Frontend/DSL/Tactic/Core.lean:104–108. This
+  prevents a recovered tactic error from being treated as a completed stage.
+  Phase instrumentation skips subsequent stages after the goal closes; a
+  closed negated-reachability goal is recorded as discharged/UNSAT without
+  inventing an SMT query. The measurement declaration is deliberately aborted
+  after extraction, so it neither admits a theorem nor claims a proof.
+
+Trusted SMT path
+  Veil/Frontend/DSL/Tactic.lean:11–35 selects getPropsInContext hints and sets
+  trust=true, embedBool=false, model=true, a timeout, finite-model-find=true,
+  nl-ext-tplanes=true, and enum-inst-interleave=true. The default Smt.Config
+  values additionally select mono=false, intros=true, normalize=true and
+  embeddings=true. The sweep fixes the trusted/query options explicitly.
+
+  The extraction backend now runs inside Veil.withBackwardsCompatibility,
+  matching elabVeilSmt. This installs both backward defeq options from
+  Veil/Util/Meta.lean:89–94. An earlier smoke helper omitted the wrapper; that
+  omission was repaired before the complete sweep. Corrected-wrapper Ring
+  and Traffic smoke queries matched their preceding query content, and the
+  AWSBuggy failure also reproduced with the actual production veil_bmc tactic.
+
+  In .lake/packages/smt/Smt/Tactic/Smt.lean:190–235, the production sequence is
+  duplicate goal, cleanup retaining collected free variables from hints,
+  pushHintsToCtx, intros, negateGoal, normalize, embeddingWithConfig with
+  embedBool=false, genUniqueFVarNames, prepareSmtQuery, and set-logic ALL.
+  The extraction helper follows that order and preserves each step's mv/hs.
+  Each step runs in its goal's context. The helper omits applySteps' composed
+  hypothesis map and async UI tracing. Neither feeds query generation: the
+  map is consumed later by proof/core/model reconstruction.
+
+Hint elaboration qualification
+  The helper calls getPropsInContext and resolves those local identifiers
+  through getFVarIds, then passes their Expr.fvar expressions to cleanup.
+  Production sends the same identifier list through Smt.Tactic.elabHints
+  (.lake/packages/smt/Smt/Tactic/Smt.lean:385–433). For ordinary local
+  proposition hypotheses, Auto.Prep.elabLemma returns the same local fvar;
+  there are no user-supplied arbitrary terms or global lemma hints in this
+  benchmark. Both paths use getPropsInContext's filtering/deduplication.
+
+  This is a narrow frontend qualification, not a claim of equality for every
+  possible Lean environment: elabSmtHintElem has a special branch that expands
+  equation lemmas if an exact identifier also names a global non-Prop
+  definition. A suitably shadowed identifier could therefore differ from
+  direct local resolution. The sweep does not intentionally construct such
+  shadowing, and no such discrepancy was observed in smoke comparisons;
+  static inspection alone is not an exhaustive per-local-name collision test.
+  Production also uses `open Classical in`; its source comment identifies
+  proof reconstruction/Decidable synthesis as the reason. Bare local fvar
+  lookup in the extraction helper does not synthesize those proofs.
+
+Solver replay
+  Exact serialized query files include check-sat. Replay removes that command
+  and passes the remaining query to Smt.solve, as production passes its cmds
+  without check-sat. Replay uses defaultSolverOptions plus the same three
+  extra options above, timeout=some 10, and proof production=false, matching
+  the trusted production call at Smt/Tactic/Smt.lean:233–235. The timeout is
+  the benchmark's explicit cap, not a claim about each source file's setting.
+  Query hashes are checked before replay. SAT/UNSAT/unknown/error are distinct.
+  Solver time excludes model setup, Lean import, serialization, and subsequent
+  model reconstruction; process watchdog failures are distinct from native
+  solver unknown/timeout. Batch setup/wall time is stored separately.
+
+Interpretation limits
+  Production trusted UNSAT normally admits the goal, and production SAT may
+  reconstruct/render a counterexample. This harness does neither. A solver
+  verdict establishes the outcome for the emitted first-order query, not a
+  kernel-checked proof or successful frontend counterexample extraction.
+  Source model setup options are retained; per-query heartbeats/recursion and
+  trusted finite-model-finding options are uniform benchmark overrides. The
+  commands use symbolic model parameters constrained by the theory, not the
+  concrete domains/parameter values in later #model_check calls.
+
+  See INVENTORY_METHODS.txt for exact-N semantics, selected property scope,
+  per-model query provenance, and why all expected_status fields are null.
+  See BACKEND_FINDINGS.txt for the independently reproduced AWSBuggy failure.

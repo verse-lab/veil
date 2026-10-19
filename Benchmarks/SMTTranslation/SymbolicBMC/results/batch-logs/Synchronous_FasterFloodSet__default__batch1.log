@@ -1,0 +1,56 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean:341:2: error: incorrect number of universe levels List
+/tmp/veil-symbolic-bmc/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean:364:2: error: incorrect number of universe levels List
+/tmp/veil-symbolic-bmc/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean:386:2: error: incorrect number of universe levels List
+/tmp/veil-symbolic-bmc/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean:408:2: error: incorrect number of universe levels List
+/tmp/veil-symbolic-bmc/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean:431:2: error: incorrect number of universe levels List
+/tmp/veil-symbolic-bmc/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean:454:2: error: incorrect number of universe levels List
+/tmp/veil-symbolic-bmc/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean:476:2: error: incorrect number of universe levels List
+/tmp/veil-symbolic-bmc/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean:498:2: error: incorrect number of universe levels List
+/tmp/veil-symbolic-bmc/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean:525:34: error: `simp` failed: maximum number of steps exceeded
+
+Note: The target expression is not type-correct under the `instances` transparency level, which may have triggered the failure. This is usually caused by unfolding of semireducible definitions in prior tactic steps. Use `set_option linter.tacticCheckInstances true` to investigate the source of the issue.
+Full error:
+  Application type mismatch: The argument
+    instDecidableNot
+  has type
+    Decidable
+      ¬TSet.contains x✝
+            (FieldRepresentation.get
+              (getFrom
+                  { round := (getFrom st0).round, crashCount := (getFrom st0).crashCount,
+                    initialValue := (getFrom st0).initialValue, seen := (getFrom st0).seen,
+                    decision := (getFrom st0).decision, dead := (getFrom st0).dead,
+                    crashedInThisRound := (getFrom st0).crashedInThisRound,
+                    receivedFrom := (getFrom st0).receivedFrom }).dead) =
+          true
+  but is expected to have type
+    Decidable ¬TSet.contains x✝ st0.dead = true
+  in the application
+    @decide (¬TSet.contains x✝ st0.dead = true) instDecidableNot
+/tmp/veil-symbolic-bmc/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean:543:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+/tmp/veil-symbolic-bmc/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean:568:37: error: `simp` failed: maximum number of steps exceeded
+/tmp/veil-symbolic-bmc/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean:592:34: error: `simp` failed: maximum number of steps exceeded
+
+Note: The target expression is not type-correct under the `instances` transparency level, which may have triggered the failure. This is usually caused by unfolding of semireducible definitions in prior tactic steps. Use `set_option linter.tacticCheckInstances true` to investigate the source of the issue.
+Full error:
+  Application type mismatch: The argument
+    instDecidableNot
+  has type
+    Decidable
+      ¬TSet.contains x✝
+            (FieldRepresentation.get
+              (getFrom
+                  { round := (getFrom st0).round, crashCount := (getFrom st0).crashCount,
+                    initialValue := (getFrom st0).initialValue, seen := (getFrom st0).seen,
+                    decision := (getFrom st0).decision, dead := (getFrom st0).dead,
+                    crashedInThisRound := (getFrom st0).crashedInThisRound,
+                    receivedFrom := (getFrom st0).receivedFrom }).dead) =
+          true
+  but is expected to have type
+    Decidable ¬TSet.contains x✝ st0.dead = true
+  in the application
+    @decide (¬TSet.contains x✝ st0.dead = true) instDecidableNot

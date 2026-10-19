@@ -1,0 +1,42 @@
+/tmp/veil-symbolic-bmc/paxos-universe-candidates/ActionFormMinimal.lean:15:0: warning: declaration uses `sorry`
+[smt.translate.query] ✅️ 
+  [smt.translate.query] Provided Hints: [__veil_tag.complete, __veil_tag.distinct, a✝]
+  [smt.translate.query] Definitions: []
+  [smt.translate.query] processing __veil_tag.complete : ∀ (__veil_x : ActionTag), __veil_x = __veil_tag.stay
+  [smt.translate.query] deps: [__veil_tag.stay, ActionTag]
+  [smt.translate.query] processing __veil_tag.stay : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] processing ActionTag : Type
+  [smt.translate.query] Type : Type 1
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing __veil_tag.distinct : distinctN [__veil_tag.stay]
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing a✝ : ¬¬(false = st0.flag ∧
+            (_tr1_tag = __veil_tag.stay ∧ st0.flag = st1.flag) ∧ st1.flag = true)
+  [smt.translate.query] deps: [__veil_tag.stay, st1.flag, st0.flag, _tr1_tag]
+  [smt.translate.query] processing st1.flag : Bool
+  [smt.translate.query] Bool : Type
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing st0.flag : Bool
+  [smt.translate.query] Bool : Type
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing _tr1_tag : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] Dependency Graph: {st0.flag ↦ {},
+       _tr1_tag ↦ {ActionTag},
+       __veil_tag.distinct ↦ {},
+       a✝ ↦ {st0.flag, _tr1_tag, st1.flag, __veil_tag.stay},
+       st1.flag ↦ {},
+       ActionTag ↦ {},
+       __veil_tag.complete ↦ {ActionTag, __veil_tag.stay},
+       __veil_tag.stay ↦ {ActionTag}}
+  [smt.translate.query] emitting ActionTag
+  [smt.translate.query] emitting __veil_tag.stay
+  [smt.translate.query] emitting __veil_tag.complete
+  [smt.translate.query] emitting __veil_tag.distinct
+  [smt.translate.query] emitting st0.flag
+  [smt.translate.query] emitting _tr1_tag
+  [smt.translate.query] emitting st1.flag
+  [smt.translate.query] emitting a✝

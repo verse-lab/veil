@@ -1,0 +1,22 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean:215:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean:237:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean:260:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean:283:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean:305:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean:327:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean:350:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean:375:37: error: `simp` failed: maximum number of steps exceeded
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean:397:37: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean:417:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean:439:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+/tmp/veil-symbolic-bmc/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean:465:37: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information

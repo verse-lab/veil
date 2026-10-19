@@ -1,0 +1,15 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean:196:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean:218:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean:241:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean:264:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean:286:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean:308:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean:331:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean:354:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean:378:37: error: `simp` failed: maximum number of steps exceeded
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean:398:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean:421:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-symbolic-bmc/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean:446:37: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information

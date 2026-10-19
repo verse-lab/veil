@@ -1,0 +1,752 @@
+[
+  {
+    "model": "AWS_AWSBuggy",
+    "declaration_kind": "type",
+    "name": "Enactor"
+  },
+  {
+    "model": "AWS_AWSBuggy",
+    "declaration_kind": "enum",
+    "name": "EnactorPC"
+  },
+  {
+    "model": "AWS_AWSFixed",
+    "declaration_kind": "type",
+    "name": "Enactor"
+  },
+  {
+    "model": "AWS_AWSFixed",
+    "declaration_kind": "enum",
+    "name": "EnactorPC"
+  },
+  {
+    "model": "Ivy_Blockchain",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Ivy_Blockchain",
+    "declaration_kind": "type",
+    "name": "block"
+  },
+  {
+    "model": "Ivy_Blockchain",
+    "declaration_kind": "type",
+    "name": "transaction"
+  },
+  {
+    "model": "Ivy_Blockchain",
+    "declaration_kind": "type",
+    "name": "time"
+  },
+  {
+    "model": "Ivy_ChordRingMaintenance",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Ivy_DecentralizedLock",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Ivy_DecentralizedLock",
+    "declaration_kind": "type",
+    "name": "time"
+  },
+  {
+    "model": "Ivy_MultiSigAll",
+    "declaration_kind": "type",
+    "name": "validator"
+  },
+  {
+    "model": "Ivy_MultiSigAll",
+    "declaration_kind": "type",
+    "name": "destination"
+  },
+  {
+    "model": "Ivy_MultiSigAll",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "Ivy_MultiSigAll",
+    "declaration_kind": "type",
+    "name": "deadline"
+  },
+  {
+    "model": "Ivy_MultiSigAll",
+    "declaration_kind": "type",
+    "name": "signature"
+  },
+  {
+    "model": "Ivy_MultiSigMajority",
+    "declaration_kind": "type",
+    "name": "validator"
+  },
+  {
+    "model": "Ivy_MultiSigMajority",
+    "declaration_kind": "type",
+    "name": "destination"
+  },
+  {
+    "model": "Ivy_MultiSigMajority",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "Ivy_MultiSigMajority",
+    "declaration_kind": "type",
+    "name": "deadline"
+  },
+  {
+    "model": "Ivy_MultiSigMajority",
+    "declaration_kind": "type",
+    "name": "signature"
+  },
+  {
+    "model": "Ivy_MultiSigMajority",
+    "declaration_kind": "type",
+    "name": "quorum"
+  },
+  {
+    "model": "Ivy_NOPaxos",
+    "declaration_kind": "type",
+    "name": "replica"
+  },
+  {
+    "model": "Ivy_NOPaxos",
+    "declaration_kind": "enum",
+    "name": "replica_state"
+  },
+  {
+    "model": "Ivy_NOPaxos",
+    "declaration_kind": "type",
+    "name": "seq_t"
+  },
+  {
+    "model": "Ivy_NOPaxos",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "Ivy_NOPaxos",
+    "declaration_kind": "type",
+    "name": "quorum"
+  },
+  {
+    "model": "Ivy_PaxosEPR",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Ivy_PaxosEPR",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "Ivy_PaxosEPR",
+    "declaration_kind": "type",
+    "name": "quorum"
+  },
+  {
+    "model": "Ivy_PaxosEPR",
+    "declaration_kind": "type",
+    "name": "round"
+  },
+  {
+    "model": "Ivy_PaxosFirstOrder",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Ivy_PaxosFirstOrder",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "Ivy_PaxosFirstOrder",
+    "declaration_kind": "type",
+    "name": "quorum"
+  },
+  {
+    "model": "Ivy_PaxosFirstOrder",
+    "declaration_kind": "type",
+    "name": "round"
+  },
+  {
+    "model": "Ivy_ReliableBroadcast",
+    "declaration_kind": "type",
+    "name": "nodeset"
+  },
+  {
+    "model": "Ivy_ReliableBroadcast",
+    "declaration_kind": "type",
+    "name": "address"
+  },
+  {
+    "model": "Ivy_ReliableBroadcast",
+    "declaration_kind": "type",
+    "name": "round"
+  },
+  {
+    "model": "Ivy_ReliableBroadcast",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "Ivy_RicartAgrawala",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Ivy_Ring",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Ivy_SuzukiKasami",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Ivy_SuzukiKasami",
+    "declaration_kind": "type",
+    "name": "seq_t"
+  },
+  {
+    "model": "Ivy_TwoPhaseCommit",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Ivy_VerticalPaxosFirstOrder",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Ivy_VerticalPaxosFirstOrder",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "Ivy_VerticalPaxosFirstOrder",
+    "declaration_kind": "type",
+    "name": "quorum"
+  },
+  {
+    "model": "Ivy_VerticalPaxosFirstOrder",
+    "declaration_kind": "type",
+    "name": "round"
+  },
+  {
+    "model": "Ivy_VerticalPaxosFirstOrder",
+    "declaration_kind": "type",
+    "name": "config"
+  },
+  {
+    "model": "Puzzles_Prisoners",
+    "declaration_kind": "type",
+    "name": "prisoner"
+  },
+  {
+    "model": "Puzzles_RiverCrossing",
+    "declaration_kind": "enum",
+    "name": "position"
+  },
+  {
+    "model": "Simulate_CheckpointLeaseFailover",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Simulate_CheckpointLeaseFailover",
+    "declaration_kind": "type",
+    "name": "epoch"
+  },
+  {
+    "model": "Simulate_CheckpointLeaseFailover",
+    "declaration_kind": "type",
+    "name": "lease"
+  },
+  {
+    "model": "Simulate_LeaseKeepaliveRace",
+    "declaration_kind": "type",
+    "name": "client"
+  },
+  {
+    "model": "Simulate_LeaseKeepaliveRace",
+    "declaration_kind": "type",
+    "name": "key"
+  },
+  {
+    "model": "Simulate_ReliableBroadcast",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Simulate_ReliableBroadcast",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "StellarConsensus_SCP",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "StellarConsensus_SCP",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "StellarConsensus_SCP",
+    "declaration_kind": "type",
+    "name": "nset"
+  },
+  {
+    "model": "StellarConsensus_SCP",
+    "declaration_kind": "type",
+    "name": "ballot"
+  },
+  {
+    "model": "Synchronous_FasterFloodSet",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Synchronous_FasterFloodSet",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "Synchronous_FasterFloodSet",
+    "declaration_kind": "type",
+    "name": "nodeSet"
+  },
+  {
+    "model": "Synchronous_FloodSet",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Synchronous_FloodSet",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "TLA_AWSDnsRace",
+    "declaration_kind": "enum",
+    "name": "ENACTORS"
+  },
+  {
+    "model": "TLA_Bakery",
+    "declaration_kind": "enum",
+    "name": "pc_state"
+  },
+  {
+    "model": "TLA_Bakery",
+    "declaration_kind": "type",
+    "name": "ProcessSet"
+  },
+  {
+    "model": "TLA_BcastByz",
+    "declaration_kind": "type",
+    "name": "process"
+  },
+  {
+    "model": "TLA_BcastByz",
+    "declaration_kind": "type",
+    "name": "procSet"
+  },
+  {
+    "model": "TLA_BcastByz",
+    "declaration_kind": "enum",
+    "name": "PCState"
+  },
+  {
+    "model": "TLA_EPaxos",
+    "declaration_kind": "type",
+    "name": "command"
+  },
+  {
+    "model": "TLA_EPaxos",
+    "declaration_kind": "type",
+    "name": "replica"
+  },
+  {
+    "model": "TLA_EPaxos",
+    "declaration_kind": "type",
+    "name": "seqNum"
+  },
+  {
+    "model": "TLA_EPaxos",
+    "declaration_kind": "type",
+    "name": "ballot_num"
+  },
+  {
+    "model": "TLA_EPaxos",
+    "declaration_kind": "enum",
+    "name": "Status"
+  },
+  {
+    "model": "TLA_EPaxos",
+    "declaration_kind": "type",
+    "name": "InstanceSet"
+  },
+  {
+    "model": "TLA_EPaxos",
+    "declaration_kind": "type",
+    "name": "CommandSet"
+  },
+  {
+    "model": "TLA_EPaxos",
+    "declaration_kind": "type",
+    "name": "ReplicaSet"
+  },
+  {
+    "model": "TLA_EPaxos",
+    "declaration_kind": "type",
+    "name": "SeqNumSet"
+  },
+  {
+    "model": "TLA_EPaxos",
+    "declaration_kind": "type",
+    "name": "LogEntrySet"
+  },
+  {
+    "model": "TLA_EPaxos",
+    "declaration_kind": "type",
+    "name": "CommittedTupleSet"
+  },
+  {
+    "model": "TLA_EPaxos",
+    "declaration_kind": "type",
+    "name": "MsgSet"
+  },
+  {
+    "model": "TLA_EWD840",
+    "declaration_kind": "enum",
+    "name": "Color"
+  },
+  {
+    "model": "TLA_German",
+    "declaration_kind": "enum",
+    "name": "CacheState"
+  },
+  {
+    "model": "TLA_German",
+    "declaration_kind": "enum",
+    "name": "MsgCmd"
+  },
+  {
+    "model": "TLA_German",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "TLA_German",
+    "declaration_kind": "type",
+    "name": "data"
+  },
+  {
+    "model": "TLA_KVSnap",
+    "declaration_kind": "type",
+    "name": "key"
+  },
+  {
+    "model": "TLA_KVSnap",
+    "declaration_kind": "type",
+    "name": "txId"
+  },
+  {
+    "model": "TLA_KVSnap",
+    "declaration_kind": "type",
+    "name": "keySet"
+  },
+  {
+    "model": "TLA_KVSnap",
+    "declaration_kind": "enum",
+    "name": "pcLabel"
+  },
+  {
+    "model": "TLA_KeyValueStore",
+    "declaration_kind": "type",
+    "name": "key"
+  },
+  {
+    "model": "TLA_KeyValueStore",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "TLA_KeyValueStore",
+    "declaration_kind": "type",
+    "name": "txId"
+  },
+  {
+    "model": "TLA_KeyValueStore",
+    "declaration_kind": "type",
+    "name": "KeySet"
+  },
+  {
+    "model": "TLA_KeyValueStore",
+    "declaration_kind": "type",
+    "name": "TxIdSet"
+  },
+  {
+    "model": "TLA_MultiPaxos",
+    "declaration_kind": "type",
+    "name": "acceptor"
+  },
+  {
+    "model": "TLA_MultiPaxos",
+    "declaration_kind": "type",
+    "name": "proposer"
+  },
+  {
+    "model": "TLA_MultiPaxos",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "TLA_MultiPaxos",
+    "declaration_kind": "type",
+    "name": "quorum"
+  },
+  {
+    "model": "TLA_MultiPaxos",
+    "declaration_kind": "type",
+    "name": "slot"
+  },
+  {
+    "model": "TLA_MultiPaxos",
+    "declaration_kind": "type",
+    "name": "VotedSet"
+  },
+  {
+    "model": "TLA_MultiPaxos",
+    "declaration_kind": "type",
+    "name": "DecreeSet"
+  },
+  {
+    "model": "TLA_MultiPaxos",
+    "declaration_kind": "type",
+    "name": "MsgSet"
+  },
+  {
+    "model": "TLA_MultiPaxos",
+    "declaration_kind": "type",
+    "name": "AcceptorSet"
+  },
+  {
+    "model": "TLA_MutexViolation",
+    "declaration_kind": "type",
+    "name": "process"
+  },
+  {
+    "model": "TLA_MutexViolation",
+    "declaration_kind": "enum",
+    "name": "states"
+  },
+  {
+    "model": "TLA_NOPaxos",
+    "declaration_kind": "type",
+    "name": "replica"
+  },
+  {
+    "model": "TLA_NOPaxos",
+    "declaration_kind": "type",
+    "name": "replicaSet"
+  },
+  {
+    "model": "TLA_NOPaxos",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "TLA_NOPaxos",
+    "declaration_kind": "enum",
+    "name": "ReplicaStatus"
+  },
+  {
+    "model": "TLA_NOPaxos",
+    "declaration_kind": "type",
+    "name": "MsgSet"
+  },
+  {
+    "model": "TLA_Paxos",
+    "declaration_kind": "type",
+    "name": "acceptor"
+  },
+  {
+    "model": "TLA_Paxos",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "TLA_Paxos",
+    "declaration_kind": "type",
+    "name": "quorum"
+  },
+  {
+    "model": "TLA_Paxos",
+    "declaration_kind": "type",
+    "name": "MsgSet"
+  },
+  {
+    "model": "TLA_Paxos",
+    "declaration_kind": "type",
+    "name": "AcceptorSet"
+  },
+  {
+    "model": "TLA_Peterson",
+    "declaration_kind": "enum",
+    "name": "Phase"
+  },
+  {
+    "model": "TLA_Peterson",
+    "declaration_kind": "enum",
+    "name": "Process"
+  },
+  {
+    "model": "TLA_Raft",
+    "declaration_kind": "type",
+    "name": "server"
+  },
+  {
+    "model": "TLA_Raft",
+    "declaration_kind": "type",
+    "name": "serverSet"
+  },
+  {
+    "model": "TLA_Raft",
+    "declaration_kind": "enum",
+    "name": "serverStates"
+  },
+  {
+    "model": "TLA_Raft",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "TLA_Raft",
+    "declaration_kind": "type",
+    "name": "logSet"
+  },
+  {
+    "model": "TLA_Raft",
+    "declaration_kind": "type",
+    "name": "msetMsg"
+  },
+  {
+    "model": "TLA_Raft",
+    "declaration_kind": "type",
+    "name": "electionSet"
+  },
+  {
+    "model": "TLA_Room",
+    "declaration_kind": "enum",
+    "name": "Room"
+  },
+  {
+    "model": "TLA_Room",
+    "declaration_kind": "enum",
+    "name": "Guest"
+  },
+  {
+    "model": "TLA_Room",
+    "declaration_kind": "type",
+    "name": "GuestSet"
+  },
+  {
+    "model": "TLA_Room",
+    "declaration_kind": "type",
+    "name": "KeySet"
+  },
+  {
+    "model": "TLA_Room",
+    "declaration_kind": "enum",
+    "name": "Position"
+  },
+  {
+    "model": "TLA_Room",
+    "declaration_kind": "enum",
+    "name": "Occupied"
+  },
+  {
+    "model": "TLA_SimpleAllocator",
+    "declaration_kind": "type",
+    "name": "client"
+  },
+  {
+    "model": "TLA_SimpleAllocator",
+    "declaration_kind": "type",
+    "name": "resource"
+  },
+  {
+    "model": "TLA_SimpleAllocator",
+    "declaration_kind": "type",
+    "name": "ResourceSet"
+  },
+  {
+    "model": "TLA_SimpleAllocator",
+    "declaration_kind": "type",
+    "name": "ClientsSet"
+  },
+  {
+    "model": "TLA_Traffic",
+    "declaration_kind": "enum",
+    "name": "Color"
+  },
+  {
+    "model": "TLA_Traffic",
+    "declaration_kind": "enum",
+    "name": "ProcSet"
+  },
+  {
+    "model": "TLA_Traffic",
+    "declaration_kind": "enum",
+    "name": "states"
+  },
+  {
+    "model": "TLA_TwoPhaseCommit",
+    "declaration_kind": "type",
+    "name": "RM"
+  },
+  {
+    "model": "TLA_TwoPhaseCommit",
+    "declaration_kind": "enum",
+    "name": "RMStateType"
+  },
+  {
+    "model": "TLA_TwoPhaseCommit",
+    "declaration_kind": "enum",
+    "name": "TMStateType"
+  },
+  {
+    "model": "Tutorial_FloodSet",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Tutorial_FloodSet",
+    "declaration_kind": "type",
+    "name": "value"
+  },
+  {
+    "model": "Tutorial_POPL26_RingDec",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Tutorial_POPL26_RingFin",
+    "declaration_kind": "type",
+    "name": "node"
+  },
+  {
+    "model": "Tutorial_Ring",
+    "declaration_kind": "type",
+    "name": "node"
+  }
+]

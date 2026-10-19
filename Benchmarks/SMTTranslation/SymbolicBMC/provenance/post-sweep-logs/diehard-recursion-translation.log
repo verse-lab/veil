@@ -1,0 +1,4 @@
+BEGIN Puzzles_DieHard batch1 cells=2
+  Puzzles_DieHard__d32__old__recursion_only query_ready phase=None kind=None query_ms=14147
+  Puzzles_DieHard__d32__early__recursion_only query_ready phase=None kind=None query_ms=8803
+END Puzzles_DieHard__recursion_only__batch1 wall=31.0s setup=5440 timeout=None remaining=0

@@ -1,0 +1,1 @@
+/tmp/veil-symbolic-bmc/paxos-universe-candidates/ReliableBroadcastProduction.lean:212:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas

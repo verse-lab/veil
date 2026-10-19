@@ -1,0 +1,19 @@
+{
+  "group": "universe",
+  "source": "/tmp/veil-symbolic-bmc/paxos-universe-candidates/ReliableBroadcastDiagnostic.lean",
+  "source_sha256": "37ed0ba514f5c462b78070619339db54b41c3592d869a8f54fda84c73f11c582",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/paxos-universe-candidates/ReliableBroadcastDiagnostic.lean"
+  ],
+  "exit_code": 1,
+  "timeout": false,
+  "wall_ms": 15373,
+  "log": "/tmp/veil-symbolic-bmc/functional-diagnostics/ReliableBroadcastDiagnostic.log",
+  "purpose": "functional diagnostic; not a performance observation"
+}

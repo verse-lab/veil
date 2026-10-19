@@ -1,0 +1,62 @@
+Dataset provenance and corrections
+
+The primary dataset is exactly 49 source files x six sampled exact depths
+(1, 2, 4, 8, 16, 32) x two tactic orders = 588 cells. The manifest hashes source
+files and fixes each selected assertion. Old means the previous tactic order
+on base eb41b59673a179ad05773ceca18667ba25b7f079, not the historical issue
+commit. The only production change is conservative early data introduction.
+
+The final primary run loads the native cvc5 plugin during extraction, uses
+Veil's production backwards-compatibility options and withoutRecover, and
+runs synchronous Lean elaboration. A preliminary extraction without the native
+plugin was discarded in full; none of its observations are in results/.
+The seven-model exploratory study is also separate and is not merged here.
+
+A later instrumentation audit found the helper's global `open Lean Elab ...`
+made two names visible to the model source: Lean.Elab.process and Lean.Position.
+This interfered with setup of BcastByz, MutexViolation and Room. An audit of
+150 type/enum declarations (83 distinct names) found only those two newly
+visible matches. The correction encloses helper declarations and namespace
+opens in a section that ends before the original model source. The measured
+tactic bodies and selected queries are unchanged.
+
+The final audit also found that the first scoped helper revision left the
+external event-marker calls unqualified. Those commands reported unknown
+withOptions, disabling query-elaboration markers and the active-cell wall
+watchdog. That scoped cohort and all five controls were discarded and rerun
+with Lean.withOptions. The runner now rejects marker-command errors and a
+pipeline start without a query-begin event; the final validator checks that
+every attempted pipeline has that event. None of the other 552 primary cells
+were affected. Invalid scoped/control observations are excluded.
+
+All 36 cells for those three files were rerun with the corrected scoped helper and
+replace their invalid setup records in results/. Every repaired cell gets
+past setup; their remaining errors occur during actual query processing.
+Both the plain original Room prefix and scoped-helper Room prefix compile.
+Six additional depth-1 queries (old and early for AWSFixed, PaxosFirstOrder
+and Ring) were compared against the original valid primary observations;
+all six have the same normalized SMT formula. These checks are functional
+instrumentation validation, not extra timing repetitions in the primary grid.
+
+The original runner snapshot and the correction's runner snapshot/metadata
+are retained under results/. Corrected convenience runners are in runner/.
+Namespace audit and equivalence artifacts are included under provenance/.
+Invalid observations are excluded from this package. Per-cell checkpoints
+contain execution commands, original source paths/hashes, stage events and
+query hashes. The three repaired cohorts ran later than the original sweep;
+this is one more reason to interpret single-observation timings as approximate.
+
+Original absolute execution paths are retained as provenance, even for cells
+copied from namespace-repair/. Portable tools locate relocated artifacts by
+basename and validate recorded content hashes. Do not replace those paths in
+raw records and pretend they were the original execution locations.
+
+After extraction, each emitted query is replayed using a fresh native solver.
+Supplemental odd-depth and recursion-only controls live in controls/, never
+in the 588-cell primary dataset. Post-sweep functional backend probes live in
+diagnostics/; their whole-process times are not benchmark observations.
+
+The original issue's LamportMutexV1 source branch is unavailable. Existing
+corpus coverage and regression tests cannot establish the maximum depth of
+that exact unpublished/deleted model. See the report for observed translation
+and solver depths of the available examples, kept as separate measurements.

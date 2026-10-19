@@ -1,0 +1,22 @@
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_German__default__batch1.lean:326:2: error: cannot translate Type
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_German__default__batch1.lean:349:2: error: cannot translate Type
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_German__default__batch1.lean:371:2: error: cannot translate Type
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_German__default__batch1.lean:393:2: error: cannot translate Type
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_German__default__batch1.lean:416:2: error: cannot translate Type
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_German__default__batch1.lean:439:2: error: cannot translate Type
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_German__default__batch1.lean:463:37: error: `simp` failed: maximum number of steps exceeded
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_German__default__batch1.lean:483:2: error: cannot translate Type
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_German__default__batch1.lean:506:2: error: cannot translate Type
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_German__default__batch1.lean:531:37: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_German__default__batch1.lean:553:37: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-symbolic-bmc/results/batch-sources/TLA_German__default__batch1.lean:572:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.

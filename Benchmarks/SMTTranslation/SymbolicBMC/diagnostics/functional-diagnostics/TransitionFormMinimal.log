@@ -1,0 +1,17 @@
+/tmp/veil-symbolic-bmc/paxos-universe-candidates/TransitionFormMinimal.lean:19:2: error: cannot translate fun __veil_f => instFieldRepresentationIndividual Bool, SMT-LIB does not support lambdas
+[smt.translate.query] 💥️ 
+  [smt.translate.query] Provided Hints: [__veil_tag.complete, __veil_tag.distinct, a✝]
+  [smt.translate.query] Definitions: []
+  [smt.translate.query] processing __veil_tag.complete : ∀ (__veil_x : ActionTag), __veil_x = __veil_tag.stay
+  [smt.translate.query] deps: [ActionTag, __veil_tag.stay]
+  [smt.translate.query] processing ActionTag : Type
+  [smt.translate.query] Type : Type 1
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing __veil_tag.stay : ActionTag
+  [smt.translate.query] ActionTag : Type
+  [smt.translate.query] deps: [ActionTag]
+  [smt.translate.query] processing __veil_tag.distinct : distinctN [__veil_tag.stay]
+  [smt.translate.query] deps: []
+  [smt.translate.query] processing a✝ : ¬¬(false = st0.flag ∧
+            (_tr1_tag = __veil_tag.stay ∧ stay.ext.toTransitionDerived { } { flag := st0.flag } { flag := st1.flag }) ∧
+              st1.flag = true)

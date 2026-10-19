@@ -1,0 +1,304 @@
+{
+  "row": {
+    "cell_id": "AWS_AWSBuggy__d8__early__default",
+    "model": "AWS_AWSBuggy",
+    "path": "Examples/AWS/AWSBuggy.lean",
+    "module": "AWSDnsRace",
+    "depth": 8,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSBuggy__default__batch1.lean:389:2: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 45,
+    "batch_id": "AWS_AWSBuggy__default__batch1",
+    "batch_setup_ms": 13941,
+    "preprocessing_ms": 4634,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-symbolic-bmc/results/queries/AWS_AWSBuggy__d8__early__default.smt2",
+    "source_path": "/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSBuggy__default__batch1.lean",
+    "event_path": "/tmp/veil-symbolic-bmc/results/events/AWS_AWSBuggy__d8__early__default.jsonl",
+    "translation_log": "/tmp/veil-symbolic-bmc/results/logs/AWS_AWSBuggy__d8__early__default.translation.log",
+    "solver_log": "/tmp/veil-symbolic-bmc/results/logs/AWS_AWSBuggy__d8__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "AWS_AWSBuggy",
+    "path": "Examples/AWS/AWSBuggy.lean",
+    "module": "AWSDnsRace",
+    "cut_line": 134,
+    "query": "assert (dns_valid = false)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "DnsConsistent safety, line132",
+    "notes": "Buggy DNS race variant; same Veil namespace as AWSFixed and TLA/AWSDnsRace.",
+    "category": "AWS",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "b41f31f16d354cf64cd73e1c69d5bd7e6c05d6c5109920b0ce03dae6dfab1f05"
+  },
+  "original_sha256": "b41f31f16d354cf64cd73e1c69d5bd7e6c05d6c5109920b0ce03dae6dfab1f05",
+  "inherited_setup_options": [],
+  "source_sha256": "11499e9f1044e8f9220a03489ae0ee4ea1b0be1cf2fa7235833b5cf98038f2dd",
+  "batch_log": "/tmp/veil-symbolic-bmc/results/batch-logs/AWS_AWSBuggy__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 173001976,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 173002021,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173002021,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6,
+      "event": "stage",
+      "mono_ms": 173002027,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173002027,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1271,
+      "event": "stage",
+      "mono_ms": 173003298,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173003298,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 319,
+      "event": "stage",
+      "mono_ms": 173003617,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173003637,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "mono_ms": 173003642,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173003642,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1966,
+      "event": "stage",
+      "mono_ms": 173005608,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173005609,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 150,
+      "event": "stage",
+      "mono_ms": 173005759,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173005760,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 821,
+      "event": "stage",
+      "mono_ms": 173006582,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173006623,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 96,
+      "event": "stage",
+      "mono_ms": 173006719,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 4699,
+      "event": "milestone",
+      "mono_ms": 173006720,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173006720,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "mono_ms": 173006725,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173006726,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173006726,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173006726,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173006726,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173006726,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "mono_ms": 173006728,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173006728,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 162,
+      "event": "stage",
+      "mono_ms": 173006890,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 173006890,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 173007387,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "AWS_AWSBuggy__default__batch1",
+    "source": "/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSBuggy__default__batch1.lean",
+    "log": "/tmp/veil-symbolic-bmc/results/batch-logs/AWS_AWSBuggy__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 108366,
+    "setup_ms": 13941,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-symbolic-bmc/results/batch-sources/AWS_AWSBuggy__default__batch1.lean"
+    ]
+  }
+}

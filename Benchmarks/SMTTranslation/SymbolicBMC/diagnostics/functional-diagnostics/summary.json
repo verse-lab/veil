@@ -1,0 +1,166 @@
+{
+  "probes": [
+    {
+      "probe": "AWSBuggyDependentOnly",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "b155d6b4c93b33dc4e9285addb2ddc9318a8ad7fc9befa45524fa56ba6b2a4e9",
+      "finding": "Candidate active/original disabled; advances to cannot translate 0; no solver answer."
+    },
+    {
+      "probe": "AWSBuggyFixedNat",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "3c952a09d82c1e70d2f0fbd786809d6177ff30f396a08740c59f0df7b57c5527",
+      "finding": "Candidate active/original disabled; advances to cannot translate 0; no solver answer."
+    },
+    {
+      "probe": "AWSBuggyWithDefaultOnly",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "2178fd83a5fa8b91bf00a14fc09f072c05db2faed4911f9115e0d44b3c305edb",
+      "finding": "Candidate active/original disabled; original congruence mismatch remains."
+    },
+    {
+      "probe": "ActionFormMinimal",
+      "exit_code": 0,
+      "timeout": false,
+      "source_sha256": "ef801ab14fd425284fc45041796cda0c603dc8fca176f1f7119dcafdab414039",
+      "finding": "Equivalent imperative self-loop reaches trusted native UNSAT."
+    },
+    {
+      "probe": "BuggyCircularBufferFixedNat",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "3d8ad73738d4c84afab4bb04f2c37d18b4724e4b238b2fad039776c4ca25e152",
+      "finding": "Advances to unsupported lambda fun n => n in BUFFER_ELEMS; no solver answer."
+    },
+    {
+      "probe": "BuggyCircularBufferOriginal",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "879d9ec8a48cb79d55c0e57462276d3bc7884b1158fb6fd64268a5bd27ca7b28",
+      "finding": "Actual production tactic reproduces congruence mismatch at depth1."
+    },
+    {
+      "probe": "ChordRingMaintenanceProduction",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "b6a00a5bd4c46d219d83437d18ad6a9e66c9065b85e2ec3f80bb9036f7031671",
+      "finding": "Actual production tactic reproduces native SMT parser error at depth1."
+    },
+    {
+      "probe": "ChordRingMaintenanceTranslateDecide",
+      "exit_code": 0,
+      "timeout": false,
+      "source_sha256": "a0b6094235c30fc5dc0fd29b9d7b2fd6ea3bdd540ecd5d7e2a20f10814947606",
+      "finding": "Trusted native UNSAT at depth1 after direct decide lowering."
+    },
+    {
+      "probe": "MinimalDependentOnly",
+      "exit_code": 0,
+      "timeout": false,
+      "source_sha256": "e10e6dde2f7ce2b15d533e0b588b159a5b50fc684f64171dc3b43dd7f288b92a",
+      "finding": "All three checks pass; dependency handling resolves the minimized defect."
+    },
+    {
+      "probe": "MinimalFixedNat",
+      "exit_code": 0,
+      "timeout": false,
+      "source_sha256": "411a8647a9328e631f70e270f33276510e5c8c690450244c48ad647acefc39c3",
+      "finding": "All three expression/equality-proof and escaped-local checks pass."
+    },
+    {
+      "probe": "MinimalOriginal",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "6aa35f90c33ad8ef0cd383060f203895067b26a45d2fe928a00930f496816c88",
+      "finding": "Scalar control passes; both dependent Fin cases reproduce congruence type mismatch."
+    },
+    {
+      "probe": "MinimalWithDefaultOnly",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "0adf602a7395f5bdbcab1d2ef68a72c0ce68b113fd5869c66c7f1851e2a4dca3",
+      "finding": "Dependent cases still fail: transparency alone is insufficient."
+    },
+    {
+      "probe": "PaxosEPRDiagnostic",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "32fa3a5be015a3ad850ee9b74381befe878901244df3dd9fc23f3c9fccdbcbe0",
+      "finding": "Persistent trace confirms residual decide and a valid incoming DecidableEq.{1}."
+    },
+    {
+      "probe": "PaxosEPRProduction",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "cce564c45be350702628b069f3a5a3d44ec6da52e9d9dc21c87f13b62c308364",
+      "finding": "Actual production tactic reproduces DecidableEq universe-count error at depth1."
+    },
+    {
+      "probe": "PaxosEPRTranslateDecide",
+      "exit_code": 0,
+      "timeout": false,
+      "source_sha256": "01b0686756e173ae4090a217768200a501ae121755d7ae93ecb6e88a9828a012",
+      "finding": "Trusted native UNSAT at depth1; candidate not validated for untrusted reconstruction."
+    },
+    {
+      "probe": "ProductionAWSBuggy",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "c7adac5dbc25ed165766a2b0057034dd227bcfb59fa56859ac9e83c3dea8df38",
+      "finding": "Actual production tactic reproduces congruence mismatch at depth1."
+    },
+    {
+      "probe": "ReliableBroadcastDiagnostic",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "37ed0ba514f5c462b78070619339db54b41c3592d869a8f54fda84c73f11c582",
+      "finding": "Persistent trace exposes enclosing byz.ext.toTransitionDerived wrapper."
+    },
+    {
+      "probe": "ReliableBroadcastProduction",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "b4d505b726663cceb453e0bc31438a9f40d2813a411e5821a48c42bdedaba83a",
+      "finding": "Actual production tactic reproduces unsupported DecidableEq lambda at depth1."
+    },
+    {
+      "probe": "ReliableBroadcastTranslateDecide",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "27d047d3274c829315b663aea0a73fb9bb969842caa10f3047dde6e641ac03e6",
+      "finding": "Same lambda failure remains; residual action wrapper is a distinct problem."
+    },
+    {
+      "probe": "SuzukiKasamiProduction",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "a4c2374c90abda21fa4472d1c701ae935136b4042ea6e09067315a9b4a6ab562",
+      "finding": "Actual production tactic reproduces native SMT parser error at depth1."
+    },
+    {
+      "probe": "SuzukiKasamiTranslateDecide",
+      "exit_code": 0,
+      "timeout": false,
+      "source_sha256": "d41bfe872eb4977b2aba9c8dbef0bb54dba0c2a7cf7ef72525af2c35306c50fe",
+      "finding": "Trusted native UNSAT at depth1 after direct decide lowering."
+    },
+    {
+      "probe": "TransitionFormMinimal",
+      "exit_code": 1,
+      "timeout": false,
+      "source_sha256": "702fa371aec78bfd8e535986084aa7948116a12beb876cb43ca30cad97ab60f1",
+      "finding": "Self-loop retains toTransitionDerived and fails on a field-representation lambda."
+    },
+    {
+      "probe": "UniverseDependencyProbe",
+      "exit_code": 0,
+      "timeout": false,
+      "source_sha256": "c7fb03375524fbb37e99f9400bde7c09e33281c31874b5a6dd7fad239ee8a2aa",
+      "finding": "Valid DecidableEq.{1} loses its universe levels through NameSet dependency reconstruction."
+    }
+  ],
+  "source_hash_checks": "passed"
+}

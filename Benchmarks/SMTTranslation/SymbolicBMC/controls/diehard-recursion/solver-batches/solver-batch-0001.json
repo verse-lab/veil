@@ -1,0 +1,29 @@
+{
+  "batch_id": "solver-batch-0001",
+  "cells": [
+    "Puzzles_DieHard__d32__old__recursion_only",
+    "Puzzles_DieHard__d32__early__recursion_only"
+  ],
+  "source": "/tmp/veil-symbolic-bmc/controls/diehard-recursion/solver-sources/solver-batch-0001.lean",
+  "source_sha256": "3d6d2eb5426f7c75e25cec5bba7d51a7c9faef9a07dc3d3fd7e06f475f2f55db",
+  "log": "/tmp/veil-symbolic-bmc/controls/diehard-recursion/logs/solver-batch-0001.log",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/controls/diehard-recursion/solver-sources/solver-batch-0001.lean"
+  ],
+  "solver_timeout_seconds": 10,
+  "query_watchdog_seconds": 15,
+  "setup_watchdog_seconds": 60,
+  "attribution": "solver_ms is measured inside Smt.solve; batch wall time is separate",
+  "exit_code": 0,
+  "batch_wall_ms": 22086,
+  "completed_cells": [
+    "Puzzles_DieHard__d32__old__recursion_only",
+    "Puzzles_DieHard__d32__early__recursion_only"
+  ]
+}

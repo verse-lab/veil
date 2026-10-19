@@ -1,0 +1,194 @@
+/tmp/veil-symbolic-bmc/namespace-repair/batch-sources/TLA_Room__default__batch1.lean:291:2: error: Application type mismatch: The argument
+  fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun keyTset.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun keyTset.insert =>
+                forall_congr fun keyTset.remove =>
+                  forall_congr fun keyTset.ofList =>
+                    forall_congr fun keyTset.toList =>
+                      forall_congr fun keyTset.filter =>
+                        forall_congr fun keyTset.union =>
+                          forall_congr fun keyTset.diff =>
+                            forall_congr fun keyTset.intersection =>
+                              forall_congr fun keyTset.subsets =>
+                                forall_congr fun Position_Enum.noroom =>
+                                  forall_congr fun Position_Enum.room =>
+                                    forall_congr fun Occupied_Enum.nobody =>
+                                      forall_congr fun Occupied_Enum.body =>
+                                        forall_congr fun __veil_tag.CheckIn =>
+                                          forall_congr fun __veil_tag.CheckOut =>
+                                            forall_congr fun __veil_tag.EnterRoom =>
+                                              forall_congr fun __veil_tag.LeaveRoom =>
+                                                forall_congr fun st0.assignedKey =>
+                                                  forall_congr fun st0.registered =>
+                                                    forall_congr fun st0.roomKey =>
+                                                      forall_congr fun st0.guestKeys => ⋯))
+has type
+  ∀ (a : ∀ (a₁ : KeySet), f a₁ ≥ 0),
+    (∀ (f_1 : Key Room → KeySet → Bool) (keyTset.empty : KeySet) (keyTset.isEmpty : KeySet → Bool)
+        (keyTset.insert keyTset.remove : Key Room → KeySet → KeySet) (keyTset.ofList : List (Key Room) → KeySet)
+        (keyTset.toList : KeySet → List (Key Room)) (keyTset.filter : KeySet → (Key Room → Bool) → KeySet)
+        (keyTset.union keyTset.diff keyTset.intersection : KeySet → KeySet → KeySet)
+        (keyTset.subsets : KeySet → List KeySet) (Position_Enum.noroom Position_Enum.room : Position)
+        (Occupied_Enum.nobody Occupied_Enum.body : Occupied)
+        (__veil_tag.CheckIn __veil_tag.CheckOut __veil_tag.EnterRoom __veil_tag.LeaveRoom : ActionTag)
+        (st0.assignedKey : Guest → Position) (st0.registered : Room → GuestSet) (st0.roomKey : Room → Key Room)
+        (st0.guestKeys : Guest → KeySet) (st0.inside : Room → Occupied) (st1.assignedKey : Guest → Position)
+        (st1.registered : Room → GuestSet) (st1.roomKey : Room → Key Room) (st1.guestKeys : Guest → KeySet)
+        (st1.inside : Room → Occupied),
+        distinctN [Room_Enum.Elm, Room_Enum.Cendana] →
+          (∀ (__veil_x : Room), __veil_x = Room_Enum.Elm ∨ __veil_x = Room_Enum.Cendana) →
+            distinctN [Guest_Enum.Olivier, Guest_Enum.Bruno, Guest_Enum.Aquinas] →
+              (∀ (__veil_x : Guest),
+                  __veil_x = Guest_Enum.Olivier ∨ __veil_x = Guest_Enum.Bruno ∨ __veil_x = Guest_Enum.Aquinas) →
+                (fun a₁ => (f✝² a₁).toNat) guestTset.empty = 0 →
+                  (∀ (elem : Guest), (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem guestTset.empty = false) →
+                    (∀ (s : GuestSet), ((fun a₁ => decide (f✝ a₁)) s = true) = ((fun a₁ => (f✝² a₁).toNat) s = 0)) →
+                      (∀ (elem : Guest) (s : GuestSet),
+                          (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (guestTset.insert elem s) = true) →
+                        (∀ (elem₁ elem₂ : Guest) (s : GuestSet),
+                            elem₁ ≠ elem₂ →
+                              (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (guestTset.insert elem₂ s) =
+                                (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s) →
+                          (∀ (elem : Guest) (s : GuestSet),
+                              guestTset.toList (guestTset.insert elem (guestTset.insert elem s)) =
+                                guestTset.toList (guestTset.insert elem s)) →
+                            (∀ (elem : Guest) (s : GuestSet),
+                                (fun a₁ => (f✝² a₁).toNat) (guestTset.insert elem s) =
+                                  if (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s = true then (fun a₁ => (f✝² a₁).toNat) s
+                                  else (fun a₁ => (f✝² a₁).toNat) s + 1) →
+                              (∀ (elem : Guest) (s : GuestSet),
+                                  (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (guestTset.remove elem s) = false) →
+                                (∀ (elem₁ elem₂ : Guest) (s : GuestSet),
+                                    elem₁ ≠ elem₂ →
+                                      (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (guestTset.remove elem₂ s) =
+                                        (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s) →
+                                  (∀ (elem : Guest) (s : GuestSet),
+                                      (fun a₁ => (f✝² a₁).toNat) (guestTset.remove elem s) =
+                                        if (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s = true then
+                                          (fun a₁ => (f✝² a₁).toNat) s - 1
+                                        else (fun a₁ => (f✝² a₁).toNat) s) →
+                                    (∀ (elem : Guest) (s1 s2 : GuestSet),
+                                        (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (guestTset.union s1 s2) =
+                                          ((fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s1 ||
+                                            (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s2)) →
+                                      (∀ (elem : Guest) (s1 s2 : GuestSet),
+                                          (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (guestTset.diff s1 s2) =
+                                            ((fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s1 &&
+                                              !(fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s2)) →
+                                        (∀ (elem : Guest) (s : GuestSet),
+                                            ((fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s = true) =
+                                              (elem ∈ guestTset.toList s)) →
+                                          (∀ (s1 s2 : GuestSet),
+                                              (s1 ∈ guestTset.subsets s2) =
+                                                ∀ (elem : Guest),
+                                                  (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s1 = true →
+                                                    (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s2 = true) →
+                                            (fun a₁ => (f a₁).toNat) keyTset.empty = 0 →
+                                              ∀ (keyTset.empty_count : (fun a₁ => (f a₁).toNat) keyTset.empty = 0),
+                                                (∀ (elem : Key Room), f_1 elem keyTset.empty = false) →
+                                                  ∀
+                                                    (keyTset.empty_contains :
+                                                      ∀ (elem : Key Room), f_1 elem keyTset.empty = false),
+                                                    (∀ (s : KeySet),
+                                                        (keyTset.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)) →
+                                                      ∀
+                                                        (keyTset.isEmpty_iff_count_zero :
+                                                          ∀ (s : KeySet),
+                                                            (keyTset.isEmpty s = true) =
+                                                              ((fun a₁ => (f a₁).toNat) s = 0)),
+                                                        (∀ (elem : Key Room) (s : KeySet),
+                                                            f_1 elem (keyTset.insert elem s) = true) →
+                                                          ∀
+                                                            (keyTset.contains_insert_self :
+                                                              ∀ (elem : Key Room) (s : KeySet),
+                                                                f_1 elem (keyTset.insert elem s) = true),
+                                                            (∀ (elem₁ elem₂ : Key Room) (s : KeySet),
+                                                                elem₁ ≠ elem₂ →
+                                                                  f_1 elem₁ (keyTset.insert elem₂ s) = f_1 elem₁ s) →
+                                                              ⋯) =
+      ∀ (a_1 : Key Room → KeySet → Prop) (a_2 : KeySet) (a_3 : KeySet → Prop) (a_4 a_5 : Key Room → KeySet → KeySet)
+        (a_6 : List (Key Room) → KeySet) (a_7 : KeySet → List (Key Room)) (a_8 : KeySet → (Key Room → Bool) → KeySet)
+        (a_9 a_10 a_11 : KeySet → KeySet → KeySet) (a_12 : KeySet → List KeySet) (a_13 a_14 : Position)
+        (a_15 a_16 : Occupied) (a_17 a_18 a_19 a_20 : ActionTag) (a_21 : Guest → Position) (a_22 : Room → GuestSet)
+        (a_23 : Room → Key Room) (a_24 : Guest → KeySet) (a_25 : Room → Occupied) (a_26 : Guest → Position)
+        (a_27 : Room → GuestSet) (a_28 : Room → Key Room) (a_29 : Guest → KeySet) (a_30 : Room → Occupied),
+        distinctN [Room_Enum.Elm, Room_Enum.Cendana] →
+          (∀ (__veil_x : Room), __veil_x = Room_Enum.Elm ∨ __veil_x = Room_Enum.Cendana) →
+            distinctN [Guest_Enum.Olivier, Guest_Enum.Bruno, Guest_Enum.Aquinas] →
+              (∀ (__veil_x : Guest),
+                  __veil_x = Guest_Enum.Olivier ∨ __veil_x = Guest_Enum.Bruno ∨ __veil_x = Guest_Enum.Aquinas) →
+                f✝² guestTset.empty = 0 →
+                  (∀ (a : Guest), f✝¹ a guestTset.empty = False) →
+                    (∀ (a : GuestSet), f✝ a = (f✝² a = 0)) →
+                      (∀ (a : Guest) (a_38 : GuestSet), f✝¹ a (guestTset.insert a a_38)) →
+                        (∀ (a a_39 : Guest) (a_40 : GuestSet),
+                            a ≠ a_39 → f✝¹ a (guestTset.insert a_39 a_40) = f✝¹ a a_40) →
+                          (∀ (elem : Guest) (s : GuestSet),
+                              guestTset.toList (guestTset.insert elem (guestTset.insert elem s)) =
+                                guestTset.toList (guestTset.insert elem s)) →
+                            (∀ (a : Guest) (a_41 : GuestSet),
+                                f✝² (guestTset.insert a a_41) = if f✝¹ a a_41 then f✝² a_41 else f✝² a_41 + 1) →
+                              (∀ (a : Guest) (a_42 : GuestSet), f✝¹ a (guestTset.remove a a_42) = False) →
+                                (∀ (a a_43 : Guest) (a_44 : GuestSet),
+                                    a ≠ a_43 → f✝¹ a (guestTset.remove a_43 a_44) = f✝¹ a a_44) →
+                                  (∀ (a : Guest) (a_44 : GuestSet),
+                                      f✝² (guestTset.remove a a_44) =
+                                        if f✝¹ a a_44 then if 1 ≤ f✝² a_44 then f✝² a_44 - 1 else 0 else f✝² a_44) →
+                                    (∀ (a : Guest) (a_45 a_46 : GuestSet),
+                                        f✝¹ a (guestTset.union a_45 a_46) = (f✝¹ a a_45 ∨ f✝¹ a a_46)) →
+                                      (∀ (a : Guest) (a_46 a_47 : GuestSet),
+                                          f✝¹ a (guestTset.diff a_46 a_47) = (f✝¹ a a_46 ∧ f✝¹ a a_47 ≠ True)) →
+                                        (∀ (a : Guest) (a_47 : GuestSet), f✝¹ a a_47 = (a ∈ guestTset.toList a_47)) →
+                                          (∀ (a a_48 : GuestSet),
+                                              (a ∈ guestTset.subsets a_48) =
+                                                ∀ (elem : Guest), f✝¹ elem a → f✝¹ elem a_48) →
+                                            f a_2 = 0 →
+                                              ∀ (a_50 : f a_2 = 0),
+                                                (∀ (elem : Key Room), a_1 elem a_2 = False) →
+                                                  ∀
+                                                    (keyTset.empty_contains :
+                                                      ∀ (elem : Key Room), a_1 elem a_2 = False),
+                                                    (∀ (s : KeySet), a_3 s = (f s = 0)) →
+                                                      ∀
+                                                        (keyTset.isEmpty_iff_count_zero :
+                                                          ∀ (s : KeySet), a_3 s = (f s = 0)),
+                                                        (∀ (elem : Key Room) (s : KeySet), a_1 elem (a_4 elem s)) →
+                                                          ∀
+                                                            (keyTset.contains_insert_self :
+                                                              ∀ (elem : Key Room) (s : KeySet), a_1 elem (a_4 elem s)),
+                                                            (∀ (elem₁ elem₂ : Key Room) (s : KeySet),
+                                                                elem₁ ≠ elem₂ → a_1 elem₁ (a_4 elem₂ s) = a_1 elem₁ s) →
+                                                              ⋯
+but is expected to have type
+  (∀ (a₁ : KeySet), f a₁ ≥ 0) → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (∀ (a₁ : KeySet), f a₁ ≥ 0)) fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun keyTset.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun keyTset.insert =>
+                forall_congr fun keyTset.remove =>
+                  forall_congr fun keyTset.ofList =>
+                    forall_congr fun keyTset.toList =>
+                      forall_congr fun keyTset.filter =>
+                        forall_congr fun keyTset.union =>
+                          forall_congr fun keyTset.diff =>
+                            forall_congr fun keyTset.intersection =>
+                              forall_congr fun keyTset.subsets =>
+                                forall_congr fun Position_Enum.noroom =>
+                                  forall_congr fun Position_Enum.room =>
+                                    forall_congr fun Occupied_Enum.nobody =>
+                                      forall_congr fun Occupied_Enum.body =>
+                                        forall_congr fun __veil_tag.CheckIn =>
+                                          forall_congr fun __veil_tag.CheckOut =>
+                                            forall_congr fun __veil_tag.EnterRoom =>
+                                              forall_congr fun __veil_tag.LeaveRoom =>
+                                                forall_congr fun st0.assignedKey =>
+                                                  forall_congr fun st0.registered =>
+                                                    forall_congr fun st0.roomKey => forall_congr ⋯))

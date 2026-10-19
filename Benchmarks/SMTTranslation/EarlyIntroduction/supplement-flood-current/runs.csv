@@ -1,0 +1,2 @@
+model,mode,depth,repeat,status,preprocessing_ms,nextSimp_ms,hoist_ms,failure_stage,failure_elapsed_ms,smt_status,smt_ms,query_bytes,process_status,process_wall_seconds
+FloodSet,current,16,1,failed,,9231,,hoist,15541,not_reached,,,exit0,35.802837

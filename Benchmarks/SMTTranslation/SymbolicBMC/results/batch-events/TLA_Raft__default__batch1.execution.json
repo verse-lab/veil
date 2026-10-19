@@ -1,0 +1,19 @@
+{
+  "batch_id": "TLA_Raft__default__batch1",
+  "source": "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch1.lean",
+  "log": "/tmp/veil-symbolic-bmc/results/batch-logs/TLA_Raft__default__batch1.log",
+  "exit_code": -9,
+  "wall_ms": 288081,
+  "setup_ms": 48961,
+  "timeout": "pipeline_timeout",
+  "active_cell": "TLA_Raft__d8__old__default",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/results/batch-sources/TLA_Raft__default__batch1.lean"
+  ]
+}

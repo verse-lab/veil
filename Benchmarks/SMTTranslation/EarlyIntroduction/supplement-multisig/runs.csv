@@ -1,0 +1,3 @@
+model,mode,depth,repeat,status,preprocessing_ms,nextSimp_ms,hoist_ms,failure_stage,failure_elapsed_ms,smt_status,smt_ms,query_bytes,process_status,process_wall_seconds
+MultiSigAll,early,16,1,complete,10832,4548,82,,,complete,2577,149725,exit0,76.128809
+MultiSigAll,early,32,1,complete,25894,8160,151,,,complete,4643,298909,exit0,76.128809

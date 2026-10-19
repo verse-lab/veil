@@ -1,0 +1,19 @@
+{
+  "group": "nat",
+  "source": "/tmp/veil-symbolic-bmc/aws-embedding-candidates/MinimalOriginal.lean",
+  "source_sha256": "6aa35f90c33ad8ef0cd383060f203895067b26a45d2fe928a00930f496816c88",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-symbolic-bmc/aws-embedding-candidates/MinimalOriginal.lean"
+  ],
+  "exit_code": 1,
+  "timeout": false,
+  "wall_ms": 2022,
+  "log": "/tmp/veil-symbolic-bmc/functional-diagnostics/MinimalOriginal.log",
+  "purpose": "functional diagnostic; not a performance observation"
+}

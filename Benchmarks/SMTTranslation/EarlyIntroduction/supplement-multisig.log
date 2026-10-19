@@ -1,0 +1,4 @@
+BEGIN MultiSigAll elapsed=0.0s
+  MultiSigAll early 16 r1:complete/10832
+  MultiSigAll early 32 r1:complete/25894
+END MultiSigAll exit0 wall=76.1s

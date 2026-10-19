@@ -1,0 +1,44 @@
+[
+  {
+    "cell_id": "Ivy_Ring__d1__early__default",
+    "identical_bytes": true,
+    "same_normalized_formula": true,
+    "old_sha256": "787191427739ed383e81ecb1bc9e5497a8791baa551b44d4364706655a77e165",
+    "scoped_sha256": "787191427739ed383e81ecb1bc9e5497a8791baa551b44d4364706655a77e165"
+  },
+  {
+    "cell_id": "Ivy_Ring__d1__old__default",
+    "identical_bytes": true,
+    "same_normalized_formula": true,
+    "old_sha256": "0b5cb0dcdee3224d9e7bab1b33f974baaa19c368557d89fff0c3a8d62f77a305",
+    "scoped_sha256": "0b5cb0dcdee3224d9e7bab1b33f974baaa19c368557d89fff0c3a8d62f77a305"
+  },
+  {
+    "cell_id": "Ivy_PaxosFirstOrder__d1__old__default",
+    "identical_bytes": true,
+    "same_normalized_formula": true,
+    "old_sha256": "cc83bc627544fe3a8bd452181a59d2267022a18775c6ae8b2b7e96ad2557e8bb",
+    "scoped_sha256": "cc83bc627544fe3a8bd452181a59d2267022a18775c6ae8b2b7e96ad2557e8bb"
+  },
+  {
+    "cell_id": "Ivy_PaxosFirstOrder__d1__early__default",
+    "identical_bytes": true,
+    "same_normalized_formula": true,
+    "old_sha256": "cba44f41c396913e1429d831933069d9a60e85316282db98994b9c7ce2ae1812",
+    "scoped_sha256": "cba44f41c396913e1429d831933069d9a60e85316282db98994b9c7ce2ae1812"
+  },
+  {
+    "cell_id": "AWS_AWSFixed__d1__early__default",
+    "identical_bytes": false,
+    "same_normalized_formula": true,
+    "old_sha256": "83f433d3ad05f9b1be1d0a370a52e8c3986dd25606b12b7e6c83d3bbb5b2ee09",
+    "scoped_sha256": "1e70a45f0f170d8d66721cd05cf53fa2310b31ac032bf87973e0a2068d76dd3f"
+  },
+  {
+    "cell_id": "AWS_AWSFixed__d1__old__default",
+    "identical_bytes": false,
+    "same_normalized_formula": true,
+    "old_sha256": "3004cb6ffe58b90abc6e7463a9d90ed2b55b32e4e7593538dc11205f78169e53",
+    "scoped_sha256": "168e7ea0f443be1a0bed2cec227fb87bd86ede9ae14c710765b7e66db800707e"
+  }
+]

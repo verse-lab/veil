@@ -1,0 +1,45 @@
+scalar control: expression and equality proof type-check
+/tmp/veil-symbolic-bmc/aws-embedding-candidates/MinimalWithDefaultOnly.lean:90:0: error: Application type mismatch: The argument
+  fun a =>
+    forall_prop_domain_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+      fun h =>
+      Eq.refl
+        (finPredicate
+          ⟨z.toNat,
+            Eq.substr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 10)) h⟩)
+has type
+  ∀ (a : z ≥ 0), (∀ (a : z.toNat < 10), finPredicate ⟨z.toNat, a⟩) = ∀ (a_1 : z < 10), finPredicate ⟨z.toNat, ⋯⟩
+but is expected to have type
+  z ≥ 0 → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (z ≥ 0)) fun a =>
+    forall_prop_domain_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+      fun h =>
+      Eq.refl
+        (finPredicate
+          ⟨z.toNat,
+            Eq.substr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 10)) h⟩)
+/tmp/veil-symbolic-bmc/aws-embedding-candidates/MinimalWithDefaultOnly.lean:94:0: error: Application type mismatch: The argument
+  fun a =>
+    implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+      (forall_prop_domain_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+        fun h =>
+        Eq.refl
+          (finPredicate
+            ⟨z.toNat,
+              Eq.substr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 10)) h⟩))
+has type
+  ∀ (a : z ≥ 0),
+    (z.toNat < 10 → ∀ (a : z.toNat < 10), finPredicate ⟨z.toNat, a⟩) =
+      (z < 10 → ∀ (a_2 : z < 10), finPredicate ⟨z.toNat, ⋯⟩)
+but is expected to have type
+  z ≥ 0 → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (z ≥ 0)) fun a =>
+    implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+      (forall_prop_domain_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+        fun h =>
+        Eq.refl
+          (finPredicate
+            ⟨z.toNat,
+              Eq.substr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 10)) h⟩))

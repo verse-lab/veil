@@ -1,0 +1,8 @@
+SOLVER_RESULT TwoPhaseCommit_old_4 status=sat solver_ms=49 smt_prep_ms=997 bytes=22993
+/tmp/veil-early-intro-multi/TwoPhaseCommit.lean:135:0: warning: declaration uses `sorry`
+SOLVER_RESULT TwoPhaseCommit_early_4 status=sat solver_ms=169 smt_prep_ms=946 bytes=22993
+/tmp/veil-early-intro-multi/TwoPhaseCommit.lean:149:0: warning: declaration uses `sorry`
+SOLVER_RESULT TwoPhaseCommit_old_8 status=sat solver_ms=94 smt_prep_ms=1242 bytes=44465
+/tmp/veil-early-intro-multi/TwoPhaseCommit.lean:164:0: warning: declaration uses `sorry`
+SOLVER_RESULT TwoPhaseCommit_early_8 status=sat solver_ms=169 smt_prep_ms=1934 bytes=44465
+/tmp/veil-early-intro-multi/TwoPhaseCommit.lean:178:0: warning: declaration uses `sorry`

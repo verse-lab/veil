@@ -1,0 +1,589 @@
+model,path,depth,variant,recorded,outcome_family,outcome_code,outcome,failure_phase,failure_kind,preprocessing_seconds,query_seconds,query_elaboration_seconds,solver_seconds,completed_solver_seconds,completed_seconds,cell_id
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.844,,0.038,,,,AWS_AWSBuggy__d1__old__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.558,,0.027,,,,AWS_AWSBuggy__d1__early__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,2,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.84,,0.029,,,,AWS_AWSBuggy__d2__old__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.001,,0.036,,,,AWS_AWSBuggy__d2__early__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,4,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,4.159,,0.036,,,,AWS_AWSBuggy__d4__old__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.202,,0.046,,,,AWS_AWSBuggy__d4__early__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,8,old,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,13.74,,0.051,,,,AWS_AWSBuggy__d8__old__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,8,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.634,,0.045,,,,AWS_AWSBuggy__d8__early__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.081,,,,AWS_AWSBuggy__d16__old__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,11.88,,0.087,,,,AWS_AWSBuggy__d16__early__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.156,,,,AWS_AWSBuggy__d32__old__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,32,early,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.141,,,,AWS_AWSBuggy__d32__early__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.671,1.121,0.024,0.037,0.037,1.158,AWS_AWSFixed__d1__old__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.42,0.859,0.028,0.034,0.034,0.893,AWS_AWSFixed__d1__early__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,1.437,2.575,0.028,0.113,0.113,2.688,AWS_AWSFixed__d2__old__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.633,1.884,0.026,0.101,0.101,1.985,AWS_AWSFixed__d2__early__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,4,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,3.914,8.728,0.037,10.026,,,AWS_AWSFixed__d4__old__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.183,5.537,0.031,7.266,7.266,12.803,AWS_AWSFixed__d4__early__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,8,old,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,12.335,,0.06,,,,AWS_AWSFixed__d8__old__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,8,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.671,,0.061,,,,AWS_AWSFixed__d8__early__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.077,,,,AWS_AWSFixed__d16__old__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,5.911,,0.092,,,,AWS_AWSFixed__d16__early__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.168,,,,AWS_AWSFixed__d32__old__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,16.341,,0.162,,,,AWS_AWSFixed__d32__early__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,3.485,3.569,0.062,0.067,0.067,3.636,Ivy_Blockchain__d1__old__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.154,1.229,0.041,0.059,0.059,1.288,Ivy_Blockchain__d1__early__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,7.951,8.078,0.046,0.106,0.106,8.184,Ivy_Blockchain__d2__old__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,2.162,2.304,0.053,0.103,0.103,2.407,Ivy_Blockchain__d2__early__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,4,old,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.057,,,,Ivy_Blockchain__d4__old__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,6.1,6.298,0.058,0.199,0.199,6.497,Ivy_Blockchain__d4__early__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.114,,,,Ivy_Blockchain__d8__old__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,8,early,True,simp_steps,H:S,Simplifier step limit; hoist,hoist,simp_steps,,,0.109,,,,Ivy_Blockchain__d8__early__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.177,,,,Ivy_Blockchain__d16__old__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,16,early,True,simp_steps,H:S,Simplifier step limit; hoist,hoist,simp_steps,,,0.138,,,,Ivy_Blockchain__d16__early__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.33,,,,Ivy_Blockchain__d32__old__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,32,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.324,,,,Ivy_Blockchain__d32__early__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,1,old,True,solver_error,Q:!,Solver error: error,solver,solver_error,3.581,3.747,0.035,0.01,,,Ivy_ChordRingMaintenance__d1__old__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,1,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,0.877,0.999,0.035,0.01,,,Ivy_ChordRingMaintenance__d1__early__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,2,old,True,solver_error,Q:!,Solver error: error,solver,solver_error,11.49,11.76,0.055,0.009,,,Ivy_ChordRingMaintenance__d2__old__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,2,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,1.325,1.523,0.043,0.01,,,Ivy_ChordRingMaintenance__d2__early__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,4,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.064,,,,Ivy_ChordRingMaintenance__d4__old__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,4,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,2.476,2.792,0.056,0.01,,,Ivy_ChordRingMaintenance__d4__early__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.097,,,,Ivy_ChordRingMaintenance__d8__old__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,8,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,4.701,5.316,0.096,0.01,,,Ivy_ChordRingMaintenance__d8__early__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.172,,,,Ivy_ChordRingMaintenance__d16__old__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,16,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,11.082,12.254,0.189,0.011,,,Ivy_ChordRingMaintenance__d16__early__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.434,,,,Ivy_ChordRingMaintenance__d32__old__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,32,early,True,heartbeat,D:B,Heartbeat limit; dsimp1,dsimp1,heartbeats,,,0.466,,,,Ivy_ChordRingMaintenance__d32__early__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.5,0.533,0.022,0.016,0.016,0.549,Ivy_DecentralizedLock__d1__old__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.13,0.16,0.017,0.017,0.017,0.177,Ivy_DecentralizedLock__d1__early__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.816,0.851,0.019,0.018,0.018,0.869,Ivy_DecentralizedLock__d2__old__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.208,0.252,0.019,0.016,0.016,0.268,Ivy_DecentralizedLock__d2__early__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,2.054,2.115,0.023,0.026,0.026,2.141,Ivy_DecentralizedLock__d4__old__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.311,0.368,0.025,0.022,0.022,0.39,Ivy_DecentralizedLock__d4__early__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,8,old,True,unsat,UNSAT,Solver returned UNSAT,,,7.042,7.142,0.046,0.037,0.037,7.179,Ivy_DecentralizedLock__d8__old__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,8,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.745,0.84,0.044,0.032,0.032,0.872,Ivy_DecentralizedLock__d8__early__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,16,old,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.051,,,,Ivy_DecentralizedLock__d16__old__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,16,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.409,1.576,0.055,0.051,0.051,1.627,Ivy_DecentralizedLock__d16__early__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.084,,,,Ivy_DecentralizedLock__d32__old__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,32,early,True,unsat,UNSAT,Solver returned UNSAT,,,3.415,3.804,0.136,0.121,0.121,3.925,Ivy_DecentralizedLock__d32__early__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,1.21,1.271,0.034,0.034,0.034,1.305,Ivy_MultiSigAll__d1__old__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.601,0.676,0.033,0.04,0.04,0.716,Ivy_MultiSigAll__d1__early__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,3.08,3.208,0.033,0.09,0.09,3.298,Ivy_MultiSigAll__d2__old__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.05,1.18,0.04,0.104,0.104,1.284,Ivy_MultiSigAll__d2__early__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,9.226,9.42,0.053,7.743,7.743,17.163,Ivy_MultiSigAll__d4__old__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.717,1.945,0.054,5.342,5.342,7.287,Ivy_MultiSigAll__d4__early__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.08,,,,Ivy_MultiSigAll__d8__old__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,3.639,4.056,0.074,10.03,,,Ivy_MultiSigAll__d8__early__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.145,,,,Ivy_MultiSigAll__d16__old__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,9.048,9.983,0.157,10.037,,,Ivy_MultiSigAll__d16__early__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.351,,,,Ivy_MultiSigAll__d32__old__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,32,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.321,,,,Ivy_MultiSigAll__d32__early__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,1.523,1.599,0.036,0.034,0.034,1.633,Ivy_MultiSigMajority__d1__old__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.508,0.587,0.03,0.035,0.035,0.622,Ivy_MultiSigMajority__d1__early__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,3.357,3.519,0.042,0.642,0.642,4.161,Ivy_MultiSigMajority__d2__old__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.946,1.067,0.043,0.665,0.665,1.732,Ivy_MultiSigMajority__d2__early__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,9.259,9.499,0.054,6.158,6.158,15.657,Ivy_MultiSigMajority__d4__old__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,2.12,2.379,0.063,6.751,6.751,9.13,Ivy_MultiSigMajority__d4__early__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.089,,,,Ivy_MultiSigMajority__d8__old__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,3.967,4.431,0.09,10.029,,,Ivy_MultiSigMajority__d8__early__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.159,,,,Ivy_MultiSigMajority__d16__old__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,9.03,9.916,0.165,10.035,,,Ivy_MultiSigMajority__d16__early__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.415,,,,Ivy_MultiSigMajority__d32__old__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,32,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.33,,,,Ivy_MultiSigMajority__d32__early__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,8.484,8.685,0.047,0.251,0.251,8.936,Ivy_NOPaxos__d1__old__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.719,1.929,0.044,0.275,0.275,2.204,Ivy_NOPaxos__d1__early__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,2,old,True,heartbeat,D:B,Heartbeat limit; dsimp1,dsimp1,heartbeats,,,0.051,,,,Ivy_NOPaxos__d2__old__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,2.822,3.182,0.048,0.648,0.648,3.83,Ivy_NOPaxos__d2__early__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,4,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.077,,,,Ivy_NOPaxos__d4__old__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,6.102,6.752,0.063,5.806,5.806,12.558,Ivy_NOPaxos__d4__early__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,8,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.137,,,,Ivy_NOPaxos__d8__old__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,14.829,16.302,0.113,10.051,,,Ivy_NOPaxos__d8__early__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.308,,,,Ivy_NOPaxos__d16__old__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,16,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.248,,,,Ivy_NOPaxos__d16__early__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.584,,,,Ivy_NOPaxos__d32__old__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,32,early,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.479,,,,Ivy_NOPaxos__d32__early__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,1,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.786,,0.032,,,,Ivy_PaxosEPR__d1__old__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.339,,0.03,,,,Ivy_PaxosEPR__d1__early__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,2,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,4.151,,0.034,,,,Ivy_PaxosEPR__d2__old__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.613,,0.033,,,,Ivy_PaxosEPR__d2__early__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,4,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,12.212,,0.046,,,,Ivy_PaxosEPR__d4__old__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.245,,0.038,,,,Ivy_PaxosEPR__d4__early__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.061,,,,Ivy_PaxosEPR__d8__old__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.688,,0.083,,,,Ivy_PaxosEPR__d8__early__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.112,,,,Ivy_PaxosEPR__d16__old__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,16,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,6.604,,0.13,,,,Ivy_PaxosEPR__d16__early__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.262,,,,Ivy_PaxosEPR__d32__old__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,32,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,16.812,,0.243,,,,Ivy_PaxosEPR__d32__early__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,1.631,1.696,0.029,0.051,0.051,1.747,Ivy_PaxosFirstOrder__d1__old__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.523,0.596,0.034,0.052,0.052,0.648,Ivy_PaxosFirstOrder__d1__early__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,3.659,3.769,0.034,0.25,0.25,4.019,Ivy_PaxosFirstOrder__d2__old__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.583,0.689,0.029,0.316,0.316,1.005,Ivy_PaxosFirstOrder__d2__early__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,4,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,11.223,11.396,0.053,10.024,,,Ivy_PaxosFirstOrder__d4__old__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,4,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.323,1.519,0.043,10.023,,,Ivy_PaxosFirstOrder__d4__early__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.066,,,,Ivy_PaxosFirstOrder__d8__old__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.321,2.652,0.066,10.029,,,Ivy_PaxosFirstOrder__d8__early__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.11,,,,Ivy_PaxosFirstOrder__d16__old__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,5.318,5.971,0.105,10.029,,,Ivy_PaxosFirstOrder__d16__early__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.246,,,,Ivy_PaxosFirstOrder__d32__old__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,15.042,16.397,0.249,10.056,,,Ivy_PaxosFirstOrder__d32__early__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,1,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.632,,0.071,,,,Ivy_ReliableBroadcast__d1__old__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.627,,0.067,,,,Ivy_ReliableBroadcast__d1__early__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,2,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.881,,0.069,,,,Ivy_ReliableBroadcast__d2__old__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.005,,0.077,,,,Ivy_ReliableBroadcast__d2__early__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,4,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,7.935,,0.089,,,,Ivy_ReliableBroadcast__d4__old__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.827,,0.072,,,,Ivy_ReliableBroadcast__d4__early__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.127,,,,Ivy_ReliableBroadcast__d8__old__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,3.802,,0.121,,,,Ivy_ReliableBroadcast__d8__early__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.296,,,,Ivy_ReliableBroadcast__d16__old__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,16,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,7.89,,0.309,,,,Ivy_ReliableBroadcast__d16__early__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.453,,,,Ivy_ReliableBroadcast__d32__old__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,32,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,19.889,,0.409,,,,Ivy_ReliableBroadcast__d32__early__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.503,0.529,0.019,0.026,0.026,0.555,Ivy_RicartAgrawala__d1__old__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.209,0.239,0.031,0.031,0.031,0.27,Ivy_RicartAgrawala__d1__early__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,1.126,1.183,0.023,0.094,0.094,1.277,Ivy_RicartAgrawala__d2__old__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.306,0.359,0.024,0.117,0.117,0.476,Ivy_RicartAgrawala__d2__early__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,3.04,3.132,0.03,1.538,1.538,4.67,Ivy_RicartAgrawala__d4__old__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.542,0.643,0.044,1.029,1.029,1.672,Ivy_RicartAgrawala__d4__early__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,8,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,11.161,11.304,0.039,10.014,,,Ivy_RicartAgrawala__d8__old__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.107,1.239,0.044,10.016,,,Ivy_RicartAgrawala__d8__early__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.087,,,,Ivy_RicartAgrawala__d16__old__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.361,2.63,0.075,10.023,,,Ivy_RicartAgrawala__d16__early__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.129,,,,Ivy_RicartAgrawala__d32__old__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,6.164,6.745,0.129,10.026,,,Ivy_RicartAgrawala__d32__early__default
+Ivy_Ring,Examples/Ivy/Ring.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.462,0.503,0.018,0.029,0.029,0.532,Ivy_Ring__d1__old__default
+Ivy_Ring,Examples/Ivy/Ring.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.12,0.153,0.015,0.025,0.025,0.178,Ivy_Ring__d1__early__default
+Ivy_Ring,Examples/Ivy/Ring.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,1.006,1.053,0.02,0.036,0.036,1.089,Ivy_Ring__d2__old__default
+Ivy_Ring,Examples/Ivy/Ring.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.226,0.281,0.015,0.038,0.038,0.319,Ivy_Ring__d2__early__default
+Ivy_Ring,Examples/Ivy/Ring.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,2.362,2.434,0.018,0.249,0.249,2.683,Ivy_Ring__d4__old__default
+Ivy_Ring,Examples/Ivy/Ring.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.375,0.447,0.019,0.155,0.155,0.602,Ivy_Ring__d4__early__default
+Ivy_Ring,Examples/Ivy/Ring.lean,8,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,8.367,8.509,0.034,10.013,,,Ivy_Ring__d8__old__default
+Ivy_Ring,Examples/Ivy/Ring.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.85,0.965,0.033,10.013,,,Ivy_Ring__d8__early__default
+Ivy_Ring,Examples/Ivy/Ring.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.05,,,,Ivy_Ring__d16__old__default
+Ivy_Ring,Examples/Ivy/Ring.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.257,2.488,0.075,10.013,,,Ivy_Ring__d16__early__default
+Ivy_Ring,Examples/Ivy/Ring.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.106,,,,Ivy_Ring__d32__old__default
+Ivy_Ring,Examples/Ivy/Ring.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.993,5.488,0.087,10.019,,,Ivy_Ring__d32__early__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,1,old,True,solver_error,Q:!,Solver error: error,solver,solver_error,2.24,2.339,0.026,0.008,,,Ivy_SuzukiKasami__d1__old__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,1,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,0.695,0.808,0.034,0.008,,,Ivy_SuzukiKasami__d1__early__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,2,old,True,solver_error,Q:!,Solver error: error,solver,solver_error,5.463,5.634,0.03,0.01,,,Ivy_SuzukiKasami__d2__old__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,2,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,1.198,1.358,0.037,0.012,,,Ivy_SuzukiKasami__d2__early__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,4,old,True,solver_error,Q:!,Solver error: error,solver,solver_error,16.567,16.868,0.035,0.008,,,Ivy_SuzukiKasami__d4__old__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,4,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,2.344,2.665,0.04,0.01,,,Ivy_SuzukiKasami__d4__early__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.064,,,,Ivy_SuzukiKasami__d8__old__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,8,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,4.885,5.491,0.077,0.009,,,Ivy_SuzukiKasami__d8__early__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.128,,,,Ivy_SuzukiKasami__d16__old__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,16,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,11.765,12.817,0.103,0.009,,,Ivy_SuzukiKasami__d16__early__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.277,,,,Ivy_SuzukiKasami__d32__old__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,32,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.235,,,,Ivy_SuzukiKasami__d32__early__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.66,0.704,0.032,0.03,0.03,0.734,Ivy_TwoPhaseCommit__d1__old__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.244,0.285,0.031,0.036,0.036,0.321,Ivy_TwoPhaseCommit__d1__early__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,1.491,1.556,0.035,0.083,0.083,1.639,Ivy_TwoPhaseCommit__d2__old__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.342,0.404,0.026,0.09,0.09,0.494,Ivy_TwoPhaseCommit__d2__early__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,3.987,4.096,0.034,0.812,0.812,4.908,Ivy_TwoPhaseCommit__d4__old__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.66,0.763,0.044,0.646,0.646,1.409,Ivy_TwoPhaseCommit__d4__early__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,8,old,True,unsat,UNSAT,Solver returned UNSAT,,,12.981,13.165,0.063,6.893,6.893,20.058,Ivy_TwoPhaseCommit__d8__old__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,8,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.461,1.691,0.059,8.099,8.099,9.79,Ivy_TwoPhaseCommit__d8__early__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.08,,,,Ivy_TwoPhaseCommit__d16__old__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.838,3.225,0.085,10.033,,,Ivy_TwoPhaseCommit__d16__early__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.171,,,,Ivy_TwoPhaseCommit__d32__old__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,7.669,8.445,0.197,10.041,,,Ivy_TwoPhaseCommit__d32__early__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,1,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,4.176,,0.037,,,,Ivy_VerticalPaxosFirstOrder__d1__old__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.355,,0.045,,,,Ivy_VerticalPaxosFirstOrder__d1__early__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,2,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,11.36,,0.042,,,,Ivy_VerticalPaxosFirstOrder__d2__old__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.651,,0.042,,,,Ivy_VerticalPaxosFirstOrder__d2__early__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,4,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.055,,,,Ivy_VerticalPaxosFirstOrder__d4__old__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,3.954,,0.054,,,,Ivy_VerticalPaxosFirstOrder__d4__early__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,8,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.101,,,,Ivy_VerticalPaxosFirstOrder__d8__old__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,14.494,,0.099,,,,Ivy_VerticalPaxosFirstOrder__d8__early__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.192,,,,Ivy_VerticalPaxosFirstOrder__d16__old__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,16,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.17,,,,Ivy_VerticalPaxosFirstOrder__d16__early__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.474,,,,Ivy_VerticalPaxosFirstOrder__d32__old__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,32,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.566,,,,Ivy_VerticalPaxosFirstOrder__d32__early__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.127,0.179,0.013,0.029,0.029,0.208,Puzzles_DieHard__d1__old__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.081,0.123,0.013,0.025,0.025,0.148,Puzzles_DieHard__d1__early__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.171,0.238,0.014,0.045,0.045,0.283,Puzzles_DieHard__d2__old__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.111,0.176,0.014,0.05,0.05,0.226,Puzzles_DieHard__d2__early__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.334,0.455,0.018,0.126,0.126,0.581,Puzzles_DieHard__d4__old__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.19,0.338,0.019,0.129,0.129,0.467,Puzzles_DieHard__d4__early__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,8,old,True,sat,SAT,Solver returned SAT,,,0.914,1.293,0.028,0.379,0.379,1.672,Puzzles_DieHard__d8__old__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,8,early,True,sat,SAT,Solver returned SAT,,,0.369,0.745,0.027,0.367,0.367,1.112,Puzzles_DieHard__d8__early__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,16,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.598,4.008,0.058,10.017,,,Puzzles_DieHard__d16__old__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.874,2.113,0.056,10.02,,,Puzzles_DieHard__d16__early__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,32,old,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,9.593,,0.101,,,,Puzzles_DieHard__d32__old__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.306,,0.107,,,,Puzzles_DieHard__d32__early__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,1,old,True,sat,SAT,Solver returned SAT,,,0.253,0.324,0.036,0.014,0.014,0.338,Puzzles_Prisoners__d1__old__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,1,early,True,sat,SAT,Solver returned SAT,,,0.147,0.231,0.038,0.015,0.015,0.246,Puzzles_Prisoners__d1__early__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,2,old,True,sat,SAT,Solver returned SAT,,,0.431,0.557,0.032,0.023,0.023,0.58,Puzzles_Prisoners__d2__old__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,2,early,True,sat,SAT,Solver returned SAT,,,0.162,0.277,0.037,0.017,0.017,0.294,Puzzles_Prisoners__d2__early__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,4,old,True,sat,SAT,Solver returned SAT,,,1.006,1.276,0.039,0.05,0.05,1.326,Puzzles_Prisoners__d4__old__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,4,early,True,sat,SAT,Solver returned SAT,,,0.25,0.518,0.038,0.052,0.052,0.57,Puzzles_Prisoners__d4__early__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,8,old,True,sat,SAT,Solver returned SAT,,,2.246,2.961,0.06,0.302,0.302,3.263,Puzzles_Prisoners__d8__old__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,8,early,True,sat,SAT,Solver returned SAT,,,0.46,1.238,0.055,0.335,0.335,1.573,Puzzles_Prisoners__d8__early__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,16,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,6.848,10.04,0.073,10.02,,,Puzzles_Prisoners__d16__old__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.835,4.002,0.053,10.016,,,Puzzles_Prisoners__d16__early__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,32,old,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.116,,,,Puzzles_Prisoners__d32__old__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.192,,0.085,,,,Puzzles_Prisoners__d32__early__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.258,0.279,0.014,0.017,0.017,0.296,Puzzles_RiverCrossing__d1__old__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.087,0.105,0.014,0.018,0.018,0.123,Puzzles_RiverCrossing__d1__early__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.436,0.463,0.02,0.018,0.018,0.481,Puzzles_RiverCrossing__d2__old__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.137,0.163,0.016,0.021,0.021,0.184,Puzzles_RiverCrossing__d2__early__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,1.065,1.109,0.022,0.025,0.025,1.134,Puzzles_RiverCrossing__d4__old__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.285,0.335,0.023,0.024,0.024,0.359,Puzzles_RiverCrossing__d4__early__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,8,old,True,unsat,UNSAT,Solver returned UNSAT,,,2.863,2.937,0.031,0.035,0.035,2.972,Puzzles_RiverCrossing__d8__old__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,8,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.529,0.608,0.032,0.039,0.039,0.647,Puzzles_RiverCrossing__d8__early__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,16,old,True,unsat,UNSAT,Solver returned UNSAT,,,9.234,9.397,0.055,0.069,0.069,9.466,Puzzles_RiverCrossing__d16__old__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,16,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.178,1.33,0.051,0.08,0.08,1.41,Puzzles_RiverCrossing__d16__early__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,32,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.104,,,,Puzzles_RiverCrossing__d32__old__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,32,early,True,unsat,UNSAT,Solver returned UNSAT,,,2.84,3.143,0.09,0.219,0.219,3.362,Puzzles_RiverCrossing__d32__early__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.357,0.389,0.022,0.027,0.027,0.416,Simulate_CheckpointLeaseFailover__d1__old__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.245,0.284,0.027,0.029,0.029,0.313,Simulate_CheckpointLeaseFailover__d1__early__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.809,0.863,0.028,0.062,0.062,0.925,Simulate_CheckpointLeaseFailover__d2__old__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.263,0.31,0.025,0.057,0.057,0.367,Simulate_CheckpointLeaseFailover__d2__early__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,4,old,True,sat,SAT,Solver returned SAT,,,1.744,1.839,0.039,0.293,0.293,2.132,Simulate_CheckpointLeaseFailover__d4__old__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,4,early,True,sat,SAT,Solver returned SAT,,,0.473,0.55,0.037,0.304,0.304,0.854,Simulate_CheckpointLeaseFailover__d4__early__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,8,old,True,sat,SAT,Solver returned SAT,,,5.536,5.684,0.044,1.69,1.69,7.374,Simulate_CheckpointLeaseFailover__d8__old__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,8,early,True,sat,SAT,Solver returned SAT,,,0.97,1.118,0.052,2.166,2.166,3.284,Simulate_CheckpointLeaseFailover__d8__early__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.093,,,,Simulate_CheckpointLeaseFailover__d16__old__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.34,2.627,0.082,10.031,,,Simulate_CheckpointLeaseFailover__d16__early__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.15,,,,Simulate_CheckpointLeaseFailover__d32__old__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,5.839,6.377,0.184,10.03,,,Simulate_CheckpointLeaseFailover__d32__early__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.409,0.446,0.025,0.022,0.022,0.468,Simulate_LeaseKeepaliveRace__d1__old__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.169,0.2,0.021,0.026,0.026,0.226,Simulate_LeaseKeepaliveRace__d1__early__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.822,0.874,0.025,0.065,0.065,0.939,Simulate_LeaseKeepaliveRace__d2__old__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.275,0.323,0.024,0.055,0.055,0.378,Simulate_LeaseKeepaliveRace__d2__early__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,2.239,2.327,0.032,0.828,0.828,3.155,Simulate_LeaseKeepaliveRace__d4__old__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.535,0.635,0.05,1.016,1.016,1.651,Simulate_LeaseKeepaliveRace__d4__early__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,8,old,True,sat,SAT,Solver returned SAT,,,6.486,6.644,0.046,0.119,0.119,6.763,Simulate_LeaseKeepaliveRace__d8__old__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,8,early,True,sat,SAT,Solver returned SAT,,,1.208,1.359,0.043,0.119,0.119,1.478,Simulate_LeaseKeepaliveRace__d8__early__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.084,,,,Simulate_LeaseKeepaliveRace__d16__old__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,16,early,True,sat,SAT,Solver returned SAT,,,2.597,2.884,0.08,0.247,0.247,3.131,Simulate_LeaseKeepaliveRace__d16__early__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.213,,,,Simulate_LeaseKeepaliveRace__d32__old__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,32,early,True,sat,SAT,Solver returned SAT,,,6.723,7.402,0.149,0.833,0.833,8.235,Simulate_LeaseKeepaliveRace__d32__early__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.613,0.643,0.02,0.033,0.033,0.676,Simulate_ReliableBroadcast__d1__old__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.235,0.267,0.02,0.037,0.037,0.304,Simulate_ReliableBroadcast__d1__early__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,1.172,1.224,0.02,0.069,0.069,1.293,Simulate_ReliableBroadcast__d2__old__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.294,0.343,0.023,0.045,0.045,0.388,Simulate_ReliableBroadcast__d2__early__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,4.049,4.146,0.034,5.907,5.907,10.053,Simulate_ReliableBroadcast__d4__old__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,4,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.532,0.611,0.027,10.022,,,Simulate_ReliableBroadcast__d4__early__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,8,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,15.291,15.491,0.042,10.019,,,Simulate_ReliableBroadcast__d8__old__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.426,1.682,0.047,10.017,,,Simulate_ReliableBroadcast__d8__early__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.108,,,,Simulate_ReliableBroadcast__d16__old__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,3.32,3.656,0.101,10.031,,,Simulate_ReliableBroadcast__d16__early__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.14,,,,Simulate_ReliableBroadcast__d32__old__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,8.002,8.699,0.154,10.036,,,Simulate_ReliableBroadcast__d32__early__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,1,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,6.51,,0.038,,,,StellarConsensus_SCP__d1__old__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.412,,0.035,,,,StellarConsensus_SCP__d1__early__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,2,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,17.067,,0.057,,,,StellarConsensus_SCP__d2__old__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.574,,0.048,,,,StellarConsensus_SCP__d2__early__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,4,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.073,,,,StellarConsensus_SCP__d4__old__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,4.817,,0.071,,,,StellarConsensus_SCP__d4__early__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.088,,,,StellarConsensus_SCP__d8__old__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,10.95,,0.104,,,,StellarConsensus_SCP__d8__early__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.222,,,,StellarConsensus_SCP__d16__old__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,16,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.185,,,,StellarConsensus_SCP__d16__early__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.456,,,,StellarConsensus_SCP__d32__old__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,32,early,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.473,,,,StellarConsensus_SCP__d32__early__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,1,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.672,,0.024,,,,Synchronous_FasterFloodSet__d1__old__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.381,,0.031,,,,Synchronous_FasterFloodSet__d1__early__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,2,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.435,,0.025,,,,Synchronous_FasterFloodSet__d2__old__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.698,,0.036,,,,Synchronous_FasterFloodSet__d2__early__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,4,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,3.179,,0.038,,,,Synchronous_FasterFloodSet__d4__old__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.375,,0.038,,,,Synchronous_FasterFloodSet__d4__early__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,8,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,8.272,,0.049,,,,Synchronous_FasterFloodSet__d8__old__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,4.076,,0.045,,,,Synchronous_FasterFloodSet__d8__early__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,16,old,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.069,,,,Synchronous_FasterFloodSet__d16__old__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,16,early,True,simp_steps,H:S,Simplifier step limit; hoist,hoist,simp_steps,,,0.076,,,,Synchronous_FasterFloodSet__d16__early__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,32,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.128,,,,Synchronous_FasterFloodSet__d32__old__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,32,early,True,simp_steps,H:S,Simplifier step limit; hoist,hoist,simp_steps,,,0.115,,,,Synchronous_FasterFloodSet__d32__early__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.633,0.833,0.027,0.036,0.036,0.869,Synchronous_FloodSet__d1__old__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.316,0.535,0.022,0.032,0.032,0.567,Synchronous_FloodSet__d1__early__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,1.41,1.871,0.022,0.063,0.063,1.934,Synchronous_FloodSet__d2__old__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.565,1.017,0.028,0.075,0.075,1.092,Synchronous_FloodSet__d2__early__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,4,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,3.572,4.611,0.03,10.016,,,Synchronous_FloodSet__d4__old__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,4,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.247,2.387,0.035,10.017,,,Synchronous_FloodSet__d4__early__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,8,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,10.675,14.573,0.043,10.021,,,Synchronous_FloodSet__d8__old__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,3.718,7.441,0.042,10.019,,,Synchronous_FloodSet__d8__early__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,16,old,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.058,,,,Synchronous_FloodSet__d16__old__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,19.144,,0.054,,,,Synchronous_FloodSet__d16__early__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,32,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.096,,,,Synchronous_FloodSet__d32__old__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,32,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.088,,,,Synchronous_FloodSet__d32__early__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.479,,0.029,,,,TLA_AWSDnsRace__d1__old__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.354,,0.028,,,,TLA_AWSDnsRace__d1__early__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,2,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.979,,0.029,,,,TLA_AWSDnsRace__d2__old__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.548,,0.032,,,,TLA_AWSDnsRace__d2__early__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,4,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.204,,0.028,,,,TLA_AWSDnsRace__d4__old__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.127,,0.04,,,,TLA_AWSDnsRace__d4__early__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,8,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,6.863,,0.046,,,,TLA_AWSDnsRace__d8__old__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.319,,0.051,,,,TLA_AWSDnsRace__d8__early__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.061,,,,TLA_AWSDnsRace__d16__old__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,6.189,,0.069,,,,TLA_AWSDnsRace__d16__early__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,32,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.121,,,,TLA_AWSDnsRace__d32__old__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,17.372,,0.115,,,,TLA_AWSDnsRace__d32__early__default
+TLA_Bakery,Examples/TLA/Bakery.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.502,,0.03,,,,TLA_Bakery__d1__old__default
+TLA_Bakery,Examples/TLA/Bakery.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.605,,0.024,,,,TLA_Bakery__d1__early__default
+TLA_Bakery,Examples/TLA/Bakery.lean,2,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,6.393,,0.041,,,,TLA_Bakery__d2__old__default
+TLA_Bakery,Examples/TLA/Bakery.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.192,,0.035,,,,TLA_Bakery__d2__early__default
+TLA_Bakery,Examples/TLA/Bakery.lean,4,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,26.414,,0.063,,,,TLA_Bakery__d4__old__default
+TLA_Bakery,Examples/TLA/Bakery.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.744,,0.058,,,,TLA_Bakery__d4__early__default
+TLA_Bakery,Examples/TLA/Bakery.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.106,,,,TLA_Bakery__d8__old__default
+TLA_Bakery,Examples/TLA/Bakery.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,5.819,,0.094,,,,TLA_Bakery__d8__early__default
+TLA_Bakery,Examples/TLA/Bakery.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.156,,,,TLA_Bakery__d16__old__default
+TLA_Bakery,Examples/TLA/Bakery.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,12.434,,0.164,,,,TLA_Bakery__d16__early__default
+TLA_Bakery,Examples/TLA/Bakery.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.348,,,,TLA_Bakery__d32__old__default
+TLA_Bakery,Examples/TLA/Bakery.lean,32,early,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.308,,,,TLA_Bakery__d32__early__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.661,,0.096,,,,TLA_BcastByz__d1__old__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.35,,0.088,,,,TLA_BcastByz__d1__early__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,2,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.136,,0.105,,,,TLA_BcastByz__d2__old__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.482,,0.077,,,,TLA_BcastByz__d2__early__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,4,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.583,,0.107,,,,TLA_BcastByz__d4__old__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.716,,0.09,,,,TLA_BcastByz__d4__early__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,8,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,6.201,,0.071,,,,TLA_BcastByz__d8__old__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.721,,0.128,,,,TLA_BcastByz__d8__early__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.121,,,,TLA_BcastByz__d16__old__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.674,,0.106,,,,TLA_BcastByz__d16__early__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.196,,,,TLA_BcastByz__d32__old__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,7.334,,0.175,,,,TLA_BcastByz__d32__early__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.161,,0.014,,,,TLA_BuggyCircularBuffer__d1__old__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.106,,0.011,,,,TLA_BuggyCircularBuffer__d1__early__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,2,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.287,,0.015,,,,TLA_BuggyCircularBuffer__d2__old__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.191,,0.013,,,,TLA_BuggyCircularBuffer__d2__early__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,4,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.529,,0.014,,,,TLA_BuggyCircularBuffer__d4__old__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.409,,0.014,,,,TLA_BuggyCircularBuffer__d4__early__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,8,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.632,,0.021,,,,TLA_BuggyCircularBuffer__d8__old__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.773,,0.019,,,,TLA_BuggyCircularBuffer__d8__early__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,16,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,4.65,,0.028,,,,TLA_BuggyCircularBuffer__d16__old__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,16,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.935,,0.028,,,,TLA_BuggyCircularBuffer__d16__early__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,32,old,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,17.71,,0.065,,,,TLA_BuggyCircularBuffer__d32__old__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,7.842,,0.047,,,,TLA_BuggyCircularBuffer__d32__early__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,1,old,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,16.207,,0.053,,,,TLA_EPaxos__d1__old__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,1,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.772,,0.064,,,,TLA_EPaxos__d1__early__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,2,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.07,,,,TLA_EPaxos__d2__old__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,2,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,3.874,,0.094,,,,TLA_EPaxos__d2__early__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,4,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.124,,,,TLA_EPaxos__d4__old__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,4,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,8.002,,0.125,,,,TLA_EPaxos__d4__early__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,8,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.225,,,,TLA_EPaxos__d8__old__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,8,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,23.307,,0.206,,,,TLA_EPaxos__d8__early__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.474,,,,TLA_EPaxos__d16__old__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,16,early,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.472,,,,TLA_EPaxos__d16__early__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,1.079,,,,TLA_EPaxos__d32__old__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,32,early,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,1.108,,,,TLA_EPaxos__d32__early__default
+TLA_EWD840,Examples/TLA/EWD840.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.545,,0.042,,,,TLA_EWD840__d1__old__default
+TLA_EWD840,Examples/TLA/EWD840.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.283,,0.047,,,,TLA_EWD840__d1__early__default
+TLA_EWD840,Examples/TLA/EWD840.lean,2,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.197,,0.049,,,,TLA_EWD840__d2__old__default
+TLA_EWD840,Examples/TLA/EWD840.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.412,,0.043,,,,TLA_EWD840__d2__early__default
+TLA_EWD840,Examples/TLA/EWD840.lean,4,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.548,,0.042,,,,TLA_EWD840__d4__old__default
+TLA_EWD840,Examples/TLA/EWD840.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.687,,0.049,,,,TLA_EWD840__d4__early__default
+TLA_EWD840,Examples/TLA/EWD840.lean,8,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,8.096,,0.054,,,,TLA_EWD840__d8__old__default
+TLA_EWD840,Examples/TLA/EWD840.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.59,,0.061,,,,TLA_EWD840__d8__early__default
+TLA_EWD840,Examples/TLA/EWD840.lean,16,old,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.107,,,,TLA_EWD840__d16__old__default
+TLA_EWD840,Examples/TLA/EWD840.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.824,,0.117,,,,TLA_EWD840__d16__early__default
+TLA_EWD840,Examples/TLA/EWD840.lean,32,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.156,,,,TLA_EWD840__d32__old__default
+TLA_EWD840,Examples/TLA/EWD840.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,13.396,,0.162,,,,TLA_EWD840__d32__early__default
+TLA_German,Examples/TLA/German.lean,1,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.423,,0.039,,,,TLA_German__d1__old__default
+TLA_German,Examples/TLA/German.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.646,,0.036,,,,TLA_German__d1__early__default
+TLA_German,Examples/TLA/German.lean,2,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,6.014,,0.041,,,,TLA_German__d2__old__default
+TLA_German,Examples/TLA/German.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.915,,0.049,,,,TLA_German__d2__early__default
+TLA_German,Examples/TLA/German.lean,4,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,19.544,,0.079,,,,TLA_German__d4__old__default
+TLA_German,Examples/TLA/German.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.949,,0.062,,,,TLA_German__d4__early__default
+TLA_German,Examples/TLA/German.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.102,,,,TLA_German__d8__old__default
+TLA_German,Examples/TLA/German.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,4.615,,0.125,,,,TLA_German__d8__early__default
+TLA_German,Examples/TLA/German.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.254,,,,TLA_German__d16__old__default
+TLA_German,Examples/TLA/German.lean,16,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,10.962,,0.264,,,,TLA_German__d16__early__default
+TLA_German,Examples/TLA/German.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.545,,,,TLA_German__d32__old__default
+TLA_German,Examples/TLA/German.lean,32,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.534,,,,TLA_German__d32__early__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.914,,0.066,,,,TLA_KVSnap__d1__old__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.381,,0.065,,,,TLA_KVSnap__d1__early__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,2,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.748,,0.084,,,,TLA_KVSnap__d2__old__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.745,,0.068,,,,TLA_KVSnap__d2__early__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,4,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,4.193,,0.104,,,,TLA_KVSnap__d4__old__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.246,,0.108,,,,TLA_KVSnap__d4__early__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,8,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,13.022,,0.156,,,,TLA_KVSnap__d8__old__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.578,,0.139,,,,TLA_KVSnap__d8__early__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.147,,,,TLA_KVSnap__d16__old__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,5.656,,0.153,,,,TLA_KVSnap__d16__early__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.29,,,,TLA_KVSnap__d32__old__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,14.168,,0.257,,,,TLA_KVSnap__d32__early__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.536,,0.161,,,,TLA_KeyValueStore__d1__old__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.478,,0.216,,,,TLA_KeyValueStore__d1__early__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,2,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,3.515,,0.2,,,,TLA_KeyValueStore__d2__old__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.635,,0.169,,,,TLA_KeyValueStore__d2__early__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,4,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,11.094,,0.215,,,,TLA_KeyValueStore__d4__old__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.172,,0.192,,,,TLA_KeyValueStore__d4__early__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.366,,,,TLA_KeyValueStore__d8__old__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,8,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.941,,0.422,,,,TLA_KeyValueStore__d8__early__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.498,,,,TLA_KeyValueStore__d16__old__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,6.197,,0.457,,,,TLA_KeyValueStore__d16__early__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.898,,,,TLA_KeyValueStore__d32__old__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,15.815,,0.764,,,,TLA_KeyValueStore__d32__early__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,5.511,,0.295,,,,TLA_MultiPaxos__d1__old__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.729,,0.393,,,,TLA_MultiPaxos__d1__early__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,2,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,10.765,,0.405,,,,TLA_MultiPaxos__d2__old__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.135,,0.367,,,,TLA_MultiPaxos__d2__early__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,4,old,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.461,,,,TLA_MultiPaxos__d4__old__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,4,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.542,,0.455,,,,TLA_MultiPaxos__d4__early__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.505,,,,TLA_MultiPaxos__d8__old__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,8,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.574,,0.447,,,,TLA_MultiPaxos__d8__early__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.612,,,,TLA_MultiPaxos__d16__old__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,10.357,,0.618,,,,TLA_MultiPaxos__d16__early__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.833,,,,TLA_MultiPaxos__d32__old__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,32,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.924,,,,TLA_MultiPaxos__d32__early__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.393,,0.025,,,,TLA_MutexViolation__d1__old__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.611,,0.025,,,,TLA_MutexViolation__d1__early__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,2,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,6.251,,0.038,,,,TLA_MutexViolation__d2__old__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.201,,0.037,,,,TLA_MutexViolation__d2__early__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,4,old,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.054,,,,TLA_MutexViolation__d4__old__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.267,,0.055,,,,TLA_MutexViolation__d4__early__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.094,,,,TLA_MutexViolation__d8__old__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,8,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.625,,0.072,,,,TLA_MutexViolation__d8__early__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.155,,,,TLA_MutexViolation__d16__old__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,12.588,,0.153,,,,TLA_MutexViolation__d16__early__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.395,,,,TLA_MutexViolation__d32__old__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,32,early,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.391,,,,TLA_MutexViolation__d32__early__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,1,old,True,heartbeat,D:B,Heartbeat limit; dsimp2,dsimp2,heartbeats,,,50.102,,,,TLA_NOPaxos__d1__old__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,6.194,,0.215,,,,TLA_NOPaxos__d1__early__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,2,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.225,,,,TLA_NOPaxos__d2__old__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,2,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,9.949,,0.203,,,,TLA_NOPaxos__d2__early__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,4,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.194,,,,TLA_NOPaxos__d4__old__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,4,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,15.849,,0.157,,,,TLA_NOPaxos__d4__early__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.314,,,,TLA_NOPaxos__d8__old__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,8,early,True,heartbeat,D:B,Heartbeat limit; dsimp1,dsimp1,heartbeats,,,0.241,,,,TLA_NOPaxos__d8__early__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.548,,,,TLA_NOPaxos__d16__old__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,16,early,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.602,,,,TLA_NOPaxos__d16__early__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.937,,,,TLA_NOPaxos__d32__old__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,32,early,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.784,,,,TLA_NOPaxos__d32__early__default
+TLA_Paxos,Examples/TLA/Paxos.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,3.116,,0.174,,,,TLA_Paxos__d1__old__default
+TLA_Paxos,Examples/TLA/Paxos.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.924,,0.145,,,,TLA_Paxos__d1__early__default
+TLA_Paxos,Examples/TLA/Paxos.lean,2,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,7.372,,0.177,,,,TLA_Paxos__d2__old__default
+TLA_Paxos,Examples/TLA/Paxos.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.589,,0.18,,,,TLA_Paxos__d2__early__default
+TLA_Paxos,Examples/TLA/Paxos.lean,4,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,19.534,,0.262,,,,TLA_Paxos__d4__old__default
+TLA_Paxos,Examples/TLA/Paxos.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,3.143,,0.259,,,,TLA_Paxos__d4__early__default
+TLA_Paxos,Examples/TLA/Paxos.lean,8,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.201,,,,TLA_Paxos__d8__old__default
+TLA_Paxos,Examples/TLA/Paxos.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,6.982,,0.269,,,,TLA_Paxos__d8__early__default
+TLA_Paxos,Examples/TLA/Paxos.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.36,,,,TLA_Paxos__d16__old__default
+TLA_Paxos,Examples/TLA/Paxos.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,14.916,,0.265,,,,TLA_Paxos__d16__early__default
+TLA_Paxos,Examples/TLA/Paxos.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.585,,,,TLA_Paxos__d32__old__default
+TLA_Paxos,Examples/TLA/Paxos.lean,32,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.542,,,,TLA_Paxos__d32__early__default
+TLA_Peterson,Examples/TLA/Peterson.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.924,0.974,0.057,0.038,0.038,1.012,TLA_Peterson__d1__old__default
+TLA_Peterson,Examples/TLA/Peterson.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.25,0.298,0.043,0.033,0.033,0.331,TLA_Peterson__d1__early__default
+TLA_Peterson,Examples/TLA/Peterson.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,1.535,1.604,0.061,0.063,0.063,1.667,TLA_Peterson__d2__old__default
+TLA_Peterson,Examples/TLA/Peterson.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.43,0.504,0.055,0.078,0.078,0.582,TLA_Peterson__d2__early__default
+TLA_Peterson,Examples/TLA/Peterson.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,3.997,4.092,0.056,0.887,0.887,4.979,TLA_Peterson__d4__old__default
+TLA_Peterson,Examples/TLA/Peterson.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.695,0.806,0.06,0.428,0.428,1.234,TLA_Peterson__d4__early__default
+TLA_Peterson,Examples/TLA/Peterson.lean,8,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,14.561,14.771,0.067,10.021,,,TLA_Peterson__d8__old__default
+TLA_Peterson,Examples/TLA/Peterson.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.631,1.828,0.094,10.018,,,TLA_Peterson__d8__early__default
+TLA_Peterson,Examples/TLA/Peterson.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.153,,,,TLA_Peterson__d16__old__default
+TLA_Peterson,Examples/TLA/Peterson.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,3.188,3.513,0.129,10.02,,,TLA_Peterson__d16__early__default
+TLA_Peterson,Examples/TLA/Peterson.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.212,,,,TLA_Peterson__d32__old__default
+TLA_Peterson,Examples/TLA/Peterson.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,8.266,9.02,0.213,10.028,,,TLA_Peterson__d32__early__default
+TLA_Raft,Examples/TLA/Raft.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,lean_error,23.758,,0.055,,,,TLA_Raft__d1__old__default
+TLA_Raft,Examples/TLA/Raft.lean,1,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,6.743,,0.059,,,,TLA_Raft__d1__early__default
+TLA_Raft,Examples/TLA/Raft.lean,2,old,True,other,H:!,translation_failed,hoist,lean_error,,,0.084,,,,TLA_Raft__d2__old__default
+TLA_Raft,Examples/TLA/Raft.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,lean_error,13.28,,0.069,,,,TLA_Raft__d2__early__default
+TLA_Raft,Examples/TLA/Raft.lean,4,old,True,other,N:!,translation_failed,nextSimp,lean_error,,,0.114,,,,TLA_Raft__d4__old__default
+TLA_Raft,Examples/TLA/Raft.lean,4,early,True,other,D:!,translation_failed,destruct,lean_error,,,0.107,,,,TLA_Raft__d4__early__default
+TLA_Raft,Examples/TLA/Raft.lean,8,old,True,process_timeout,N:P,Process time cap; nextSimp,nextSimp,wall_timeout,,,0.159,,,,TLA_Raft__d8__old__default
+TLA_Raft,Examples/TLA/Raft.lean,8,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.133,,,,TLA_Raft__d8__early__default
+TLA_Raft,Examples/TLA/Raft.lean,16,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.309,,,,TLA_Raft__d16__old__default
+TLA_Raft,Examples/TLA/Raft.lean,16,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.23,,,,TLA_Raft__d16__early__default
+TLA_Raft,Examples/TLA/Raft.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.511,,,,TLA_Raft__d32__old__default
+TLA_Raft,Examples/TLA/Raft.lean,32,early,True,heartbeat,N:B,Heartbeat limit; nextSimp,nextSimp,heartbeats,,,0.57,,,,TLA_Raft__d32__early__default
+TLA_Room,Examples/TLA/Room.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.106,,0.025,,,,TLA_Room__d1__old__default
+TLA_Room,Examples/TLA/Room.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.26,,0.024,,,,TLA_Room__d1__early__default
+TLA_Room,Examples/TLA/Room.lean,2,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.167,,0.032,,,,TLA_Room__d2__old__default
+TLA_Room,Examples/TLA/Room.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.386,,0.032,,,,TLA_Room__d2__early__default
+TLA_Room,Examples/TLA/Room.lean,4,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,5.674,,0.043,,,,TLA_Room__d4__old__default
+TLA_Room,Examples/TLA/Room.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.638,,0.037,,,,TLA_Room__d4__early__default
+TLA_Room,Examples/TLA/Room.lean,8,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,18.238,,0.063,,,,TLA_Room__d8__old__default
+TLA_Room,Examples/TLA/Room.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.226,,0.056,,,,TLA_Room__d8__early__default
+TLA_Room,Examples/TLA/Room.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.085,,,,TLA_Room__d16__old__default
+TLA_Room,Examples/TLA/Room.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.662,,0.084,,,,TLA_Room__d16__early__default
+TLA_Room,Examples/TLA/Room.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.195,,,,TLA_Room__d32__old__default
+TLA_Room,Examples/TLA/Room.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,6.757,,0.165,,,,TLA_Room__d32__early__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,1,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.509,,0.022,,,,TLA_SimpleAllocator__d1__old__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.221,,0.025,,,,TLA_SimpleAllocator__d1__early__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,2,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.138,,0.024,,,,TLA_SimpleAllocator__d2__old__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.23,,0.02,,,,TLA_SimpleAllocator__d2__early__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,4,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.977,,0.029,,,,TLA_SimpleAllocator__d4__old__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.401,,0.034,,,,TLA_SimpleAllocator__d4__early__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,8,old,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,9.996,,0.04,,,,TLA_SimpleAllocator__d8__old__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.726,,0.044,,,,TLA_SimpleAllocator__d8__early__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.072,,,,TLA_SimpleAllocator__d16__old__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,1.699,,0.093,,,,TLA_SimpleAllocator__d16__early__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.16,,,,TLA_SimpleAllocator__d32__old__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,3.928,,0.146,,,,TLA_SimpleAllocator__d32__early__default
+TLA_Traffic,Examples/TLA/Traffic.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.436,0.471,0.021,0.015,0.015,0.486,TLA_Traffic__d1__old__default
+TLA_Traffic,Examples/TLA/Traffic.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.246,0.286,0.02,0.016,0.016,0.302,TLA_Traffic__d1__early__default
+TLA_Traffic,Examples/TLA/Traffic.lean,2,old,True,sat,SAT,Solver returned SAT,,,0.733,0.801,0.021,0.022,0.022,0.823,TLA_Traffic__d2__old__default
+TLA_Traffic,Examples/TLA/Traffic.lean,2,early,True,sat,SAT,Solver returned SAT,,,0.323,0.371,0.024,0.025,0.025,0.396,TLA_Traffic__d2__early__default
+TLA_Traffic,Examples/TLA/Traffic.lean,4,old,True,sat,SAT,Solver returned SAT,,,1.298,1.367,0.029,0.036,0.036,1.403,TLA_Traffic__d4__old__default
+TLA_Traffic,Examples/TLA/Traffic.lean,4,early,True,sat,SAT,Solver returned SAT,,,0.781,0.868,0.027,0.029,0.029,0.897,TLA_Traffic__d4__early__default
+TLA_Traffic,Examples/TLA/Traffic.lean,8,old,True,sat,SAT,Solver returned SAT,,,3.578,3.687,0.054,0.041,0.041,3.728,TLA_Traffic__d8__old__default
+TLA_Traffic,Examples/TLA/Traffic.lean,8,early,True,sat,SAT,Solver returned SAT,,,1.588,1.729,0.032,0.043,0.043,1.772,TLA_Traffic__d8__early__default
+TLA_Traffic,Examples/TLA/Traffic.lean,16,old,True,sat,SAT,Solver returned SAT,,,8.671,8.908,0.049,0.066,0.066,8.974,TLA_Traffic__d16__old__default
+TLA_Traffic,Examples/TLA/Traffic.lean,16,early,True,sat,SAT,Solver returned SAT,,,2.306,2.496,0.049,0.045,0.045,2.541,TLA_Traffic__d16__early__default
+TLA_Traffic,Examples/TLA/Traffic.lean,32,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.086,,,,TLA_Traffic__d32__old__default
+TLA_Traffic,Examples/TLA/Traffic.lean,32,early,True,sat,SAT,Solver returned SAT,,,5.246,5.565,0.095,0.159,0.159,5.724,TLA_Traffic__d32__early__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.422,0.458,0.03,0.037,0.037,0.495,TLA_TwoPhaseCommit__d1__old__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.269,0.307,0.027,0.042,0.042,0.349,TLA_TwoPhaseCommit__d1__early__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.874,0.94,0.033,0.086,0.086,1.026,TLA_TwoPhaseCommit__d2__old__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.34,0.39,0.031,0.109,0.109,0.499,TLA_TwoPhaseCommit__d2__early__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,2.094,2.17,0.049,1.103,1.103,3.273,TLA_TwoPhaseCommit__d4__old__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.685,0.765,0.047,0.534,0.534,1.299,TLA_TwoPhaseCommit__d4__early__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,8,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,5.582,5.716,0.068,10.017,,,TLA_TwoPhaseCommit__d8__old__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.237,1.375,0.067,10.016,,,TLA_TwoPhaseCommit__d8__early__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.107,,,,TLA_TwoPhaseCommit__d16__old__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.835,3.139,0.145,10.025,,,TLA_TwoPhaseCommit__d16__early__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.258,,,,TLA_TwoPhaseCommit__d32__old__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,6.255,6.79,0.301,10.031,,,TLA_TwoPhaseCommit__d32__early__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.947,1.299,0.036,0.03,0.03,1.329,Tutorial_FloodSet__d1__old__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.425,0.712,0.03,0.029,0.029,0.741,Tutorial_FloodSet__d1__early__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,1.881,2.557,0.028,0.139,0.139,2.696,Tutorial_FloodSet__d2__old__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.727,1.339,0.038,0.145,0.145,1.484,Tutorial_FloodSet__d2__early__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,4,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.433,6.378,0.041,10.013,,,Tutorial_FloodSet__d4__old__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,4,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.7,3.513,0.042,10.021,,,Tutorial_FloodSet__d4__early__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,8,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,11.938,18.211,0.042,10.024,,,Tutorial_FloodSet__d8__old__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.493,9.962,0.049,10.023,,,Tutorial_FloodSet__d8__early__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.048,,,,Tutorial_FloodSet__d16__old__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,16,early,True,simp_steps,H:S,Simplifier step limit; hoist,hoist,simp_steps,,,0.059,,,,Tutorial_FloodSet__d16__early__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,32,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.079,,,,Tutorial_FloodSet__d32__old__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,32,early,True,simp_steps,H:S,Simplifier step limit; hoist,hoist,simp_steps,,,0.092,,,,Tutorial_FloodSet__d32__early__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.446,0.482,0.018,0.019,0.019,0.501,Tutorial_POPL26_RingDec__d1__old__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.17,0.21,0.023,0.025,0.025,0.235,Tutorial_POPL26_RingDec__d1__early__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.997,1.048,0.021,0.035,0.035,1.083,Tutorial_POPL26_RingDec__d2__old__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.232,0.283,0.018,0.035,0.035,0.318,Tutorial_POPL26_RingDec__d2__early__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,2.92,3.009,0.021,0.206,0.206,3.215,Tutorial_POPL26_RingDec__d4__old__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.439,0.514,0.022,0.243,0.243,0.757,Tutorial_POPL26_RingDec__d4__early__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,8,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,9.172,9.298,0.034,10.016,,,Tutorial_POPL26_RingDec__d8__old__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.907,1.026,0.028,10.011,,,Tutorial_POPL26_RingDec__d8__early__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.049,,,,Tutorial_POPL26_RingDec__d16__old__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.07,2.38,0.044,10.014,,,Tutorial_POPL26_RingDec__d16__early__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.075,,,,Tutorial_POPL26_RingDec__d32__old__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.798,5.319,0.08,10.02,,,Tutorial_POPL26_RingDec__d32__early__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,1,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.273,,0.02,,,,Tutorial_POPL26_RingFin__d1__old__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.145,,0.015,,,,Tutorial_POPL26_RingFin__d1__early__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,2,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.357,,0.019,,,,Tutorial_POPL26_RingFin__d2__old__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.247,,0.017,,,,Tutorial_POPL26_RingFin__d2__early__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,4,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.778,,0.019,,,,Tutorial_POPL26_RingFin__d4__old__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.467,,0.018,,,,Tutorial_POPL26_RingFin__d4__early__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,8,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.752,,0.03,,,,Tutorial_POPL26_RingFin__d8__old__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.06,,0.033,,,,Tutorial_POPL26_RingFin__d8__early__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,16,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,5.624,,0.033,,,,Tutorial_POPL26_RingFin__d16__old__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,16,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.154,,0.039,,,,Tutorial_POPL26_RingFin__d16__early__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,32,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.068,,,,Tutorial_POPL26_RingFin__d32__old__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,32,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,4.674,,0.066,,,,Tutorial_POPL26_RingFin__d32__early__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,1,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.223,,0.012,,,,Tutorial_POPL26_RingNat__d1__old__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.205,,0.013,,,,Tutorial_POPL26_RingNat__d1__early__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,2,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.504,,0.015,,,,Tutorial_POPL26_RingNat__d2__old__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.374,,0.014,,,,Tutorial_POPL26_RingNat__d2__early__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,4,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.872,,0.015,,,,Tutorial_POPL26_RingNat__d4__old__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.775,,0.018,,,,Tutorial_POPL26_RingNat__d4__early__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,8,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.875,,0.021,,,,Tutorial_POPL26_RingNat__d8__old__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.447,,0.018,,,,Tutorial_POPL26_RingNat__d8__early__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,16,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,4.671,,0.03,,,,Tutorial_POPL26_RingNat__d16__old__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,16,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.916,,0.029,,,,Tutorial_POPL26_RingNat__d16__early__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,32,old,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,14.243,,0.05,,,,Tutorial_POPL26_RingNat__d32__old__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,32,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,5.973,,0.051,,,,Tutorial_POPL26_RingNat__d32__early__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,1,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.449,0.485,0.018,0.025,0.025,0.51,Tutorial_Ring__d1__old__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.147,0.185,0.015,0.026,0.026,0.211,Tutorial_Ring__d1__early__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,2,old,True,unsat,UNSAT,Solver returned UNSAT,,,0.879,0.926,0.018,0.04,0.04,0.966,Tutorial_Ring__d2__old__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.241,0.295,0.019,0.054,0.054,0.349,Tutorial_Ring__d2__early__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,4,old,True,unsat,UNSAT,Solver returned UNSAT,,,2.575,2.656,0.021,0.367,0.367,3.023,Tutorial_Ring__d4__old__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.403,0.476,0.02,0.221,0.221,0.697,Tutorial_Ring__d4__early__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,8,old,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,8.966,9.108,0.026,10.02,,,Tutorial_Ring__d8__old__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.049,1.186,0.035,10.019,,,Tutorial_Ring__d8__early__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,16,old,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.043,,,,Tutorial_Ring__d16__old__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.043,2.311,0.041,10.014,,,Tutorial_Ring__d16__early__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,32,old,True,recursion,N:R,Recursion limit; nextSimp,nextSimp,recursion,,,0.073,,,,Tutorial_Ring__d32__old__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,5.036,5.502,0.098,10.02,,,Tutorial_Ring__d32__early__default

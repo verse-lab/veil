@@ -1,0 +1,99 @@
+Issue #123: Ring translation pipeline measurements
+
+Environment: Veil eb41b59673a179ad05773ceca18667ba25b7f079,
+Lean v4.32.0, lean-smt 922af463373ce3f74d7b1aee36c6391f867aaaa2.
+Measured 2026-10-19 after a fresh successful `lake build Veil` (1085 jobs).
+Times are one observed run in milliseconds, with concurrent investigation
+jobs; use as scaling evidence, not stable CI budgets. No production source
+was modified. The retained Pipeline.lean runs the depth-32 case under ordinary
+Veil resource defaults; see the defaults-validation section below.
+
+Experimental preprocessing: introduce outer binders; destruct State/Theory;
+simplify dispatcher types; then existing nextSimp, guarded quantifier pass,
+intros, destruct, dispatcher simplification, smtSimp. The trace conjunction
+remains the target. The FIRST table below records the original isolated
+measurements with maxHeartbeats=0 and maxRecDepth=10000; simp maxSteps remained
+at its default 100000. These overrides have since been removed from the retained
+Pipeline.lean after both depths 32 and 128 succeeded under ordinary defaults
+(see the final table). The scaffold ends with sorry and does not prove the
+trace proposition or test SMT proof reconstruction/model display.
+
+Depth  nextSimp  guarded-hoist  smtSimp  SMT-normalize  embedding  translate  serialize  commands  SMT-bytes
+8       520      12             235       37             4          92         168          83       18060
+32     1902      38            1016      141            19         293         676         275       68996
+128    7684     147            6568      796            88        1267        2717        1043      274612
+
+Other measured depth-128 costs: outer introduction 14ms, initial structure
+splitting 2131ms, initial dispatcher simplification 25ms, second introduction 27ms,
+second structure splitting 184ms, final dispatcher simplification 493ms.
+These costs are why the entire pipeline is not claimed to be linear.
+
+Control at depth 8: ONLY moving veil_intros before nextSimp (leaving record
+splitting until its original position) gave nextSimp 705ms/guard 11ms and the
+same final target object count 1987 as the full early-destruct pipeline.
+Identical counts alone do not establish expression equality. All logical
+preprocessing operations are existing Lean proof-producing tactics.
+
+SMT phases: same hint filtering as Veil.getPropsInContext, cleanup duplicate
+goal, pushHints, intros, negateGoal, normalize, embeddingWithConfig
+{embedBool := false}, prepareSmtQuery, serialize/write script with set-logic
+ALL and check-sat. Skipping Bool embedding matches the default trusted Veil
+path. Serialization time includes writing the script.
+
+Separate cvc5 CLI checks of freshly generated scripts used:
+  .lake/packages/cvc5/cvc5-Linux-x86_64-static/bin/cvc5 \
+    --finite-model-find --tlimit=10000 <script.smt2>
+Depth 8 returned sat in 0.305s. Depth 32 hit the 10-second timeout (10.007s).
+This CLI check is separate from Veil's solver invocation, and does not set
+Veil's extra nl-ext-tplanes/enum-inst-interleave options or reconstruct models.
+It shows that successful translation does not remove solver-search costs.
+
+Reproduce depth 32:
+  lake env lean Benchmarks/SMTTranslation/Pipeline.lean
+Generated script: .veil.tmp/issue123/pipeline32.smt2
+For another depth change 'any 32 actions' and optionally the output filename.
+The retained artifact leaves all three resource limits at their Veil defaults.
+
+Global +singlePass is not a verified substitute: on the depth 8 probe it left
+Ring.Init, Ring.Next, Ring.relationalTransitionSystem._proof_1 and dispatcher
+constants in the target. Attempting actual SMT translation then failed with
+'cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not
+support lambdas'. It stops unfolding too early for this pipeline.
+
+Grounded likely prefix-cost mechanism, Lean v4.32.0
+Lean/Meta/Tactic/Simp/Main.lean:403-410: simpForall opens one binder,
+instantiates the remaining body, simplifies it, then abstracts the result and
+proof and builds forall congruence. Lines 709-714 re-simplify a changed result
+unless singlePass is enabled; reopening binders introduces fresh variables,
+which can prevent exact-expression cache hits. The timings establish the
+benefit of earlier introduction; allocation/proof-building percentages were
+not profiled, so this is a source-supported explanation, not a measured cost
+breakdown.
+
+Historical limit distinction: lean-smt eea63e5 (2026-02-12) multiplied only
+embedding's simp maxSteps by 100. Current pinned Normalize.lean/Embedding.lean
+use singlePass=true and the default cap, following upstream #216. Veil's
+nextSimp and existsQuantifierSimp are separate invocations and can fail first.
+
+Defaults validation (fresh build, subsequent runs)
+
+Removed BOTH `set_option maxHeartbeats 0` and `set_option maxRecDepth 10000`
+for these runs; the retained Pipeline.lean now matches that tested variant.
+Veil module defaults therefore
+apply: maxHeartbeats=500000 and maxRecDepth=1024 (Veil/Base.lean:52-58), with
+simp maxSteps=100000 unchanged. Both depth 32 and depth 128 succeeded through
+SMT-LIB generation and exited 0, with only the expected sorry warning.
+
+Depth  nextSimp  guarded-hoist  smtSimp  SMT-normalize  embedding  translate  serialize  commands  SMT-bytes
+32     1869      45             880      169            19         311         697         275       68996
+128    7745     137            5143      569            71        1141        2673        1043      274612
+
+This validates query generation for this experimental Ring scaffold under
+ordinary Veil resource limits. It does not establish that the existing
+production veil_bmc handles depth 128, that all protocols scale similarly,
+or that SMT solving/model reconstruction succeeds at those depths.
+Temporary reproducibility files and logs:
+  .veil.tmp/issue123/architecture/Defaults32.lean / Defaults32.log
+  .veil.tmp/issue123/architecture/Defaults128.lean / Defaults128.log
+To reproduce, run the retained Pipeline.lean directly; change 'any 32 actions'
+if desired. No heartbeat/recursion override lines remain in the artifact.
