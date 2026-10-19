@@ -26,6 +26,11 @@
   "contributes": {
     "commands": [
       {
+        "command": "veil.modelCheck.checkModel",
+        "title": "Check Model",
+        "category": "Veil"
+      },
+      {
         "command": "veil.modelCheck.run",
         "title": "Run Model Checker",
         "category": "Veil"
@@ -64,10 +69,19 @@
         "command": "veil.modelCheck.showSavedRun",
         "title": "Show Saved Model Checking Result",
         "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.createConfig",
+        "title": "Create Model Checking Config",
+        "category": "Veil"
       }
     ],
     "menus": {
       "commandPalette": [
+        {
+          "command": "veil.modelCheck.checkModel",
+          "when": "editorLangId == lean4"
+        },
         {
           "command": "veil.modelCheck.run",
           "when": "editorLangId == lean4"
@@ -86,6 +100,10 @@
         },
         {
           "command": "veil.modelCheck.showSavedRun",
+          "when": "false"
+        },
+        {
+          "command": "veil.modelCheck.createConfig",
           "when": "false"
         }
       ]

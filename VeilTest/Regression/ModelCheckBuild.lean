@@ -92,3 +92,16 @@ error: Module NotExecutable has no executable definitions here: add `#gen_execut
 -/
 #guard_msgs in
 #model_check_build NotExecutable {} {}
+
+-- The template of a config file for `CheckedElsewhere`, which the VS Code extension asks for. The enum
+-- sort keeps its default, and the other fields are holes. A file in no library has no import.
+open Lean Meta in
+/--
+info: {"import":"VeilTest.Regression.ModelCheckBuildHelper","instantiation":[{"name":"node","value":"_"},{"name":"NodeSet","value":"_"},{"name":"Buffer","value":"_"}],"module":"CheckedElsewhere","theory":[{"name":"limit","value":"_"}]}
+null
+-/
+#guard_msgs in
+#eval show MetaM Unit from do
+  let some em ← Veil.getExecutableModule? `CheckedElsewhere | throwError "no executable definitions"
+  IO.println (toJson (← Veil.configTemplate em `VeilTest.Regression.ModelCheckBuildHelper)).compress
+  IO.println ((toJson (← Veil.configTemplate em `_unknown)).getObjValD "import").compress

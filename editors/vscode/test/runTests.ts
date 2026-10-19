@@ -8,12 +8,15 @@ import * as os from 'os';
 import * as path from 'path';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { BUILT_PREFIX, ReportedMessage, Severity, buildStatus, findBuildCommands } from '../src/buildCommands';
+import { BUILT_PREFIX, ReportedMessage, Severity, buildStatus, findBuildCommands, findVeilModules } from '../src/buildCommands';
+import { ConfigTemplate, configCommand, configFileFor, configHeader, isOfModule, snippetText } from '../src/configTemplate';
 import { Progress, StartReport, describeResult, modelCheckMetrics, parseProgressLine, parseStartLine } from '../src/protocol';
 import { FORMAT_VERSION, ResultStore, RunSource, freshness, parseRunFile } from '../src/resultStore';
 import { CheckerRun, parallelArgs, parseRunOptions } from '../src/runner';
 import { HistoryPoint, RunSnapshot, describeRun, recordHistory } from '../src/snapshot';
 import { NoRun, RunView, RunViewProps } from '../webview/view';
+import { pathToFileURL } from 'url';
+import { LeanServer } from './leanServer';
 
 interface Test {
   name: string;
@@ -56,6 +59,52 @@ test('leaves out commands in comments and strings', () => {
     '#model_check_builder NotTheKeyword {}',
   ].join('\n');
   assert.deepStrictEqual(findBuildCommands(text).map(site => site.module), ['Real']);
+});
+
+test('finds modules and the commands of them that a config file needs', () => {
+  const text = [
+    'veil module Paxos',            // 0
+    'type node',
+    '-- #gen_executable',
+    '#gen_spec',                    // 3
+    '#gen_executable -borrowArgs',  // 4
+    'end Paxos',                    // 5
+    '/- veil module InComment -/',
+    'veil module Ring',             // 7
+    'end Other',
+  ].join('\n');
+  assert.deepStrictEqual(findVeilModules(text), [
+    { line: 0, character: 0, name: 'Paxos', genSpecLine: 3, genExecutableLine: 4, endLine: 5 },
+    { line: 7, character: 0, name: 'Ring' },
+  ]);
+});
+
+// ---- Config templates ----
+
+const template: ConfigTemplate = {
+  module: 'CheckedElsewhere',
+  import: 'VeilTest.Regression.ModelCheckBuildHelper',
+  instantiation: [{ name: 'node', value: 'Fin 2' }, { name: 'NodeSet', value: '_' }],
+  theory: [{ name: 'limit', value: '_' }],
+};
+
+test('writes the config file of a template, with placeholders for its values', () => {
+  assert.strictEqual(configHeader(template), 'module\n\npublic import Veil\npublic import VeilTest.Regression.ModelCheckBuildHelper\n\n');
+  const parts = configCommand(template);
+  assert.deepStrictEqual(parts.filter(part => 'placeholder' in part), [{ placeholder: 'Fin 2' }, { placeholder: '_' }, { placeholder: '_' }]);
+  assert.strictEqual(snippetText(parts),
+    '#model_check_build CheckedElsewhere\n  { node := Fin 2, NodeSet := _ }\n  { limit := _ }\n');
+  // A module without sorts has an empty instantiation, and the theory is left out when it is empty
+  assert.strictEqual(snippetText(configCommand({ ...template, instantiation: [], theory: [] })),
+    '#model_check_build CheckedElsewhere\n  {}\n');
+});
+
+test('puts a new config file next to its module, and finds the configs of a module', () => {
+  assert.strictEqual(configFileFor('/repo/Examples/Paxos.lean'), '/repo/Examples/MCPaxos.lean');
+  assert.ok(isOfModule('Paxos', 'Paxos'));
+  assert.ok(isOfModule('Paxos', 'Examples.Paxos'));
+  assert.ok(isOfModule('Examples.Paxos', 'Paxos'));
+  assert.ok(!isOfModule('Raft', 'Paxos'));
 });
 
 // ---- Build status ----
@@ -464,6 +513,42 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
     // Well before `stop` would kill the binary
     assert.ok(Date.now() - stoppedAt < 1500, `the binary took ${Date.now() - stoppedAt} ms to exit`);
     assert.ok((progress && modelCheckMetrics(progress)?.distinctStates || 0) > 0);
+  });
+
+  test('Lean gives the config template of a module, to a request for its kind only', async () => {
+    const server = new LeanServer(repoRoot);
+    try {
+      await within(server.request('initialize',
+        { processId: process.pid, rootUri: pathToFileURL(repoRoot).href, capabilities: {} }), 60_000, 'Starting Lean');
+      server.notify('initialized', {});
+      const file = path.join(repoRoot, 'VeilTest', 'Regression', 'ModelCheckBuildHelper.lean');
+      const uri = pathToFileURL(file).href;
+      const text = fs.readFileSync(file, 'utf8');
+      server.notify('textDocument/didOpen', { textDocument: { uri, languageId: 'lean4', version: 1, text } });
+      await within(server.request('textDocument/waitForDiagnostics', { uri, version: 1 }), 600_000, 'Processing the module');
+      const line = findVeilModules(text).find(m => m.name === 'CheckedElsewhere')?.genExecutableLine;
+      assert.ok(line !== undefined);
+      // The whole line, as the extension asks: Lean answers with the command that ends at the end of
+      // the range or after it
+      const lineEnd = text.split('\n')[line].length;
+      const actionsFor = async (only?: string[]) => (await server.request('textDocument/codeAction', {
+        textDocument: { uri },
+        range: { start: { line, character: 0 }, end: { line, character: lineEnd } },
+        context: { diagnostics: [], ...(only ? { only } : {}) },
+      }) as { kind?: string; command?: { command: string; arguments: unknown[] } }[])
+        .filter(action => action.kind === 'source.veil.modelCheckConfig');
+      const [action] = await actionsFor(['source.veil.modelCheckConfig']);
+      assert.strictEqual(action?.command?.command, 'veil.modelCheck.createConfig');
+      assert.deepStrictEqual(action.command.arguments, [{
+        import: 'VeilTest.Regression.ModelCheckBuildHelper',
+        instantiation: [{ name: 'node', value: '_' }, { name: 'NodeSet', value: '_' }, { name: 'Buffer', value: '_' }],
+        module: 'CheckedElsewhere',
+        theory: [{ name: 'limit', value: '_' }],
+      }, uri]);
+      assert.deepStrictEqual(await actionsFor(), [], 'the menus of the editor do not show it');
+    } finally {
+      await server.close();
+    }
   });
 
   test('a binary that cannot run fails', async () => {

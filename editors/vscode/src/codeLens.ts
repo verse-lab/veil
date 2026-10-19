@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import {
-  BuildCommandSite, BuildStatus, ReportedMessage, Severity, buildStatus, findBuildCommands,
+  BuildCommandSite, BuildStatus, ReportedMessage, Severity, buildStatus, findBuildCommands, findVeilModules,
 } from './buildCommands';
 import { ResultStore, freshness } from './resultStore';
 import { RunManager } from './runManager';
@@ -54,8 +54,8 @@ function when(epochMs: number): string {
     : `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${time}`;
 }
 
-/** The lenses above each `#model_check_build` command: what Lean is doing with it, how to run it,
- * and its last result. */
+/** The lenses above each `veil module`, to check it, and above each `#model_check_build` command:
+ * what Lean is doing with it, how to run it, and its last result. */
 export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeCodeLenses = this.changed.event;
@@ -76,7 +76,12 @@ export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Dispo
   }
 
   provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
-    return buildCommandsOf(document).flatMap(({ site, status }) => {
+    const modules = findVeilModules(document.getText()).map(site => new vscode.CodeLens(
+      new vscode.Range(site.line, site.character, site.line, site.character), {
+        title: '$(play) Check model', command: 'veil.modelCheck.checkModel',
+        arguments: [document.uri.toString(), site.line], tooltip: `Run a config file of ${site.name}, or create one`,
+      }));
+    return [...modules, ...buildCommandsOf(document).flatMap(({ site, status }) => {
       const range = new vscode.Range(site.line, site.character, site.line, site.character);
       // A lens without a command shows as plain text
       const lens = (title: string, command = '', args: unknown[] = [], tooltip?: string) =>
@@ -102,7 +107,7 @@ export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Dispo
           'veil.modelCheck.showSavedRun', [saved.source], saved.text));
       }
       return lenses;
-    });
+    })];
   }
 
   dispose(): void {
