@@ -228,7 +228,7 @@ script veilInstallVSCodeExtension args do
   if ← installDir.pathExists then
     IO.FS.removeDirAll installDir
   IO.FS.createDirAll (installDir / "dist")
-  for file in ["package.json", "dist/extension.js", "dist/webview.js"] do
+  for file in ["package.json", "icon.png", "dist/extension.js", "dist/webview.js"] do
     IO.FS.writeBinFile (installDir / file) (← IO.FS.readBinFile (source / file))
   let document := "ModelChecker-VSCode-Architecture.md"
   let readme ← IO.FS.readFile (source / "README.md")

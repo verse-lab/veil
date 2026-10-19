@@ -2,6 +2,7 @@
   "name": "veil-model-checker",
   "displayName": "Veil Model Checker",
   "description": "Run the model checkers that #model_check_build builds, and show their progress and results.",
+  "icon": "icon.png",
   "version": "0.0.1",
   "publisher": "verse-lab",
   "license": "Apache-2.0",

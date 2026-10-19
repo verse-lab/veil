@@ -518,7 +518,7 @@ function within<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
 }
 
 if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
-  test('the workspace installer bundles the documentation linked from its README', withStoreDir(async dir => {
+  test('the workspace installer bundles its icon and the documentation linked from its README', withStoreDir(async dir => {
     const build = spawnSync(process.execPath, ['esbuild.mjs', '--production'],
       { cwd: path.join(repoRoot, 'editors', 'vscode'), encoding: 'utf8' });
     assert.strictEqual(build.status, 0, build.stderr);
@@ -536,6 +536,10 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
     });
     assert.strictEqual(installed.status, 0, installed.stdout + installed.stderr);
     const installDir = path.join(workspace, '.vscode', 'extensions', 'veil-model-checker');
+    const manifest = JSON.parse(fs.readFileSync(path.join(installDir, 'package.json'), 'utf8'));
+    assert.strictEqual(manifest.icon, 'icon.png');
+    assert.deepStrictEqual(fs.readFileSync(path.join(installDir, manifest.icon)),
+      fs.readFileSync(path.join(repoRoot, 'editors', 'vscode', manifest.icon)));
     const readme = fs.readFileSync(path.join(installDir, 'README.md'), 'utf8');
     const document = 'ModelChecker-VSCode-Architecture.md';
     for (const link of ['](#model-checker-in-vs-code-architecture)', '](#installing-the-extension)']) {
