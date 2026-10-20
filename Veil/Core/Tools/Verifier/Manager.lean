@@ -538,6 +538,13 @@ def VCManager.enableMatching (mgr : VCManager VCMetaT ResultT)
     (fun s vcId vc => if filter vc.metadata then s.insert vcId else s)
   { mgr with enabledVCs := enabled }
 
+/-- An alternative is hidden when its primary has a checkpoint-local proof. -/
+private def VCManager.hasInteractivePrimary (mgr : VCManager VCMetaT ResultT)
+    (vcId : VCId) : Bool :=
+  mgr.alternativeVCs.toArray.any fun (primaryId, alternatives) =>
+    alternatives.contains vcId &&
+      mgr.nodes[primaryId]?.any (·.hasInteractiveDischarger)
+
 /-- Enable automatic work requested through a checkpoint view. Interactive
 proofs suppress new attempts only for that request, never previously enabled
 shared work needed by another checkpoint. -/
@@ -545,7 +552,8 @@ def VCManager.enableMatchingFromView (mgr view : VCManager VCMetaT ResultT)
     (filter : VCMetaT → Bool) : VCManager VCMetaT ResultT :=
   let enabled := view.nodes.fold (init := mgr.enabledVCs)
     (fun enabled vcId vc =>
-      if filter vc.metadata && !vc.hasInteractiveDischarger then enabled.insert vcId
+      if filter vc.metadata && !vc.hasInteractiveDischarger &&
+          !view.hasInteractivePrimary vcId then enabled.insert vcId
       else enabled)
   { mgr with enabledVCs := enabled }
 
@@ -572,7 +580,8 @@ result. Hidden automatic tasks remain in the separate physical pool. Relies on e
 promise via `publishDischargerResult`. FIXME: this is inefficient. -/
 def VCManager.inFlightCount (mgr : VCManager VCMetaT ResultT) : BaseIO Nat := do
   let mut count := 0
-  for (_, vc) in mgr.nodes do
+  for (vcId, vc) in mgr.nodes do
+    if mgr.dormantVCs.contains vcId then continue
     for d in vc.effectiveDischargers do
       if d.task.isSome && !(← IO.hasFinished d.resultPromise.result?) then
         count := count + 1
@@ -704,6 +713,11 @@ def VCManager.withInteractiveResults (mgr : VCManager VCMetaT ResultT)
     let vc := { vc with dischargers := vc.dischargers.push discharger }
     mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc }
     mgr ← mgr.markDischarger discharger.id result (cancelAutomatic := false)
+    -- A shared automatic failure may have activated these alternatives for an
+    -- older checkpoint. This proof view must keep them dormant regardless.
+    if discharger.isInteractive then
+      for altId in mgr.alternativeVCs[vc.uid]?.getD #[] do
+        mgr := { mgr with dormantVCs := mgr.dormantVCs.insert altId }
   return mgr
 
 def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : String := Id.run do

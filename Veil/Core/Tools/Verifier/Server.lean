@@ -247,8 +247,8 @@ def logPendingDischargerTasks (mgr : VCManager VCMetadata SmtResult)
     (filter : VCMetadata → Bool) (registered : HashSet DischargerIdentifier)
     : CommandElabM (HashSet DischargerIdentifier) := do
   let mut registered := registered
-  for (_, vc) in mgr.nodes do
-    if !filter vc.metadata then continue
+  for (vcId, vc) in mgr.nodes do
+    if mgr.dormantVCs.contains vcId || !filter vc.metadata then continue
     for discharger in vc.effectiveDischargers do
       if registered.contains discharger.id then continue
       if let some task := discharger.task then
