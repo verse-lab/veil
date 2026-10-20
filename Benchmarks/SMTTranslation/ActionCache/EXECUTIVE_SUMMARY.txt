@@ -1,0 +1,13 @@
+49 models × six depths × two variants: 588 primary cells.
+Median paired normalization speedup: 25.39× (279 completed pairs).
+Median paired complete query-production speedup: 1.58× (134 completed pairs).
+Median paired cold setup + VC + query-production speedup: 1.03× (134 completed pairs).
+Emitted queries: 134 → 140; accepted by native cvc5: 124 → 128.
+Definite answers within the primary solver limit: 84 → 86.
+New/lost emissions: 6/0; new/lost definite answers: 3/1.
+Median extra cold setup: 0.355 seconds (47 pairs, one sample each).
+Paired emitted formulas matched: 134/134; 83 paired definite answers agree.
+
+The option remains experimental and off by default. Enable veil.experimental.bmcCache before #gen_spec. The cache stores exact kernel-checked equalities; it does not weaken transitions. Full regression and enabled-cache focused checks passed.
+
+Timings have one observation per primary cell. Speedups use matched completed cases; failed timings are not treated as completions. Solver repeats and 30-second controls are separate. See METHODS.txt and SOLVER_BEHAVIOR.txt.

@@ -1,0 +1,192 @@
+{
+  "models": 49,
+  "depths": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "cells": 588,
+  "variants": {
+    "local": {
+      "emitted": 134,
+      "native_accepted": 124,
+      "definite": 84,
+      "statuses": {
+        "translation_failed": 154,
+        "unsat": 69,
+        "solver_error": 10,
+        "solver_timeout": 40,
+        "sat": 15,
+        "blocked_model_setup": 6
+      },
+      "failure_phases": {
+        "embedding": 91,
+        "destruct": 4,
+        "solver": 50,
+        "smtSimp": 9,
+        "dsimp2": 1,
+        "nextSimp": 2,
+        "translate": 43,
+        "hoist": 3,
+        "model_setup": 6,
+        "normalize": 1
+      },
+      "failure_kinds": {
+        "recursion": 46,
+        "type_mismatch": 45,
+        "heartbeats": 20,
+        "solver_error": 10,
+        "solver_timeout": 40,
+        "lean_error": 43,
+        "wall_timeout": 6
+      }
+    },
+    "cached": {
+      "emitted": 140,
+      "native_accepted": 128,
+      "definite": 86,
+      "statuses": {
+        "translation_failed": 142,
+        "unsat": 70,
+        "solver_timeout": 42,
+        "solver_error": 12,
+        "sat": 16,
+        "blocked_model_setup": 12
+      },
+      "failure_phases": {
+        "embedding": 91,
+        "solver": 54,
+        "smtSimp": 3,
+        "translate": 44,
+        "dsimp1": 1,
+        "normalize": 1,
+        "destruct": 1,
+        "dsimp2": 1,
+        "model_setup": 12
+      },
+      "failure_kinds": {
+        "recursion": 46,
+        "type_mismatch": 45,
+        "solver_timeout": 42,
+        "solver_error": 12,
+        "heartbeats": 7,
+        "lean_error": 44,
+        "wall_timeout": 12
+      }
+    }
+  },
+  "paired_speedups": {
+    "normalization_ms": {
+      "pairs": 279,
+      "median": 25.38888888888889,
+      "faster": 279,
+      "slower": 0
+    },
+    "normalization_allocations": {
+      "pairs": 279,
+      "median": 21.105624554425724,
+      "faster": 279,
+      "slower": 0
+    },
+    "pipeline_wall_ms": {
+      "pairs": 134,
+      "median": 1.5814539518166613,
+      "faster": 132,
+      "slower": 2
+    },
+    "pipeline_allocations": {
+      "pairs": 134,
+      "median": 1.7037895406011299,
+      "faster": 134,
+      "slower": 0
+    },
+    "cold_to_query_ms": {
+      "pairs": 134,
+      "median": 1.0254303541369194,
+      "faster": 94,
+      "slower": 40
+    },
+    "complete_with_solver_ms": {
+      "pairs": 83,
+      "median": 1.4233128834355828,
+      "faster": 79,
+      "slower": 4
+    }
+  },
+  "gains": [
+    {
+      "model": "Ivy_Blockchain",
+      "depth": 32,
+      "local": "translation_failed",
+      "cached": "unsat"
+    },
+    {
+      "model": "Ivy_PaxosFirstOrder",
+      "depth": 4,
+      "local": "solver_timeout",
+      "cached": "unsat"
+    },
+    {
+      "model": "TLA_Traffic",
+      "depth": 32,
+      "local": "solver_timeout",
+      "cached": "sat"
+    }
+  ],
+  "losses": [
+    {
+      "model": "Ivy_Blockchain",
+      "depth": 16,
+      "local": "unsat",
+      "cached": "solver_timeout"
+    }
+  ],
+  "new_queries": [
+    {
+      "model": "Ivy_Blockchain",
+      "depth": 32,
+      "local": "translation_failed",
+      "cached": "unsat"
+    },
+    {
+      "model": "Ivy_ChordRingMaintenance",
+      "depth": 32,
+      "local": "translation_failed",
+      "cached": "solver_error"
+    },
+    {
+      "model": "Ivy_MultiSigAll",
+      "depth": 32,
+      "local": "translation_failed",
+      "cached": "solver_timeout"
+    },
+    {
+      "model": "Ivy_MultiSigMajority",
+      "depth": 32,
+      "local": "translation_failed",
+      "cached": "solver_timeout"
+    },
+    {
+      "model": "Ivy_NOPaxos",
+      "depth": 16,
+      "local": "translation_failed",
+      "cached": "solver_timeout"
+    },
+    {
+      "model": "Ivy_SuzukiKasami",
+      "depth": 32,
+      "local": "translation_failed",
+      "cached": "solver_error"
+    }
+  ],
+  "lost_queries": [],
+  "disagreements": [],
+  "cold_setup": {
+    "pairs": 47,
+    "median_added_ms": 355,
+    "note": "Separate fresh model/variant processes. One sample; includes model elaboration/imports, so differences include noise."
+  }
+}
