@@ -1,0 +1,181 @@
+/tmp/veil-transition-local/results/batch-sources/TLA_BcastByz__default__batch1.lean:413:2: error: Application type mismatch: The argument
+  fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun pset.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun pset.insert =>
+                forall_congr fun pset.remove =>
+                  forall_congr fun pset.ofList =>
+                    forall_congr fun pset.toList =>
+                      forall_congr fun pset.filter =>
+                        forall_congr fun pset.union =>
+                          forall_congr fun pset.diff =>
+                            forall_congr fun pset.intersection =>
+                              forall_congr fun pset.subsets =>
+                                forall_congr fun PCState_Enum.V0 =>
+                                  forall_congr fun PCState_Enum.V1 =>
+                                    forall_congr fun PCState_Enum.SE =>
+                                      forall_congr fun PCState_Enum.AC =>
+                                        forall_congr fun processEnumerable.allValues =>
+                                          forall_congr fun __veil_tag.Stutter =>
+                                            forall_congr fun __veil_tag.Step_UponV1 =>
+                                              forall_congr fun __veil_tag.Step_UponNonFaulty =>
+                                                forall_congr fun __veil_tag.Step_UponAcceptNotSentBefore =>
+                                                  forall_congr fun __veil_tag.Step_UponAcceptorSentBefore =>
+                                                    Eq.trans Smt.Preprocess.Embedding.forall_nat_as_int._simp_1
+                                                      (forall_congr fun f_3 =>
+                                                        implies_congr_ctx (Eq.refl (f_3 ≥ 0)) ⋯)))
+has type
+  ∀ (a : ∀ (a₁ : procSet), f a₁ ≥ 0),
+    (∀ (f_1 : process → procSet → Bool) (pset.empty : procSet) (pset.isEmpty : procSet → Bool)
+        (pset.insert pset.remove : process → procSet → procSet) (pset.ofList : List process → procSet)
+        (pset.toList : procSet → List process) (pset.filter : procSet → (process → Bool) → procSet)
+        (pset.union pset.diff pset.intersection : procSet → procSet → procSet) (pset.subsets : procSet → List procSet)
+        (PCState_Enum.V0 PCState_Enum.V1 PCState_Enum.SE PCState_Enum.AC : PCState)
+        (processEnumerable.allValues : List process)
+        (__veil_tag.Stutter __veil_tag.Step_UponV1 __veil_tag.Step_UponNonFaulty __veil_tag.Step_UponAcceptNotSentBefore
+          __veil_tag.Step_UponAcceptorSentBefore : ActionTag)
+        (th.N th.T th.F : Nat) (st0.Corr st0.Faulty : procSet) (st0.pc : process → PCState) (st0.sent : procSet)
+        (st0.rcvd : process → procSet) (st1.Corr st1.Faulty : procSet) (st1.pc : process → PCState) (st1.sent : procSet)
+        (st1.rcvd : process → procSet) (st2.Corr st2.Faulty : procSet) (st2.pc : process → PCState) (st2.sent : procSet)
+        (st2.rcvd : process → procSet) (p : process) (x x_1 : procSet),
+        True →
+          (fun a₁ => (f a₁).toNat) pset.empty = 0 →
+            ∀ (pset.empty_count : (fun a₁ => (f a₁).toNat) pset.empty = 0),
+              (∀ (elem : process), f_1 elem pset.empty = false) →
+                ∀ (pset.empty_contains : ∀ (elem : process), f_1 elem pset.empty = false),
+                  (∀ (s : procSet), (pset.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)) →
+                    ∀
+                      (pset.isEmpty_iff_count_zero :
+                        ∀ (s : procSet), (pset.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)),
+                      (∀ (elem : process) (s : procSet), f_1 elem (pset.insert elem s) = true) →
+                        ∀
+                          (pset.contains_insert_self :
+                            ∀ (elem : process) (s : procSet), f_1 elem (pset.insert elem s) = true),
+                          (∀ (elem₁ elem₂ : process) (s : procSet),
+                              ¬elem₁ = elem₂ → f_1 elem₁ (pset.insert elem₂ s) = f_1 elem₁ s) →
+                            ∀
+                              (pset.contains_insert_other :
+                                ∀ (elem₁ elem₂ : process) (s : procSet),
+                                  ¬elem₁ = elem₂ → f_1 elem₁ (pset.insert elem₂ s) = f_1 elem₁ s),
+                              (∀ (elem : process) (s : procSet),
+                                  pset.toList (pset.insert elem (pset.insert elem s)) =
+                                    pset.toList (pset.insert elem s)) →
+                                ∀
+                                  (pset.insert_idempotent :
+                                    ∀ (elem : process) (s : procSet),
+                                      pset.toList (pset.insert elem (pset.insert elem s)) =
+                                        pset.toList (pset.insert elem s)),
+                                  (∀ (elem : process) (s : procSet),
+                                      (fun a₁ => (f a₁).toNat) (pset.insert elem s) =
+                                        if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s
+                                        else (fun a₁ => (f a₁).toNat) s + 1) →
+                                    ∀
+                                      (pset.count_insert :
+                                        ∀ (elem : process) (s : procSet),
+                                          (fun a₁ => (f a₁).toNat) (pset.insert elem s) =
+                                            if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s
+                                            else (fun a₁ => (f a₁).toNat) s + 1),
+                                      (∀ (elem : process) (s : procSet), f_1 elem (pset.remove elem s) = false) →
+                                        ∀
+                                          (pset.contains_remove_self :
+                                            ∀ (elem : process) (s : procSet), f_1 elem (pset.remove elem s) = false),
+                                          (∀ (elem₁ elem₂ : process) (s : procSet),
+                                              ¬elem₁ = elem₂ → f_1 elem₁ (pset.remove elem₂ s) = f_1 elem₁ s) →
+                                            ∀
+                                              (pset.contains_remove_other :
+                                                ∀ (elem₁ elem₂ : process) (s : procSet),
+                                                  ¬elem₁ = elem₂ → f_1 elem₁ (pset.remove elem₂ s) = f_1 elem₁ s),
+                                              (∀ (elem : process) (s : procSet),
+                                                  (fun a₁ => (f a₁).toNat) (pset.remove elem s) =
+                                                    if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s - 1
+                                                    else (fun a₁ => (f a₁).toNat) s) →
+                                                ∀
+                                                  (pset.count_remove :
+                                                    ∀ (elem : process) (s : procSet),
+                                                      (fun a₁ => (f a₁).toNat) (pset.remove elem s) =
+                                                        if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s - 1
+                                                        else (fun a₁ => (f a₁).toNat) s),
+                                                  (∀ (elem : process) (s1 s2 : procSet),
+                                                      f_1 elem (pset.union s1 s2) = (f_1 elem s1 || f_1 elem s2)) →
+                                                    ⋯) =
+      ∀ (a_1 : process → procSet → Prop) (a_2 : procSet) (a_3 : procSet → Prop) (a_4 a_5 : process → procSet → procSet)
+        (a_6 : List process → procSet) (a_7 : procSet → List process) (a_8 : procSet → (process → Bool) → procSet)
+        (a_9 a_10 a_11 : procSet → procSet → procSet) (a_12 : procSet → List procSet) (a_13 a_14 a_15 a_16 : PCState)
+        (a_17 : List process) (a_18 a_19 a_20 a_21 a_22 : ActionTag) (a_23 : Int),
+        a_23 ≥ 0 →
+          ∀ (a_25 : Int),
+            a_25 ≥ 0 →
+              ∀ (a_27 : Int),
+                a_27 ≥ 0 →
+                  ∀ (a_29 a_30 : procSet) (a_31 : process → PCState) (a_32 : procSet) (a_33 : process → procSet)
+                    (a_34 a_35 : procSet) (a_36 : process → PCState) (a_37 : procSet) (a_38 : process → procSet)
+                    (a_39 a_40 : procSet) (a_41 : process → PCState) (a_42 : procSet) (a_43 : process → procSet)
+                    (a_44 : process) (a_45 a_46 : procSet),
+                    True →
+                      f a_2 = 0 →
+                        ∀ (a_49 : f a_2 = 0),
+                          (∀ (elem : process), a_1 elem a_2 = False) →
+                            ∀ (pset.empty_contains : ∀ (elem : process), a_1 elem a_2 = False),
+                              (∀ (s : procSet), a_3 s = (f s = 0)) →
+                                ∀ (pset.isEmpty_iff_count_zero : ∀ (s : procSet), a_3 s = (f s = 0)),
+                                  (∀ (elem : process) (s : procSet), a_1 elem (a_4 elem s)) →
+                                    ∀
+                                      (pset.contains_insert_self :
+                                        ∀ (elem : process) (s : procSet), a_1 elem (a_4 elem s)),
+                                      (∀ (elem₁ elem₂ : process) (s : procSet),
+                                          ¬elem₁ = elem₂ → a_1 elem₁ (a_4 elem₂ s) = a_1 elem₁ s) →
+                                        ∀
+                                          (pset.contains_insert_other :
+                                            ∀ (elem₁ elem₂ : process) (s : procSet),
+                                              ¬elem₁ = elem₂ → a_1 elem₁ (a_4 elem₂ s) = a_1 elem₁ s),
+                                          (∀ (elem : process) (s : procSet),
+                                              a_7 (a_4 elem (a_4 elem s)) = a_7 (a_4 elem s)) →
+                                            ∀
+                                              (pset.insert_idempotent :
+                                                ∀ (elem : process) (s : procSet),
+                                                  a_7 (a_4 elem (a_4 elem s)) = a_7 (a_4 elem s)),
+                                              (∀ (elem : process) (s : procSet),
+                                                  f (a_4 elem s) = if a_1 elem s then f s else f s + 1) →
+                                                ∀
+                                                  (pset.count_insert :
+                                                    ∀ (elem : process) (s : procSet),
+                                                      f (a_4 elem s) = if a_1 elem s then f s else f s + 1),
+                                                  (∀ (elem : process) (s : procSet), a_1 elem (a_5 elem s) = False) →
+                                                    ∀
+                                                      (pset.contains_remove_self :
+                                                        ∀ (elem : process) (s : procSet),
+                                                          a_1 elem (a_5 elem s) = False),
+                                                      ⋯
+but is expected to have type
+  (∀ (a₁ : procSet), f a₁ ≥ 0) → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (∀ (a₁ : procSet), f a₁ ≥ 0)) fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun pset.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun pset.insert =>
+                forall_congr fun pset.remove =>
+                  forall_congr fun pset.ofList =>
+                    forall_congr fun pset.toList =>
+                      forall_congr fun pset.filter =>
+                        forall_congr fun pset.union =>
+                          forall_congr fun pset.diff =>
+                            forall_congr fun pset.intersection =>
+                              forall_congr fun pset.subsets =>
+                                forall_congr fun PCState_Enum.V0 =>
+                                  forall_congr fun PCState_Enum.V1 =>
+                                    forall_congr fun PCState_Enum.SE =>
+                                      forall_congr fun PCState_Enum.AC =>
+                                        forall_congr fun processEnumerable.allValues =>
+                                          forall_congr fun __veil_tag.Stutter =>
+                                            forall_congr fun __veil_tag.Step_UponV1 =>
+                                              forall_congr fun __veil_tag.Step_UponNonFaulty =>
+                                                forall_congr fun __veil_tag.Step_UponAcceptNotSentBefore =>
+                                                  forall_congr fun __veil_tag.Step_UponAcceptorSentBefore =>
+                                                    Eq.trans Smt.Preprocess.Embedding.forall_nat_as_int._simp_1
+                                                      (forall_congr fun f_3 => ⋯)))

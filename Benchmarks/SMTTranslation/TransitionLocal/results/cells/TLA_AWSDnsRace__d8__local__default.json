@@ -1,0 +1,356 @@
+{
+  "row": {
+    "cell_id": "TLA_AWSDnsRace__d8__local__default",
+    "model": "TLA_AWSDnsRace",
+    "path": "Examples/TLA/AWSDnsRace.lean",
+    "module": "AWSDnsRace",
+    "depth": 8,
+    "variant": "local",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "type_mismatch",
+    "failure_message": "Application type mismatch: The argument\n  fun a =>\n    implies_congr (Eq.refl True)\n      (implies_congr (Eq.refl (distinctN [ENACTORS_Enum.e1, ENACTORS_Enum.e2]))\n        (implies_congr (Eq.refl (∀ (__veil_x : ENACTORS), __veil_x = ENACTORS_Enum.e1 ∨ __veil_x = ENACTORS_Enum.e2))\n          (implies_congr\n            (Eq.refl\n              (distinctN\n                [__veil_tag.PlannerStep, __veil_tag.EnactorReceiveStep, __veil_tag.EnactorApplyStep,\n                  __veil_tag.EnactorCleanupStep]))\n            (implies_congr\n              (Eq.refl\n                (∀ (__veil_x : ActionTag),\n                  __veil_x = __veil_tag.PlannerStep ∨\n                    __veil_x = __veil_tag.EnactorReceiveStep ∨\n                      __veil_x = __veil_tag.EnactorApplyStep ∨ __veil_x = __veil_tag.EnactorCleanupStep))\n              (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁹)) 6))\n                (forall_prop_domain_congr\n                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁹)) 6))\n                  fun th.max_plan.isLt =>\n                  implies_congr\n                    (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁸)) 6))\n                    (implies_congr\n                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁷)) 6))\n                      (forall_prop_domain_congr\n                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁷)) 6))\n                        fun st0.current_plan.isLt =>\n                        implies_congr\n                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 6))\n                          (forall_prop_domain_congr\n                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 6))\n                            fun st0.latest_plan.isLt =>\n                            implies_congr\n                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 6))\n                              (forall_prop_domain_congr\n                                (Eq.trans Int.ofNat_lt._simp_2\n                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 6))\n                                fun st1.current_plan.isLt =>\n                                implies_congr\n                                  (Eq.trans Int.ofNat_lt._simp_2\n                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 6))\n                                  (forall_prop_domain_congr\n                                    (Eq.trans Int.ofNat_lt._simp_2\n                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 6))\n                                    fun st1.latest_plan.isLt =>\n                                    implies_congr\n                                      (Eq.trans Int.ofNat_lt._simp_2\n                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 6))\n                                      (forall_prop_domain_congr\n                                        (Eq.trans Int.ofNat_lt._simp_2\n                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 6))\n                                        fun st2.current_plan.isLt =>\n                                        implies_congr\n                                          (Eq.trans Int.ofNat_lt._simp_2\n                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 6))\n                                          (forall_prop_domain_congr\n                                            (Eq.trans Int.ofNat_lt._simp_2\n                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 6))\n                                            fun st2.latest_plan.isLt =>\n                                            implies_congr\n                                              (Eq.trans Int.ofNat_lt._simp_2\n                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 6))\n                                              (forall_prop_domain_congr\n                                                (Eq.trans Int.ofNat_lt._simp_2\n                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 6))\n                                                fun st3.current_plan.isLt =>\n                                                implies_congr\n                                                  (Eq.trans Int.ofNat_lt._simp_2\n                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 6))\n                                                  (forall_prop_domain_congr\n                                                    (Eq.trans Int.ofNat_lt._simp_2\n                                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 6))\n                                                    fun st3.latest_plan.isLt =>\n                                                    implies_congr\n                                                      (Eq.trans Int.ofNat_lt._simp_2\n                                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 6))\n                                                      (forall_prop_domain_congr\n                                                        (Eq.trans Int.ofNat_lt._simp_2\n                                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 6))\n                                                        fun st4.current_plan.isLt =>\n                                                        implies_congr\n                                                          (Eq.trans Int.ofNat_lt._simp_2\n                                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 6))\n                                                          (forall_prop_domain_congr\n                                                            (Eq.trans Int.ofNat_lt._simp_2\n                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 6))\n                                                            fun st4.latest_plan.isLt =>\n                                                            implies_congr\n                                                              (Eq.trans Int.ofNat_lt._simp_2\n                                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷))\n                                                                  6))\n                                                              (forall_prop_domain_congr\n                                                                (Eq.trans Int.ofNat_lt._simp_2\n                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷))\n                                                                    6))\n                                                                fun st5.current_plan.isLt =>\n                                                                implies_congr\n                                                                  (Eq.trans Int.ofNat_lt._simp_2\n                                                                    (congrFun'\n                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 6))\n                                                                  (forall_prop_domain_congr\n                                                                    (Eq.trans Int.ofNat_lt._simp_2\n                                                                      (congrFun'\n                                      ",
+    "setup_ms": null,
+    "query_elaboration_ms": 37,
+    "batch_id": "TLA_AWSDnsRace__default__batch1",
+    "batch_setup_ms": 8124,
+    "preprocessing_ms": 1739,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/TLA_AWSDnsRace__d8__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/TLA_AWSDnsRace__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/TLA_AWSDnsRace__d8__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/TLA_AWSDnsRace__d8__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/TLA_AWSDnsRace__d8__local__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_AWSDnsRace",
+    "path": "Examples/TLA/AWSDnsRace.lean",
+    "module": "AWSDnsRace",
+    "cut_line": 93,
+    "query": "assert (current_plan > 0 ∧ plan_deleted current_plan true)",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "NeverDeleteActive invariant, line89",
+    "notes": "Finite-enum/Fin-based DNS race model; distinct from both AWS variants.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "0d18a8d84a66ceffa70e55c0a195892aa5939fa559c85fefd5c79a96d2e9ba9f"
+  },
+  "original_sha256": "0d18a8d84a66ceffa70e55c0a195892aa5939fa559c85fefd5c79a96d2e9ba9f",
+  "inherited_setup_options": [],
+  "source_sha256": "904d06a42b681ab792f4fdb8a8ca47c3b7e62be8e4fdb060ac0878b5c083b7ce",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/TLA_AWSDnsRace__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208430267,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 208430304,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208430304,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 12563,
+      "mono_ms": 208430308,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208430308,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 3896,
+      "mono_ms": 208430309,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208430310,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 777,
+      "event": "stage",
+      "heartbeats": 7858102,
+      "mono_ms": 208431087,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208431087,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 24,
+      "event": "stage",
+      "heartbeats": 409738,
+      "mono_ms": 208431112,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208431123,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3863,
+      "mono_ms": 208431125,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208431125,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 128,
+      "event": "stage",
+      "heartbeats": 1751092,
+      "mono_ms": 208431254,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208431254,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 110,
+      "event": "stage",
+      "heartbeats": 1323388,
+      "mono_ms": 208431364,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208431365,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 603,
+      "event": "stage",
+      "heartbeats": 5496150,
+      "mono_ms": 208431968,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208431970,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 87,
+      "event": "stage",
+      "heartbeats": 1122534,
+      "mono_ms": 208432057,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208432057,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 41163,
+      "mono_ms": 208432062,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 1758,
+      "event": "milestone",
+      "mono_ms": 208432062,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208432062,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 37263,
+      "mono_ms": 208432067,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208432067,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 2187,
+      "mono_ms": 208432067,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208432067,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 208432067,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208432067,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 208432067,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208432067,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 121,
+      "event": "stage",
+      "heartbeats": 1216773,
+      "mono_ms": 208432188,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208432188,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1007,
+      "error": "Application type mismatch: The argument\n  fun a =>\n    implies_congr (Eq.refl True)\n      (implies_congr (Eq.refl (distinctN [ENACTORS_Enum.e1, ENACTORS_Enum.e2]))\n        (implies_congr (Eq.refl (∀ (__veil_x : ENACTORS), __veil_x = ENACTORS_Enum.e1 ∨ __veil_x = ENACTORS_Enum.e2))\n          (implies_congr\n            (Eq.refl\n              (distinctN\n                [__veil_tag.PlannerStep, __veil_tag.EnactorReceiveStep, __veil_tag.EnactorApplyStep,\n                  __veil_tag.EnactorCleanupStep]))\n            (implies_congr\n              (Eq.refl\n                (∀ (__veil_x : ActionTag),\n                  __veil_x = __veil_tag.PlannerStep ∨\n                    __veil_x = __veil_tag.EnactorReceiveStep ∨\n                      __veil_x = __veil_tag.EnactorApplyStep ∨ __veil_x = __veil_tag.EnactorCleanupStep))\n              (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁹)) 6))\n                (forall_prop_domain_congr\n                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁹)) 6))\n                  fun th.max_plan.isLt =>\n                  implies_congr\n                    (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁸)) 6))\n                    (implies_congr\n                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁷)) 6))\n                      (forall_prop_domain_congr\n                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁷)) 6))\n                        fun st0.current_plan.isLt =>\n                        implies_congr\n                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 6))\n                          (forall_prop_domain_congr\n                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 6))\n                            fun st0.latest_plan.isLt =>\n                            implies_congr\n                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 6))\n                              (forall_prop_domain_congr\n                                (Eq.trans Int.ofNat_lt._simp_2\n                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 6))\n                                fun st1.current_plan.isLt =>\n                                implies_congr\n                                  (Eq.trans Int.ofNat_lt._simp_2\n                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 6))\n                                  (forall_prop_domain_congr\n                                    (Eq.trans Int.ofNat_lt._simp_2\n                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 6))\n                                    fun st1.latest_plan.isLt =>\n                                    implies_congr\n                                      (Eq.trans Int.ofNat_lt._simp_2\n                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 6))\n                                      (forall_prop_domain_congr\n                                        (Eq.trans Int.ofNat_lt._simp_2\n                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 6))\n                                        fun st2.current_plan.isLt =>\n                                        implies_congr\n                                          (Eq.trans Int.ofNat_lt._simp_2\n                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 6))\n                                          (forall_prop_domain_congr\n                                            (Eq.trans Int.ofNat_lt._simp_2\n                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 6))\n                                            fun st2.latest_plan.isLt =>\n                                            implies_congr\n                                              (Eq.trans Int.ofNat_lt._simp_2\n                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 6))\n                                              (forall_prop_domain_congr\n                                                (Eq.trans Int.ofNat_lt._simp_2\n                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 6))\n                                                fun st3.current_plan.isLt =>\n                                                implies_congr\n                                                  (Eq.trans Int.ofNat_lt._simp_2\n                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 6))\n                                                  (forall_prop_domain_congr\n                                                    (Eq.trans Int.ofNat_lt._simp_2\n                                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 6))\n                                                    fun st3.latest_plan.isLt =>\n                                                    implies_congr\n                                                      (Eq.trans Int.ofNat_lt._simp_2\n                                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 6))\n                                                      (forall_prop_domain_congr\n                                                        (Eq.trans Int.ofNat_lt._simp_2\n                                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 6))\n                                                        fun st4.current_plan.isLt =>\n                                                        implies_congr\n                                                          (Eq.trans Int.ofNat_lt._simp_2\n                                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 6))\n                                                          (forall_prop_domain_congr\n                                                            (Eq.trans Int.ofNat_lt._simp_2\n                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 6))\n                                                            fun st4.latest_plan.isLt =>\n                                                            implies_congr\n                                                              (Eq.trans Int.ofNat_lt._simp_2\n                                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷))\n                                                                  6))\n                                                              (forall_prop_domain_congr\n                                                                (Eq.trans Int.ofNat_lt._simp_2\n                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷))\n                                                                    6))\n                                                                fun st5.current_plan.isLt =>\n                                                                implies_congr\n                                                                  (Eq.trans Int.ofNat_lt._simp_2\n                                                                    (congrFun'\n                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 6))\n                                                                  (forall_prop_domain_congr\n                                                                    (Eq.trans Int.ofNat_lt._simp_2\n                                                                      (congrFun'\n                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 6))\n                                                                    fun st5.latest_plan.isLt =>\n                                                                    implies_congr\n                                                                      (Eq.trans Int.ofNat_lt._simp_2\n                                                                        (congrFun'\n                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 6))\n                                                                      (forall_prop_domain_congr\n                                                                        (Eq.trans Int.ofNat_lt._simp_2\n                                                                          (congrFun'\n                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵))\n                                                                            6))\n                                                                        fun st6.current_plan.isLt =>\n                                                                        implies_congr\n                                                                          (Eq.trans Int.ofNat_lt._simp_2\n                                                                            (congrFun'\n                                                                              (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))\n                                                                              6))\n                                                                          (forall_prop_domain_congr\n                                                                            (Eq.trans Int.ofNat_lt._simp_2\n                                                                              (congrFun'\n                                                                                (congrArg LT.lt\n                                                                                  (Int.toNat_of_nonneg a✝⁴))\n                                                                                6))\n                                                                            ⋯)))))))))))))))))))))\nhas type\n  ∀ (a : f ≥ 0),\n    (True →\n        distinctN [ENACTORS_Enum.e1, ENACTORS_Enum.e2] →\n          (∀ (__veil_x : ENACTORS), __veil_x = ENACTORS_Enum.e1 ∨ __veil_x = ENACTORS_Enum.e2) →\n            distinctN\n                [__veil_tag.PlannerStep, __veil_tag.EnactorReceiveStep, __veil_tag.EnactorApplyStep,\n                  __veil_tag.EnactorCleanupStep] →\n              (∀ (__veil_x : ActionTag),\n                  __veil_x = __veil_tag.PlannerStep ∨\n                    __veil_x = __veil_tag.EnactorReceiveStep ∨\n                      __veil_x = __veil_tag.EnactorApplyStep ∨ __veil_x = __veil_tag.EnactorCleanupStep) →\n                f✝¹⁸.toNat < 6 →\n                  ∀ (a : f✝¹⁸.toNat < 6),\n                    f✝¹⁷.toNat < 6 →\n                      f✝¹⁶.toNat < 6 →\n                        ∀ (st0.current_plan.isLt : f✝¹⁶.toNat < 6),\n                          f✝¹⁵.toNat < 6 →\n                            ∀ (st0.latest_plan.isLt : f✝¹⁵.toNat < 6),\n                              f✝¹⁴.toNat < 6 →\n                                ∀ (st1.current_plan.isLt : f✝¹⁴.toNat < 6),\n                                  f✝¹³.toNat < 6 →\n                                    ∀ (st1.latest_plan.isLt : f✝¹³.toNat < 6),\n                                      f✝¹².toNat < 6 →\n                                        ∀ (st2.current_plan.isLt : f✝¹².toNat < 6),\n                                          f✝¹¹.toNat < 6 →\n                                            ∀ (st2.latest_plan.isLt : f✝¹¹.toNat < 6),\n                                              f✝¹⁰.toNat < 6 →\n                                                ∀ (st3.current_plan.isLt : f✝¹⁰.toNat < 6),\n                                                  f✝⁹.toNat < 6 →\n                                                    ∀ (st3.latest_plan.isLt : f✝⁹.toNat < 6),\n                                                      f✝⁸.toNat < 6 →\n                                                        ∀ (st4.current_plan.isLt : f✝⁸.toNat < 6),\n                                                          f✝⁷.toNat < 6 →\n                                                            ∀ (st4.latest_plan.isLt : f✝⁷.toNat < 6),\n                                                              f✝⁶.toNat < 6 →\n                                                                ∀ (st5.current_plan.isLt : f✝⁶.toNat < 6),\n                                                                  f✝⁵.toNat < 6 →\n                                                                    ∀ (st5.latest_plan.isLt : f✝⁵.toNat < 6),\n                                                                      f✝⁴.toNat < 6 →\n                                                                        ∀ (st6.current_plan.isLt : f✝⁴.toNat < 6),\n                                                                          f✝³.toNat < 6 →\n                                                                            ∀ (st6.latest_plan.isLt : f✝³.toNat < 6),\n                                                                              f✝².toNat < 6 →\n                                                                                ∀\n                                                                                  (st7.current_plan.isLt :\n                                                                                    f✝².toNat < 6),\n                                                                                  f✝¹.toNat < 6 →\n                                                                                    ∀\n                                                                                      (st7.latest_plan.isLt :\n                                                                                        f✝¹.toNat < 6),\n                                                                                      f✝.toNat < 6 →\n                                                                                        ∀\n                                                                                          (st8.current_plan.isLt :\n                                                                                            f✝.toNat < 6),\n                                                                                          f.toNat < 6 →\n                                                                                            ∀\n                                                                                              (st8.latest_plan.isLt :\n                                                                                                f.toNat < 6),\n                                                                                              ⟨f✝.toNat,\n                                                                                                    st8.current_plan.isLt⟩ >\n                                                                                                  0 →\n                                                                                                (fun a₁ b =>\n                                                                                                        (fun a₁ a₂ =>\n                                                                                                            decide\n                                                                                                              (f✝²⁰ a₁\n                                                                                                                a₂))\n                                                                                                          a₁ (b = true))\n                                                                                                      ⟨f✝.toNat,\n                                                                                                        st8.current_plan.isLt⟩\n                                                                                                      true =\n                                                                                                    true →\n                                                                                                  0 =\n                                                                                                        ⟨f✝¹⁶.toNat,\n                                                                                                          st0.current_plan.isLt⟩ ∧\n                                                                                                      0 =\n                                                                                                          ⟨f✝¹⁵.toNat,\n                                                                                                            st0.latest_plan.isLt⟩ ∧\n                                                                                                        ⋯ →\n                                                                                                    ⋯ ∨ ⋯ → ⋯ → ⋯) =\n      (True →\n        distinctN [ENACTORS_Enum.e1, ENACTORS_Enum.e2] →\n          (∀ (__veil_x : ENACTORS), __veil_x = ENACTORS_Enum.e1 ∨ __veil_x = ENACTORS_Enum.e2) →\n            distinctN\n                [__veil_tag.PlannerStep, __veil_tag.EnactorReceiveStep, __veil_tag.EnactorApplyStep,\n                  __veil_tag.EnactorCleanupStep] →\n              (∀ (__veil_x : ActionTag),\n                  __veil_x = __veil_tag.PlannerStep ∨\n                    __veil_x = __veil_tag.EnactorReceiveStep ∨\n                      __veil_x = __veil_tag.EnactorApplyStep ∨ __veil_x = __veil_tag.EnactorCleanupStep) →\n                f✝¹⁸ < 6 →\n                  ∀ (a_7 : f✝¹⁸ < 6),\n                    f✝¹⁷ < 6 →\n                      f✝¹⁶ < 6 →\n                        ∀ (st0.current_plan.isLt : f✝¹⁶ < 6),\n                          f✝¹⁵ < 6 →\n                            ∀ (st0.latest_plan.isLt : f✝¹⁵ < 6),\n                              f✝¹⁴ < 6 →\n                                ∀ (st1.current_plan.isLt : f✝¹⁴ < 6),\n                                  f✝¹³ < 6 →\n                                    ∀ (st1.latest_plan.isLt : f✝¹³ < 6),\n                                      f✝¹² < 6 →\n                                        ∀ (st2.current_plan.isLt : f✝¹² < 6),\n                                          f✝¹¹ < 6 →\n                                            ∀ (st2.latest_plan.isLt : f✝¹¹ < 6),\n                                              f✝¹⁰ < 6 →\n                                                ∀ (st3.current_plan.isLt : f✝¹⁰ < 6),\n                                                  f✝⁹ < 6 →\n                                                    ∀ (st3.latest_plan.isLt : f✝⁹ < 6),\n                                                      f✝⁸ < 6 →\n                                                        ∀ (st4.current_plan.isLt : f✝⁸ < 6),\n                                                          f✝⁷ < 6 →\n                                                            ∀ (st4.latest_plan.isLt : f✝⁷ < 6),\n                                                              f✝⁶ < 6 →\n                                                                ∀ (st5.current_plan.isLt : f✝⁶ < 6),\n                                                                  f✝⁵ < 6 →\n                                                                    ∀ (st5.latest_plan.isLt : f✝⁵ < 6),\n                                                                      f✝⁴ < 6 →\n                                                                        ∀ (st6.current_plan.isLt : f✝⁴ < 6),\n                                                                          f✝³ < 6 →\n                                                                            ∀ (st6.latest_plan.isLt : f✝³ < 6),\n                                                                              f✝² < 6 →\n                                                                                ∀ (st7.current_plan.isLt : f✝² < 6),\n                                                                                  f✝¹ < 6 →\n                                                                                    ∀ (st7.latest_plan.isLt : f✝¹ < 6),\n                                                                                      f✝ < 6 →\n                                                                                        ∀\n                                                                                          (st8.current_plan.isLt :\n                                                                                            f✝ < 6),\n                                                                                          f < 6 →\n                                                                                            ∀\n                                                                                              (st8.latest_plan.isLt :\n                                                                                                f < 6),\n                                                                                              ⟨f✝.toNat, ⋯⟩ > 0 →\n                                                                                                f✝²⁰ ⟨f✝.toNat, ⋯⟩\n                                                                                                    True →\n                                                                                                  0 = ⋯ ∧ ⋯ ∧ ⋯ →\n                                                                                                    ⋯ ∨ ⋯ → ⋯ → ⋯)\nbut is expected to have type\n  f ≥ 0 → ?q₁ = ?q₂\nin the application\n  implies_congr_ctx (Eq.refl (f ≥ 0)) fun a =>\n    implies_congr (Eq.refl True)\n      (implies_congr (Eq.refl (distinctN [ENACTORS_Enum.e1, ENACTORS_Enum.e2]))\n        (implies_congr (Eq.refl (∀ (__veil_x : ENACTORS), __veil_x = ENACTORS_Enum.e1 ∨ __veil_x = ENACTORS_Enum.e2))\n          (implies_congr\n            (Eq.refl\n              (distinctN\n                [__veil_tag.PlannerStep, __veil_tag.EnactorReceiveStep, __veil_tag.EnactorApplyStep,\n                  __veil_tag.EnactorCleanupStep]))\n            (implies_congr\n              (Eq.refl\n                (∀ (__veil_x : ActionTag),\n                  __veil_x = __veil_tag.PlannerStep ∨\n                    __veil_x = __veil_tag.EnactorReceiveStep ∨\n                      __veil_x = __veil_tag.EnactorApplyStep ∨ __veil_x = __veil_tag.EnactorCleanupStep))\n              (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁹)) 6))\n                (forall_prop_domain_congr\n                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁹)) 6))\n                  fun th.max_plan.isLt =>\n                  implies_congr\n                    (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁸)) 6))\n                    (implies_congr\n                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁷)) 6))\n                      (forall_prop_domain_congr\n                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁷)) 6))\n                        fun st0.current_plan.isLt =>\n                        implies_congr\n                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 6))\n                          (forall_prop_domain_congr\n                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 6))\n                            fun st0.latest_plan.isLt =>\n                            implies_congr\n                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 6))\n                              (forall_prop_domain_congr\n                                (Eq.trans Int.ofNat_lt._simp_2\n                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 6))\n                                fun st1.current_plan.isLt =>\n                                implies_congr\n                                  (Eq.trans Int.ofNat_lt._simp_2\n                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 6))\n                                  (forall_prop_domain_congr\n                                    (Eq.trans Int.ofNat_lt._simp_2\n                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 6))\n                                    fun st1.latest_plan.isLt =>\n                                    implies_congr\n                                      (Eq.trans Int.ofNat_lt._simp_2\n                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 6))\n                                      (forall_prop_domain_congr\n                                        (Eq.trans Int.ofNat_lt._simp_2\n                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 6))\n                                        fun st2.current_plan.isLt =>\n                                        implies_congr\n                                          (Eq.trans Int.ofNat_lt._simp_2\n                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 6))\n                                          (forall_prop_domain_congr\n                                            (Eq.trans Int.ofNat_lt._simp_2\n                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 6))\n                                            fun st2.latest_plan.isLt =>\n                                            implies_congr\n                                              (Eq.trans Int.ofNat_lt._simp_2\n                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 6))\n                                              (forall_prop_domain_congr\n                                                (Eq.trans Int.ofNat_lt._simp_2\n                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 6))\n                                                fun st3.current_plan.isLt =>\n                                                implies_congr\n                                                  (Eq.trans Int.ofNat_lt._simp_2\n                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 6))\n                                                  (forall_prop_domain_congr\n                                                    (Eq.trans Int.ofNat_lt._simp_2\n                                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 6))\n                                                    fun st3.latest_plan.isLt =>\n                                                    implies_congr\n                                                      (Eq.trans Int.ofNat_lt._simp_2\n                                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 6))\n                                                      (forall_prop_domain_congr\n                                                        (Eq.trans Int.ofNat_lt._simp_2\n                                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 6))\n                                                        fun st4.current_plan.isLt =>\n                                                        implies_congr\n                                                          (Eq.trans Int.ofNat_lt._simp_2\n                                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 6))\n                                                          (forall_prop_domain_congr\n                                                            (Eq.trans Int.ofNat_lt._simp_2\n                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 6))\n                                                            fun st4.latest_plan.isLt =>\n                                                            implies_congr\n                                                              (Eq.trans Int.ofNat_lt._simp_2\n                                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷))\n                                                                  6))\n                                                              (forall_prop_domain_congr\n                                                                (Eq.trans Int.ofNat_lt._simp_2\n                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷))\n                                                                    6))\n                                                                fun st5.current_plan.isLt =>\n                                                                implies_congr\n                                                                  (Eq.trans Int.ofNat_lt._simp_2\n                                                                    (congrFun'\n                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 6))\n                                                                  (forall_prop_domain_congr\n                                                                    (Eq.trans Int.ofNat_lt._simp_2\n                                                                      (congrFun'\n                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 6))\n                                                                    fun st5.latest_plan.isLt =>\n                                                                    implies_congr\n                                                                      (Eq.trans Int.ofNat_lt._simp_2\n                                                                        (congrFun'\n                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 6))\n                                                                      (forall_prop_domain_congr\n                                                                        (Eq.trans Int.ofNat_lt._simp_2\n                                                                          (congrFun'\n                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵))\n                                                                            6))\n                                                                        fun st6.current_plan.isLt =>\n                                                                        implies_congr\n                                                                          (Eq.trans Int.ofNat_lt._simp_2\n                                                                            (congrFun'\n                                                                              (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))\n                                                                              6))\n                                                                          ⋯))))))))))))))))))))",
+      "event": "stage",
+      "heartbeats": 6198538,
+      "mono_ms": 208433347,
+      "phase": "embedding",
+      "status": "failed"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208433464,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_AWSDnsRace__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/TLA_AWSDnsRace__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/TLA_AWSDnsRace__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 56301,
+    "setup_ms": 8124,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/TLA_AWSDnsRace__default__batch1.lean"
+    ]
+  }
+}

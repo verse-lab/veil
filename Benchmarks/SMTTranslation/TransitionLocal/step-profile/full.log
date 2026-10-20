@@ -1,0 +1,42 @@
+BEGIN Ivy_Blockchain batch1 cells=12
+  Ivy_Blockchain__d1__early__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Blockchain__d1__local__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Blockchain__d2__local__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Blockchain__d2__early__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Blockchain__d4__early__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Blockchain__d4__local__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Blockchain__d8__local__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Blockchain__d8__early__default translation_failed phase=hoist kind=simp_steps query_ms=None
+  Ivy_Blockchain__d16__early__default translation_failed phase=hoist kind=simp_steps query_ms=None
+  Ivy_Blockchain__d16__local__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Blockchain__d32__local__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Blockchain__d32__early__default translation_failed phase=hoist kind=heartbeats query_ms=None
+END Ivy_Blockchain__default__batch1 wall=100.9s setup=13323 timeout=None remaining=0
+BEGIN Ivy_Ring batch1 cells=12
+  Ivy_Ring__d1__local__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Ring__d1__early__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Ring__d2__early__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Ring__d2__local__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Ring__d4__local__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Ring__d4__early__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Ring__d8__early__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Ring__d8__local__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Ring__d16__local__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Ring__d16__early__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Ring__d32__early__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Ring__d32__local__default profile_complete phase=None kind=None query_ms=None
+END Ivy_Ring__default__batch1 wall=13.2s setup=4745 timeout=None remaining=0
+BEGIN Tutorial_FloodSet batch1 cells=12
+  Tutorial_FloodSet__d1__early__default profile_complete phase=None kind=None query_ms=None
+  Tutorial_FloodSet__d1__local__default profile_complete phase=None kind=None query_ms=None
+  Tutorial_FloodSet__d2__local__default profile_complete phase=None kind=None query_ms=None
+  Tutorial_FloodSet__d2__early__default profile_complete phase=None kind=None query_ms=None
+  Tutorial_FloodSet__d4__early__default profile_complete phase=None kind=None query_ms=None
+  Tutorial_FloodSet__d4__local__default profile_complete phase=None kind=None query_ms=None
+  Tutorial_FloodSet__d8__local__default profile_complete phase=None kind=None query_ms=None
+  Tutorial_FloodSet__d8__early__default profile_complete phase=None kind=None query_ms=None
+  Tutorial_FloodSet__d16__early__default translation_failed phase=hoist kind=simp_steps query_ms=None
+  Tutorial_FloodSet__d16__local__default profile_complete phase=None kind=None query_ms=None
+  Tutorial_FloodSet__d32__local__default profile_complete phase=None kind=None query_ms=None
+  Tutorial_FloodSet__d32__early__default translation_failed phase=hoist kind=simp_steps query_ms=None
+END Tutorial_FloodSet__default__batch1 wall=52.1s setup=9885 timeout=None remaining=0

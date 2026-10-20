@@ -1,0 +1,59 @@
+Separate simplifier-work experiment
+==================================
+
+After the primary 588-cell extraction/replay finished, a separate runner enabled
+trace.Meta.Tactic.simp.numSteps for the normalization phases. It recursively
+collects the counters of completed inner AND outer SimpM.run calls, resets trace
+state between phases, and stops immediately after transition unfolding and
+hoisting. It does not destruct contexts, embed, serialize or call the solver.
+The initial Ivy Ring depth-1 smoke check passed before the full diagnostic.
+
+The full diagnostic covers Blockchain, Tutorial FloodSet and Ivy Ring at the
+same six depths for both variants (36 cells). Thirty-one complete both phases;
+five early-introduction cells fail in hoisting. Local normalization completes
+both measured phases in all eighteen local cells. This does not imply complete
+translation: the primary Blockchain depth-32 query fails in destruction, and
+FloodSet at depths 16/32 fails in embedding.
+
+Completed hoisting-phase counter sums:
+
+                      depth     early        local
+  Ivy Blockchain          1      5,142        2,540
+                          2     11,261        5,077
+                          4     32,139       10,151
+                          8       fail       20,299
+                         16       fail       40,595
+                         32       fail       81,187
+  Tutorial FloodSet       1        826          327
+                          2      1,734          626
+                          4      5,000        1,224
+                          8     20,132        2,420
+                         16       fail        4,812
+                         32       fail        9,596
+
+This is direct evidence of reduced measured hoisting work on matched complete
+phases, followed by approximately linear growth in the local formulation. It is
+not merely evidence that restarting a per-call counter permits more total work.
+Blockchain depth 4 uses about 3.17x fewer counted hoisting steps, and FloodSet
+depth 8 about 8.32x fewer. Failed phases are omitted rather than assigning their
+limit as a completed count.
+
+There is no blanket reduction in all simplifier work. At depth 32, Blockchain's
+nextSimp counter increases from 45,819 to 50,335; FloodSet's from 19,801 to 25,049.
+Separate hypotheses repeat some unfolding/traversal. Ivy Ring has no applicable
+higher-order hoisting in these traces: the global guard reports one outer simp
+step, while the local path reports one per hypothesis (35 at depth 32). Guard
+traversal/type inference, proof construction and context transport are not all
+represented by numSteps. The primary allocation counters and complete-pipeline
+wall times are therefore retained as independent cost measurements.
+
+Counters from failed/abandoned runs may not be emitted. These are sums of the
+completed-run counters available from Lean's trace API, not a count of all
+machine operations or a complexity proof. Tracing changes allocation and timing;
+none of the diagnostic timings is pooled with the primary benchmark. A fresh
+simp counter is permitted for each hypothesis, but the runner does not reset the
+whole-query command heartbeat allowance per transition.
+
+The graph and raw tables are step-profile/simp-work.png, simp-work.svg,
+simp-work.csv and matched-simp-work.csv. All generated Lean sources, per-phase
+events and failure messages are preserved in step-profile/results.

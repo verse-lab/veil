@@ -1,0 +1,757 @@
+/tmp/veil-transition-local/results/batch-sources/TLA_BuggyCircularBuffer__default__batch1.lean:189:2: error: Application type mismatch: The argument
+  fun a =>
+    implies_congr (Eq.refl (distinctN [__veil_tag.Put, __veil_tag.Get]))
+      (implies_congr (Eq.refl (∀ (__veil_x : ActionTag), __veil_x = __veil_tag.Put ∨ __veil_x = __veil_tag.Get))
+        (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+          (forall_prop_domain_congr
+            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+            fun st0.tail.isLt =>
+            implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 2))
+              (forall_prop_domain_congr
+                (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 2))
+                fun st1.tail.isLt =>
+                implies_congr
+                  (congrArg Not
+                    (congrArg Not
+                      (congr
+                        (congrArg And
+                          (congrArg (And (∀ (a : Fin BUFFER_SIZE), ⟨0, initializer.do._proof_1⟩ = st0.buffer a))
+                            (congr
+                              (congrArg And
+                                (Eq.trans Int.ofNat_inj._simp_2 (congrArg (Eq 0) (Int.toNat_of_nonneg a✝⁵))))
+                              (congrArg
+                                (And
+                                  (0 =
+                                    ⟨f✝.toNat,
+                                      Eq.substr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                                        st0.tail.isLt⟩))
+                                (Eq.trans Int.ofNat_inj._simp_2 (congrArg (Eq 0) (Int.toNat_of_nonneg a✝⁴)))))))
+                        (congr
+                          (congrArg And
+                            (congr
+                              (congrArg Or
+                                (congrArg (And (_tr1_tag = __veil_tag.Put))
+                                  (Eq.trans Smt.Preprocess.Embedding.exists_nat_as_int'._simp_1
+                                    (congrArg Exists
+                                      (funext fun x =>
+                                        congrArg (And (x ≥ 0))
+                                          (implies_congr_ctx (Eq.refl (x ≥ 0)) fun a_1 =>
+                                            propext
+                                              (exists_prop_congr
+                                                (fun h =>
+                                                  Iff.of_eq
+                                                    (congrArg
+                                                      (And
+                                                        (∀ (a : Fin BUFFER_SIZE),
+                                                          (if
+                                                                ⟨f✝.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                                                                      st0.tail.isLt⟩ =
+                                                                  a then
+                                                              ⟨x.toNat,
+                                                                (Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                  ((Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                    ((Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                      h))⟩
+                                                            else st0.buffer a) =
+                                                            st1.buffer a))
+                                                      (congr
+                                                        (congrArg And
+                                                          (Eq.trans Int.ofNat_inj._simp_2
+                                                            (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁵))
+                                                              (Int.toNat_of_nonneg a✝³))))
+                                                        (congrArg
+                                                          (And
+                                                            (⟨(f✝.toNat + 1) % BUFFER_SIZE,
+                                                                id
+                                                                    (Eq.refl
+                                                                      ((↑{ buffer := st0.buffer, head := f✝⁴.toNat,
+                                                                                tail :=
+                                                                                  ⟨f✝.toNat,
+                                                                                    Eq.substr
+                                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                                        (congrFun'
+                                                                                          (congrArg LT.lt
+                                                                                            (Int.toNat_of_nonneg a✝¹))
+                                                                                          2))
+                                                                                      st0.tail.isLt⟩,
+                                                                                count := f✝³.toNat }.tail +
+                                                                          1) %
+                                                                        BUFFER_SIZE)) ▸
+                                                                  congrFun'
+                                                                      (congrArg HMod.hMod
+                                                                        (congrFun'
+                                                                          (congrArg HAdd.hAdd
+                                                                            (congrArg Fin.val
+                                                                              (congrArg FieldRepresentation.get
+                                                                                (congrArg State.tail
+                                                                                  (IsSubStateOf.getFrom_setIn_idempotent
+                                                                                    {
+                                                                                      buffer :=
+                                                                                        FieldRepresentation.setSingle
+                                                                                          (some
+                                                                                              (FieldRepresentation.get
+                                                                                                ⋯.tail),
+                                                                                            ())
+                                                                                          (fun x_1 =>
+                                                                                            ⟨x.toNat,
+                                                                                              (Iff.of_eq
+                                                                                                    (Eq.refl
+                                                                                                      (x.toNat ∈
+                                                                                                        BUFFER_ELEMS))).mpr
+                                                                                                ((Iff.of_eq
+                                                                                                      (Eq.refl
+                                                                                                        (x.toNat ∈
+                                                                                                          BUFFER_ELEMS))).mpr
+                                                                                                  ((Iff.of_eq
+                                                                                                        (Eq.refl
+                                                                                                          (x.toNat ∈
+                                                                                                            BUFFER_ELEMS))).mpr
+                                                                                                    h))⟩)
+                                                                                          (getFrom
+                                                                                              { buffer := st0.buffer,
+                                                                                                head := f✝⁴.toNat,
+                                                                                                tail := ⟨f✝.toNat, ⋯⟩,
+                                                                                                count :=
+                                                                                                  f✝³.toNat }).buffer,
+                                                                                      head :=
+                                                                                        FieldRepresentation.setSingle ()
+                                                                                          (FieldRepresentation.get
+                                                                                            (getFrom
+                                                                                                { buffer := st0.buffer,
+                                                                                                  head := f✝⁴.toNat,
+                                                                                                  tail := ⋯,
+                                                                                                  count :=
+                                                                                                    f✝³.toNat }).head)
+                                                                                          (getFrom
+                                                                                              { buffer := st0.buffer,
+                                                                                                head := f✝⁴.toNat,
+                                                                                                tail := ⟨f✝.toNat, ⋯⟩,
+                                                                                                count :=
+                                                                                                  f✝³.toNat }).head,
+                                                                                      tail :=
+                                                                                        (getFrom
+                                                                                            { buffer := st0.buffer,
+                                                                                              head := f✝⁴.toNat,
+                                                                                              tail :=
+                                                                                                ⟨f✝.toNat,
+                                                                                                  Eq.substr
+                                                                                                    (Eq.trans
+                                                                                                      Int.ofNat_lt._simp_2
+                                                                                                      (congrFun'
+                                                                                                        (congrArg LT.lt
+                                                                                                          (Int.toNat_of_nonneg
+                                                                                                            a✝¹))
+                                                                                                        2))
+                                                                                                    st0.tail.isLt⟩,
+                                                                                              count :=
+                                                                                                f✝³.toNat }).tail,
+                                                                                      count :=
+                                                                                        (getFrom
+                                                                                            { buffer := st0.buffer,
+                                                                                              head := f✝⁴.toNat,
+                                                                                              tail :=
+                                                                                                ⟨f✝.toNat,
+                                                                                                  Eq.substr
+                                                                                                    (Eq.trans
+                                                                                                      Int.ofNat_lt._simp_2
+                                                                                                      (congrFun'
+                                                                                                        (congrArg LT.lt
+                                                                                                          (Int.toNat_of_nonneg
+                                                                                                            a✝¹))
+                                                                                                        2))
+                                                                                                    st0.tail.isLt⟩,
+                                                                                              count :=
+                                                                                                f✝³.toNat }).count }
+                                                                                    { buffer := st0.buffer,
+                                                                                      head := f✝⁴.toNat,
+                                                                                      tail :=
+                                                                                        ⟨f✝.toNat,
+                                                                                          Eq.substr
+                                                                                            (Eq.trans
+                                                                                              Int.ofNat_lt._simp_2
+                                                                                              (congrFun'
+                                                                                                (congrArg LT.lt
+                                                                                                  (Int.toNat_of_nonneg
+                                                                                                    a✝¹))
+                                                                                                2))
+                                                                                            st0.tail.isLt⟩,
+                                                                                      count := f✝³.toNat })))))
+                                                                          1))
+                                                                      BUFFER_SIZE ▸
+                                                                    Put.do._proof_2 FieldAbstractType
+                                                                      (getFrom
+                                                                        (setIn
+                                                                          {
+                                                                            buffer :=
+                                                                              FieldRepresentation.setSingle
+                                                                                (some
+                                                                                    (FieldRepresentation.get
+                                                                                      (getFrom
+                                                                                          { buffer := st0.buffer,
+                                                                                            head := f✝⁴.toNat,
+                                                                                            tail :=
+                                                                                              ⟨f✝.toNat,
+                                                                                                Eq.substr
+                                                                                                  (Eq.trans
+                                                                                                    Int.ofNat_lt._simp_2
+                                                                                                    (congrFun'
+                                                                                                      (congrArg LT.lt
+                                                                                                        (Int.toNat_of_nonneg
+                                                                                                          a✝¹))
+                                                                                                      2))
+                                                                                                  st0.tail.isLt⟩,
+                                                                                            count := f✝³.toNat }).tail),
+                                                                                  ())
+                                                                                (fun x_1 =>
+                                                                                  ⟨x.toNat,
+                                                                                    (Iff.of_eq
+                                                                                          (Eq.refl
+                                                                                            (x.toNat ∈
+                                                                                              BUFFER_ELEMS))).mpr
+                                                                                      ((Iff.of_eq
+                                                                                            (Eq.refl
+                                                                                              (x.toNat ∈
+                                                                                                BUFFER_ELEMS))).mpr
+                                                                                        ((Iff.of_eq
+                                                                                              (Eq.refl
+                                                                                                (x.toNat ∈
+                                                                                                  BUFFER_ELEMS))).mpr
+                                                                                          h))⟩)
+                                                                                (getFrom
+                                                                                    { buffer := st0.buffer,
+                                                                                      head := f✝⁴.toNat,
+                                                                                      tail :=
+                                                                                        ⟨f✝.toNat,
+                                                                                          Eq.substr
+                                                                                            (Eq.trans
+                                                                                              Int.ofNat_lt._simp_2
+                                                                                              (congrFun'
+                                                                                                (congrArg LT.lt
+                                                                                                  (Int.toNat_of_nonneg
+                                                                                                    a✝¹))
+                                                                                                2))
+                                                                                            st0.tail.isLt⟩,
+                                                                                      count := f✝³.toNat }).buffer,
+                                                                            head :=
+                                                                              FieldRepresentation.setSingle ()
+                                                                                (FieldRepresentation.get
+                                                                                  (getFrom
+                                                                                      { buffer := st0.buffer,
+                                                                                        head := f✝⁴.toNat,
+                                                                                        tail :=
+                                                                                          ⟨f✝.toNat,
+                                                                                            Eq.substr
+                                                                                              (Eq.trans
+                                                                                                Int.ofNat_lt._simp_2
+                                                                                                (congrFun'
+                                                                                                  (congrArg LT.lt
+                                                                                                    (Int.toNat_of_nonneg
+                                                                                                      a✝¹))
+                                                                                                  2))
+                                                                                              st0.tail.isLt⟩,
+                                                                                        count := f✝³.toNat }).head)
+                                                                                (getFrom
+                                                                                    { buffer := st0.buffer,
+                                                                                      head := f✝⁴.toNat,
+                                                                                      tail :=
+                                                                                        ⟨f✝.toNat,
+                                                                                          Eq.substr
+                                                                                            (Eq.trans
+                                                                                              Int.ofNat_lt._simp_2
+                                                                                              (congrFun'
+                                                                                                (congrArg LT.lt
+                                                                                                  (Int.toNat_of_nonneg
+                                                                                                    a✝¹))
+                                                                                                2))
+                                                                                            st0.tail.isLt⟩,
+                                                                                      count := f✝³.toNat }).head,
+                                                                            tail :=
+                                                                              (getFrom
+                                                                                  { buffer := st0.buffer,
+                                                                                    head := f✝⁴.toNat,
+                                                                                    tail :=
+                                                                                      ⟨f✝.toNat,
+                                                                                        Eq.substr
+                                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                                            (congrFun'
+                                                                                              (congrArg LT.lt
+                                                                                                (Int.toNat_of_nonneg
+                                                                                                  a✝¹))
+                                                                                              2))
+                                                                                          st0.tail.isLt⟩,
+                                                                                    count := f✝³.toNat }).tail,
+                                                                            count :=
+                                                                              (getFrom
+                                                                                  { buffer := st0.buffer,
+                                                                                    head := f✝⁴.toNat,
+                                                                                    tail :=
+                                                                                      ⟨f✝.toNat,
+                                                                                        Eq.substr
+                                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                                            (congrFun'
+                                                                                              (congrArg LT.lt
+                                                                                                (Int.toNat_of_nonneg
+                                                                                                  a✝¹))
+                                                                                              2))
+                                                                                          st0.tail.isLt⟩,
+                                                                                    count := f✝³.toNat }).count }
+                                                                          { buffer := st0.buffer, head := f✝⁴.toNat,
+                                                                            tail :=
+                                                                              ⟨f✝.toNat,
+                                                                                Eq.substr
+                                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                                    (congrFun'
+                                                                                      (congrArg LT.lt
+                                                                                        (Int.toNat_of_nonneg a✝¹))
+                                                                                      2))
+                                                                                  st0.tail.isLt⟩,
+                                                                            count := f✝³.toNat }))⟩ =
+                                                              ⟨f.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                      2))
+                                                                  st1.tail.isLt⟩))
+                                                          (Eq.trans Int.ofNat_inj._simp_2
+                                                            (congr
+                                                              (congrArg Eq
+                                                                (congrFun'
+                                                                  (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1))
+                                                              (Int.toNat_of_nonneg a✝²)))))))
+                                                (Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))))))))))
+                              (congrArg (And (_tr1_tag = __veil_tag.Get))
+                                (congr
+                                  (congrArg And
+                                    (Eq.trans Int.ofNat_lt._simp_2 (congrArg (LT.lt 0) (Int.toNat_of_nonneg a✝⁴))))
+                                  (congrArg (And (∀ (a : Fin BUFFER_SIZE), st0.buffer a = st1.buffer a))
+                                    (congr
+                                      (congrArg And
+                                        (Eq.trans Int.ofNat_inj._simp_2
+                                          (congr
+                                            (congrArg Eq
+                                              (congrFun'
+                                                (congrArg HMod.hMod
+                                                  (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁵)) 1))
+                                                2))
+                                            (Int.toNat_of_nonneg a✝³))))
+                                      (congrArg
+                                        (And
+                                          (⟨f✝.toNat,
+                                              Eq.substr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                                                st0.tail.isLt⟩ =
+                                            ⟨f.toNat,
+                                              Eq.substr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 2))
+                                                st1.tail.isLt⟩))
+                                        (Eq.trans Int.ofNat_inj._simp_2
+                                          (congr
+                                            (congrArg Eq
+                                              (Eq.trans Int.ofNat_sub'
+                                                (Smt.Preprocess.Embedding.ite_congr'
+                                                  (Eq.trans Int.ofNat_le._simp_2
+                                                    (congrArg (LE.le 1) (Int.toNat_of_nonneg a✝⁴)))
+                                                  (congrFun' (congrArg HSub.hSub (Int.toNat_of_nonneg a✝⁴)) 1)
+                                                  (Eq.refl 0))))
+                                            (Int.toNat_of_nonneg a✝²))))))))))
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrArg (LT.lt 2) (Int.toNat_of_nonneg a✝²)))))))
+                  (Eq.refl False)))))
+has type
+  ∀ (a : f ≥ 0),
+    (distinctN [__veil_tag.Put, __veil_tag.Get] →
+        (∀ (__veil_x : ActionTag), __veil_x = __veil_tag.Put ∨ __veil_x = __veil_tag.Get) →
+          f✝.toNat < BUFFER_SIZE →
+            ∀ (a : f✝.toNat < BUFFER_SIZE),
+              f.toNat < BUFFER_SIZE →
+                ∀ (st1.tail.isLt : f.toNat < BUFFER_SIZE),
+                  ¬¬(((∀ (a : Fin BUFFER_SIZE), ⟨0, initializer.do._proof_1⟩ = st0.buffer a) ∧
+                            0 = f✝⁴.toNat ∧ 0 = ⟨f✝.toNat, a⟩ ∧ 0 = f✝³.toNat) ∧
+                          ((_tr1_tag = __veil_tag.Put ∧
+                                ∃ x h,
+                                  (∀ (a_1 : Fin BUFFER_SIZE),
+                                      (if ⟨f✝.toNat, a⟩ = a_1 then ⟨x, ⋯⟩ else st0.buffer a_1) = st1.buffer a_1) ∧
+                                    f✝⁴.toNat = f✝².toNat ∧
+                                      ⟨(f✝.toNat + 1) % BUFFER_SIZE, ⋯⟩ = ⟨f.toNat, st1.tail.isLt⟩ ∧
+                                        f✝³.toNat + 1 = f✝¹.toNat) ∨
+                              _tr1_tag = __veil_tag.Get ∧
+                                f✝³.toNat > 0 ∧
+                                  (∀ (a : Fin BUFFER_SIZE), st0.buffer a = st1.buffer a) ∧
+                                    (f✝⁴.toNat + 1) % BUFFER_SIZE = f✝².toNat ∧
+                                      ⟨f✝.toNat, a⟩ = ⟨f.toNat, st1.tail.isLt⟩ ∧ f✝³.toNat - 1 = f✝¹.toNat) ∧
+                            f✝¹.toNat > BUFFER_SIZE) →
+                    False) =
+      (distinctN [__veil_tag.Put, __veil_tag.Get] →
+        (∀ (__veil_x : ActionTag), __veil_x = __veil_tag.Put ∨ __veil_x = __veil_tag.Get) →
+          f✝ < 2 →
+            ∀ (a_4 : f✝ < 2),
+              f < 2 →
+                ∀ (st1.tail.isLt : f < 2),
+                  ¬¬(((∀ (a : Fin BUFFER_SIZE), ⟨0, initializer.do._proof_1⟩ = st0.buffer a) ∧
+                            0 = f✝⁴ ∧ 0 = ⟨f✝.toNat, ⋯⟩ ∧ 0 = f✝³) ∧
+                          ((_tr1_tag = __veil_tag.Put ∧
+                                ∃ x,
+                                  x ≥ 0 ∧
+                                    (x ≥ 0 →
+                                      ∃ h,
+                                        (∀ (a : Fin BUFFER_SIZE),
+                                            (if ⟨f✝.toNat, ⋯⟩ = a then ⟨x.toNat, ⋯⟩ else st0.buffer a) = st1.buffer a) ∧
+                                          f✝⁴ = f✝² ∧
+                                            ⟨(f✝.toNat + 1) % BUFFER_SIZE, ⋯⟩ = ⟨f.toNat, ⋯⟩ ∧ f✝³ + 1 = f✝¹)) ∨
+                              _tr1_tag = __veil_tag.Get ∧
+                                0 < f✝³ ∧
+                                  (∀ (a : Fin BUFFER_SIZE), st0.buffer a = st1.buffer a) ∧
+                                    (f✝⁴ + 1) % 2 = f✝² ∧
+                                      ⟨f✝.toNat, ⋯⟩ = ⟨f.toNat, ⋯⟩ ∧ (if 1 ≤ f✝³ then f✝³ - 1 else 0) = f✝¹) ∧
+                            2 < f✝¹) →
+                    False)
+but is expected to have type
+  f ≥ 0 → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (f ≥ 0)) fun a =>
+    implies_congr (Eq.refl (distinctN [__veil_tag.Put, __veil_tag.Get]))
+      (implies_congr (Eq.refl (∀ (__veil_x : ActionTag), __veil_x = __veil_tag.Put ∨ __veil_x = __veil_tag.Get))
+        (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+          (forall_prop_domain_congr
+            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+            fun st0.tail.isLt =>
+            implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 2))
+              (forall_prop_domain_congr
+                (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 2))
+                fun st1.tail.isLt =>
+                implies_congr
+                  (congrArg Not
+                    (congrArg Not
+                      (congr
+                        (congrArg And
+                          (congrArg (And (∀ (a : Fin BUFFER_SIZE), ⟨0, initializer.do._proof_1⟩ = st0.buffer a))
+                            (congr
+                              (congrArg And
+                                (Eq.trans Int.ofNat_inj._simp_2 (congrArg (Eq 0) (Int.toNat_of_nonneg a✝⁵))))
+                              (congrArg
+                                (And
+                                  (0 =
+                                    ⟨f✝.toNat,
+                                      Eq.substr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                                        st0.tail.isLt⟩))
+                                (Eq.trans Int.ofNat_inj._simp_2 (congrArg (Eq 0) (Int.toNat_of_nonneg a✝⁴)))))))
+                        (congr
+                          (congrArg And
+                            (congr
+                              (congrArg Or
+                                (congrArg (And (_tr1_tag = __veil_tag.Put))
+                                  (Eq.trans Smt.Preprocess.Embedding.exists_nat_as_int'._simp_1
+                                    (congrArg Exists
+                                      (funext fun x =>
+                                        congrArg (And (x ≥ 0))
+                                          (implies_congr_ctx (Eq.refl (x ≥ 0)) fun a_1 =>
+                                            propext
+                                              (exists_prop_congr
+                                                (fun h =>
+                                                  Iff.of_eq
+                                                    (congrArg
+                                                      (And
+                                                        (∀ (a : Fin BUFFER_SIZE),
+                                                          (if
+                                                                ⟨f✝.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                                                                      st0.tail.isLt⟩ =
+                                                                  a then
+                                                              ⟨x.toNat,
+                                                                (Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                  ((Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                    ((Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                      h))⟩
+                                                            else st0.buffer a) =
+                                                            st1.buffer a))
+                                                      (congr
+                                                        (congrArg And
+                                                          (Eq.trans Int.ofNat_inj._simp_2
+                                                            (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁵))
+                                                              (Int.toNat_of_nonneg a✝³))))
+                                                        (congrArg
+                                                          (And
+                                                            (⟨(f✝.toNat + 1) % BUFFER_SIZE,
+                                                                id
+                                                                    (Eq.refl
+                                                                      ((↑{ buffer := st0.buffer, head := f✝⁴.toNat,
+                                                                                tail :=
+                                                                                  ⟨f✝.toNat,
+                                                                                    Eq.substr
+                                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                                        (congrFun'
+                                                                                          (congrArg LT.lt
+                                                                                            (Int.toNat_of_nonneg a✝¹))
+                                                                                          2))
+                                                                                      st0.tail.isLt⟩,
+                                                                                count := f✝³.toNat }.tail +
+                                                                          1) %
+                                                                        BUFFER_SIZE)) ▸
+                                                                  congrFun'
+                                                                      (congrArg HMod.hMod
+                                                                        (congrFun'
+                                                                          (congrArg HAdd.hAdd
+                                                                            (congrArg Fin.val
+                                                                              (congrArg FieldRepresentation.get
+                                                                                (congrArg State.tail
+                                                                                  (IsSubStateOf.getFrom_setIn_idempotent
+                                                                                    {
+                                                                                      buffer :=
+                                                                                        FieldRepresentation.setSingle
+                                                                                          (some
+                                                                                              (FieldRepresentation.get
+                                                                                                ⋯),
+                                                                                            ())
+                                                                                          (fun x_1 =>
+                                                                                            ⟨x.toNat,
+                                                                                              (Iff.of_eq
+                                                                                                    (Eq.refl
+                                                                                                      (x.toNat ∈
+                                                                                                        BUFFER_ELEMS))).mpr
+                                                                                                ((Iff.of_eq
+                                                                                                      (Eq.refl
+                                                                                                        (x.toNat ∈
+                                                                                                          BUFFER_ELEMS))).mpr
+                                                                                                  ((Iff.of_eq
+                                                                                                        (Eq.refl
+                                                                                                          (x.toNat ∈
+                                                                                                            BUFFER_ELEMS))).mpr
+                                                                                                    h))⟩)
+                                                                                          (getFrom
+                                                                                              { buffer := st0.buffer,
+                                                                                                head := f✝⁴.toNat,
+                                                                                                tail := ⋯,
+                                                                                                count :=
+                                                                                                  f✝³.toNat }).buffer,
+                                                                                      head :=
+                                                                                        FieldRepresentation.setSingle ()
+                                                                                          (FieldRepresentation.get
+                                                                                            (getFrom ⋯).head)
+                                                                                          (getFrom
+                                                                                              { buffer := st0.buffer,
+                                                                                                head := f✝⁴.toNat,
+                                                                                                tail := ⋯,
+                                                                                                count :=
+                                                                                                  f✝³.toNat }).head,
+                                                                                      tail :=
+                                                                                        (getFrom
+                                                                                            { buffer := st0.buffer,
+                                                                                              head := f✝⁴.toNat,
+                                                                                              tail := ⟨f✝.toNat, ⋯⟩,
+                                                                                              count :=
+                                                                                                f✝³.toNat }).tail,
+                                                                                      count :=
+                                                                                        (getFrom
+                                                                                            { buffer := st0.buffer,
+                                                                                              head := f✝⁴.toNat,
+                                                                                              tail := ⟨f✝.toNat, ⋯⟩,
+                                                                                              count :=
+                                                                                                f✝³.toNat }).count }
+                                                                                    { buffer := st0.buffer,
+                                                                                      head := f✝⁴.toNat,
+                                                                                      tail :=
+                                                                                        ⟨f✝.toNat,
+                                                                                          Eq.substr
+                                                                                            (Eq.trans
+                                                                                              Int.ofNat_lt._simp_2
+                                                                                              (congrFun'
+                                                                                                (congrArg LT.lt
+                                                                                                  (Int.toNat_of_nonneg
+                                                                                                    a✝¹))
+                                                                                                2))
+                                                                                            st0.tail.isLt⟩,
+                                                                                      count := f✝³.toNat })))))
+                                                                          1))
+                                                                      BUFFER_SIZE ▸
+                                                                    Put.do._proof_2 FieldAbstractType
+                                                                      (getFrom
+                                                                        (setIn
+                                                                          {
+                                                                            buffer :=
+                                                                              FieldRepresentation.setSingle
+                                                                                (some
+                                                                                    (FieldRepresentation.get
+                                                                                      (getFrom
+                                                                                          { buffer := st0.buffer,
+                                                                                            head := f✝⁴.toNat,
+                                                                                            tail :=
+                                                                                              ⟨f✝.toNat,
+                                                                                                Eq.substr
+                                                                                                  (Eq.trans
+                                                                                                    Int.ofNat_lt._simp_2
+                                                                                                    (congrFun'
+                                                                                                      (congrArg LT.lt
+                                                                                                        (Int.toNat_of_nonneg
+                                                                                                          a✝¹))
+                                                                                                      2))
+                                                                                                  st0.tail.isLt⟩,
+                                                                                            count := f✝³.toNat }).tail),
+                                                                                  ())
+                                                                                (fun x_1 =>
+                                                                                  ⟨x.toNat,
+                                                                                    (Iff.of_eq
+                                                                                          (Eq.refl
+                                                                                            (x.toNat ∈
+                                                                                              BUFFER_ELEMS))).mpr
+                                                                                      ((Iff.of_eq
+                                                                                            (Eq.refl
+                                                                                              (x.toNat ∈
+                                                                                                BUFFER_ELEMS))).mpr
+                                                                                        ((Iff.of_eq
+                                                                                              (Eq.refl
+                                                                                                (x.toNat ∈
+                                                                                                  BUFFER_ELEMS))).mpr
+                                                                                          h))⟩)
+                                                                                (getFrom
+                                                                                    { buffer := st0.buffer,
+                                                                                      head := f✝⁴.toNat,
+                                                                                      tail :=
+                                                                                        ⟨f✝.toNat,
+                                                                                          Eq.substr
+                                                                                            (Eq.trans
+                                                                                              Int.ofNat_lt._simp_2
+                                                                                              (congrFun'
+                                                                                                (congrArg LT.lt
+                                                                                                  (Int.toNat_of_nonneg
+                                                                                                    a✝¹))
+                                                                                                2))
+                                                                                            st0.tail.isLt⟩,
+                                                                                      count := f✝³.toNat }).buffer,
+                                                                            head :=
+                                                                              FieldRepresentation.setSingle ()
+                                                                                (FieldRepresentation.get
+                                                                                  (getFrom
+                                                                                      { buffer := st0.buffer,
+                                                                                        head := f✝⁴.toNat,
+                                                                                        tail :=
+                                                                                          ⟨f✝.toNat,
+                                                                                            Eq.substr
+                                                                                              (Eq.trans
+                                                                                                Int.ofNat_lt._simp_2
+                                                                                                (congrFun'
+                                                                                                  (congrArg LT.lt
+                                                                                                    (Int.toNat_of_nonneg
+                                                                                                      a✝¹))
+                                                                                                  2))
+                                                                                              st0.tail.isLt⟩,
+                                                                                        count := f✝³.toNat }).head)
+                                                                                (getFrom
+                                                                                    { buffer := st0.buffer,
+                                                                                      head := f✝⁴.toNat,
+                                                                                      tail :=
+                                                                                        ⟨f✝.toNat,
+                                                                                          Eq.substr
+                                                                                            (Eq.trans
+                                                                                              Int.ofNat_lt._simp_2
+                                                                                              (congrFun'
+                                                                                                (congrArg LT.lt
+                                                                                                  (Int.toNat_of_nonneg
+                                                                                                    a✝¹))
+                                                                                                2))
+                                                                                            st0.tail.isLt⟩,
+                                                                                      count := f✝³.toNat }).head,
+                                                                            tail :=
+                                                                              (getFrom
+                                                                                  { buffer := st0.buffer,
+                                                                                    head := f✝⁴.toNat,
+                                                                                    tail :=
+                                                                                      ⟨f✝.toNat,
+                                                                                        Eq.substr
+                                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                                            (congrFun'
+                                                                                              (congrArg LT.lt
+                                                                                                (Int.toNat_of_nonneg
+                                                                                                  a✝¹))
+                                                                                              2))
+                                                                                          st0.tail.isLt⟩,
+                                                                                    count := f✝³.toNat }).tail,
+                                                                            count :=
+                                                                              (getFrom
+                                                                                  { buffer := st0.buffer,
+                                                                                    head := f✝⁴.toNat,
+                                                                                    tail :=
+                                                                                      ⟨f✝.toNat,
+                                                                                        Eq.substr
+                                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                                            (congrFun'
+                                                                                              (congrArg LT.lt
+                                                                                                (Int.toNat_of_nonneg
+                                                                                                  a✝¹))
+                                                                                              2))
+                                                                                          st0.tail.isLt⟩,
+                                                                                    count := f✝³.toNat }).count }
+                                                                          { buffer := st0.buffer, head := f✝⁴.toNat,
+                                                                            tail :=
+                                                                              ⟨f✝.toNat,
+                                                                                Eq.substr
+                                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                                    (congrFun'
+                                                                                      (congrArg LT.lt
+                                                                                        (Int.toNat_of_nonneg a✝¹))
+                                                                                      2))
+                                                                                  st0.tail.isLt⟩,
+                                                                            count := f✝³.toNat }))⟩ =
+                                                              ⟨f.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                      2))
+                                                                  st1.tail.isLt⟩))
+                                                          (Eq.trans Int.ofNat_inj._simp_2
+                                                            (congr
+                                                              (congrArg Eq
+                                                                (congrFun'
+                                                                  (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1))
+                                                              (Int.toNat_of_nonneg a✝²)))))))
+                                                (Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))))))))))
+                              (congrArg (And (_tr1_tag = __veil_tag.Get))
+                                (congr
+                                  (congrArg And
+                                    (Eq.trans Int.ofNat_lt._simp_2 (congrArg (LT.lt 0) (Int.toNat_of_nonneg a✝⁴))))
+                                  (congrArg (And (∀ (a : Fin BUFFER_SIZE), st0.buffer a = st1.buffer a))
+                                    (congr
+                                      (congrArg And
+                                        (Eq.trans Int.ofNat_inj._simp_2
+                                          (congr
+                                            (congrArg Eq
+                                              (congrFun'
+                                                (congrArg HMod.hMod
+                                                  (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁵)) 1))
+                                                2))
+                                            (Int.toNat_of_nonneg a✝³))))
+                                      (congrArg
+                                        (And
+                                          (⟨f✝.toNat,
+                                              Eq.substr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                                                st0.tail.isLt⟩ =
+                                            ⟨f.toNat,
+                                              Eq.substr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 2))
+                                                st1.tail.isLt⟩))
+                                        (Eq.trans Int.ofNat_inj._simp_2
+                                          (congr
+                                            (congrArg Eq
+                                              (Eq.trans Int.ofNat_sub'
+                                                (Smt.Preprocess.Embedding.ite_congr'
+                                                  (Eq.trans Int.ofNat_le._simp_2
+                                                    (congrArg (LE.le 1) (Int.toNat_of_nonneg a✝⁴)))
+                                                  (congrFun' (congrArg HSub.hSub (Int.toNat_of_nonneg a✝⁴)) 1)
+                                                  (Eq.refl 0))))
+                                            (Int.toNat_of_nonneg a✝²))))))))))
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrArg (LT.lt 2) (Int.toNat_of_nonneg a✝²)))))))
+                  (Eq.refl False)))))

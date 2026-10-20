@@ -1,0 +1,748 @@
+✔ [1081/1227] Built Veil.Frontend.DSL.Tactic.Core (16s)
+✔ [1082/1227] Built Veil.Frontend.DSL.Tactic (1.4s)
+✔ [1083/1227] Built VeilTest.Tactics.VeilDestruct (1.0s)
+✔ [1084/1227] Built Veil.Frontend.DSL.Module.VCGen.Trace (1.3s)
+✔ [1085/1227] Built Veil.Frontend.DSL.Module.VCGen.Induction (2.1s)
+✔ [1086/1227] Built Veil.Frontend.DSL.Module.VCGen (1.0s)
+✔ [1087/1227] Built Veil.Frontend.DSL.Action.Elaborators (10s)
+✔ [1088/1227] Built Veil.Frontend.DSL.Module.Elaborators.Core (9.4s)
+✔ [1089/1227] Built Veil.Frontend.DSL.Module.Elaborators.Verification (3.7s)
+✔ [1090/1227] Built Veil.Core.Tools.ModelChecker.Symbolic.TraceLang (3.1s)
+✔ [1091/1227] Built Veil.Frontend.DSL.Base (899ms)
+✔ [1092/1227] Built Veil.DSL (930ms)
+✔ [1093/1227] Built Veil (941ms)
+✔ [1094/1227] Built VeilTest.Pick (3.8s)
+✔ [1095/1227] Built VeilTest.ChecksFail (4.8s)
+✔ [1096/1227] Built VeilTest.Performance.SuzukiKasamiKernelDefEq (4.0s)
+✔ [1097/1227] Built VeilTest.Performance.DerivingEnumeration (5.0s)
+✔ [1098/1227] Built VeilTest.VeilDeclAttr (1.8s)
+✔ [1099/1227] Built VeilTest.FieldNamedNone (3.5s)
+✔ [1100/1227] Built VeilTest.ActionExecution.PlainLeanIsolation (1.6s)
+✔ [1101/1227] Built VeilTest.Performance.DeepBmcTranslation (9.2s)
+✔ [1102/1227] Built VeilTest.CheckAssumptionsBeforeMC (9.6s)
+✔ [1103/1227] Built VeilTest.ActionExecution.Unsupported (2.0s)
+✔ [1104/1227] Built VeilTest.TwoStateTransition (5.5s)
+✔ [1105/1227] Built VeilTest.Performance.NOPaxosKernelDefEq (9.4s)
+✔ [1106/1227] Built VeilTest.AssertionFirstFail (5.7s)
+✔ [1107/1227] Built VeilTest.GhostRelTransition (5.6s)
+✔ [1108/1227] Built VeilTest.Regression.DecidableImplication (4.4s)
+ℹ [1109/1227] Built VeilTest.Performance.PickPerf (18s)
+info: VeilTest/Performance/PickPerf.lean:33:0: ✅ No violation (explored 4 states)
+info: VeilTest/Performance/PickPerf.lean:53:0: ✅ No violation (explored 27 states)
+info: VeilTest/Performance/PickPerf.lean:72:0: ✅ No violation (explored 16 states)
+info: VeilTest/Performance/PickPerf.lean:93:0: ✅ No violation (explored 2 states)
+✔ [1110/1227] Built VeilTest.Regression.LocalRPropAbstractEq (4.1s)
+✔ [1111/1227] Built VeilTest.BasicSyntax (11s)
+ℹ [1112/1227] Built VeilTest.Ring (12s)
+info: VeilTest/Ring.lean:78:0: ✅ Satisfying trace found
+  Instantiation:
+    node = Fin 2
+  State 0 (via init):
+    leader = []
+    pending = []
+  State 1 (via send(n=1, next=0)):
+    leader = []
+    pending = [[1, 0]]
+  State 2 (via send(n=0, next=1)):
+    leader = []
+    pending = [[0, 1], [1, 0]]
+  State 3 (via recv(n=0, next=1, sender=1)):
+    leader = []
+    pending = [[0, 1], [1, 1]]
+✔ [1113/1227] Built VeilTest.Regression.UnveilSequentialIte (5.8s)
+✔ [1114/1227] Built VeilTest.Regression.StateRefreshAfterAssert (6.1s)
+✔ [1115/1227] Built VeilTest.Regression.ValidateDoBypass (2.4s)
+✔ [1116/1227] Built VeilTest.InteractiveProof (25s)
+✔ [1117/1227] Built VeilTest.Regression.EnumDistinct (5.7s)
+✔ [1118/1227] Built VeilTest.Regression.PickBinderName (3.3s)
+ℹ [1119/1227] Built VeilTest.Regression.ModelCheckDecidableFieldRep (5.5s)
+info: VeilTest/Regression/ModelCheckDecidableFieldRep.lean:32:0: ✅ No violation (explored 1 states)
+✔ [1120/1227] Built VeilTest.Regression.TraceAssertGhostRelation (3.8s)
+ℹ [1121/1227] Built VeilTest.SetFieldRepresentation (19s)
+info: VeilTest/SetFieldRepresentation.lean:30:0: rfl : FieldConcreteType = FieldConcreteType
+info: VeilTest/SetFieldRepresentation.lean:52:0: ✅ No violation (explored 42 states)
+info: VeilTest/SetFieldRepresentation.lean:69:0: rfl : FieldConcreteType = FieldConcreteType
+info: VeilTest/SetFieldRepresentation.lean:91:0: ✅ No violation (explored 42 states)
+info: VeilTest/SetFieldRepresentation.lean:108:0: rfl : FieldConcreteType = FieldConcreteType
+info: VeilTest/SetFieldRepresentation.lean:130:0: ✅ No violation (explored 42 states)
+info: VeilTest/SetFieldRepresentation.lean:146:0: rfl : FieldConcreteType = FieldConcreteType
+info: VeilTest/SetFieldRepresentation.lean:168:0: ✅ No violation (explored 42 states)
+✔ [1122/1227] Built VeilTest.Regression.TransitionNegation (3.2s)
+✔ [1123/1227] Built VeilTest.Regression.UnveilFieldGeneralize (5.7s)
+✔ [1124/1227] Built VeilTest.Regression.TraceLocalNormalization (6.4s)
+ℹ [1125/1227] Built VeilTest.Regression.LetEq (11s)
+info: VeilTest/Regression/LetEq.lean:105:0: @[reducible, expose] def LetEqWP.step.ext.wp : (ρ σ node : Type) →
+  [node_dec_eq : DecidableEq node] →
+    [node_inhabited : Inhabited node] →
+      (χ : LetEqWP.State.Label → Type) →
+        [χ_rep :
+            (__veil_f : LetEqWP.State.Label) →
+              FieldRepresentation (LetEqWP.State.Label.toDomain node __veil_f)
+                (LetEqWP.State.Label.toCodomain node __veil_f) (χ __veil_f)] →
+          [χ_rep_lawful :
+              ∀ (__veil_f : LetEqWP.State.Label),
+                LawfulFieldRepresentation (LetEqWP.State.Label.toDomain node __veil_f)
+                  (LetEqWP.State.Label.toCodomain node __veil_f) (χ __veil_f) (χ_rep __veil_f)] →
+            [σ_sub : IsSubStateOf (LetEqWP.State χ) σ] →
+              [ρ_sub : IsSubReaderOf (LetEqWP.Theory node) ρ] →
+                [step_dec_0 :
+                    (a b c : node) →
+                      (__veil_state : LetEqWP.State χ) →
+                        Decidable
+                          (letEq
+                            (FieldRepresentation.get __veil_state.1 a a = true ∨
+                                FieldRepresentation.get __veil_state.1 a
+                                      (if FieldRepresentation.get __veil_state.1 a a = true then a else a) =
+                                    true ∨
+                                  FieldRepresentation.get __veil_state.1
+                                      (if FieldRepresentation.get __veil_state.1 a a = true then a else a) a =
+                                    true,
+                              FieldRepresentation.get __veil_state.1 b b = true ∨
+                                FieldRepresentation.get __veil_state.1 b
+                                      (if FieldRepresentation.get __veil_state.1 b b = true then b else b) =
+                                    true ∨
+                                  FieldRepresentation.get __veil_state.1
+                                      (if FieldRepresentation.get __veil_state.1 b b = true then b else b) b =
+                                    true)
+                            fun x =>
+                            (x.1 ∨
+                                x.2 ∨
+                                  FieldRepresentation.get __veil_state.1 c c = true ∨
+                                    FieldRepresentation.get __veil_state.1 c
+                                          (if FieldRepresentation.get __veil_state.1 c c = true then c else c) =
+                                        true ∨
+                                      FieldRepresentation.get __veil_state.1
+                                          (if FieldRepresentation.get __veil_state.1 c c = true then c else c) c =
+                                        true) ∧
+                              (¬x.1 ∨
+                                  ¬x.2 ∨
+                                    ¬(FieldRepresentation.get __veil_state.1 c c = true ∨
+                                        FieldRepresentation.get __veil_state.1 c
+                                              (if FieldRepresentation.get __veil_state.1 c c = true then c else c) =
+                                            true ∨
+                                          FieldRepresentation.get __veil_state.1
+                                              (if FieldRepresentation.get __veil_state.1 c c = true then c else c) c =
+                                            true)) ∧
+                                (¬x.1 ∨
+                                  x.2 ∨
+                                    FieldRepresentation.get __veil_state.1 c c = true ∨
+                                      FieldRepresentation.get __veil_state.1 c
+                                            (if FieldRepresentation.get __veil_state.1 c c = true then c else c) =
+                                          true ∨
+                                        FieldRepresentation.get __veil_state.1
+                                            (if FieldRepresentation.get __veil_state.1 c c = true then c else c) c =
+                                          true))] →
+                  node → node → node → (Int → Prop) → (Unit → ρ → σ → Prop) → ρ → σ → Prop :=
+fun ρ σ node [DecidableEq node] [Inhabited node] χ
+    [(__veil_f : LetEqWP.State.Label) →
+        FieldRepresentation (LetEqWP.State.Label.toDomain node __veil_f) (LetEqWP.State.Label.toCodomain node __veil_f)
+          (χ __veil_f)]
+    [∀ (__veil_f : LetEqWP.State.Label),
+        LawfulFieldRepresentation (LetEqWP.State.Label.toDomain node __veil_f)
+          (LetEqWP.State.Label.toCodomain node __veil_f) (χ __veil_f) (χ_rep __veil_f)]
+    [IsSubStateOf (LetEqWP.State χ) σ] [IsSubReaderOf (LetEqWP.Theory node) ρ]
+    [(a b c : node) →
+        (__veil_state : LetEqWP.State χ) →
+          Decidable
+            (letEq
+              (FieldRepresentation.get __veil_state.1 a a = true ∨
+                  FieldRepresentation.get __veil_state.1 a
+                        (if FieldRepresentation.get __veil_state.1 a a = true then a else a) =
+                      true ∨
+                    FieldRepresentation.get __veil_state.1
+                        (if FieldRepresentation.get __veil_state.1 a a = true then a else a) a =
+                      true,
+                FieldRepresentation.get __veil_state.1 b b = true ∨
+                  FieldRepresentation.get __veil_state.1 b
+                        (if FieldRepresentation.get __veil_state.1 b b = true then b else b) =
+                      true ∨
+                    FieldRepresentation.get __veil_state.1
+                        (if FieldRepresentation.get __veil_state.1 b b = true then b else b) b =
+                      true)
+              fun x =>
+              (x.1 ∨
+                  x.2 ∨
+                    FieldRepresentation.get __veil_state.1 c c = true ∨
+                      FieldRepresentation.get __veil_state.1 c
+                            (if FieldRepresentation.get __veil_state.1 c c = true then c else c) =
+                          true ∨
+                        FieldRepresentation.get __veil_state.1
+                            (if FieldRepresentation.get __veil_state.1 c c = true then c else c) c =
+                          true) ∧
+                (¬x.1 ∨
+                    ¬x.2 ∨
+                      ¬(FieldRepresentation.get __veil_state.1 c c = true ∨
+                          FieldRepresentation.get __veil_state.1 c
+                                (if FieldRepresentation.get __veil_state.1 c c = true then c else c) =
+                              true ∨
+                            FieldRepresentation.get __veil_state.1
+                                (if FieldRepresentation.get __veil_state.1 c c = true then c else c) c =
+                              true)) ∧
+                  (¬x.1 ∨
+                    x.2 ∨
+                      FieldRepresentation.get __veil_state.1 c c = true ∨
+                        FieldRepresentation.get __veil_state.1 c
+                              (if FieldRepresentation.get __veil_state.1 c c = true then c else c) =
+                            true ∨
+                          FieldRepresentation.get __veil_state.1
+                              (if FieldRepresentation.get __veil_state.1 c c = true then c else c) c =
+                            true))]
+    a b c __veil_handler __veil_post a_1 a_2 =>
+  ∀ (dd : node),
+    eqWithoutSubst dd (if FieldRepresentation.get (getFrom a_2).r a b = true then a else c) →
+      ∀ (ee : Bool),
+        eqWithoutSubst ee
+            (decide
+              (letEq (LetEqWP.g a { } { r := (getFrom a_2).r }, LetEqWP.g b { } { r := (getFrom a_2).r }) fun x =>
+                (x.fst ∨ x.snd ∨ LetEqWP.g c { } { r := (getFrom a_2).r }) ∧
+                  (¬x.fst ∨ ¬x.snd ∨ ¬LetEqWP.g c { } { r := (getFrom a_2).r }) ∧
+                    (¬x.fst ∨ x.snd ∨ LetEqWP.g c { } { r := (getFrom a_2).r }))) →
+          if dd = a ∧ ee = false then
+            __veil_post () a_1
+              (setIn { r := FieldRepresentation.setSingle (some a, some b, ()) (fun x x_1 => true) (getFrom a_2).r }
+                a_2)
+          else
+            if dd = c ∧ ee = false then
+              __veil_post () a_1
+                (setIn { r := FieldRepresentation.setSingle (some c, some a, ()) (fun x x_1 => true) (getFrom a_2).r }
+                  a_2)
+            else __veil_post () a_1 a_2
+info: VeilTest/Regression/LetEq.lean:136:0: ✅ No violation (explored 2 states)
+info: VeilTest/Regression/LetEq.lean:157:0: ✅ No violation (explored 2 states)
+info: VeilTest/Regression/LetEq.lean:161:0: @[expose] def LetEqExtraction.NextAct.extracted : (ρ σ : Type) →
+  [LogSwitch] →
+    [σ_sub : IsSubStateOf (LetEqExtraction.State LetEqExtraction.FieldConcreteType) σ] →
+      [ρ_sub : IsSubReaderOf LetEqExtraction.Theory ρ] → LetEqExtraction.Label → VeilMultiExecM Format Int ρ σ Unit :=
+fun ρ σ [LogSwitch] [IsSubStateOf (LetEqExtraction.State LetEqExtraction.FieldConcreteType) σ]
+    [IsSubReaderOf LetEqExtraction.Theory ρ] l =>
+  LetEqExtraction.Label.casesOn l (LetEqExtraction.setFlag.ext.extracted ρ σ)
+✔ [1126/1227] Built VeilTest.Regression.SeenSet (17s)
+ℹ [1127/1227] Built VeilTest.Regression.IfElseIf (4.2s)
+info: VeilTest/Regression/IfElseIf.lean:26:0: rfl : @act = @act
+✔ [1128/1227] Built VeilTest.Regression.StateRefreshAfterCallToLocalVar (4.1s)
+✔ [1129/1227] Built VeilTest.Regression.TraceWithNoActions (2.8s)
+✔ [1130/1227] Built VeilTest.Regression.PureLocalLetNoStateRefresh (3.0s)
+✔ [1131/1227] Built VeilTest.Regression.NoMathlib (2.2s)
+✔ [1132/1227] Built VeilTest.Regression.HugeDecidableInstance (14s)
+✔ [1133/1227] Built VeilTest.Regression.TraceInhabitedFunction (4.1s)
+ℹ [1134/1227] Built VeilTest.Regression.InstantiationHoles (19s)
+info: VeilTest/Regression/InstantiationHoles.lean:291:0: ✅ No violation (explored 2 states)
+info: VeilTest/Regression/InstantiationHoles.lean:298:0: ✅ No violation (explored 2 states)
+info: VeilTest/Regression/InstantiationHoles.lean:306:0: ✅ No violation (explored 2 states)
+✔ [1135/1227] Built VeilTest.Regression.ExecutionWorkflowRuntime (4.4s)
+✔ [1136/1227] Built VeilTest.Regression.PrivateVeilImport (1.9s)
+✔ [1137/1227] Built VeilTest.Regression.VeilVar (4.0s)
+✔ [1138/1227] Built VeilTest.Regression.ExecutionWorkflowMain (4.5s)
+✔ [1139/1227] Built VeilTest.Regression.StateRefreshAfterPickTypeCall (4.7s)
+✔ [1140/1227] Built VeilTest.Regression.SimulateOutcomes (17s)
+✔ [1141/1227] Built VeilTest.Regression.CompiledInitializersHelper (1.7s)
+✔ [1142/1227] Built VeilTest.Regression.EmptySpec (3.9s)
+✔ [1143/1227] Built VeilTest.Regression.ExistentialBehindGhostRelation (12s)
+✔ [1144/1227] Built VeilTest.Regression.TransitionImmutable (4.7s)
+✔ [1145/1227] Built VeilTest.Regression.AssertionDecidableFieldRep (5.8s)
+✔ [1146/1227] Built VeilTest.Regression.EmbeddingMaxSteps (17s)
+✔ [1147/1227] Built VeilTest.Regression.LocalTheoryPropAbstractEq (4.8s)
+✔ [1148/1227] Built VeilTest.Regression.TraceBindings (11s)
+✔ [1149/1227] Built VeilTest.Regression.TraceBindingsDependent (3.2s)
+✔ [1150/1227] Built VeilTest.Regression.StateRefreshInIfCondition (5.1s)
+✔ [1151/1227] Built VeilTest.Regression.RepeatingDecInstAsArgs (18s)
+ℹ [1152/1227] Built VeilTest.Regression.DeferVCGeneration (52s)
+info: VeilTest/Regression/DeferVCGeneration.lean:79:0: The following set of actions must preserve the invariant and successfully terminate:
+  toggle
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+info: VeilTest/Regression/DeferVCGeneration.lean:182:0: Initialization must establish the invariant:
+  doesNotThrow ... ✅
+  inv_0 ... ✅
+The following set of actions must preserve the invariant and successfully terminate:
+  compact_on
+    doesNotThrow ... ✅
+    inv_0 ... ✅
+  compact_off
+    doesNotThrow ... ✅
+    inv_0 ... ✅
+info: VeilTest/Regression/DeferVCGeneration.lean:213:0: Initialization must establish the invariant:
+  doesNotThrow ... ✅
+  flag_bool ... ✅
+  cnt_nonneg ... ✅
+The following set of actions must preserve the invariant and successfully terminate:
+  b2
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  a
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  c3
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+info: VeilTest/Regression/DeferVCGeneration.lean:235:0: Initialization must establish the invariant:
+  doesNotThrow ... ✅
+  flag_bool ... ✅
+  cnt_nonneg ... ✅
+The following set of actions must preserve the invariant and successfully terminate:
+  b2
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  a
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  c3
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+info: VeilTest/Regression/DeferVCGeneration.lean:258:0: Initialization must establish the invariant:
+  doesNotThrow ... ✅
+  flag_bool ... ✅
+  cnt_nonneg ... ✅
+The following set of actions must preserve the invariant and successfully terminate:
+  b2
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  a
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  c3
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+info: VeilTest/Regression/DeferVCGeneration.lean:300:0: Initialization must establish the invariant:
+  doesNotThrow ... ✅
+  flag_bool ... ✅
+  cnt_nonneg ... ✅
+The following set of actions must preserve the invariant and successfully terminate:
+  a4
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  a5
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  a3
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  a2
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  a1
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  bump
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+info: VeilTest/Regression/DeferVCGeneration.lean:348:0: Initialization must establish the invariant:
+  doesNotThrow ... ✅
+  flag_bool ... ✅
+  cnt_nonneg ... ✅
+The following set of actions must preserve the invariant and successfully terminate:
+  a5
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  a3
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  a2
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  a1
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  bump
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+info: VeilTest/Regression/DeferVCGeneration.lean:390:0: Initialization must establish the invariant:
+  doesNotThrow ... ✅
+  flag_bool ... ✅
+  cnt_nonneg ... ✅
+The following set of actions must preserve the invariant and successfully terminate:
+  a5
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  a3
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  a2
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  a1
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+  bump
+    doesNotThrow ... ✅
+    flag_bool ... ✅
+    cnt_nonneg ... ✅
+✔ [1153/1227] Built VeilTest.Regression.TRCounterExample (3.6s)
+✔ [1154/1227] Built VeilTest.Regression.TraceBindingsHygiene (3.3s)
+✔ [1155/1227] Built VeilTest.Regression.GhostRel (7.9s)
+ℹ [1156/1227] Built VeilTest.Regression.UpdateStateAfterBind (3.7s)
+info: VeilTest/Regression/UpdateStateAfterBind.lean:34:0: ✅ Satisfying trace found
+  Instantiation:
+    seq_t = Fin 2
+  Theory:
+    one = 0
+  State 0 (via init):
+    x = 1
+  State 1 (via does_not_actually_update_the_state):
+    x = 0
+ℹ [1157/1227] Built VeilTest.Regression.WPCompactStateIte (8.0s)
+info: VeilTest/Regression/WPCompactStateIte.lean:12:0: WPCompactStateIte.State.ite_eta_fields {p : Prop} [Decidable p] (s1 s2 : State FieldAbstractType) :
+  (if p then s1 else s2) = { a := if p then s1.a else s2.a, b := if p then s1.b else s2.b }
+info: VeilTest/Regression/WPCompactStateIte.lean:93:0: WPCompactRelationStateIte.State.ite_eta_fields (node : Type) {p : Prop} [Decidable p]
+  (s1 s2 : State (FieldAbstractType node)) :
+  (if p then s1 else s2) =
+    { r := fun __veil_wpcompact_r_0 => if p then s1.r __veil_wpcompact_r_0 else s2.r __veil_wpcompact_r_0,
+      f := fun __veil_wpcompact_f_0 => if p then s1.f __veil_wpcompact_f_0 else s2.f __veil_wpcompact_f_0,
+      a := if p then s1.a else s2.a }
+✔ [1158/1227] Built VeilTest.Regression.TraceBindingWitness (3.0s)
+✔ [1159/1227] Built VeilTest.Regression.StateRefreshAfterPureCall (3.8s)
+✔ [1160/1227] Built VeilTest.Regression.TraceBindingsErrors (3.7s)
+✔ [1161/1227] Built VeilTest.Regression.StateOpeningCount (4.4s)
+✔ [1162/1227] Built VeilTest.Regression.StateDependentPickType (10s)
+✔ [1163/1227] Built VeilTest.Regression.ModuleSystemHelper (2.3s)
+✔ [1164/1227] Built VeilTest.Regression.SimulateCommands (15s)
+✔ [1165/1227] Built VeilTest.Regression.FalseInvariant (3.6s)
+✔ [1166/1227] Built VeilTest.Regression.FieldRepRefreshAfterCall (4.7s)
+✔ [1167/1227] Built VeilTest.Regression.PickLogSwitch (4.8s)
+✔ [1168/1227] Built VeilTest.Regression.TraceEarlyIntroduction (7.3s)
+✔ [1169/1227] Built VeilTest.PickNonEnumerableDiagnostic (3.2s)
+✔ [1170/1227] Built VeilTest.BmcSat (2.6s)
+✔ [1171/1227] Built VeilTest.ActionExecution (1.0s)
+✔ [1172/1227] Built VeilTest.BmcSatTrivialSucceed (2.7s)
+✔ [1173/1227] Built VeilTest.TestInfDomain (4.1s)
+✔ [1174/1227] Built VeilTest.Regression.FingerprintType (10s)
+✔ [1175/1227] Built VeilTest.WarnIfNoActions (2.3s)
+✔ [1176/1227] Built VeilTest.Regression.CompiledFormatting (39s)
+✔ [1177/1227] Built VeilTest.QuorumRepr (5.5s)
+✔ [1178/1227] Built VeilTest.StateConstraint (4.4s)
+✔ [1179/1227] Built VeilTest.NoWarnUnused (2.7s)
+✔ [1180/1227] Built VeilTest.LocalOptimization.SubtypeChoice (3.2s)
+✔ [1181/1227] Built VeilTest.Regression.CompiledCheckWithVerification (70s)
+ℹ [1182/1227] Built VeilTest.LocalOptimization.BasicCheck (4.2s)
+info: VeilTest/LocalOptimization/BasicCheck.lean:40:0: initializer.ext.wp_local_eq : ∀ (ρ σ node : Type) [node_dec_eq : DecidableEq node] [node_inhabited : Inhabited node]
+  (χ : State.Label → Type)
+  [χ_rep :
+    (__veil_f : State.Label) →
+      FieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)]
+  [χ_rep_lawful :
+    ∀ (__veil_f : State.Label),
+      LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)
+        (χ_rep __veil_f)]
+  [σ_sub : IsSubStateOf (State χ) σ] [ρ_sub : IsSubReaderOf (Theory node) ρ] (__veil_handler : Int → Prop)
+  (__veil_post : Unit → ρ → σ → Prop) [__veil_localRPropTC : LocalRProp ρ σ node χ (__veil_post ())] (a : ρ) (a_1 : σ),
+  (let x := { };
+      wp initializer.ext __veil_post)
+      a a_1 =
+    initializer.ext.wp_local_eq.pred node __veil_handler
+      (fun __veil_u __veil_th __veil_st =>
+        Theory.casesOn __veil_th (State.casesOn __veil_st fun r x => LocalRProp.core χ (__veil_post ()) r x))
+      (readFrom a)
+      (State.casesOn (getFrom a_1) fun r_conc x_conc =>
+        let r := FieldRepresentation.get r_conc;
+        let x := FieldRepresentation.get x_conc;
+        { r := r, x := x })
+info: VeilTest/LocalOptimization/BasicCheck.lean:41:0: act.ext.wp_local_eq : ∀ (ρ σ node : Type) [node_dec_eq : DecidableEq node] [node_inhabited : Inhabited node]
+  (χ : State.Label → Type)
+  [χ_rep :
+    (__veil_f : State.Label) →
+      FieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)]
+  [χ_rep_lawful :
+    ∀ (__veil_f : State.Label),
+      LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)
+        (χ_rep __veil_f)]
+  [σ_sub : IsSubStateOf (State χ) σ] [ρ_sub : IsSubReaderOf (Theory node) ρ] (n m : node) (__veil_handler : Int → Prop)
+  (__veil_post : Unit → ρ → σ → Prop) [__veil_localRPropTC : LocalRProp ρ σ node χ (__veil_post ())] (a : ρ) (a_1 : σ),
+  (let x := { };
+      wp (act.ext n m) __veil_post)
+      a a_1 =
+    act.ext.wp_local_eq.pred node n m __veil_handler
+      (fun __veil_u __veil_th __veil_st =>
+        Theory.casesOn __veil_th (State.casesOn __veil_st fun r x => LocalRProp.core χ (__veil_post ()) r x))
+      (readFrom a)
+      (State.casesOn (getFrom a_1) fun r_conc x_conc =>
+        let r := FieldRepresentation.get r_conc;
+        let x := FieldRepresentation.get x_conc;
+        { r := r, x := x })
+info: VeilTest/LocalOptimization/BasicCheck.lean:43:0: LocalOptBasicCheck._transitionWeakeningLemma (ρ σ node : Type) [node_dec_eq : DecidableEq node]
+  [node_inhabited : Inhabited node] (χ : State.Label → Type)
+  [χ_rep :
+    (__veil_f : State.Label) →
+      FieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)]
+  [χ_rep_lawful :
+    ∀ (__veil_f : State.Label),
+      LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)
+        (χ_rep __veil_f)]
+  [σ_sub : IsSubStateOf (State χ) σ] [ρ_sub : IsSubReaderOf (Theory node) ρ] (__veil_r₀ : ρ) (__veil_s₀ __veil_s₁ : σ)
+  (__veil_tr :
+    (ρ σ : Type) →
+      (χ : State.Label → Type) →
+        [χ_rep :
+            (__veil_f : State.Label) →
+              FieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f)
+                (χ __veil_f)] →
+          [χ_rep_lawful :
+              ∀ (__veil_f : State.Label),
+                LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f)
+                  (χ __veil_f) (χ_rep __veil_f)] →
+            [σ_sub : IsSubStateOf (State χ) σ] → [ρ_sub : IsSubReaderOf (Theory node) ρ] → Transition ρ σ)
+  (__veil_act :
+    (ρ σ : Type) →
+      (χ : State.Label → Type) →
+        [χ_rep :
+            (__veil_f : State.Label) →
+              FieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f)
+                (χ __veil_f)] →
+          [χ_rep_lawful :
+              ∀ (__veil_f : State.Label),
+                LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f)
+                  (χ __veil_f) (χ_rep __veil_f)] →
+            [σ_sub : IsSubStateOf (State χ) σ] → [ρ_sub : IsSubReaderOf (Theory node) ρ] → VeilM Mode.external ρ σ Unit)
+  (__veil_pred : (Int → Prop) → VeilSpecM (Theory node) (State (FieldAbstractType node)) Unit)
+  (__veil_tr_derived_eq :
+    ∀ (ρ σ : Type) (χ : State.Label → Type)
+      [χ_rep :
+        (__veil_f : State.Label) →
+          FieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)]
+      [χ_rep_lawful :
+        ∀ (__veil_f : State.Label),
+          LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f)
+            (χ __veil_f) (χ_rep __veil_f)]
+      [σ_sub : IsSubStateOf (State χ) σ] [ρ_sub : IsSubReaderOf (Theory node) ρ],
+      (__veil_act ρ σ χ).toTransitionDerived = __veil_tr ρ σ χ)
+  (__veil_wp_local_eq :
+    ∀ (__veil_handler : Int → Prop) (__veil_post : Unit → ρ → σ → Prop)
+      [__veil_localRPropTC : LocalRProp ρ σ node χ (__veil_post ())] (__veil_r : ρ) (__veil_s : σ),
+      (have x := { };
+        wp (__veil_act ρ σ χ) __veil_post __veil_r __veil_s) =
+        __veil_pred __veil_handler
+          (fun __veil_x __veil_th __veil_st =>
+            Theory.casesOn __veil_th (State.casesOn __veil_st fun r x => LocalRProp.core χ (__veil_post ()) r x))
+          (readFrom __veil_r)
+          (State.casesOn (getFrom __veil_s) fun r_conc x_conc =>
+            have r := FieldRepresentation.get r_conc;
+            have x := FieldRepresentation.get x_conc;
+            { r := r, x := x }))
+  (__veil_wp_eq :
+    ∀ (__veil_handler : Int → Prop) (__veil_post : Unit → Theory node → State (FieldAbstractType node) → Prop)
+      (__veil_r : Theory node) (__veil_s : State (FieldAbstractType node)),
+      (have x := { };
+        wp (__veil_act (Theory node) (State (FieldAbstractType node)) (FieldAbstractType node)) __veil_post __veil_r
+          __veil_s) =
+        __veil_pred __veil_handler __veil_post __veil_r __veil_s) :
+  __veil_tr ρ σ χ __veil_r₀ __veil_s₀ __veil_s₁ →
+    __veil_tr (Theory node) (State (FieldAbstractType node)) (FieldAbstractType node) (readFrom __veil_r₀)
+      (State.casesOn (getFrom __veil_s₀) fun r_conc x_conc =>
+        have r := FieldRepresentation.get r_conc;
+        have x := FieldRepresentation.get x_conc;
+        { r := r, x := x })
+      (State.casesOn (getFrom __veil_s₁) fun r_conc x_conc =>
+        have r := FieldRepresentation.get r_conc;
+        have x := FieldRepresentation.get x_conc;
+        { r := r, x := x })
+info: VeilTest/LocalOptimization/BasicCheck.lean:46:0: initializer.ext.tr_abstract : ∀ (ρ σ node : Type) [node_dec_eq : DecidableEq node] [node_inhabited : Inhabited node]
+  (χ : State.Label → Type)
+  [χ_rep :
+    (__veil_f : State.Label) →
+      FieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)]
+  [χ_rep_lawful :
+    ∀ (__veil_f : State.Label),
+      LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)
+        (χ_rep __veil_f)]
+  [σ_sub : IsSubStateOf (State χ) σ] [ρ_sub : IsSubReaderOf (Theory node) ρ] (r₀ : ρ) (s₀ s₁ : σ),
+  initializer.ext.tr ρ σ node χ r₀ s₀ s₁ →
+    initializer.ext.tr (Theory node) (State (FieldAbstractType node)) node (FieldAbstractType node) (readFrom r₀)
+      (State.casesOn (getFrom s₀) fun r_conc x_conc =>
+        let r := FieldRepresentation.get r_conc;
+        let x := FieldRepresentation.get x_conc;
+        { r := r, x := x })
+      (State.casesOn (getFrom s₁) fun r_conc x_conc =>
+        let r := FieldRepresentation.get r_conc;
+        let x := FieldRepresentation.get x_conc;
+        { r := r, x := x })
+info: VeilTest/LocalOptimization/BasicCheck.lean:47:0: act.ext.tr_abstract : ∀ (ρ σ node : Type) [node_dec_eq : DecidableEq node] [node_inhabited : Inhabited node]
+  (χ : State.Label → Type)
+  [χ_rep :
+    (__veil_f : State.Label) →
+      FieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)]
+  [χ_rep_lawful :
+    ∀ (__veil_f : State.Label),
+      LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)
+        (χ_rep __veil_f)]
+  [σ_sub : IsSubStateOf (State χ) σ] [ρ_sub : IsSubReaderOf (Theory node) ρ] (n m : node) (r₀ : ρ) (s₀ s₁ : σ),
+  act.ext.tr ρ σ node χ n m r₀ s₀ s₁ →
+    act.ext.tr (Theory node) (State (FieldAbstractType node)) node (FieldAbstractType node) n m (readFrom r₀)
+      (State.casesOn (getFrom s₀) fun r_conc x_conc =>
+        let r := FieldRepresentation.get r_conc;
+        let x := FieldRepresentation.get x_conc;
+        { r := r, x := x })
+      (State.casesOn (getFrom s₁) fun r_conc x_conc =>
+        let r := FieldRepresentation.get r_conc;
+        let x := FieldRepresentation.get x_conc;
+        { r := r, x := x })
+info: VeilTest/LocalOptimization/BasicCheck.lean:48:0: tr_act.ext.tr_abstract : ∀ (ρ σ node : Type) [node_dec_eq : DecidableEq node] [node_inhabited : Inhabited node]
+  (χ : State.Label → Type)
+  [χ_rep :
+    (__veil_f : State.Label) →
+      FieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)]
+  [χ_rep_lawful :
+    ∀ (__veil_f : State.Label),
+      LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)
+        (χ_rep __veil_f)]
+  [σ_sub : IsSubStateOf (State χ) σ] [ρ_sub : IsSubReaderOf (Theory node) ρ]
+  [tr_act_dec_0 :
+    (n : node) →
+      (st' : σ) →
+        Decidable
+          (True ∧
+            (∀ (M : node), FieldRepresentation.get (getFrom st').1 n M = false) ∧
+              id (FieldRepresentation.get (getFrom st').2) = n)]
+  (n : node) (a : ρ) (a_1 a_2 : σ),
+  tr_act.ext.tr n a a_1 a_2 →
+    tr_act.ext.tr n (readFrom a)
+      (State.casesOn (getFrom a_1) fun r_conc x_conc =>
+        let r := FieldRepresentation.get r_conc;
+        let x := FieldRepresentation.get x_conc;
+        { r := r, x := x })
+      (State.casesOn (getFrom a_2) fun r_conc x_conc =>
+        let r := FieldRepresentation.get r_conc;
+        let x := FieldRepresentation.get x_conc;
+        { r := r, x := x })
+info: VeilTest/LocalOptimization/BasicCheck.lean:51:0: LocalOptBasicCheck.Assumptions.core_simplified_eq {ρ node : Type} {node_dec_eq : DecidableEq node}
+  {node_inhabited : Inhabited node} {ρ_sub : IsSubReaderOf (Theory node) ρ} (th✝ : ρ) :
+  Assumptions ρ node th✝ = Assumptions.core_simplified ρ node
+info: VeilTest/LocalOptimization/BasicCheck.lean:52:0: LocalOptBasicCheck.Invariants.core_simplified_eq {ρ σ node : Type} {node_dec_eq : DecidableEq node}
+  {node_inhabited : Inhabited node} {χ : State.Label → Type}
+  {χ_rep :
+    (__veil_f : State.Label) →
+      FieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)}
+  {χ_rep_lawful :
+    ∀ (__veil_f : State.Label),
+      LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)
+        (χ_rep __veil_f)}
+  {σ_sub : IsSubStateOf (State χ) σ} {ρ_sub : IsSubReaderOf (Theory node) ρ} (th✝ : ρ) (st✝ : σ) :
+  Invariants ρ σ node χ th✝ st✝ =
+    Invariants.core_simplified ρ σ node χ (FieldRepresentation.get (getFrom st✝).r)
+      (FieldRepresentation.get (getFrom st✝).x)
+info: VeilTest/LocalOptimization/BasicCheck.lean:55:0: LocalOptBasicCheck.__veil_meetsSpecificationIfSuccessfulAssuming_local {ρ σ node : Type}
+  [node_dec_eq : DecidableEq node] [node_inhabited : Inhabited node] {χ : State.Label → Type}
+  [χ_rep :
+    (__veil_f : State.Label) →
+      FieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)]
+  [χ_rep_lawful :
+    ∀ (__veil_f : State.Label),
+      LawfulFieldRepresentation (State.Label.toDomain node __veil_f) (State.Label.toCodomain node __veil_f) (χ __veil_f)
+        (χ_rep __veil_f)]
+  [σ_sub : IsSubStateOf (State χ) σ] [ρ_sub : IsSubReaderOf (Theory node) ρ] {__veil_mode : Mode}
+  {__veil_act : VeilM __veil_mode ρ σ Unit} {__veil_assu : ρ → Prop} {__veil_pre __veil_post : SProp ρ σ}
+  [__veil_localRPropTC : LocalRProp ρ σ node χ __veil_post]
+  {__veil_pred : (Int → Prop) → VeilSpecM (Theory node) (State (FieldAbstractType node)) Unit}
+  (__veil_handler : Int → Prop) (__veil_assuCore : Prop) (__veil_preCore : (node → node → Bool) → node → Prop)
+  (__veil_hAssu : ∀ (__veil_th : ρ), __veil_assu __veil_th = Theory.casesOn (readFrom __veil_th) __veil_assuCore)
+  (__veil_hPre :
+    ∀ (__veil_th : ρ) (__veil_st : σ),
+      __veil_pre __veil_th __veil_st =
+        Theory.casesOn (readFrom __veil_th)
+          (State.casesOn (getFrom __veil_st) fun r_conc x_conc =>
+            have r := FieldRepresentation.get r_conc;
+            have x := FieldRepresentation.get x_conc;
+            __veil_preCore r x))
+  (__veil_hWp :
+    ∀ (__veil_handler : Int → Prop) (__veil_th : ρ) (__veil_st : σ),
+      (have x := { };
+        wp __veil_act (fun x => __veil_post) __veil_th __veil_st) =
+        __veil_pred __veil_handler
+          (fun __veil_u __veil_th_abs __veil_st_abs =>
+            Theory.casesOn __veil_th_abs (State.casesOn __veil_st_abs fun r x => LocalRProp.core χ __veil_post r x))
+          (readFrom __veil_th)
+          (State.casesOn (getFrom __veil_st) fun r_conc x_conc =>
+            have r := FieldRepresentation.get r_conc;
+            have x := FieldRepresentation.get x_conc;
+            { r := r, x := x }))
+  (__veil_hLocal :
+    ∀ (r : node → node → Bool) (x : node),
+      __veil_assuCore →
+        __veil_preCore r x →
+          __veil_pred __veil_handler
+            (fun __veil_u __veil_th_abs __veil_st_abs =>
+              Theory.casesOn __veil_th_abs (State.casesOn __veil_st_abs fun r x => LocalRProp.core χ __veil_post r x))
+            { } { r := r, x := x }) :
+  have x := { };
+  triple (fun __veil_th __veil_st => __veil_assu __veil_th ∧ __veil_pre __veil_th __veil_st) __veil_act fun x =>
+    __veil_post
+✔ [1183/1227] Built VeilTest.ComplexSyntax (7.3s)
+✔ [1184/1227] Built VeilTest.LocalOptimization.GhostFunctions (5.8s)
+✔ [1185/1227] Built VeilTest.Tactics.DesugarOrElse (1.5s)
+✔ [1186/1227] Built VeilTest.Regression.TraceChoices (32s)
+✔ [1187/1227] Built VeilTest.StateAccess (4.7s)
+✔ [1188/1227] Built VeilTest.Procedures (4.8s)
+✔ [1189/1227] Built VeilTest.Regression.ExtractionSimplifiesFieldRep (25s)
+✔ [1190/1227] Built VeilTest.CheckAction (3.8s)
+ℹ [1191/1227] Built VeilTest.VCTheoremDeclarations (5.7s)
+info: VeilTest/VCTheoremDeclarations.lean:36:0: Initialization must establish the invariant:
+  doesNotThrow ... ✅
+  excluded ... ✅
+The following set of actions must preserve the invariant and successfully terminate:
+  keep
+    doesNotThrow ... ✅
+    excluded ... ✅
+ℹ [1192/1227] Built VeilTest.Regression.GenExecutable (42s)
+info: VeilTest/Regression/GenExecutable.lean:32:0: ✅ No violation (explored 4 states)
+info: VeilTest/Regression/GenExecutable.lean:59:0: ✅ No violation (explored 4 states)
+✔ [1193/1227] Built VeilTest.Deriving.Enumeration (2.1s)
+✔ [1194/1227] Built VeilTest.Calls (5.0s)
+ℹ [1195/1227] Built VeilTest.PickFromFiniteCollection (7.4s)
+info: VeilTest/PickFromFiniteCollection.lean:69:0: ✅ No violation (explored 6 states)
+✔ [1196/1227] Built VeilTest.SolverOption (1.2s)
+✔ [1197/1227] Built VeilTest.GhostFunction (5.7s)
+✔ [1198/1227] Built VeilTest.InstantiateUnusedVariableLinter (1.3s)
+✔ [1199/1227] Built VeilTest.Tactics.VeilExactState (9.4s)
+ℹ [1200/1227] Built VeilTest.BitVectorCTI (3.3s)
+info: VeilTest/BitVectorCTI.lean:21:0: time: 517ms
+✔ [1201/1227] Built VeilTest.WarnTrustingSmtSolver (3.6s)
+✔ [1202/1227] Built VeilTest.Deriving.OrdRelatedInstances (5.8s)
+✔ [1203/1227] Built VeilTest.ExtensibleDo (8.2s)
+ℹ [1204/1227] Built VeilTest.ExecuteTransition (6.8s)
+info: VeilTest/ExecuteTransition.lean:40:0: ✅ No violation (explored 289 states)
+✔ [1205/1227] Built VeilTest.TwoModulesSameFile (6.4s)
+ℹ [1206/1227] Built VeilTest.UninterpretedParameter (8.4s)
+info: VeilTest/UninterpretedParameter.lean:37:0: ✅ No violation (explored 64 states)
+✔ [1207/1227] Built VeilTest.WarnIfNoInvariants (2.0s)
+✔ [1208/1227] Built VeilTest.RequiresGenSpec (7.5s)
+✔ [1209/1227] Built VeilTest.Assumption (7.0s)
+✔ [1210/1227] Built VeilTest.Regression.ModuleSystem (1.3s)
+✔ [1211/1227] Built VeilTest.CapitalInState (5.7s)
+✔ [1212/1227] Built VeilTest.SuccessfulTermination (5.6s)
+✔ [1213/1227] Built VeilTest.ActionExecution.AssignmentDiagnostics (3.6s)
+✔ [1214/1227] Built VeilTest.ActionExecution.RegressionCoverage (7.9s)
+✔ [1215/1227] Built VeilTest.ActionExecution.ShadowWarnings (5.8s)
+✔ [1216/1227] Built VeilTest.ActionExecution.Updates (7.5s)
+✔ [1217/1227] Built VeilTest.ActionExecution.MutationInsideRHS (2.6s)
+✔ [1218/1227] Built VeilTest.ActionExecution.Nondeterminism (7.5s)
+✔ [1219/1227] Built VeilTest.Regression.StateReadContexts (5.1s)
+✔ [1220/1227] Built VeilTest.ActionExecution.FrontendSemantics (13s)
+✔ [1221/1227] Built VeilTest.Regression.ImplicitStateReads (4.7s)
+✔ [1222/1227] Built VeilTest.ActionExecution.ControlFlow (8.3s)
+✔ [1223/1227] Built VeilTest.Regression.CompiledInitializers (23s)
+✔ [1224/1227] Built VeilTest.CompiledModelCheck (40s)
+✔ [1225/1227] Built VeilTest.Enum (57s)
+✔ [1226/1227] Built VeilTest.NoInlineLetInExtraction (37s)
+Build completed successfully (1227 jobs).

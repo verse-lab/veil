@@ -1,0 +1,584 @@
+--- a/Veil/Base.lean
++++ b/Veil/Base.lean
+@@ -157,6 +157,11 @@
+   descr := "Experimental. If true, compact generated `wp_local_eq.pred` definitions by sharing duplicated postcondition branches with `letEq` and exposing abstract-state conditionals field-wise."
+ }
+ 
++register_option veil.experimental.bmcCache : Bool := {
++  defValue := false
++  descr := "Precompute exact symbolic transition normal forms at specification setup and reuse them in veil_bmc. Set before #gen_spec; unmatched formulas use ordinary normalization."
++}
++
+ register_option veil.deferVCGeneration : Bool := {
+   defValue := false
+   descr := "If true, procedures and actions declared while this option is set do not generate their verification definitions, \
+--- a/Veil/Frontend/DSL/Infra/Simp.lean
++++ b/Veil/Frontend/DSL/Infra/Simp.lean
+@@ -42,6 +42,10 @@
+ 
+ /-- Attribute added for simplifications done for symbolic model checking. -/
+ register_simp_attr nextSimp
++
++/-- Exact, specialized transition equalities for BMC. Applied only at a clause's
++root, never as recursive simplification rules. -/
++register_simp_attr bmcNormalize
+ 
+ /-- Attribute added to `DerivedDefinition`s that are `.actionLike`, to unfold them. -/
+ register_simp_attr derivedActSimp
+--- a/Veil/Frontend/DSL/Tactic/Core.lean
++++ b/Veil/Frontend/DSL/Tactic/Core.lean
+@@ -1402,6 +1402,33 @@
+       simpGoal goal ctx simprocs discharge? (simplifyTarget := false) (fvarIdsToSimp := ids)
+     replaceMainGoal (result.toList.map (·.2))
+ 
++initialize registerTraceClass `veil.bmc.cache
++
++/-- Apply a stored exact equality at the clause root and stop. In particular,
++do not traverse/hoist its already-normalized result again. A miss uses precisely
++the ordinary two normalization passes, with proofs composed by transitivity. -/
++def bmcNormalizeClause : Lean.Meta.Simp.Simproc := fun e => do
++  if veil.experimental.bmcCache.get (← getOptions) then
++    let some ext ← getSimpExtension? `bmcNormalize
++      | throwError "missing BMC normal form simp extension"
++    let thms ← ext.getTheorems
++    if let some result ← Lean.Meta.Simp.rewrite? e thms.post thms.erased "bmc-cache" false then
++      trace[veil.bmc.cache] "hit"
++      return .done result
++  trace[veil.bmc.cache] "miss"
++  let unfolded ← Veil.Simp.simp #[`nextSimp] { instances := true } e
++  let hoisted ← if ← hasHOQuantification unfolded.expr then
++      Veil.Simp.simp #[`existsQuantifierSimp] {} unfolded.expr
++    else pure { expr := unfolded.expr }
++  return .done (← unfolded.mkEqTrans hoisted)
++
++simproc_decl bmcNormalizeClauseProc (_) := bmcNormalizeClause
++
++elab "__veil_bmc_normalize" : tactic => do
++  evalTactic (← `(tactic| __veil_bmc_hyps simp +$(mkIdent `instances)
++    ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only
++    [↓ $(mkIdent ``bmcNormalizeClauseProc):ident]))
++
+ /-- `veil_smt` selects hypotheses by user name. Make those names injective before
+ selection, then check that every visible non-instance proposition is selected.
+ In particular, shadowed constraints must not silently disappear from SAT queries.
+@@ -1450,11 +1477,15 @@
+      $dsimpTac:tactic
+      veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]
+      $dsimpTac:tactic))
++  let normalize ← if veil.experimental.bmcCache.get (← getOptions) then
++      `(tactic| __veil_bmc_normalize)
++    else `(tactic|
++      (__veil_bmc_hyps simp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only [$(mkIdent `nextSimp):ident]
++       __veil_bmc_hyps simp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]))
+   let localPath ← `(tactic|
+     (__veil_bmc_split_trace
+      $inferNonemptyTac:tactic
+-     __veil_bmc_hyps simp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only [$(mkIdent `nextSimp):ident]
+-     __veil_bmc_hyps simp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]
++     $normalize:tactic
+      __veil_bmc_check_hints
+      veil_destruct
+      __veil_bmc_hyps dsimp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) [$[$dsimpLemmas:ident],*]
+--- a/Veil/Frontend/DSL/Module/Elaborators/Verification.lean
++++ b/Veil/Frontend/DSL/Module/Elaborators/Verification.lean
+@@ -1,5 +1,6 @@
+ module
+ 
++public meta import Veil.Frontend.DSL.Module.Util.BmcCache
+ public meta import Veil.Frontend.DSL.Module.Elaborators.Core
+ public meta import Veil.Frontend.DSL.Tactic
+ public meta import Veil.Core.UI.Verifier.AssertionErrors
+@@ -59,6 +60,7 @@
+     let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
+     elabVeilCommand rtsCmd
+     pure mod
++  mod.generateBmcNormalForms
+   Verifier.runManager
+   mod.generateDoesNotThrowVCs
+   -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
+--- a/Veil/Core/Tools/ModelChecker/Symbolic/TraceLang.lean
++++ b/Veil/Core/Tools/ModelChecker/Symbolic/TraceLang.lean
+@@ -1,5 +1,6 @@
+ module
+ 
++public meta import Veil.Frontend.DSL.Module.Util.TraceTemplates
+ public meta import Veil.Frontend.DSL.Infra.TraceSyntax
+ public meta import Lean
+ public meta import Lean.Parser
+@@ -67,14 +68,6 @@
+ 
+ abbrev TraceSpec := List TraceSpecLine
+ 
+-/-- Generated connectives must resolve to global constants even when a query
+-binds a name such as `And`, `Or`, `True`, or `False`. -/
+-private def combineTraceTerms (op neutral : Name) (operands : Array Term) : TermElabM Term := do
+-  if operands.isEmpty then return ⟨(mkCIdent neutral).raw⟩
+-  let last := operands.size - 1
+-  operands[0:last].foldrM (init := operands[last]!) fun operand acc =>
+-    `(term| $(mkCIdent op) $operand $acc)
+-
+ def parseTraceSpec [Monad m] [MonadError m] (stx : Syntax) : m TraceSpec := do
+   match stx with
+   | `(traceSpec| $[$ts]* ) => do
+@@ -89,22 +82,6 @@
+     return ts.toList
+   | _ => throwUnsupportedSyntax
+ 
+-open Lean.Parser.Term in
+-/-- Convert a bracketed binder to an explicit binder for use in existential quantification -/
+-private def toExplicitBindersForExists (stx : TSyntax `Lean.Parser.Term.bracketedBinder)
+-    : TermElabM (TSyntax `Lean.bracketedExplicitBinders) := do
+-  match stx with
+-  | `(bracketedBinder| ($id:ident : $tp)) | `(bracketedBinder| {$id:ident : $tp})
+-  | `(bracketedBinder| [$id:ident : $tp]) =>
+-    `(bracketedExplicitBinders| ($(identToBinderIdent id) : $tp))
+-  | `(bracketedBinder| [$tp]) =>
+-    let freshId := mkIdent (← mkFreshUserName `inst)
+-    `(bracketedExplicitBinders| ($(identToBinderIdent freshId) : $tp))
+-  | _ => throwError s!"toExplicitBindersForExists: unexpected syntax: {stx}"
+-
+-/-- A pair of bracketed and explicit binders that are always created together -/
+-abbrev BinderPair := TSyntax `Lean.Parser.Term.bracketedBinder × TSyntax `Lean.bracketedExplicitBinders
+-
+ /-- Accumulated binders during trace spec elaboration -/
+ structure BinderAccum where
+   params : Array BinderPair := #[]
+@@ -115,77 +92,10 @@
+ 
+ def BinderAccum.all (acc : BinderAccum) : Array BinderPair := acc.tags ++ acc.params
+ 
+-/-- Create both bracketed and explicit binders for an identifier with type -/
+-private def mkBinderPair (id : Ident) (ty : Term) : TermElabM BinderPair := do
+-  return (← `(bracketedBinder| ($id : $ty)),
+-          ← `(bracketedExplicitBinders| ($(identToBinderIdent id) : $ty)))
+-
+ /-- Create a tag binder for a transition -/
+ private def mkTagBinder (trIdx : Nat) : TermElabM (Ident × BinderPair) := do
+   let tagId := mkIdent $ Name.mkSimple s!"_tr{trIdx}_tag"
+   return (tagId, ← mkBinderPair tagId actionTagType)
+-
+-/-- Instantiate a parameter type with its preceding telescope. Application
+-arguments stay outside the telescope's scope, even when a query variable has
+-the same name as an action parameter. -/
+-private def instantiateParamType (ty : Term) (params : Array Parameter)
+-    (args : Array Term) : TermElabM Term := do
+-  if params.isEmpty then return ty
+-  let binders ← params.mapM fun p => p.binder >>= bracketedBinderToFunBinder
+-  let fn ← mkFunSyntax binders ty
+-  `(term| ($fn) $args*)
+-
+-/-- Create parameter binders with unique names for a transition. -/
+-private def mkParamBinders (params : Array Parameter) (prefix_ : String)
+-    : TermElabM (Array Ident × Array BinderPair) := do
+-  let mut args : Array Term := #[]
+-  let mut ids := #[]
+-  let mut binders := #[]
+-  for idx in [:params.size] do
+-    let p := params[idx]!
+-    let uniqueId := mkIdent $ Name.mkSimple s!"{prefix_}_arg{idx}_{p.name}"
+-    let ty ← instantiateParamType p.type (params.extract 0 idx) args
+-    binders := binders.push (← mkBinderPair uniqueId ty)
+-    ids := ids.push uniqueId
+-    args := args.push (← `(term| $uniqueId))
+-  return (ids, binders)
+-
+-/-- Build the transition expression: `tag = tagMember ∧ rts.tr th st label st'` -/
+-private def mkTransitionExpr (rtsExpr theoryId currState nextState : TSyntax `term)
+-    (tagId : Ident) (actionName : Name) (args : Array Term) : TermElabM (TSyntax `term) := do
+-  let actionTagMember := mkIdent $ actionTagEnumInstName ++ actionName
+-  let labelConstructor := mkIdent $ labelTypeName ++ actionName
+-  let labelExpr ← `(term| ($labelConstructor $args*))
+-  let trExpr ← `(term| (($rtsExpr).$(mkIdent `tr) $theoryId $currState $labelExpr $nextState))
+-  `(term| ($tagId = $actionTagMember ∧ $trExpr))
+-
+-/-- Build a disjunction representing any action transition with ActionTag constraint -/
+-private def mkAnyActionDisjunction (mod : Module) (rtsExpr theoryId currState nextState : TSyntax `term)
+-    (tagId : Ident) (trIdx : Nat) : TermElabM (TSyntax `term × Array BinderPair) := do
+-  let results ← mod.actions.mapM fun act => do
+-    let (_, specificParams) ← mod.declarationAllParams act.name act.declarationKind
+-    let (argIdents, binders) ← mkParamBinders specificParams s!"_tr{trIdx}_act_{act.name}"
+-    return (← mkTransitionExpr rtsExpr theoryId currState nextState tagId act.name (argIdents.map (⟨·.raw⟩)), binders)
+-  return (← combineTraceTerms ``Or ``False (results.map (·.1)), results.flatMap (·.2))
+-
+-/-- Collect module-level binders (sorts, user parameters, sort assumptions, user-defined typeclasses) -/
+-private def collectModuleBinders (mod : Module) : TermElabM (Array BinderPair) := do
+-  let sortBinders ← mod.uninterpretedParamBinders
+-  let typeclassParams := mod.parameters.filter fun p =>
+-    match p.kind with
+-    | .moduleTypeclass .sortAssumption | .moduleTypeclass .userDefined => true
+-    | _ => false
+-  let typeclassBinders ← typeclassParams.mapM (·.binder)
+-  let allBinders := sortBinders ++ typeclassBinders
+-  allBinders.mapM fun b => do return (b, ← toExplicitBindersForExists b)
+-
+-/-- Create ActionTag type and enum binders -/
+-private def mkActionTagBinders : TermElabM (Array BinderPair) := do
+-  let typePair ← mkBinderPair actionTagType (← `(term| Type))
+-  let actionTagEnumClass := Ident.toEnumClass actionTagType
+-  let enumBinder ← `(bracketedBinder| ($actionTagEnumInst : $actionTagEnumClass $actionTagType))
+-  let enumExplicit ← `(bracketedExplicitBinders| ($(identToBinderIdent actionTagEnumInst) : $actionTagEnumClass $actionTagType))
+-  return #[typePair, (enumBinder, enumExplicit)]
+ 
+ /-- State threaded through trace spec elaboration -/
+ structure TraceElabState where
+--- /dev/null
++++ b/Veil/Frontend/DSL/Module/Util/TraceTemplates.lean
+@@ -0,0 +1,101 @@
++module
++
++public meta import Veil.Frontend.DSL.Module.Util
++
++public meta section
++namespace Veil
++open Lean Elab Term Meta
++
++/-- Generated connectives must resolve to global constants even when a query
++binds a name such as `And`, `Or`, `True`, or `False`. -/
++def combineTraceTerms (op neutral : Name) (operands : Array Term) : TermElabM Term := do
++  if operands.isEmpty then return ⟨(mkCIdent neutral).raw⟩
++  let last := operands.size - 1
++  operands[0:last].foldrM (init := operands[last]!) fun operand acc =>
++    `(term| $(mkCIdent op) $operand $acc)
++
++open Lean.Parser.Term in
++/-- Convert a bracketed binder to an explicit binder for use in existential quantification -/
++def toExplicitBindersForExists (stx : TSyntax `Lean.Parser.Term.bracketedBinder)
++    : TermElabM (TSyntax `Lean.bracketedExplicitBinders) := do
++  match stx with
++  | `(bracketedBinder| ($id:ident : $tp)) | `(bracketedBinder| {$id:ident : $tp})
++  | `(bracketedBinder| [$id:ident : $tp]) =>
++    `(bracketedExplicitBinders| ($(identToBinderIdent id) : $tp))
++  | `(bracketedBinder| [$tp]) =>
++    let freshId := mkIdent (← mkFreshUserName `inst)
++    `(bracketedExplicitBinders| ($(identToBinderIdent freshId) : $tp))
++  | _ => throwError s!"toExplicitBindersForExists: unexpected syntax: {stx}"
++
++/-- A pair of bracketed and explicit binders that are always created together -/
++abbrev BinderPair := TSyntax `Lean.Parser.Term.bracketedBinder × TSyntax `Lean.bracketedExplicitBinders
++
++/-- Create both bracketed and explicit binders for an identifier with type -/
++def mkBinderPair (id : Ident) (ty : Term) : TermElabM BinderPair := do
++  return (← `(bracketedBinder| ($id : $ty)),
++          ← `(bracketedExplicitBinders| ($(identToBinderIdent id) : $ty)))
++
++/-- Instantiate a parameter type with its preceding telescope. Application
++arguments stay outside the telescope's scope, even when a query variable has
++the same name as an action parameter. -/
++def instantiateParamType (ty : Term) (params : Array Parameter)
++    (args : Array Term) : TermElabM Term := do
++  if params.isEmpty then return ty
++  let binders ← params.mapM fun p => p.binder >>= bracketedBinderToFunBinder
++  let fn ← mkFunSyntax binders ty
++  `(term| ($fn) $args*)
++
++/-- Create parameter binders with unique names for a transition. -/
++def mkParamBinders (params : Array Parameter) (prefix_ : String)
++    : TermElabM (Array Ident × Array BinderPair) := do
++  let mut args : Array Term := #[]
++  let mut ids := #[]
++  let mut binders := #[]
++  for idx in [:params.size] do
++    let p := params[idx]!
++    let uniqueId := mkIdent $ Name.mkSimple s!"{prefix_}_arg{idx}_{p.name}"
++    let ty ← instantiateParamType p.type (params.extract 0 idx) args
++    binders := binders.push (← mkBinderPair uniqueId ty)
++    ids := ids.push uniqueId
++    args := args.push (← `(term| $uniqueId))
++  return (ids, binders)
++
++/-- Build the transition expression: `tag = tagMember ∧ rts.tr th st label st'` -/
++def mkTransitionExpr (rtsExpr theoryId currState nextState : TSyntax `term)
++    (tagId : Ident) (actionName : Name) (args : Array Term) : TermElabM (TSyntax `term) := do
++  let actionTagMember := mkIdent $ actionTagEnumInstName ++ actionName
++  let labelConstructor := mkIdent $ labelTypeName ++ actionName
++  let labelExpr ← `(term| ($labelConstructor $args*))
++  let trExpr ← `(term| (($rtsExpr).$(mkIdent `tr) $theoryId $currState $labelExpr $nextState))
++  `(term| ($tagId = $actionTagMember ∧ $trExpr))
++
++/-- Build a disjunction representing any action transition with ActionTag constraint -/
++def mkAnyActionDisjunction (mod : Module) (rtsExpr theoryId currState nextState : TSyntax `term)
++    (tagId : Ident) (trIdx : Nat) (prefix_ : Option String := none) : TermElabM (TSyntax `term × Array BinderPair) := do
++  let results ← mod.actions.mapM fun act => do
++    let (_, specificParams) ← mod.declarationAllParams act.name act.declarationKind
++    let (argIdents, binders) ← mkParamBinders specificParams s!"{prefix_.getD s!"_tr{trIdx}_act"}_{act.name}"
++    return (← mkTransitionExpr rtsExpr theoryId currState nextState tagId act.name (argIdents.map (⟨·.raw⟩)), binders)
++  return (← combineTraceTerms ``Or ``False (results.map (·.1)), results.flatMap (·.2))
++
++/-- Collect module-level binders (sorts, user parameters, sort assumptions, user-defined typeclasses) -/
++def collectModuleBinders (mod : Module) : TermElabM (Array BinderPair) := do
++  let sortBinders ← mod.uninterpretedParamBinders
++  let typeclassParams := mod.parameters.filter fun p =>
++    match p.kind with
++    | .moduleTypeclass .sortAssumption | .moduleTypeclass .userDefined => true
++    | _ => false
++  let typeclassBinders ← typeclassParams.mapM (·.binder)
++  let allBinders := sortBinders ++ typeclassBinders
++  allBinders.mapM fun b => do return (b, ← toExplicitBindersForExists b)
++
++/-- Create ActionTag type and enum binders -/
++def mkActionTagBinders : TermElabM (Array BinderPair) := do
++  let typePair ← mkBinderPair actionTagType (← `(term| Type))
++  let actionTagEnumClass := Ident.toEnumClass actionTagType
++  let enumBinder ← `(bracketedBinder| ($actionTagEnumInst : $actionTagEnumClass $actionTagType))
++  let enumExplicit ← `(bracketedExplicitBinders| ($(identToBinderIdent actionTagEnumInst) : $actionTagEnumClass $actionTagType))
++  return #[typePair, (enumBinder, enumExplicit)]
++
++
++end Veil
+--- /dev/null
++++ b/Veil/Frontend/DSL/Module/Util/BmcCache.lean
+@@ -0,0 +1,69 @@
++module
++
++public meta import Veil.Frontend.DSL.Module.Util.TraceTemplates
++public meta import Veil.Frontend.DSL.Infra.Quantifiers
++
++public meta section
++namespace Veil
++open Lean Elab Command Term Meta
++
++/-- Normalize under a closed parameter telescope and save an exact equality.
++Every state, action argument (including its dependencies), universe and instance
++is bound by the theorem. No query-local expressions or chosen witnesses are
++stored. In particular, the ordinary hoister must prove every Nonempty condition.
++The theorem contains its normal form, so using it requires no proof replay. -/
++private def saveBmcNormalForm (name : Name)
++    (binders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)) (body : Term) : TermElabM Unit := do
++  elabBinders binders fun xs => do
++    let lhs ← withoutErrToSorry <| elabTermAndSynthesize body (some (mkSort .zero))
++    let unfolded ← Simp.simp #[`nextSimp] { instances := true } lhs
++    let hoisted ← if ← hasHOQuantification unfolded.expr then
++        Simp.simp #[`existsQuantifierSimp] {} unfolded.expr
++      else pure { expr := unfolded.expr }
++    let result ← unfolded.mkEqTrans hoisted
++    let ty ← levelMVarToParam (← instantiateMVars (← mkForallFVars xs (← mkEq lhs result.expr)))
++    let value ← levelMVarToParam (← instantiateMVars (← mkLambdaFVars xs (← result.getProof)))
++    unless !ty.hasFVar && !ty.hasMVar && !value.hasFVar && !value.hasMVar do
++      throwError "BMC normal form contains unbound parameters"
++    let levels := (collectLevelParams (collectLevelParams {} ty) value).params.toList
++    let fullName := (← getCurrNamespace) ++ name
++    addDecl (.thmDecl (mkTheoremValEx fullName levels ty value []))
++    enableRealizationsForConst fullName
++    Term.applyAttributes fullName #[{ name := `bmcNormalize }]
++
++/-- Cache init, named transitions and the complete disjunction used by `any
++ action`. Sharing the builders with TraceLang keeps action tags and dependent
++ argument telescopes identical. Assertions and proof headers retain the ordinary
++ normalization path. Disabled by default while the performance tradeoff is
++ measured. -/
++def Module.generateBmcNormalForms (mod : Module) : CommandElabM Unit := do
++  unless veil.experimental.bmcCache.get (← getOptions) do return
++  liftTermElabM do
++    let sorts ← mod.uninterpretedParamIdents
++    let theoryT ← mod.theoryStx
++    let stateT ← `(term| $(mkIdent stateName) ($fieldAbstractDispatcher $sorts*))
++    let rts ← `(term| @$assembledRTS $sorts*)
++    let th := mkIdent (← mkFreshUserName `_bmc_th)
++    let pre := mkIdent (← mkFreshUserName `_bmc_pre)
++    let post := mkIdent (← mkFreshUserName `_bmc_post)
++    let base := (← collectModuleBinders mod).map (·.1)
++    let states := #[← `(bracketedBinder| ($th : $theoryT)),
++                    ← `(bracketedBinder| ($pre $post : $stateT))]
++    saveBmcNormalForm `__bmc_init_eq (base ++ #[states[0]!, ← `(bracketedBinder| ($post : $stateT))])
++      (← `(term| ($rts).$(mkIdent `init) $th $post))
++    for act in mod.actions do
++      let (_, params) ← mod.declarationAllParams act.name act.declarationKind
++      let (args, bindings) ← mkParamBinders params (← mkFreshUserName `_bmc_args).toString
++      let label := mkIdent (labelTypeName ++ act.name)
++      let expr ← `(term| ($rts).$(mkIdent `tr) $th $pre ($label $args*) $post)
++      saveBmcNormalForm (`__bmc_action ++ act.name ++ `eq)
++        (base ++ states ++ bindings.map (·.1)) expr
++    if mod.actions.size > 1 then
++      let tag := mkIdent (← mkFreshUserName `_bmc_tag)
++      let (body, args) ← mkAnyActionDisjunction mod rts th pre post tag 0
++        (prefix_ := some (← mkFreshUserName `_bmc_any_args).toString)
++      let tags := (← mkActionTagBinders).map (·.1)
++      saveBmcNormalForm `__bmc_any_eq
++        (base ++ tags ++ #[← `(bracketedBinder| ($tag : $actionTagType))] ++ states ++ args.map (·.1)) body
++
++end Veil
+--- /dev/null
++++ b/VeilTest/Regression/TraceCachedNormalization.lean
+@@ -0,0 +1,182 @@
++module
++public import Veil
++public section
++set_option veil.experimental.bmcCache true
++
++-- The internal helper consumes simp syntax through mkSimpContext, not evalTactic.
++set_option linter.unreachableTactic false
++
++/-! Semantic regressions for exact cached transition normalization. The manual theorems
++below are kernel checked; SAT commands also exercise trace model decoding. -/
++
++namespace CacheLogicalScopes
++open Lean Elab Tactic
++
++-- An inactive branch with an empty witness domain must stay satisfiable.
++theorem inactive_empty_witness :
++    ¬¬ (True ∨ (∃ _f : Unit → Empty, True)) := by
++  __veil_bmc_split_trace
++  __veil_bmc_hyps simp (failIfUnchanged := false) only [↓ Veil.existsQuantifierSimpGuarded]
++  exact bmc_clause_0 trivial
++
++-- Quantifier dependence cannot be exchanged even when both types are inhabited.
++theorem dependent_choice_scope :
++    (∀ x : Bool, ∃ f : Unit → Bool, f () = x) ∧
++    ¬ (∃ f : Unit → Bool, ∀ x : Bool, f () = x) := by
++  constructor
++  · intro x; exact ⟨fun _ => x, rfl⟩
++  · __veil_bmc_split_trace
++    __veil_bmc_hyps simp (failIfUnchanged := false) only [↓ Veil.existsQuantifierSimpGuarded]
++    rcases bmc_clause_0 with ⟨f, h⟩
++    have := (h true).symm.trans (h false)
++    contradiction
++
++-- Distinct witnesses survive splitting, and dependent witness types stay scoped.
++theorem independent_and_dependent_witnesses :
++    ¬ (((∃ f : Unit → Bool, f () = true) ∧ (∃ g : Unit → Bool, g () = false)) ∧
++        (∀ f : Unit → Bool, f () = true)) := by
++  __veil_bmc_split_trace
++  __veil_bmc_hyps simp (failIfUnchanged := false) only [↓ Veil.existsQuantifierSimpGuarded]
++  rcases bmc_clause_1 with ⟨g, hg⟩
++  have := (bmc_clause_2 g).symm.trans hg
++  contradiction
++
++theorem dependent_witness_type :
++    ¬ ((∃ n : Nat, ∃ w : Fin (n + 1), w.val > n) ∧ True) := by
++  __veil_bmc_split_trace
++  __veil_bmc_hyps simp (failIfUnchanged := false) only [↓ Veil.existsQuantifierSimpGuarded]
++  rcases bmc_clause_0 with ⟨n, w, h⟩
++  omega
++
++set_option veil.smt.trust false in
++theorem shadowed_constraints (p : Prop) (h : p) (h : ¬ p) : False := by
++  __veil_bmc_check_hints
++  veil_smt
++
++/-- info: 'CacheLogicalScopes.shadowed_constraints' depends on axioms: [propext, Classical.choice, Quot.sound] -/
++#guard_msgs (whitespace := lax) in
++#print axioms shadowed_constraints
++end CacheLogicalScopes
++
++veil module TraceCachedNormalization
++
++type node
++relation marked : node → Bool
++individual flag : Bool
++
++#gen_state
++
++after_init { marked N := false; flag := false }
++
++action fill {
++  let f ← pick (node → Bool)
++  require ∀ n, f n
++  marked N := f N
++}
++action clear {
++  let f ← pick (node → Bool)
++  require ∀ n, ¬ f n
++  marked N := f N
++}
++action once {
++  require ¬ flag
++  flag := true
++}
++invariant True
++#gen_spec
++
++-- Inspect the actual artifacts as well as solver results. The normal forms
++-- are kernel theorems; neither a trusted SMT result nor an admitted proof may
++-- be used to construct them.
++open Lean Elab Command in
++run_cmd do
++  for name in [``__bmc_init_eq, ``__bmc_any_eq, ``__bmc_action.fill.eq] do
++    if (← collectAxioms name).contains ``sorryAx then
++      throwError "cached equality uses sorryAx: {name}"
++
++section TrustedChecks
++set_option veil.smt.trust true
++
++-- These two steps require different function witnesses.
++#guard_msgs(drop info, drop warning) in
++sat trace [independent_choices] {
++  fill
++  assert (∀ n, marked n)
++  clear
++  assert (∀ n, ¬ marked n)
++}
++
++#guard_msgs(drop info, drop warning) in
++sat trace [alternative_choices] {
++  any 3 actions
++  assert (∃ n, marked n)
++}
++
++-- Both transition formulas are individually satisfiable; the shared middle
++-- state makes their conjunction impossible.
++#guard_msgs(drop info, drop warning) in
++unsat trace [shared_middle_state] {
++  once
++  once
++}
++
++#guard_msgs(drop info, drop warning) in
++sat trace [zero_actions] { assert (∀ n, ¬ marked n) }
++
++#guard_msgs(drop info, drop warning) in
++unsat trace [false_assertion] { assert False }
++
++end TrustedChecks
++
++section UntrustedChecks
++set_option veil.smt.trust false
++
++unsat trace [kernel_checked_shared_state] {
++  once
++  once
++} by
++  veil_bmc
++
++/-- info: 'TraceCachedNormalization.kernel_checked_shared_state' depends on axioms: [propext, Classical.choice, Quot.sound] -/
++#guard_msgs (whitespace := lax) in
++#print axioms kernel_checked_shared_state
++
++unsat trace [false_proof_header] (_h : False) { fill } by
++  veil_bmc
++
++end UntrustedChecks
++end TraceCachedNormalization
++
++
++-- Template-local binders must not capture module sorts with common names.
++veil module TraceCacheBinderNames
++type pre
++type post
++type tag
++individual flag : Bool
++#gen_state
++after_init { flag := false }
++action enable (x : pre) (y : post) { flag := true }
++action disable { flag := false }
++invariant True
++#gen_spec
++
++#guard_msgs (drop info, drop warning) in
++sat trace {
++  enable
++  assert flag
++}
++
++#guard_msgs (drop info, drop warning) in
++sat trace {
++  any action
++  assert flag
++}
++
++#guard_msgs (drop info, drop warning) in
++unsat trace {
++  enable
++  disable
++  assert flag
++}
++end TraceCacheBinderNames

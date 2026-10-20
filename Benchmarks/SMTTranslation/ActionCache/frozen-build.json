@@ -1,0 +1,25 @@
+{
+  "started_utc": "2026-10-20T03:14:45.678433+00:00",
+  "baseline_commit": "543817e690debe6fbc9b518fb2694549d5986e90",
+  "files": {
+    "/home/george/src/veil-issue-123/Veil/Base.lean": "4481a77bc81e3e2d2824419af7cd9fe2fbefd73c703eb55c7a8cb0c111456df9",
+    "/home/george/src/veil-issue-123/Veil/Frontend/DSL/Infra/Simp.lean": "a281cf848144ddd75011e57abd63d418ecb4977e931aab8f781a5c2d4ed52bb9",
+    "/home/george/src/veil-issue-123/Veil/Frontend/DSL/Tactic/Core.lean": "b980c7af0e335933101b9fb9f631c50796a899af2994554821b6a1f987f12ed0",
+    "/home/george/src/veil-issue-123/Veil/Frontend/DSL/Module/Elaborators/Verification.lean": "b1b0c0440d7dc5dd7a46adcaca472b5a254ff6d114daec95faf85a4a7500ba74",
+    "/home/george/src/veil-issue-123/Veil/Core/Tools/ModelChecker/Symbolic/TraceLang.lean": "ed6f60935ed561836196ab9c83d5c5ec8287d36b8042919ca1ba2cf6bb8f1f13",
+    "/home/george/src/veil-issue-123/Veil/Frontend/DSL/Module/Util/TraceTemplates.lean": "4443efeff208ce2a0efabf2089f3be8ef0599ffc78e69fa254014d29b3f2b882",
+    "/home/george/src/veil-issue-123/Veil/Frontend/DSL/Module/Util/BmcCache.lean": "f86af12efe35698756dde27accc61a04cc6efd2c37ea1ef6b2c01dd7aa97cfd8",
+    "/home/george/src/veil-issue-123/VeilTest/Regression/TraceCachedNormalization.lean": "fd0de8fe699ef5b41c3696ecb7f7cba4e101f0db59e6c5c998dea8d1cf846ca8",
+    "/home/george/src/veil-issue-123/.lake/build/lib/lean/Veil/Base.olean": "41f82259b0658899150086c1496925536a49a46c29c9d34925bd0758e2bd118d",
+    "/home/george/src/veil-issue-123/.lake/build/lib/lean/Veil/Frontend/DSL/Infra/Simp.olean": "4a31c992136025e45ee52a08168cd02954bbc7c169eae206e5091f6c6e54188f",
+    "/home/george/src/veil-issue-123/.lake/build/lib/lean/Veil/Frontend/DSL/Tactic/Core.olean": "647621dd2af6ad2c08dbde4d54e71d60c15d70421cf3507ca24127ba6c8d54ae",
+    "/home/george/src/veil-issue-123/.lake/build/lib/lean/Veil/Frontend/DSL/Module/Elaborators/Verification.olean": "907c956bc38be89b2070ac8818b08cd180e9b5514e1f17fff3d4a14b8af9611d",
+    "/home/george/src/veil-issue-123/.lake/build/lib/lean/Veil/Core/Tools/ModelChecker/Symbolic/TraceLang.olean": "2a625e1a1b065a69ecb4dcd9dfa05676c552c8d43b8c0c1139c529782bd6ba10",
+    "/home/george/src/veil-issue-123/.lake/build/lib/lean/Veil/Frontend/DSL/Module/Util/TraceTemplates.olean": "218e26a32abd6efce424b72f4878c260ec340db0eb4201fb2583fd9486a96233",
+    "/home/george/src/veil-issue-123/.lake/build/lib/lean/Veil/Frontend/DSL/Module/Util/BmcCache.olean": "9a6820e5251eea8477411297cbe629bb51dafcd4941f4c122c978774ea18b630"
+  },
+  "suite_sha256": "b32ba787eb5f65ac761a6828fbf54107be02b0c4a440feb156acd359c6c07887",
+  "resumed_utc": [
+    "2026-10-20T03:42:17.143386+00:00"
+  ]
+}

@@ -1,0 +1,86 @@
+Separate native solver diagnostics
+==================================
+
+The primary 588-cell comparison is unchanged. After it finished, twelve
+model/depth cases were selected deterministically: two newly emitted queries,
+four pairs with a definite-result change, and six pairs whose observed solver
+times differed by at least 5x with the slower call at least 500 ms. Each selected
+emitted query was replayed three times in a fresh native solver; pair order
+alternates between repeats. These 66 calls use the same emitted query hashes
+and 10-second checkSat / 15-second wrapper limits. No other Lean, graph-rendering
+or solver jobs ran concurrently. This is a targeted diagnostic, not a repeated
+sample of the whole corpus or a confidence interval.
+
+Repeated results (three calls per row):
+Model / depth / variant | outcomes | median definite-call time (seconds)
+Ivy_Blockchain / 8 / local | UNSAT 3/3 | 0.480
+Ivy_Blockchain / 16 / local | UNSAT 3/3 | 0.791
+Ivy_MultiSigAll / 4 / early | TIMEOUT 1/3, UNSAT 2/3 | 9.435
+Ivy_MultiSigAll / 4 / local | UNSAT 3/3 | 0.595
+Ivy_MultiSigMajority / 2 / early | UNSAT 3/3 | 0.524
+Ivy_MultiSigMajority / 2 / local | UNSAT 3/3 | 0.074
+Ivy_MultiSigMajority / 4 / early | UNSAT 3/3 | 7.345
+Ivy_MultiSigMajority / 4 / local | UNSAT 3/3 | 0.384
+Ivy_TwoPhaseCommit / 8 / early | UNSAT 3/3 | 4.819
+Ivy_TwoPhaseCommit / 8 / local | TIMEOUT 2/3, UNSAT 1/3 | 9.747
+Simulate_CheckpointLeaseFailover / 16 / early | SAT 3/3 | 8.641
+Simulate_CheckpointLeaseFailover / 16 / local | TIMEOUT 3/3 | —
+Synchronous_FloodSet / 4 / early | UNSAT 3/3 | 9.577
+Synchronous_FloodSet / 4 / local | UNSAT 3/3 | 1.552
+TLA_Peterson / 8 / early | UNSAT 3/3 | 7.230
+TLA_Peterson / 8 / local | TIMEOUT 3/3 | —
+TLA_Traffic / 16 / early | SAT 3/3 | 0.057
+TLA_Traffic / 16 / local | SAT 3/3 | 0.846
+TLA_Traffic / 32 / early | SAT 3/3 | 0.130
+TLA_Traffic / 32 / local | SAT 3/3 | 6.704
+TLA_TwoPhaseCommit / 8 / early | TIMEOUT 3/3 | —
+TLA_TwoPhaseCommit / 8 / local | UNSAT 3/3 | 5.193
+
+Medians include only definite calls, never timeout durations; mixed outcomes
+must be read together with their success counts. The primary measurements are
+not included in these three-repeat medians. Near-threshold results fluctuate:
+Ivy TwoPhaseCommit local finishes in one repeat at 9.747 s, and times out in two.
+The repeated Traffic slowdown shows that even preserved definite outcomes can
+cost much more solver time. There are no contradictory definite answers.
+
+Separate 30-second checks of the three primary regressions:
+Model / variant | result | native seconds
+Ivy_TwoPhaseCommit / early | UNSAT | 4.510
+Ivy_TwoPhaseCommit / local | UNSAT | 10.670
+Simulate_CheckpointLeaseFailover / early | SAT | 9.145
+Simulate_CheckpointLeaseFailover / local | SAT | 17.054
+TLA_Peterson / early | UNSAT | 7.506
+TLA_Peterson / local | UNSAT | 18.850
+
+All three local queries return the same answer as their baselines at this
+larger cap. This shows that cvc5 can handle these particular encodings with
+more time; it does not erase their regressions under the fixed primary cap.
+
+Controlled ordering/grouping experiment: Ivy TwoPhaseCommit depth 8
+The original early/local scripts contain the same multiset of 129 declarations
+but 3 versus 13 assertions. Four local-derived scripts were generated:
+  1. Move all local declarations before assertions, retaining their order.
+  2. Use the baseline declaration order, retaining local assertion grouping.
+  3. Use local declaration order and conjoin every assertion into one.
+  4. Use baseline declaration order and conjoin every assertion into one.
+The scope-aware formula audit independently verifies each script against the
+original local script before native replay. The exact texts/hashes are kept.
+  early_declaration_order: timeout (10.018 s)
+  early_order_single_assertion: timeout (10.020 s)
+  local_all_decls_first: timeout (10.016 s)
+  local_single_assertion: timeout (10.023 s)
+
+All four reach the 10-second solver limit. These limited reorganizations do
+not restore the baseline result. They neither isolate a particular heuristic
+as the cause nor rule out a better encoding; finer formula structure, witness
+names and preprocessing/search decisions may matter. Do not claim declaration
+sorting or assertion merging alone is a validated fix. A follow-up should
+profile solver preprocessing and quantifier instantiation, then benchmark any
+encoding policy across the corpus before making it the default. Keeping a
+user-selectable early-introduction strategy during rollout would be prudent.
+No such policy/option is implemented in this change.
+
+Evidence: solver-controls/selection.json, replays.csv, repeat-*/events and
+solver source files; solver-controls/extended-30s; solver-order-probe/queries,
+equivalence.json and runs.csv. Diagnostic timings are separate from primary
+outcome matrices and main per-model curves.

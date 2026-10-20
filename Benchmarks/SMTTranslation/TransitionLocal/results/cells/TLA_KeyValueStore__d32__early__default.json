@@ -1,0 +1,317 @@
+{
+  "row": {
+    "cell_id": "TLA_KeyValueStore__d32__early__default",
+    "model": "TLA_KeyValueStore",
+    "path": "Examples/TLA/KeyValueStore.lean",
+    "module": "KeyValueStoreRe",
+    "depth": 32,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/TLA_KeyValueStore__default__batch1.lean:585:2: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 644,
+    "batch_id": "TLA_KeyValueStore__default__batch1",
+    "batch_setup_ms": 9536,
+    "preprocessing_ms": 12992,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/TLA_KeyValueStore__d32__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/TLA_KeyValueStore__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/TLA_KeyValueStore__d32__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/TLA_KeyValueStore__d32__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/TLA_KeyValueStore__d32__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_KeyValueStore",
+    "path": "Examples/TLA/KeyValueStore.lean",
+    "module": "KeyValueStoreRe",
+    "cut_line": 161,
+    "query": "assert (¬ (snapshot_isolation ∧ transaction_cleanup))",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "Txlifecycle invariant, line159",
+    "notes": "Both ghost predicates are defined before #gen_spec. Uses partial functions and sets.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "68603d3c98c1c595b2aed77f0d1927ddd6befd277209d3b8a3b7d4e2785c25e7"
+  },
+  "original_sha256": "68603d3c98c1c595b2aed77f0d1927ddd6befd277209d3b8a3b7d4e2785c25e7",
+  "inherited_setup_options": [],
+  "source_sha256": "bdcb9ac40bb810833c6a3d2f3297e57b4f75e84f5799f971cd36169e0ba33a42",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/TLA_KeyValueStore__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 209209397,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 209210041,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209210041,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 181,
+      "event": "stage",
+      "heartbeats": 312270,
+      "mono_ms": 209210223,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209210223,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4871,
+      "event": "stage",
+      "heartbeats": 44173596,
+      "mono_ms": 209215094,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209215095,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 68,
+      "event": "stage",
+      "heartbeats": 1116714,
+      "mono_ms": 209215163,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209215237,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 17,
+      "event": "stage",
+      "heartbeats": 3414,
+      "mono_ms": 209215255,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209215255,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4958,
+      "event": "stage",
+      "heartbeats": 49695289,
+      "mono_ms": 209220213,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209220213,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 233,
+      "event": "stage",
+      "heartbeats": 2905411,
+      "mono_ms": 209220446,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209220448,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2461,
+      "event": "stage",
+      "heartbeats": 25443071,
+      "mono_ms": 209222909,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209223036,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 203,
+      "event": "stage",
+      "heartbeats": 2656189,
+      "mono_ms": 209223240,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 13199,
+      "event": "milestone",
+      "mono_ms": 209223240,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209223241,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 10,
+      "event": "stage",
+      "heartbeats": 58933,
+      "mono_ms": 209223251,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209223251,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 1995,
+      "mono_ms": 209223252,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209223252,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 209223252,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209223252,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "heartbeats": 34625,
+      "mono_ms": 209223259,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209223259,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1414,
+      "event": "stage",
+      "heartbeats": 7567474,
+      "mono_ms": 209224673,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209224673,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 209225732,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_KeyValueStore__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/TLA_KeyValueStore__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/TLA_KeyValueStore__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 95084,
+    "setup_ms": 9536,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/TLA_KeyValueStore__default__batch1.lean"
+    ]
+  }
+}

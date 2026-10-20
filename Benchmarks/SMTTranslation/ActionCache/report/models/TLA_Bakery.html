@@ -1,0 +1,660 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>TLA_Bakery</title><style>body{max-width:1250px;margin:35px auto;padding:0 24px;font:16px/1.5 system-ui;color:#162a35;background:#fafcfb}h1,h2{line-height:1.2}a{color:#007562}img{max-width:100%;background:white}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:8px;border-bottom:1px solid #dbe4df;text-align:left;vertical-align:top}th{background:#e9f0ed}code{background:#edf1ef;padding:2px 5px}.note{background:#edf3f0;padding:18px;border-left:4px solid #00856a}details{margin:12px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere}nav{display:flex;gap:15px;flex-wrap:wrap}.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:20px}.gallery a{background:white;padding:10px;text-decoration:none;border:1px solid #dbe4df}</style><nav><a href="../index.html">All models</a><a href="TLA_Bakery.svg">SVG figure</a></nav><h1>TLA_Bakery</h1><p><code>Examples/TLA/Bakery.lean</code> · <code>assert (∃ i j, i ≠ j ∧ pc i = cs ∧ pc j = cs)</code></p><img src="TLA_Bakery.png"><table><thead><tr><th>Depth</th><th>Variant</th><th>Result</th><th>Normalize s</th><th>Query s</th><th>VC s</th><th>Cold→query s</th><th>Solver s</th><th>Stopped at</th><th>Failure kind</th><th>Evidence</th></tr></thead><tbody><tr><td>1</td><td>local</td><td>translation_failed</td><td>0.416</td><td>—</td><td>0.023</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Bakery__d1__local__default.translation.log">log</a></td></tr><tr><td>1</td><td>cached</td><td>translation_failed</td><td>0.024</td><td>—</td><td>0.029</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Bakery__d1__cached__default.translation.log">log</a></td></tr><tr><td>2</td><td>local</td><td>translation_failed</td><td>0.702</td><td>—</td><td>0.032</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Bakery__d2__local__default.translation.log">log</a></td></tr><tr><td>2</td><td>cached</td><td>translation_failed</td><td>0.028</td><td>—</td><td>0.037</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Bakery__d2__cached__default.translation.log">log</a></td></tr><tr><td>4</td><td>local</td><td>translation_failed</td><td>1.180</td><td>—</td><td>0.046</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Bakery__d4__local__default.translation.log">log</a></td></tr><tr><td>4</td><td>cached</td><td>translation_failed</td><td>0.036</td><td>—</td><td>0.061</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Bakery__d4__cached__default.translation.log">log</a></td></tr><tr><td>8</td><td>local</td><td>translation_failed</td><td>2.457</td><td>—</td><td>0.075</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_Bakery__d8__local__default.translation.log">log</a></td></tr><tr><td>8</td><td>cached</td><td>translation_failed</td><td>0.042</td><td>—</td><td>0.090</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_Bakery__d8__cached__default.translation.log">log</a></td></tr><tr><td>16</td><td>local</td><td>translation_failed</td><td>4.781</td><td>—</td><td>0.123</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_Bakery__d16__local__default.translation.log">log</a></td></tr><tr><td>16</td><td>cached</td><td>translation_failed</td><td>0.079</td><td>—</td><td>0.146</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_Bakery__d16__cached__default.translation.log">log</a></td></tr><tr><td>32</td><td>local</td><td>translation_failed</td><td>13.271</td><td>—</td><td>0.363</td><td>—</td><td>—</td><td>smtSimp</td><td>heartbeats</td><td> <a href="../../raw/logs/TLA_Bakery__d32__local__default.translation.log">log</a></td></tr><tr><td>32</td><td>cached</td><td>translation_failed</td><td>0.177</td><td>—</td><td>0.311</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_Bakery__d32__cached__default.translation.log">log</a></td></tr></tbody></table><details><summary>1, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun pSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun pSet.insert =&gt;
+                forall_congr fun pSet.remove =&gt;
+                  forall_congr fun pSet.ofList =&gt;
+                    forall_congr fun pSet.toList =&gt;
+                      forall_congr fun pSet.filter =&gt;
+                        forall_congr fun pSet.union =&gt;
+                          forall_congr fun pSet.diff =&gt;
+                            forall_congr fun pSet.intersection =&gt;
+                              forall_congr fun pSet.subsets =&gt;
+                                forall_congr fun __veil_tag.evtNCS =&gt;
+                                  forall_congr fun __veil_tag.evtE1 =&gt;
+                                    forall_congr fun __veil_tag.evtE2 =&gt;
+                                      forall_congr fun __veil_tag.evtE3 =&gt;
+                                        forall_congr fun __veil_tag.evtE4 =&gt;
+                                          forall_congr fun __veil_tag.evtW1 =&gt;
+                                            forall_congr fun __veil_tag.evtW2 =&gt;
+                                              forall_congr fun __veil_tag.evtCS =&gt;
+                                                forall_congr fun __veil_tag.evtExit =&gt;
+                                                  forall_congr fun st0.num =&gt;
+                                                    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                                      (forall_congr fun f_3 =&gt; forall_congr ⋯)))
+has type
+  ∀ (a : ∀ (a₁ : ProcessSet), f a₁ ≥ 0),
+    (∀ (f_1 : Bakery.ProcTy f✝¹.toNat → ProcessSet → Bool) (pSet.empty : ProcessSet) (pSet.isEmpty : ProcessSet → Bool)
+        (pSet.insert pSet.remove : Bakery.ProcTy f✝¹.toNat → ProcessSet → ProcessSet)
+        (pSet.ofList : List (Bakery.ProcTy f✝¹.toNat) → ProcessSet)
+        (pSet.toList : ProcessSet → List (Bakery.ProcTy f✝¹.toNat))
+        (pSet.filter : ProcessSet → (Bakery.ProcTy f✝¹.toNat → Bool) → ProcessSet)
+        (pSet.union pSet.diff pSet.intersection : ProcessSet → ProcessSet → ProcessSet)
+        (pSet.subsets : ProcessSet → List ProcessSet)
+        (__veil_tag.evtNCS __veil_tag.evtE1 __veil_tag.evtE2 __veil_tag.evtE3 __veil_tag.evtE4 __veil_tag.evtW1
+          __veil_tag.evtW2 __veil_tag.evtCS __veil_tag.evtExit : ActionTag)
+        (st0.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st0.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st0.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st0.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st0.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st0.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st1.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st1.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st1.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st1.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st1.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st1.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (i j : Bakery.ProcTy f✝¹.toNat),
+        True →
+          distinctN
+              [pc_state_Enum.ncs, pc_state_Enum.e1, pc_state_Enum.e2, pc_state_Enum.e3, pc_state_Enum.e4,
+                pc_state_Enum.w1, pc_state_Enum.w2, pc_state_Enum.cs, pc_state_Enum.exit] →
+            (∀ (__veil_x : pc_state),
+                __veil_x = pc_state_Enum.ncs ∨
+                  __veil_x = pc_state_Enum.e1 ∨
+                    __veil_x = pc_state_Enum.e2 ∨
+                      __veil_x = pc_state_Enum.e3 ∨
+                        __veil_x = pc_state_Enum.e4 ∨
+                          __veil_x = pc_state_Enum.w1 ∨
+                            __veil_x = pc_state_Enum.w2 ∨ __veil_x = pc_state_Enum.cs ∨ __veil_x = pc_state_Enum.exit) →
+              (fun a₁ =&gt; (f a₁).toNat) pSet.empty = 0 →
+                ∀ (pSet.empty_count : (fun a₁ =&gt; (f a₁).toNat) pSet.empty = 0),
+                  (∀ (elem : Bakery.ProcTy f✝¹.toNat), f_1 elem pSet.empty = false) →
+                    ∀ (pSet.empty_contains : ∀ (elem : Bakery.ProcTy f✝¹.toNat), f_1 elem pSet.empty = false),
+                      (∀ (s : ProcessSet), (pSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)) →
+                        ∀
+                          (pSet.isEmpty_iff_count_zero :
+                            ∀ (s : ProcessSet), (pSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)),
+                          (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet), f_1 elem (pSet.insert elem s) = true) →
+                            ∀
+                              (pSet.contains_insert_self :
+                                ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                  f_1 elem (pSet.insert elem s) = true),
+                              (∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                  ¬elem₁ = elem₂ → f_1 elem₁ (pSet.insert elem₂ s) = f_1 elem₁ s) →
+                                ∀
+                                  (pSet.contains_insert_other :
+                                    ∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                      ¬elem₁ = elem₂ → f_1 elem₁ (pSet.insert elem₂ s) = f_1 elem₁ s),
+                                  (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                      pSet.toList (pSet.insert elem (pSet.insert elem s)) =
+                                        pSet.toList (pSet.insert elem s)) →
+                                    ∀
+                                      (pSet.insert_idempotent :
+                                        ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                          pSet.toList (pSet.insert elem (pSet.insert elem s)) =
+                                            pSet.toList (pSet.insert elem s)),
+                                      (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                          (fun a₁ =&gt; (f a₁).toNat) (pSet.insert elem s) =
+                                            if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                            else (fun a₁ =&gt; (f a₁).toNat) s + 1) →
+                                        ∀
+                                          (pSet.count_insert :
+                                            ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                              (fun a₁ =&gt; (f a₁).toNat) (pSet.insert elem s) =
+                                                if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                                else (fun a₁ =&gt; (f a₁).toNat) s + 1),
+                                          (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                              f_1 elem (pSet.remove elem s) = false) →
+                                            ∀
+                                              (pSet.contains_remove_self :
+                                                ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                                  f_1 elem (pSet.remove elem s) = false),
+                                              (∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                                  ¬elem₁ = elem₂ → f_1 elem₁ (pSet.remove elem₂ s) = f_1 elem₁ s) →
+                                                ∀
+                                                  (pSet.contains_remove_other :
+                                                    ∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                   </pre></details><details><summary>1, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun pSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun pSet.insert =&gt;
+                forall_congr fun pSet.remove =&gt;
+                  forall_congr fun pSet.ofList =&gt;
+                    forall_congr fun pSet.toList =&gt;
+                      forall_congr fun pSet.filter =&gt;
+                        forall_congr fun pSet.union =&gt;
+                          forall_congr fun pSet.diff =&gt;
+                            forall_congr fun pSet.intersection =&gt;
+                              forall_congr fun pSet.subsets =&gt;
+                                forall_congr fun __veil_tag.evtNCS =&gt;
+                                  forall_congr fun __veil_tag.evtE1 =&gt;
+                                    forall_congr fun __veil_tag.evtE2 =&gt;
+                                      forall_congr fun __veil_tag.evtE3 =&gt;
+                                        forall_congr fun __veil_tag.evtE4 =&gt;
+                                          forall_congr fun __veil_tag.evtW1 =&gt;
+                                            forall_congr fun __veil_tag.evtW2 =&gt;
+                                              forall_congr fun __veil_tag.evtCS =&gt;
+                                                forall_congr fun __veil_tag.evtExit =&gt;
+                                                  forall_congr fun st0.num =&gt;
+                                                    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                                      (forall_congr fun f_3 =&gt; forall_congr ⋯)))
+has type
+  ∀ (a : ∀ (a₁ : ProcessSet), f a₁ ≥ 0),
+    (∀ (f_1 : Bakery.ProcTy f✝¹.toNat → ProcessSet → Bool) (pSet.empty : ProcessSet) (pSet.isEmpty : ProcessSet → Bool)
+        (pSet.insert pSet.remove : Bakery.ProcTy f✝¹.toNat → ProcessSet → ProcessSet)
+        (pSet.ofList : List (Bakery.ProcTy f✝¹.toNat) → ProcessSet)
+        (pSet.toList : ProcessSet → List (Bakery.ProcTy f✝¹.toNat))
+        (pSet.filter : ProcessSet → (Bakery.ProcTy f✝¹.toNat → Bool) → ProcessSet)
+        (pSet.union pSet.diff pSet.intersection : ProcessSet → ProcessSet → ProcessSet)
+        (pSet.subsets : ProcessSet → List ProcessSet)
+        (__veil_tag.evtNCS __veil_tag.evtE1 __veil_tag.evtE2 __veil_tag.evtE3 __veil_tag.evtE4 __veil_tag.evtW1
+          __veil_tag.evtW2 __veil_tag.evtCS __veil_tag.evtExit : ActionTag)
+        (st0.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st0.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st0.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st0.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st0.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st0.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st1.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st1.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st1.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st1.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st1.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st1.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (i j : Bakery.ProcTy f✝¹.toNat),
+        True →
+          distinctN
+              [pc_state_Enum.ncs, pc_state_Enum.e1, pc_state_Enum.e2, pc_state_Enum.e3, pc_state_Enum.e4,
+                pc_state_Enum.w1, pc_state_Enum.w2, pc_state_Enum.cs, pc_state_Enum.exit] →
+            (∀ (__veil_x : pc_state),
+                __veil_x = pc_state_Enum.ncs ∨
+                  __veil_x = pc_state_Enum.e1 ∨
+                    __veil_x = pc_state_Enum.e2 ∨
+                      __veil_x = pc_state_Enum.e3 ∨
+                        __veil_x = pc_state_Enum.e4 ∨
+                          __veil_x = pc_state_Enum.w1 ∨
+                            __veil_x = pc_state_Enum.w2 ∨ __veil_x = pc_state_Enum.cs ∨ __veil_x = pc_state_Enum.exit) →
+              (fun a₁ =&gt; (f a₁).toNat) pSet.empty = 0 →
+                ∀ (pSet.empty_count : (fun a₁ =&gt; (f a₁).toNat) pSet.empty = 0),
+                  (∀ (elem : Bakery.ProcTy f✝¹.toNat), f_1 elem pSet.empty = false) →
+                    ∀ (pSet.empty_contains : ∀ (elem : Bakery.ProcTy f✝¹.toNat), f_1 elem pSet.empty = false),
+                      (∀ (s : ProcessSet), (pSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)) →
+                        ∀
+                          (pSet.isEmpty_iff_count_zero :
+                            ∀ (s : ProcessSet), (pSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)),
+                          (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet), f_1 elem (pSet.insert elem s) = true) →
+                            ∀
+                              (pSet.contains_insert_self :
+                                ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                  f_1 elem (pSet.insert elem s) = true),
+                              (∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                  ¬elem₁ = elem₂ → f_1 elem₁ (pSet.insert elem₂ s) = f_1 elem₁ s) →
+                                ∀
+                                  (pSet.contains_insert_other :
+                                    ∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                      ¬elem₁ = elem₂ → f_1 elem₁ (pSet.insert elem₂ s) = f_1 elem₁ s),
+                                  (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                      pSet.toList (pSet.insert elem (pSet.insert elem s)) =
+                                        pSet.toList (pSet.insert elem s)) →
+                                    ∀
+                                      (pSet.insert_idempotent :
+                                        ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                          pSet.toList (pSet.insert elem (pSet.insert elem s)) =
+                                            pSet.toList (pSet.insert elem s)),
+                                      (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                          (fun a₁ =&gt; (f a₁).toNat) (pSet.insert elem s) =
+                                            if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                            else (fun a₁ =&gt; (f a₁).toNat) s + 1) →
+                                        ∀
+                                          (pSet.count_insert :
+                                            ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                              (fun a₁ =&gt; (f a₁).toNat) (pSet.insert elem s) =
+                                                if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                                else (fun a₁ =&gt; (f a₁).toNat) s + 1),
+                                          (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                              f_1 elem (pSet.remove elem s) = false) →
+                                            ∀
+                                              (pSet.contains_remove_self :
+                                                ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                                  f_1 elem (pSet.remove elem s) = false),
+                                              (∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                                  ¬elem₁ = elem₂ → f_1 elem₁ (pSet.remove elem₂ s) = f_1 elem₁ s) →
+                                                ∀
+                                                  (pSet.contains_remove_other :
+                                                    ∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                   </pre></details><details><summary>2, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun pSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun pSet.insert =&gt;
+                forall_congr fun pSet.remove =&gt;
+                  forall_congr fun pSet.ofList =&gt;
+                    forall_congr fun pSet.toList =&gt;
+                      forall_congr fun pSet.filter =&gt;
+                        forall_congr fun pSet.union =&gt;
+                          forall_congr fun pSet.diff =&gt;
+                            forall_congr fun pSet.intersection =&gt;
+                              forall_congr fun pSet.subsets =&gt;
+                                forall_congr fun __veil_tag.evtNCS =&gt;
+                                  forall_congr fun __veil_tag.evtE1 =&gt;
+                                    forall_congr fun __veil_tag.evtE2 =&gt;
+                                      forall_congr fun __veil_tag.evtE3 =&gt;
+                                        forall_congr fun __veil_tag.evtE4 =&gt;
+                                          forall_congr fun __veil_tag.evtW1 =&gt;
+                                            forall_congr fun __veil_tag.evtW2 =&gt;
+                                              forall_congr fun __veil_tag.evtCS =&gt;
+                                                forall_congr fun __veil_tag.evtExit =&gt;
+                                                  forall_congr fun st0.num =&gt;
+                                                    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                                      (forall_congr fun f_3 =&gt; forall_congr ⋯)))
+has type
+  ∀ (a : ∀ (a₁ : ProcessSet), f a₁ ≥ 0),
+    (∀ (f_1 : Bakery.ProcTy f✝¹.toNat → ProcessSet → Bool) (pSet.empty : ProcessSet) (pSet.isEmpty : ProcessSet → Bool)
+        (pSet.insert pSet.remove : Bakery.ProcTy f✝¹.toNat → ProcessSet → ProcessSet)
+        (pSet.ofList : List (Bakery.ProcTy f✝¹.toNat) → ProcessSet)
+        (pSet.toList : ProcessSet → List (Bakery.ProcTy f✝¹.toNat))
+        (pSet.filter : ProcessSet → (Bakery.ProcTy f✝¹.toNat → Bool) → ProcessSet)
+        (pSet.union pSet.diff pSet.intersection : ProcessSet → ProcessSet → ProcessSet)
+        (pSet.subsets : ProcessSet → List ProcessSet)
+        (__veil_tag.evtNCS __veil_tag.evtE1 __veil_tag.evtE2 __veil_tag.evtE3 __veil_tag.evtE4 __veil_tag.evtW1
+          __veil_tag.evtW2 __veil_tag.evtCS __veil_tag.evtExit : ActionTag)
+        (st0.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st0.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st0.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st0.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st0.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st0.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st1.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st1.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st1.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st1.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st1.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st1.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st2.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st2.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st2.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st2.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st2.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st2.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (i j : Bakery.ProcTy f✝¹.toNat),
+        True →
+          distinctN
+              [pc_state_Enum.ncs, pc_state_Enum.e1, pc_state_Enum.e2, pc_state_Enum.e3, pc_state_Enum.e4,
+                pc_state_Enum.w1, pc_state_Enum.w2, pc_state_Enum.cs, pc_state_Enum.exit] →
+            (∀ (__veil_x : pc_state),
+                __veil_x = pc_state_Enum.ncs ∨
+                  __veil_x = pc_state_Enum.e1 ∨
+                    __veil_x = pc_state_Enum.e2 ∨
+                      __veil_x = pc_state_Enum.e3 ∨
+                        __veil_x = pc_state_Enum.e4 ∨
+                          __veil_x = pc_state_Enum.w1 ∨
+                            __veil_x = pc_state_Enum.w2 ∨ __veil_x = pc_state_Enum.cs ∨ __veil_x = pc_state_Enum.exit) →
+              (fun a₁ =&gt; (f a₁).toNat) pSet.empty = 0 →
+                ∀ (pSet.empty_count : (fun a₁ =&gt; (f a₁).toNat) pSet.empty = 0),
+                  (∀ (elem : Bakery.ProcTy f✝¹.toNat), f_1 elem pSet.empty = false) →
+                    ∀ (pSet.empty_contains : ∀ (elem : Bakery.ProcTy f✝¹.toNat), f_1 elem pSet.empty = false),
+                      (∀ (s : ProcessSet), (pSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)) →
+                        ∀
+                          (pSet.isEmpty_iff_count_zero :
+                            ∀ (s : ProcessSet), (pSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)),
+                          (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet), f_1 elem (pSet.insert elem s) = true) →
+                            ∀
+                              (pSet.contains_insert_self :
+                                ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                  f_1 elem (pSet.insert elem s) = true),
+                              (∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                  ¬elem₁ = elem₂ → f_1 elem₁ (pSet.insert elem₂ s) = f_1 elem₁ s) →
+                                ∀
+                                  (pSet.contains_insert_other :
+                                    ∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                      ¬elem₁ = elem₂ → f_1 elem₁ (pSet.insert elem₂ s) = f_1 elem₁ s),
+                                  (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                      pSet.toList (pSet.insert elem (pSet.insert elem s)) =
+                                        pSet.toList (pSet.insert elem s)) →
+                                    ∀
+                                      (pSet.insert_idempotent :
+                                        ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                          pSet.toList (pSet.insert elem (pSet.insert elem s)) =
+                                            pSet.toList (pSet.insert elem s)),
+                                      (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                          (fun a₁ =&gt; (f a₁).toNat) (pSet.insert elem s) =
+                                            if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                            else (fun a₁ =&gt; (f a₁).toNat) s + 1) →
+                                        ∀
+                                          (pSet.count_insert :
+                                            ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                              (fun a₁ =&gt; (f a₁).toNat) (pSet.insert elem s) =
+                                                if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                                else (fun a₁ =&gt; (f a₁).toNat) s + 1),
+                                          (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                              f_1 elem (pSet.remove elem s) = false) →
+                                            ∀
+                                              (pSet.contains_remove_self :
+                                                ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                                  f_1 elem (pSet.remove elem s) = false),
+                                              (∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+          </pre></details><details><summary>2, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun pSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun pSet.insert =&gt;
+                forall_congr fun pSet.remove =&gt;
+                  forall_congr fun pSet.ofList =&gt;
+                    forall_congr fun pSet.toList =&gt;
+                      forall_congr fun pSet.filter =&gt;
+                        forall_congr fun pSet.union =&gt;
+                          forall_congr fun pSet.diff =&gt;
+                            forall_congr fun pSet.intersection =&gt;
+                              forall_congr fun pSet.subsets =&gt;
+                                forall_congr fun __veil_tag.evtNCS =&gt;
+                                  forall_congr fun __veil_tag.evtE1 =&gt;
+                                    forall_congr fun __veil_tag.evtE2 =&gt;
+                                      forall_congr fun __veil_tag.evtE3 =&gt;
+                                        forall_congr fun __veil_tag.evtE4 =&gt;
+                                          forall_congr fun __veil_tag.evtW1 =&gt;
+                                            forall_congr fun __veil_tag.evtW2 =&gt;
+                                              forall_congr fun __veil_tag.evtCS =&gt;
+                                                forall_congr fun __veil_tag.evtExit =&gt;
+                                                  forall_congr fun st0.num =&gt;
+                                                    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                                      (forall_congr fun f_3 =&gt; forall_congr ⋯)))
+has type
+  ∀ (a : ∀ (a₁ : ProcessSet), f a₁ ≥ 0),
+    (∀ (f_1 : Bakery.ProcTy f✝¹.toNat → ProcessSet → Bool) (pSet.empty : ProcessSet) (pSet.isEmpty : ProcessSet → Bool)
+        (pSet.insert pSet.remove : Bakery.ProcTy f✝¹.toNat → ProcessSet → ProcessSet)
+        (pSet.ofList : List (Bakery.ProcTy f✝¹.toNat) → ProcessSet)
+        (pSet.toList : ProcessSet → List (Bakery.ProcTy f✝¹.toNat))
+        (pSet.filter : ProcessSet → (Bakery.ProcTy f✝¹.toNat → Bool) → ProcessSet)
+        (pSet.union pSet.diff pSet.intersection : ProcessSet → ProcessSet → ProcessSet)
+        (pSet.subsets : ProcessSet → List ProcessSet)
+        (__veil_tag.evtNCS __veil_tag.evtE1 __veil_tag.evtE2 __veil_tag.evtE3 __veil_tag.evtE4 __veil_tag.evtW1
+          __veil_tag.evtW2 __veil_tag.evtCS __veil_tag.evtExit : ActionTag)
+        (st0.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st0.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st0.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st0.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st0.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st0.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st1.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st1.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st1.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st1.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st1.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st1.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st2.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st2.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st2.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st2.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st2.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st2.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (i j : Bakery.ProcTy f✝¹.toNat),
+        True →
+          distinctN
+              [pc_state_Enum.ncs, pc_state_Enum.e1, pc_state_Enum.e2, pc_state_Enum.e3, pc_state_Enum.e4,
+                pc_state_Enum.w1, pc_state_Enum.w2, pc_state_Enum.cs, pc_state_Enum.exit] →
+            (∀ (__veil_x : pc_state),
+                __veil_x = pc_state_Enum.ncs ∨
+                  __veil_x = pc_state_Enum.e1 ∨
+                    __veil_x = pc_state_Enum.e2 ∨
+                      __veil_x = pc_state_Enum.e3 ∨
+                        __veil_x = pc_state_Enum.e4 ∨
+                          __veil_x = pc_state_Enum.w1 ∨
+                            __veil_x = pc_state_Enum.w2 ∨ __veil_x = pc_state_Enum.cs ∨ __veil_x = pc_state_Enum.exit) →
+              (fun a₁ =&gt; (f a₁).toNat) pSet.empty = 0 →
+                ∀ (pSet.empty_count : (fun a₁ =&gt; (f a₁).toNat) pSet.empty = 0),
+                  (∀ (elem : Bakery.ProcTy f✝¹.toNat), f_1 elem pSet.empty = false) →
+                    ∀ (pSet.empty_contains : ∀ (elem : Bakery.ProcTy f✝¹.toNat), f_1 elem pSet.empty = false),
+                      (∀ (s : ProcessSet), (pSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)) →
+                        ∀
+                          (pSet.isEmpty_iff_count_zero :
+                            ∀ (s : ProcessSet), (pSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)),
+                          (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet), f_1 elem (pSet.insert elem s) = true) →
+                            ∀
+                              (pSet.contains_insert_self :
+                                ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                  f_1 elem (pSet.insert elem s) = true),
+                              (∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                  ¬elem₁ = elem₂ → f_1 elem₁ (pSet.insert elem₂ s) = f_1 elem₁ s) →
+                                ∀
+                                  (pSet.contains_insert_other :
+                                    ∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                      ¬elem₁ = elem₂ → f_1 elem₁ (pSet.insert elem₂ s) = f_1 elem₁ s),
+                                  (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                      pSet.toList (pSet.insert elem (pSet.insert elem s)) =
+                                        pSet.toList (pSet.insert elem s)) →
+                                    ∀
+                                      (pSet.insert_idempotent :
+                                        ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                          pSet.toList (pSet.insert elem (pSet.insert elem s)) =
+                                            pSet.toList (pSet.insert elem s)),
+                                      (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                          (fun a₁ =&gt; (f a₁).toNat) (pSet.insert elem s) =
+                                            if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                            else (fun a₁ =&gt; (f a₁).toNat) s + 1) →
+                                        ∀
+                                          (pSet.count_insert :
+                                            ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                              (fun a₁ =&gt; (f a₁).toNat) (pSet.insert elem s) =
+                                                if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                                else (fun a₁ =&gt; (f a₁).toNat) s + 1),
+                                          (∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                              f_1 elem (pSet.remove elem s) = false) →
+                                            ∀
+                                              (pSet.contains_remove_self :
+                                                ∀ (elem : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+                                                  f_1 elem (pSet.remove elem s) = false),
+                                              (∀ (elem₁ elem₂ : Bakery.ProcTy f✝¹.toNat) (s : ProcessSet),
+          </pre></details><details><summary>4, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun pSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun pSet.insert =&gt;
+                forall_congr fun pSet.remove =&gt;
+                  forall_congr fun pSet.ofList =&gt;
+                    forall_congr fun pSet.toList =&gt;
+                      forall_congr fun pSet.filter =&gt;
+                        forall_congr fun pSet.union =&gt;
+                          forall_congr fun pSet.diff =&gt;
+                            forall_congr fun pSet.intersection =&gt;
+                              forall_congr fun pSet.subsets =&gt;
+                                forall_congr fun __veil_tag.evtNCS =&gt;
+                                  forall_congr fun __veil_tag.evtE1 =&gt;
+                                    forall_congr fun __veil_tag.evtE2 =&gt;
+                                      forall_congr fun __veil_tag.evtE3 =&gt;
+                                        forall_congr fun __veil_tag.evtE4 =&gt;
+                                          forall_congr fun __veil_tag.evtW1 =&gt;
+                                            forall_congr fun __veil_tag.evtW2 =&gt;
+                                              forall_congr fun __veil_tag.evtCS =&gt;
+                                                forall_congr fun __veil_tag.evtExit =&gt;
+                                                  forall_congr fun st0.num =&gt;
+                                                    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                                      (forall_congr fun f_3 =&gt; forall_congr ⋯)))
+has type
+  ∀ (a : ∀ (a₁ : ProcessSet), f a₁ ≥ 0),
+    (∀ (f_1 : Bakery.ProcTy f✝¹.toNat → ProcessSet → Bool) (pSet.empty : ProcessSet) (pSet.isEmpty : ProcessSet → Bool)
+        (pSet.insert pSet.remove : Bakery.ProcTy f✝¹.toNat → ProcessSet → ProcessSet)
+        (pSet.ofList : List (Bakery.ProcTy f✝¹.toNat) → ProcessSet)
+        (pSet.toList : ProcessSet → List (Bakery.ProcTy f✝¹.toNat))
+        (pSet.filter : ProcessSet → (Bakery.ProcTy f✝¹.toNat → Bool) → ProcessSet)
+        (pSet.union pSet.diff pSet.intersection : ProcessSet → ProcessSet → ProcessSet)
+        (pSet.subsets : ProcessSet → List ProcessSet)
+        (__veil_tag.evtNCS __veil_tag.evtE1 __veil_tag.evtE2 __veil_tag.evtE3 __veil_tag.evtE4 __veil_tag.evtW1
+          __veil_tag.evtW2 __veil_tag.evtCS __veil_tag.evtExit : ActionTag)
+        (st0.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st0.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st0.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st0.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st0.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st0.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st1.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st1.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st1.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st1.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st1.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st1.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st2.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st2.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st2.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st2.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st2.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st2.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st3.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st3.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st3.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st3.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st3.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st3.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st4.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st4.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st4.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st4.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st4.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st4.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (i j : Bakery.ProcTy f✝¹.toNat),
+        True →
+          distinctN
+              [pc_state_Enum.ncs, pc_state_Enum.e1, pc_state_Enum.e2, pc_state_Enum.e3, pc_state_Enum.e4,
+                pc_state_Enum.w1, pc_state_Enum.w2, pc_state_Enum.cs, pc_state_Enum.exit] →
+            (∀ (__veil_x : pc_state),
+                __veil_x = pc_state_Enum.ncs ∨
+                  __veil_x = pc_state_Enum.e1 ∨
+                    __veil_x = pc_state_Enum.e2 ∨
+                      __veil_x = pc_state_Enum.e3 ∨
+                        __veil_x = pc_state_Enum.e4 ∨
+                          __veil_x = pc_state_Enum.w1 ∨
+                            __veil_x = pc_state_Enum.w2 ∨ __veil_x = pc_state_Enum.cs ∨ __veil_x = pc_state_Enum.exit) →
+              (fun a₁ =&gt; (f a₁).toNat) pSet.empty = 0 →
+                ∀ (pSet.empty_count : (fun a₁ =&gt; (f a₁).toNat) pSet.empty = 0),
+                  (∀ (elem : Bakery.ProcTy f✝¹.toNat), f_1 elem pSet.empty = false) →
+                    ∀ (pSet.empty_contains : ∀ (elem : Bakery.ProcTy f✝¹.toNat), f_1 elem pSet.empty = false),
+                      (∀ (s : ProcessSet), (pSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)) → ⋯) =
+      ∀ (a_1 : Bakery.ProcTy f✝¹.toNat → ProcessSet → Prop) (a_2 : ProcessSet) (a_3 : ProcessSet → Prop)
+        (a_4 a_5 : Bakery.ProcTy f✝¹.toNat → ProcessSet → ProcessSet)
+        (a_6 : List (Bakery.ProcTy f✝¹.toNat) → ProcessSet) (a_7 : ProcessSet → List (Bakery.ProcTy f✝¹.toNat))
+        (a_8 : ProcessSet → (Bakery.ProcTy f✝¹.toNat → Bool) → ProcessSet)
+        (a_9 a_10 a_11 : ProcessSet → ProcessSet → ProcessSet) (a_12 : ProcessSet → List ProcessSet)
+        (a_13 a_14 a_15 a_16 a_17 a_18 a_19 a_20 a_21 : ActionTag)
+        (a_22 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (a_23 : Bakery.ProcTy f✝¹.toNat → Prop)
+        (a_24 : Bakery.ProcTy f✝¹.toNat → ProcessSet) (a_25 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (a_26 : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (a_27 : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (a_28 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (a_29 : Bakery.ProcTy f✝¹.toNat → Prop)
+        (a_30 : Bakery.ProcTy f✝¹.toNat → ProcessSet) (a_31 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (a_32 : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (a_33 : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (a_34 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (a_35 : Bakery.ProcTy f✝¹.toNat → Prop)
+        (a_36 : Bakery.ProcTy f✝¹.toNat → ProcessSet) (a_37 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (a_38 : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (a_39 : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (a_40 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (a_41 : Bakery.ProcTy f✝¹.toNat → Prop)
+        (a_42 : Bakery.ProcTy f✝¹.toNat → ProcessSet) (a_43 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (a_44 : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (a_45 : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (a_46 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (a_47 : Bakery.ProcTy f✝¹.toNat → Prop)
+        (a_48 : Bakery.ProcTy f✝¹.toNat → ProcessSet) (a_49 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (a_50 : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (a_51 : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (a_52 a_53 : Bakery.ProcTy f✝¹.toNat),
+        True →
+          distinctN
+              [pc_state_Enum.ncs, pc_state_Enum.e1, pc_state_Enum.e2, pc_state_Enum.e3, pc_state_Enum.e4</pre></details><details><summary>4, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun pSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun pSet.insert =&gt;
+                forall_congr fun pSet.remove =&gt;
+                  forall_congr fun pSet.ofList =&gt;
+                    forall_congr fun pSet.toList =&gt;
+                      forall_congr fun pSet.filter =&gt;
+                        forall_congr fun pSet.union =&gt;
+                          forall_congr fun pSet.diff =&gt;
+                            forall_congr fun pSet.intersection =&gt;
+                              forall_congr fun pSet.subsets =&gt;
+                                forall_congr fun __veil_tag.evtNCS =&gt;
+                                  forall_congr fun __veil_tag.evtE1 =&gt;
+                                    forall_congr fun __veil_tag.evtE2 =&gt;
+                                      forall_congr fun __veil_tag.evtE3 =&gt;
+                                        forall_congr fun __veil_tag.evtE4 =&gt;
+                                          forall_congr fun __veil_tag.evtW1 =&gt;
+                                            forall_congr fun __veil_tag.evtW2 =&gt;
+                                              forall_congr fun __veil_tag.evtCS =&gt;
+                                                forall_congr fun __veil_tag.evtExit =&gt;
+                                                  forall_congr fun st0.num =&gt;
+                                                    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                                      (forall_congr fun f_3 =&gt; forall_congr ⋯)))
+has type
+  ∀ (a : ∀ (a₁ : ProcessSet), f a₁ ≥ 0),
+    (∀ (f_1 : Bakery.ProcTy f✝¹.toNat → ProcessSet → Bool) (pSet.empty : ProcessSet) (pSet.isEmpty : ProcessSet → Bool)
+        (pSet.insert pSet.remove : Bakery.ProcTy f✝¹.toNat → ProcessSet → ProcessSet)
+        (pSet.ofList : List (Bakery.ProcTy f✝¹.toNat) → ProcessSet)
+        (pSet.toList : ProcessSet → List (Bakery.ProcTy f✝¹.toNat))
+        (pSet.filter : ProcessSet → (Bakery.ProcTy f✝¹.toNat → Bool) → ProcessSet)
+        (pSet.union pSet.diff pSet.intersection : ProcessSet → ProcessSet → ProcessSet)
+        (pSet.subsets : ProcessSet → List ProcessSet)
+        (__veil_tag.evtNCS __veil_tag.evtE1 __veil_tag.evtE2 __veil_tag.evtE3 __veil_tag.evtE4 __veil_tag.evtW1
+          __veil_tag.evtW2 __veil_tag.evtCS __veil_tag.evtExit : ActionTag)
+        (st0.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st0.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st0.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st0.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st0.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st0.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st1.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st1.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st1.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st1.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st1.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st1.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st2.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st2.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st2.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st2.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st2.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st2.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st3.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st3.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st3.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st3.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st3.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st3.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (st4.num : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (st4.flag : Bakery.ProcTy f✝¹.toNat → Bool)
+        (st4.unchecked : Bakery.ProcTy f✝¹.toNat → ProcessSet)
+        (st4.max : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (st4.nxt : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (st4.pc : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (i j : Bakery.ProcTy f✝¹.toNat),
+        True →
+          distinctN
+              [pc_state_Enum.ncs, pc_state_Enum.e1, pc_state_Enum.e2, pc_state_Enum.e3, pc_state_Enum.e4,
+                pc_state_Enum.w1, pc_state_Enum.w2, pc_state_Enum.cs, pc_state_Enum.exit] →
+            (∀ (__veil_x : pc_state),
+                __veil_x = pc_state_Enum.ncs ∨
+                  __veil_x = pc_state_Enum.e1 ∨
+                    __veil_x = pc_state_Enum.e2 ∨
+                      __veil_x = pc_state_Enum.e3 ∨
+                        __veil_x = pc_state_Enum.e4 ∨
+                          __veil_x = pc_state_Enum.w1 ∨
+                            __veil_x = pc_state_Enum.w2 ∨ __veil_x = pc_state_Enum.cs ∨ __veil_x = pc_state_Enum.exit) →
+              (fun a₁ =&gt; (f a₁).toNat) pSet.empty = 0 →
+                ∀ (pSet.empty_count : (fun a₁ =&gt; (f a₁).toNat) pSet.empty = 0),
+                  (∀ (elem : Bakery.ProcTy f✝¹.toNat), f_1 elem pSet.empty = false) →
+                    ∀ (pSet.empty_contains : ∀ (elem : Bakery.ProcTy f✝¹.toNat), f_1 elem pSet.empty = false),
+                      (∀ (s : ProcessSet), (pSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)) → ⋯) =
+      ∀ (a_1 : Bakery.ProcTy f✝¹.toNat → ProcessSet → Prop) (a_2 : ProcessSet) (a_3 : ProcessSet → Prop)
+        (a_4 a_5 : Bakery.ProcTy f✝¹.toNat → ProcessSet → ProcessSet)
+        (a_6 : List (Bakery.ProcTy f✝¹.toNat) → ProcessSet) (a_7 : ProcessSet → List (Bakery.ProcTy f✝¹.toNat))
+        (a_8 : ProcessSet → (Bakery.ProcTy f✝¹.toNat → Bool) → ProcessSet)
+        (a_9 a_10 a_11 : ProcessSet → ProcessSet → ProcessSet) (a_12 : ProcessSet → List ProcessSet)
+        (a_13 a_14 a_15 a_16 a_17 a_18 a_19 a_20 a_21 : ActionTag)
+        (a_22 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (a_23 : Bakery.ProcTy f✝¹.toNat → Prop)
+        (a_24 : Bakery.ProcTy f✝¹.toNat → ProcessSet) (a_25 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (a_26 : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (a_27 : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (a_28 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (a_29 : Bakery.ProcTy f✝¹.toNat → Prop)
+        (a_30 : Bakery.ProcTy f✝¹.toNat → ProcessSet) (a_31 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (a_32 : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (a_33 : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (a_34 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (a_35 : Bakery.ProcTy f✝¹.toNat → Prop)
+        (a_36 : Bakery.ProcTy f✝¹.toNat → ProcessSet) (a_37 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (a_38 : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (a_39 : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (a_40 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (a_41 : Bakery.ProcTy f✝¹.toNat → Prop)
+        (a_42 : Bakery.ProcTy f✝¹.toNat → ProcessSet) (a_43 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (a_44 : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (a_45 : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (a_46 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat) (a_47 : Bakery.ProcTy f✝¹.toNat → Prop)
+        (a_48 : Bakery.ProcTy f✝¹.toNat → ProcessSet) (a_49 : Bakery.ProcTy f✝¹.toNat → Bakery.TicketNum f✝.toNat)
+        (a_50 : Bakery.ProcTy f✝¹.toNat → Bakery.ProcTy f✝¹.toNat) (a_51 : Bakery.ProcTy f✝¹.toNat → pc_state)
+        (a_52 a_53 : Bakery.ProcTy f✝¹.toNat),
+        True →
+          distinctN
+              [pc_state_Enum.ncs, pc_state_Enum.e1, pc_state_Enum.e2, pc_state_Enum.e3, pc_state_Enum.e4</pre></details><details><summary>8, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Bakery__local__default__batch1.lean:434:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>8, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Bakery__cached__default__batch1.lean:431:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>16, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Bakery__local__default__batch1.lean:470:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>16, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Bakery__cached__default__batch1.lean:466:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>32, local: heartbeats</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Bakery__local__default__batch1.lean:505:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats &lt;num&gt;` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+</pre></details><details><summary>32, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Bakery__cached__default__batch1.lean:501:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details>

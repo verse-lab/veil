@@ -1,0 +1,317 @@
+{
+  "row": {
+    "cell_id": "TLA_AWSDnsRace__d16__early__default",
+    "model": "TLA_AWSDnsRace",
+    "path": "Examples/TLA/AWSDnsRace.lean",
+    "module": "AWSDnsRace",
+    "depth": 16,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/TLA_AWSDnsRace__default__batch1.lean:494:2: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 67,
+    "batch_id": "TLA_AWSDnsRace__default__batch1",
+    "batch_setup_ms": 8124,
+    "preprocessing_ms": 5292,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/TLA_AWSDnsRace__d16__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/TLA_AWSDnsRace__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/TLA_AWSDnsRace__d16__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/TLA_AWSDnsRace__d16__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/TLA_AWSDnsRace__d16__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_AWSDnsRace",
+    "path": "Examples/TLA/AWSDnsRace.lean",
+    "module": "AWSDnsRace",
+    "cut_line": 93,
+    "query": "assert (current_plan > 0 ∧ plan_deleted current_plan true)",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "NeverDeleteActive invariant, line89",
+    "notes": "Finite-enum/Fin-based DNS race model; distinct from both AWS variants.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "0d18a8d84a66ceffa70e55c0a195892aa5939fa559c85fefd5c79a96d2e9ba9f"
+  },
+  "original_sha256": "0d18a8d84a66ceffa70e55c0a195892aa5939fa559c85fefd5c79a96d2e9ba9f",
+  "inherited_setup_options": [],
+  "source_sha256": "904d06a42b681ab792f4fdb8a8ca47c3b7e62be8e4fdb060ac0878b5c083b7ce",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/TLA_AWSDnsRace__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208438136,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 208438203,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208438204,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 9,
+      "event": "stage",
+      "heartbeats": 27169,
+      "mono_ms": 208438213,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208438213,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1636,
+      "event": "stage",
+      "heartbeats": 14185454,
+      "mono_ms": 208439849,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208439850,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 31,
+      "event": "stage",
+      "heartbeats": 468599,
+      "mono_ms": 208439881,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208439903,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 3416,
+      "mono_ms": 208439908,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208439908,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2426,
+      "event": "stage",
+      "heartbeats": 27790464,
+      "mono_ms": 208442334,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208442334,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 164,
+      "event": "stage",
+      "heartbeats": 2035910,
+      "mono_ms": 208442498,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208442499,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 911,
+      "event": "stage",
+      "heartbeats": 10212062,
+      "mono_ms": 208443410,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208443459,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 110,
+      "event": "stage",
+      "heartbeats": 1756776,
+      "mono_ms": 208443569,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 5366,
+      "event": "milestone",
+      "mono_ms": 208443569,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208443569,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 47462,
+      "mono_ms": 208443574,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208443574,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 2315,
+      "mono_ms": 208443574,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208443574,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 208443575,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208443575,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 11700,
+      "mono_ms": 208443576,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208443576,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 178,
+      "event": "stage",
+      "heartbeats": 2267370,
+      "mono_ms": 208443754,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208443754,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208444309,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_AWSDnsRace__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/TLA_AWSDnsRace__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/TLA_AWSDnsRace__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 56301,
+    "setup_ms": 8124,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/TLA_AWSDnsRace__default__batch1.lean"
+    ]
+  }
+}

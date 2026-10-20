@@ -1,0 +1,70 @@
+/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:236:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:259:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:295:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:331:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:354:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:377:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:413:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:453:34: error: `simp` failed: maximum number of steps exceeded
+
+Note: The target expression is not type-correct under the `instances` transparency level, which may have triggered the failure. This is usually caused by unfolding of semireducible definitions in prior tactic steps. Use `set_option linter.tacticCheckInstances true` to investigate the source of the issue.
+Full error:
+  Application type mismatch: The argument
+    instDecidableOr
+  has type
+    Decidable
+      (FieldRepresentation.get (getFrom st0).transaction_confirmed x✝ x = true ∨
+        FieldRepresentation.get (getFrom st0).transaction_in_block x✝ _tr1_act_byzantine_broadcast_arg1_b = true ∧
+            FieldRepresentation.get (getFrom st0).honest _tr1_act_byzantine_broadcast_arg0_n = true ∨
+          ¬FieldRepresentation.get (getFrom st0).honest _tr1_act_byzantine_broadcast_arg0_n = true ∧
+            FieldRepresentation.get (getFrom st0).transaction_confirmed x✝ x = true)
+  but is expected to have type
+    Decidable
+      (st0.transaction_confirmed x✝ x = true ∨
+        st0.transaction_in_block x✝ _tr1_act_byzantine_broadcast_arg1_b = true ∧
+            st0.honest _tr1_act_byzantine_broadcast_arg0_n = true ∨
+          ¬st0.honest _tr1_act_byzantine_broadcast_arg0_n = true ∧ st0.transaction_confirmed x✝ x = true)
+  in the application
+    @decide
+      (st0.transaction_confirmed x✝ x = true ∨
+        st0.transaction_in_block x✝ _tr1_act_byzantine_broadcast_arg1_b = true ∧
+            st0.honest _tr1_act_byzantine_broadcast_arg0_n = true ∨
+          ¬st0.honest _tr1_act_byzantine_broadcast_arg0_n = true ∧ st0.transaction_confirmed x✝ x = true)
+      instDecidableOr
+/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:476:34: error: `simp` failed: maximum number of steps exceeded
+
+Note: The target expression is not type-correct under the `instances` transparency level, which may have triggered the failure. This is usually caused by unfolding of semireducible definitions in prior tactic steps. Use `set_option linter.tacticCheckInstances true` to investigate the source of the issue.
+Full error:
+  Application type mismatch: The argument
+    instDecidableOr
+  has type
+    Decidable
+      (FieldRepresentation.get (getFrom st0).transaction_confirmed x✝ x = true ∨
+        FieldRepresentation.get (getFrom st0).transaction_in_block x✝ _tr1_act_byzantine_broadcast_arg1_b = true ∧
+            FieldRepresentation.get (getFrom st0).honest _tr1_act_byzantine_broadcast_arg0_n = true ∨
+          ¬FieldRepresentation.get (getFrom st0).honest _tr1_act_byzantine_broadcast_arg0_n = true ∧
+            FieldRepresentation.get (getFrom st0).transaction_confirmed x✝ x = true)
+  but is expected to have type
+    Decidable
+      (st0.transaction_confirmed x✝ x = true ∨
+        st0.transaction_in_block x✝ _tr1_act_byzantine_broadcast_arg1_b = true ∧
+            st0.honest _tr1_act_byzantine_broadcast_arg0_n = true ∨
+          ¬st0.honest _tr1_act_byzantine_broadcast_arg0_n = true ∧ st0.transaction_confirmed x✝ x = true)
+  in the application
+    @decide
+      (st0.transaction_confirmed x✝ x = true ∨
+        st0.transaction_in_block x✝ _tr1_act_byzantine_broadcast_arg1_b = true ∧
+            st0.honest _tr1_act_byzantine_broadcast_arg0_n = true ∨
+          ¬st0.honest _tr1_act_byzantine_broadcast_arg0_n = true ∧ st0.transaction_confirmed x✝ x = true)
+      instDecidableOr
+/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:495:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:530:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:566:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.

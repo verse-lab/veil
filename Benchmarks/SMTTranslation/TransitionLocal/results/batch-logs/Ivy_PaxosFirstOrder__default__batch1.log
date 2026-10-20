@@ -1,0 +1,12 @@
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean:257:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean:293:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean:316:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean:339:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean:375:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean:411:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean:434:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean:457:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean:493:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean:529:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean:552:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean:575:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed

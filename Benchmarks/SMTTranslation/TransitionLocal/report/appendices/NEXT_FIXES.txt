@@ -1,0 +1,124 @@
+What remains after per-transition normalization
+==============================================
+
+These are follow-ups, not additional implemented changes. Measured priorities:
+the local sweep has 94 embedding failures, 43 translation failures and one
+backend-normalization failure; the remaining 22 translation failures are frontend
+heartbeat limits. Thus low-depth backend repairs have broad corpus impact, while
+local context handling and exact action templates target larger depths. The
+separate solver diagnostics are also necessary: translation gains did not yield
+a net gain in definite 10-second solver results. The final report's
+failure tables and phase charts provide the measurements used to prioritize
+individual examples. A first-failure phase identifies where the query stopped;
+it does not assign all consumed command heartbeats to that phase.
+
+1. Keep the remaining context work local.
+   The new frontend removes hoisting across the entire trace, but reuses the
+   existing record/existential destructor. Core.lean:468-502 rescans the local
+   context and searches an Array LocalDecl of previously visited hypotheses.
+   In this source, Core.lean:131 explicitly defines BEq LocalDecl by USER NAME,
+   not by a full declaration snapshot. That is both a bookkeeping cost and a
+   reason not to use the present visitation mechanism as a correctness model
+   for a new cache. Unique names in the local path prevent shadowing, but do
+   not make a declaration's type/value immutable across cases and substitution.
+
+   Profile the cost of selection, rcases/proof transport and field dsimp
+   separately before assuming the linear membership search dominates. A safe
+   worklist needs FVarId identity plus explicit type/value/binder/kind snapshots,
+   checks for deleted/remapped declarations, and invalidation when unresolved
+   metavariables or relevant local instances change. Simply remembering each
+   FVarId once, or relying on the existing BEq instance, is insufficient.
+
+   Also test retaining conjunctions inside normalized transition matrices.
+   The current destructor splits their And structures as well as records and
+   existential prefixes. SMT can accept a matrix conjunction directly; extra
+   atomic hypotheses can increase context and assertion-management costs.
+   This experiment needs an explicit destructor policy: the existing recursive
+   call does not propagate excludedStructs, so passing a temporary exclusion
+   without fixing/testing that recursion would not implement the intended rule.
+
+   A larger change can instantiate states as field tuples and use exact local
+   transition theorems. Adjacent steps must share the very same field symbols.
+   Each interior state occurs in its two neighboring transition constraints,
+   so a dependency-aware transport can avoid traversing unrelated matrices.
+   This requires preserving dependent field types and model-decoding names.
+
+2. Cache exact action normalization at model setup.
+   Action/Elaborators.lean:605-650 already generates transition definitions and
+   exact equality artifacts. A reusable BMC normal form could normalize an
+   action once, then instantiate it for each state pair and action argument.
+   Use equality/iff artifacts, never the one-way tr_abstract implication at
+   829-840: weakening a transition would introduce spurious SAT traces.
+
+   Cache keys must include module parameters, universes, instances, dependent
+   argument types, and the unfolding/simplifier configuration. Measure added
+   cold setup cost separately from repeated-query and larger-depth savings.
+   A single transition with many branches/witnesses may still exhaust the
+   existing hoister: direct proof-producing prefix extraction is a possible
+   later improvement. Preserve Nonempty obligations for inactive alternatives,
+   dependent witness order, and the barrier at forall/exists alternation.
+
+3. Repair the backend defects that already occur at small depths.
+   The prior investigation's isolated probes identified independent problems;
+   none is silently repaired by this change:
+
+   * Nat/Fin embedding: the implication rewriter can build a dependent proof
+     binder using non-dependent congruence. A newly introduced nonnegativity
+     proof may occur inside a Fin-bound proof. Construct mkForallFVars and the
+     dependent implication congruence when the consequent depends on that proof,
+     under the intended compatibility/transparency settings. Minimal typed
+     probes passed with this repair; full AWS probes then reached a later
+     unsupported-zero translation, so it is not a complete AWS fix. Validate
+     kernel reconstruction and SAT model decoding as well as expression types.
+
+   * decide and universe instantiations: dependency discovery stores names and
+     later reconstructs bare constants, dropping universe levels. Preserve
+     complete instantiated constant expressions and distinguish type/instance
+     instantiations in symbol keys. A dedicated decide-to-SMT-Bool translation
+     can remove unnecessary decision-instance terms, but must have both proof
+     and model support. The earlier probes reached trusted depth-1 UNSAT for
+     PaxosEPR, ChordRingMaintenance and SuzukiKasami with a direct decide handler;
+     this was a diagnostic, not a production dependency patch.
+
+   * Explicit transition forms: externally supplied transitions can retain a
+     toTransitionDerived wrapper because the deriveTransition=false path skips
+     generated exact-normalization artifacts. The prior minimal Boolean stay
+     transition failed where the equivalent action succeeded. Generate the
+     appropriate exact bridge for the actual representation. A generic
+     (tr.toVeilM).derived = tr claim is not justified for arbitrary substate
+     access/update instances; frame behavior must be retained.
+
+   The detailed source probes and logs remain in the committed SymbolicBMC
+   report. These are separate fixes with separate semantic tests; increasing
+   recursion or heartbeat limits only changes which defect is encountered next.
+
+4. Avoid reconstructing a giant telescope inside SMT embedding.
+   The frontend now works with local matrices, but the SMT embedding path can
+   still revert the shared context and rebuild a large quantified expression.
+   A per-hypothesis embedding API would need ONE shared environment mapping
+   Lean variables/types to SMT symbols and side conditions. Calling independent
+   embedding sessions on each hypothesis could create distinct copies of a
+   middle state and incorrectly admit a trace. Nat/Int and function-field
+   encodings must share their variables and bound constraints consistently.
+   Preserve origin maps for proof reconstruction and counterexample decoding.
+
+5. Treat solver scalability as a separate problem.
+   Equivalent assertion groupings and different declaration/fresh-symbol orders
+   can change cvc5's heuristics. The primary sweep has three definite-result
+   gains and three losses; SOLVER_BEHAVIOR.txt records repeated controls and
+   the isolated order/grouping experiment. Stable ordering can improve
+   reproducibility, but should not be assumed faster without a corpus sweep. Keep the replay results visible and investigate regressions
+   using identical emitted queries and repeated isolated solver runs.
+
+   Incremental depth checking is a useful later design: retain assumptions,
+   initialization and the growing transition prefix, but push/pop the current
+   endpoint assertion before extending the trace. Keeping the old endpoint
+   assertion would change an exact-depth query. Stable declarations, fresh
+   witness namespaces, proof origins and model/state maps are prerequisites.
+   Existing native incremental operations alone do not provide that integration.
+
+   Solver-side sharing of repeated transition definitions also needs an encoding
+   that accepts the current function-valued state fields. Ordinary first-order
+   SMT define-fun cannot simply take those function values as arguments. Host-side
+   exact templates are a smaller first step; array/state-index encodings require
+   a separately justified equivalence and a fresh solver evaluation.

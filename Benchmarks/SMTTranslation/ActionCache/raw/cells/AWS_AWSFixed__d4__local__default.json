@@ -1,0 +1,427 @@
+{
+  "row": {
+    "cell_id": "AWS_AWSFixed__d4__local__default",
+    "model": "AWS_AWSFixed",
+    "path": "Examples/AWS/AWSFixed.lean",
+    "module": "AWSDnsRace",
+    "depth": 4,
+    "variant": "local",
+    "profile": "default",
+    "status": "unsat",
+    "translation_status": "complete",
+    "solver_status": "unsat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 39,
+    "batch_id": "AWS_AWSFixed__local__default__batch1",
+    "batch_setup_ms": 14682,
+    "preprocessing_ms": 1189,
+    "smt_preprocessing_ms": 3998,
+    "translation_ms": 115,
+    "serialization_ms": 0,
+    "query_total_ms": 5302,
+    "solver_ms": 2240,
+    "completed_total_ms": 7542,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 37497,
+    "query_commands": 117,
+    "query_sha256": "165d929c7fa6d9265aa93e2c59c9d15079987f61340ebdaa1792a41105d3f126",
+    "query_path": "/tmp/veil-action-cache/results/queries/AWS_AWSFixed__d4__local__default.smt2",
+    "source_path": "/tmp/veil-action-cache/results/batch-sources/AWS_AWSFixed__local__default__batch1.lean",
+    "event_path": "/tmp/veil-action-cache/results/events/AWS_AWSFixed__d4__local__default.jsonl",
+    "translation_log": "/tmp/veil-action-cache/results/logs/AWS_AWSFixed__d4__local__default.translation.log",
+    "solver_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "AWS_AWSFixed",
+    "path": "Examples/AWS/AWSFixed.lean",
+    "module": "AWSDnsRace",
+    "cut_line": 164,
+    "query": "assert (dns_valid = false)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "DnsConsistent safety, line125",
+    "notes": "Repaired DNS race variant; include separately from AWSBuggy.",
+    "category": "AWS",
+    "source_options": [
+      {
+        "line": 162,
+        "directive": "set_option veil.solver \"grind+smt\""
+      }
+    ],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "dc2dc5ffb8f19c619effabf68fda7d2e68b4f6cc13cbb6dc518e6f5159c30431"
+  },
+  "original_sha256": "dc2dc5ffb8f19c619effabf68fda7d2e68b4f6cc13cbb6dc518e6f5159c30431",
+  "inherited_setup_options": [
+    {
+      "line": 162,
+      "directive": "set_option veil.solver \"grind+smt\""
+    }
+  ],
+  "source_sha256": "facdfaa83dccd7ae44a9a12ae4804b470bf7dcf748ed0de15e4d5e4d53e6896e",
+  "batch_log": "/tmp/veil-action-cache/results/batch-logs/AWS_AWSFixed__local__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 241721893,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 241721932,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241721933,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 10025,
+      "mono_ms": 241721935,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241721936,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3369,
+      "mono_ms": 241721937,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241721937,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 671,
+      "event": "stage",
+      "heartbeats": 6543004,
+      "mono_ms": 241722608,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241722608,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 15,
+      "event": "stage",
+      "heartbeats": 241432,
+      "mono_ms": 241722623,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241722632,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 3023,
+      "mono_ms": 241722634,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241722634,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 39,
+      "event": "stage",
+      "heartbeats": 475405,
+      "mono_ms": 241722674,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241722674,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 72,
+      "event": "stage",
+      "heartbeats": 932329,
+      "mono_ms": 241722746,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241722746,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 329,
+      "event": "stage",
+      "heartbeats": 3988103,
+      "mono_ms": 241723075,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241723076,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 54,
+      "event": "stage",
+      "heartbeats": 754183,
+      "mono_ms": 241723131,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241723132,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 39733,
+      "mono_ms": 241723136,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 1204,
+      "event": "milestone",
+      "mono_ms": 241723136,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241723136,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 36650,
+      "mono_ms": 241723139,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241723139,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 455,
+      "mono_ms": 241723139,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241723139,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 241723139,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241723140,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 241723140,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241723140,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 58,
+      "event": "stage",
+      "heartbeats": 730201,
+      "mono_ms": 241723198,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241723199,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3937,
+      "event": "stage",
+      "heartbeats": 12450890,
+      "mono_ms": 241727136,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241727136,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 115,
+      "event": "stage",
+      "heartbeats": 1245989,
+      "mono_ms": 241727251,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 241727490,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 241727490,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 37497,
+      "commands": 117,
+      "elapsed_ms": 5558,
+      "event": "pipeline",
+      "mono_ms": 241727491,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 241727829,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "AWS_AWSFixed__local__default__batch1",
+    "source": "/tmp/veil-action-cache/results/batch-sources/AWS_AWSFixed__local__default__batch1.lean",
+    "log": "/tmp/veil-action-cache/results/batch-logs/AWS_AWSFixed__local__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 45334,
+    "setup_ms": 14682,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-action-cache/results/batch-sources/AWS_AWSFixed__local__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 2240,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unsat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-action-cache/results/events/AWS_AWSFixed__d4__local__default.solver.jsonl",
+    "batch_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

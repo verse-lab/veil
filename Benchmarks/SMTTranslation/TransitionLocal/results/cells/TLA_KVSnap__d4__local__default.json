@@ -1,0 +1,357 @@
+{
+  "row": {
+    "cell_id": "TLA_KVSnap__d4__local__default",
+    "model": "TLA_KVSnap",
+    "path": "Examples/TLA/KVSnap.lean",
+    "module": "KVsnapNew",
+    "depth": 4,
+    "variant": "local",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "type_mismatch",
+    "failure_message": "Application type mismatch: The argument\n  fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun kset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun kset.insert =>\n                forall_congr fun kset.remove =>\n                  forall_congr fun kset.ofList =>\n                    forall_congr fun kset.toList =>\n                      forall_congr fun kset.filter =>\n                        forall_congr fun kset.union =>\n                          forall_congr fun kset.diff =>\n                            forall_congr fun kset.intersection =>\n                              forall_congr fun kset.subsets =>\n                                forall_congr fun keyEnum.allValues =>\n                                  forall_congr fun txEnum.allValues =>\n                                    forall_congr fun pcLabel_Enum.START =>\n                                      forall_congr fun pcLabel_Enum.READ =>\n                                        forall_congr fun pcLabel_Enum.UPDATE =>\n                                          forall_congr fun pcLabel_Enum.COMMIT =>\n                                            forall_congr fun pcLabel_Enum.Done =>\n                                              forall_congr fun __veil_tag.Start =>\n                                                forall_congr fun __veil_tag.Read =>\n                                                  forall_congr fun __veil_tag.Update =>\n                                                    forall_congr fun __veil_tag.Commit =>\n                                                      forall_congr fun st0.store => ⋯))\nhas type\n  ∀ (a : ∀ (a₁ : keySet), f a₁ ≥ 0),\n    (∀ (f_1 : key → keySet → Bool) (kset.empty : keySet) (kset.isEmpty : keySet → Bool)\n        (kset.insert kset.remove : key → keySet → keySet) (kset.ofList : List key → keySet)\n        (kset.toList : keySet → List key) (kset.filter : keySet → (key → Bool) → keySet)\n        (kset.union kset.diff kset.intersection : keySet → keySet → keySet) (kset.subsets : keySet → List keySet)\n        (keyEnum.allValues : List key) (txEnum.allValues : List txId)\n        (pcLabel_Enum.START pcLabel_Enum.READ pcLabel_Enum.UPDATE pcLabel_Enum.COMMIT pcLabel_Enum.Done : pcLabel)\n        (__veil_tag.Start __veil_tag.Read __veil_tag.Update __veil_tag.Commit : ActionTag)\n        (st0.store : key → Option txId) (st0.tx : txId → Bool) (st0.missed : txId → keySet) (st0.pc : txId → pcLabel)\n        (st0.snapshotStore : txId → key → Option txId) (st0.read_keys st0.write_keys : txId → keySet)\n        (st0.ops : txId → List (KVsnapNew.Operation key (Option txId))) (st1.store : key → Option txId)\n        (st1.tx : txId → Bool) (st1.missed : txId → keySet) (st1.pc : txId → pcLabel)\n        (st1.snapshotStore : txId → key → Option txId) (st1.read_keys st1.write_keys : txId → keySet)\n        (st1.ops : txId → List (KVsnapNew.Operation key (Option txId))) (st2.store : key → Option txId)\n        (st2.tx : txId → Bool) (st2.missed : txId → keySet) (st2.pc : txId → pcLabel)\n        (st2.snapshotStore : txId → key → Option txId) (st2.read_keys st2.write_keys : txId → keySet)\n        (st2.ops : txId → List (KVsnapNew.Operation key (Option txId))) (st3.store : key → Option txId)\n        (st3.tx : txId → Bool) (st3.missed : txId → keySet) (st3.pc : txId → pcLabel)\n        (st3.snapshotStore : txId → key → Option txId) (st3.read_keys st3.write_keys : txId → keySet)\n        (st3.ops : txId → List (KVsnapNew.Operation key (Option txId))) (st4.store : key → Option txId)\n        (st4.tx : txId → Bool) (st4.missed : txId → keySet) (st4.pc : txId → pcLabel)\n        (st4.snapshotStore : txId → key → Option txId) (st4.read_keys st4.write_keys : txId → keySet)\n        (st4.ops : txId → List (KVsnapNew.Operation key (Option txId))), True → ⋯) =\n      ∀ (a_1 : key → keySet → Prop) (a_2 : keySet) (a_3 : keySet → Prop) (a_4 a_5 : key → keySet → keySet)\n        (a_6 : List key → keySet) (a_7 : keySet → List key) (a_8 : keySet → (key → Bool) → keySet)\n        (a_9 a_10 a_11 : keySet → keySet → keySet) (a_12 : keySet → List keySet) (a_13 : List key) (a_14 : List txId)\n        (a_15 a_16 a_17 a_18 a_19 : pcLabel) (a_20 a_21 a_22 a_23 : ActionTag) (a_24 : key → Option txId)\n        (a_25 : txId → Prop) (a_26 : txId → keySet) (a_27 : txId → pcLabel) (a_28 : txId → key → Option txId)\n        (a_29 a_30 : txId → keySet) (a_31 : txId → List (KVsnapNew.Operation key (Option txId)))\n        (a_32 : key → Option txId) (a_33 : txId → Prop) (a_34 : txId → keySet) (a_35 : txId → pcLabel)\n        (a_36 : txId → key → Option txId) (a_37 a_38 : txId → keySet)\n        (a_39 : txId → List (KVsnapNew.Operation key (Option txId))) (a_40 : key → Option txId) (a_41 : txId → Prop)\n        (a_42 : txId → keySet) (a_43 : txId → pcLabel) (a_44 : txId → key → Option txId) (a_45 a_46 : txId → keySet)\n        (a_47 : txId → List (KVsnapNew.Operation key (Option txId))) (a_48 : key → Option txId) (a_49 : txId → Prop)\n        (a_50 : txId → keySet) (a_51 : txId → pcLabel) (a_52 : txId → key → Option txId) (a_53 a_54 : txId → keySet)\n        (a_55 : txId → List (KVsnapNew.Operation key (Option txId))) (a_56 : key → Option txId) (a_57 : txId → Prop)\n        (a_58 : txId → keySet) (a_59 : txId → pcLabel) (a_60 : txId → key → Option txId) (a_61 a_62 : txId → keySet)\n        (a_63 : txId → List (KVsnapNew.Operation key (Option txId))), True → ⋯\nbut is expected to have type\n  (∀ (a₁ : keySet), f a₁ ≥ 0) → ?q₁ = ?q₂\nin the application\n  implies_congr_ctx (Eq.refl (∀ (a₁ : keySet), f a₁ ≥ 0)) fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun kset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun kset.insert =>\n                forall_congr fun kset.remove =>\n                  forall_congr fun kset.ofList =>\n                    forall_congr fun kset.toList =>\n                      forall_congr fun kset.filter =>\n                        forall_congr fun kset.union =>\n                          forall_congr fun kset.diff =>\n                            forall_congr fun kset.intersection =>\n                              forall_congr fun kset.subsets =>\n                                forall_congr fun keyEnum.allValues =>\n                                  forall_congr fun txEnum.allValues =>\n                                    forall_congr fun pcLabel_Enum.START =>\n                                      forall_congr fun pcLabel_Enum.READ =>\n                                        forall_congr fun pcLabel_Enum.UPDATE =>\n                                          forall_congr fun pcLabel_Enum.COMMIT =>\n                                            forall_congr fun pcLabel_Enum.Done =>\n                                              forall_congr fun __veil_tag.Start =>\n                                                forall_congr fun __veil_tag.Read =>\n                                                  forall_congr fun __veil_tag.Update =>\n                                                    forall_congr fun __veil_tag.Commit => forall_congr ⋯))",
+    "setup_ms": null,
+    "query_elaboration_ms": 75,
+    "batch_id": "TLA_KVSnap__default__batch1",
+    "batch_setup_ms": 10052,
+    "preprocessing_ms": 874,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/TLA_KVSnap__d4__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/TLA_KVSnap__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/TLA_KVSnap__d4__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/TLA_KVSnap__d4__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/TLA_KVSnap__d4__local__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_KVSnap",
+    "path": "Examples/TLA/KVSnap.lean",
+    "module": "KVsnapNew",
+    "cut_line": 279,
+    "query": "assert (¬ serialization)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "Serialization safety, line277; ghost serialization, lines273–275",
+    "notes": "Retains CC definitions and Veil.Util.Permutations import. Serialization uses enumerations, lists and permutations; backend support is not assumed.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil",
+      "Veil.Util.Permutations"
+    ],
+    "source_sha256": "7ab796b71fe418a896206b5430ef70d827464052ddad87c35650049f33997455"
+  },
+  "original_sha256": "7ab796b71fe418a896206b5430ef70d827464052ddad87c35650049f33997455",
+  "inherited_setup_options": [],
+  "source_sha256": "6dfa67fc0a6641d531383a2a0d67c632b84f50060e637f77276298d9da74f03b",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/TLA_KVSnap__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 209068678,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 209068753,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209068753,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 16235,
+      "mono_ms": 209068757,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209068757,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3676,
+      "mono_ms": 209068758,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209068758,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 474,
+      "event": "stage",
+      "heartbeats": 5963928,
+      "mono_ms": 209069232,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209069232,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 12,
+      "event": "stage",
+      "heartbeats": 221258,
+      "mono_ms": 209069244,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209069251,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3388,
+      "mono_ms": 209069252,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209069252,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 48,
+      "event": "stage",
+      "heartbeats": 725207,
+      "mono_ms": 209069300,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209069300,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 45,
+      "event": "stage",
+      "heartbeats": 693081,
+      "mono_ms": 209069345,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209069346,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 254,
+      "event": "stage",
+      "heartbeats": 3753002,
+      "mono_ms": 209069600,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209069602,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 31,
+      "event": "stage",
+      "heartbeats": 538177,
+      "mono_ms": 209069633,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209069633,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 41649,
+      "mono_ms": 209069637,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 884,
+      "event": "milestone",
+      "mono_ms": 209069637,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209069637,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 39640,
+      "mono_ms": 209069640,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209069640,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 1899,
+      "mono_ms": 209069640,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209069640,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 209069640,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209069640,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 209069640,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209069640,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 103,
+      "event": "stage",
+      "heartbeats": 1031864,
+      "mono_ms": 209069743,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209069743,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4795,
+      "error": "Application type mismatch: The argument\n  fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun kset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun kset.insert =>\n                forall_congr fun kset.remove =>\n                  forall_congr fun kset.ofList =>\n                    forall_congr fun kset.toList =>\n                      forall_congr fun kset.filter =>\n                        forall_congr fun kset.union =>\n                          forall_congr fun kset.diff =>\n                            forall_congr fun kset.intersection =>\n                              forall_congr fun kset.subsets =>\n                                forall_congr fun keyEnum.allValues =>\n                                  forall_congr fun txEnum.allValues =>\n                                    forall_congr fun pcLabel_Enum.START =>\n                                      forall_congr fun pcLabel_Enum.READ =>\n                                        forall_congr fun pcLabel_Enum.UPDATE =>\n                                          forall_congr fun pcLabel_Enum.COMMIT =>\n                                            forall_congr fun pcLabel_Enum.Done =>\n                                              forall_congr fun __veil_tag.Start =>\n                                                forall_congr fun __veil_tag.Read =>\n                                                  forall_congr fun __veil_tag.Update =>\n                                                    forall_congr fun __veil_tag.Commit =>\n                                                      forall_congr fun st0.store => ⋯))\nhas type\n  ∀ (a : ∀ (a₁ : keySet), f a₁ ≥ 0),\n    (∀ (f_1 : key → keySet → Bool) (kset.empty : keySet) (kset.isEmpty : keySet → Bool)\n        (kset.insert kset.remove : key → keySet → keySet) (kset.ofList : List key → keySet)\n        (kset.toList : keySet → List key) (kset.filter : keySet → (key → Bool) → keySet)\n        (kset.union kset.diff kset.intersection : keySet → keySet → keySet) (kset.subsets : keySet → List keySet)\n        (keyEnum.allValues : List key) (txEnum.allValues : List txId)\n        (pcLabel_Enum.START pcLabel_Enum.READ pcLabel_Enum.UPDATE pcLabel_Enum.COMMIT pcLabel_Enum.Done : pcLabel)\n        (__veil_tag.Start __veil_tag.Read __veil_tag.Update __veil_tag.Commit : ActionTag)\n        (st0.store : key → Option txId) (st0.tx : txId → Bool) (st0.missed : txId → keySet) (st0.pc : txId → pcLabel)\n        (st0.snapshotStore : txId → key → Option txId) (st0.read_keys st0.write_keys : txId → keySet)\n        (st0.ops : txId → List (KVsnapNew.Operation key (Option txId))) (st1.store : key → Option txId)\n        (st1.tx : txId → Bool) (st1.missed : txId → keySet) (st1.pc : txId → pcLabel)\n        (st1.snapshotStore : txId → key → Option txId) (st1.read_keys st1.write_keys : txId → keySet)\n        (st1.ops : txId → List (KVsnapNew.Operation key (Option txId))) (st2.store : key → Option txId)\n        (st2.tx : txId → Bool) (st2.missed : txId → keySet) (st2.pc : txId → pcLabel)\n        (st2.snapshotStore : txId → key → Option txId) (st2.read_keys st2.write_keys : txId → keySet)\n        (st2.ops : txId → List (KVsnapNew.Operation key (Option txId))) (st3.store : key → Option txId)\n        (st3.tx : txId → Bool) (st3.missed : txId → keySet) (st3.pc : txId → pcLabel)\n        (st3.snapshotStore : txId → key → Option txId) (st3.read_keys st3.write_keys : txId → keySet)\n        (st3.ops : txId → List (KVsnapNew.Operation key (Option txId))) (st4.store : key → Option txId)\n        (st4.tx : txId → Bool) (st4.missed : txId → keySet) (st4.pc : txId → pcLabel)\n        (st4.snapshotStore : txId → key → Option txId) (st4.read_keys st4.write_keys : txId → keySet)\n        (st4.ops : txId → List (KVsnapNew.Operation key (Option txId))), True → ⋯) =\n      ∀ (a_1 : key → keySet → Prop) (a_2 : keySet) (a_3 : keySet → Prop) (a_4 a_5 : key → keySet → keySet)\n        (a_6 : List key → keySet) (a_7 : keySet → List key) (a_8 : keySet → (key → Bool) → keySet)\n        (a_9 a_10 a_11 : keySet → keySet → keySet) (a_12 : keySet → List keySet) (a_13 : List key) (a_14 : List txId)\n        (a_15 a_16 a_17 a_18 a_19 : pcLabel) (a_20 a_21 a_22 a_23 : ActionTag) (a_24 : key → Option txId)\n        (a_25 : txId → Prop) (a_26 : txId → keySet) (a_27 : txId → pcLabel) (a_28 : txId → key → Option txId)\n        (a_29 a_30 : txId → keySet) (a_31 : txId → List (KVsnapNew.Operation key (Option txId)))\n        (a_32 : key → Option txId) (a_33 : txId → Prop) (a_34 : txId → keySet) (a_35 : txId → pcLabel)\n        (a_36 : txId → key → Option txId) (a_37 a_38 : txId → keySet)\n        (a_39 : txId → List (KVsnapNew.Operation key (Option txId))) (a_40 : key → Option txId) (a_41 : txId → Prop)\n        (a_42 : txId → keySet) (a_43 : txId → pcLabel) (a_44 : txId → key → Option txId) (a_45 a_46 : txId → keySet)\n        (a_47 : txId → List (KVsnapNew.Operation key (Option txId))) (a_48 : key → Option txId) (a_49 : txId → Prop)\n        (a_50 : txId → keySet) (a_51 : txId → pcLabel) (a_52 : txId → key → Option txId) (a_53 a_54 : txId → keySet)\n        (a_55 : txId → List (KVsnapNew.Operation key (Option txId))) (a_56 : key → Option txId) (a_57 : txId → Prop)\n        (a_58 : txId → keySet) (a_59 : txId → pcLabel) (a_60 : txId → key → Option txId) (a_61 a_62 : txId → keySet)\n        (a_63 : txId → List (KVsnapNew.Operation key (Option txId))), True → ⋯\nbut is expected to have type\n  (∀ (a₁ : keySet), f a₁ ≥ 0) → ?q₁ = ?q₂\nin the application\n  implies_congr_ctx (Eq.refl (∀ (a₁ : keySet), f a₁ ≥ 0)) fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun kset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun kset.insert =>\n                forall_congr fun kset.remove =>\n                  forall_congr fun kset.ofList =>\n                    forall_congr fun kset.toList =>\n                      forall_congr fun kset.filter =>\n                        forall_congr fun kset.union =>\n                          forall_congr fun kset.diff =>\n                            forall_congr fun kset.intersection =>\n                              forall_congr fun kset.subsets =>\n                                forall_congr fun keyEnum.allValues =>\n                                  forall_congr fun txEnum.allValues =>\n                                    forall_congr fun pcLabel_Enum.START =>\n                                      forall_congr fun pcLabel_Enum.READ =>\n                                        forall_congr fun pcLabel_Enum.UPDATE =>\n                                          forall_congr fun pcLabel_Enum.COMMIT =>\n                                            forall_congr fun pcLabel_Enum.Done =>\n                                              forall_congr fun __veil_tag.Start =>\n                                                forall_congr fun __veil_tag.Read =>\n                                                  forall_congr fun __veil_tag.Update =>\n                                                    forall_congr fun __veil_tag.Commit => forall_congr ⋯))",
+      "event": "stage",
+      "heartbeats": 9032129,
+      "mono_ms": 209074871,
+      "phase": "embedding",
+      "status": "failed"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 209075255,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_KVSnap__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/TLA_KVSnap__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/TLA_KVSnap__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 99797,
+    "setup_ms": 10052,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/TLA_KVSnap__default__batch1.lean"
+    ]
+  }
+}

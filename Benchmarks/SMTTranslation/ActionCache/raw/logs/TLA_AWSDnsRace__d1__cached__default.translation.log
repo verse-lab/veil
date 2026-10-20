@@ -1,0 +1,1655 @@
+/tmp/veil-action-cache/results/batch-sources/TLA_AWSDnsRace__cached__default__batch1.lean:224:2: error: Application type mismatch: The argument
+  fun a =>
+    implies_congr (Eq.refl True)
+      (implies_congr (Eq.refl (distinctN [ENACTORS_Enum.e1, ENACTORS_Enum.e2]))
+        (implies_congr (Eq.refl (∀ (__veil_x : ENACTORS), __veil_x = ENACTORS_Enum.e1 ∨ __veil_x = ENACTORS_Enum.e2))
+          (implies_congr
+            (Eq.refl
+              (distinctN
+                [__veil_tag.PlannerStep, __veil_tag.EnactorReceiveStep, __veil_tag.EnactorApplyStep,
+                  __veil_tag.EnactorCleanupStep]))
+            (implies_congr
+              (Eq.refl
+                (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.PlannerStep ∨
+                    __veil_x = __veil_tag.EnactorReceiveStep ∨
+                      __veil_x = __veil_tag.EnactorApplyStep ∨ __veil_x = __veil_tag.EnactorCleanupStep))
+              (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 6))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 6))
+                  fun th.max_plan.isLt =>
+                  implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 6))
+                    (implies_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 6))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 6))
+                        fun st0.current_plan.isLt =>
+                        implies_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                          (forall_prop_domain_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                            fun st0.latest_plan.isLt =>
+                            implies_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                              (forall_prop_domain_congr
+                                (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                fun st1.current_plan.isLt =>
+                                implies_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 6))
+                                  (forall_prop_domain_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 6))
+                                    fun st1.latest_plan.isLt =>
+                                    implies_congr
+                                      (Eq.refl
+                                        (⟨f✝.toNat,
+                                            Eq.substr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                              st1.current_plan.isLt⟩ >
+                                          0))
+                                      (implies_congr
+                                        (Eq.trans decide_eq_true_iff._simp_2
+                                          (congrArg
+                                            (f✝⁶
+                                              ⟨f✝.toNat,
+                                                Eq.substr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                                  st1.current_plan.isLt⟩)
+                                            Bool.true_eq_true._simp_1))
+                                        (implies_congr
+                                          (congrArg
+                                            (And
+                                              (0 =
+                                                ⟨f✝².toNat,
+                                                  Eq.substr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 6))
+                                                    st0.current_plan.isLt⟩))
+                                            (congrArg
+                                              (And
+                                                (0 =
+                                                  ⟨f✝¹.toNat,
+                                                    Eq.substr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                      st0.latest_plan.isLt⟩))
+                                              (congr
+                                                (congrArg And
+                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                    (congrArg (Eq 0) (Int.toNat_of_nonneg a✝⁹))))
+                                                (congr
+                                                  (congrArg And
+                                                    (forall_congr fun a =>
+                                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                        (forall_congr fun x =>
+                                                          Eq.trans (propext Bool.eq_eq_true)
+                                                            (congr
+                                                              (congrArg Eq
+                                                                (Eq.trans beq_iff_eq._simp_2
+                                                                  (Eq.trans (propext Bool.eq_eq_true)
+                                                                    (congr (congrArg Eq decide_eq_true_iff._simp_2)
+                                                                      Bool.false_eq_true))))
+                                                              (Eq.trans decide_eq_true_iff._simp_2
+                                                                (congrArg (f✝⁹ a) decide_eq_true_iff._simp_2))))))
+                                                  (congrArg (And ([] = st0.plan_channel))
+                                                    (congrArg (And (∀ (a : ENACTORS), 0 = st0.enactor_processing a))
+                                                      (forall_congr fun a =>
+                                                        Eq.trans Int.ofNat_inj._simp_2
+                                                          (congrArg (Eq 0)
+                                                            (Int.toNat_of_nonneg
+                                                              (of_eq_true ((fun a₁ => eq_true (a✝⁸ a₁)) a)))))))))))
+                                          (implies_congr
+                                            (congr
+                                              (congrArg Or
+                                                (congrArg (And (_tr1_tag = __veil_tag.PlannerStep))
+                                                  (congrArg
+                                                    (And
+                                                      (⟨f✝¹.toNat,
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                            st0.latest_plan.isLt⟩ <
+                                                        ⟨f✝⁴.toNat,
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 6))
+                                                            th.max_plan.isLt⟩))
+                                                    (Smt.Preprocess.Embedding.ite_congr'
+                                                      (Eq.trans Int.ofNat_le._simp_2
+                                                        (congrArg
+                                                          (LE.le
+                                                            ↑↑(⟨f✝¹.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                                      st0.latest_plan.isLt⟩ +
+                                                                  1))
+                                                          (Int.toNat_of_nonneg a✝⁵)))
+                                                      (congrArg
+                                                        (And
+                                                          (⟨f✝².toNat,
+                                                              Eq.substr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                    6))
+                                                                st0.current_plan.isLt⟩ =
+                                                            ⟨f✝.toNat,
+                                                              Eq.substr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                    6))
+                                                                st1.current_plan.isLt⟩))
+                                                        (congrArg
+                                                          (And
+                                                            (⟨f✝¹.toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                                    st0.latest_plan.isLt⟩ +
+                                                                1 =
+                                                              ⟨f.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                      6))
+                                                                  st1.latest_plan.isLt⟩))
+                                                          (congr
+                                                            (congrArg And
+                                                              (Eq.trans Int.ofNat_inj._simp_2
+                                                                (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁹))
+                                                                  (Int.toNat_of_nonneg a✝⁷))))
+                                                            (congr
+                                                              (congrArg And
+                                                                (forall_congr fun a =>
+                                                                  Eq.trans
+                                                                    Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                                    (forall_congr fun x =>
+                                                                      Eq.trans (propext Bool.eq_eq_true)
+                                                                        (congr
+                                                                          (congrArg Eq
+                                                                            (Eq.trans decide_eq_true_iff._simp_2
+                                                                              (congrArg (f✝⁹ a)
+                                                                                decide_eq_true_iff._simp_2)))
+                                                                          (Eq.trans decide_eq_true_iff._simp_2
+                                                                            (congrArg (f✝⁶ a)
+                                                                              decide_eq_true_iff._simp_2))))))
+                                                              (congrArg
+                                                                (And
+                                                                  (Append.append st0.plan_channel
+                                                                      [⟨f✝¹.toNat,
+                                                                            Eq.substr
+                                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                                (congrFun'
+                                                                                  (congrArg LT.lt
+                                                                                    (Int.toNat_of_nonneg a✝²))
+                                                                                  6))
+                                                                              st0.latest_plan.isLt⟩ +
+                                                                          1] =
+                                                                    st1.plan_channel))
+                                                                (congrArg
+                                                                  (And
+                                                                    (∀ (a : ENACTORS),
+                                                                      st0.enactor_processing a =
+                                                                        st1.enactor_processing a))
+                                                                  (forall_congr fun a =>
+                                                                    Eq.trans Int.ofNat_inj._simp_2
+                                                                      (congr
+                                                                        (congrArg Eq
+                                                                          (Int.toNat_of_nonneg
+                                                                            (of_eq_true
+                                                                              ((fun a₁ => eq_true (a✝⁸ a₁)) a))))
+                                                                        (Int.toNat_of_nonneg
+                                                                          (of_eq_true
+                                                                            ((fun a₁ => eq_true (a✝⁶ a₁)) a)))))))))))
+                                                      (Eq.refl ¬True)))))
+                                              (congr
+                                                (congrArg Or
+                                                  (congrArg (And (_tr1_tag = __veil_tag.EnactorReceiveStep))
+                                                    (congrArg (And ¬st0.plan_channel = [])
+                                                      (congr
+                                                        (congrArg And
+                                                          (Eq.trans Int.ofNat_inj._simp_2
+                                                            (congrFun'
+                                                              (congrArg Eq
+                                                                (Int.toNat_of_nonneg
+                                                                  (of_eq_true
+                                                                    ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                      _tr1_act_EnactorReceiveStep_arg0_self))))
+                                                              0)))
+                                                        (congrArg
+                                                          (And
+                                                            (⟨f✝².toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun'
+                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 6))
+                                                                  st0.current_plan.isLt⟩ =
+                                                              ⟨f✝.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun'
+                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                                                  st1.current_plan.isLt⟩))
+                                                          (congrArg
+                                                            (And
+                                                              (⟨f✝¹.toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                                    st0.latest_plan.isLt⟩ =
+                                                                ⟨f.toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a)) 6))
+                                                                    st1.latest_plan.isLt⟩))
+                                                            (congr
+                                                              (congrArg And
+                                                                (Eq.trans Int.ofNat_inj._simp_2
+                                                                  (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁹))
+                                                                    (Int.toNat_of_nonneg a✝⁷))))
+                                                              (congr
+                                                                (congrArg And
+                                                                  (forall_congr fun a =>
+                                                                    Eq.trans
+                                                                      Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                                      (forall_congr fun x =>
+                                                                        Eq.trans (propext Bool.eq_eq_true)
+                                                                          (congr
+                                                                            (congrArg Eq
+                                                                              (Eq.trans decide_eq_true_iff._simp_2
+                                                                                (congrArg (f✝⁹ a)
+                                                                                  decide_eq_true_iff._simp_2)))
+                                                                            (Eq.trans decide_eq_true_iff._simp_2
+                                                                              (congrArg (f✝⁶ a)
+                                                                                decide_eq_true_iff._simp_2))))))
+                                                                (congrArg
+                                                                  (And (st0.plan_channel.tail = st1.plan_channel))
+                                                                  (congrArg
+                                                                    (And
+                                                                      (∀ (a : ENACTORS),
+                                                                        (if
+                                                                              _tr1_act_EnactorReceiveStep_arg0_self =
+                                                                                a then
+                                                                            st0.plan_channel.head!
+                                                                          else st0.enactor_processing a) =
+                                                                          st1.enactor_processing a))
+                                                                    (forall_congr fun a =>
+                                                                      Eq.trans Int.ofNat_inj._simp_2
+                                                                        (congr
+                                                                          (congrArg Eq
+                                                                            (Eq.trans Int.natCast_ite
+                                                                              (Smt.Preprocess.Embedding.ite_congr'
+                                                                                (Eq.refl
+                                                                                  (_tr1_act_EnactorReceiveStep_arg0_self =
+                                                                                    a))
+                                                                                (Eq.refl 1)
+                                                                                (Int.toNat_of_nonneg
+                                                                                  (of_eq_true
+                                                                                    ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                                      a))))))
+                                                                          (Int.toNat_of_nonneg
+                                                                            (of_eq_true
+                                                                              ((fun a₁ => eq_true (a✝⁶ a₁))
+                                                                                a)))))))))))))))
+                                                (congr
+                                                  (congrArg Or
+                                                    (congrArg (And (_tr1_tag = __veil_tag.EnactorApplyStep))
+                                                      (congr
+                                                        (congrArg And
+                                                          (Eq.trans Int.ofNat_inj._simp_2
+                                                            (congrFun'
+                                                              (congrArg Eq
+                                                                (Int.toNat_of_nonneg
+                                                                  (of_eq_true
+                                                                    ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                      _tr1_act_EnactorApplyStep_arg0_self))))
+                                                              1)))
+                                                        (Smt.Preprocess.Embedding.ite_congr'
+                                                          (Eq.trans decide_eq_true_iff._simp_2
+                                                            (congrArg
+                                                              (f✝⁹
+                                                                (st0.enactor_processing
+                                                                  _tr1_act_EnactorApplyStep_arg0_self))
+                                                              Bool.false_eq_true))
+                                                          (Smt.Preprocess.Embedding.ite_congr'
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹))
+                                                                ↑↑(st0.enactor_processing
+                                                                      _tr1_act_EnactorApplyStep_arg0_self)))
+                                                            (congrArg
+                                                              (And
+                                                                (st0.enactor_processing
+                                                                    _tr1_act_EnactorApplyStep_arg0_self =
+                                                                  ⟨f✝.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                                                      st1.current_plan.isLt⟩))
+                                                              (congrArg
+                                                                (And
+                                                                  (⟨f✝¹.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun'
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                            6))
+                                                                        st0.latest_plan.isLt⟩ =
+                                                                    ⟨f.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun'
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a)) 6))
+                                                                        st1.latest_plan.isLt⟩))
+                                                                (congr
+                                                                  (congrArg And
+                                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                                      (congrArg
+                                                                        (Eq
+                                                                          ↑↑(st0.enactor_processing
+                                                                                _tr1_act_EnactorApplyStep_arg0_self))
+                                                                        (Int.toNat_of_nonneg a✝⁷))))
+                                                                  (congr
+                                                                    (congrArg And
+                                                                      (forall_congr fun a =>
+                                                                        Eq.trans
+                                                                          Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                                          (forall_congr fun x =>
+                                                                            Eq.trans (propext Bool.eq_eq_true)
+                                                                              (congr
+                                                                                (congrArg Eq
+                                                                                  (Eq.trans decide_eq_true_iff._simp_2
+                                                                                    (congrArg (f✝⁹ a)
+                                                                                      decide_eq_true_iff._simp_2)))
+                                                                                (Eq.trans decide_eq_true_iff._simp_2
+                                                                                  (congrArg (f✝⁶ a)
+                                                                                    decide_eq_true_iff._simp_2))))))
+                                                                    (congrArg
+                                                                      (And (st0.plan_channel = st1.plan_channel))
+                                                                      (congrArg
+                                                                        (And
+                                                                          (∀ (a : ENACTORS),
+                                                                            st0.enactor_processing a =
+                                                                              st1.enactor_processing a))
+                                                                        (forall_congr fun a =>
+                                                                          Eq.trans Int.ofNat_inj._simp_2
+                                                                            (congr
+                                                                              (congrArg Eq
+                                                                                (Eq.trans Int.natCast_ite
+                                                                                  (Smt.Preprocess.Embedding.ite_congr'
+                                                                                    (Eq.refl
+                                                                                      (_tr1_act_EnactorApplyStep_arg0_self =
+                                                                                        a))
+                                                                                    (Eq.refl 2)
+                                                                                    (Int.toNat_of_nonneg
+                                                                                      (of_eq_true
+                                                                                        ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                                          a))))))
+                                                                              (Int.toNat_of_nonneg
+                                                                                (of_eq_true
+                                                                                  ((fun a₁ => eq_true (a✝⁶ a₁))
+                                                                                    a)))))))))))
+                                                            (congrArg
+                                                              (And
+                                                                (st0.enactor_processing
+                                                                    _tr1_act_EnactorApplyStep_arg0_self =
+                                                                  ⟨f✝.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                                                      st1.current_plan.isLt⟩))
+                                                              (congrArg
+                                                                (And
+                                                                  (⟨f✝¹.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun'
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                            6))
+                                                                        st0.latest_plan.isLt⟩ =
+                                                                    ⟨f.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun'
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a)) 6))
+                                                                        st1.latest_plan.isLt⟩))
+                                                                (congr
+                                                                  (congrArg And
+                                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                                      (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁹))
+                                                                        (Int.toNat_of_nonneg a✝⁷))))
+                                                                  (congr
+                                                                    (congrArg And
+                                                                      (forall_congr fun a =>
+                                                                        Eq.trans
+                                                                          Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                                          (forall_congr fun x =>
+                                                                            Eq.trans (propext Bool.eq_eq_true)
+                                                                              (congr
+                                                                                (congrArg Eq
+                                                                                  (Eq.trans decide_eq_true_iff._simp_2
+                                                                                    (congrArg (f✝⁹ a)
+                                                                                      decide_eq_true_iff._simp_2)))
+                                                                                (Eq.trans decide_eq_true_iff._simp_2
+                                                                                  (congrArg (f✝⁶ a)
+                                                                                    decide_eq_true_iff._simp_2))))))
+                                                                    (congrArg
+                                                                      (And (st0.plan_channel = st1.plan_channel))
+                                                                      (congrArg
+                                                                        (And
+                                                                          (∀ (a : ENACTORS),
+                                                                            st0.enactor_processing a =
+                                                                              st1.enactor_processing a))
+                                                                        (forall_congr fun a =>
+                                                                          Eq.trans Int.ofNat_inj._simp_2
+                                                                            (congr
+                                                                              (congrArg Eq
+                                                                                (Eq.trans Int.natCast_ite
+                                                                                  (Smt.Preprocess.Embedding.ite_congr'
+                                                                                    (Eq.refl
+                                                                                      (_tr1_act_EnactorApplyStep_arg0_self =
+                                                                                        a))
+                                                                                    (Eq.refl 2)
+                                                                                    (Int.toNat_of_nonneg
+                                                                                      (of_eq_true
+                                                                                        ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                                          a))))))
+                                                                              (Int.toNat_of_nonneg
+                                                                                (of_eq_true
+                                                                                  ((fun a₁ => eq_true (a✝⁶ a₁))
+                                                                                    a))))))))))))
+                                                          (congrArg
+                                                            (And
+                                                              (⟨f✝².toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 6))
+                                                                    st0.current_plan.isLt⟩ =
+                                                                ⟨f✝.toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                                                    st1.current_plan.isLt⟩))
+                                                            (congrArg
+                                                              (And
+                                                                (⟨f✝¹.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                                      st0.latest_plan.isLt⟩ =
+                                                                  ⟨f.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a)) 6))
+                                                                      st1.latest_plan.isLt⟩))
+                                                              (congr
+                                                                (congrArg And
+                                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                                    (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁹))
+                                                                      (Int.toNat_of_nonneg a✝⁷))))
+                                                                (congr
+                                                                  (congrArg And
+                                                                    (forall_congr fun a =>
+                                                                      Eq.trans
+                                                                        Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                                        (forall_congr fun x =>
+                                                                          Eq.trans (propext Bool.eq_eq_true)
+                                                                            (congr
+                                                                              (congrArg Eq
+                                                                                (Eq.trans decide_eq_true_iff._simp_2
+                                                                                  (congrArg (f✝⁹ a)
+                                                                                    decide_eq_true_iff._simp_2)))
+                                                                              (Eq.trans decide_eq_true_iff._simp_2
+                                                                                (congrArg (f✝⁶ a)
+                                                                                  decide_eq_true_iff._simp_2))))))
+                                                                  (congrArg (And (st0.plan_channel = st1.plan_channel))
+                                                                    (congrArg
+                                                                      (And
+                                                                        (∀ (a : ENACTORS),
+                                                                          (if
+                                                                                _tr1_act_EnactorApplyStep_arg0_self =
+                                                                                  a then
+                                                                              0
+                                                                            else st0.enactor_processing a) =
+                                                                            st1.enactor_processing a))
+                                                                      (forall_congr fun a =>
+                                                                        Eq.trans Int.ofNat_inj._simp_2
+                                                                          (congr
+                                                                            (congrArg Eq
+                                                                              (Eq.trans Int.natCast_ite
+                                                                                (Smt.Preprocess.Embedding.ite_congr'
+                                                                                  (Eq.refl
+                                                                                    (_tr1_act_EnactorApplyStep_arg0_self =
+                                                                                      a))
+                                                                                  (Eq.refl 0)
+                                                                                  (Int.toNat_of_nonneg
+                                                                                    (of_eq_true
+                                                                                      ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                                        a))))))
+                                                                            (Int.toNat_of_nonneg
+                                                                              (of_eq_true
+                                                                                ((fun a₁ => eq_true (a✝⁶ a₁))
+                                                                                  a)))))))))))))))
+                                                  (congrArg (And (_tr1_tag = __veil_tag.EnactorCleanupStep))
+                                                    (congr
+                                                      (congrArg And
+                                                        (Eq.trans Int.ofNat_inj._simp_2
+                                                          (congrFun'
+                                                            (congrArg Eq
+                                                              (Int.toNat_of_nonneg
+                                                                (of_eq_true
+                                                                  ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                    _tr1_act_EnactorCleanupStep_arg0_self))))
+                                                            2)))
+                                                      (congrArg
+                                                        (And
+                                                          (⟨f✝².toNat,
+                                                              Eq.substr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                    6))
+                                                                st0.current_plan.isLt⟩ =
+                                                            ⟨f✝.toNat,
+                                                              Eq.substr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                    6))
+                                                                st1.current_plan.isLt⟩))
+                                                        (congrArg
+                                                          (And
+                                                            (⟨f✝¹.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun'
+                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                                  st0.latest_plan.isLt⟩ =
+                                                              ⟨f.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                      6))
+                                                                  st1.latest_plan.isLt⟩))
+                                                          (congr
+                                                            (congrArg And
+                                                              (Eq.trans Int.ofNat_inj._simp_2
+                                                                (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁹))
+                                                                  (Int.toNat_of_nonneg a✝⁷))))
+                                                            (congr
+                                                              (congrArg And
+                                                                (forall_congr fun a =>
+                                                                  Eq.trans
+                                                                    Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                                    (forall_congr fun x =>
+                                                                      congrFun'
+                                                                        (congrArg Eq
+                                                                          (Smt.Preprocess.Embedding.ite_congr'
+                                                                            (congrArg (And ¬a = 0)
+                                                                              (congrArg
+                                                                                (And
+                                                                                  (st0.enactor_processing
+                                                                                      _tr1_act_EnactorCleanupStep_arg0_self ≥
+                                                                                    a))
+                                                                                (Eq.trans Int.ofNat_le._simp_2
+                                                                                  (congrFun'
+                                                                                    (congrArg LE.le
+                                                                                      (Int.toNat_of_nonneg a✝⁴))
+                                                                                    ↑↑(st0.enactor_processing
+                                                                                            _tr1_act_EnactorCleanupStep_arg0_self -
+                                                                                          a)))))
+                                                                            (Eq.refl (decide x == true))
+                                                                            (Eq.refl
+                                                                              (decide (f✝⁹ a (decide x = true))))))
+                                                                        (decide (f✝⁶ a (decide x = true))))))
+                                                              (congrArg (And (st0.plan_channel = st1.plan_channel))
+                                                                (congrArg
+                                                                  (And
+                                                                    (∀ (a : ENACTORS),
+                                                                      (if _tr1_act_EnactorCleanupStep_arg0_self = a then
+                                                                          0
+                                                                        else st0.enactor_processing a) =
+                                                                        st1.enactor_processing a))
+                                                                  (forall_congr fun a =>
+                                                                    Eq.trans Int.ofNat_inj._simp_2
+                                                                      (congr
+                                                                        (congrArg Eq
+                                                                          (Eq.trans Int.natCast_ite
+                                                                            (Smt.Preprocess.Embedding.ite_congr'
+                                                                              (Eq.refl
+                                                                                (_tr1_act_EnactorCleanupStep_arg0_self =
+                                                                                  a))
+                                                                              (Eq.refl 0)
+                                                                              (Int.toNat_of_nonneg
+                                                                                (of_eq_true
+                                                                                  ((fun a₁ => eq_true (a✝⁸ a₁)) a))))))
+                                                                        (Int.toNat_of_nonneg
+                                                                          (of_eq_true
+                                                                            ((fun a₁ => eq_true (a✝⁶ a₁))
+                                                                              a))))))))))))))))
+                                            (Eq.refl False)))))))))))))))
+has type
+  ∀ (a : f ≥ 0),
+    (True →
+        distinctN [ENACTORS_Enum.e1, ENACTORS_Enum.e2] →
+          (∀ (__veil_x : ENACTORS), __veil_x = ENACTORS_Enum.e1 ∨ __veil_x = ENACTORS_Enum.e2) →
+            distinctN
+                [__veil_tag.PlannerStep, __veil_tag.EnactorReceiveStep, __veil_tag.EnactorApplyStep,
+                  __veil_tag.EnactorCleanupStep] →
+              (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.PlannerStep ∨
+                    __veil_x = __veil_tag.EnactorReceiveStep ∨
+                      __veil_x = __veil_tag.EnactorApplyStep ∨ __veil_x = __veil_tag.EnactorCleanupStep) →
+                f✝⁴.toNat < 6 →
+                  ∀ (a : f✝⁴.toNat < 6),
+                    f✝³.toNat < 6 →
+                      f✝².toNat < 6 →
+                        ∀ (st0.current_plan.isLt : f✝².toNat < 6),
+                          f✝¹.toNat < 6 →
+                            ∀ (st0.latest_plan.isLt : f✝¹.toNat < 6),
+                              f✝.toNat < 6 →
+                                ∀ (st1.current_plan.isLt : f✝.toNat < 6),
+                                  f.toNat < 6 →
+                                    ∀ (st1.latest_plan.isLt : f.toNat < 6),
+                                      ⟨f✝.toNat, st1.current_plan.isLt⟩ > 0 →
+                                        (fun a₁ b => (fun a₁ a₂ => decide (f✝⁶ a₁ a₂)) a₁ (b = true))
+                                              ⟨f✝.toNat, st1.current_plan.isLt⟩ true =
+                                            true →
+                                          (0 = ⟨f✝².toNat, st0.current_plan.isLt⟩ ∧
+                                              0 = ⟨f✝¹.toNat, st0.latest_plan.isLt⟩ ∧
+                                                0 = f✝¹⁰.toNat ∧
+                                                  (∀ (a : Fin 6) (a_1 : Bool),
+                                                      (a_1 == false) =
+                                                        (fun a₁ b => (fun a₁ a₂ => decide (f✝⁹ a₁ a₂)) a₁ (b = true)) a
+                                                          a_1) ∧
+                                                    [] = st0.plan_channel ∧
+                                                      (∀ (a : ENACTORS), 0 = st0.enactor_processing a) ∧
+                                                        ∀ (a : ENACTORS), 0 = (fun a₁ => (f✝⁸ a₁).toNat) a) →
+                                            ((_tr1_tag = __veil_tag.PlannerStep ∧
+                                                  ⟨f✝¹.toNat, st0.latest_plan.isLt⟩ < ⟨f✝⁴.toNat, a⟩ ∧
+                                                    if ↑(⟨f✝¹.toNat, st0.latest_plan.isLt⟩ + 1) ≤ f✝⁴.toNat then
+                                                      ⟨f✝².toNat, st0.current_plan.isLt⟩ =
+                                                          ⟨f✝.toNat, st1.current_plan.isLt⟩ ∧
+                                                        ⟨f✝¹.toNat, st0.latest_plan.isLt⟩ + 1 =
+                                                            ⟨f.toNat, st1.latest_plan.isLt⟩ ∧
+                                                          f✝¹⁰.toNat = f✝⁷.toNat ∧
+                                                            (∀ (a : Fin 6) (a_1 : Bool),
+                                                                (fun a₁ b =>
+                                                                      (fun a₁ a₂ => decide (f✝⁹ a₁ a₂)) a₁ (b = true))
+                                                                    a a_1 =
+                                                                  (fun a₁ b =>
+                                                                      (fun a₁ a₂ => decide (f✝⁶ a₁ a₂)) a₁ (b = true))
+                                                                    a a_1) ∧
+                                                              Append.append st0.plan_channel
+                                                                    [⟨f✝¹.toNat, st0.latest_plan.isLt⟩ + 1] =
+                                                                  st1.plan_channel ∧
+                                                                (∀ (a : ENACTORS),
+                                                                    st0.enactor_processing a =
+                                                                      st1.enactor_processing a) ∧
+                                                                  ∀ (a : ENACTORS),
+                                                                    (fun a₁ => (f✝⁸ a₁).toNat) a =
+                                                                      (fun a₁ => (f✝⁵ a₁).toNat) a
+                                                    else ¬True) ∨
+                                                (_tr1_tag = __veil_tag.EnactorReceiveStep ∧
+                                                    ¬st0.plan_channel = [] ∧
+                                                      (fun a₁ => (f✝⁸ a₁).toNat) _tr1_act_EnactorReceiveStep_arg0_self =
+                                                          0 ∧
+                                                        ⟨f✝².toNat, st0.current_plan.isLt⟩ =
+                                                            ⟨f✝.toNat, st1.current_plan.isLt⟩ ∧
+                                                          ⟨f✝¹.toNat, st0.latest_plan.isLt⟩ =
+                                                              ⟨f.toNat, st1.latest_plan.isLt⟩ ∧
+                                                            f✝¹⁰.toNat = f✝⁷.toNat ∧
+                                                              (∀ (a : Fin 6) (a_1 : Bool),
+                                                                  (fun a₁ b =>
+                                                                        (fun a₁ a₂ => decide (f✝⁹ a₁ a₂)) a₁ (b = true))
+                                                                      a a_1 =
+                                                                    (fun a₁ b =>
+                                                                        (fun a₁ a₂ => decide (f✝⁶ a₁ a₂)) a₁ (b = true))
+                                                                      a a_1) ∧
+                                                                st0.plan_channel.tail = st1.plan_channel ∧
+                                                                  (∀ (a : ENACTORS),
+                                                                      (if _tr1_act_EnactorReceiveStep_arg0_self = a then
+                                                                          st0.plan_channel.head!
+                                                                        else st0.enactor_processing a) =
+                                                                        st1.enactor_processing a) ∧
+                                                                    ∀ (a : ENACTORS),
+                                                                      (if _tr1_act_EnactorReceiveStep_arg0_self = a then
+                                                                          1
+                                                                        else (fun a₁ => (f✝⁸ a₁).toNat) a) =
+                                                                        (fun a₁ => (f✝⁵ a₁).toNat) a) ∨
+                                                  (_tr1_tag = __veil_tag.EnactorApplyStep ∧
+                                                      (fun a₁ => (f✝⁸ a₁).toNat) _tr1_act_EnactorApplyStep_arg0_self =
+                                                          1 ∧
+                                                        if
+                                                            (fun a₁ b =>
+                                                                  (fun a₁ a₂ => decide (f✝⁹ a₁ a₂)) a₁ (b = true))
+                                                                (st0.enactor_processing
+                                                                  _tr1_act_EnactorApplyStep_arg0_self)
+                                                                false =
+                                                              true then
+                                                          if
+                                                              f✝¹⁰.toNat <
+                                                                ↑(st0.enactor_processing
+                                                                    _tr1_act_EnactorApplyStep_arg0_self) then
+                                                            st0.enactor_processing _tr1_act_EnactorApplyStep_arg0_self =
+                                                                ⟨f✝.toNat, st1.current_plan.isLt⟩ ∧
+                                                              ⟨f✝¹.toNat, st0.latest_plan.isLt⟩ =
+                                                                  ⟨f.toNat, st1.latest_plan.isLt⟩ ∧
+                                                                ↑(st0.enactor_processing
+                                                                        _tr1_act_EnactorApplyStep_arg0_self) =
+                                                                    f✝⁷.toNat ∧
+                                                                  (∀ (a : Fin 6) (a_1 : Bool),
+                                                                      (fun a₁ b =>
+                                                                            (fun a₁ a₂ => decide (f✝⁹ a₁ a₂)) a₁
+                                                                              (b = true))
+                                                                          a a_1 =
+                                                                        (fun a₁ b =>
+                                                                            (fun a₁ a₂ => decide (f✝⁶ a₁ a₂)) a₁
+                                                                              (b = true))
+                                                                          a a_1) ∧
+                                                                    st0.plan_channel = st1.plan_channel ∧
+                                                                      (∀ (a : ENACTORS),
+                                                                          st0.enactor_processing a =
+                                                                            st1.enactor_processing a) ∧
+                                                                        ∀ (a : ENACTORS),
+                                                                          (if
+                                                                                _tr1_act_EnactorApplyStep_arg0_self =
+                                                                                  a then
+                                                                              2
+                                                                            else (fun a₁ => (f✝⁸ a₁).toNat) a) =
+                                                                            (fun a₁ => (f✝⁵ a₁).toNat) a
+                                                          else
+                                                            st0.enactor_processing _tr1_act_EnactorApplyStep_arg0_self =
+                                                                ⟨f✝.toNat, st1.current_plan.isLt⟩ ∧
+                                                              ⟨f✝¹.toNat, st0.latest_plan.isLt⟩ =
+                                                                  ⟨f.toNat, st1.latest_plan.isLt⟩ ∧
+                                                                f✝¹⁰.toNat = f✝⁷.toNat ∧
+                                                                  (∀ (a : Fin 6) (a_1 : Bool),
+                                                                      (fun a₁ b =>
+                                                                            (fun a₁ a₂ => decide (f✝⁹ a₁ a₂)) a₁
+                                                                              (b = true))
+                                                                          a a_1 =
+                                                                        (fun a₁ b =>
+                                                                            (fun a₁ a₂ => decide (f✝⁶ a₁ a₂)) a₁
+                                                                              (b = true))
+                                                                          a a_1) ∧
+                                                                    st0.plan_channel = st1.plan_channel ∧
+                                                                      (∀ (a : ENACTORS),
+                                                                          st0.enactor_processing a =
+                                                                            st1.enactor_processing a) ∧
+                                                                        ∀ (a : ENACTORS),
+                                                                          (if
+                                                                                _tr1_act_EnactorApplyStep_arg0_self =
+                                                                                  a then
+                                                                              2
+                                                                            else (fun a₁ => (f✝⁸ a₁).toNat) a) =
+                                                                            (fun a₁ => (f✝⁵ a₁).toNat) a
+                                                        else
+                                                          ⟨f✝².toNat, st0.current_plan.isLt⟩ =
+                                                              ⟨f✝.toNat, st1.current_plan.isLt⟩ ∧
+                                                            ⟨f✝¹.toNat, st0.latest_plan.isLt⟩ =
+                                                                ⟨f.toNat, st1.latest_plan.isLt⟩ ∧
+                                                              f✝¹⁰.toNat = f✝⁷.toNat ∧
+                                                                (∀ (a : Fin 6) (a_1 : Bool),
+                                                                    (fun a₁ b =>
+                                                                          (fun a₁ a₂ => decide (f✝⁹ a₁ a₂)) a₁
+                                                                            (b = true))
+                                                                        a a_1 =
+                                                                      (fun a₁ b =>
+                                                                          (fun a₁ a₂ => decide (f✝⁶ a₁ a₂)) a₁
+                                                                            (b = true))
+                                                                        a a_1) ∧
+                                                                  st0.plan_channel = st1.plan_channel ∧
+                                                                    (∀ (a : ENACTORS),
+                                                                        (if _tr1_act_EnactorApplyStep_arg0_self = a then
+                                                                            0
+                                                                          else st0.enactor_processing a) =
+                                                                          st1.enactor_processing a) ∧
+                                                                      ∀ (a : ENACTORS),
+                                                                        (if _tr1_act_EnactorApplyStep_arg0_self = a then
+                                                                            0
+                                                                          else (fun a₁ => (f✝⁸ a₁).toNat) a) =
+                                                                          (fun a₁ => (f✝⁵ a₁).toNat) a) ∨
+                                                    _tr1_tag = __veil_tag.EnactorCleanupStep ∧
+                                                      (fun a₁ => (f✝⁸ a₁).toNat) _tr1_act_EnactorCleanupStep_arg0_self =
+                                                          2 ∧
+                                                        ⟨f✝².toNat, st0.current_plan.isLt⟩ =
+                                                            ⟨f✝.toNat, st1.current_plan.isLt⟩ ∧
+                                                          ⟨f✝¹.toNat, st0.latest_plan.isLt⟩ =
+                                                              ⟨f.toNat, st1.latest_plan.isLt⟩ ∧
+                                                            f✝¹⁰.toNat = f✝⁷.toNat ∧
+                                                              (∀ (a : Fin 6) (a_1 : Bool),
+                                                                  (if
+                                                                        ¬a = 0 ∧
+                                                                          st0.enactor_processing
+                                                                                _tr1_act_EnactorCleanupStep_arg0_self ≥
+                                                                              a ∧
+                                                                            ↑(st0.enactor_processing
+                                                                                    _tr1_act_EnactorCleanupStep_arg0_self -
+                                                                                  a) ≥
+                                                                              f✝³.toNat then
+                                                                      a_1 == true
+                                                                    else
+                                                                      (fun a₁ b =>
+                                                                          (fun a₁ a₂ => decide (f✝⁹ a₁ a₂)) a₁
+                                                                            (b = true))
+                                                                        a a_1) =
+                                                                    (fun a₁ b =>
+                                                                        (fun a₁ a₂ => decide (f✝⁶ a₁ a₂)) a₁ (b = true))
+                                                                      a a_1) ∧
+                                                                st0.plan_channel = st1.plan_channel ∧
+                                                                  (∀ (a : ENACTORS),
+                                                                      (if _tr1_act_EnactorCleanupStep_arg0_self = a then
+                                                                          0
+                                                                        else st0.enactor_processing a) =
+                                                                        st1.enactor_processing a) ∧
+                                                                    ∀ (a : ENACTORS),
+                                                                      (if _tr1_act_EnactorCleanupStep_arg0_self = a then
+                                                                          0
+                                                                        else (fun a₁ => (f✝⁸ a₁).toNat) a) =
+                                                                        (fun a₁ => (f✝⁵ a₁).toNat) a) →
+                                              False) =
+      (True →
+        distinctN [ENACTORS_Enum.e1, ENACTORS_Enum.e2] →
+          (∀ (__veil_x : ENACTORS), __veil_x = ENACTORS_Enum.e1 ∨ __veil_x = ENACTORS_Enum.e2) →
+            distinctN
+                [__veil_tag.PlannerStep, __veil_tag.EnactorReceiveStep, __veil_tag.EnactorApplyStep,
+                  __veil_tag.EnactorCleanupStep] →
+              (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.PlannerStep ∨
+                    __veil_x = __veil_tag.EnactorReceiveStep ∨
+                      __veil_x = __veil_tag.EnactorApplyStep ∨ __veil_x = __veil_tag.EnactorCleanupStep) →
+                f✝⁴ < 6 →
+                  ∀ (a_7 : f✝⁴ < 6),
+                    f✝³ < 6 →
+                      f✝² < 6 →
+                        ∀ (st0.current_plan.isLt : f✝² < 6),
+                          f✝¹ < 6 →
+                            ∀ (st0.latest_plan.isLt : f✝¹ < 6),
+                              f✝ < 6 →
+                                ∀ (st1.current_plan.isLt : f✝ < 6),
+                                  f < 6 →
+                                    ∀ (st1.latest_plan.isLt : f < 6),
+                                      ⟨f✝.toNat, ⋯⟩ > 0 →
+                                        f✝⁶ ⟨f✝.toNat, ⋯⟩ True →
+                                          (0 = ⟨f✝².toNat, ⋯⟩ ∧
+                                              0 = ⟨f✝¹.toNat, ⋯⟩ ∧
+                                                0 = f✝¹⁰ ∧
+                                                  (∀ (a : Fin 6) (x : Prop), (x = False) = f✝⁹ a x) ∧
+                                                    [] = st0.plan_channel ∧
+                                                      (∀ (a : ENACTORS), 0 = st0.enactor_processing a) ∧
+                                                        ∀ (a : ENACTORS), 0 = f✝⁸ a) →
+                                            ((_tr1_tag = __veil_tag.PlannerStep ∧
+                                                  ⟨f✝¹.toNat, ⋯⟩ < ⟨f✝⁴.toNat, ⋯⟩ ∧
+                                                    if ↑↑(⟨f✝¹.toNat, ⋯⟩ + 1) ≤ f✝⁴ then
+                                                      ⟨f✝².toNat, ⋯⟩ = ⟨f✝.toNat, ⋯⟩ ∧
+                                                        ⟨f✝¹.toNat, ⋯⟩ + 1 = ⟨f.toNat, ⋯⟩ ∧
+                                                          f✝¹⁰ = f✝⁷ ∧
+                                                            (∀ (a : Fin 6) (x : Prop), f✝⁹ a x = f✝⁶ a x) ∧
+                                                              Append.append st0.plan_channel [⟨f✝¹.toNat, ⋯⟩ + 1] =
+                                                                  st1.plan_channel ∧
+                                                                (∀ (a : ENACTORS),
+                                                                    st0.enactor_processing a =
+                                                                      st1.enactor_processing a) ∧
+                                                                  ∀ (a : ENACTORS), f✝⁸ a = f✝⁵ a
+                                                    else ¬True) ∨
+                                                (_tr1_tag = __veil_tag.EnactorReceiveStep ∧
+                                                    ¬st0.plan_channel = [] ∧
+                                                      f✝⁸ _tr1_act_EnactorReceiveStep_arg0_self = 0 ∧
+                                                        ⟨f✝².toNat, ⋯⟩ = ⟨f✝.toNat, ⋯⟩ ∧
+                                                          ⟨f✝¹.toNat, ⋯⟩ = ⟨f.toNat, ⋯⟩ ∧
+                                                            f✝¹⁰ = f✝⁷ ∧
+                                                              (∀ (a : Fin 6) (x : Prop), f✝⁹ a x = f✝⁶ a x) ∧
+                                                                st0.plan_channel.tail = st1.plan_channel ∧
+                                                                  (∀ (a : ENACTORS),
+                                                                      (if _tr1_act_EnactorReceiveStep_arg0_self = a then
+                                                                          st0.plan_channel.head!
+                                                                        else st0.enactor_processing a) =
+                                                                        st1.enactor_processing a) ∧
+                                                                    ∀ (a : ENACTORS),
+                                                                      (if _tr1_act_EnactorReceiveStep_arg0_self = a then
+                                                                          1
+                                                                        else f✝⁸ a) =
+                                                                        f✝⁵ a) ∨
+                                                  (_tr1_tag = __veil_tag.EnactorApplyStep ∧
+                                                      f✝⁸ _tr1_act_EnactorApplyStep_arg0_self = 1 ∧
+                                                        if
+                                                            f✝⁹
+                                                              (st0.enactor_processing
+                                                                _tr1_act_EnactorApplyStep_arg0_self)
+                                                              False then
+                                                          if
+                                                              f✝¹⁰ <
+                                                                ↑↑(st0.enactor_processing
+                                                                      _tr1_act_EnactorApplyStep_arg0_self) then
+                                                            st0.enactor_processing _tr1_act_EnactorApplyStep_arg0_self =
+                                                                ⟨f✝.toNat, ⋯⟩ ∧
+                                                              ⟨f✝¹.toNat, ⋯⟩ = ⟨f.toNat, ⋯⟩ ∧
+                                                                ↑↑(st0.enactor_processing
+                                                                          _tr1_act_EnactorApplyStep_arg0_self) =
+                                                                    f✝⁷ ∧
+                                                                  (∀ (a : Fin 6) (x : Prop), f✝⁹ a x = f✝⁶ a x) ∧
+                                                                    st0.plan_channel = st1.plan_channel ∧
+                                                                      (∀ (a : ENACTORS),
+                                                                          st0.enactor_processing a =
+                                                                            st1.enactor_processing a) ∧
+                                                                        ∀ (a : ENACTORS),
+                                                                          (if
+                                                                                _tr1_act_EnactorApplyStep_arg0_self =
+                                                                                  a then
+                                                                              2
+                                                                            else f✝⁸ a) =
+                                                                            f✝⁵ a
+                                                          else
+                                                            st0.enactor_processing _tr1_act_EnactorApplyStep_arg0_self =
+                                                                ⟨f✝.toNat, ⋯⟩ ∧
+                                                              ⟨f✝¹.toNat, ⋯⟩ = ⟨f.toNat, ⋯⟩ ∧
+                                                                f✝¹⁰ = f✝⁷ ∧
+                                                                  (∀ (a : Fin 6) (x : Prop), f✝⁹ a x = f✝⁶ a x) ∧
+                                                                    st0.plan_channel = st1.plan_channel ∧
+                                                                      (∀ (a : ENACTORS),
+                                                                          st0.enactor_processing a =
+                                                                            st1.enactor_processing a) ∧
+                                                                        ∀ (a : ENACTORS),
+                                                                          (if
+                                                                                _tr1_act_EnactorApplyStep_arg0_self =
+                                                                                  a then
+                                                                              2
+                                                                            else f✝⁸ a) =
+                                                                            f✝⁵ a
+                                                        else
+                                                          ⟨f✝².toNat, ⋯⟩ = ⟨f✝.toNat, ⋯⟩ ∧
+                                                            ⟨f✝¹.toNat, ⋯⟩ = ⟨f.toNat, ⋯⟩ ∧
+                                                              f✝¹⁰ = f✝⁷ ∧
+                                                                (∀ (a : Fin 6) (x : Prop), f✝⁹ a x = f✝⁶ a x) ∧
+                                                                  st0.plan_channel = st1.plan_channel ∧
+                                                                    (∀ (a : ENACTORS),
+                                                                        (if _tr1_act_EnactorApplyStep_arg0_self = a then
+                                                                            0
+                                                                          else st0.enactor_processing a) =
+                                                                          st1.enactor_processing a) ∧
+                                                                      ∀ (a : ENACTORS),
+                                                                        (if _tr1_act_EnactorApplyStep_arg0_self = a then
+                                                                            0
+                                                                          else f✝⁸ a) =
+                                                                          f✝⁵ a) ∨
+                                                    _tr1_tag = __veil_tag.EnactorCleanupStep ∧
+                                                      f✝⁸ _tr1_act_EnactorCleanupStep_arg0_self = 2 ∧
+                                                        ⟨f✝².toNat, ⋯⟩ = ⟨f✝.toNat, ⋯⟩ ∧
+                                                          ⟨f✝¹.toNat, ⋯⟩ = ⟨f.toNat, ⋯⟩ ∧
+                                                            f✝¹⁰ = f✝⁷ ∧
+                                                              (∀ (a : Fin 6) (x : Prop),
+                                                                  (if
+                                                                        ¬a = 0 ∧
+                                                                          st0.enactor_processing
+                                                                                _tr1_act_EnactorCleanupStep_arg0_self ≥
+                                                                              a ∧
+                                                                            f✝³ ≤
+                                                                              ↑↑(st0.enactor_processing
+                                                                                      _tr1_act_EnactorCleanupStep_arg0_self -
+                                                                                    a) then
+                                                                      decide x == true
+                                                                    else decide (f✝⁹ a (decide x = true))) =
+                                                                    decide (f✝⁶ a (decide x = true))) ∧
+                                                                st0.plan_channel = st1.plan_channel ∧
+                                                                  (∀ (a : ENACTORS),
+                                                                      (if _tr1_act_EnactorCleanupStep_arg0_self = a then
+                                                                          0
+                                                                        else st0.enactor_processing a) =
+                                                                        st1.enactor_processing a) ∧
+                                                                    ∀ (a : ENACTORS),
+                                                                      (if _tr1_act_EnactorCleanupStep_arg0_self = a then
+                                                                          0
+                                                                        else f✝⁸ a) =
+                                                                        f✝⁵ a) →
+                                              False)
+but is expected to have type
+  f ≥ 0 → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (f ≥ 0)) fun a =>
+    implies_congr (Eq.refl True)
+      (implies_congr (Eq.refl (distinctN [ENACTORS_Enum.e1, ENACTORS_Enum.e2]))
+        (implies_congr (Eq.refl (∀ (__veil_x : ENACTORS), __veil_x = ENACTORS_Enum.e1 ∨ __veil_x = ENACTORS_Enum.e2))
+          (implies_congr
+            (Eq.refl
+              (distinctN
+                [__veil_tag.PlannerStep, __veil_tag.EnactorReceiveStep, __veil_tag.EnactorApplyStep,
+                  __veil_tag.EnactorCleanupStep]))
+            (implies_congr
+              (Eq.refl
+                (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.PlannerStep ∨
+                    __veil_x = __veil_tag.EnactorReceiveStep ∨
+                      __veil_x = __veil_tag.EnactorApplyStep ∨ __veil_x = __veil_tag.EnactorCleanupStep))
+              (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 6))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 6))
+                  fun th.max_plan.isLt =>
+                  implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 6))
+                    (implies_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 6))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 6))
+                        fun st0.current_plan.isLt =>
+                        implies_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                          (forall_prop_domain_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                            fun st0.latest_plan.isLt =>
+                            implies_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                              (forall_prop_domain_congr
+                                (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                fun st1.current_plan.isLt =>
+                                implies_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 6))
+                                  (forall_prop_domain_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 6))
+                                    fun st1.latest_plan.isLt =>
+                                    implies_congr
+                                      (Eq.refl
+                                        (⟨f✝.toNat,
+                                            Eq.substr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                              st1.current_plan.isLt⟩ >
+                                          0))
+                                      (implies_congr
+                                        (Eq.trans decide_eq_true_iff._simp_2
+                                          (congrArg
+                                            (f✝⁶
+                                              ⟨f✝.toNat,
+                                                Eq.substr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                                  st1.current_plan.isLt⟩)
+                                            Bool.true_eq_true._simp_1))
+                                        (implies_congr
+                                          (congrArg
+                                            (And
+                                              (0 =
+                                                ⟨f✝².toNat,
+                                                  Eq.substr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 6))
+                                                    st0.current_plan.isLt⟩))
+                                            (congrArg
+                                              (And
+                                                (0 =
+                                                  ⟨f✝¹.toNat,
+                                                    Eq.substr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                      st0.latest_plan.isLt⟩))
+                                              (congr
+                                                (congrArg And
+                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                    (congrArg (Eq 0) (Int.toNat_of_nonneg a✝⁹))))
+                                                (congr
+                                                  (congrArg And
+                                                    (forall_congr fun a =>
+                                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                        (forall_congr fun x =>
+                                                          Eq.trans (propext Bool.eq_eq_true)
+                                                            (congr
+                                                              (congrArg Eq
+                                                                (Eq.trans beq_iff_eq._simp_2
+                                                                  (Eq.trans (propext Bool.eq_eq_true)
+                                                                    (congr (congrArg Eq decide_eq_true_iff._simp_2)
+                                                                      Bool.false_eq_true))))
+                                                              (Eq.trans decide_eq_true_iff._simp_2
+                                                                (congrArg (f✝⁹ a) decide_eq_true_iff._simp_2))))))
+                                                  (congrArg (And ([] = st0.plan_channel))
+                                                    (congrArg (And (∀ (a : ENACTORS), 0 = st0.enactor_processing a))
+                                                      (forall_congr fun a =>
+                                                        Eq.trans Int.ofNat_inj._simp_2
+                                                          (congrArg (Eq 0)
+                                                            (Int.toNat_of_nonneg
+                                                              (of_eq_true ((fun a₁ => eq_true (a✝⁸ a₁)) a)))))))))))
+                                          (implies_congr
+                                            (congr
+                                              (congrArg Or
+                                                (congrArg (And (_tr1_tag = __veil_tag.PlannerStep))
+                                                  (congrArg
+                                                    (And
+                                                      (⟨f✝¹.toNat,
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                            st0.latest_plan.isLt⟩ <
+                                                        ⟨f✝⁴.toNat,
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 6))
+                                                            th.max_plan.isLt⟩))
+                                                    (Smt.Preprocess.Embedding.ite_congr'
+                                                      (Eq.trans Int.ofNat_le._simp_2
+                                                        (congrArg
+                                                          (LE.le
+                                                            ↑↑(⟨f✝¹.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                                      st0.latest_plan.isLt⟩ +
+                                                                  1))
+                                                          (Int.toNat_of_nonneg a✝⁵)))
+                                                      (congrArg
+                                                        (And
+                                                          (⟨f✝².toNat,
+                                                              Eq.substr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                    6))
+                                                                st0.current_plan.isLt⟩ =
+                                                            ⟨f✝.toNat,
+                                                              Eq.substr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                    6))
+                                                                st1.current_plan.isLt⟩))
+                                                        (congrArg
+                                                          (And
+                                                            (⟨f✝¹.toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                                    st0.latest_plan.isLt⟩ +
+                                                                1 =
+                                                              ⟨f.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                      6))
+                                                                  st1.latest_plan.isLt⟩))
+                                                          (congr
+                                                            (congrArg And
+                                                              (Eq.trans Int.ofNat_inj._simp_2
+                                                                (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁹))
+                                                                  (Int.toNat_of_nonneg a✝⁷))))
+                                                            (congr
+                                                              (congrArg And
+                                                                (forall_congr fun a =>
+                                                                  Eq.trans
+                                                                    Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                                    (forall_congr fun x =>
+                                                                      Eq.trans (propext Bool.eq_eq_true)
+                                                                        (congr
+                                                                          (congrArg Eq
+                                                                            (Eq.trans decide_eq_true_iff._simp_2
+                                                                              (congrArg (f✝⁹ a)
+                                                                                decide_eq_true_iff._simp_2)))
+                                                                          (Eq.trans decide_eq_true_iff._simp_2
+                                                                            (congrArg (f✝⁶ a)
+                                                                              decide_eq_true_iff._simp_2))))))
+                                                              (congrArg
+                                                                (And
+                                                                  (Append.append st0.plan_channel
+                                                                      [⟨f✝¹.toNat,
+                                                                            Eq.substr
+                                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                                (congrFun'
+                                                                                  (congrArg LT.lt
+                                                                                    (Int.toNat_of_nonneg a✝²))
+                                                                                  6))
+                                                                              st0.latest_plan.isLt⟩ +
+                                                                          1] =
+                                                                    st1.plan_channel))
+                                                                (congrArg
+                                                                  (And
+                                                                    (∀ (a : ENACTORS),
+                                                                      st0.enactor_processing a =
+                                                                        st1.enactor_processing a))
+                                                                  (forall_congr fun a =>
+                                                                    Eq.trans Int.ofNat_inj._simp_2
+                                                                      (congr
+                                                                        (congrArg Eq
+                                                                          (Int.toNat_of_nonneg
+                                                                            (of_eq_true
+                                                                              ((fun a₁ => eq_true (a✝⁸ a₁)) a))))
+                                                                        (Int.toNat_of_nonneg
+                                                                          (of_eq_true
+                                                                            ((fun a₁ => eq_true (a✝⁶ a₁)) a)))))))))))
+                                                      (Eq.refl ¬True)))))
+                                              (congr
+                                                (congrArg Or
+                                                  (congrArg (And (_tr1_tag = __veil_tag.EnactorReceiveStep))
+                                                    (congrArg (And ¬st0.plan_channel = [])
+                                                      (congr
+                                                        (congrArg And
+                                                          (Eq.trans Int.ofNat_inj._simp_2
+                                                            (congrFun'
+                                                              (congrArg Eq
+                                                                (Int.toNat_of_nonneg
+                                                                  (of_eq_true
+                                                                    ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                      _tr1_act_EnactorReceiveStep_arg0_self))))
+                                                              0)))
+                                                        (congrArg
+                                                          (And
+                                                            (⟨f✝².toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun'
+                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 6))
+                                                                  st0.current_plan.isLt⟩ =
+                                                              ⟨f✝.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun'
+                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                                                  st1.current_plan.isLt⟩))
+                                                          (congrArg
+                                                            (And
+                                                              (⟨f✝¹.toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                                    st0.latest_plan.isLt⟩ =
+                                                                ⟨f.toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a)) 6))
+                                                                    st1.latest_plan.isLt⟩))
+                                                            (congr
+                                                              (congrArg And
+                                                                (Eq.trans Int.ofNat_inj._simp_2
+                                                                  (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁹))
+                                                                    (Int.toNat_of_nonneg a✝⁷))))
+                                                              (congr
+                                                                (congrArg And
+                                                                  (forall_congr fun a =>
+                                                                    Eq.trans
+                                                                      Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                                      (forall_congr fun x =>
+                                                                        Eq.trans (propext Bool.eq_eq_true)
+                                                                          (congr
+                                                                            (congrArg Eq
+                                                                              (Eq.trans decide_eq_true_iff._simp_2
+                                                                                (congrArg (f✝⁹ a)
+                                                                                  decide_eq_true_iff._simp_2)))
+                                                                            (Eq.trans decide_eq_true_iff._simp_2
+                                                                              (congrArg (f✝⁶ a)
+                                                                                decide_eq_true_iff._simp_2))))))
+                                                                (congrArg
+                                                                  (And (st0.plan_channel.tail = st1.plan_channel))
+                                                                  (congrArg
+                                                                    (And
+                                                                      (∀ (a : ENACTORS),
+                                                                        (if
+                                                                              _tr1_act_EnactorReceiveStep_arg0_self =
+                                                                                a then
+                                                                            st0.plan_channel.head!
+                                                                          else st0.enactor_processing a) =
+                                                                          st1.enactor_processing a))
+                                                                    (forall_congr fun a =>
+                                                                      Eq.trans Int.ofNat_inj._simp_2
+                                                                        (congr
+                                                                          (congrArg Eq
+                                                                            (Eq.trans Int.natCast_ite
+                                                                              (Smt.Preprocess.Embedding.ite_congr'
+                                                                                (Eq.refl
+                                                                                  (_tr1_act_EnactorReceiveStep_arg0_self =
+                                                                                    a))
+                                                                                (Eq.refl 1)
+                                                                                (Int.toNat_of_nonneg
+                                                                                  (of_eq_true
+                                                                                    ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                                      a))))))
+                                                                          (Int.toNat_of_nonneg
+                                                                            (of_eq_true
+                                                                              ((fun a₁ => eq_true (a✝⁶ a₁))
+                                                                                a)))))))))))))))
+                                                (congr
+                                                  (congrArg Or
+                                                    (congrArg (And (_tr1_tag = __veil_tag.EnactorApplyStep))
+                                                      (congr
+                                                        (congrArg And
+                                                          (Eq.trans Int.ofNat_inj._simp_2
+                                                            (congrFun'
+                                                              (congrArg Eq
+                                                                (Int.toNat_of_nonneg
+                                                                  (of_eq_true
+                                                                    ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                      _tr1_act_EnactorApplyStep_arg0_self))))
+                                                              1)))
+                                                        (Smt.Preprocess.Embedding.ite_congr'
+                                                          (Eq.trans decide_eq_true_iff._simp_2
+                                                            (congrArg
+                                                              (f✝⁹
+                                                                (st0.enactor_processing
+                                                                  _tr1_act_EnactorApplyStep_arg0_self))
+                                                              Bool.false_eq_true))
+                                                          (Smt.Preprocess.Embedding.ite_congr'
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹))
+                                                                ↑↑(st0.enactor_processing
+                                                                      _tr1_act_EnactorApplyStep_arg0_self)))
+                                                            (congrArg
+                                                              (And
+                                                                (st0.enactor_processing
+                                                                    _tr1_act_EnactorApplyStep_arg0_self =
+                                                                  ⟨f✝.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                                                      st1.current_plan.isLt⟩))
+                                                              (congrArg
+                                                                (And
+                                                                  (⟨f✝¹.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun'
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                            6))
+                                                                        st0.latest_plan.isLt⟩ =
+                                                                    ⟨f.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun'
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a)) 6))
+                                                                        st1.latest_plan.isLt⟩))
+                                                                (congr
+                                                                  (congrArg And
+                                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                                      (congrArg
+                                                                        (Eq
+                                                                          ↑↑(st0.enactor_processing
+                                                                                _tr1_act_EnactorApplyStep_arg0_self))
+                                                                        (Int.toNat_of_nonneg a✝⁷))))
+                                                                  (congr
+                                                                    (congrArg And
+                                                                      (forall_congr fun a =>
+                                                                        Eq.trans
+                                                                          Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                                          (forall_congr fun x =>
+                                                                            Eq.trans (propext Bool.eq_eq_true)
+                                                                              (congr
+                                                                                (congrArg Eq
+                                                                                  (Eq.trans decide_eq_true_iff._simp_2
+                                                                                    (congrArg (f✝⁹ a)
+                                                                                      decide_eq_true_iff._simp_2)))
+                                                                                (Eq.trans decide_eq_true_iff._simp_2
+                                                                                  (congrArg (f✝⁶ a)
+                                                                                    decide_eq_true_iff._simp_2))))))
+                                                                    (congrArg
+                                                                      (And (st0.plan_channel = st1.plan_channel))
+                                                                      (congrArg
+                                                                        (And
+                                                                          (∀ (a : ENACTORS),
+                                                                            st0.enactor_processing a =
+                                                                              st1.enactor_processing a))
+                                                                        (forall_congr fun a =>
+                                                                          Eq.trans Int.ofNat_inj._simp_2
+                                                                            (congr
+                                                                              (congrArg Eq
+                                                                                (Eq.trans Int.natCast_ite
+                                                                                  (Smt.Preprocess.Embedding.ite_congr'
+                                                                                    (Eq.refl
+                                                                                      (_tr1_act_EnactorApplyStep_arg0_self =
+                                                                                        a))
+                                                                                    (Eq.refl 2)
+                                                                                    (Int.toNat_of_nonneg
+                                                                                      (of_eq_true
+                                                                                        ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                                          a))))))
+                                                                              (Int.toNat_of_nonneg
+                                                                                (of_eq_true
+                                                                                  ((fun a₁ => eq_true (a✝⁶ a₁))
+                                                                                    a)))))))))))
+                                                            (congrArg
+                                                              (And
+                                                                (st0.enactor_processing
+                                                                    _tr1_act_EnactorApplyStep_arg0_self =
+                                                                  ⟨f✝.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                                                      st1.current_plan.isLt⟩))
+                                                              (congrArg
+                                                                (And
+                                                                  (⟨f✝¹.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun'
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                            6))
+                                                                        st0.latest_plan.isLt⟩ =
+                                                                    ⟨f.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun'
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a)) 6))
+                                                                        st1.latest_plan.isLt⟩))
+                                                                (congr
+                                                                  (congrArg And
+                                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                                      (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁹))
+                                                                        (Int.toNat_of_nonneg a✝⁷))))
+                                                                  (congr
+                                                                    (congrArg And
+                                                                      (forall_congr fun a =>
+                                                                        Eq.trans
+                                                                          Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                                          (forall_congr fun x =>
+                                                                            Eq.trans (propext Bool.eq_eq_true)
+                                                                              (congr
+                                                                                (congrArg Eq
+                                                                                  (Eq.trans decide_eq_true_iff._simp_2
+                                                                                    (congrArg (f✝⁹ a)
+                                                                                      decide_eq_true_iff._simp_2)))
+                                                                                (Eq.trans decide_eq_true_iff._simp_2
+                                                                                  (congrArg (f✝⁶ a)
+                                                                                    decide_eq_true_iff._simp_2))))))
+                                                                    (congrArg
+                                                                      (And (st0.plan_channel = st1.plan_channel))
+                                                                      (congrArg
+                                                                        (And
+                                                                          (∀ (a : ENACTORS),
+                                                                            st0.enactor_processing a =
+                                                                              st1.enactor_processing a))
+                                                                        (forall_congr fun a =>
+                                                                          Eq.trans Int.ofNat_inj._simp_2
+                                                                            (congr
+                                                                              (congrArg Eq
+                                                                                (Eq.trans Int.natCast_ite
+                                                                                  (Smt.Preprocess.Embedding.ite_congr'
+                                                                                    (Eq.refl
+                                                                                      (_tr1_act_EnactorApplyStep_arg0_self =
+                                                                                        a))
+                                                                                    (Eq.refl 2)
+                                                                                    (Int.toNat_of_nonneg
+                                                                                      (of_eq_true
+                                                                                        ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                                          a))))))
+                                                                              (Int.toNat_of_nonneg
+                                                                                (of_eq_true
+                                                                                  ((fun a₁ => eq_true (a✝⁶ a₁))
+                                                                                    a))))))))))))
+                                                          (congrArg
+                                                            (And
+                                                              (⟨f✝².toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 6))
+                                                                    st0.current_plan.isLt⟩ =
+                                                                ⟨f✝.toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congrFun'
+                                                                        (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 6))
+                                                                    st1.current_plan.isLt⟩))
+                                                            (congrArg
+                                                              (And
+                                                                (⟨f✝¹.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                                      st0.latest_plan.isLt⟩ =
+                                                                  ⟨f.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congrFun'
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a)) 6))
+                                                                      st1.latest_plan.isLt⟩))
+                                                              (congr
+                                                                (congrArg And
+                                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                                    (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁹))
+                                                                      (Int.toNat_of_nonneg a✝⁷))))
+                                                                (congr
+                                                                  (congrArg And
+                                                                    (forall_congr fun a =>
+                                                                      Eq.trans
+                                                                        Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                                        (forall_congr fun x =>
+                                                                          Eq.trans (propext Bool.eq_eq_true)
+                                                                            (congr
+                                                                              (congrArg Eq
+                                                                                (Eq.trans decide_eq_true_iff._simp_2
+                                                                                  (congrArg (f✝⁹ a)
+                                                                                    decide_eq_true_iff._simp_2)))
+                                                                              (Eq.trans decide_eq_true_iff._simp_2
+                                                                                (congrArg (f✝⁶ a)
+                                                                                  decide_eq_true_iff._simp_2))))))
+                                                                  (congrArg (And (st0.plan_channel = st1.plan_channel))
+                                                                    (congrArg
+                                                                      (And
+                                                                        (∀ (a : ENACTORS),
+                                                                          (if
+                                                                                _tr1_act_EnactorApplyStep_arg0_self =
+                                                                                  a then
+                                                                              0
+                                                                            else st0.enactor_processing a) =
+                                                                            st1.enactor_processing a))
+                                                                      (forall_congr fun a =>
+                                                                        Eq.trans Int.ofNat_inj._simp_2
+                                                                          (congr
+                                                                            (congrArg Eq
+                                                                              (Eq.trans Int.natCast_ite
+                                                                                (Smt.Preprocess.Embedding.ite_congr'
+                                                                                  (Eq.refl
+                                                                                    (_tr1_act_EnactorApplyStep_arg0_self =
+                                                                                      a))
+                                                                                  (Eq.refl 0)
+                                                                                  (Int.toNat_of_nonneg
+                                                                                    (of_eq_true
+                                                                                      ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                                        a))))))
+                                                                            (Int.toNat_of_nonneg
+                                                                              (of_eq_true
+                                                                                ((fun a₁ => eq_true (a✝⁶ a₁))
+                                                                                  a)))))))))))))))
+                                                  (congrArg (And (_tr1_tag = __veil_tag.EnactorCleanupStep))
+                                                    (congr
+                                                      (congrArg And
+                                                        (Eq.trans Int.ofNat_inj._simp_2
+                                                          (congrFun'
+                                                            (congrArg Eq
+                                                              (Int.toNat_of_nonneg
+                                                                (of_eq_true
+                                                                  ((fun a₁ => eq_true (a✝⁸ a₁))
+                                                                    _tr1_act_EnactorCleanupStep_arg0_self))))
+                                                            2)))
+                                                      (congrArg
+                                                        (And
+                                                          (⟨f✝².toNat,
+                                                              Eq.substr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                    6))
+                                                                st0.current_plan.isLt⟩ =
+                                                            ⟨f✝.toNat,
+                                                              Eq.substr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                    6))
+                                                                st1.current_plan.isLt⟩))
+                                                        (congrArg
+                                                          (And
+                                                            (⟨f✝¹.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun'
+                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 6))
+                                                                  st0.latest_plan.isLt⟩ =
+                                                              ⟨f.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                      6))
+                                                                  st1.latest_plan.isLt⟩))
+                                                          (congr
+                                                            (congrArg And
+                                                              (Eq.trans Int.ofNat_inj._simp_2
+                                                                (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁹))
+                                                                  (Int.toNat_of_nonneg a✝⁷))))
+                                                            (congr
+                                                              (congrArg And
+                                                                (forall_congr fun a =>
+                                                                  Eq.trans
+                                                                    Smt.Preprocess.Embedding.forall_bool_as_prop._simp_1
+                                                                    (forall_congr fun x =>
+                                                                      congrFun'
+                                                                        (congrArg Eq
+                                                                          (Smt.Preprocess.Embedding.ite_congr'
+                                                                            (congrArg (And ¬a = 0)
+                                                                              (congrArg
+                                                                                (And
+                                                                                  (st0.enactor_processing
+                                                                                      _tr1_act_EnactorCleanupStep_arg0_self ≥
+                                                                                    a))
+                                                                                (Eq.trans Int.ofNat_le._simp_2
+                                                                                  (congrFun'
+                                                                                    (congrArg LE.le
+                                                                                      (Int.toNat_of_nonneg a✝⁴))
+                                                                                    ↑↑(st0.enactor_processing
+                                                                                            _tr1_act_EnactorCleanupStep_arg0_self -
+                                                                                          a)))))
+                                                                            (Eq.refl (decide x == true))
+                                                                            (Eq.refl
+                                                                              (decide (f✝⁹ a (decide x = true))))))
+                                                                        (decide (f✝⁶ a (decide x = true))))))
+                                                              (congrArg (And (st0.plan_channel = st1.plan_channel))
+                                                                (congrArg
+                                                                  (And
+                                                                    (∀ (a : ENACTORS),
+                                                                      (if _tr1_act_EnactorCleanupStep_arg0_self = a then
+                                                                          0
+                                                                        else st0.enactor_processing a) =
+                                                                        st1.enactor_processing a))
+                                                                  (forall_congr fun a =>
+                                                                    Eq.trans Int.ofNat_inj._simp_2
+                                                                      (congr
+                                                                        (congrArg Eq
+                                                                          (Eq.trans Int.natCast_ite
+                                                                            (Smt.Preprocess.Embedding.ite_congr'
+                                                                              (Eq.refl
+                                                                                (_tr1_act_EnactorCleanupStep_arg0_self =
+                                                                                  a))
+                                                                              (Eq.refl 0)
+                                                                              (Int.toNat_of_nonneg
+                                                                                (of_eq_true
+                                                                                  ((fun a₁ => eq_true (a✝⁸ a₁)) a))))))
+                                                                        (Int.toNat_of_nonneg
+                                                                          (of_eq_true
+                                                                            ((fun a₁ => eq_true (a✝⁶ a₁))
+                                                                              a))))))))))))))))
+                                            (Eq.refl False)))))))))))))))

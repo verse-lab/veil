@@ -1,0 +1,25 @@
+/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean:343:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean:366:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean:402:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean:438:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean:461:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean:484:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean:520:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean:556:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean:579:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean:602:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean:638:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean:673:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.

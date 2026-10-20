@@ -1,0 +1,341 @@
+{
+  "row": {
+    "cell_id": "TLA_Paxos__d2__cached__default",
+    "model": "TLA_Paxos",
+    "path": "Examples/TLA/Paxos.lean",
+    "module": "Paxos",
+    "depth": 2,
+    "variant": "cached",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "type_mismatch",
+    "failure_message": "Application type mismatch: The argument\n  fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun msgSet.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun msgSet.insert =>\n                forall_congr fun msgSet.remove =>\n                  forall_congr fun msgSet.ofList =>\n                    forall_congr fun msgSet.toList =>\n                      forall_congr fun msgSet.filter =>\n                        forall_congr fun msgSet.union =>\n                          forall_congr fun msgSet.diff =>\n                            forall_congr fun msgSet.intersection =>\n                              forall_congr fun msgSet.subsets =>\n                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1\n                                  (forall_congr fun f_3 =>\n                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =>\n                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n                                        (forall_congr fun f_4 =>\n                                          forall_congr fun acSet.empty =>\n                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n                                              (forall_congr fun f_5 =>\n                                                forall_congr fun acSet.insert =>\n                                                  forall_congr fun acSet.remove =>\n                                                    forall_congr fun acSet.toList =>\n                                                      forall_congr fun acSet.union =>\n                                                        forall_congr fun acSet.diff => forall_congr ⋯)))))\nhas type\n  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),\n    (∀ (f_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Bool) (msgSet.empty : MsgSet)\n        (msgSet.isEmpty : MsgSet → Bool)\n        (msgSet.insert msgSet.remove : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)\n        (msgSet.ofList : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)\n        (msgSet.toList : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))\n        (msgSet.filter : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)\n        (msgSet.union msgSet.diff msgSet.intersection : MsgSet → MsgSet → MsgSet)\n        (msgSet.subsets : MsgSet → List MsgSet) (acSet.count : AcceptorSet → Nat)\n        (acSet.contains : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet)\n        (acSet.isEmpty : AcceptorSet → Bool) (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet)\n        (acSet.toList : AcceptorSet → List acceptor) (acSet.union acSet.diff : AcceptorSet → AcceptorSet → AcceptorSet)\n        (acSet.subsets : AcceptorSet → List AcceptorSet)\n        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag) (st0.msgs : MsgSet)\n        (st0.maxVBal st0.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st0.maxVal : acceptor → Option value)\n        (st1.msgs : MsgSet) (st1.maxVBal st1.maxBal : acceptor → Paxos.BallotTy f✝.toNat)\n        (st1.maxVal : acceptor → Option value) (st2.msgs : MsgSet)\n        (st2.maxVBal st2.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st2.maxVal : acceptor → Option value)\n        (v1 v2 : value) (b : Paxos.BallotTy f✝.toNat) (Q : quorum) (b_1 : Paxos.BallotTy f✝.toNat) (Q_1 : quorum),\n        (∀ (q1 q2 : quorum), ∃ r, mem.mem q1 r ∧ mem.mem q2 r) →\n          (fun a₁ => (f a₁).toNat) msgSet.empty = 0 →\n            ∀ (msgSet.empty_count : (fun a₁ => (f a₁).toNat) msgSet.empty = 0),\n              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false) →\n                ∀\n                  (msgSet.empty_contains :\n                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false),\n                  (∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)) →\n                    ∀\n                      (msgSet.isEmpty_iff_count_zero :\n                        ∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)),\n                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                          f_1 elem (msgSet.insert elem s) = true) →\n                        ∀\n                          (msgSet.contains_insert_self :\n                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                              f_1 elem (msgSet.insert elem s) = true),\n                          (∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                              ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s) →\n                            ∀\n                              (msgSet.contains_insert_other :\n                                ∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                  ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s),\n                              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                  msgSet.toList (msgSet.insert elem (msgSet.insert elem s)) =\n                                    msgSet.toList (msgSet.insert elem s)) →\n                                ∀\n                                  (msgSet.insert_idempotent :\n                                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                      msgSet.toList (msgSet.insert elem (msgSet.insert elem s)) =\n                                        msgSet.toList (msgSet.insert elem s)),\n                                  (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                      (fun a₁ => (f a₁).toNat) (msgSet.insert elem s) =\n                                        if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s\n                                        else (fun a₁ => (f a₁).toNat) s + 1) →\n                                    ∀\n                                      (msgSet.count_insert :\n                                        ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                          (fun a₁ => (f a₁).toNat) (msgSet.insert elem s) =\n                                            if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s\n                                            else (fun a₁ => (f a₁).toNat) s + 1),\n                                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                          f_1 elem (msgSet.remove elem s) = false) →\n                                        ∀\n                                          (msgSet.contains_remove_self :\n                                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                              f_1 elem (msgSet.remove elem s) = false),\n                                          ⋯) =\n      ∀ (a_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Prop) (a_2 : MsgSet) (a_3 : MsgSet → Prop)\n        (a_4 a_5 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)\n        (a_6 : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)\n        (a_7 : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))\n        (a_8 : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)\n        (a_9 a_10 a_11 : MsgSet → MsgSet → MsgSet) (a_12 : MsgSet → List MsgSet) (a_13 : AcceptorSet → Int),\n        (∀ (a₁ : AcceptorSet), a_13 a₁ ≥ 0) →\n          ∀ (a_15 : acceptor → AcceptorSet → Prop) (a_16 : AcceptorSet) (a_17 : AcceptorSet → Prop)\n            (a_18 a_19 : acceptor → AcceptorSet → Accepto",
+    "setup_ms": null,
+    "query_elaboration_ms": 143,
+    "batch_id": "TLA_Paxos__cached__default__batch1",
+    "batch_setup_ms": 13734,
+    "preprocessing_ms": 702,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-action-cache/results/queries/TLA_Paxos__d2__cached__default.smt2",
+    "source_path": "/tmp/veil-action-cache/results/batch-sources/TLA_Paxos__cached__default__batch1.lean",
+    "event_path": "/tmp/veil-action-cache/results/events/TLA_Paxos__d2__cached__default.jsonl",
+    "translation_log": "/tmp/veil-action-cache/results/logs/TLA_Paxos__d2__cached__default.translation.log",
+    "solver_log": "/tmp/veil-action-cache/results/logs/TLA_Paxos__d2__cached__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_Paxos",
+    "path": "Examples/TLA/Paxos.lean",
+    "module": "Paxos",
+    "cut_line": 300,
+    "query": "assert (∃ v1 v2, Chosen v1 ∧ Chosen v2 ∧ v1 ≠ v2)",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "Consistency invariant, line298",
+    "notes": "Uses earlier Chosen ghost predicate and bounded ballot datatype.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "33d64f8c189aaee8673022a912da0b5598fc3d99d8e7923cde919235df7b709b"
+  },
+  "original_sha256": "33d64f8c189aaee8673022a912da0b5598fc3d99d8e7923cde919235df7b709b",
+  "inherited_setup_options": [],
+  "source_sha256": "5b679b3d0a3d317add756c4c4a512f014f1913108b86aa22948edfdab6acec7a",
+  "batch_log": "/tmp/veil-action-cache/results/batch-logs/TLA_Paxos__cached__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 244904905,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 244905048,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905048,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 14301,
+      "mono_ms": 244905051,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905052,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3069,
+      "mono_ms": 244905053,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905053,
+      "phase": "cached_normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 41,
+      "event": "stage",
+      "heartbeats": 565996,
+      "mono_ms": 244905094,
+      "phase": "cached_normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905094,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3325,
+      "mono_ms": 244905095,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905095,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 82,
+      "event": "stage",
+      "heartbeats": 1128666,
+      "mono_ms": 244905177,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905177,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 49,
+      "event": "stage",
+      "heartbeats": 500357,
+      "mono_ms": 244905226,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905227,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 490,
+      "event": "stage",
+      "heartbeats": 6526414,
+      "mono_ms": 244905717,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905718,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 33,
+      "event": "stage",
+      "heartbeats": 427345,
+      "mono_ms": 244905751,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905752,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 25026,
+      "mono_ms": 244905754,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 707,
+      "event": "milestone",
+      "mono_ms": 244905755,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905755,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 23472,
+      "mono_ms": 244905757,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905757,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 2219,
+      "mono_ms": 244905757,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905757,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 244905757,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905757,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 244905758,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905758,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 196,
+      "event": "stage",
+      "heartbeats": 1554816,
+      "mono_ms": 244905955,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244905955,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7333,
+      "error": "Application type mismatch: The argument\n  fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun msgSet.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun msgSet.insert =>\n                forall_congr fun msgSet.remove =>\n                  forall_congr fun msgSet.ofList =>\n                    forall_congr fun msgSet.toList =>\n                      forall_congr fun msgSet.filter =>\n                        forall_congr fun msgSet.union =>\n                          forall_congr fun msgSet.diff =>\n                            forall_congr fun msgSet.intersection =>\n                              forall_congr fun msgSet.subsets =>\n                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1\n                                  (forall_congr fun f_3 =>\n                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =>\n                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n                                        (forall_congr fun f_4 =>\n                                          forall_congr fun acSet.empty =>\n                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n                                              (forall_congr fun f_5 =>\n                                                forall_congr fun acSet.insert =>\n                                                  forall_congr fun acSet.remove =>\n                                                    forall_congr fun acSet.toList =>\n                                                      forall_congr fun acSet.union =>\n                                                        forall_congr fun acSet.diff => forall_congr ⋯)))))\nhas type\n  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),\n    (∀ (f_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Bool) (msgSet.empty : MsgSet)\n        (msgSet.isEmpty : MsgSet → Bool)\n        (msgSet.insert msgSet.remove : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)\n        (msgSet.ofList : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)\n        (msgSet.toList : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))\n        (msgSet.filter : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)\n        (msgSet.union msgSet.diff msgSet.intersection : MsgSet → MsgSet → MsgSet)\n        (msgSet.subsets : MsgSet → List MsgSet) (acSet.count : AcceptorSet → Nat)\n        (acSet.contains : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet)\n        (acSet.isEmpty : AcceptorSet → Bool) (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet)\n        (acSet.toList : AcceptorSet → List acceptor) (acSet.union acSet.diff : AcceptorSet → AcceptorSet → AcceptorSet)\n        (acSet.subsets : AcceptorSet → List AcceptorSet)\n        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag) (st0.msgs : MsgSet)\n        (st0.maxVBal st0.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st0.maxVal : acceptor → Option value)\n        (st1.msgs : MsgSet) (st1.maxVBal st1.maxBal : acceptor → Paxos.BallotTy f✝.toNat)\n        (st1.maxVal : acceptor → Option value) (st2.msgs : MsgSet)\n        (st2.maxVBal st2.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st2.maxVal : acceptor → Option value)\n        (v1 v2 : value) (b : Paxos.BallotTy f✝.toNat) (Q : quorum) (b_1 : Paxos.BallotTy f✝.toNat) (Q_1 : quorum),\n        (∀ (q1 q2 : quorum), ∃ r, mem.mem q1 r ∧ mem.mem q2 r) →\n          (fun a₁ => (f a₁).toNat) msgSet.empty = 0 →\n            ∀ (msgSet.empty_count : (fun a₁ => (f a₁).toNat) msgSet.empty = 0),\n              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false) →\n                ∀\n                  (msgSet.empty_contains :\n                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false),\n                  (∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)) →\n                    ∀\n                      (msgSet.isEmpty_iff_count_zero :\n                        ∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)),\n                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                          f_1 elem (msgSet.insert elem s) = true) →\n                        ∀\n                          (msgSet.contains_insert_self :\n                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                              f_1 elem (msgSet.insert elem s) = true),\n                          (∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                              ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s) →\n                            ∀\n                              (msgSet.contains_insert_other :\n                                ∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                  ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s),\n                              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                  msgSet.toList (msgSet.insert elem (msgSet.insert elem s)) =\n                                    msgSet.toList (msgSet.insert elem s)) →\n                                ∀\n                                  (msgSet.insert_idempotent :\n                                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                      msgSet.toList (msgSet.insert elem (msgSet.insert elem s)) =\n                                        msgSet.toList (msgSet.insert elem s)),\n                                  (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                      (fun a₁ => (f a₁).toNat) (msgSet.insert elem s) =\n                                        if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s\n                                        else (fun a₁ => (f a₁).toNat) s + 1) →\n                                    ∀\n                                      (msgSet.count_insert :\n                                        ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                          (fun a₁ => (f a₁).toNat) (msgSet.insert elem s) =\n                                            if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s\n                                            else (fun a₁ => (f a₁).toNat) s + 1),\n                                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                          f_1 elem (msgSet.remove elem s) = false) →\n                                        ∀\n                                          (msgSet.contains_remove_self :\n                                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                              f_1 elem (msgSet.remove elem s) = false),\n                                          ⋯) =\n      ∀ (a_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Prop) (a_2 : MsgSet) (a_3 : MsgSet → Prop)\n        (a_4 a_5 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)\n        (a_6 : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)\n        (a_7 : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))\n        (a_8 : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)\n        (a_9 a_10 a_11 : MsgSet → MsgSet → MsgSet) (a_12 : MsgSet → List MsgSet) (a_13 : AcceptorSet → Int),\n        (∀ (a₁ : AcceptorSet), a_13 a₁ ≥ 0) →\n          ∀ (a_15 : acceptor → AcceptorSet → Prop) (a_16 : AcceptorSet) (a_17 : AcceptorSet → Prop)\n            (a_18 a_19 : acceptor → AcceptorSet → AcceptorSet) (a_20 : AcceptorSet → List acceptor)\n            (a_21 a_22 : AcceptorSet → AcceptorSet → AcceptorSet) (a_23 : AcceptorSet → List AcceptorSet)\n            (a_24 a_25 a_26 a_27 : ActionTag) (a_28 : MsgSet) (a_29 a_30 : acceptor → Paxos.BallotTy f✝.toNat)\n            (a_31 : acceptor → Option value) (a_32 : MsgSet) (a_33 a_34 : acceptor → Paxos.BallotTy f✝.toNat)\n            (a_35 : acceptor → Option value) (a_36 : MsgSet) (a_37 a_38 : acceptor → Paxos.BallotTy f✝.toNat)\n            (a_39 : acceptor → Option value) (a_40 a_41 : value) (a_42 : Paxos.BallotTy f✝.toNat) (a_43 : quorum)\n            (a_44 : Paxos.BallotTy f✝.toNat) (a_45 : quorum),\n            (∀ (q1 q2 : quorum), ∃ r, mem.mem q1 r ∧ mem.mem q2 r) →\n              f a_2 = 0 →\n                ∀ (a_48 : f a_2 = 0),\n                  (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), a_1 elem a_2 = False) →\n                    ∀ (msgSet.empty_contains : ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), a_1 elem a_2 = False),\n                      (∀ (s : MsgSet), a_3 s = (f s = 0)) →\n                        ∀ (msgSet.isEmpty_iff_count_zero : ∀ (s : MsgSet), a_3 s = (f s = 0)),\n                          (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet), a_1 elem (a_4 elem s)) →\n                            ∀\n                              (msgSet.contains_insert_self :\n                                ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet), a_1 elem (a_4 elem s)),\n                              (∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                  ¬elem₁ = elem₂ → a_1 elem₁ (a_4 elem₂ s) = a_1 elem₁ s) →\n                                ∀\n                                  (msgSet.contains_insert_other :\n                                    ∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                      ¬elem₁ = elem₂ → a_1 elem₁ (a_4 elem₂ s) = a_1 elem₁ s),\n                                  (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                      a_7 (a_4 elem (a_4 elem s)) = a_7 (a_4 elem s)) →\n                                    ∀\n                                      (msgSet.insert_idempotent :\n                                        ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                          a_7 (a_4 elem (a_4 elem s)) = a_7 (a_4 elem s)),\n                                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                          f (a_4 elem s) = if a_1 elem s then f s else f s + 1) →\n                                        ∀\n                                          (msgSet.count_insert :\n                                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                              f (a_4 elem s) = if a_1 elem s then f s else f s + 1),\n                                          (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),\n                                              a_1 elem (a_5 elem s) = False) →\n                                            ⋯\nbut is expected to have type\n  (∀ (a₁ : MsgSet), f a₁ ≥ 0) → ?q₁ = ?q₂\nin the application\n  implies_congr_ctx (Eq.refl (∀ (a₁ : MsgSet), f a₁ ≥ 0)) fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun msgSet.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun msgSet.insert =>\n                forall_congr fun msgSet.remove =>\n                  forall_congr fun msgSet.ofList =>\n                    forall_congr fun msgSet.toList =>\n                      forall_congr fun msgSet.filter =>\n                        forall_congr fun msgSet.union =>\n                          forall_congr fun msgSet.diff =>\n                            forall_congr fun msgSet.intersection =>\n                              forall_congr fun msgSet.subsets =>\n                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1\n                                  (forall_congr fun f_3 =>\n                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =>\n                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n                                        (forall_congr fun f_4 =>\n                                          forall_congr fun acSet.empty =>\n                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n                                              (forall_congr fun f_5 =>\n                                                forall_congr fun acSet.insert =>\n                                                  forall_congr fun acSet.remove =>\n                                                    forall_congr fun acSet.toList =>\n                                                      forall_congr fun acSet.union =>\n                                                        forall_congr fun acSet.diff => ⋯)))))",
+      "event": "stage",
+      "heartbeats": 9565118,
+      "mono_ms": 244914055,
+      "phase": "embedding",
+      "status": "failed"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 244914439,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_Paxos__cached__default__batch1",
+    "source": "/tmp/veil-action-cache/results/batch-sources/TLA_Paxos__cached__default__batch1.lean",
+    "log": "/tmp/veil-action-cache/results/batch-logs/TLA_Paxos__cached__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 127482,
+    "setup_ms": 13734,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-action-cache/results/batch-sources/TLA_Paxos__cached__default__batch1.lean"
+    ]
+  }
+}

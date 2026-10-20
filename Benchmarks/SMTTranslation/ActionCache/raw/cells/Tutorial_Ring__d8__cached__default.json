@@ -1,0 +1,402 @@
+{
+  "row": {
+    "cell_id": "Tutorial_Ring__d8__cached__default",
+    "model": "Tutorial_Ring",
+    "path": "Examples/Tutorial/Ring.lean",
+    "module": "Ring",
+    "depth": 8,
+    "variant": "cached",
+    "profile": "default",
+    "status": "solver_timeout",
+    "translation_status": "complete",
+    "solver_status": "timeout",
+    "failure_phase": "solver",
+    "failure_kind": "solver_timeout",
+    "failure_message": "TIMEOUT",
+    "setup_ms": null,
+    "query_elaboration_ms": 25,
+    "batch_id": "Tutorial_Ring__cached__default__batch1",
+    "batch_setup_ms": 6170,
+    "preprocessing_ms": 374,
+    "smt_preprocessing_ms": 35,
+    "translation_ms": 84,
+    "serialization_ms": 0,
+    "query_total_ms": 493,
+    "solver_ms": 10015,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 18360,
+    "query_commands": 97,
+    "query_sha256": "167f8adeb85887e6d17e3e21d9762296af97e7d3c2b6769bc1d81953cb0f0146",
+    "query_path": "/tmp/veil-action-cache/results/queries/Tutorial_Ring__d8__cached__default.smt2",
+    "source_path": "/tmp/veil-action-cache/results/batch-sources/Tutorial_Ring__cached__default__batch1.lean",
+    "event_path": "/tmp/veil-action-cache/results/events/Tutorial_Ring__d8__cached__default.jsonl",
+    "translation_log": "/tmp/veil-action-cache/results/logs/Tutorial_Ring__d8__cached__default.translation.log",
+    "solver_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Tutorial_Ring",
+    "path": "Examples/Tutorial/Ring.lean",
+    "module": "Ring",
+    "cut_line": 229,
+    "query": "assert (∃ l1 l2, leader l1 ∧ leader l2 ∧ l1 ≠ l2)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "single_leader safety, line217",
+    "notes": "Tutorial relational Ring, retained separately from Ivy/Ring and POPL26/RingDec.",
+    "category": "Tutorial",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "3cb4e2274ab3192d8d2064ca93661527b26f0a0af14da77ff103be53f42d1be2"
+  },
+  "original_sha256": "3cb4e2274ab3192d8d2064ca93661527b26f0a0af14da77ff103be53f42d1be2",
+  "inherited_setup_options": [],
+  "source_sha256": "1abf76672999cd5db05bf0069010dc05966aaa7bf725d222aa933652fe9fd302",
+  "batch_log": "/tmp/veil-action-cache/results/batch-logs/Tutorial_Ring__cached__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 245834044,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 245834069,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834069,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 15340,
+      "mono_ms": 245834073,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834073,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3423,
+      "mono_ms": 245834074,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834074,
+      "phase": "cached_normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 16,
+      "event": "stage",
+      "heartbeats": 208575,
+      "mono_ms": 245834090,
+      "phase": "cached_normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834090,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 4572,
+      "mono_ms": 245834091,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834091,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 55,
+      "event": "stage",
+      "heartbeats": 836929,
+      "mono_ms": 245834146,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834146,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 31,
+      "event": "stage",
+      "heartbeats": 505533,
+      "mono_ms": 245834177,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834178,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 239,
+      "event": "stage",
+      "heartbeats": 3052125,
+      "mono_ms": 245834417,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834418,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 24,
+      "event": "stage",
+      "heartbeats": 407583,
+      "mono_ms": 245834442,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834442,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 20904,
+      "mono_ms": 245834445,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 376,
+      "event": "milestone",
+      "mono_ms": 245834445,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834445,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 17741,
+      "mono_ms": 245834446,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834447,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 1171,
+      "mono_ms": 245834447,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834447,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 245834447,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834447,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 245834447,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834447,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 30,
+      "event": "stage",
+      "heartbeats": 475711,
+      "mono_ms": 245834477,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834477,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 72974,
+      "mono_ms": 245834481,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834481,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 84,
+      "event": "stage",
+      "heartbeats": 952480,
+      "mono_ms": 245834565,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245834720,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 245834720,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 18360,
+      "commands": 97,
+      "elapsed_ms": 651,
+      "event": "pipeline",
+      "mono_ms": 245834721,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 245834783,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Tutorial_Ring__cached__default__batch1",
+    "source": "/tmp/veil-action-cache/results/batch-sources/Tutorial_Ring__cached__default__batch1.lean",
+    "log": "/tmp/veil-action-cache/results/batch-logs/Tutorial_Ring__cached__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 12851,
+    "setup_ms": 6170,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-action-cache/results/batch-sources/Tutorial_Ring__cached__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "TIMEOUT",
+      "elapsed_ms": 10015,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unknown"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-action-cache/results/events/Tutorial_Ring__d8__cached__default.solver.jsonl",
+    "batch_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

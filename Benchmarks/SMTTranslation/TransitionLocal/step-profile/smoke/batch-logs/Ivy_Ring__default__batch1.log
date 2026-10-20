@@ -1,0 +1,7 @@
+/tmp/veil-transition-local/step-profile/smoke/batch-sources/Ivy_Ring__default__batch1.lean:106:45: warning: Variable name `path` is not explicitly referenced.
+
+The binding can be removed (if unused) or named `_` (if used implicitly).
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+/tmp/veil-transition-local/step-profile/smoke/batch-sources/Ivy_Ring__default__batch1.lean:182:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/step-profile/smoke/batch-sources/Ivy_Ring__default__batch1.lean:200:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed

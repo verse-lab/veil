@@ -1,0 +1,417 @@
+{
+  "row": {
+    "cell_id": "TLA_Peterson__d2__local__default",
+    "model": "TLA_Peterson",
+    "path": "Examples/TLA/Peterson.lean",
+    "module": "Peterson",
+    "depth": 2,
+    "variant": "local",
+    "profile": "default",
+    "status": "unsat",
+    "translation_status": "complete",
+    "solver_status": "unsat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 44,
+    "batch_id": "TLA_Peterson__local__default__batch1",
+    "batch_setup_ms": 8831,
+    "preprocessing_ms": 367,
+    "smt_preprocessing_ms": 28,
+    "translation_ms": 41,
+    "serialization_ms": 0,
+    "query_total_ms": 436,
+    "solver_ms": 60,
+    "completed_total_ms": 496,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 8196,
+    "query_commands": 55,
+    "query_sha256": "03ad2c95c5d6a4a82f6e717824b4fa14f92f668ef99b60b4e9fb93c4e26d8510",
+    "query_path": "/tmp/veil-action-cache/results/queries/TLA_Peterson__d2__local__default.smt2",
+    "source_path": "/tmp/veil-action-cache/results/batch-sources/TLA_Peterson__local__default__batch1.lean",
+    "event_path": "/tmp/veil-action-cache/results/events/TLA_Peterson__d2__local__default.jsonl",
+    "translation_log": "/tmp/veil-action-cache/results/logs/TLA_Peterson__d2__local__default.translation.log",
+    "solver_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_Peterson",
+    "path": "Examples/TLA/Peterson.lean",
+    "module": "Peterson",
+    "cut_line": 124,
+    "query": "assert (∃ i j, i ≠ j ∧ lockcs i ∧ lockcs j)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "mutual_exclusion safety, lines108–109",
+    "notes": "lockcs is defined before #gen_spec; finite process/control enums.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "9c457ac1ab56f8e611c756bc584c4b1cd2502994a1376b56870ee40fb5c4731a"
+  },
+  "original_sha256": "9c457ac1ab56f8e611c756bc584c4b1cd2502994a1376b56870ee40fb5c4731a",
+  "inherited_setup_options": [],
+  "source_sha256": "21ad30ed2fbc4e2fc097c22c7e66cfd8f8d9243d01f59b9186246b2c583bee66",
+  "batch_log": "/tmp/veil-action-cache/results/batch-logs/TLA_Peterson__local__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 245163216,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 245163260,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163260,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 7801,
+      "mono_ms": 245163262,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163262,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 2646,
+      "mono_ms": 245163263,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163263,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 180,
+      "event": "stage",
+      "heartbeats": 1973141,
+      "mono_ms": 245163443,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163443,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6,
+      "event": "stage",
+      "heartbeats": 78180,
+      "mono_ms": 245163449,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163452,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 2574,
+      "mono_ms": 245163453,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163453,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 34,
+      "event": "stage",
+      "heartbeats": 414535,
+      "mono_ms": 245163487,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163487,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 15,
+      "event": "stage",
+      "heartbeats": 202361,
+      "mono_ms": 245163503,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163503,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 111,
+      "event": "stage",
+      "heartbeats": 1432060,
+      "mono_ms": 245163614,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163614,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 11,
+      "event": "stage",
+      "heartbeats": 144977,
+      "mono_ms": 245163625,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163625,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6,
+      "event": "stage",
+      "heartbeats": 56776,
+      "mono_ms": 245163631,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 371,
+      "event": "milestone",
+      "mono_ms": 245163631,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163631,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 50713,
+      "mono_ms": 245163636,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163636,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 962,
+      "mono_ms": 245163636,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163636,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 245163636,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163636,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 245163636,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163636,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 19,
+      "event": "stage",
+      "heartbeats": 240418,
+      "mono_ms": 245163655,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163655,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 32776,
+      "mono_ms": 245163659,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163659,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 41,
+      "event": "stage",
+      "heartbeats": 405584,
+      "mono_ms": 245163700,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245163779,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 245163779,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 8196,
+      "commands": 55,
+      "elapsed_ms": 519,
+      "event": "pipeline",
+      "mono_ms": 245163780,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 245163827,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_Peterson__local__default__batch1",
+    "source": "/tmp/veil-action-cache/results/batch-sources/TLA_Peterson__local__default__batch1.lean",
+    "log": "/tmp/veil-action-cache/results/batch-logs/TLA_Peterson__local__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 26800,
+    "setup_ms": 8831,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-action-cache/results/batch-sources/TLA_Peterson__local__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 60,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unsat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-action-cache/results/events/TLA_Peterson__d2__local__default.solver.jsonl",
+    "batch_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

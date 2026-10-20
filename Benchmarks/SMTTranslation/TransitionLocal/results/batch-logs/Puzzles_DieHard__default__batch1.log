@@ -1,0 +1,18 @@
+/tmp/veil-transition-local/results/batch-sources/Puzzles_DieHard__default__batch1.lean:191:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Puzzles_DieHard__default__batch1.lean:214:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Puzzles_DieHard__default__batch1.lean:250:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Puzzles_DieHard__default__batch1.lean:286:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Puzzles_DieHard__default__batch1.lean:309:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Puzzles_DieHard__default__batch1.lean:332:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Puzzles_DieHard__default__batch1.lean:368:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Puzzles_DieHard__default__batch1.lean:404:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Puzzles_DieHard__default__batch1.lean:427:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Puzzles_DieHard__default__batch1.lean:450:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Puzzles_DieHard__default__batch1.lean:486:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+/tmp/veil-transition-local/results/batch-sources/Puzzles_DieHard__default__batch1.lean:522:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth <num>` to increase limit
+use `set_option diagnostics true` to get diagnostic information

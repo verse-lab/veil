@@ -1,0 +1,154 @@
+{
+  "row": {
+    "cell_id": "Tutorial_FloodSet__d16__early__default",
+    "model": "Tutorial_FloodSet",
+    "path": "Examples/Tutorial/FloodSet.lean",
+    "module": "FloodSet",
+    "depth": 16,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "hoist",
+    "failure_kind": "simp_steps",
+    "failure_message": "`simp` failed: maximum number of steps exceeded\n\nNote: The target expression is not type-correct under the `instances` transparency level, which may have triggered the failure. This is usually caused by unfolding of semireducible definitions in prior tactic steps. Use `set_option linter.tacticCheckInstances true` to investigate the source of the issue.\nFull error:\n  Application type mismatch: The argument\n    (fun delivery __veil_state N V => instDecidableOr) x✝¹ (getFrom st0) x✝ x\n  has type\n    Decidable\n      ((getFrom st0).3 x✝ x = true ∨\n        ¬(getFrom st0).5 x✝ = true ∧ ∃ sender, x✝¹ sender x✝ = true ∧ (getFrom st0).3 sender x = true)\n  but is expected to have type\n    Decidable (st0.W x✝ x = true ∨ ¬st0.crashed x✝ = true ∧ ∃ sender, x✝¹ sender x✝ = true ∧ st0.W sender x = true)\n  in the application\n    @decide (st0.W x✝ x = true ∨ ¬st0.crashed x✝ = true ∧ ∃ sender, x✝¹ sender x✝ = true ∧ st0.W sender x = true)\n      ((fun delivery __veil_state N V => instDecidableOr) x✝¹ (getFrom st0) x✝ x)",
+    "setup_ms": null,
+    "query_elaboration_ms": 41,
+    "batch_id": "Tutorial_FloodSet__default__batch1",
+    "batch_setup_ms": 10290,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/Tutorial_FloodSet__d16__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Tutorial_FloodSet__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Tutorial_FloodSet__d16__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Tutorial_FloodSet__d16__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/Tutorial_FloodSet__d16__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Tutorial_FloodSet",
+    "path": "Examples/Tutorial/FloodSet.lean",
+    "module": "FloodSet",
+    "cut_line": 341,
+    "query": "assert (¬ (∀ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 → v1 = v2))",
+    "query_kind": "existing_safety_violation",
+    "expected_status": null,
+    "query_source": "Existing agreement_violation trace, lines392–395",
+    "notes": "Tutorial variant overlaps Synchronous/FloodSet but is retained as its own model-bearing file.",
+    "category": "Tutorial",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "1681ed0b9021af0c86687c2dc8f931b9d09b801d7b14cc59a25998f1039df8d4"
+  },
+  "original_sha256": "1681ed0b9021af0c86687c2dc8f931b9d09b801d7b14cc59a25998f1039df8d4",
+  "inherited_setup_options": [],
+  "source_sha256": "b760913df2de38b01c2db2bbb77dce37104eaae2c191cba7f52e91854184a348",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Tutorial_FloodSet__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 210492838,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 210492879,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210492879,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6,
+      "event": "stage",
+      "heartbeats": 23456,
+      "mono_ms": 210492885,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210492885,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1008,
+      "event": "stage",
+      "heartbeats": 12185711,
+      "mono_ms": 210493893,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210493893,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 12955,
+      "error": "`simp` failed: maximum number of steps exceeded\n\nNote: The target expression is not type-correct under the `instances` transparency level, which may have triggered the failure. This is usually caused by unfolding of semireducible definitions in prior tactic steps. Use `set_option linter.tacticCheckInstances true` to investigate the source of the issue.\nFull error:\n  Application type mismatch: The argument\n    (fun delivery __veil_state N V => instDecidableOr) x✝¹ (getFrom st0) x✝ x\n  has type\n    Decidable\n      ((getFrom st0).3 x✝ x = true ∨\n        ¬(getFrom st0).5 x✝ = true ∧ ∃ sender, x✝¹ sender x✝ = true ∧ (getFrom st0).3 sender x = true)\n  but is expected to have type\n    Decidable (st0.W x✝ x = true ∨ ¬st0.crashed x✝ = true ∧ ∃ sender, x✝¹ sender x✝ = true ∧ st0.W sender x = true)\n  in the application\n    @decide (st0.W x✝ x = true ∨ ¬st0.crashed x✝ = true ∧ ∃ sender, x✝¹ sender x✝ = true ∧ st0.W sender x = true)\n      ((fun delivery __veil_state N V => instDecidableOr) x✝¹ (getFrom st0) x✝ x)",
+      "event": "stage",
+      "heartbeats": 160733875,
+      "mono_ms": 210506860,
+      "phase": "hoist",
+      "status": "failed"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 210507189,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Tutorial_FloodSet__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Tutorial_FloodSet__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Tutorial_FloodSet__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 75306,
+    "setup_ms": 10290,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Tutorial_FloodSet__default__batch1.lean"
+    ]
+  }
+}

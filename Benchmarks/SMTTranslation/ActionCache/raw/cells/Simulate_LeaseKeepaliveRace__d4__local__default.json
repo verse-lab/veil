@@ -1,0 +1,417 @@
+{
+  "row": {
+    "cell_id": "Simulate_LeaseKeepaliveRace__d4__local__default",
+    "model": "Simulate_LeaseKeepaliveRace",
+    "path": "Examples/Simulate/LeaseKeepaliveRace.lean",
+    "module": "LeaseKeepaliveRace",
+    "depth": 4,
+    "variant": "local",
+    "profile": "default",
+    "status": "unsat",
+    "translation_status": "complete",
+    "solver_status": "unsat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 34,
+    "batch_id": "Simulate_LeaseKeepaliveRace__local__default__batch1",
+    "batch_setup_ms": 7106,
+    "preprocessing_ms": 537,
+    "smt_preprocessing_ms": 28,
+    "translation_ms": 63,
+    "serialization_ms": 0,
+    "query_total_ms": 628,
+    "solver_ms": 611,
+    "completed_total_ms": 1239,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 16136,
+    "query_commands": 78,
+    "query_sha256": "c973907cb084d1996095e3743d2dc7f81c386489b494b96c7a942131eb98a4a4",
+    "query_path": "/tmp/veil-action-cache/results/queries/Simulate_LeaseKeepaliveRace__d4__local__default.smt2",
+    "source_path": "/tmp/veil-action-cache/results/batch-sources/Simulate_LeaseKeepaliveRace__local__default__batch1.lean",
+    "event_path": "/tmp/veil-action-cache/results/events/Simulate_LeaseKeepaliveRace__d4__local__default.jsonl",
+    "translation_log": "/tmp/veil-action-cache/results/logs/Simulate_LeaseKeepaliveRace__d4__local__default.translation.log",
+    "solver_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Simulate_LeaseKeepaliveRace",
+    "path": "Examples/Simulate/LeaseKeepaliveRace.lean",
+    "module": "LeaseKeepaliveRace",
+    "cut_line": 76,
+    "query": "assert (∃ c k, keepalive_succeeded c ∧ key_attached c k ∧ ¬ key_present k)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "renewal_keeps_keys_live safety, lines73–74",
+    "notes": "Designed for simulation; no concrete client/key domain bounds are imported.",
+    "category": "Simulate",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "b7260456926f066778e048945d6899f823df2e23780429a4866f147d75c68018"
+  },
+  "original_sha256": "b7260456926f066778e048945d6899f823df2e23780429a4866f147d75c68018",
+  "inherited_setup_options": [],
+  "source_sha256": "ac7ec89e667ca70ce5ece8ffa67cf03fa0bbed6c289dd96a5b5d95d5990fb32f",
+  "batch_log": "/tmp/veil-action-cache/results/batch-logs/Simulate_LeaseKeepaliveRace__local__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 243088775,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 243088809,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243088810,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 11755,
+      "mono_ms": 243088813,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243088813,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3230,
+      "mono_ms": 243088814,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243088814,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 311,
+      "event": "stage",
+      "heartbeats": 3398070,
+      "mono_ms": 243089125,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089126,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 8,
+      "event": "stage",
+      "heartbeats": 123863,
+      "mono_ms": 243089134,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089138,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3370,
+      "mono_ms": 243089140,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089140,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 35,
+      "event": "stage",
+      "heartbeats": 493519,
+      "mono_ms": 243089175,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089175,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 23,
+      "event": "stage",
+      "heartbeats": 305374,
+      "mono_ms": 243089198,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089198,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 139,
+      "event": "stage",
+      "heartbeats": 1831815,
+      "mono_ms": 243089337,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089337,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 13,
+      "event": "stage",
+      "heartbeats": 242886,
+      "mono_ms": 243089350,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089351,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 24341,
+      "mono_ms": 243089354,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 544,
+      "event": "milestone",
+      "mono_ms": 243089354,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089354,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 21247,
+      "mono_ms": 243089356,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089356,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 455,
+      "mono_ms": 243089356,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089356,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 243089356,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089356,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 243089356,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089356,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 22,
+      "event": "stage",
+      "heartbeats": 295257,
+      "mono_ms": 243089378,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089378,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 54374,
+      "mono_ms": 243089382,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089382,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 63,
+      "event": "stage",
+      "heartbeats": 649784,
+      "mono_ms": 243089445,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243089590,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 243089590,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 16136,
+      "commands": 78,
+      "elapsed_ms": 780,
+      "event": "pipeline",
+      "mono_ms": 243089591,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 243089640,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Simulate_LeaseKeepaliveRace__local__default__batch1",
+    "source": "/tmp/veil-action-cache/results/batch-sources/Simulate_LeaseKeepaliveRace__local__default__batch1.lean",
+    "log": "/tmp/veil-action-cache/results/batch-logs/Simulate_LeaseKeepaliveRace__local__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 21313,
+    "setup_ms": 7106,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-action-cache/results/batch-sources/Simulate_LeaseKeepaliveRace__local__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 611,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unsat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-action-cache/results/events/Simulate_LeaseKeepaliveRace__d4__local__default.solver.jsonl",
+    "batch_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

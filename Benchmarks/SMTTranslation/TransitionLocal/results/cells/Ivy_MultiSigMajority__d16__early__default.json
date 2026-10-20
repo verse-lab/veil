@@ -1,0 +1,387 @@
+{
+  "row": {
+    "cell_id": "Ivy_MultiSigMajority__d16__early__default",
+    "model": "Ivy_MultiSigMajority",
+    "path": "Examples/Ivy/MultiSigMajority.lean",
+    "module": "MultiSigMajority",
+    "depth": 16,
+    "variant": "early",
+    "profile": "default",
+    "status": "solver_timeout",
+    "translation_status": "complete",
+    "solver_status": "timeout",
+    "failure_phase": "solver",
+    "failure_kind": "solver_timeout",
+    "failure_message": "TIMEOUT",
+    "setup_ms": null,
+    "query_elaboration_ms": 141,
+    "batch_id": "Ivy_MultiSigMajority__default__batch1",
+    "batch_setup_ms": 13073,
+    "preprocessing_ms": 7891,
+    "smt_preprocessing_ms": 175,
+    "translation_ms": 575,
+    "serialization_ms": 0,
+    "query_total_ms": 8641,
+    "solver_ms": 10034,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 152526,
+    "query_commands": 456,
+    "query_sha256": "997ace37ef59b8651c5cbc0c4c015c00b9ce4aad289e4b71d94768d231ef5b2b",
+    "query_path": "/tmp/veil-transition-local/results/queries/Ivy_MultiSigMajority__d16__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_MultiSigMajority__d16__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Ivy_MultiSigMajority__d16__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_MultiSigMajority",
+    "path": "Examples/Ivy/MultiSigMajority.lean",
+    "module": "MultiSigMajority",
+    "cut_line": 95,
+    "query": "assert (∃ n k v d, cancelled n k v d ∧ ¬ expired d)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "cancelled_after_deadline safety, line88",
+    "notes": "Quorum-based variant, distinct from MultiSigAll.",
+    "category": "Ivy",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "725aa85ca8aaee64fada61e1a9d547b2c4a5f10c4babb06c76c7f1ca7fd82d5f"
+  },
+  "original_sha256": "725aa85ca8aaee64fada61e1a9d547b2c4a5f10c4babb06c76c7f1ca7fd82d5f",
+  "inherited_setup_options": [],
+  "source_sha256": "6a3b925c8c926ee13ae6b3f3f3f3284055aff0438f1973092774bfc728089685",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Ivy_MultiSigMajority__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207092942,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 207093083,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207093084,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 67,
+      "event": "stage",
+      "heartbeats": 195868,
+      "mono_ms": 207093151,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207093151,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3154,
+      "event": "stage",
+      "heartbeats": 37271877,
+      "mono_ms": 207096306,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207096306,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 63,
+      "event": "stage",
+      "heartbeats": 1008382,
+      "mono_ms": 207096369,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207096444,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 10,
+      "event": "stage",
+      "heartbeats": 3419,
+      "mono_ms": 207096455,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207096455,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1920,
+      "event": "stage",
+      "heartbeats": 21363386,
+      "mono_ms": 207098375,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207098376,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 177,
+      "event": "stage",
+      "heartbeats": 2849547,
+      "mono_ms": 207098553,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207098555,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2362,
+      "event": "stage",
+      "heartbeats": 28015721,
+      "mono_ms": 207100917,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207101009,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 138,
+      "event": "stage",
+      "heartbeats": 2772979,
+      "mono_ms": 207101147,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 8064,
+      "event": "milestone",
+      "mono_ms": 207101148,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207101149,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6,
+      "event": "stage",
+      "heartbeats": 45991,
+      "mono_ms": 207101155,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207101155,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 163,
+      "mono_ms": 207101155,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207101155,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 207101155,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207101155,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "heartbeats": 27022,
+      "mono_ms": 207101162,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207101162,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 132,
+      "event": "stage",
+      "heartbeats": 1916992,
+      "mono_ms": 207101294,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207101294,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 30,
+      "event": "stage",
+      "heartbeats": 510746,
+      "mono_ms": 207101324,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207101325,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 575,
+      "event": "stage",
+      "heartbeats": 6529304,
+      "mono_ms": 207101900,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207103162,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 207103163,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 152526,
+      "commands": 456,
+      "elapsed_ms": 10079,
+      "event": "pipeline",
+      "mono_ms": 207103164,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207103603,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_MultiSigMajority__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Ivy_MultiSigMajority__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 91909,
+    "setup_ms": 13073,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "TIMEOUT",
+      "elapsed_ms": 10034,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unknown"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_MultiSigMajority__d16__early__default.solver.jsonl",
+    "batch_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

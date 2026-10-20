@@ -1,0 +1,387 @@
+{
+  "row": {
+    "cell_id": "Tutorial_FloodSet__d4__early__default",
+    "model": "Tutorial_FloodSet",
+    "path": "Examples/Tutorial/FloodSet.lean",
+    "module": "FloodSet",
+    "depth": 4,
+    "variant": "early",
+    "profile": "default",
+    "status": "solver_timeout",
+    "translation_status": "complete",
+    "solver_status": "timeout",
+    "failure_phase": "solver",
+    "failure_kind": "solver_timeout",
+    "failure_message": "TIMEOUT",
+    "setup_ms": null,
+    "query_elaboration_ms": 24,
+    "batch_id": "Tutorial_FloodSet__default__batch1",
+    "batch_setup_ms": 10290,
+    "preprocessing_ms": 1261,
+    "smt_preprocessing_ms": 1180,
+    "translation_ms": 71,
+    "serialization_ms": 0,
+    "query_total_ms": 2512,
+    "solver_ms": 10015,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 13931,
+    "query_commands": 83,
+    "query_sha256": "7f710f1f43e30c4a525e98e40c664bd05712a129c6243f6c33391022660a16a6",
+    "query_path": "/tmp/veil-transition-local/results/queries/Tutorial_FloodSet__d4__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Tutorial_FloodSet__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Tutorial_FloodSet__d4__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Tutorial_FloodSet__d4__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Tutorial_FloodSet",
+    "path": "Examples/Tutorial/FloodSet.lean",
+    "module": "FloodSet",
+    "cut_line": 341,
+    "query": "assert (¬ (∀ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 → v1 = v2))",
+    "query_kind": "existing_safety_violation",
+    "expected_status": null,
+    "query_source": "Existing agreement_violation trace, lines392–395",
+    "notes": "Tutorial variant overlaps Synchronous/FloodSet but is retained as its own model-bearing file.",
+    "category": "Tutorial",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "1681ed0b9021af0c86687c2dc8f931b9d09b801d7b14cc59a25998f1039df8d4"
+  },
+  "original_sha256": "1681ed0b9021af0c86687c2dc8f931b9d09b801d7b14cc59a25998f1039df8d4",
+  "inherited_setup_options": [],
+  "source_sha256": "b760913df2de38b01c2db2bbb77dce37104eaae2c191cba7f52e91854184a348",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Tutorial_FloodSet__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 210471176,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 210471200,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210471200,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 7290,
+      "mono_ms": 210471202,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210471202,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 357,
+      "event": "stage",
+      "heartbeats": 3513122,
+      "mono_ms": 210471560,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210471560,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 585,
+      "event": "stage",
+      "heartbeats": 6939819,
+      "mono_ms": 210472145,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210472150,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 4096,
+      "mono_ms": 210472152,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210472153,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 127,
+      "event": "stage",
+      "heartbeats": 1310065,
+      "mono_ms": 210472280,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210472281,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 22,
+      "event": "stage",
+      "heartbeats": 283331,
+      "mono_ms": 210472303,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210472303,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 151,
+      "event": "stage",
+      "heartbeats": 1575062,
+      "mono_ms": 210472454,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210472467,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 16,
+      "event": "stage",
+      "heartbeats": 233304,
+      "mono_ms": 210472483,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 1283,
+      "event": "milestone",
+      "mono_ms": 210472483,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210472483,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 19122,
+      "mono_ms": 210472486,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210472486,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 295,
+      "mono_ms": 210472486,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210472486,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 210472486,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210472486,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3314,
+      "mono_ms": 210472487,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210472487,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 13,
+      "event": "stage",
+      "heartbeats": 189757,
+      "mono_ms": 210472500,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210472500,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1163,
+      "event": "stage",
+      "heartbeats": 4211847,
+      "mono_ms": 210473663,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210473664,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 71,
+      "event": "stage",
+      "heartbeats": 778016,
+      "mono_ms": 210473735,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210473833,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 210473833,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 13931,
+      "commands": 83,
+      "elapsed_ms": 2633,
+      "event": "pipeline",
+      "mono_ms": 210473833,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 210474004,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Tutorial_FloodSet__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Tutorial_FloodSet__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Tutorial_FloodSet__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 75306,
+    "setup_ms": 10290,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Tutorial_FloodSet__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "TIMEOUT",
+      "elapsed_ms": 10015,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unknown"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-transition-local/results/events/Tutorial_FloodSet__d4__early__default.solver.jsonl",
+    "batch_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

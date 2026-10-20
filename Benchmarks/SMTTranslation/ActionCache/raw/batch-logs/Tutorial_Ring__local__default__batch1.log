@@ -1,0 +1,6 @@
+/tmp/veil-action-cache/results/batch-sources/Tutorial_Ring__local__default__batch1.lean:360:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-action-cache/results/batch-sources/Tutorial_Ring__local__default__batch1.lean:396:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-action-cache/results/batch-sources/Tutorial_Ring__local__default__batch1.lean:432:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-action-cache/results/batch-sources/Tutorial_Ring__local__default__batch1.lean:468:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-action-cache/results/batch-sources/Tutorial_Ring__local__default__batch1.lean:504:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-action-cache/results/batch-sources/Tutorial_Ring__local__default__batch1.lean:540:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed

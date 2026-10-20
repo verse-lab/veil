@@ -1,0 +1,417 @@
+{
+  "row": {
+    "cell_id": "TLA_TwoPhaseCommit__d2__local__default",
+    "model": "TLA_TwoPhaseCommit",
+    "path": "Examples/TLA/TwoPhaseCommit.lean",
+    "module": "TwoPhaseCommit",
+    "depth": 2,
+    "variant": "local",
+    "profile": "default",
+    "status": "unsat",
+    "translation_status": "complete",
+    "solver_status": "unsat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 29,
+    "batch_id": "TLA_TwoPhaseCommit__default__batch1",
+    "batch_setup_ms": 8881,
+    "preprocessing_ms": 273,
+    "smt_preprocessing_ms": 14,
+    "translation_ms": 33,
+    "serialization_ms": 0,
+    "query_total_ms": 320,
+    "solver_ms": 72,
+    "completed_total_ms": 392,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 10065,
+    "query_commands": 62,
+    "query_sha256": "6a105ef4d955bbd2221bd9ad3276957f4721bacc23dee6c8a4f8c5f7692174b8",
+    "query_path": "/tmp/veil-transition-local/results/queries/TLA_TwoPhaseCommit__d2__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/TLA_TwoPhaseCommit__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/TLA_TwoPhaseCommit__d2__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/TLA_TwoPhaseCommit__d2__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_TwoPhaseCommit",
+    "path": "Examples/TLA/TwoPhaseCommit.lean",
+    "module": "TwoPhaseCommit",
+    "cut_line": 222,
+    "query": "assert (∃ rm1 rm2, (rmState rm1 == committed) ∧ (rmState rm2 == aborted))",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "TCConsistency invariant, lines219–220",
+    "notes": "Distinct finite-control-state model from Ivy/TwoPhaseCommit; preserves the original Bool equality predicate.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "26ea68038d872d5310c24b4a101b32580b56cfd9ebb7ad79adee47b5d770fba2"
+  },
+  "original_sha256": "26ea68038d872d5310c24b4a101b32580b56cfd9ebb7ad79adee47b5d770fba2",
+  "inherited_setup_options": [],
+  "source_sha256": "edc67f74bd333625bb92f61313f03ce14f243a29638ec0db1253b948c40f9652",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/TLA_TwoPhaseCommit__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 210431492,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 210431521,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431521,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 9285,
+      "mono_ms": 210431523,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431523,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 2855,
+      "mono_ms": 210431524,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431524,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 139,
+      "event": "stage",
+      "heartbeats": 1721232,
+      "mono_ms": 210431663,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431663,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6,
+      "event": "stage",
+      "heartbeats": 74493,
+      "mono_ms": 210431669,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431671,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 2571,
+      "mono_ms": 210431672,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431672,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 31,
+      "event": "stage",
+      "heartbeats": 424059,
+      "mono_ms": 210431703,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431704,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 12,
+      "event": "stage",
+      "heartbeats": 165344,
+      "mono_ms": 210431717,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431717,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 69,
+      "event": "stage",
+      "heartbeats": 943905,
+      "mono_ms": 210431786,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431786,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "heartbeats": 123823,
+      "mono_ms": 210431793,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431793,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 55529,
+      "mono_ms": 210431799,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 278,
+      "event": "milestone",
+      "mono_ms": 210431799,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431799,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 49947,
+      "mono_ms": 210431803,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431803,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 487,
+      "mono_ms": 210431803,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431803,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 210431804,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431804,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 210431804,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431804,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "heartbeats": 126541,
+      "mono_ms": 210431811,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431811,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 28245,
+      "mono_ms": 210431813,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431813,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 33,
+      "event": "stage",
+      "heartbeats": 363299,
+      "mono_ms": 210431846,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210431931,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 210431931,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 10065,
+      "commands": 62,
+      "elapsed_ms": 410,
+      "event": "pipeline",
+      "mono_ms": 210431932,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 210431979,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_TwoPhaseCommit__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/TLA_TwoPhaseCommit__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/TLA_TwoPhaseCommit__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 35974,
+    "setup_ms": 8881,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/TLA_TwoPhaseCommit__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 72,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unsat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-transition-local/results/events/TLA_TwoPhaseCommit__d2__local__default.solver.jsonl",
+    "batch_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

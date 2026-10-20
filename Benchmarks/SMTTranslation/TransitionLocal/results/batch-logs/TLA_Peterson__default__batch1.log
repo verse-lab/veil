@@ -1,0 +1,12 @@
+/tmp/veil-transition-local/results/batch-sources/TLA_Peterson__default__batch1.lean:253:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/TLA_Peterson__default__batch1.lean:276:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/TLA_Peterson__default__batch1.lean:312:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/TLA_Peterson__default__batch1.lean:348:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/TLA_Peterson__default__batch1.lean:371:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/TLA_Peterson__default__batch1.lean:394:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/TLA_Peterson__default__batch1.lean:430:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/TLA_Peterson__default__batch1.lean:466:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/TLA_Peterson__default__batch1.lean:489:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/TLA_Peterson__default__batch1.lean:512:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/TLA_Peterson__default__batch1.lean:548:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/TLA_Peterson__default__batch1.lean:584:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed

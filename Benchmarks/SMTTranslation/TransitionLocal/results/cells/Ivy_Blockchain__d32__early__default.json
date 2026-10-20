@@ -1,0 +1,145 @@
+{
+  "row": {
+    "cell_id": "Ivy_Blockchain__d32__early__default",
+    "model": "Ivy_Blockchain",
+    "path": "Examples/Ivy/Blockchain.lean",
+    "module": "Blockchain",
+    "depth": 32,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "hoist",
+    "failure_kind": "heartbeats",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:566:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached\n\nNote: Use `set_option maxHeartbeats <num>` to set the limit.\n\nHint: Additional diagnostic information may be available using the `set_option diagnostics true` command.\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 276,
+    "batch_id": "Ivy_Blockchain__default__batch1",
+    "batch_setup_ms": 14437,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/Ivy_Blockchain__d32__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_Blockchain__d32__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Ivy_Blockchain__d32__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/Ivy_Blockchain__d32__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_Blockchain",
+    "path": "Examples/Ivy/Blockchain.lean",
+    "module": "Blockchain",
+    "cut_line": 107,
+    "query": "assert (¬ (∀ n1 n2 n b t tr t1 t2, (((honest n1 ∧ honest n2) → ((block_confirmed n1 b t ∧ block_confirmed n2 b t) ∨ (¬ block_confirmed n1 b t ∧ ¬ block_confirmed n2 b t))) ∧ ((honest n1 ∧ honest n2) → ((transaction_confirmed tr n1 ∧ transaction_confirmed tr n2) ∨ (¬ transaction_confirmed tr n1 ∧ ¬ transaction_confirmed tr n2))) ∧ ((honest n ∧ leader n t2 ∧ transaction_time tr t1 ∧ tot.le t1 t2 ∧ broadcasted n ∧ honest n1) → transaction_confirmed tr n1))))",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "Entire combined safety declaration, lines87–90",
+    "notes": "Negates all three conjuncts together and explicitly binds every source autoimplicit variable.",
+    "category": "Ivy",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "b30613fcf224af61ab5e85cf42fb3fa33b739d2961b91687d4bbc0f711c8db20"
+  },
+  "original_sha256": "b30613fcf224af61ab5e85cf42fb3fa33b739d2961b91687d4bbc0f711c8db20",
+  "inherited_setup_options": [],
+  "source_sha256": "a5cbf0203dbf3ab604f3137fb661219bd12408c6788bb21f17ad17cfe9bc4f8e",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Ivy_Blockchain__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 206816352,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 206816628,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206816628,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 161,
+      "event": "stage",
+      "heartbeats": 449761,
+      "mono_ms": 206816789,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206816789,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5195,
+      "event": "stage",
+      "heartbeats": 56960669,
+      "mono_ms": 206821984,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206821984,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 206834490,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_Blockchain__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Ivy_Blockchain__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 118650,
+    "setup_ms": 14437,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean"
+    ]
+  }
+}

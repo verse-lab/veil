@@ -1,0 +1,1295 @@
+/tmp/veil-action-cache/results/batch-sources/TLA_BuggyCircularBuffer__cached__default__batch1.lean:261:2: error: Application type mismatch: The argument
+  fun a =>
+    implies_congr (Eq.refl True)
+      (implies_congr (Eq.refl (distinctN [__veil_tag.Put, __veil_tag.Get]))
+        (implies_congr (Eq.refl (∀ (__veil_x : ActionTag), __veil_x = __veil_tag.Put ∨ __veil_x = __veil_tag.Get))
+          (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 2))
+            (forall_prop_domain_congr
+              (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 2))
+              fun st0.tail.isLt =>
+              implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 2))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 2))
+                  fun st1.tail.isLt =>
+                  implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 2))
+                    (forall_prop_domain_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 2))
+                      fun st2.tail.isLt =>
+                      implies_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                        (forall_prop_domain_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                          fun st3.tail.isLt =>
+                          implies_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 2))
+                            (forall_prop_domain_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 2))
+                              fun st4.tail.isLt =>
+                              implies_congr
+                                (Eq.trans Int.ofNat_lt._simp_2 (congrArg (LT.lt 2) (Int.toNat_of_nonneg a✝⁵)))
+                                (implies_congr
+                                  (congrArg (And (∀ (a : Fin BUFFER_SIZE), ⟨0, initializer.do._proof_1⟩ = st0.buffer a))
+                                    (congr
+                                      (congrArg And
+                                        (Eq.trans Int.ofNat_inj._simp_2 (congrArg (Eq 0) (Int.toNat_of_nonneg a✝¹⁴))))
+                                      (congrArg
+                                        (And
+                                          (0 =
+                                            ⟨f✝³.toNat,
+                                              Eq.substr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 2))
+                                                st0.tail.isLt⟩))
+                                        (Eq.trans Int.ofNat_inj._simp_2 (congrArg (Eq 0) (Int.toNat_of_nonneg a✝¹³))))))
+                                  (implies_congr
+                                    (congr
+                                      (congrArg Or
+                                        (congrArg (And (_tr1_tag = __veil_tag.Put))
+                                          (Eq.trans Smt.Preprocess.Embedding.exists_nat_as_int'._simp_1
+                                            (congrArg Exists
+                                              (funext fun x =>
+                                                congrArg (And (x ≥ 0))
+                                                  (implies_congr_ctx (Eq.refl (x ≥ 0)) fun a =>
+                                                    propext
+                                                      (exists_prop_congr
+                                                        (fun h =>
+                                                          Iff.of_eq
+                                                            (congrArg
+                                                              (And
+                                                                (∀ (a : Fin BUFFER_SIZE),
+                                                                  (if
+                                                                        ⟨f✝³.toNat,
+                                                                            Eq.substr
+                                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                                (congrFun'
+                                                                                  (congrArg LT.lt
+                                                                                    (Int.toNat_of_nonneg a✝⁴))
+                                                                                  2))
+                                                                              st0.tail.isLt⟩ =
+                                                                          a then
+                                                                      ⟨x.toNat,
+                                                                        (Iff.of_eq
+                                                                              (Eq.refl (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                          ((Iff.of_eq
+                                                                                (Eq.refl (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                            ((Iff.of_eq
+                                                                                  (Eq.refl
+                                                                                    (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                              h))⟩
+                                                                    else st0.buffer a) =
+                                                                    st1.buffer a))
+                                                              (congr
+                                                                (congrArg And
+                                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                                    (congr (congrArg Eq (Int.toNat_of_nonneg a✝¹⁴))
+                                                                      (Int.toNat_of_nonneg a✝¹²))))
+                                                                (congrArg
+                                                                  (And
+                                                                    (⟨(f✝³.toNat + 1) % BUFFER_SIZE,
+                                                                        id
+                                                                            (Eq.refl
+                                                                              ((↑{ buffer := st0.buffer,
+                                                                                        head := f✝¹³.toNat,
+                                                                                        tail := ⟨f✝³.toNat, ⋯⟩,
+                                                                                        count := f✝¹².toNat }.tail +
+                                                                                  1) %
+                                                                                BUFFER_SIZE)) ▸
+                                                                          congrFun'
+                                                                              (congrArg HMod.hMod
+                                                                                (congrFun'
+                                                                                  (congrArg HAdd.hAdd
+                                                                                    (congrArg Fin.val
+                                                                                      (congrArg FieldRepresentation.get
+                                                                                        (congrArg State.tail ⋯))))
+                                                                                  1))
+                                                                              BUFFER_SIZE ▸
+                                                                            Put.do._proof_2 FieldAbstractType
+                                                                              (getFrom
+                                                                                (setIn
+                                                                                  {
+                                                                                    buffer :=
+                                                                                      FieldRepresentation.setSingle
+                                                                                        (some ⋯, ())
+                                                                                        (fun x_1 => ⟨x.toNat, ⋯⟩)
+                                                                                        (getFrom ⋯).buffer,
+                                                                                    head :=
+                                                                                      FieldRepresentation.setSingle ()
+                                                                                        (FieldRepresentation.get ⋯.head)
+                                                                                        (getFrom ⋯).head,
+                                                                                    tail :=
+                                                                                      (getFrom
+                                                                                          { buffer := st0.buffer,
+                                                                                            head := f✝¹³.toNat,
+                                                                                            tail := ⋯,
+                                                                                            count := f✝¹².toNat }).tail,
+                                                                                    count :=
+                                                                                      (getFrom
+                                                                                          { buffer := st0.buffer,
+                                                                                            head := f✝¹³.toNat,
+                                                                                            tail := ⋯,
+                                                                                            count :=
+                                                                                              f✝¹².toNat }).count }
+                                                                                  { buffer := st0.buffer,
+                                                                                    head := f✝¹³.toNat,
+                                                                                    tail :=
+                                                                                      ⟨f✝³.toNat,
+                                                                                        Eq.substr
+                                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                                            (congrFun'
+                                                                                              (congrArg LT.lt
+                                                                                                (Int.toNat_of_nonneg
+                                                                                                  a✝⁴))
+                                                                                              2))
+                                                                                          st0.tail.isLt⟩,
+                                                                                    count := f✝¹².toNat }))⟩ =
+                                                                      ⟨f✝².toNat,
+                                                                        Eq.substr
+                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                            (congrFun'
+                                                                              (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                              2))
+                                                                          st1.tail.isLt⟩))
+                                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                                    (congr
+                                                                      (congrArg Eq
+                                                                        (congrFun'
+                                                                          (congrArg HAdd.hAdd
+                                                                            (Int.toNat_of_nonneg a✝¹³))
+                                                                          1))
+                                                                      (Int.toNat_of_nonneg a✝¹¹)))))))
+                                                        (Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))))))))))
+                                      (congrArg (And (_tr1_tag = __veil_tag.Get))
+                                        (congr
+                                          (congrArg And
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congrArg (LT.lt 0) (Int.toNat_of_nonneg a✝¹³))))
+                                          (congrArg (And (∀ (a : Fin BUFFER_SIZE), st0.buffer a = st1.buffer a))
+                                            (congr
+                                              (congrArg And
+                                                (Eq.trans Int.ofNat_inj._simp_2
+                                                  (congr
+                                                    (congrArg Eq
+                                                      (congrFun'
+                                                        (congrArg HMod.hMod
+                                                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁴)) 1))
+                                                        2))
+                                                    (Int.toNat_of_nonneg a✝¹²))))
+                                              (congrArg
+                                                (And
+                                                  (⟨f✝³.toNat,
+                                                      Eq.substr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 2))
+                                                        st0.tail.isLt⟩ =
+                                                    ⟨f✝².toNat,
+                                                      Eq.substr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 2))
+                                                        st1.tail.isLt⟩))
+                                                (Eq.trans Int.ofNat_inj._simp_2
+                                                  (congr
+                                                    (congrArg Eq
+                                                      (Eq.trans Int.ofNat_sub'
+                                                        (Smt.Preprocess.Embedding.ite_congr'
+                                                          (Eq.trans Int.ofNat_le._simp_2
+                                                            (congrArg (LE.le 1) (Int.toNat_of_nonneg a✝¹³)))
+                                                          (congrFun' (congrArg HSub.hSub (Int.toNat_of_nonneg a✝¹³)) 1)
+                                                          (Eq.refl 0))))
+                                                    (Int.toNat_of_nonneg a✝¹¹)))))))))
+                                    (implies_congr
+                                      (congr
+                                        (congrArg Or
+                                          (congrArg (And (_tr2_tag = __veil_tag.Put))
+                                            (Eq.trans Smt.Preprocess.Embedding.exists_nat_as_int'._simp_1
+                                              (congrArg Exists
+                                                (funext fun x =>
+                                                  congrArg (And (x ≥ 0))
+                                                    (implies_congr_ctx (Eq.refl (x ≥ 0)) fun a =>
+                                                      propext
+                                                        (exists_prop_congr
+                                                          (fun h =>
+                                                            Iff.of_eq
+                                                              (congrArg
+                                                                (And
+                                                                  (∀ (a : Fin BUFFER_SIZE),
+                                                                    (if
+                                                                          ⟨f✝².toNat,
+                                                                              Eq.substr
+                                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                                  (congrFun'
+                                                                                    (congrArg LT.lt
+                                                                                      (Int.toNat_of_nonneg a✝³))
+                                                                                    2))
+                                                                                st1.tail.isLt⟩ =
+                                                                            a then
+                                                                        ⟨x.toNat,
+                                                                          (Iff.of_eq
+                                                                                (Eq.refl (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                            ((Iff.of_eq
+                                                                                  (Eq.refl
+                                                                                    (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                              ((Iff.of_eq
+                                                                                    (Eq.refl
+                                                                                      (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                                h))⟩
+                                                                      else st1.buffer a) =
+                                                                      st2.buffer a))
+                                                                (congr
+                                                                  (congrArg And
+                                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                                      (congr (congrArg Eq (Int.toNat_of_nonneg a✝¹²))
+                                                                        (Int.toNat_of_nonneg a✝¹⁰))))
+                                                                  (congrArg
+                                                                    (And
+                                                                      (⟨(f✝².toNat + 1) % BUFFER_SIZE,
+                                                                          id
+                                                                              (Eq.refl
+                                                                                ((↑{ buffer := st1.buffer,
+                                                                                          head := f✝¹¹.toNat, tail := ⋯,
+                                                                                          count := f✝¹⁰.toNat }.tail +
+                                                                                    1) %
+                                                                                  BUFFER_SIZE)) ▸
+                                                                            congrFun'
+                                                                                (congrArg HMod.hMod
+                                                                                  (congrFun'
+                                                                                    (congrArg HAdd.hAdd
+                                                                                      (congrArg Fin.val
+                                                                                        (congrArg
+                                                                                          FieldRepresentation.get ⋯)))
+                                                                                    1))
+                                                                                BUFFER_SIZE ▸
+                                                                              Put.do._proof_2 FieldAbstractType
+                                                                                (getFrom
+                                                                                  (setIn
+                                                                                    {
+                                                                                      buffer :=
+                                                                                        FieldRepresentation.setSingle
+                                                                                          (⋯, ()) (fun x_1 => ⋯)
+                                                                                          ⋯.buffer,
+                                                                                      head :=
+                                                                                        FieldRepresentation.setSingle ()
+                                                                                          (FieldRepresentation.get ⋯)
+                                                                                          ⋯.head,
+                                                                                      tail := (getFrom ⋯).tail,
+                                                                                      count := (getFrom ⋯).count }
+                                                                                    { buffer := st1.buffer,
+                                                                                      head := f✝¹¹.toNat,
+                                                                                      tail :=
+                                                                                        ⟨f✝².toNat,
+                                                                                          Eq.substr
+                                                                                            (Eq.trans
+                                                                                              Int.ofNat_lt._simp_2
+                                                                                              (congrFun'
+                                                                                                (congrArg LT.lt
+                                                                                                  (Int.toNat_of_nonneg
+                                                                                                    a✝³))
+                                                                                                2))
+                                                                                            st1.tail.isLt⟩,
+                                                                                      count := f✝¹⁰.toNat }))⟩ =
+                                                                        ⟨f✝¹.toNat,
+                                                                          Eq.substr
+                                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                                              (congrFun'
+                                                                                (congrArg LT.lt
+                                                                                  (Int.toNat_of_nonneg a✝²))
+                                                                                2))
+                                                                            st2.tail.isLt⟩))
+                                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                                      (congr
+                                                                        (congrArg Eq
+                                                                          (congrFun'
+                                                                            (congrArg HAdd.hAdd
+                                                                              (Int.toNat_of_nonneg a✝¹¹))
+                                                                            1))
+                                                                        (Int.toNat_of_nonneg a✝⁹)))))))
+                                                          (Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))))))))))
+                                        (congrArg (And (_tr2_tag = __veil_tag.Get))
+                                          (congr
+                                            (congrArg And
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrArg (LT.lt 0) (Int.toNat_of_nonneg a✝¹¹))))
+                                            (congrArg (And (∀ (a : Fin BUFFER_SIZE), st1.buffer a = st2.buffer a))
+                                              (congr
+                                                (congrArg And
+                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                    (congr
+                                                      (congrArg Eq
+                                                        (congrFun'
+                                                          (congrArg HMod.hMod
+                                                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹²))
+                                                              1))
+                                                          2))
+                                                      (Int.toNat_of_nonneg a✝¹⁰))))
+                                                (congrArg
+                                                  (And
+                                                    (⟨f✝².toNat,
+                                                        Eq.substr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 2))
+                                                          st1.tail.isLt⟩ =
+                                                      ⟨f✝¹.toNat,
+                                                        Eq.substr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 2))
+                                                          st2.tail.isLt⟩))
+                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                    (congr
+                                                      (congrArg Eq
+                                                        (Eq.trans Int.ofNat_sub'
+                                                          (Smt.Preprocess.Embedding.ite_congr'
+                                                            (Eq.trans Int.ofNat_le._simp_2
+                                                              (congrArg (LE.le 1) (Int.toNat_of_nonneg a✝¹¹)))
+                                                            (congrFun' (congrArg HSub.hSub (Int.toNat_of_nonneg a✝¹¹))
+                                                              1)
+                                                            (Eq.refl 0))))
+                                                      (Int.toNat_of_nonneg a✝⁹)))))))))
+                                      (implies_congr
+                                        (congr
+                                          (congrArg Or
+                                            (congrArg (And (_tr3_tag = __veil_tag.Put))
+                                              (Eq.trans Smt.Preprocess.Embedding.exists_nat_as_int'._simp_1
+                                                (congrArg Exists
+                                                  (funext fun x =>
+                                                    congrArg (And (x ≥ 0))
+                                                      (implies_congr_ctx (Eq.refl (x ≥ 0)) fun a =>
+                                                        propext
+                                                          (exists_prop_congr
+                                                            (fun h =>
+                                                              Iff.of_eq
+                                                                (congrArg
+                                                                  (And
+                                                                    (∀ (a : Fin BUFFER_SIZE),
+                                                                      (if
+                                                                            ⟨f✝¹.toNat,
+                                                                                Eq.substr
+                                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                                    (congrFun'
+                                                                                      (congrArg LT.lt
+                                                                                        (Int.toNat_of_nonneg a✝²))
+                                                                                      2))
+                                                                                  st2.tail.isLt⟩ =
+                                                                              a then
+                                                                          ⟨x.toNat,
+                                                                            (Iff.of_eq
+                                                                                  (Eq.refl
+                                                                                    (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                              ((Iff.of_eq
+                                                                                    (Eq.refl
+                                                                                      (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                                ((Iff.of_eq
+                                                                                      (Eq.refl
+                                                                                        (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                                  h))⟩
+                                                                        else st2.buffer a) =
+                                                                        st3.buffer a))
+                                                                  (congr
+                                                                    (congrArg And
+                                                                      (Eq.trans Int.ofNat_inj._simp_2
+                                                                        (congr (congrArg Eq (Int.toNat_of_nonneg a✝¹⁰))
+                                                                          (Int.toNat_of_nonneg a✝⁸))))
+                                                                    (congrArg
+                                                                      (And
+                                                                        (⟨(f✝¹.toNat + 1) % BUFFER_SIZE,
+                                                                            id (Eq.refl ((↑⋯.tail + 1) % BUFFER_SIZE)) ▸
+                                                                              congrFun'
+                                                                                  (congrArg HMod.hMod
+                                                                                    (congrFun'
+                                                                                      (congrArg HAdd.hAdd
+                                                                                        (congrArg Fin.val ⋯))
+                                                                                      1))
+                                                                                  BUFFER_SIZE ▸
+                                                                                Put.do._proof_2 FieldAbstractType
+                                                                                  (getFrom
+                                                                                    (setIn
+                                                                                      {
+                                                                                        buffer :=
+                                                                                          FieldRepresentation.setSingle
+                                                                                            ⋯ ⋯ ⋯,
+                                                                                        head :=
+                                                                                          FieldRepresentation.setSingle
+                                                                                            () ⋯ ⋯,
+                                                                                        tail := ⋯.tail,
+                                                                                        count := ⋯.count }
+                                                                                      { buffer := st2.buffer,
+                                                                                        head := f✝⁹.toNat,
+                                                                                        tail := ⟨f✝¹.toNat, ⋯⟩,
+                                                                                        count := f✝⁸.toNat }))⟩ =
+                                                                          ⟨f✝.toNat,
+                                                                            Eq.substr
+                                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                                (congrFun'
+                                                                                  (congrArg LT.lt
+                                                                                    (Int.toNat_of_nonneg a✝¹))
+                                                                                  2))
+                                                                              st3.tail.isLt⟩))
+                                                                      (Eq.trans Int.ofNat_inj._simp_2
+                                                                        (congr
+                                                                          (congrArg Eq
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝⁹))
+                                                                              1))
+                                                                          (Int.toNat_of_nonneg a✝⁷)))))))
+                                                            (Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))))))))))
+                                          (congrArg (And (_tr3_tag = __veil_tag.Get))
+                                            (congr
+                                              (congrArg And
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrArg (LT.lt 0) (Int.toNat_of_nonneg a✝⁹))))
+                                              (congrArg (And (∀ (a : Fin BUFFER_SIZE), st2.buffer a = st3.buffer a))
+                                                (congr
+                                                  (congrArg And
+                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                      (congr
+                                                        (congrArg Eq
+                                                          (congrFun'
+                                                            (congrArg HMod.hMod
+                                                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁰))
+                                                                1))
+                                                            2))
+                                                        (Int.toNat_of_nonneg a✝⁸))))
+                                                  (congrArg
+                                                    (And
+                                                      (⟨f✝¹.toNat,
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 2))
+                                                            st2.tail.isLt⟩ =
+                                                        ⟨f✝.toNat,
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                                                            st3.tail.isLt⟩))
+                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                      (congr
+                                                        (congrArg Eq
+                                                          (Eq.trans Int.ofNat_sub'
+                                                            (Smt.Preprocess.Embedding.ite_congr'
+                                                              (Eq.trans Int.ofNat_le._simp_2
+                                                                (congrArg (LE.le 1) (Int.toNat_of_nonneg a✝⁹)))
+                                                              (congrFun' (congrArg HSub.hSub (Int.toNat_of_nonneg a✝⁹))
+                                                                1)
+                                                              (Eq.refl 0))))
+                                                        (Int.toNat_of_nonneg a✝⁷)))))))))
+                                        (implies_congr
+                                          (congr
+                                            (congrArg Or
+                                              (congrArg (And (_tr4_tag = __veil_tag.Put))
+                                                (Eq.trans Smt.Preprocess.Embedding.exists_nat_as_int'._simp_1
+                                                  (congrArg Exists
+                                                    (funext fun x =>
+                                                      congrArg (And (x ≥ 0))
+                                                        (implies_congr_ctx (Eq.refl (x ≥ 0)) fun a_1 =>
+                                                          propext
+                                                            (exists_prop_congr
+                                                              (fun h =>
+                                                                Iff.of_eq
+                                                                  (congrArg
+                                                                    (And
+                                                                      (∀ (a : Fin BUFFER_SIZE),
+                                                                        (if
+                                                                              ⟨f✝.toNat,
+                                                                                  Eq.substr
+                                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                                      (congrFun'
+                                                                                        (congrArg LT.lt
+                                                                                          (Int.toNat_of_nonneg a✝¹))
+                                                                                        2))
+                                                                                    st3.tail.isLt⟩ =
+                                                                                a then
+                                                                            ⟨x.toNat,
+                                                                              (Iff.of_eq
+                                                                                    (Eq.refl
+                                                                                      (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                                ((Iff.of_eq
+                                                                                      (Eq.refl
+                                                                                        (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                                  ((Iff.of_eq
+                                                                                        (Eq.refl
+                                                                                          (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                                    h))⟩
+                                                                          else st3.buffer a) =
+                                                                          st4.buffer a))
+                                                                    (congr
+                                                                      (congrArg And
+                                                                        (Eq.trans Int.ofNat_inj._simp_2
+                                                                          (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁸))
+                                                                            (Int.toNat_of_nonneg a✝⁶))))
+                                                                      (congrArg
+                                                                        (And
+                                                                          (⟨(f✝.toNat + 1) % BUFFER_SIZE,
+                                                                              id (Eq.refl ((↑⋯ + 1) % BUFFER_SIZE)) ▸
+                                                                                congrFun'
+                                                                                    (congrArg HMod.hMod
+                                                                                      (congrFun' (congrArg HAdd.hAdd ⋯)
+                                                                                        1))
+                                                                                    BUFFER_SIZE ▸
+                                                                                  Put.do._proof_2 FieldAbstractType
+                                                                                    (getFrom
+                                                                                      (setIn
+                                                                                        { buffer := ⋯, head := ⋯,
+                                                                                          tail := ⋯, count := ⋯ }
+                                                                                        { buffer := st3.buffer,
+                                                                                          head := f✝⁷.toNat, tail := ⋯,
+                                                                                          count := f✝⁶.toNat }))⟩ =
+                                                                            ⟨f.toNat,
+                                                                              Eq.substr
+                                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                                  (congrFun'
+                                                                                    (congrArg LT.lt
+                                                                                      (Int.toNat_of_nonneg a))
+                                                                                    2))
+                                                                                st4.tail.isLt⟩))
+                                                                        (Eq.trans Int.ofNat_inj._simp_2
+                                                                          (congr
+                                                                            (congrArg Eq
+                                                                              (congrFun'
+                                                                                (congrArg HAdd.hAdd
+                                                                                  (Int.toNat_of_nonneg a✝⁷))
+                                                                                1))
+                                                                            (Int.toNat_of_nonneg a✝⁵)))))))
+                                                              (Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))))))))))
+                                            (congrArg (And (_tr4_tag = __veil_tag.Get))
+                                              (congr
+                                                (congrArg And
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congrArg (LT.lt 0) (Int.toNat_of_nonneg a✝⁷))))
+                                                (congrArg (And (∀ (a : Fin BUFFER_SIZE), st3.buffer a = st4.buffer a))
+                                                  (congr
+                                                    (congrArg And
+                                                      (Eq.trans Int.ofNat_inj._simp_2
+                                                        (congr
+                                                          (congrArg Eq
+                                                            (congrFun'
+                                                              (congrArg HMod.hMod
+                                                                (congrFun'
+                                                                  (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁸)) 1))
+                                                              2))
+                                                          (Int.toNat_of_nonneg a✝⁶))))
+                                                    (congrArg
+                                                      (And
+                                                        (⟨f✝.toNat,
+                                                            Eq.substr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                  2))
+                                                              st3.tail.isLt⟩ =
+                                                          ⟨f.toNat,
+                                                            Eq.substr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 2))
+                                                              st4.tail.isLt⟩))
+                                                      (Eq.trans Int.ofNat_inj._simp_2
+                                                        (congr
+                                                          (congrArg Eq
+                                                            (Eq.trans Int.ofNat_sub'
+                                                              (Smt.Preprocess.Embedding.ite_congr'
+                                                                (Eq.trans Int.ofNat_le._simp_2
+                                                                  (congrArg (LE.le 1) (Int.toNat_of_nonneg a✝⁷)))
+                                                                (congrFun'
+                                                                  (congrArg HSub.hSub (Int.toNat_of_nonneg a✝⁷)) 1)
+                                                                (Eq.refl 0))))
+                                                          (Int.toNat_of_nonneg a✝⁵)))))))))
+                                          (Eq.refl False))))))))))))))
+has type
+  ∀ (a : f ≥ 0),
+    (True →
+        distinctN [__veil_tag.Put, __veil_tag.Get] →
+          (∀ (__veil_x : ActionTag), __veil_x = __veil_tag.Put ∨ __veil_x = __veil_tag.Get) →
+            f✝³.toNat < BUFFER_SIZE →
+              ∀ (a : f✝³.toNat < BUFFER_SIZE),
+                f✝².toNat < BUFFER_SIZE →
+                  ∀ (st1.tail.isLt : f✝².toNat < BUFFER_SIZE),
+                    f✝¹.toNat < BUFFER_SIZE →
+                      ∀ (st2.tail.isLt : f✝¹.toNat < BUFFER_SIZE),
+                        f✝.toNat < BUFFER_SIZE →
+                          ∀ (st3.tail.isLt : f✝.toNat < BUFFER_SIZE),
+                            f.toNat < BUFFER_SIZE →
+                              ∀ (st4.tail.isLt : f.toNat < BUFFER_SIZE),
+                                f✝⁴.toNat > BUFFER_SIZE →
+                                  (∀ (a : Fin BUFFER_SIZE), ⟨0, initializer.do._proof_1⟩ = st0.buffer a) ∧
+                                      0 = f✝¹³.toNat ∧ 0 = ⟨f✝³.toNat, a⟩ ∧ 0 = f✝¹².toNat →
+                                    (_tr1_tag = __veil_tag.Put ∧
+                                          ∃ x h,
+                                            (∀ (a_1 : Fin BUFFER_SIZE),
+                                                (if ⟨f✝³.toNat, a⟩ = a_1 then ⟨x, ⋯⟩ else st0.buffer a_1) =
+                                                  st1.buffer a_1) ∧
+                                              f✝¹³.toNat = f✝¹¹.toNat ∧
+                                                ⟨(f✝³.toNat + 1) % BUFFER_SIZE, ⋯⟩ = ⟨f✝².toNat, st1.tail.isLt⟩ ∧
+                                                  f✝¹².toNat + 1 = f✝¹⁰.toNat) ∨
+                                        _tr1_tag = __veil_tag.Get ∧
+                                          f✝¹².toNat > 0 ∧
+                                            (∀ (a : Fin BUFFER_SIZE), st0.buffer a = st1.buffer a) ∧
+                                              (f✝¹³.toNat + 1) % BUFFER_SIZE = f✝¹¹.toNat ∧
+                                                ⟨f✝³.toNat, a⟩ = ⟨f✝².toNat, st1.tail.isLt⟩ ∧
+                                                  f✝¹².toNat - 1 = f✝¹⁰.toNat →
+                                      (_tr2_tag = __veil_tag.Put ∧
+                                            ∃ x h,
+                                              (∀ (a : Fin BUFFER_SIZE),
+                                                  (if ⟨f✝².toNat, st1.tail.isLt⟩ = a then ⟨x, ⋯⟩ else st1.buffer a) =
+                                                    st2.buffer a) ∧
+                                                f✝¹¹.toNat = f✝⁹.toNat ∧
+                                                  ⟨(f✝².toNat + 1) % BUFFER_SIZE, ⋯⟩ = ⟨f✝¹.toNat, st2.tail.isLt⟩ ∧
+                                                    f✝¹⁰.toNat + 1 = f✝⁸.toNat) ∨
+                                          _tr2_tag = __veil_tag.Get ∧
+                                            f✝¹⁰.toNat > 0 ∧
+                                              (∀ (a : Fin BUFFER_SIZE), st1.buffer a = st2.buffer a) ∧
+                                                (f✝¹¹.toNat + 1) % BUFFER_SIZE = f✝⁹.toNat ∧
+                                                  ⟨f✝².toNat, st1.tail.isLt⟩ = ⟨f✝¹.toNat, st2.tail.isLt⟩ ∧
+                                                    f✝¹⁰.toNat - 1 = f✝⁸.toNat →
+                                        (_tr3_tag = __veil_tag.Put ∧
+                                              ∃ x h,
+                                                (∀ (a : Fin BUFFER_SIZE),
+                                                    (if ⟨f✝¹.toNat, st2.tail.isLt⟩ = a then ⟨x, ⋯⟩ else st2.buffer a) =
+                                                      st3.buffer a) ∧
+                                                  f✝⁹.toNat = f✝⁷.toNat ∧
+                                                    ⟨(f✝¹.toNat + 1) % BUFFER_SIZE, ⋯⟩ = ⟨f✝.toNat, st3.tail.isLt⟩ ∧
+                                                      f✝⁸.toNat + 1 = f✝⁶.toNat) ∨
+                                            _tr3_tag = __veil_tag.Get ∧
+                                              f✝⁸.toNat > 0 ∧
+                                                (∀ (a : Fin BUFFER_SIZE), st2.buffer a = st3.buffer a) ∧
+                                                  (f✝⁹.toNat + 1) % BUFFER_SIZE = f✝⁷.toNat ∧
+                                                    ⟨f✝¹.toNat, st2.tail.isLt⟩ = ⟨f✝.toNat, st3.tail.isLt⟩ ∧
+                                                      f✝⁸.toNat - 1 = f✝⁶.toNat →
+                                          (_tr4_tag = __veil_tag.Put ∧
+                                                ∃ x h,
+                                                  (∀ (a : Fin BUFFER_SIZE),
+                                                      (if ⟨f✝.toNat, st3.tail.isLt⟩ = a then ⟨x, ⋯⟩ else st3.buffer a) =
+                                                        st4.buffer a) ∧
+                                                    f✝⁷.toNat = f✝⁵.toNat ∧
+                                                      ⟨(f✝.toNat + 1) % BUFFER_SIZE, ⋯⟩ = ⟨f.toNat, st4.tail.isLt⟩ ∧
+                                                        f✝⁶.toNat + 1 = f✝⁴.toNat) ∨
+                                              _tr4_tag = __veil_tag.Get ∧
+                                                f✝⁶.toNat > 0 ∧
+                                                  (∀ (a : Fin BUFFER_SIZE), st3.buffer a = st4.buffer a) ∧
+                                                    (f✝⁷.toNat + 1) % BUFFER_SIZE = f✝⁵.toNat ∧
+                                                      ⟨f✝.toNat, st3.tail.isLt⟩ = ⟨f.toNat, st4.tail.isLt⟩ ∧
+                                                        f✝⁶.toNat - 1 = f✝⁴.toNat →
+                                            False) =
+      (True →
+        distinctN [__veil_tag.Put, __veil_tag.Get] →
+          (∀ (__veil_x : ActionTag), __veil_x = __veil_tag.Put ∨ __veil_x = __veil_tag.Get) →
+            f✝³ < 2 →
+              ∀ (a_5 : f✝³ < 2),
+                f✝² < 2 →
+                  ∀ (st1.tail.isLt : f✝² < 2),
+                    f✝¹ < 2 →
+                      ∀ (st2.tail.isLt : f✝¹ < 2),
+                        f✝ < 2 →
+                          ∀ (st3.tail.isLt : f✝ < 2),
+                            f < 2 →
+                              ∀ (st4.tail.isLt : f < 2),
+                                2 < f✝⁴ →
+                                  (∀ (a : Fin BUFFER_SIZE), ⟨0, initializer.do._proof_1⟩ = st0.buffer a) ∧
+                                      0 = f✝¹³ ∧ 0 = ⟨f✝³.toNat, ⋯⟩ ∧ 0 = f✝¹² →
+                                    (_tr1_tag = __veil_tag.Put ∧
+                                          ∃ x,
+                                            x ≥ 0 ∧
+                                              (x ≥ 0 →
+                                                ∃ h,
+                                                  (∀ (a : Fin BUFFER_SIZE),
+                                                      (if ⟨f✝³.toNat, ⋯⟩ = a then ⟨x.toNat, ⋯⟩ else st0.buffer a) =
+                                                        st1.buffer a) ∧
+                                                    f✝¹³ = f✝¹¹ ∧
+                                                      ⟨(f✝³.toNat + 1) % BUFFER_SIZE, ⋯⟩ = ⟨f✝².toNat, ⋯⟩ ∧
+                                                        f✝¹² + 1 = f✝¹⁰)) ∨
+                                        _tr1_tag = __veil_tag.Get ∧
+                                          0 < f✝¹² ∧
+                                            (∀ (a : Fin BUFFER_SIZE), st0.buffer a = st1.buffer a) ∧
+                                              (f✝¹³ + 1) % 2 = f✝¹¹ ∧
+                                                ⟨f✝³.toNat, ⋯⟩ = ⟨f✝².toNat, ⋯⟩ ∧
+                                                  (if 1 ≤ f✝¹² then f✝¹² - 1 else 0) = f✝¹⁰ →
+                                      (_tr2_tag = __veil_tag.Put ∧
+                                            ∃ x,
+                                              x ≥ 0 ∧
+                                                (x ≥ 0 →
+                                                  ∃ h,
+                                                    (∀ (a : Fin BUFFER_SIZE),
+                                                        (if ⟨f✝².toNat, ⋯⟩ = a then ⟨x.toNat, ⋯⟩ else st1.buffer a) =
+                                                          st2.buffer a) ∧
+                                                      f✝¹¹ = f✝⁹ ∧
+                                                        ⟨(f✝².toNat + 1) % BUFFER_SIZE, ⋯⟩ = ⟨f✝¹.toNat, ⋯⟩ ∧
+                                                          f✝¹⁰ + 1 = f✝⁸)) ∨
+                                          _tr2_tag = __veil_tag.Get ∧
+                                            0 < f✝¹⁰ ∧
+                                              (∀ (a : Fin BUFFER_SIZE), st1.buffer a = st2.buffer a) ∧
+                                                (f✝¹¹ + 1) % 2 = f✝⁹ ∧
+                                                  ⟨f✝².toNat, ⋯⟩ = ⟨f✝¹.toNat, ⋯⟩ ∧
+                                                    (if 1 ≤ f✝¹⁰ then f✝¹⁰ - 1 else 0) = f✝⁸ →
+                                        (_tr3_tag = __veil_tag.Put ∧
+                                              ∃ x,
+                                                x ≥ 0 ∧
+                                                  (x ≥ 0 →
+                                                    ∃ h,
+                                                      (∀ (a : Fin BUFFER_SIZE),
+                                                          (if ⟨f✝¹.toNat, ⋯⟩ = a then ⟨x.toNat, ⋯⟩ else st2.buffer a) =
+                                                            st3.buffer a) ∧
+                                                        f✝⁹ = f✝⁷ ∧
+                                                          ⟨(f✝¹.toNat + 1) % BUFFER_SIZE, ⋯⟩ = ⟨f✝.toNat, ⋯⟩ ∧
+                                                            f✝⁸ + 1 = f✝⁶)) ∨
+                                            _tr3_tag = __veil_tag.Get ∧
+                                              0 < f✝⁸ ∧
+                                                (∀ (a : Fin BUFFER_SIZE), st2.buffer a = st3.buffer a) ∧
+                                                  (f✝⁹ + 1) % 2 = f✝⁷ ∧
+                                                    ⟨f✝¹.toNat, ⋯⟩ = ⟨f✝.toNat, ⋯⟩ ∧
+                                                      (if 1 ≤ f✝⁸ then f✝⁸ - 1 else 0) = f✝⁶ →
+                                          (_tr4_tag = __veil_tag.Put ∧
+                                                ∃ x,
+                                                  x ≥ 0 ∧
+                                                    (x ≥ 0 →
+                                                      ∃ h,
+                                                        (∀ (a : Fin BUFFER_SIZE),
+                                                            (if ⟨f✝.toNat, ⋯⟩ = a then ⟨x.toNat, ⋯⟩ else st3.buffer a) =
+                                                              st4.buffer a) ∧
+                                                          f✝⁷ = f✝⁵ ∧
+                                                            ⟨(f✝.toNat + 1) % BUFFER_SIZE, ⋯⟩ = ⟨f.toNat, ⋯⟩ ∧
+                                                              f✝⁶ + 1 = f✝⁴)) ∨
+                                              _tr4_tag = __veil_tag.Get ∧
+                                                0 < f✝⁶ ∧
+                                                  (∀ (a : Fin BUFFER_SIZE), st3.buffer a = st4.buffer a) ∧
+                                                    (f✝⁷ + 1) % 2 = f✝⁵ ∧
+                                                      ⟨f✝.toNat, ⋯⟩ = ⟨f.toNat, ⋯⟩ ∧
+                                                        (if 1 ≤ f✝⁶ then f✝⁶ - 1 else 0) = f✝⁴ →
+                                            False)
+but is expected to have type
+  f ≥ 0 → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (f ≥ 0)) fun a =>
+    implies_congr (Eq.refl True)
+      (implies_congr (Eq.refl (distinctN [__veil_tag.Put, __veil_tag.Get]))
+        (implies_congr (Eq.refl (∀ (__veil_x : ActionTag), __veil_x = __veil_tag.Put ∨ __veil_x = __veil_tag.Get))
+          (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 2))
+            (forall_prop_domain_congr
+              (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 2))
+              fun st0.tail.isLt =>
+              implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 2))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 2))
+                  fun st1.tail.isLt =>
+                  implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 2))
+                    (forall_prop_domain_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 2))
+                      fun st2.tail.isLt =>
+                      implies_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                        (forall_prop_domain_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                          fun st3.tail.isLt =>
+                          implies_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 2))
+                            (forall_prop_domain_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 2))
+                              fun st4.tail.isLt =>
+                              implies_congr
+                                (Eq.trans Int.ofNat_lt._simp_2 (congrArg (LT.lt 2) (Int.toNat_of_nonneg a✝⁵)))
+                                (implies_congr
+                                  (congrArg (And (∀ (a : Fin BUFFER_SIZE), ⟨0, initializer.do._proof_1⟩ = st0.buffer a))
+                                    (congr
+                                      (congrArg And
+                                        (Eq.trans Int.ofNat_inj._simp_2 (congrArg (Eq 0) (Int.toNat_of_nonneg a✝¹⁴))))
+                                      (congrArg
+                                        (And
+                                          (0 =
+                                            ⟨f✝³.toNat,
+                                              Eq.substr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 2))
+                                                st0.tail.isLt⟩))
+                                        (Eq.trans Int.ofNat_inj._simp_2 (congrArg (Eq 0) (Int.toNat_of_nonneg a✝¹³))))))
+                                  (implies_congr
+                                    (congr
+                                      (congrArg Or
+                                        (congrArg (And (_tr1_tag = __veil_tag.Put))
+                                          (Eq.trans Smt.Preprocess.Embedding.exists_nat_as_int'._simp_1
+                                            (congrArg Exists
+                                              (funext fun x =>
+                                                congrArg (And (x ≥ 0))
+                                                  (implies_congr_ctx (Eq.refl (x ≥ 0)) fun a =>
+                                                    propext
+                                                      (exists_prop_congr
+                                                        (fun h =>
+                                                          Iff.of_eq
+                                                            (congrArg
+                                                              (And
+                                                                (∀ (a : Fin BUFFER_SIZE),
+                                                                  (if
+                                                                        ⟨f✝³.toNat,
+                                                                            Eq.substr
+                                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                                (congrFun'
+                                                                                  (congrArg LT.lt
+                                                                                    (Int.toNat_of_nonneg a✝⁴))
+                                                                                  2))
+                                                                              st0.tail.isLt⟩ =
+                                                                          a then
+                                                                      ⟨x.toNat,
+                                                                        (Iff.of_eq
+                                                                              (Eq.refl (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                          ((Iff.of_eq
+                                                                                (Eq.refl (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                            ((Iff.of_eq
+                                                                                  (Eq.refl
+                                                                                    (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                              h))⟩
+                                                                    else st0.buffer a) =
+                                                                    st1.buffer a))
+                                                              (congr
+                                                                (congrArg And
+                                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                                    (congr (congrArg Eq (Int.toNat_of_nonneg a✝¹⁴))
+                                                                      (Int.toNat_of_nonneg a✝¹²))))
+                                                                (congrArg
+                                                                  (And
+                                                                    (⟨(f✝³.toNat + 1) % BUFFER_SIZE,
+                                                                        id
+                                                                            (Eq.refl
+                                                                              ((↑{ buffer := st0.buffer,
+                                                                                        head := f✝¹³.toNat, tail := ⋯,
+                                                                                        count := f✝¹².toNat }.tail +
+                                                                                  1) %
+                                                                                BUFFER_SIZE)) ▸
+                                                                          congrFun'
+                                                                              (congrArg HMod.hMod
+                                                                                (congrFun'
+                                                                                  (congrArg HAdd.hAdd
+                                                                                    (congrArg Fin.val
+                                                                                      (congrArg FieldRepresentation.get
+                                                                                        ⋯)))
+                                                                                  1))
+                                                                              BUFFER_SIZE ▸
+                                                                            Put.do._proof_2 FieldAbstractType
+                                                                              (getFrom
+                                                                                (setIn
+                                                                                  {
+                                                                                    buffer :=
+                                                                                      FieldRepresentation.setSingle
+                                                                                        (⋯, ()) (fun x_1 => ⋯) ⋯.buffer,
+                                                                                    head :=
+                                                                                      FieldRepresentation.setSingle ()
+                                                                                        (FieldRepresentation.get ⋯)
+                                                                                        ⋯.head,
+                                                                                    tail := (getFrom ⋯).tail,
+                                                                                    count := (getFrom ⋯).count }
+                                                                                  { buffer := st0.buffer,
+                                                                                    head := f✝¹³.toNat,
+                                                                                    tail :=
+                                                                                      ⟨f✝³.toNat,
+                                                                                        Eq.substr
+                                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                                            (congrFun'
+                                                                                              (congrArg LT.lt
+                                                                                                (Int.toNat_of_nonneg
+                                                                                                  a✝⁴))
+                                                                                              2))
+                                                                                          st0.tail.isLt⟩,
+                                                                                    count := f✝¹².toNat }))⟩ =
+                                                                      ⟨f✝².toNat,
+                                                                        Eq.substr
+                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                            (congrFun'
+                                                                              (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                              2))
+                                                                          st1.tail.isLt⟩))
+                                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                                    (congr
+                                                                      (congrArg Eq
+                                                                        (congrFun'
+                                                                          (congrArg HAdd.hAdd
+                                                                            (Int.toNat_of_nonneg a✝¹³))
+                                                                          1))
+                                                                      (Int.toNat_of_nonneg a✝¹¹)))))))
+                                                        (Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))))))))))
+                                      (congrArg (And (_tr1_tag = __veil_tag.Get))
+                                        (congr
+                                          (congrArg And
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congrArg (LT.lt 0) (Int.toNat_of_nonneg a✝¹³))))
+                                          (congrArg (And (∀ (a : Fin BUFFER_SIZE), st0.buffer a = st1.buffer a))
+                                            (congr
+                                              (congrArg And
+                                                (Eq.trans Int.ofNat_inj._simp_2
+                                                  (congr
+                                                    (congrArg Eq
+                                                      (congrFun'
+                                                        (congrArg HMod.hMod
+                                                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁴)) 1))
+                                                        2))
+                                                    (Int.toNat_of_nonneg a✝¹²))))
+                                              (congrArg
+                                                (And
+                                                  (⟨f✝³.toNat,
+                                                      Eq.substr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 2))
+                                                        st0.tail.isLt⟩ =
+                                                    ⟨f✝².toNat,
+                                                      Eq.substr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 2))
+                                                        st1.tail.isLt⟩))
+                                                (Eq.trans Int.ofNat_inj._simp_2
+                                                  (congr
+                                                    (congrArg Eq
+                                                      (Eq.trans Int.ofNat_sub'
+                                                        (Smt.Preprocess.Embedding.ite_congr'
+                                                          (Eq.trans Int.ofNat_le._simp_2
+                                                            (congrArg (LE.le 1) (Int.toNat_of_nonneg a✝¹³)))
+                                                          (congrFun' (congrArg HSub.hSub (Int.toNat_of_nonneg a✝¹³)) 1)
+                                                          (Eq.refl 0))))
+                                                    (Int.toNat_of_nonneg a✝¹¹)))))))))
+                                    (implies_congr
+                                      (congr
+                                        (congrArg Or
+                                          (congrArg (And (_tr2_tag = __veil_tag.Put))
+                                            (Eq.trans Smt.Preprocess.Embedding.exists_nat_as_int'._simp_1
+                                              (congrArg Exists
+                                                (funext fun x =>
+                                                  congrArg (And (x ≥ 0))
+                                                    (implies_congr_ctx (Eq.refl (x ≥ 0)) fun a =>
+                                                      propext
+                                                        (exists_prop_congr
+                                                          (fun h =>
+                                                            Iff.of_eq
+                                                              (congrArg
+                                                                (And
+                                                                  (∀ (a : Fin BUFFER_SIZE),
+                                                                    (if
+                                                                          ⟨f✝².toNat,
+                                                                              Eq.substr
+                                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                                  (congrFun'
+                                                                                    (congrArg LT.lt
+                                                                                      (Int.toNat_of_nonneg a✝³))
+                                                                                    2))
+                                                                                st1.tail.isLt⟩ =
+                                                                            a then
+                                                                        ⟨x.toNat,
+                                                                          (Iff.of_eq
+                                                                                (Eq.refl (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                            ((Iff.of_eq
+                                                                                  (Eq.refl
+                                                                                    (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                              ((Iff.of_eq
+                                                                                    (Eq.refl
+                                                                                      (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                                h))⟩
+                                                                      else st1.buffer a) =
+                                                                      st2.buffer a))
+                                                                (congr
+                                                                  (congrArg And
+                                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                                      (congr (congrArg Eq (Int.toNat_of_nonneg a✝¹²))
+                                                                        (Int.toNat_of_nonneg a✝¹⁰))))
+                                                                  (congrArg
+                                                                    (And
+                                                                      (⟨(f✝².toNat + 1) % BUFFER_SIZE,
+                                                                          id (Eq.refl ((↑⋯.tail + 1) % BUFFER_SIZE)) ▸
+                                                                            congrFun'
+                                                                                (congrArg HMod.hMod
+                                                                                  (congrFun'
+                                                                                    (congrArg HAdd.hAdd
+                                                                                      (congrArg Fin.val ⋯))
+                                                                                    1))
+                                                                                BUFFER_SIZE ▸
+                                                                              Put.do._proof_2 FieldAbstractType
+                                                                                (getFrom
+                                                                                  (setIn
+                                                                                    {
+                                                                                      buffer :=
+                                                                                        FieldRepresentation.setSingle ⋯
+                                                                                          ⋯ ⋯,
+                                                                                      head :=
+                                                                                        FieldRepresentation.setSingle ()
+                                                                                          ⋯ ⋯,
+                                                                                      tail := ⋯.tail, count := ⋯.count }
+                                                                                    { buffer := st1.buffer,
+                                                                                      head := f✝¹¹.toNat,
+                                                                                      tail := ⟨f✝².toNat, ⋯⟩,
+                                                                                      count := f✝¹⁰.toNat }))⟩ =
+                                                                        ⟨f✝¹.toNat,
+                                                                          Eq.substr
+                                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                                              (congrFun'
+                                                                                (congrArg LT.lt
+                                                                                  (Int.toNat_of_nonneg a✝²))
+                                                                                2))
+                                                                            st2.tail.isLt⟩))
+                                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                                      (congr
+                                                                        (congrArg Eq
+                                                                          (congrFun'
+                                                                            (congrArg HAdd.hAdd
+                                                                              (Int.toNat_of_nonneg a✝¹¹))
+                                                                            1))
+                                                                        (Int.toNat_of_nonneg a✝⁹)))))))
+                                                          (Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))))))))))
+                                        (congrArg (And (_tr2_tag = __veil_tag.Get))
+                                          (congr
+                                            (congrArg And
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrArg (LT.lt 0) (Int.toNat_of_nonneg a✝¹¹))))
+                                            (congrArg (And (∀ (a : Fin BUFFER_SIZE), st1.buffer a = st2.buffer a))
+                                              (congr
+                                                (congrArg And
+                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                    (congr
+                                                      (congrArg Eq
+                                                        (congrFun'
+                                                          (congrArg HMod.hMod
+                                                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹²))
+                                                              1))
+                                                          2))
+                                                      (Int.toNat_of_nonneg a✝¹⁰))))
+                                                (congrArg
+                                                  (And
+                                                    (⟨f✝².toNat,
+                                                        Eq.substr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 2))
+                                                          st1.tail.isLt⟩ =
+                                                      ⟨f✝¹.toNat,
+                                                        Eq.substr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 2))
+                                                          st2.tail.isLt⟩))
+                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                    (congr
+                                                      (congrArg Eq
+                                                        (Eq.trans Int.ofNat_sub'
+                                                          (Smt.Preprocess.Embedding.ite_congr'
+                                                            (Eq.trans Int.ofNat_le._simp_2
+                                                              (congrArg (LE.le 1) (Int.toNat_of_nonneg a✝¹¹)))
+                                                            (congrFun' (congrArg HSub.hSub (Int.toNat_of_nonneg a✝¹¹))
+                                                              1)
+                                                            (Eq.refl 0))))
+                                                      (Int.toNat_of_nonneg a✝⁹)))))))))
+                                      (implies_congr
+                                        (congr
+                                          (congrArg Or
+                                            (congrArg (And (_tr3_tag = __veil_tag.Put))
+                                              (Eq.trans Smt.Preprocess.Embedding.exists_nat_as_int'._simp_1
+                                                (congrArg Exists
+                                                  (funext fun x =>
+                                                    congrArg (And (x ≥ 0))
+                                                      (implies_congr_ctx (Eq.refl (x ≥ 0)) fun a =>
+                                                        propext
+                                                          (exists_prop_congr
+                                                            (fun h =>
+                                                              Iff.of_eq
+                                                                (congrArg
+                                                                  (And
+                                                                    (∀ (a : Fin BUFFER_SIZE),
+                                                                      (if
+                                                                            ⟨f✝¹.toNat,
+                                                                                Eq.substr
+                                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                                    (congrFun'
+                                                                                      (congrArg LT.lt
+                                                                                        (Int.toNat_of_nonneg a✝²))
+                                                                                      2))
+                                                                                  st2.tail.isLt⟩ =
+                                                                              a then
+                                                                          ⟨x.toNat,
+                                                                            (Iff.of_eq
+                                                                                  (Eq.refl
+                                                                                    (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                              ((Iff.of_eq
+                                                                                    (Eq.refl
+                                                                                      (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                                ((Iff.of_eq
+                                                                                      (Eq.refl
+                                                                                        (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                                  h))⟩
+                                                                        else st2.buffer a) =
+                                                                        st3.buffer a))
+                                                                  (congr
+                                                                    (congrArg And
+                                                                      (Eq.trans Int.ofNat_inj._simp_2
+                                                                        (congr (congrArg Eq (Int.toNat_of_nonneg a✝¹⁰))
+                                                                          (Int.toNat_of_nonneg a✝⁸))))
+                                                                    (congrArg
+                                                                      (And
+                                                                        (⟨(f✝¹.toNat + 1) % BUFFER_SIZE,
+                                                                            id (Eq.refl ((↑⋯ + 1) % BUFFER_SIZE)) ▸
+                                                                              congrFun'
+                                                                                  (congrArg HMod.hMod
+                                                                                    (congrFun' (congrArg HAdd.hAdd ⋯)
+                                                                                      1))
+                                                                                  BUFFER_SIZE ▸
+                                                                                Put.do._proof_2 FieldAbstractType
+                                                                                  (getFrom
+                                                                                    (setIn
+                                                                                      { buffer := ⋯, head := ⋯,
+                                                                                        tail := ⋯, count := ⋯ }
+                                                                                      { buffer := st2.buffer,
+                                                                                        head := f✝⁹.toNat, tail := ⋯,
+                                                                                        count := f✝⁸.toNat }))⟩ =
+                                                                          ⟨f✝.toNat,
+                                                                            Eq.substr
+                                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                                (congrFun'
+                                                                                  (congrArg LT.lt
+                                                                                    (Int.toNat_of_nonneg a✝¹))
+                                                                                  2))
+                                                                              st3.tail.isLt⟩))
+                                                                      (Eq.trans Int.ofNat_inj._simp_2
+                                                                        (congr
+                                                                          (congrArg Eq
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝⁹))
+                                                                              1))
+                                                                          (Int.toNat_of_nonneg a✝⁷)))))))
+                                                            (Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))))))))))
+                                          (congrArg (And (_tr3_tag = __veil_tag.Get))
+                                            (congr
+                                              (congrArg And
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrArg (LT.lt 0) (Int.toNat_of_nonneg a✝⁹))))
+                                              (congrArg (And (∀ (a : Fin BUFFER_SIZE), st2.buffer a = st3.buffer a))
+                                                (congr
+                                                  (congrArg And
+                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                      (congr
+                                                        (congrArg Eq
+                                                          (congrFun'
+                                                            (congrArg HMod.hMod
+                                                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁰))
+                                                                1))
+                                                            2))
+                                                        (Int.toNat_of_nonneg a✝⁸))))
+                                                  (congrArg
+                                                    (And
+                                                      (⟨f✝¹.toNat,
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 2))
+                                                            st2.tail.isLt⟩ =
+                                                        ⟨f✝.toNat,
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 2))
+                                                            st3.tail.isLt⟩))
+                                                    (Eq.trans Int.ofNat_inj._simp_2
+                                                      (congr
+                                                        (congrArg Eq
+                                                          (Eq.trans Int.ofNat_sub'
+                                                            (Smt.Preprocess.Embedding.ite_congr'
+                                                              (Eq.trans Int.ofNat_le._simp_2
+                                                                (congrArg (LE.le 1) (Int.toNat_of_nonneg a✝⁹)))
+                                                              (congrFun' (congrArg HSub.hSub (Int.toNat_of_nonneg a✝⁹))
+                                                                1)
+                                                              (Eq.refl 0))))
+                                                        (Int.toNat_of_nonneg a✝⁷)))))))))
+                                        (implies_congr
+                                          (congr
+                                            (congrArg Or
+                                              (congrArg (And (_tr4_tag = __veil_tag.Put))
+                                                (Eq.trans Smt.Preprocess.Embedding.exists_nat_as_int'._simp_1
+                                                  (congrArg Exists
+                                                    (funext fun x =>
+                                                      congrArg (And (x ≥ 0))
+                                                        (implies_congr_ctx (Eq.refl (x ≥ 0)) fun a_1 =>
+                                                          propext
+                                                            (exists_prop_congr
+                                                              (fun h =>
+                                                                Iff.of_eq
+                                                                  (congrArg
+                                                                    (And
+                                                                      (∀ (a : Fin BUFFER_SIZE),
+                                                                        (if
+                                                                              ⟨f✝.toNat,
+                                                                                  Eq.substr
+                                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                                      (congrFun'
+                                                                                        (congrArg LT.lt
+                                                                                          (Int.toNat_of_nonneg a✝¹))
+                                                                                        2))
+                                                                                    st3.tail.isLt⟩ =
+                                                                                a then
+                                                                            ⟨x.toNat,
+                                                                              (Iff.of_eq
+                                                                                    (Eq.refl
+                                                                                      (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                                ((Iff.of_eq
+                                                                                      (Eq.refl
+                                                                                        (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                                  ((Iff.of_eq
+                                                                                        (Eq.refl
+                                                                                          (x.toNat ∈ BUFFER_ELEMS))).mpr
+                                                                                    h))⟩
+                                                                          else st3.buffer a) =
+                                                                          st4.buffer a))
+                                                                    (congr
+                                                                      (congrArg And
+                                                                        (Eq.trans Int.ofNat_inj._simp_2
+                                                                          (congr (congrArg Eq (Int.toNat_of_nonneg a✝⁸))
+                                                                            (Int.toNat_of_nonneg a✝⁶))))
+                                                                      (congrArg
+                                                                        (And
+                                                                          (⟨(f✝.toNat + 1) % BUFFER_SIZE,
+                                                                              id (Eq.refl ((⋯ + 1) % BUFFER_SIZE)) ▸
+                                                                                congrFun'
+                                                                                    (congrArg HMod.hMod (congrFun' ⋯ 1))
+                                                                                    BUFFER_SIZE ▸
+                                                                                  Put.do._proof_2 FieldAbstractType
+                                                                                    (getFrom (setIn ⋯ ⋯))⟩ =
+                                                                            ⟨f.toNat,
+                                                                              Eq.substr
+                                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                                  (congrFun'
+                                                                                    (congrArg LT.lt
+                                                                                      (Int.toNat_of_nonneg a))
+                                                                                    2))
+                                                                                st4.tail.isLt⟩))
+                                                                        (Eq.trans Int.ofNat_inj._simp_2
+                                                                          (congr
+                                                                            (congrArg Eq
+                                                                              (congrFun'
+                                                                                (congrArg HAdd.hAdd
+                                                                                  (Int.toNat_of_nonneg a✝⁷))
+                                                                                1))
+                                                                            (Int.toNat_of_nonneg a✝⁵)))))))
+                                                              (Iff.of_eq (Eq.refl (x.toNat ∈ BUFFER_ELEMS))))))))))
+                                            (congrArg (And (_tr4_tag = __veil_tag.Get))
+                                              (congr
+                                                (congrArg And
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congrArg (LT.lt 0) (Int.toNat_of_nonneg a✝⁷))))
+                                                (congrArg (And (∀ (a : Fin BUFFER_SIZE), st3.buffer a = st4.buffer a))
+                                                  (congr
+                                                    (congrArg And
+                                                      (Eq.trans Int.ofNat_inj._simp_2
+                                                        (congr
+                                                          (congrArg Eq
+                                                            (congrFun'
+                                                              (congrArg HMod.hMod
+                                                                (congrFun'
+                                                                  (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁸)) 1))
+                                                              2))
+                                                          (Int.toNat_of_nonneg a✝⁶))))
+                                                    (congrArg
+                                                      (And
+                                                        (⟨f✝.toNat,
+                                                            Eq.substr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                  2))
+                                                              st3.tail.isLt⟩ =
+                                                          ⟨f.toNat,
+                                                            Eq.substr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congrFun' (congrArg LT.lt (Int.toNat_of_nonneg a)) 2))
+                                                              st4.tail.isLt⟩))
+                                                      (Eq.trans Int.ofNat_inj._simp_2
+                                                        (congr
+                                                          (congrArg Eq
+                                                            (Eq.trans Int.ofNat_sub'
+                                                              (Smt.Preprocess.Embedding.ite_congr'
+                                                                (Eq.trans Int.ofNat_le._simp_2
+                                                                  (congrArg (LE.le 1) (Int.toNat_of_nonneg a✝⁷)))
+                                                                (congrFun'
+                                                                  (congrArg HSub.hSub (Int.toNat_of_nonneg a✝⁷)) 1)
+                                                                (Eq.refl 0))))
+                                                          (Int.toNat_of_nonneg a✝⁵)))))))))
+                                          (Eq.refl False))))))))))))))

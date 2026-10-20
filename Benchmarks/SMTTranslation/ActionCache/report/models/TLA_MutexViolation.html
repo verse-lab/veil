@@ -1,0 +1,736 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>TLA_MutexViolation</title><style>body{max-width:1250px;margin:35px auto;padding:0 24px;font:16px/1.5 system-ui;color:#162a35;background:#fafcfb}h1,h2{line-height:1.2}a{color:#007562}img{max-width:100%;background:white}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:8px;border-bottom:1px solid #dbe4df;text-align:left;vertical-align:top}th{background:#e9f0ed}code{background:#edf1ef;padding:2px 5px}.note{background:#edf3f0;padding:18px;border-left:4px solid #00856a}details{margin:12px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere}nav{display:flex;gap:15px;flex-wrap:wrap}.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:20px}.gallery a{background:white;padding:10px;text-decoration:none;border:1px solid #dbe4df}</style><nav><a href="../index.html">All models</a><a href="TLA_MutexViolation.svg">SVG figure</a></nav><h1>TLA_MutexViolation</h1><p><code>Examples/TLA/MutexViolation.lean</code> · <code>assert (∃ i j, i ≠ j ∧ pc i = cs ∧ pc j = cs)</code></p><img src="TLA_MutexViolation.png"><table><thead><tr><th>Depth</th><th>Variant</th><th>Result</th><th>Normalize s</th><th>Query s</th><th>VC s</th><th>Cold→query s</th><th>Solver s</th><th>Stopped at</th><th>Failure kind</th><th>Evidence</th></tr></thead><tbody><tr><td>1</td><td>local</td><td>translation_failed</td><td>0.556</td><td>—</td><td>0.036</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_MutexViolation__d1__local__default.translation.log">log</a></td></tr><tr><td>1</td><td>cached</td><td>translation_failed</td><td>0.019</td><td>—</td><td>0.030</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_MutexViolation__d1__cached__default.translation.log">log</a></td></tr><tr><td>2</td><td>local</td><td>translation_failed</td><td>0.788</td><td>—</td><td>0.047</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_MutexViolation__d2__local__default.translation.log">log</a></td></tr><tr><td>2</td><td>cached</td><td>translation_failed</td><td>0.023</td><td>—</td><td>0.042</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_MutexViolation__d2__cached__default.translation.log">log</a></td></tr><tr><td>4</td><td>local</td><td>translation_failed</td><td>1.555</td><td>—</td><td>0.089</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_MutexViolation__d4__local__default.translation.log">log</a></td></tr><tr><td>4</td><td>cached</td><td>translation_failed</td><td>0.034</td><td>—</td><td>0.076</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_MutexViolation__d4__cached__default.translation.log">log</a></td></tr><tr><td>8</td><td>local</td><td>translation_failed</td><td>3.151</td><td>—</td><td>0.135</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_MutexViolation__d8__local__default.translation.log">log</a></td></tr><tr><td>8</td><td>cached</td><td>translation_failed</td><td>0.047</td><td>—</td><td>0.094</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_MutexViolation__d8__cached__default.translation.log">log</a></td></tr><tr><td>16</td><td>local</td><td>translation_failed</td><td>6.623</td><td>—</td><td>0.273</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_MutexViolation__d16__local__default.translation.log">log</a></td></tr><tr><td>16</td><td>cached</td><td>translation_failed</td><td>0.140</td><td>—</td><td>0.278</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_MutexViolation__d16__cached__default.translation.log">log</a></td></tr><tr><td>32</td><td>local</td><td>translation_failed</td><td>10.219</td><td>—</td><td>0.451</td><td>—</td><td>—</td><td>smtSimp</td><td>heartbeats</td><td> <a href="../../raw/logs/TLA_MutexViolation__d32__local__default.translation.log">log</a></td></tr><tr><td>32</td><td>cached</td><td>translation_failed</td><td>0.320</td><td>—</td><td>0.569</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_MutexViolation__d32__cached__default.translation.log">log</a></td></tr></tbody></table><details><summary>1, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    forall_congr fun j =&gt;
+      implies_congr (Eq.refl True)
+        (implies_congr
+          (Eq.refl
+            (distinctN
+              [states_Enum.pre_check_lock, states_Enum.prepare_wait_util, states_Enum.wait_until,
+                states_Enum.enqueue_waker, states_Enum.check_lock, states_Enum.check_has_woken,
+                states_Enum.release_lock, states_Enum.wake_one, states_Enum.wake_one_loop, states_Enum.wake_up,
+                states_Enum.start, states_Enum.cs, states_Enum.Done]))
+          (implies_congr
+            (Eq.refl
+              (∀ (__veil_x : states),
+                __veil_x = states_Enum.pre_check_lock ∨
+                  __veil_x = states_Enum.prepare_wait_util ∨
+                    __veil_x = states_Enum.wait_until ∨
+                      __veil_x = states_Enum.enqueue_waker ∨
+                        __veil_x = states_Enum.check_lock ∨
+                          __veil_x = states_Enum.check_has_woken ∨
+                            __veil_x = states_Enum.release_lock ∨
+                              __veil_x = states_Enum.wake_one ∨
+                                __veil_x = states_Enum.wake_one_loop ∨
+                                  __veil_x = states_Enum.wake_up ∨
+                                    __veil_x = states_Enum.start ∨
+                                      __veil_x = states_Enum.cs ∨ __veil_x = states_Enum.Done))
+            (implies_congr
+              (Eq.refl
+                (distinctN
+                  [__veil_tag._pre_check_lock, __veil_tag._prepare_wait_util, __veil_tag._wait_until,
+                    __veil_tag._enqueue_waker, __veil_tag._check_lock, __veil_tag._check_has_woken,
+                    __veil_tag._release_lock, __veil_tag._wake_one, __veil_tag._wake_one_loop, __veil_tag._wake_up,
+                    __veil_tag._start, __veil_tag._cs, __veil_tag.Terminating]))
+              (implies_congr
+                (Eq.refl
+                  (∀ (__veil_x : ActionTag),
+                    __veil_x = __veil_tag._pre_check_lock ∨
+                      __veil_x = __veil_tag._prepare_wait_util ∨
+                        __veil_x = __veil_tag._wait_until ∨
+                          __veil_x = __veil_tag._enqueue_waker ∨
+                            __veil_x = __veil_tag._check_lock ∨
+                              __veil_x = __veil_tag._check_has_woken ∨
+                                __veil_x = __veil_tag._release_lock ∨
+                                  __veil_x = __veil_tag._wake_one ∨
+                                    __veil_x = __veil_tag._wake_one_loop ∨
+                                      __veil_x = __veil_tag._wake_up ∨
+                                        __veil_x = __veil_tag._start ∨
+                                          __veil_x = __veil_tag._cs ∨ __veil_x = __veil_tag.Terminating))
+                (implies_congr
+                  (Eq.trans Int.ofNat_inj._simp_2
+                    (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                      (↑st0.wait_queue_wakers.front.length + ↑st0.wait_queue_wakers.back.length)))
+                  (forall_prop_domain_congr
+                    (Eq.trans Int.ofNat_inj._simp_2
+                      (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                        (↑st0.wait_queue_wakers.front.length + ↑st0.wait_queue_wakers.back.length)))
+                    fun st0.wait_queue_wakers.h_sz =&gt;
+                    implies_congr
+                      (Eq.trans Int.ofNat_inj._simp_2
+                        (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a))
+                          (↑st1.wait_queue_wakers.front.length + ↑st1.wait_queue_wakers.back.length)))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_inj._simp_2
+                          (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a))
+                            (↑st1.wait_queue_wakers.front.length + ↑st1.wait_queue_wakers.back.length)))
+                        fun st1.wait_queue_wakers.h_sz =&gt;
+                        implies_congr (Eq.refl ¬i = j)
+                          (implies_congr (Eq.refl (st1.pc i = states_Enum.cs))
+                            (implies_congr (Eq.refl (st1.pc j = states_Enum.cs))
+                              (implies_congr
+                                (congr
+                                  (congrArg And
+                                    (Eq.trans (propext Bool.eq_eq_true)
+                                      (congr (congrArg Eq Bool.false_eq_true) decide_eq_true_iff._simp_2)))
+                                  (congrArg
+                                    (And
+                                      (fQueue.empty =
+                                        { front := st0.wait_queue_wakers.front, back := st0.wait_queue_wakers.back,
+                                          sz := f✝.toNat,
+                                          h_sz :=
+                                            Eq.substr
+                                              (Eq.trans Int.ofNat_inj._simp_2
+                                                (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                                                  (↑st0.wait_queue_wakers.front.length +
+                                                    ↑st0.wait_queue_wakers.back.length)))
+                                              st0.wait_queue_wakers.h_sz }))
+                                    (congrFun&#x27;
+                                      (congrArg And
+                                        (forall_congr fun a =&gt;
+                                          Eq.trans (propext Bool.eq_eq_true)
+                                            (congr (congrArg Eq Bool.false_eq_true) decide_eq_true_iff._simp_2)))
+                                      ((∀ (a : process), states_Enum.start = st0.pc a) ∧
+                                        (∀ (a : process), [] = st0.stack a) ∧ ∀ (a : process), th.NONE = st0.waker a))))
+                                (implies_congr
+                                  (congr
+                                    (congrArg Or
+                                      (congrArg (And (_tr1_tag = __veil_tag._pre_check_lock))
+                                        (congrArg (And ¬_tr1_act__pre_check_lock_arg0_self = th.NONE)
+                                          (congrArg
+                                            (And
+                                              (st0.pc _tr1_act__pre_check_lock_arg0_self = states_Enum.pre_check_lock))
+                                            (Smt.Preprocess.Embedding.ite_congr&#x27;
+                                              (Eq.trans Bool.not_eq_true&#x27;&#x27;._simp_1
+                                                (Eq.trans Bool.ne_eq_true._simp_1
+                                                  (congr (congrArg Ne decide_eq_true_iff._simp_2)
+                                                    Bool.true_eq_true._simp_1)))
+                                              (congr
+                                                (congrArg And
+                                                  (Eq.trans (propext Bool.eq_eq_true)
+                                                    (congr (congrArg Eq Bool.true_eq_true._simp_1)
+                                                      decide_eq_true_iff._simp_2)))
+                                                (congrArg
+                                                  (And
+                                                    ({ front := st0.wait_queue_wakers.front,
+                                                        back := st0.wait_queue_wakers.back, sz := f✝.toNat,
+                                                        h_sz :=
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_inj._simp_2
+                                                              (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+              </pre></details><details><summary>1, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    forall_congr fun j =&gt;
+      implies_congr (Eq.refl True)
+        (implies_congr
+          (Eq.refl
+            (distinctN
+              [states_Enum.pre_check_lock, states_Enum.prepare_wait_util, states_Enum.wait_until,
+                states_Enum.enqueue_waker, states_Enum.check_lock, states_Enum.check_has_woken,
+                states_Enum.release_lock, states_Enum.wake_one, states_Enum.wake_one_loop, states_Enum.wake_up,
+                states_Enum.start, states_Enum.cs, states_Enum.Done]))
+          (implies_congr
+            (Eq.refl
+              (∀ (__veil_x : states),
+                __veil_x = states_Enum.pre_check_lock ∨
+                  __veil_x = states_Enum.prepare_wait_util ∨
+                    __veil_x = states_Enum.wait_until ∨
+                      __veil_x = states_Enum.enqueue_waker ∨
+                        __veil_x = states_Enum.check_lock ∨
+                          __veil_x = states_Enum.check_has_woken ∨
+                            __veil_x = states_Enum.release_lock ∨
+                              __veil_x = states_Enum.wake_one ∨
+                                __veil_x = states_Enum.wake_one_loop ∨
+                                  __veil_x = states_Enum.wake_up ∨
+                                    __veil_x = states_Enum.start ∨
+                                      __veil_x = states_Enum.cs ∨ __veil_x = states_Enum.Done))
+            (implies_congr
+              (Eq.refl
+                (distinctN
+                  [__veil_tag._pre_check_lock, __veil_tag._prepare_wait_util, __veil_tag._wait_until,
+                    __veil_tag._enqueue_waker, __veil_tag._check_lock, __veil_tag._check_has_woken,
+                    __veil_tag._release_lock, __veil_tag._wake_one, __veil_tag._wake_one_loop, __veil_tag._wake_up,
+                    __veil_tag._start, __veil_tag._cs, __veil_tag.Terminating]))
+              (implies_congr
+                (Eq.refl
+                  (∀ (__veil_x : ActionTag),
+                    __veil_x = __veil_tag._pre_check_lock ∨
+                      __veil_x = __veil_tag._prepare_wait_util ∨
+                        __veil_x = __veil_tag._wait_until ∨
+                          __veil_x = __veil_tag._enqueue_waker ∨
+                            __veil_x = __veil_tag._check_lock ∨
+                              __veil_x = __veil_tag._check_has_woken ∨
+                                __veil_x = __veil_tag._release_lock ∨
+                                  __veil_x = __veil_tag._wake_one ∨
+                                    __veil_x = __veil_tag._wake_one_loop ∨
+                                      __veil_x = __veil_tag._wake_up ∨
+                                        __veil_x = __veil_tag._start ∨
+                                          __veil_x = __veil_tag._cs ∨ __veil_x = __veil_tag.Terminating))
+                (implies_congr
+                  (Eq.trans Int.ofNat_inj._simp_2
+                    (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                      (↑st0.wait_queue_wakers.front.length + ↑st0.wait_queue_wakers.back.length)))
+                  (forall_prop_domain_congr
+                    (Eq.trans Int.ofNat_inj._simp_2
+                      (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                        (↑st0.wait_queue_wakers.front.length + ↑st0.wait_queue_wakers.back.length)))
+                    fun st0.wait_queue_wakers.h_sz =&gt;
+                    implies_congr
+                      (Eq.trans Int.ofNat_inj._simp_2
+                        (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a))
+                          (↑st1.wait_queue_wakers.front.length + ↑st1.wait_queue_wakers.back.length)))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_inj._simp_2
+                          (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a))
+                            (↑st1.wait_queue_wakers.front.length + ↑st1.wait_queue_wakers.back.length)))
+                        fun st1.wait_queue_wakers.h_sz =&gt;
+                        implies_congr (Eq.refl ¬i = j)
+                          (implies_congr (Eq.refl (st1.pc i = states_Enum.cs))
+                            (implies_congr (Eq.refl (st1.pc j = states_Enum.cs))
+                              (implies_congr
+                                (congr
+                                  (congrArg And
+                                    (Eq.trans (propext Bool.eq_eq_true)
+                                      (congr (congrArg Eq Bool.false_eq_true) decide_eq_true_iff._simp_2)))
+                                  (congrArg
+                                    (And
+                                      (fQueue.empty =
+                                        { front := st0.wait_queue_wakers.front, back := st0.wait_queue_wakers.back,
+                                          sz := f✝.toNat,
+                                          h_sz :=
+                                            Eq.substr
+                                              (Eq.trans Int.ofNat_inj._simp_2
+                                                (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                                                  (↑st0.wait_queue_wakers.front.length +
+                                                    ↑st0.wait_queue_wakers.back.length)))
+                                              st0.wait_queue_wakers.h_sz }))
+                                    (congrFun&#x27;
+                                      (congrArg And
+                                        (forall_congr fun a =&gt;
+                                          Eq.trans (propext Bool.eq_eq_true)
+                                            (congr (congrArg Eq Bool.false_eq_true) decide_eq_true_iff._simp_2)))
+                                      ((∀ (a : process), states_Enum.start = st0.pc a) ∧
+                                        (∀ (a : process), [] = st0.stack a) ∧ ∀ (a : process), th.NONE = st0.waker a))))
+                                (implies_congr
+                                  (congr
+                                    (congrArg Or
+                                      (congrArg (And (_tr1_tag = __veil_tag._pre_check_lock))
+                                        (congrArg (And ¬_tr1_act__pre_check_lock_arg0_self = th.NONE)
+                                          (congrArg
+                                            (And
+                                              (st0.pc _tr1_act__pre_check_lock_arg0_self = states_Enum.pre_check_lock))
+                                            (Smt.Preprocess.Embedding.ite_congr&#x27;
+                                              (Eq.trans Bool.not_eq_true&#x27;&#x27;._simp_1
+                                                (Eq.trans Bool.ne_eq_true._simp_1
+                                                  (congr (congrArg Ne decide_eq_true_iff._simp_2)
+                                                    Bool.true_eq_true._simp_1)))
+                                              (congr
+                                                (congrArg And
+                                                  (Eq.trans (propext Bool.eq_eq_true)
+                                                    (congr (congrArg Eq Bool.true_eq_true._simp_1)
+                                                      decide_eq_true_iff._simp_2)))
+                                                (congrArg
+                                                  (And
+                                                    ({ front := st0.wait_queue_wakers.front,
+                                                        back := st0.wait_queue_wakers.back, sz := f✝.toNat,
+                                                        h_sz :=
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_inj._simp_2
+                                                              (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+              </pre></details><details><summary>2, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    forall_congr fun j =&gt;
+      implies_congr (Eq.refl True)
+        (implies_congr
+          (Eq.refl
+            (distinctN
+              [states_Enum.pre_check_lock, states_Enum.prepare_wait_util, states_Enum.wait_until,
+                states_Enum.enqueue_waker, states_Enum.check_lock, states_Enum.check_has_woken,
+                states_Enum.release_lock, states_Enum.wake_one, states_Enum.wake_one_loop, states_Enum.wake_up,
+                states_Enum.start, states_Enum.cs, states_Enum.Done]))
+          (implies_congr
+            (Eq.refl
+              (∀ (__veil_x : states),
+                __veil_x = states_Enum.pre_check_lock ∨
+                  __veil_x = states_Enum.prepare_wait_util ∨
+                    __veil_x = states_Enum.wait_until ∨
+                      __veil_x = states_Enum.enqueue_waker ∨
+                        __veil_x = states_Enum.check_lock ∨
+                          __veil_x = states_Enum.check_has_woken ∨
+                            __veil_x = states_Enum.release_lock ∨
+                              __veil_x = states_Enum.wake_one ∨
+                                __veil_x = states_Enum.wake_one_loop ∨
+                                  __veil_x = states_Enum.wake_up ∨
+                                    __veil_x = states_Enum.start ∨
+                                      __veil_x = states_Enum.cs ∨ __veil_x = states_Enum.Done))
+            (implies_congr
+              (Eq.refl
+                (distinctN
+                  [__veil_tag._pre_check_lock, __veil_tag._prepare_wait_util, __veil_tag._wait_until,
+                    __veil_tag._enqueue_waker, __veil_tag._check_lock, __veil_tag._check_has_woken,
+                    __veil_tag._release_lock, __veil_tag._wake_one, __veil_tag._wake_one_loop, __veil_tag._wake_up,
+                    __veil_tag._start, __veil_tag._cs, __veil_tag.Terminating]))
+              (implies_congr
+                (Eq.refl
+                  (∀ (__veil_x : ActionTag),
+                    __veil_x = __veil_tag._pre_check_lock ∨
+                      __veil_x = __veil_tag._prepare_wait_util ∨
+                        __veil_x = __veil_tag._wait_until ∨
+                          __veil_x = __veil_tag._enqueue_waker ∨
+                            __veil_x = __veil_tag._check_lock ∨
+                              __veil_x = __veil_tag._check_has_woken ∨
+                                __veil_x = __veil_tag._release_lock ∨
+                                  __veil_x = __veil_tag._wake_one ∨
+                                    __veil_x = __veil_tag._wake_one_loop ∨
+                                      __veil_x = __veil_tag._wake_up ∨
+                                        __veil_x = __veil_tag._start ∨
+                                          __veil_x = __veil_tag._cs ∨ __veil_x = __veil_tag.Terminating))
+                (implies_congr
+                  (Eq.trans Int.ofNat_inj._simp_2
+                    (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝²))
+                      (↑st0.wait_queue_wakers.front.length + ↑st0.wait_queue_wakers.back.length)))
+                  (forall_prop_domain_congr
+                    (Eq.trans Int.ofNat_inj._simp_2
+                      (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝²))
+                        (↑st0.wait_queue_wakers.front.length + ↑st0.wait_queue_wakers.back.length)))
+                    fun st0.wait_queue_wakers.h_sz =&gt;
+                    implies_congr
+                      (Eq.trans Int.ofNat_inj._simp_2
+                        (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                          (↑st1.wait_queue_wakers.front.length + ↑st1.wait_queue_wakers.back.length)))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_inj._simp_2
+                          (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                            (↑st1.wait_queue_wakers.front.length + ↑st1.wait_queue_wakers.back.length)))
+                        fun st1.wait_queue_wakers.h_sz =&gt;
+                        implies_congr
+                          (Eq.trans Int.ofNat_inj._simp_2
+                            (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a))
+                              (↑st2.wait_queue_wakers.front.length + ↑st2.wait_queue_wakers.back.length)))
+                          (forall_prop_domain_congr
+                            (Eq.trans Int.ofNat_inj._simp_2
+                              (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a))
+                                (↑st2.wait_queue_wakers.front.length + ↑st2.wait_queue_wakers.back.length)))
+                            fun st2.wait_queue_wakers.h_sz =&gt;
+                            implies_congr (Eq.refl ¬i = j)
+                              (implies_congr (Eq.refl (st2.pc i = states_Enum.cs))
+                                (implies_congr (Eq.refl (st2.pc j = states_Enum.cs))
+                                  (implies_congr
+                                    (congr
+                                      (congrArg And
+                                        (Eq.trans (propext Bool.eq_eq_true)
+                                          (congr (congrArg Eq Bool.false_eq_true) decide_eq_true_iff._simp_2)))
+                                      (congrArg
+                                        (And
+                                          (fQueue.empty =
+                                            { front := st0.wait_queue_wakers.front, back := st0.wait_queue_wakers.back,
+                                              sz := f✝¹.toNat,
+                                              h_sz :=
+                                                Eq.substr
+                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                    (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝²))
+                                                      (↑st0.wait_queue_wakers.front.length +
+                                                        ↑st0.wait_queue_wakers.back.length)))
+                                                  st0.wait_queue_wakers.h_sz }))
+                                        (congrFun&#x27;
+                                          (congrArg And
+                                            (forall_congr fun a =&gt;
+                                              Eq.trans (propext Bool.eq_eq_true)
+                                                (congr (congrArg Eq Bool.false_eq_true) decide_eq_true_iff._simp_2)))
+                                          ((∀ (a : process), states_Enum.start = st0.pc a) ∧
+                                            (∀ (a : process), [] = st0.stack a) ∧
+                                              ∀ (a : process), th.NONE = st0.waker a))))
+                                    (implies_congr
+                                      (congr
+                                        (congrArg Or
+                                          (congrArg (And (_tr1_tag = __veil_tag._pre_check_lock))
+                                            (congrArg (And ¬_tr1_act__pre_check_lock_arg0_self = th.NONE)
+                                              (congrArg
+                                                (And
+                                                  (st0.pc _tr1_act__pre_check_lock_arg0_self =
+                                                    states_Enum.pre_check_lock))
+                                                (Smt.Preprocess.Embedding.ite_congr&#x27;
+                                                  (Eq.trans Bool.not_eq_true&#x27;&#x27;._simp_1
+                                                    (Eq.trans Bool.ne_eq_true._simp_1
+                                                      (congr (congrArg Ne decide_eq_true_iff._simp_2)
+                                                        Bool.true_eq_true._simp_1)))
+                                                  (congr
+                                                    (congrArg And
+                     </pre></details><details><summary>2, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    forall_congr fun j =&gt;
+      implies_congr (Eq.refl True)
+        (implies_congr
+          (Eq.refl
+            (distinctN
+              [states_Enum.pre_check_lock, states_Enum.prepare_wait_util, states_Enum.wait_until,
+                states_Enum.enqueue_waker, states_Enum.check_lock, states_Enum.check_has_woken,
+                states_Enum.release_lock, states_Enum.wake_one, states_Enum.wake_one_loop, states_Enum.wake_up,
+                states_Enum.start, states_Enum.cs, states_Enum.Done]))
+          (implies_congr
+            (Eq.refl
+              (∀ (__veil_x : states),
+                __veil_x = states_Enum.pre_check_lock ∨
+                  __veil_x = states_Enum.prepare_wait_util ∨
+                    __veil_x = states_Enum.wait_until ∨
+                      __veil_x = states_Enum.enqueue_waker ∨
+                        __veil_x = states_Enum.check_lock ∨
+                          __veil_x = states_Enum.check_has_woken ∨
+                            __veil_x = states_Enum.release_lock ∨
+                              __veil_x = states_Enum.wake_one ∨
+                                __veil_x = states_Enum.wake_one_loop ∨
+                                  __veil_x = states_Enum.wake_up ∨
+                                    __veil_x = states_Enum.start ∨
+                                      __veil_x = states_Enum.cs ∨ __veil_x = states_Enum.Done))
+            (implies_congr
+              (Eq.refl
+                (distinctN
+                  [__veil_tag._pre_check_lock, __veil_tag._prepare_wait_util, __veil_tag._wait_until,
+                    __veil_tag._enqueue_waker, __veil_tag._check_lock, __veil_tag._check_has_woken,
+                    __veil_tag._release_lock, __veil_tag._wake_one, __veil_tag._wake_one_loop, __veil_tag._wake_up,
+                    __veil_tag._start, __veil_tag._cs, __veil_tag.Terminating]))
+              (implies_congr
+                (Eq.refl
+                  (∀ (__veil_x : ActionTag),
+                    __veil_x = __veil_tag._pre_check_lock ∨
+                      __veil_x = __veil_tag._prepare_wait_util ∨
+                        __veil_x = __veil_tag._wait_until ∨
+                          __veil_x = __veil_tag._enqueue_waker ∨
+                            __veil_x = __veil_tag._check_lock ∨
+                              __veil_x = __veil_tag._check_has_woken ∨
+                                __veil_x = __veil_tag._release_lock ∨
+                                  __veil_x = __veil_tag._wake_one ∨
+                                    __veil_x = __veil_tag._wake_one_loop ∨
+                                      __veil_x = __veil_tag._wake_up ∨
+                                        __veil_x = __veil_tag._start ∨
+                                          __veil_x = __veil_tag._cs ∨ __veil_x = __veil_tag.Terminating))
+                (implies_congr
+                  (Eq.trans Int.ofNat_inj._simp_2
+                    (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝²))
+                      (↑st0.wait_queue_wakers.front.length + ↑st0.wait_queue_wakers.back.length)))
+                  (forall_prop_domain_congr
+                    (Eq.trans Int.ofNat_inj._simp_2
+                      (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝²))
+                        (↑st0.wait_queue_wakers.front.length + ↑st0.wait_queue_wakers.back.length)))
+                    fun st0.wait_queue_wakers.h_sz =&gt;
+                    implies_congr
+                      (Eq.trans Int.ofNat_inj._simp_2
+                        (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                          (↑st1.wait_queue_wakers.front.length + ↑st1.wait_queue_wakers.back.length)))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_inj._simp_2
+                          (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                            (↑st1.wait_queue_wakers.front.length + ↑st1.wait_queue_wakers.back.length)))
+                        fun st1.wait_queue_wakers.h_sz =&gt;
+                        implies_congr
+                          (Eq.trans Int.ofNat_inj._simp_2
+                            (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a))
+                              (↑st2.wait_queue_wakers.front.length + ↑st2.wait_queue_wakers.back.length)))
+                          (forall_prop_domain_congr
+                            (Eq.trans Int.ofNat_inj._simp_2
+                              (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a))
+                                (↑st2.wait_queue_wakers.front.length + ↑st2.wait_queue_wakers.back.length)))
+                            fun st2.wait_queue_wakers.h_sz =&gt;
+                            implies_congr (Eq.refl ¬i = j)
+                              (implies_congr (Eq.refl (st2.pc i = states_Enum.cs))
+                                (implies_congr (Eq.refl (st2.pc j = states_Enum.cs))
+                                  (implies_congr
+                                    (congr
+                                      (congrArg And
+                                        (Eq.trans (propext Bool.eq_eq_true)
+                                          (congr (congrArg Eq Bool.false_eq_true) decide_eq_true_iff._simp_2)))
+                                      (congrArg
+                                        (And
+                                          (fQueue.empty =
+                                            { front := st0.wait_queue_wakers.front, back := st0.wait_queue_wakers.back,
+                                              sz := f✝¹.toNat,
+                                              h_sz :=
+                                                Eq.substr
+                                                  (Eq.trans Int.ofNat_inj._simp_2
+                                                    (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝²))
+                                                      (↑st0.wait_queue_wakers.front.length +
+                                                        ↑st0.wait_queue_wakers.back.length)))
+                                                  st0.wait_queue_wakers.h_sz }))
+                                        (congrFun&#x27;
+                                          (congrArg And
+                                            (forall_congr fun a =&gt;
+                                              Eq.trans (propext Bool.eq_eq_true)
+                                                (congr (congrArg Eq Bool.false_eq_true) decide_eq_true_iff._simp_2)))
+                                          ((∀ (a : process), states_Enum.start = st0.pc a) ∧
+                                            (∀ (a : process), [] = st0.stack a) ∧
+                                              ∀ (a : process), th.NONE = st0.waker a))))
+                                    (implies_congr
+                                      (congr
+                                        (congrArg Or
+                                          (congrArg (And (_tr1_tag = __veil_tag._pre_check_lock))
+                                            (congrArg (And ¬_tr1_act__pre_check_lock_arg0_self = th.NONE)
+                                              (congrArg
+                                                (And
+                                                  (st0.pc _tr1_act__pre_check_lock_arg0_self =
+                                                    states_Enum.pre_check_lock))
+                                                (Smt.Preprocess.Embedding.ite_congr&#x27;
+                                                  (Eq.trans Bool.not_eq_true&#x27;&#x27;._simp_1
+                                                    (Eq.trans Bool.ne_eq_true._simp_1
+                                                      (congr (congrArg Ne decide_eq_true_iff._simp_2)
+                                                        Bool.true_eq_true._simp_1)))
+                                                  (congr
+                                                    (congrArg And
+                     </pre></details><details><summary>4, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    forall_congr fun j =&gt;
+      implies_congr (Eq.refl True)
+        (implies_congr
+          (Eq.refl
+            (distinctN
+              [states_Enum.pre_check_lock, states_Enum.prepare_wait_util, states_Enum.wait_until,
+                states_Enum.enqueue_waker, states_Enum.check_lock, states_Enum.check_has_woken,
+                states_Enum.release_lock, states_Enum.wake_one, states_Enum.wake_one_loop, states_Enum.wake_up,
+                states_Enum.start, states_Enum.cs, states_Enum.Done]))
+          (implies_congr
+            (Eq.refl
+              (∀ (__veil_x : states),
+                __veil_x = states_Enum.pre_check_lock ∨
+                  __veil_x = states_Enum.prepare_wait_util ∨
+                    __veil_x = states_Enum.wait_until ∨
+                      __veil_x = states_Enum.enqueue_waker ∨
+                        __veil_x = states_Enum.check_lock ∨
+                          __veil_x = states_Enum.check_has_woken ∨
+                            __veil_x = states_Enum.release_lock ∨
+                              __veil_x = states_Enum.wake_one ∨
+                                __veil_x = states_Enum.wake_one_loop ∨
+                                  __veil_x = states_Enum.wake_up ∨
+                                    __veil_x = states_Enum.start ∨
+                                      __veil_x = states_Enum.cs ∨ __veil_x = states_Enum.Done))
+            (implies_congr
+              (Eq.refl
+                (distinctN
+                  [__veil_tag._pre_check_lock, __veil_tag._prepare_wait_util, __veil_tag._wait_until,
+                    __veil_tag._enqueue_waker, __veil_tag._check_lock, __veil_tag._check_has_woken,
+                    __veil_tag._release_lock, __veil_tag._wake_one, __veil_tag._wake_one_loop, __veil_tag._wake_up,
+                    __veil_tag._start, __veil_tag._cs, __veil_tag.Terminating]))
+              (implies_congr
+                (Eq.refl
+                  (∀ (__veil_x : ActionTag),
+                    __veil_x = __veil_tag._pre_check_lock ∨
+                      __veil_x = __veil_tag._prepare_wait_util ∨
+                        __veil_x = __veil_tag._wait_until ∨
+                          __veil_x = __veil_tag._enqueue_waker ∨
+                            __veil_x = __veil_tag._check_lock ∨
+                              __veil_x = __veil_tag._check_has_woken ∨
+                                __veil_x = __veil_tag._release_lock ∨
+                                  __veil_x = __veil_tag._wake_one ∨
+                                    __veil_x = __veil_tag._wake_one_loop ∨
+                                      __veil_x = __veil_tag._wake_up ∨
+                                        __veil_x = __veil_tag._start ∨
+                                          __veil_x = __veil_tag._cs ∨ __veil_x = __veil_tag.Terminating))
+                (implies_congr
+                  (Eq.trans Int.ofNat_inj._simp_2
+                    (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝⁴))
+                      (↑st0.wait_queue_wakers.front.length + ↑st0.wait_queue_wakers.back.length)))
+                  (forall_prop_domain_congr
+                    (Eq.trans Int.ofNat_inj._simp_2
+                      (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝⁴))
+                        (↑st0.wait_queue_wakers.front.length + ↑st0.wait_queue_wakers.back.length)))
+                    fun st0.wait_queue_wakers.h_sz =&gt;
+                    implies_congr
+                      (Eq.trans Int.ofNat_inj._simp_2
+                        (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝³))
+                          (↑st1.wait_queue_wakers.front.length + ↑st1.wait_queue_wakers.back.length)))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_inj._simp_2
+                          (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝³))
+                            (↑st1.wait_queue_wakers.front.length + ↑st1.wait_queue_wakers.back.length)))
+                        fun st1.wait_queue_wakers.h_sz =&gt;
+                        implies_congr
+                          (Eq.trans Int.ofNat_inj._simp_2
+                            (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝²))
+                              (↑st2.wait_queue_wakers.front.length + ↑st2.wait_queue_wakers.back.length)))
+                          (forall_prop_domain_congr
+                            (Eq.trans Int.ofNat_inj._simp_2
+                              (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝²))
+                                (↑st2.wait_queue_wakers.front.length + ↑st2.wait_queue_wakers.back.length)))
+                            fun st2.wait_queue_wakers.h_sz =&gt;
+                            implies_congr
+                              (Eq.trans Int.ofNat_inj._simp_2
+                                (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                                  (↑st3.wait_queue_wakers.front.length + ↑st3.wait_queue_wakers.back.length)))
+                              (forall_prop_domain_congr
+                                (Eq.trans Int.ofNat_inj._simp_2
+                                  (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                                    (↑st3.wait_queue_wakers.front.length + ↑st3.wait_queue_wakers.back.length)))
+                                fun st3.wait_queue_wakers.h_sz =&gt;
+                                implies_congr
+                                  (Eq.trans Int.ofNat_inj._simp_2
+                                    (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a))
+                                      (↑st4.wait_queue_wakers.front.length + ↑st4.wait_queue_wakers.back.length)))
+                                  (forall_prop_domain_congr
+                                    (Eq.trans Int.ofNat_inj._simp_2
+                                      (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a))
+                                        (↑st4.wait_queue_wakers.front.length + ↑st4.wait_queue_wakers.back.length)))
+                                    fun st4.wait_queue_wakers.h_sz =&gt;
+                                    implies_congr (Eq.refl ¬i = j)
+                                      (implies_congr (Eq.refl (st4.pc i = states_Enum.cs))
+                                        (implies_congr (Eq.refl (st4.pc j = states_Enum.cs))
+                                          (implies_congr
+                                            (congr
+                                              (congrArg And
+                                                (Eq.trans (propext Bool.eq_eq_true)
+                                                  (congr (congrArg Eq Bool.false_eq_true) decide_eq_true_iff._simp_2)))
+                                              (congrArg
+                                                (And
+                                                  (fQueue.empty =
+                                                    { front := st0.wait_queue_wakers.front,
+                                                      back := st0.wait_queue_wakers.back, sz := f✝³.toNat,
+                                                      h_sz :=
+                                                        Eq.substr
+                                                          (Eq.trans Int.ofNat_inj._simp_2
+                                                            (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝⁴))
+                                                              (↑st0.wait_queue_wakers.front.length +
+                                                                ↑st0.wait_queue_wakers.back.length)))
+                                                          st0.wait_queue_wakers.h_sz }))
+                                                (congrFun&#x27;
+                                                  (congrArg And
+                                                    (forall_congr fun a =&gt;
+                                                      Eq.trans (propext Bool.eq_eq_true)
+                 </pre></details><details><summary>4, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    forall_congr fun j =&gt;
+      implies_congr (Eq.refl True)
+        (implies_congr
+          (Eq.refl
+            (distinctN
+              [states_Enum.pre_check_lock, states_Enum.prepare_wait_util, states_Enum.wait_until,
+                states_Enum.enqueue_waker, states_Enum.check_lock, states_Enum.check_has_woken,
+                states_Enum.release_lock, states_Enum.wake_one, states_Enum.wake_one_loop, states_Enum.wake_up,
+                states_Enum.start, states_Enum.cs, states_Enum.Done]))
+          (implies_congr
+            (Eq.refl
+              (∀ (__veil_x : states),
+                __veil_x = states_Enum.pre_check_lock ∨
+                  __veil_x = states_Enum.prepare_wait_util ∨
+                    __veil_x = states_Enum.wait_until ∨
+                      __veil_x = states_Enum.enqueue_waker ∨
+                        __veil_x = states_Enum.check_lock ∨
+                          __veil_x = states_Enum.check_has_woken ∨
+                            __veil_x = states_Enum.release_lock ∨
+                              __veil_x = states_Enum.wake_one ∨
+                                __veil_x = states_Enum.wake_one_loop ∨
+                                  __veil_x = states_Enum.wake_up ∨
+                                    __veil_x = states_Enum.start ∨
+                                      __veil_x = states_Enum.cs ∨ __veil_x = states_Enum.Done))
+            (implies_congr
+              (Eq.refl
+                (distinctN
+                  [__veil_tag._pre_check_lock, __veil_tag._prepare_wait_util, __veil_tag._wait_until,
+                    __veil_tag._enqueue_waker, __veil_tag._check_lock, __veil_tag._check_has_woken,
+                    __veil_tag._release_lock, __veil_tag._wake_one, __veil_tag._wake_one_loop, __veil_tag._wake_up,
+                    __veil_tag._start, __veil_tag._cs, __veil_tag.Terminating]))
+              (implies_congr
+                (Eq.refl
+                  (∀ (__veil_x : ActionTag),
+                    __veil_x = __veil_tag._pre_check_lock ∨
+                      __veil_x = __veil_tag._prepare_wait_util ∨
+                        __veil_x = __veil_tag._wait_until ∨
+                          __veil_x = __veil_tag._enqueue_waker ∨
+                            __veil_x = __veil_tag._check_lock ∨
+                              __veil_x = __veil_tag._check_has_woken ∨
+                                __veil_x = __veil_tag._release_lock ∨
+                                  __veil_x = __veil_tag._wake_one ∨
+                                    __veil_x = __veil_tag._wake_one_loop ∨
+                                      __veil_x = __veil_tag._wake_up ∨
+                                        __veil_x = __veil_tag._start ∨
+                                          __veil_x = __veil_tag._cs ∨ __veil_x = __veil_tag.Terminating))
+                (implies_congr
+                  (Eq.trans Int.ofNat_inj._simp_2
+                    (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝⁴))
+                      (↑st0.wait_queue_wakers.front.length + ↑st0.wait_queue_wakers.back.length)))
+                  (forall_prop_domain_congr
+                    (Eq.trans Int.ofNat_inj._simp_2
+                      (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝⁴))
+                        (↑st0.wait_queue_wakers.front.length + ↑st0.wait_queue_wakers.back.length)))
+                    fun st0.wait_queue_wakers.h_sz =&gt;
+                    implies_congr
+                      (Eq.trans Int.ofNat_inj._simp_2
+                        (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝³))
+                          (↑st1.wait_queue_wakers.front.length + ↑st1.wait_queue_wakers.back.length)))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_inj._simp_2
+                          (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝³))
+                            (↑st1.wait_queue_wakers.front.length + ↑st1.wait_queue_wakers.back.length)))
+                        fun st1.wait_queue_wakers.h_sz =&gt;
+                        implies_congr
+                          (Eq.trans Int.ofNat_inj._simp_2
+                            (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝²))
+                              (↑st2.wait_queue_wakers.front.length + ↑st2.wait_queue_wakers.back.length)))
+                          (forall_prop_domain_congr
+                            (Eq.trans Int.ofNat_inj._simp_2
+                              (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝²))
+                                (↑st2.wait_queue_wakers.front.length + ↑st2.wait_queue_wakers.back.length)))
+                            fun st2.wait_queue_wakers.h_sz =&gt;
+                            implies_congr
+                              (Eq.trans Int.ofNat_inj._simp_2
+                                (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                                  (↑st3.wait_queue_wakers.front.length + ↑st3.wait_queue_wakers.back.length)))
+                              (forall_prop_domain_congr
+                                (Eq.trans Int.ofNat_inj._simp_2
+                                  (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝¹))
+                                    (↑st3.wait_queue_wakers.front.length + ↑st3.wait_queue_wakers.back.length)))
+                                fun st3.wait_queue_wakers.h_sz =&gt;
+                                implies_congr
+                                  (Eq.trans Int.ofNat_inj._simp_2
+                                    (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a))
+                                      (↑st4.wait_queue_wakers.front.length + ↑st4.wait_queue_wakers.back.length)))
+                                  (forall_prop_domain_congr
+                                    (Eq.trans Int.ofNat_inj._simp_2
+                                      (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a))
+                                        (↑st4.wait_queue_wakers.front.length + ↑st4.wait_queue_wakers.back.length)))
+                                    fun st4.wait_queue_wakers.h_sz =&gt;
+                                    implies_congr (Eq.refl ¬i = j)
+                                      (implies_congr (Eq.refl (st4.pc i = states_Enum.cs))
+                                        (implies_congr (Eq.refl (st4.pc j = states_Enum.cs))
+                                          (implies_congr
+                                            (congr
+                                              (congrArg And
+                                                (Eq.trans (propext Bool.eq_eq_true)
+                                                  (congr (congrArg Eq Bool.false_eq_true) decide_eq_true_iff._simp_2)))
+                                              (congrArg
+                                                (And
+                                                  (fQueue.empty =
+                                                    { front := st0.wait_queue_wakers.front,
+                                                      back := st0.wait_queue_wakers.back, sz := f✝³.toNat,
+                                                      h_sz :=
+                                                        Eq.substr
+                                                          (Eq.trans Int.ofNat_inj._simp_2
+                                                            (congrFun&#x27; (congrArg Eq (Int.toNat_of_nonneg a✝⁴))
+                                                              (↑st0.wait_queue_wakers.front.length +
+                                                                ↑st0.wait_queue_wakers.back.length)))
+                                                          st0.wait_queue_wakers.h_sz }))
+                                                (congrFun&#x27;
+                                                  (congrArg And
+                                                    (forall_congr fun a =&gt;
+                                                      Eq.trans (propext Bool.eq_eq_true)
+                 </pre></details><details><summary>8, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MutexViolation__local__default__batch1.lean:555:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>8, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MutexViolation__cached__default__batch1.lean:552:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>16, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MutexViolation__local__default__batch1.lean:591:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>16, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MutexViolation__cached__default__batch1.lean:587:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>32, local: heartbeats</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MutexViolation__local__default__batch1.lean:626:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats &lt;num&gt;` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+</pre></details><details><summary>32, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MutexViolation__cached__default__batch1.lean:622:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details>

@@ -1,0 +1,326 @@
+{
+  "row": {
+    "cell_id": "TLA_Room__d8__early__default",
+    "model": "TLA_Room",
+    "path": "Examples/TLA/Room.lean",
+    "module": "RoomMC",
+    "depth": 8,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "type_mismatch",
+    "failure_message": "Application type mismatch: The argument\n  fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun keyTset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun keyTset.insert =>\n                forall_congr fun keyTset.remove =>\n                  forall_congr fun keyTset.ofList =>\n                    forall_congr fun keyTset.toList =>\n                      forall_congr fun keyTset.filter =>\n                        forall_congr fun keyTset.union =>\n                          forall_congr fun keyTset.diff =>\n                            forall_congr fun keyTset.intersection =>\n                              forall_congr fun keyTset.subsets =>\n                                forall_congr fun Position_Enum.noroom =>\n                                  forall_congr fun Position_Enum.room =>\n                                    forall_congr fun Occupied_Enum.nobody =>\n                                      forall_congr fun Occupied_Enum.body =>\n                                        forall_congr fun __veil_tag.CheckIn =>\n                                          forall_congr fun __veil_tag.CheckOut =>\n                                            forall_congr fun __veil_tag.EnterRoom =>\n                                              forall_congr fun __veil_tag.LeaveRoom =>\n                                                forall_congr fun st0.assignedKey =>\n                                                  forall_congr fun st0.registered =>\n                                                    forall_congr fun st0.roomKey =>\n                                                      forall_congr fun st0.guestKeys => ⋯))\nhas type\n  ∀ (a : ∀ (a₁ : KeySet), f a₁ ≥ 0),\n    (∀ (f_1 : RoomMC.Key Room → KeySet → Bool) (keyTset.empty : KeySet) (keyTset.isEmpty : KeySet → Bool)\n        (keyTset.insert keyTset.remove : RoomMC.Key Room → KeySet → KeySet)\n        (keyTset.ofList : List (RoomMC.Key Room) → KeySet) (keyTset.toList : KeySet → List (RoomMC.Key Room))\n        (keyTset.filter : KeySet → (RoomMC.Key Room → Bool) → KeySet)\n        (keyTset.union keyTset.diff keyTset.intersection : KeySet → KeySet → KeySet)\n        (keyTset.subsets : KeySet → List KeySet) (Position_Enum.noroom Position_Enum.room : Position)\n        (Occupied_Enum.nobody Occupied_Enum.body : Occupied)\n        (__veil_tag.CheckIn __veil_tag.CheckOut __veil_tag.EnterRoom __veil_tag.LeaveRoom : ActionTag)\n        (st0.assignedKey : Guest → Position) (st0.registered : Room → GuestSet) (st0.roomKey : Room → RoomMC.Key Room)\n        (st0.guestKeys : Guest → KeySet) (st0.inside : Room → Occupied) (st1.assignedKey : Guest → Position)\n        (st1.registered : Room → GuestSet) (st1.roomKey : Room → RoomMC.Key Room) (st1.guestKeys : Guest → KeySet)\n        (st1.inside : Room → Occupied) (st2.assignedKey : Guest → Position) (st2.registered : Room → GuestSet)\n        (st2.roomKey : Room → RoomMC.Key Room) (st2.guestKeys : Guest → KeySet) (st2.inside : Room → Occupied)\n        (st3.assignedKey : Guest → Position) (st3.registered : Room → GuestSet) (st3.roomKey : Room → RoomMC.Key Room)\n        (st3.guestKeys : Guest → KeySet) (st3.inside : Room → Occupied) (st4.assignedKey : Guest → Position)\n        (st4.registered : Room → GuestSet) (st4.roomKey : Room → RoomMC.Key Room) (st4.guestKeys : Guest → KeySet)\n        (st4.inside : Room → Occupied) (st5.assignedKey : Guest → Position) (st5.registered : Room → GuestSet)\n        (st5.roomKey : Room → RoomMC.Key Room) (st5.guestKeys : Guest → KeySet) (st5.inside : Room → Occupied)\n        (st6.assignedKey : Guest → Position) (st6.registered : Room → GuestSet) (st6.roomKey : Room → RoomMC.Key Room)\n        (st6.guestKeys : Guest → KeySet) (st6.inside : Room → Occupied) (st7.assignedKey : Guest → Position)\n        (st7.registered : Room → GuestSet), ⋯) =\n      ∀ (a_1 : RoomMC.Key Room → KeySet → Prop) (a_2 : KeySet) (a_3 : KeySet → Prop)\n        (a_4 a_5 : RoomMC.Key Room → KeySet → KeySet) (a_6 : List (RoomMC.Key Room) → KeySet)\n        (a_7 : KeySet → List (RoomMC.Key Room)) (a_8 : KeySet → (RoomMC.Key Room → Bool) → KeySet)\n        (a_9 a_10 a_11 : KeySet → KeySet → KeySet) (a_12 : KeySet → List KeySet) (a_13 a_14 : Position)\n        (a_15 a_16 : Occupied) (a_17 a_18 a_19 a_20 : ActionTag) (a_21 : Guest → Position) (a_22 : Room → GuestSet)\n        (a_23 : Room → RoomMC.Key Room) (a_24 : Guest → KeySet) (a_25 : Room → Occupied) (a_26 : Guest → Position)\n        (a_27 : Room → GuestSet) (a_28 : Room → RoomMC.Key Room) (a_29 : Guest → KeySet) (a_30 : Room → Occupied)\n        (a_31 : Guest → Position) (a_32 : Room → GuestSet) (a_33 : Room → RoomMC.Key Room) (a_34 : Guest → KeySet)\n        (a_35 : Room → Occupied) (a_36 : Guest → Position) (a_37 : Room → GuestSet) (a_38 : Room → RoomMC.Key Room)\n        (a_39 : Guest → KeySet) (a_40 : Room → Occupied) (a_41 : Guest → Position) (a_42 : Room → GuestSet)\n        (a_43 : Room → RoomMC.Key Room) (a_44 : Guest → KeySet) (a_45 : Room → Occupied) (a_46 : Guest → Position)\n        (a_47 : Room → GuestSet) (a_48 : Room → RoomMC.Key Room) (a_49 : Guest → KeySet) (a_50 : Room → Occupied)\n        (a_51 : Guest → Position) (a_52 : Room → GuestSet) (a_53 : Room → RoomMC.Key Room) (a_54 : Guest → KeySet)\n        (a_55 : Room → Occupied) (a_56 : Guest → Position) (a_57 : Room → GuestSet), ⋯\nbut is expected to have type\n  (∀ (a₁ : KeySet), f a₁ ≥ 0) → ?q₁ = ?q₂\nin the application\n  implies_congr_ctx (Eq.refl (∀ (a₁ : KeySet), f a₁ ≥ 0)) fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun keyTset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun keyTset.insert =>\n                forall_congr fun keyTset.remove =>\n                  forall_congr fun keyTset.ofList =>\n                    forall_congr fun keyTset.toList =>\n                      forall_congr fun keyTset.filter =>\n                        forall_congr fun keyTset.union =>\n                          forall_congr fun keyTset.diff =>\n                            forall_congr fun keyTset.intersection =>\n                              forall_congr fun keyTset.subsets =>\n                                forall_congr fun Position_Enum.noroom =>\n                                  forall_congr fun Position_Enum.room =>\n                                    forall_congr fun Occupied_Enum.nobody =>\n                                      forall_congr fun Occupied_Enum.body =>\n                                        forall_congr fun __veil_tag.CheckIn =>\n                                          forall_congr fun __veil_tag.CheckOut =>\n                                            forall_congr fun __veil_tag.EnterRoom =>\n                                              forall_congr fun __veil_tag.LeaveRoom =>\n                                                forall_congr fun st0.assignedKey =>\n                                                  forall_congr fun st0.registered =>\n                                                    forall_congr fun st0.roomKey => forall_congr ⋯))",
+    "setup_ms": null,
+    "query_elaboration_ms": 47,
+    "batch_id": "TLA_Room__default__batch1",
+    "batch_setup_ms": 9386,
+    "preprocessing_ms": 1148,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/TLA_Room__d8__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/TLA_Room__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/TLA_Room__d8__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/TLA_Room__d8__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/TLA_Room__d8__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_Room",
+    "path": "Examples/TLA/Room.lean",
+    "module": "RoomMC",
+    "cut_line": 146,
+    "query": "assert (∃ r g1 g2, guestTset.contains g1 (registered r) ∧ guestTset.contains g2 (registered r) ∧ g1 ≠ g2)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "registered_at_most_one safety, lines122–123",
+    "notes": "Collection-based hotel key model.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "2788514236d97e13f50cfeb72326b5a9b4bd70e153bcf2e3b15e93a5963ca2e7"
+  },
+  "original_sha256": "2788514236d97e13f50cfeb72326b5a9b4bd70e153bcf2e3b15e93a5963ca2e7",
+  "inherited_setup_options": [],
+  "source_sha256": "68f6097313d74a89a646f8d7b002e3529919969c06f88cfa8dc9afaefdf8a471",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/TLA_Room__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 210317039,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 210317086,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210317086,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 12,
+      "event": "stage",
+      "heartbeats": 41209,
+      "mono_ms": 210317098,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210317099,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 510,
+      "event": "stage",
+      "heartbeats": 6196277,
+      "mono_ms": 210317609,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210317610,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 13,
+      "event": "stage",
+      "heartbeats": 227666,
+      "mono_ms": 210317623,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210317631,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 3426,
+      "mono_ms": 210317634,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210317634,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 360,
+      "event": "stage",
+      "heartbeats": 4972247,
+      "mono_ms": 210317994,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210317994,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 32,
+      "event": "stage",
+      "heartbeats": 518620,
+      "mono_ms": 210318026,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210318026,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 197,
+      "event": "stage",
+      "heartbeats": 2897958,
+      "mono_ms": 210318224,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210318232,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 21,
+      "event": "stage",
+      "heartbeats": 406150,
+      "mono_ms": 210318253,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 1167,
+      "event": "milestone",
+      "mono_ms": 210318253,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210318253,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "heartbeats": 77631,
+      "mono_ms": 210318260,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210318260,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 2251,
+      "mono_ms": 210318260,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210318260,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 210318260,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210318260,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 6365,
+      "mono_ms": 210318261,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210318261,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 124,
+      "event": "stage",
+      "heartbeats": 1273111,
+      "mono_ms": 210318385,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210318385,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6598,
+      "error": "Application type mismatch: The argument\n  fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun keyTset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun keyTset.insert =>\n                forall_congr fun keyTset.remove =>\n                  forall_congr fun keyTset.ofList =>\n                    forall_congr fun keyTset.toList =>\n                      forall_congr fun keyTset.filter =>\n                        forall_congr fun keyTset.union =>\n                          forall_congr fun keyTset.diff =>\n                            forall_congr fun keyTset.intersection =>\n                              forall_congr fun keyTset.subsets =>\n                                forall_congr fun Position_Enum.noroom =>\n                                  forall_congr fun Position_Enum.room =>\n                                    forall_congr fun Occupied_Enum.nobody =>\n                                      forall_congr fun Occupied_Enum.body =>\n                                        forall_congr fun __veil_tag.CheckIn =>\n                                          forall_congr fun __veil_tag.CheckOut =>\n                                            forall_congr fun __veil_tag.EnterRoom =>\n                                              forall_congr fun __veil_tag.LeaveRoom =>\n                                                forall_congr fun st0.assignedKey =>\n                                                  forall_congr fun st0.registered =>\n                                                    forall_congr fun st0.roomKey =>\n                                                      forall_congr fun st0.guestKeys => ⋯))\nhas type\n  ∀ (a : ∀ (a₁ : KeySet), f a₁ ≥ 0),\n    (∀ (f_1 : RoomMC.Key Room → KeySet → Bool) (keyTset.empty : KeySet) (keyTset.isEmpty : KeySet → Bool)\n        (keyTset.insert keyTset.remove : RoomMC.Key Room → KeySet → KeySet)\n        (keyTset.ofList : List (RoomMC.Key Room) → KeySet) (keyTset.toList : KeySet → List (RoomMC.Key Room))\n        (keyTset.filter : KeySet → (RoomMC.Key Room → Bool) → KeySet)\n        (keyTset.union keyTset.diff keyTset.intersection : KeySet → KeySet → KeySet)\n        (keyTset.subsets : KeySet → List KeySet) (Position_Enum.noroom Position_Enum.room : Position)\n        (Occupied_Enum.nobody Occupied_Enum.body : Occupied)\n        (__veil_tag.CheckIn __veil_tag.CheckOut __veil_tag.EnterRoom __veil_tag.LeaveRoom : ActionTag)\n        (st0.assignedKey : Guest → Position) (st0.registered : Room → GuestSet) (st0.roomKey : Room → RoomMC.Key Room)\n        (st0.guestKeys : Guest → KeySet) (st0.inside : Room → Occupied) (st1.assignedKey : Guest → Position)\n        (st1.registered : Room → GuestSet) (st1.roomKey : Room → RoomMC.Key Room) (st1.guestKeys : Guest → KeySet)\n        (st1.inside : Room → Occupied) (st2.assignedKey : Guest → Position) (st2.registered : Room → GuestSet)\n        (st2.roomKey : Room → RoomMC.Key Room) (st2.guestKeys : Guest → KeySet) (st2.inside : Room → Occupied)\n        (st3.assignedKey : Guest → Position) (st3.registered : Room → GuestSet) (st3.roomKey : Room → RoomMC.Key Room)\n        (st3.guestKeys : Guest → KeySet) (st3.inside : Room → Occupied) (st4.assignedKey : Guest → Position)\n        (st4.registered : Room → GuestSet) (st4.roomKey : Room → RoomMC.Key Room) (st4.guestKeys : Guest → KeySet)\n        (st4.inside : Room → Occupied) (st5.assignedKey : Guest → Position) (st5.registered : Room → GuestSet)\n        (st5.roomKey : Room → RoomMC.Key Room) (st5.guestKeys : Guest → KeySet) (st5.inside : Room → Occupied)\n        (st6.assignedKey : Guest → Position) (st6.registered : Room → GuestSet) (st6.roomKey : Room → RoomMC.Key Room)\n        (st6.guestKeys : Guest → KeySet) (st6.inside : Room → Occupied) (st7.assignedKey : Guest → Position)\n        (st7.registered : Room → GuestSet), ⋯) =\n      ∀ (a_1 : RoomMC.Key Room → KeySet → Prop) (a_2 : KeySet) (a_3 : KeySet → Prop)\n        (a_4 a_5 : RoomMC.Key Room → KeySet → KeySet) (a_6 : List (RoomMC.Key Room) → KeySet)\n        (a_7 : KeySet → List (RoomMC.Key Room)) (a_8 : KeySet → (RoomMC.Key Room → Bool) → KeySet)\n        (a_9 a_10 a_11 : KeySet → KeySet → KeySet) (a_12 : KeySet → List KeySet) (a_13 a_14 : Position)\n        (a_15 a_16 : Occupied) (a_17 a_18 a_19 a_20 : ActionTag) (a_21 : Guest → Position) (a_22 : Room → GuestSet)\n        (a_23 : Room → RoomMC.Key Room) (a_24 : Guest → KeySet) (a_25 : Room → Occupied) (a_26 : Guest → Position)\n        (a_27 : Room → GuestSet) (a_28 : Room → RoomMC.Key Room) (a_29 : Guest → KeySet) (a_30 : Room → Occupied)\n        (a_31 : Guest → Position) (a_32 : Room → GuestSet) (a_33 : Room → RoomMC.Key Room) (a_34 : Guest → KeySet)\n        (a_35 : Room → Occupied) (a_36 : Guest → Position) (a_37 : Room → GuestSet) (a_38 : Room → RoomMC.Key Room)\n        (a_39 : Guest → KeySet) (a_40 : Room → Occupied) (a_41 : Guest → Position) (a_42 : Room → GuestSet)\n        (a_43 : Room → RoomMC.Key Room) (a_44 : Guest → KeySet) (a_45 : Room → Occupied) (a_46 : Guest → Position)\n        (a_47 : Room → GuestSet) (a_48 : Room → RoomMC.Key Room) (a_49 : Guest → KeySet) (a_50 : Room → Occupied)\n        (a_51 : Guest → Position) (a_52 : Room → GuestSet) (a_53 : Room → RoomMC.Key Room) (a_54 : Guest → KeySet)\n        (a_55 : Room → Occupied) (a_56 : Guest → Position) (a_57 : Room → GuestSet), ⋯\nbut is expected to have type\n  (∀ (a₁ : KeySet), f a₁ ≥ 0) → ?q₁ = ?q₂\nin the application\n  implies_congr_ctx (Eq.refl (∀ (a₁ : KeySet), f a₁ ≥ 0)) fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun keyTset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun keyTset.insert =>\n                forall_congr fun keyTset.remove =>\n                  forall_congr fun keyTset.ofList =>\n                    forall_congr fun keyTset.toList =>\n                      forall_congr fun keyTset.filter =>\n                        forall_congr fun keyTset.union =>\n                          forall_congr fun keyTset.diff =>\n                            forall_congr fun keyTset.intersection =>\n                              forall_congr fun keyTset.subsets =>\n                                forall_congr fun Position_Enum.noroom =>\n                                  forall_congr fun Position_Enum.room =>\n                                    forall_congr fun Occupied_Enum.nobody =>\n                                      forall_congr fun Occupied_Enum.body =>\n                                        forall_congr fun __veil_tag.CheckIn =>\n                                          forall_congr fun __veil_tag.CheckOut =>\n                                            forall_congr fun __veil_tag.EnterRoom =>\n                                              forall_congr fun __veil_tag.LeaveRoom =>\n                                                forall_congr fun st0.assignedKey =>\n                                                  forall_congr fun st0.registered =>\n                                                    forall_congr fun st0.roomKey => forall_congr ⋯))",
+      "event": "stage",
+      "heartbeats": 9703538,
+      "mono_ms": 210325458,
+      "phase": "embedding",
+      "status": "failed"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 210325922,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_Room__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/TLA_Room__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/TLA_Room__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 63178,
+    "setup_ms": 9386,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/TLA_Room__default__batch1.lean"
+    ]
+  }
+}

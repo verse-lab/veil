@@ -1,0 +1,228 @@
+{
+  "row": {
+    "cell_id": "Ivy_Ring__d1__local__default",
+    "model": "Ivy_Ring",
+    "path": "Examples/Ivy/Ring.lean",
+    "module": "Ring",
+    "depth": 1,
+    "variant": "local",
+    "profile": "default",
+    "status": "profile_complete",
+    "translation_status": "not_attempted",
+    "solver_status": "not_needed",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 16,
+    "batch_id": "Ivy_Ring__default__batch1",
+    "batch_setup_ms": 6143,
+    "preprocessing_ms": 75,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/step-profile/smoke/queries/Ivy_Ring__d1__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/step-profile/smoke/batch-sources/Ivy_Ring__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/step-profile/smoke/events/Ivy_Ring__d1__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/step-profile/smoke/logs/Ivy_Ring__d1__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/step-profile/smoke/logs/Ivy_Ring__d1__local__default.solver.log",
+    "translation_exit": null,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_Ring",
+    "path": "Examples/Ivy/Ring.lean",
+    "module": "Ring",
+    "cut_line": 48,
+    "query": "assert (∃ n1 n2, n1 ≠ n2 ∧ leader n1 ∧ leader n2)",
+    "query_kind": "existing_safety_violation",
+    "expected_status": null,
+    "query_source": "Existing unsat trace, lines57–60; single_leader safety, line42",
+    "notes": "Relational ring; overlaps Tutorial/Ring and POPL26/RingDec. Prefix explicitly sets veil.smt.trust=false.",
+    "category": "Ivy",
+    "source_options": [
+      {
+        "line": 47,
+        "directive": "set_option veil.smt.trust false"
+      }
+    ],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "b07c460e7767a50bd27801f02c3e7bdc73e68ccbe7fbcc59634845863b9b4d66"
+  },
+  "original_sha256": "b07c460e7767a50bd27801f02c3e7bdc73e68ccbe7fbcc59634845863b9b4d66",
+  "inherited_setup_options": [
+    {
+      "line": 47,
+      "directive": "set_option veil.smt.trust false"
+    }
+  ],
+  "source_sha256": "3909a7ec95f8e140dcb1a684633632b39910b3e2e9187321d634d35a3689c507",
+  "batch_log": "/tmp/veil-transition-local/step-profile/smoke/batch-logs/Ivy_Ring__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 211624356,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 211624372,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 211624372,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "calls": 0,
+      "elapsed_ms": 0,
+      "event": "simp_work",
+      "mono_ms": 211624373,
+      "phase": "early_intros",
+      "status": "complete",
+      "steps": 0
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3367,
+      "mono_ms": 211624373,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 211624373,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "calls": 0,
+      "elapsed_ms": 0,
+      "event": "simp_work",
+      "mono_ms": 211624375,
+      "phase": "split_trace",
+      "status": "complete",
+      "steps": 0
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 2396,
+      "mono_ms": 211624375,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 211624375,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "calls": 4,
+      "elapsed_ms": 0,
+      "event": "simp_work",
+      "mono_ms": 211624444,
+      "phase": "nextSimp",
+      "status": "complete",
+      "steps": 702
+    },
+    {
+      "elapsed_ms": 68,
+      "event": "stage",
+      "heartbeats": 814713,
+      "mono_ms": 211624444,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 211624444,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "calls": 4,
+      "elapsed_ms": 0,
+      "event": "simp_work",
+      "mono_ms": 211624448,
+      "phase": "hoist",
+      "status": "complete",
+      "steps": 4
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 33448,
+      "mono_ms": 211624448,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 77,
+      "event": "milestone",
+      "mono_ms": 211624449,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "profile",
+      "mono_ms": 211624449,
+      "phase": "normalization",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 211624477,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_Ring__default__batch1",
+    "source": "/tmp/veil-transition-local/step-profile/smoke/batch-sources/Ivy_Ring__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/step-profile/smoke/batch-logs/Ivy_Ring__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 6597,
+    "setup_ms": 6143,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/step-profile/smoke/batch-sources/Ivy_Ring__default__batch1.lean"
+    ]
+  }
+}

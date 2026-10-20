@@ -1,0 +1,10 @@
+{
+  "nextSimp": {
+    "pairs": 18,
+    "median_early_over_local": 0.844628255495259
+  },
+  "hoist": {
+    "pairs": 13,
+    "median_early_over_local": 2.0244094488188975
+  }
+}

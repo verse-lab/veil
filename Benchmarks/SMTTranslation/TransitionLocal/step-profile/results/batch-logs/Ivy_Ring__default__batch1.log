@@ -1,0 +1,17 @@
+/tmp/veil-transition-local/step-profile/results/batch-sources/Ivy_Ring__default__batch1.lean:106:45: warning: Variable name `path` is not explicitly referenced.
+
+The binding can be removed (if unused) or named `_` (if used implicitly).
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+/tmp/veil-transition-local/step-profile/results/batch-sources/Ivy_Ring__default__batch1.lean:182:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/step-profile/results/batch-sources/Ivy_Ring__default__batch1.lean:208:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/step-profile/results/batch-sources/Ivy_Ring__default__batch1.lean:226:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/step-profile/results/batch-sources/Ivy_Ring__default__batch1.lean:244:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/step-profile/results/batch-sources/Ivy_Ring__default__batch1.lean:270:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/step-profile/results/batch-sources/Ivy_Ring__default__batch1.lean:296:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/step-profile/results/batch-sources/Ivy_Ring__default__batch1.lean:314:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/step-profile/results/batch-sources/Ivy_Ring__default__batch1.lean:332:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/step-profile/results/batch-sources/Ivy_Ring__default__batch1.lean:358:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/step-profile/results/batch-sources/Ivy_Ring__default__batch1.lean:384:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/step-profile/results/batch-sources/Ivy_Ring__default__batch1.lean:402:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/step-profile/results/batch-sources/Ivy_Ring__default__batch1.lean:420:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed

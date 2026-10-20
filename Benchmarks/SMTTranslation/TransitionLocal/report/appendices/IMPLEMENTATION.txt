@@ -1,0 +1,81 @@
+Per-transition symbolic BMC normalization
+=======================================
+
+Baseline
+  Commit 543817e6 commits conservative early introduction, its regression
+  tests, and the previous comprehensive benchmark/report. The new implementation
+  is a separate worktree diff against that commit. No dependency is patched.
+
+Logical shape
+  Early introduction leaves one target:
+    |- not (A(th) and Init(th,s0) and T1(s0,s1) and ... and Bad(sd))
+  Local normalization constructs one shared context:
+    hA:A(th), hI:Init(th,s0),
+    w1:W1, h1:M1(w1,s0,s1), ..., wd:Wd, hd:Md(wd,s[d-1],sd),
+    hB:Bad(sd) |- False
+  when Ti is exactly equivalent to exists wi, Mi. Action alternatives remain
+  inside Mi. Both encode the existence of the same complete trace, with the same
+  middle states. There is still one joint solver call.
+
+Transformation
+  After introducing the data/type/Type-valued instance prefix, recognize the
+  visible goal Not(trace). Proof-valued headers use the committed whole-target
+  path, including normalization of their domains. There is no expensive trial
+  and fallback, and no catch that turns resource exhaustion into success.
+
+  For the ordinary trace goal, introduce its negated conjunction to prove
+  False. Flatten only the outer conjunction, using And.left/And.right proof
+  projections. Assert all leaves in one batch and clear the original composite
+  hypothesis. Do not unfold a transition during this split, enter a disjunction,
+  duplicate a shared state, or enumerate action sequences.
+
+  Build one simplifier context per phase and normalize each hypothesis through
+  Lean's simpGoal/dsimpGoal APIs. The first two phases use precisely the existing
+  nextSimp and guarded existential rules. The latter's Nonempty side conditions
+  and dependent-quantifier checks remain unchanged. No one-way abstraction
+  theorem is substituted for the exact transition equations.
+
+  Reuse veil_destruct to eliminate state/theory structures, leading existential
+  witnesses and newly exposed conjunctions. Witnesses are independent fresh
+  locals; dependent types retain their ordering. Apply dsimp/smtSimp/dsimp to the
+  resulting hypotheses explicitly. Simplifying only the target False would
+  leave those constraints unprocessed.
+
+  Hint coverage is checked before destruction and before the backend. All local
+  user names become unique without changing FVarIds/types. Resolve backend
+  selections to FVarIds and check every visible, non-instance proposition is
+  present. Unsupported filtered constraints cause an explicit error. The same
+  backend policy omits implementation details and proof-valued implementation
+  instances. Each normalization phase enumerates the current live FVarIds, so
+  context transport cannot leave a cached array of stale matrix identities.
+
+  Invoke veil_smt once with the ordinary options, compatibility wrapper,
+  untrusted Nonempty inference and model/proof plumbing. Exact simplifier
+  closure is a preprocessing UNSAT result. The optimization is about producing
+  the complete query, not checking transitions separately.
+
+Semantic contract
+  Projecting every leaf of a conjunction and retaining all of them is reversible
+  by conjunction introduction. Existing simp rewrites carry equivalence/equality
+  proofs. Eliminating an existential introduces an arbitrary witness with its
+  entire matrix. Record elimination preserves the data and dependent constraints.
+  These steps preserve the satisfiability of the joint trace and the shared
+  state/action variables. They do not add a finite domain or default choices.
+
+Validation
+  lake build VeilTest passed 1227 jobs. TraceLocalNormalization adds kernel
+  checks for empty inactive witnesses, universal dependence, dependent witness
+  types and shadowed contradictory hypotheses; trace tests check distinct
+  function choices, action disjunctions, shared middle states, zero actions,
+  false assertions and false proof headers. The manual untrusted shared-state
+  theorem and shadowed-hypothesis theorem have no sorryAx. Existing trusted and
+  untrusted higher-order-choice checks, proof-header regressions, dependent
+  arguments, rigid bindings, model decoding and depth-32 checks also pass.
+  See full-suite.log and environment.json for the exact result/hash.
+
+Limits
+  This is not a proof that the existing SMT embedding/translator is universally
+  correct. The benchmark checks emitted scripts with native cvc5 and compares
+  paired outcomes. Logical-query auditing is separate and conservative.
+  The existing context destructor and whole-context SMT embedding remain; their
+  costs and limitations can dominate once global hoisting is removed.

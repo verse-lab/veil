@@ -1,0 +1,15 @@
+cell_id,model,depth,variant,profile,phase,status,elapsed_ms,error,heartbeats
+Ivy_Ring__d1__early__default,Ivy_Ring,1,early,default,early_intros,begin,0,,
+Ivy_Ring__d1__early__default,Ivy_Ring,1,early,default,early_intros,complete,1,,3471
+Ivy_Ring__d1__early__default,Ivy_Ring,1,early,default,nextSimp,begin,0,,
+Ivy_Ring__d1__early__default,Ivy_Ring,1,early,default,nextSimp,complete,90,,881113
+Ivy_Ring__d1__early__default,Ivy_Ring,1,early,default,hoist,begin,0,,
+Ivy_Ring__d1__early__default,Ivy_Ring,1,early,default,hoist,complete,4,,31782
+Ivy_Ring__d1__local__default,Ivy_Ring,1,local,default,early_intros,begin,0,,
+Ivy_Ring__d1__local__default,Ivy_Ring,1,local,default,early_intros,complete,1,,3367
+Ivy_Ring__d1__local__default,Ivy_Ring,1,local,default,split_trace,begin,0,,
+Ivy_Ring__d1__local__default,Ivy_Ring,1,local,default,split_trace,complete,2,,2396
+Ivy_Ring__d1__local__default,Ivy_Ring,1,local,default,nextSimp,begin,0,,
+Ivy_Ring__d1__local__default,Ivy_Ring,1,local,default,nextSimp,complete,68,,814713
+Ivy_Ring__d1__local__default,Ivy_Ring,1,local,default,hoist,begin,0,,
+Ivy_Ring__d1__local__default,Ivy_Ring,1,local,default,hoist,complete,4,,33448

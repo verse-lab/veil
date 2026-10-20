@@ -1,0 +1,683 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>AWS_AWSBuggy</title><style>body{max-width:1250px;margin:35px auto;padding:0 24px;font:16px/1.5 system-ui;color:#162a35;background:#fafcfb}h1,h2{line-height:1.2}a{color:#007562}img{max-width:100%;background:white}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:8px;border-bottom:1px solid #dbe4df;text-align:left;vertical-align:top}th{background:#e9f0ed}code{background:#edf1ef;padding:2px 5px}.note{background:#edf3f0;padding:18px;border-left:4px solid #00856a}details{margin:12px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere}nav{display:flex;gap:15px;flex-wrap:wrap}.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:20px}.gallery a{background:white;padding:10px;text-decoration:none;border:1px solid #dbe4df}</style><nav><a href="../index.html">All models</a><a href="AWS_AWSBuggy.svg">SVG figure</a></nav><h1>AWS_AWSBuggy</h1><p><code>Examples/AWS/AWSBuggy.lean</code> · <code>assert (dns_valid = false)</code></p><img src="AWS_AWSBuggy.png"><table><thead><tr><th>Depth</th><th>Variant</th><th>Result</th><th>Normalize s</th><th>Query s</th><th>VC s</th><th>Cold→query s</th><th>Solver s</th><th>Stopped at</th><th>Failure kind</th><th>Evidence</th></tr></thead><tbody><tr><td>1</td><td>local</td><td>translation_failed</td><td>0.237</td><td>—</td><td>0.030</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/AWS_AWSBuggy__d1__local__default.translation.log">log</a></td></tr><tr><td>1</td><td>cached</td><td>translation_failed</td><td>0.010</td><td>—</td><td>0.027</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/AWS_AWSBuggy__d1__cached__default.translation.log">log</a></td></tr><tr><td>2</td><td>local</td><td>translation_failed</td><td>0.422</td><td>—</td><td>0.028</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/AWS_AWSBuggy__d2__local__default.translation.log">log</a></td></tr><tr><td>2</td><td>cached</td><td>translation_failed</td><td>0.011</td><td>—</td><td>0.027</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/AWS_AWSBuggy__d2__cached__default.translation.log">log</a></td></tr><tr><td>4</td><td>local</td><td>translation_failed</td><td>0.774</td><td>—</td><td>0.036</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/AWS_AWSBuggy__d4__local__default.translation.log">log</a></td></tr><tr><td>4</td><td>cached</td><td>translation_failed</td><td>0.012</td><td>—</td><td>0.033</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/AWS_AWSBuggy__d4__cached__default.translation.log">log</a></td></tr><tr><td>8</td><td>local</td><td>translation_failed</td><td>1.553</td><td>—</td><td>0.059</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/AWS_AWSBuggy__d8__local__default.translation.log">log</a></td></tr><tr><td>8</td><td>cached</td><td>translation_failed</td><td>0.021</td><td>—</td><td>0.046</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/AWS_AWSBuggy__d8__cached__default.translation.log">log</a></td></tr><tr><td>16</td><td>local</td><td>translation_failed</td><td>3.069</td><td>—</td><td>0.069</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/AWS_AWSBuggy__d16__local__default.translation.log">log</a></td></tr><tr><td>16</td><td>cached</td><td>translation_failed</td><td>0.038</td><td>—</td><td>0.067</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/AWS_AWSBuggy__d16__cached__default.translation.log">log</a></td></tr><tr><td>32</td><td>local</td><td>translation_failed</td><td>5.938</td><td>—</td><td>0.133</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/AWS_AWSBuggy__d32__local__default.translation.log">log</a></td></tr><tr><td>32</td><td>cached</td><td>translation_failed</td><td>0.120</td><td>—</td><td>0.143</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/AWS_AWSBuggy__d32__cached__default.translation.log">log</a></td></tr></tbody></table><details><summary>1, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    implies_congr (Eq.refl True)
+      (implies_congr
+        (Eq.refl
+          (distinctN
+            [EnactorPC_Enum.Receive, EnactorPC_Enum.Apply, EnactorPC_Enum.Cleanup, EnactorPC_Enum.RemoveActiveDNS]))
+        (implies_congr
+          (Eq.refl
+            (∀ (__veil_x : EnactorPC),
+              __veil_x = EnactorPC_Enum.Receive ∨
+                __veil_x = EnactorPC_Enum.Apply ∨
+                  __veil_x = EnactorPC_Enum.Cleanup ∨ __veil_x = EnactorPC_Enum.RemoveActiveDNS))
+          (implies_congr
+            (Eq.refl
+              (distinctN
+                [__veil_tag.PlannerNewPlan, __veil_tag.EnactorReceive, __veil_tag.EnactorApply,
+                  __veil_tag.EnactorCleanupScanOne, __veil_tag.EnactorRemoveDNSRecords]))
+            (implies_congr
+              (Eq.refl
+                (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.PlannerNewPlan ∨
+                    __veil_x = __veil_tag.EnactorReceive ∨
+                      __veil_x = __veil_tag.EnactorApply ∨
+                        __veil_x = __veil_tag.EnactorCleanupScanOne ∨ __veil_x = __veil_tag.EnactorRemoveDNSRecords))
+              (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                  fun th.max_plan.isLt =&gt;
+                  implies_congr
+                    (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                    (forall_prop_domain_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                      fun th.plan_age_threshold.isLt =&gt;
+                      implies_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                        (forall_prop_domain_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                          fun st0.current_plan.isLt =&gt;
+                          implies_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 10))
+                            (forall_prop_domain_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 10))
+                              fun st0.latest_plan.isLt =&gt;
+                              implies_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                (forall_prop_domain_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                  fun st0.highest_plan_applied.isLt =&gt;
+                                  implies_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 10))
+                                    (forall_prop_domain_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 10))
+                                      fun st1.current_plan.isLt =&gt;
+                                      implies_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 10))
+                                        (forall_prop_domain_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 10))
+                                          fun st1.latest_plan.isLt =&gt;
+                                          implies_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+                                            (forall_prop_domain_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+                                              fun st1.highest_plan_applied.isLt =&gt;
+                                              implies_congr
+                                                (Eq.trans (propext Bool.eq_eq_true)
+                                                  (congr (congrArg Eq decide_eq_true_iff._simp_2) Bool.false_eq_true))
+                                                (implies_congr
+                                                  (congrArg
+                                                    (And
+                                                      (0 =
+                                                        ⟨f✝⁴.toNat,
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                                                            st0.current_plan.isLt⟩))
+                                                    (congr
+                                                      (congrArg And
+                                                        (Eq.trans (propext Bool.eq_eq_true)
+                                                          (congr (congrArg Eq Bool.true_eq_true._simp_1)
+                                                            decide_eq_true_iff._simp_2)))
+                                                      (congrArg
+                                                        (And
+                                                          (0 =
+                                                            ⟨f✝³.toNat,
+                                                              Eq.substr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))
+                                                                    10))
+                                                                st0.latest_plan.isLt⟩))
+                                                        (congrArg
+                                                          (And
+                                                            (0 =
+                                                              ⟨f✝².toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun&#x27;
+                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                                                  st0.highest_plan_applied.isLt⟩))
+                                                          (congr
+                                                            (congrArg And
+                                                              (forall_congr fun a =&gt;
+                                                                Eq.trans (propext Bool.eq_eq_true)
+                                                                  (congr (congrArg Eq Bool.false_eq_true)
+                                                                  </pre></details><details><summary>1, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    implies_congr (Eq.refl True)
+      (implies_congr
+        (Eq.refl
+          (distinctN
+            [EnactorPC_Enum.Receive, EnactorPC_Enum.Apply, EnactorPC_Enum.Cleanup, EnactorPC_Enum.RemoveActiveDNS]))
+        (implies_congr
+          (Eq.refl
+            (∀ (__veil_x : EnactorPC),
+              __veil_x = EnactorPC_Enum.Receive ∨
+                __veil_x = EnactorPC_Enum.Apply ∨
+                  __veil_x = EnactorPC_Enum.Cleanup ∨ __veil_x = EnactorPC_Enum.RemoveActiveDNS))
+          (implies_congr
+            (Eq.refl
+              (distinctN
+                [__veil_tag.PlannerNewPlan, __veil_tag.EnactorReceive, __veil_tag.EnactorApply,
+                  __veil_tag.EnactorCleanupScanOne, __veil_tag.EnactorRemoveDNSRecords]))
+            (implies_congr
+              (Eq.refl
+                (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.PlannerNewPlan ∨
+                    __veil_x = __veil_tag.EnactorReceive ∨
+                      __veil_x = __veil_tag.EnactorApply ∨
+                        __veil_x = __veil_tag.EnactorCleanupScanOne ∨ __veil_x = __veil_tag.EnactorRemoveDNSRecords))
+              (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                  fun th.max_plan.isLt =&gt;
+                  implies_congr
+                    (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                    (forall_prop_domain_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                      fun th.plan_age_threshold.isLt =&gt;
+                      implies_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                        (forall_prop_domain_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                          fun st0.current_plan.isLt =&gt;
+                          implies_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 10))
+                            (forall_prop_domain_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 10))
+                              fun st0.latest_plan.isLt =&gt;
+                              implies_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                (forall_prop_domain_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                  fun st0.highest_plan_applied.isLt =&gt;
+                                  implies_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 10))
+                                    (forall_prop_domain_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 10))
+                                      fun st1.current_plan.isLt =&gt;
+                                      implies_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 10))
+                                        (forall_prop_domain_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 10))
+                                          fun st1.latest_plan.isLt =&gt;
+                                          implies_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+                                            (forall_prop_domain_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+                                              fun st1.highest_plan_applied.isLt =&gt;
+                                              implies_congr
+                                                (Eq.trans (propext Bool.eq_eq_true)
+                                                  (congr (congrArg Eq decide_eq_true_iff._simp_2) Bool.false_eq_true))
+                                                (implies_congr
+                                                  (congrArg
+                                                    (And
+                                                      (0 =
+                                                        ⟨f✝⁴.toNat,
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                                                            st0.current_plan.isLt⟩))
+                                                    (congr
+                                                      (congrArg And
+                                                        (Eq.trans (propext Bool.eq_eq_true)
+                                                          (congr (congrArg Eq Bool.true_eq_true._simp_1)
+                                                            decide_eq_true_iff._simp_2)))
+                                                      (congrArg
+                                                        (And
+                                                          (0 =
+                                                            ⟨f✝³.toNat,
+                                                              Eq.substr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))
+                                                                    10))
+                                                                st0.latest_plan.isLt⟩))
+                                                        (congrArg
+                                                          (And
+                                                            (0 =
+                                                              ⟨f✝².toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun&#x27;
+                                                                      (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                                                  st0.highest_plan_applied.isLt⟩))
+                                                          (congr
+                                                            (congrArg And
+                                                              (forall_congr fun a =&gt;
+                                                                Eq.trans (propext Bool.eq_eq_true)
+                                                                  (congr (congrArg Eq Bool.false_eq_true)
+                                                                  </pre></details><details><summary>2, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    implies_congr (Eq.refl True)
+      (implies_congr
+        (Eq.refl
+          (distinctN
+            [EnactorPC_Enum.Receive, EnactorPC_Enum.Apply, EnactorPC_Enum.Cleanup, EnactorPC_Enum.RemoveActiveDNS]))
+        (implies_congr
+          (Eq.refl
+            (∀ (__veil_x : EnactorPC),
+              __veil_x = EnactorPC_Enum.Receive ∨
+                __veil_x = EnactorPC_Enum.Apply ∨
+                  __veil_x = EnactorPC_Enum.Cleanup ∨ __veil_x = EnactorPC_Enum.RemoveActiveDNS))
+          (implies_congr
+            (Eq.refl
+              (distinctN
+                [__veil_tag.PlannerNewPlan, __veil_tag.EnactorReceive, __veil_tag.EnactorApply,
+                  __veil_tag.EnactorCleanupScanOne, __veil_tag.EnactorRemoveDNSRecords]))
+            (implies_congr
+              (Eq.refl
+                (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.PlannerNewPlan ∨
+                    __veil_x = __veil_tag.EnactorReceive ∨
+                      __veil_x = __veil_tag.EnactorApply ∨
+                        __veil_x = __veil_tag.EnactorCleanupScanOne ∨ __veil_x = __veil_tag.EnactorRemoveDNSRecords))
+              (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 10))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 10))
+                  fun th.max_plan.isLt =&gt;
+                  implies_congr
+                    (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 10))
+                    (forall_prop_domain_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 10))
+                      fun th.plan_age_threshold.isLt =&gt;
+                      implies_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 10))
+                        (forall_prop_domain_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 10))
+                          fun st0.current_plan.isLt =&gt;
+                          implies_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                            (forall_prop_domain_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                              fun st0.latest_plan.isLt =&gt;
+                              implies_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                                (forall_prop_domain_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                                  fun st0.highest_plan_applied.isLt =&gt;
+                                  implies_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                                    (forall_prop_domain_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                                      fun st1.current_plan.isLt =&gt;
+                                      implies_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 10))
+                                        (forall_prop_domain_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 10))
+                                          fun st1.latest_plan.isLt =&gt;
+                                          implies_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                            (forall_prop_domain_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                              fun st1.highest_plan_applied.isLt =&gt;
+                                              implies_congr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 10))
+                                                (forall_prop_domain_congr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 10))
+                                                  fun st2.current_plan.isLt =&gt;
+                                                  implies_congr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 10))
+                                                    (forall_prop_domain_congr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 10))
+                                                      fun st2.latest_plan.isLt =&gt;
+                                                      implies_congr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+                                                        (forall_prop_domain_congr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+                                                          fun st2.highest_plan_applied.isLt =&gt;
+                                                          implies_congr
+                                                            (Eq.trans (propext Bool.eq_eq_true)
+                                                              (congr (congrArg Eq decide_eq_true_iff._simp_2)
+                                                                Bool.false_eq_true))
+                                                            (implies_congr
+                                                              (congrArg
+                                                                (And
+                                                                  (0 =
+                                                                    ⟨f✝⁷.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun&#x27;
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸))
+                                                                            10))
+                                                                        st0.current_plan.isLt⟩))
+                                                                (congr
+                                                 </pre></details><details><summary>2, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    implies_congr (Eq.refl True)
+      (implies_congr
+        (Eq.refl
+          (distinctN
+            [EnactorPC_Enum.Receive, EnactorPC_Enum.Apply, EnactorPC_Enum.Cleanup, EnactorPC_Enum.RemoveActiveDNS]))
+        (implies_congr
+          (Eq.refl
+            (∀ (__veil_x : EnactorPC),
+              __veil_x = EnactorPC_Enum.Receive ∨
+                __veil_x = EnactorPC_Enum.Apply ∨
+                  __veil_x = EnactorPC_Enum.Cleanup ∨ __veil_x = EnactorPC_Enum.RemoveActiveDNS))
+          (implies_congr
+            (Eq.refl
+              (distinctN
+                [__veil_tag.PlannerNewPlan, __veil_tag.EnactorReceive, __veil_tag.EnactorApply,
+                  __veil_tag.EnactorCleanupScanOne, __veil_tag.EnactorRemoveDNSRecords]))
+            (implies_congr
+              (Eq.refl
+                (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.PlannerNewPlan ∨
+                    __veil_x = __veil_tag.EnactorReceive ∨
+                      __veil_x = __veil_tag.EnactorApply ∨
+                        __veil_x = __veil_tag.EnactorCleanupScanOne ∨ __veil_x = __veil_tag.EnactorRemoveDNSRecords))
+              (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 10))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 10))
+                  fun th.max_plan.isLt =&gt;
+                  implies_congr
+                    (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 10))
+                    (forall_prop_domain_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 10))
+                      fun th.plan_age_threshold.isLt =&gt;
+                      implies_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 10))
+                        (forall_prop_domain_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 10))
+                          fun st0.current_plan.isLt =&gt;
+                          implies_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                            (forall_prop_domain_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                              fun st0.latest_plan.isLt =&gt;
+                              implies_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                                (forall_prop_domain_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                                  fun st0.highest_plan_applied.isLt =&gt;
+                                  implies_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                                    (forall_prop_domain_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                                      fun st1.current_plan.isLt =&gt;
+                                      implies_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 10))
+                                        (forall_prop_domain_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴)) 10))
+                                          fun st1.latest_plan.isLt =&gt;
+                                          implies_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                            (forall_prop_domain_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝³)) 10))
+                                              fun st1.highest_plan_applied.isLt =&gt;
+                                              implies_congr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 10))
+                                                (forall_prop_domain_congr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝²)) 10))
+                                                  fun st2.current_plan.isLt =&gt;
+                                                  implies_congr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 10))
+                                                    (forall_prop_domain_congr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹)) 10))
+                                                      fun st2.latest_plan.isLt =&gt;
+                                                      implies_congr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+                                                        (forall_prop_domain_congr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a)) 10))
+                                                          fun st2.highest_plan_applied.isLt =&gt;
+                                                          implies_congr
+                                                            (Eq.trans (propext Bool.eq_eq_true)
+                                                              (congr (congrArg Eq decide_eq_true_iff._simp_2)
+                                                                Bool.false_eq_true))
+                                                            (implies_congr
+                                                              (congrArg
+                                                                (And
+                                                                  (0 =
+                                                                    ⟨f✝⁷.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congrFun&#x27;
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸))
+                                                                            10))
+                                                                        st0.current_plan.isLt⟩))
+                                                                (congr
+                                                 </pre></details><details><summary>4, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    implies_congr (Eq.refl True)
+      (implies_congr
+        (Eq.refl
+          (distinctN
+            [EnactorPC_Enum.Receive, EnactorPC_Enum.Apply, EnactorPC_Enum.Cleanup, EnactorPC_Enum.RemoveActiveDNS]))
+        (implies_congr
+          (Eq.refl
+            (∀ (__veil_x : EnactorPC),
+              __veil_x = EnactorPC_Enum.Receive ∨
+                __veil_x = EnactorPC_Enum.Apply ∨
+                  __veil_x = EnactorPC_Enum.Cleanup ∨ __veil_x = EnactorPC_Enum.RemoveActiveDNS))
+          (implies_congr
+            (Eq.refl
+              (distinctN
+                [__veil_tag.PlannerNewPlan, __veil_tag.EnactorReceive, __veil_tag.EnactorApply,
+                  __veil_tag.EnactorCleanupScanOne, __veil_tag.EnactorRemoveDNSRecords]))
+            (implies_congr
+              (Eq.refl
+                (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.PlannerNewPlan ∨
+                    __veil_x = __veil_tag.EnactorReceive ∨
+                      __veil_x = __veil_tag.EnactorApply ∨
+                        __veil_x = __veil_tag.EnactorCleanupScanOne ∨ __veil_x = __veil_tag.EnactorRemoveDNSRecords))
+              (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 10))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 10))
+                  fun th.max_plan.isLt =&gt;
+                  implies_congr
+                    (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 10))
+                    (forall_prop_domain_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 10))
+                      fun th.plan_age_threshold.isLt =&gt;
+                      implies_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 10))
+                        (forall_prop_domain_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 10))
+                          fun st0.current_plan.isLt =&gt;
+                          implies_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 10))
+                            (forall_prop_domain_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 10))
+                              fun st0.latest_plan.isLt =&gt;
+                              implies_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 10))
+                                (forall_prop_domain_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 10))
+                                  fun st0.highest_plan_applied.isLt =&gt;
+                                  implies_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 10))
+                                    (forall_prop_domain_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 10))
+                                      fun st1.current_plan.isLt =&gt;
+                                      implies_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 10))
+                                        (forall_prop_domain_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 10))
+                                          fun st1.latest_plan.isLt =&gt;
+                                          implies_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 10))
+                                            (forall_prop_domain_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 10))
+                                              fun st1.highest_plan_applied.isLt =&gt;
+                                              implies_congr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 10))
+                                                (forall_prop_domain_congr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 10))
+                                                  fun st2.current_plan.isLt =&gt;
+                                                  implies_congr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                                                    (forall_prop_domain_congr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                                                      fun st2.latest_plan.isLt =&gt;
+                                                      implies_congr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                                                        (forall_prop_domain_congr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                                                          fun st2.highest_plan_applied.isLt =&gt;
+                                                          implies_congr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                                                            (forall_prop_domain_congr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵))
+                                                                  10))
+                                                              fun st3.current_plan.isLt =&gt;
+                                                              implies_congr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))
+                                                                    10))
+                                                                (forall_prop_domain_congr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun&#x27;
+                          </pre></details><details><summary>4, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    implies_congr (Eq.refl True)
+      (implies_congr
+        (Eq.refl
+          (distinctN
+            [EnactorPC_Enum.Receive, EnactorPC_Enum.Apply, EnactorPC_Enum.Cleanup, EnactorPC_Enum.RemoveActiveDNS]))
+        (implies_congr
+          (Eq.refl
+            (∀ (__veil_x : EnactorPC),
+              __veil_x = EnactorPC_Enum.Receive ∨
+                __veil_x = EnactorPC_Enum.Apply ∨
+                  __veil_x = EnactorPC_Enum.Cleanup ∨ __veil_x = EnactorPC_Enum.RemoveActiveDNS))
+          (implies_congr
+            (Eq.refl
+              (distinctN
+                [__veil_tag.PlannerNewPlan, __veil_tag.EnactorReceive, __veil_tag.EnactorApply,
+                  __veil_tag.EnactorCleanupScanOne, __veil_tag.EnactorRemoveDNSRecords]))
+            (implies_congr
+              (Eq.refl
+                (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.PlannerNewPlan ∨
+                    __veil_x = __veil_tag.EnactorReceive ∨
+                      __veil_x = __veil_tag.EnactorApply ∨
+                        __veil_x = __veil_tag.EnactorCleanupScanOne ∨ __veil_x = __veil_tag.EnactorRemoveDNSRecords))
+              (implies_congr (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 10))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶)) 10))
+                  fun th.max_plan.isLt =&gt;
+                  implies_congr
+                    (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 10))
+                    (forall_prop_domain_congr
+                      (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵)) 10))
+                      fun th.plan_age_threshold.isLt =&gt;
+                      implies_congr
+                        (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 10))
+                        (forall_prop_domain_congr
+                          (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴)) 10))
+                          fun st0.current_plan.isLt =&gt;
+                          implies_congr
+                            (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 10))
+                            (forall_prop_domain_congr
+                              (Eq.trans Int.ofNat_lt._simp_2 (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³)) 10))
+                              fun st0.latest_plan.isLt =&gt;
+                              implies_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 10))
+                                (forall_prop_domain_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²)) 10))
+                                  fun st0.highest_plan_applied.isLt =&gt;
+                                  implies_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 10))
+                                    (forall_prop_domain_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹)) 10))
+                                      fun st1.current_plan.isLt =&gt;
+                                      implies_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 10))
+                                        (forall_prop_domain_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰)) 10))
+                                          fun st1.latest_plan.isLt =&gt;
+                                          implies_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 10))
+                                            (forall_prop_domain_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹)) 10))
+                                              fun st1.highest_plan_applied.isLt =&gt;
+                                              implies_congr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 10))
+                                                (forall_prop_domain_congr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸)) 10))
+                                                  fun st2.current_plan.isLt =&gt;
+                                                  implies_congr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                                                    (forall_prop_domain_congr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷)) 10))
+                                                      fun st2.latest_plan.isLt =&gt;
+                                                      implies_congr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                                                        (forall_prop_domain_congr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶)) 10))
+                                                          fun st2.highest_plan_applied.isLt =&gt;
+                                                          implies_congr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵)) 10))
+                                                            (forall_prop_domain_congr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵))
+                                                                  10))
+                                                              fun st3.current_plan.isLt =&gt;
+                                                              implies_congr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congrFun&#x27; (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))
+                                                                    10))
+                                                                (forall_prop_domain_congr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congrFun&#x27;
+                          </pre></details><details><summary>8, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/AWS_AWSBuggy__local__default__batch1.lean:373:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>8, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/AWS_AWSBuggy__cached__default__batch1.lean:370:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>16, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/AWS_AWSBuggy__local__default__batch1.lean:409:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>16, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/AWS_AWSBuggy__cached__default__batch1.lean:405:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>32, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/AWS_AWSBuggy__local__default__batch1.lean:445:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>32, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/AWS_AWSBuggy__cached__default__batch1.lean:440:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details>

@@ -1,0 +1,93 @@
+{
+  "model_files": 49,
+  "depths": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "requested_cells": 588,
+  "recorded_cells": 588,
+  "attempted_query_cells": 588,
+  "outcome_counts": {
+    "early": {
+      "embedding": 49,
+      "recursion": 39,
+      "heartbeat": 24,
+      "unsat": 69,
+      "simp_steps": 9,
+      "solver_error": 10,
+      "solver_timeout": 36,
+      "translation": 41,
+      "sat": 17
+    },
+    "local": {
+      "embedding": 45,
+      "recursion": 49,
+      "unsat": 70,
+      "heartbeat": 23,
+      "solver_error": 10,
+      "solver_timeout": 38,
+      "translation": 43,
+      "sat": 16
+    }
+  },
+  "completed_query_cells": {
+    "early": 132,
+    "local": 134
+  },
+  "matched_completed_query_pairs": 132,
+  "definite_answer_disagreements": [],
+  "definite_solver_disagreements": [],
+  "query_completion_changes": {
+    "local_only": 2,
+    "early_only": 0
+  },
+  "pipeline_entered_cells": 588,
+  "pipeline_entered_files": 49,
+  "model_setup_blocked_cells": 0,
+  "model_setup_blocked_files": 0,
+  "not_started_cells": 0,
+  "completed_preprocessing_cells": {
+    "early": 261,
+    "local": 272
+  },
+  "matched_completed_preprocessing_pairs": 261,
+  "outcome_file_counts": {
+    "early": {
+      "sat": 5,
+      "unsat": 22,
+      "simp_steps": 5,
+      "recursion": 20,
+      "heartbeat": 18,
+      "embedding": 14,
+      "translation": 8,
+      "solver_timeout": 16,
+      "solver_error": 2
+    },
+    "local": {
+      "sat": 5,
+      "unsat": 22,
+      "recursion": 21,
+      "heartbeat": 15,
+      "embedding": 13,
+      "translation": 8,
+      "solver_timeout": 16,
+      "solver_error": 2
+    }
+  },
+  "observed_matched_query_ratios": {
+    "minimum": 0.6621621621621622,
+    "median": 1.0463966803488394,
+    "maximum": 2.1565821749795586,
+    "description": "Early introduction / local time across matched cells; one observation per cell, heterogeneous models/depths, no uncertainty estimate."
+  },
+  "paired_logical_comparison": {
+    "pairs": 132,
+    "matched": 132,
+    "native_accepted_pairs": 122,
+    "native_accepted_matches": 122
+  }
+}

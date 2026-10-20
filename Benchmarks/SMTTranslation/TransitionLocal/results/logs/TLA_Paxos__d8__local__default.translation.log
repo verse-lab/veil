@@ -1,0 +1,108 @@
+/tmp/veil-transition-local/results/batch-sources/TLA_Paxos__default__batch1.lean:629:2: error: Application type mismatch: The argument
+  fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun msgSet.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun msgSet.insert =>
+                forall_congr fun msgSet.remove =>
+                  forall_congr fun msgSet.ofList =>
+                    forall_congr fun msgSet.toList =>
+                      forall_congr fun msgSet.filter =>
+                        forall_congr fun msgSet.union =>
+                          forall_congr fun msgSet.diff =>
+                            forall_congr fun msgSet.intersection =>
+                              forall_congr fun msgSet.subsets =>
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =>
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =>
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =>
+                                          forall_congr fun acSet.empty =>
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun f_5 =>
+                                                forall_congr fun acSet.insert =>
+                                                  forall_congr fun acSet.remove =>
+                                                    forall_congr fun acSet.toList =>
+                                                      forall_congr fun acSet.union =>
+                                                        forall_congr fun acSet.diff => forall_congr ⋯)))))
+has type
+  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),
+    (∀ (f_1 : PaxosMsg acceptor value f✝.toNat → MsgSet → Bool) (msgSet.empty : MsgSet) (msgSet.isEmpty : MsgSet → Bool)
+        (msgSet.insert msgSet.remove : PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (msgSet.ofList : List (PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (msgSet.toList : MsgSet → List (PaxosMsg acceptor value f✝.toNat))
+        (msgSet.filter : MsgSet → (PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (msgSet.union msgSet.diff msgSet.intersection : MsgSet → MsgSet → MsgSet)
+        (msgSet.subsets : MsgSet → List MsgSet) (acSet.count : AcceptorSet → Nat)
+        (acSet.contains : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet)
+        (acSet.isEmpty : AcceptorSet → Bool) (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet)
+        (acSet.toList : AcceptorSet → List acceptor) (acSet.union acSet.diff : AcceptorSet → AcceptorSet → AcceptorSet)
+        (acSet.subsets : AcceptorSet → List AcceptorSet)
+        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag) (st0.msgs : MsgSet)
+        (st0.maxVBal st0.maxBal : acceptor → BallotTy f✝.toNat) (st0.maxVal : acceptor → Option value)
+        (st1.msgs : MsgSet) (st1.maxVBal st1.maxBal : acceptor → BallotTy f✝.toNat)
+        (st1.maxVal : acceptor → Option value) (st2.msgs : MsgSet)
+        (st2.maxVBal st2.maxBal : acceptor → BallotTy f✝.toNat) (st2.maxVal : acceptor → Option value)
+        (st3.msgs : MsgSet) (st3.maxVBal st3.maxBal : acceptor → BallotTy f✝.toNat)
+        (st3.maxVal : acceptor → Option value) (st4.msgs : MsgSet)
+        (st4.maxVBal st4.maxBal : acceptor → BallotTy f✝.toNat) (st4.maxVal : acceptor → Option value)
+        (st5.msgs : MsgSet) (st5.maxVBal st5.maxBal : acceptor → BallotTy f✝.toNat)
+        (st5.maxVal : acceptor → Option value) (st6.msgs : MsgSet)
+        (st6.maxVBal st6.maxBal : acceptor → BallotTy f✝.toNat) (st6.maxVal : acceptor → Option value)
+        (st7.msgs : MsgSet) (st7.maxVBal st7.maxBal : acceptor → BallotTy f✝.toNat)
+        (st7.maxVal : acceptor → Option value) (st8.msgs : MsgSet)
+        (st8.maxVBal st8.maxBal : acceptor → BallotTy f✝.toNat) (st8.maxVal : acceptor → Option value) (v1 v2 : value)
+        (b : BallotTy f✝.toNat) (Q : quorum) (b_1 : BallotTy f✝.toNat), ⋯) =
+      ∀ (a_1 : PaxosMsg acceptor value f✝.toNat → MsgSet → Prop) (a_2 : MsgSet) (a_3 : MsgSet → Prop)
+        (a_4 a_5 : PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (a_6 : List (PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (a_7 : MsgSet → List (PaxosMsg acceptor value f✝.toNat))
+        (a_8 : MsgSet → (PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet) (a_9 a_10 a_11 : MsgSet → MsgSet → MsgSet)
+        (a_12 : MsgSet → List MsgSet) (a_13 : AcceptorSet → Int),
+        (∀ (a₁ : AcceptorSet), a_13 a₁ ≥ 0) →
+          ∀ (a_15 : acceptor → AcceptorSet → Prop) (a_16 : AcceptorSet) (a_17 : AcceptorSet → Prop)
+            (a_18 a_19 : acceptor → AcceptorSet → AcceptorSet) (a_20 : AcceptorSet → List acceptor)
+            (a_21 a_22 : AcceptorSet → AcceptorSet → AcceptorSet) (a_23 : AcceptorSet → List AcceptorSet)
+            (a_24 a_25 a_26 a_27 : ActionTag) (a_28 : MsgSet) (a_29 a_30 : acceptor → BallotTy f✝.toNat)
+            (a_31 : acceptor → Option value) (a_32 : MsgSet) (a_33 a_34 : acceptor → BallotTy f✝.toNat)
+            (a_35 : acceptor → Option value) (a_36 : MsgSet) (a_37 a_38 : acceptor → BallotTy f✝.toNat)
+            (a_39 : acceptor → Option value) (a_40 : MsgSet) (a_41 a_42 : acceptor → BallotTy f✝.toNat)
+            (a_43 : acceptor → Option value) (a_44 : MsgSet) (a_45 a_46 : acceptor → BallotTy f✝.toNat)
+            (a_47 : acceptor → Option value) (a_48 : MsgSet) (a_49 a_50 : acceptor → BallotTy f✝.toNat)
+            (a_51 : acceptor → Option value) (a_52 : MsgSet) (a_53 a_54 : acceptor → BallotTy f✝.toNat)
+            (a_55 : acceptor → Option value) (a_56 : MsgSet) (a_57 a_58 : acceptor → BallotTy f✝.toNat)
+            (a_59 : acceptor → Option value) (a_60 : MsgSet) (a_61 a_62 : acceptor → BallotTy f✝.toNat)
+            (a_63 : acceptor → Option value) (a_64 a_65 : value) (a_66 : BallotTy f✝.toNat) (a_67 : quorum), ⋯
+but is expected to have type
+  (∀ (a₁ : MsgSet), f a₁ ≥ 0) → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (∀ (a₁ : MsgSet), f a₁ ≥ 0)) fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun msgSet.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun msgSet.insert =>
+                forall_congr fun msgSet.remove =>
+                  forall_congr fun msgSet.ofList =>
+                    forall_congr fun msgSet.toList =>
+                      forall_congr fun msgSet.filter =>
+                        forall_congr fun msgSet.union =>
+                          forall_congr fun msgSet.diff =>
+                            forall_congr fun msgSet.intersection =>
+                              forall_congr fun msgSet.subsets =>
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =>
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =>
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =>
+                                          forall_congr fun acSet.empty =>
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun f_5 =>
+                                                forall_congr fun acSet.insert =>
+                                                  forall_congr fun acSet.remove =>
+                                                    forall_congr fun acSet.toList =>
+                                                      forall_congr fun acSet.union =>
+                                                        forall_congr fun acSet.diff => ⋯)))))

@@ -1,0 +1,347 @@
+{
+  "row": {
+    "cell_id": "TLA_EWD840__d16__local__default",
+    "model": "TLA_EWD840",
+    "path": "Examples/TLA/EWD840.lean",
+    "module": "EWD840",
+    "depth": 16,
+    "variant": "local",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/TLA_EWD840__default__batch1.lean:498:2: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 73,
+    "batch_id": "TLA_EWD840__default__batch1",
+    "batch_setup_ms": 7060,
+    "preprocessing_ms": 2462,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/TLA_EWD840__d16__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/TLA_EWD840__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/TLA_EWD840__d16__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/TLA_EWD840__d16__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/TLA_EWD840__d16__local__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_EWD840",
+    "path": "Examples/TLA/EWD840.lean",
+    "module": "EWD840",
+    "cut_line": 110,
+    "query": "assert (terminationDetected ∧ ¬ terminated)",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "TerminationDetection invariant, line103",
+    "notes": "Uses earlier ghost definitions; Fin domain size is a symbolic Nat parameter.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "3dd60c0b153252a030410b77c940884ff872010360482ccadab9b53e720dd3df"
+  },
+  "original_sha256": "3dd60c0b153252a030410b77c940884ff872010360482ccadab9b53e720dd3df",
+  "inherited_setup_options": [],
+  "source_sha256": "6aa49557446da812eac99cc2763060ee2b90aeefe9ddf890b61b183e1eb4b0e0",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/TLA_EWD840__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208934361,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 208934434,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208934434,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 8,
+      "event": "stage",
+      "heartbeats": 24330,
+      "mono_ms": 208934442,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208934443,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 6147,
+      "mono_ms": 208934444,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208934444,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 908,
+      "event": "stage",
+      "heartbeats": 10489839,
+      "mono_ms": 208935352,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208935352,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 272,
+      "event": "stage",
+      "heartbeats": 3473055,
+      "mono_ms": 208935624,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208935638,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 6291,
+      "mono_ms": 208935640,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208935640,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 477,
+      "event": "stage",
+      "heartbeats": 6482616,
+      "mono_ms": 208936117,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208936117,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 174,
+      "event": "stage",
+      "heartbeats": 1714149,
+      "mono_ms": 208936291,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208936292,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 518,
+      "event": "stage",
+      "heartbeats": 6208740,
+      "mono_ms": 208936810,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208936812,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 95,
+      "event": "stage",
+      "heartbeats": 1287819,
+      "mono_ms": 208936907,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208936907,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 8,
+      "event": "stage",
+      "heartbeats": 50658,
+      "mono_ms": 208936916,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 2482,
+      "event": "milestone",
+      "mono_ms": 208936916,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208936916,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 8,
+      "event": "stage",
+      "heartbeats": 48621,
+      "mono_ms": 208936924,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208936924,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 4707,
+      "mono_ms": 208936924,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208936924,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 208936924,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208936924,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 208936924,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208936924,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 185,
+      "event": "stage",
+      "heartbeats": 1701430,
+      "mono_ms": 208937109,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208937109,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208937815,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_EWD840__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/TLA_EWD840__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/TLA_EWD840__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 43398,
+    "setup_ms": 7060,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/TLA_EWD840__default__batch1.lean"
+    ]
+  }
+}

@@ -1,0 +1,220 @@
+{
+  "row": {
+    "cell_id": "Ivy_MultiSigMajority__d32__local__default",
+    "model": "Ivy_MultiSigMajority",
+    "path": "Examples/Ivy/MultiSigMajority.lean",
+    "module": "MultiSigMajority",
+    "depth": 32,
+    "variant": "local",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "smtSimp",
+    "failure_kind": "heartbeats",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean:518:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached\n\nNote: Use `set_option maxHeartbeats <num>` to set the limit.\n\nHint: Additional diagnostic information may be available using the `set_option diagnostics true` command.\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 330,
+    "batch_id": "Ivy_MultiSigMajority__default__batch1",
+    "batch_setup_ms": 13073,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/Ivy_MultiSigMajority__d32__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_MultiSigMajority__d32__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Ivy_MultiSigMajority__d32__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/Ivy_MultiSigMajority__d32__local__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_MultiSigMajority",
+    "path": "Examples/Ivy/MultiSigMajority.lean",
+    "module": "MultiSigMajority",
+    "cut_line": 95,
+    "query": "assert (∃ n k v d, cancelled n k v d ∧ ¬ expired d)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "cancelled_after_deadline safety, line88",
+    "notes": "Quorum-based variant, distinct from MultiSigAll.",
+    "category": "Ivy",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "725aa85ca8aaee64fada61e1a9d547b2c4a5f10c4babb06c76c7f1ca7fd82d5f"
+  },
+  "original_sha256": "725aa85ca8aaee64fada61e1a9d547b2c4a5f10c4babb06c76c7f1ca7fd82d5f",
+  "inherited_setup_options": [],
+  "source_sha256": "6a3b925c8c926ee13ae6b3f3f3f3284055aff0438f1973092774bfc728089685",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Ivy_MultiSigMajority__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207113687,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 207114017,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207114017,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 181,
+      "event": "stage",
+      "heartbeats": 598182,
+      "mono_ms": 207114198,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207114198,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 18506,
+      "mono_ms": 207114201,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207114201,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6742,
+      "event": "stage",
+      "heartbeats": 78639506,
+      "mono_ms": 207120943,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207120943,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 136,
+      "event": "stage",
+      "heartbeats": 2208328,
+      "mono_ms": 207121079,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207121233,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 30673,
+      "mono_ms": 207121238,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207121238,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2112,
+      "event": "stage",
+      "heartbeats": 41576458,
+      "mono_ms": 207123350,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207123350,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 439,
+      "event": "stage",
+      "heartbeats": 6276423,
+      "mono_ms": 207123789,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207123790,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207131934,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_MultiSigMajority__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Ivy_MultiSigMajority__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 91909,
+    "setup_ms": 13073,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Ivy_MultiSigMajority__default__batch1.lean"
+    ]
+  }
+}

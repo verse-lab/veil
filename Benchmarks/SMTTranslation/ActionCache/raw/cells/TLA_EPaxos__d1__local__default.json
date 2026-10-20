@@ -1,0 +1,347 @@
+{
+  "row": {
+    "cell_id": "TLA_EPaxos__d1__local__default",
+    "model": "TLA_EPaxos",
+    "path": "Examples/TLA/EPaxos.lean",
+    "module": "EPaxos",
+    "depth": 1,
+    "variant": "local",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-action-cache/results/batch-sources/TLA_EPaxos__local__default__batch1.lean:1519:2: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 53,
+    "batch_id": "TLA_EPaxos__local__default__batch1",
+    "batch_setup_ms": 45050,
+    "preprocessing_ms": 2081,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-action-cache/results/queries/TLA_EPaxos__d1__local__default.smt2",
+    "source_path": "/tmp/veil-action-cache/results/batch-sources/TLA_EPaxos__local__default__batch1.lean",
+    "event_path": "/tmp/veil-action-cache/results/events/TLA_EPaxos__d1__local__default.jsonl",
+    "translation_log": "/tmp/veil-action-cache/results/logs/TLA_EPaxos__d1__local__default.translation.log",
+    "solver_log": "/tmp/veil-action-cache/results/logs/TLA_EPaxos__d1__local__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_EPaxos",
+    "path": "Examples/TLA/EPaxos.lean",
+    "module": "EPaxos",
+    "cut_line": 1388,
+    "query": "assert (∃ i, commitSet.count (committedMap i) > 1)",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "Consistency invariant, lines1378–1379",
+    "notes": "Large collection/message model. Keep backend/elaboration failures as outcomes; do not replace its query with True.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "9f33f0fd15fa5c873302f7c521744277aaaca0373fa43b20d0e255549d742dd4"
+  },
+  "original_sha256": "9f33f0fd15fa5c873302f7c521744277aaaca0373fa43b20d0e255549d742dd4",
+  "inherited_setup_options": [],
+  "source_sha256": "073ec985b30c0436f315a831d7e80027f95cf73a92cb6e6de5b4b724a240f470",
+  "batch_log": "/tmp/veil-action-cache/results/batch-logs/TLA_EPaxos__local__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 243998180,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 243998233,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243998233,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 10,
+      "event": "stage",
+      "heartbeats": 42312,
+      "mono_ms": 243998243,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243998244,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 4899,
+      "mono_ms": 243998245,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243998245,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1008,
+      "event": "stage",
+      "heartbeats": 9326334,
+      "mono_ms": 243999253,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243999253,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 157,
+      "event": "stage",
+      "heartbeats": 1534362,
+      "mono_ms": 243999410,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243999422,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 5653,
+      "mono_ms": 243999423,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243999423,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 419,
+      "event": "stage",
+      "heartbeats": 5974643,
+      "mono_ms": 243999842,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243999842,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 77,
+      "event": "stage",
+      "heartbeats": 1002679,
+      "mono_ms": 243999920,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243999920,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 333,
+      "event": "stage",
+      "heartbeats": 3626874,
+      "mono_ms": 244000254,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244000258,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 68,
+      "event": "stage",
+      "heartbeats": 770618,
+      "mono_ms": 244000326,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244000326,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "heartbeats": 70005,
+      "mono_ms": 244000334,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 2102,
+      "event": "milestone",
+      "mono_ms": 244000335,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244000335,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 8,
+      "event": "stage",
+      "heartbeats": 69142,
+      "mono_ms": 244000343,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244000343,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 8766,
+      "mono_ms": 244000344,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244000344,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 208,
+      "mono_ms": 244000344,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244000344,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 56,
+      "mono_ms": 244000344,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244000344,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 247,
+      "event": "stage",
+      "heartbeats": 4007849,
+      "mono_ms": 244000591,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244000591,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 244001070,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_EPaxos__local__default__batch1",
+    "source": "/tmp/veil-action-cache/results/batch-sources/TLA_EPaxos__local__default__batch1.lean",
+    "log": "/tmp/veil-action-cache/results/batch-logs/TLA_EPaxos__local__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 120359,
+    "setup_ms": 45050,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-action-cache/results/batch-sources/TLA_EPaxos__local__default__batch1.lean"
+    ]
+  }
+}

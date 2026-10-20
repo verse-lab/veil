@@ -1,0 +1,622 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>TLA_Raft</title><style>body{max-width:1250px;margin:35px auto;padding:0 24px;font:16px/1.5 system-ui;color:#162a35;background:#fafcfb}h1,h2{line-height:1.2}a{color:#007562}img{max-width:100%;background:white}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:8px;border-bottom:1px solid #dbe4df;text-align:left;vertical-align:top}th{background:#e9f0ed}code{background:#edf1ef;padding:2px 5px}.note{background:#edf3f0;padding:18px;border-left:4px solid #00856a}details{margin:12px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere}nav{display:flex;gap:15px;flex-wrap:wrap}.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:20px}.gallery a{background:white;padding:10px;text-decoration:none;border:1px solid #dbe4df}</style><nav><a href="../index.html">All models</a><a href="TLA_Raft.svg">SVG figure</a></nav><h1>TLA_Raft</h1><p><code>Examples/TLA/Raft.lean</code> · <code>assert (∃ i j, i ≠ j ∧ currentTerm i = currentTerm j ∧ pcState i Leader ∧ pcState j Leader)</code></p><img src="TLA_Raft.png"><table><thead><tr><th>Depth</th><th>Variant</th><th>Result</th><th>Normalize s</th><th>Query s</th><th>VC s</th><th>Cold→query s</th><th>Solver s</th><th>Stopped at</th><th>Failure kind</th><th>Evidence</th></tr></thead><tbody><tr><td>1</td><td>local</td><td>translation_failed</td><td>2.017</td><td>—</td><td>0.054</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_Raft__d1__local__default.translation.log">log</a></td></tr><tr><td>1</td><td>cached</td><td>blocked_model_setup</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>model_setup</td><td>wall_timeout</td><td> <a href="../../raw/logs/TLA_Raft__d1__cached__default.translation.log">log</a></td></tr><tr><td>2</td><td>local</td><td>translation_failed</td><td>3.252</td><td>—</td><td>0.064</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_Raft__d2__local__default.translation.log">log</a></td></tr><tr><td>2</td><td>cached</td><td>blocked_model_setup</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>model_setup</td><td>wall_timeout</td><td> <a href="../../raw/logs/TLA_Raft__d2__cached__default.translation.log">log</a></td></tr><tr><td>4</td><td>local</td><td>translation_failed</td><td>6.823</td><td>—</td><td>0.075</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_Raft__d4__local__default.translation.log">log</a></td></tr><tr><td>4</td><td>cached</td><td>blocked_model_setup</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>model_setup</td><td>wall_timeout</td><td> <a href="../../raw/logs/TLA_Raft__d4__cached__default.translation.log">log</a></td></tr><tr><td>8</td><td>local</td><td>translation_failed</td><td>14.096</td><td>—</td><td>0.116</td><td>—</td><td>—</td><td>smtSimp</td><td>heartbeats</td><td> <a href="../../raw/logs/TLA_Raft__d8__local__default.translation.log">log</a></td></tr><tr><td>8</td><td>cached</td><td>blocked_model_setup</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>model_setup</td><td>wall_timeout</td><td> <a href="../../raw/logs/TLA_Raft__d8__cached__default.translation.log">log</a></td></tr><tr><td>16</td><td>local</td><td>translation_failed</td><td>—</td><td>—</td><td>0.239</td><td>—</td><td>—</td><td>hoist</td><td>heartbeats</td><td> <a href="../../raw/logs/TLA_Raft__d16__local__default.translation.log">log</a></td></tr><tr><td>16</td><td>cached</td><td>blocked_model_setup</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>model_setup</td><td>wall_timeout</td><td> <a href="../../raw/logs/TLA_Raft__d16__cached__default.translation.log">log</a></td></tr><tr><td>32</td><td>local</td><td>translation_failed</td><td>—</td><td>—</td><td>0.478</td><td>—</td><td>—</td><td>nextSimp</td><td>heartbeats</td><td> <a href="../../raw/logs/TLA_Raft__d32__local__default.translation.log">log</a></td></tr><tr><td>32</td><td>cached</td><td>blocked_model_setup</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>model_setup</td><td>wall_timeout</td><td> <a href="../../raw/logs/TLA_Raft__d32__cached__default.translation.log">log</a></td></tr></tbody></table><details><summary>1, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Raft__local__default__batch1.lean:1206:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>1, cached: wall_timeout</summary><pre>From a✝).messages) ()
+                        (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                      (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                      (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                      (FieldRepresentation.get (getFrom a✝).votedFor)
+                      (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                      (FieldRepresentation.get (getFrom a✝).commitIndex)
+                      (FieldRepresentation.get (getFrom a✝).committedLog)
+                      (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                      (FieldRepresentation.get (getFrom a✝).votesSent)
+                      (FieldRepresentation.get (getFrom a✝).votesGranted)
+                      (FieldRepresentation.get (getFrom a✝).voterLog)
+                      (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                        (FieldRepresentation.get (getFrom a✝).nextIndex) (some m.mdest, some m.msource, ()) fun x x_1 =&gt;
+                        (FieldRepresentation.get (getFrom a✝).nextIndex m.mdest m.msource - 1).max 1)
+                      (FieldRepresentation.get (getFrom a✝).matchIndex)
+                else __veil_handler 12
+            else
+              LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE (FieldRepresentation.get (getFrom a✝).messages)
+                (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                (FieldRepresentation.get (getFrom a✝).votedFor) (FieldRepresentation.get (getFrom a✝).clientRequests)
+                (FieldRepresentation.get (getFrom a✝).logs) (FieldRepresentation.get (getFrom a✝).commitIndex)
+                (FieldRepresentation.get (getFrom a✝).committedLog)
+                (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                (FieldRepresentation.get (getFrom a✝).matchIndex)
+  step3Target: Receive.ext.wp (Theory server serverSet serverStates value logSet msetMsg electionSet)
+  (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+  serverStates value logSet msetMsg electionSet
+  (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) __veil_handler
+  (fun __veil_u __veil_th __veil_st =&gt;
+    Theory.casesOn __veil_th fun Nil MaxClientRequests fixServer SIZE =&gt;
+      State.casesOn __veil_st
+        fun messages elections allLogs currentTerm pcState votedFor clientRequests logs commitIndex committedLog
+          committedLogDecrease votesSent votesGranted voterLog nextIndex matchIndex =&gt;
+        LocalRProp.core χ (__veil_post ()) Nil MaxClientRequests fixServer SIZE messages elections allLogs currentTerm
+          pcState votedFor clientRequests logs commitIndex committedLog committedLogDecrease votesSent votesGranted
+          voterLog nextIndex matchIndex)
+  (readFrom a✝¹)
+  (State.casesOn (getFrom a✝)
+    fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+      logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+      voterLog_conc nextIndex_conc matchIndex_conc =&gt;
+    let messages := FieldRepresentation.get messages_conc;
+    let elections := FieldRepresentation.get elections_conc;
+    let allLogs := FieldRepresentation.get allLogs_conc;
+    let currentTerm := FieldRepresentation.get currentTerm_conc;
+    let pcState := FieldRepresentation.get pcState_conc;
+    let votedFor := FieldRepresentation.get votedFor_conc;
+    let clientRequests := FieldRepresentation.get clientRequests_conc;
+    let logs := FieldRepresentation.get logs_conc;
+    let commitIndex := FieldRepresentation.get commitIndex_conc;
+    let committedLog := FieldRepresentation.get committedLog_conc;
+    let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+    let votesSent := FieldRepresentation.get votesSent_conc;
+    let votesGranted := FieldRepresentation.get votesGranted_conc;
+    let voterLog := FieldRepresentation.get voterLog_conc;
+    let nextIndex := FieldRepresentation.get nextIndex_conc;
+    let matchIndex := FieldRepresentation.get matchIndex_conc;
+    { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm, pcState := pcState,
+      votedFor := votedFor, clientRequests := clientRequests, logs := logs, commitIndex := commitIndex,
+      committedLog := committedLog, committedLogDecrease := committedLogDecrease, votesSent := votesSent,
+      votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex, matchIndex := matchIndex })
+/tmp/veil-action-cache/results/batch-sources/TLA_Raft__cached__default__batch1.lean:1092:0: warning: unable to generate transition weakening theorem for Receive.ext: Failed to prove source → target (via transitionWeakeningLemma) for Receive.ext in defineTransitionAbstract, goal: Receive.ext.tr
+    ρ σ server serverSet serverStates value logSet msetMsg electionSet χ r₀ s₀ s₁ →
+  Receive.ext.tr (Theory server serverSet serverStates value logSet msetMsg electionSet)
+    (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+    serverStates value logSet msetMsg electionSet
+    (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) (readFrom r₀)
+    (State.casesOn (getFrom s₀)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+        voterLog_conc nextIndex_conc matchIndex_conc =&gt;
+      let messages := FieldRepresentation.get messages_conc;
+      let elections := FieldRepresentation.get elections_conc;
+      let allLogs := FieldRepresentation.get allLogs_conc;
+      let currentTerm := FieldRepresentation.get currentTerm_conc;
+      let pcState := FieldRepresentation.get pcState_conc;
+      let votedFor := FieldRepresentation.get votedFor_conc;
+      let clientRequests := FieldRepresentation.get clientRequests_conc;
+      let logs := FieldRepresentation.get logs_conc;
+      let commitIndex := FieldRepresentation.get commitIndex_conc;
+      let committedLog := FieldRepresentation.get committedLog_conc;
+      let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+      let votesSent := FieldRepresentation.get votesSent_conc;
+      let votesGranted := FieldRepresentation.get votesGranted_conc;
+      let voterLog := FieldRepresentation.get voterLog_conc;
+      let nextIndex := FieldRepresentation.get nextIndex_conc;
+      let matchIndex := FieldRepresentation.get matchIndex_conc;
+      { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm,
+        pcState := pcState, votedFor := votedFor, clientRequests := clientRequests, logs := logs,
+        commitIndex := commitIndex, committedLog := committedLog, committedLogDecrease := committedLogDecrease,
+        votesSent := votesSent, votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex,
+        matchIndex := matchIndex })
+    (State.casesOn (getFrom s₁)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_con</pre></details><details><summary>2, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Raft__local__default__batch1.lean:1242:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>2, cached: wall_timeout</summary><pre>From a✝).messages) ()
+                        (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                      (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                      (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                      (FieldRepresentation.get (getFrom a✝).votedFor)
+                      (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                      (FieldRepresentation.get (getFrom a✝).commitIndex)
+                      (FieldRepresentation.get (getFrom a✝).committedLog)
+                      (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                      (FieldRepresentation.get (getFrom a✝).votesSent)
+                      (FieldRepresentation.get (getFrom a✝).votesGranted)
+                      (FieldRepresentation.get (getFrom a✝).voterLog)
+                      (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                        (FieldRepresentation.get (getFrom a✝).nextIndex) (some m.mdest, some m.msource, ()) fun x x_1 =&gt;
+                        (FieldRepresentation.get (getFrom a✝).nextIndex m.mdest m.msource - 1).max 1)
+                      (FieldRepresentation.get (getFrom a✝).matchIndex)
+                else __veil_handler 12
+            else
+              LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE (FieldRepresentation.get (getFrom a✝).messages)
+                (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                (FieldRepresentation.get (getFrom a✝).votedFor) (FieldRepresentation.get (getFrom a✝).clientRequests)
+                (FieldRepresentation.get (getFrom a✝).logs) (FieldRepresentation.get (getFrom a✝).commitIndex)
+                (FieldRepresentation.get (getFrom a✝).committedLog)
+                (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                (FieldRepresentation.get (getFrom a✝).matchIndex)
+  step3Target: Receive.ext.wp (Theory server serverSet serverStates value logSet msetMsg electionSet)
+  (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+  serverStates value logSet msetMsg electionSet
+  (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) __veil_handler
+  (fun __veil_u __veil_th __veil_st =&gt;
+    Theory.casesOn __veil_th fun Nil MaxClientRequests fixServer SIZE =&gt;
+      State.casesOn __veil_st
+        fun messages elections allLogs currentTerm pcState votedFor clientRequests logs commitIndex committedLog
+          committedLogDecrease votesSent votesGranted voterLog nextIndex matchIndex =&gt;
+        LocalRProp.core χ (__veil_post ()) Nil MaxClientRequests fixServer SIZE messages elections allLogs currentTerm
+          pcState votedFor clientRequests logs commitIndex committedLog committedLogDecrease votesSent votesGranted
+          voterLog nextIndex matchIndex)
+  (readFrom a✝¹)
+  (State.casesOn (getFrom a✝)
+    fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+      logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+      voterLog_conc nextIndex_conc matchIndex_conc =&gt;
+    let messages := FieldRepresentation.get messages_conc;
+    let elections := FieldRepresentation.get elections_conc;
+    let allLogs := FieldRepresentation.get allLogs_conc;
+    let currentTerm := FieldRepresentation.get currentTerm_conc;
+    let pcState := FieldRepresentation.get pcState_conc;
+    let votedFor := FieldRepresentation.get votedFor_conc;
+    let clientRequests := FieldRepresentation.get clientRequests_conc;
+    let logs := FieldRepresentation.get logs_conc;
+    let commitIndex := FieldRepresentation.get commitIndex_conc;
+    let committedLog := FieldRepresentation.get committedLog_conc;
+    let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+    let votesSent := FieldRepresentation.get votesSent_conc;
+    let votesGranted := FieldRepresentation.get votesGranted_conc;
+    let voterLog := FieldRepresentation.get voterLog_conc;
+    let nextIndex := FieldRepresentation.get nextIndex_conc;
+    let matchIndex := FieldRepresentation.get matchIndex_conc;
+    { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm, pcState := pcState,
+      votedFor := votedFor, clientRequests := clientRequests, logs := logs, commitIndex := commitIndex,
+      committedLog := committedLog, committedLogDecrease := committedLogDecrease, votesSent := votesSent,
+      votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex, matchIndex := matchIndex })
+/tmp/veil-action-cache/results/batch-sources/TLA_Raft__cached__default__batch1.lean:1092:0: warning: unable to generate transition weakening theorem for Receive.ext: Failed to prove source → target (via transitionWeakeningLemma) for Receive.ext in defineTransitionAbstract, goal: Receive.ext.tr
+    ρ σ server serverSet serverStates value logSet msetMsg electionSet χ r₀ s₀ s₁ →
+  Receive.ext.tr (Theory server serverSet serverStates value logSet msetMsg electionSet)
+    (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+    serverStates value logSet msetMsg electionSet
+    (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) (readFrom r₀)
+    (State.casesOn (getFrom s₀)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+        voterLog_conc nextIndex_conc matchIndex_conc =&gt;
+      let messages := FieldRepresentation.get messages_conc;
+      let elections := FieldRepresentation.get elections_conc;
+      let allLogs := FieldRepresentation.get allLogs_conc;
+      let currentTerm := FieldRepresentation.get currentTerm_conc;
+      let pcState := FieldRepresentation.get pcState_conc;
+      let votedFor := FieldRepresentation.get votedFor_conc;
+      let clientRequests := FieldRepresentation.get clientRequests_conc;
+      let logs := FieldRepresentation.get logs_conc;
+      let commitIndex := FieldRepresentation.get commitIndex_conc;
+      let committedLog := FieldRepresentation.get committedLog_conc;
+      let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+      let votesSent := FieldRepresentation.get votesSent_conc;
+      let votesGranted := FieldRepresentation.get votesGranted_conc;
+      let voterLog := FieldRepresentation.get voterLog_conc;
+      let nextIndex := FieldRepresentation.get nextIndex_conc;
+      let matchIndex := FieldRepresentation.get matchIndex_conc;
+      { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm,
+        pcState := pcState, votedFor := votedFor, clientRequests := clientRequests, logs := logs,
+        commitIndex := commitIndex, committedLog := committedLog, committedLogDecrease := committedLogDecrease,
+        votesSent := votesSent, votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex,
+        matchIndex := matchIndex })
+    (State.casesOn (getFrom s₁)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_con</pre></details><details><summary>4, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Raft__local__default__batch1.lean:1278:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>4, cached: wall_timeout</summary><pre>From a✝).messages) ()
+                        (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                      (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                      (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                      (FieldRepresentation.get (getFrom a✝).votedFor)
+                      (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                      (FieldRepresentation.get (getFrom a✝).commitIndex)
+                      (FieldRepresentation.get (getFrom a✝).committedLog)
+                      (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                      (FieldRepresentation.get (getFrom a✝).votesSent)
+                      (FieldRepresentation.get (getFrom a✝).votesGranted)
+                      (FieldRepresentation.get (getFrom a✝).voterLog)
+                      (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                        (FieldRepresentation.get (getFrom a✝).nextIndex) (some m.mdest, some m.msource, ()) fun x x_1 =&gt;
+                        (FieldRepresentation.get (getFrom a✝).nextIndex m.mdest m.msource - 1).max 1)
+                      (FieldRepresentation.get (getFrom a✝).matchIndex)
+                else __veil_handler 12
+            else
+              LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE (FieldRepresentation.get (getFrom a✝).messages)
+                (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                (FieldRepresentation.get (getFrom a✝).votedFor) (FieldRepresentation.get (getFrom a✝).clientRequests)
+                (FieldRepresentation.get (getFrom a✝).logs) (FieldRepresentation.get (getFrom a✝).commitIndex)
+                (FieldRepresentation.get (getFrom a✝).committedLog)
+                (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                (FieldRepresentation.get (getFrom a✝).matchIndex)
+  step3Target: Receive.ext.wp (Theory server serverSet serverStates value logSet msetMsg electionSet)
+  (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+  serverStates value logSet msetMsg electionSet
+  (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) __veil_handler
+  (fun __veil_u __veil_th __veil_st =&gt;
+    Theory.casesOn __veil_th fun Nil MaxClientRequests fixServer SIZE =&gt;
+      State.casesOn __veil_st
+        fun messages elections allLogs currentTerm pcState votedFor clientRequests logs commitIndex committedLog
+          committedLogDecrease votesSent votesGranted voterLog nextIndex matchIndex =&gt;
+        LocalRProp.core χ (__veil_post ()) Nil MaxClientRequests fixServer SIZE messages elections allLogs currentTerm
+          pcState votedFor clientRequests logs commitIndex committedLog committedLogDecrease votesSent votesGranted
+          voterLog nextIndex matchIndex)
+  (readFrom a✝¹)
+  (State.casesOn (getFrom a✝)
+    fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+      logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+      voterLog_conc nextIndex_conc matchIndex_conc =&gt;
+    let messages := FieldRepresentation.get messages_conc;
+    let elections := FieldRepresentation.get elections_conc;
+    let allLogs := FieldRepresentation.get allLogs_conc;
+    let currentTerm := FieldRepresentation.get currentTerm_conc;
+    let pcState := FieldRepresentation.get pcState_conc;
+    let votedFor := FieldRepresentation.get votedFor_conc;
+    let clientRequests := FieldRepresentation.get clientRequests_conc;
+    let logs := FieldRepresentation.get logs_conc;
+    let commitIndex := FieldRepresentation.get commitIndex_conc;
+    let committedLog := FieldRepresentation.get committedLog_conc;
+    let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+    let votesSent := FieldRepresentation.get votesSent_conc;
+    let votesGranted := FieldRepresentation.get votesGranted_conc;
+    let voterLog := FieldRepresentation.get voterLog_conc;
+    let nextIndex := FieldRepresentation.get nextIndex_conc;
+    let matchIndex := FieldRepresentation.get matchIndex_conc;
+    { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm, pcState := pcState,
+      votedFor := votedFor, clientRequests := clientRequests, logs := logs, commitIndex := commitIndex,
+      committedLog := committedLog, committedLogDecrease := committedLogDecrease, votesSent := votesSent,
+      votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex, matchIndex := matchIndex })
+/tmp/veil-action-cache/results/batch-sources/TLA_Raft__cached__default__batch1.lean:1092:0: warning: unable to generate transition weakening theorem for Receive.ext: Failed to prove source → target (via transitionWeakeningLemma) for Receive.ext in defineTransitionAbstract, goal: Receive.ext.tr
+    ρ σ server serverSet serverStates value logSet msetMsg electionSet χ r₀ s₀ s₁ →
+  Receive.ext.tr (Theory server serverSet serverStates value logSet msetMsg electionSet)
+    (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+    serverStates value logSet msetMsg electionSet
+    (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) (readFrom r₀)
+    (State.casesOn (getFrom s₀)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+        voterLog_conc nextIndex_conc matchIndex_conc =&gt;
+      let messages := FieldRepresentation.get messages_conc;
+      let elections := FieldRepresentation.get elections_conc;
+      let allLogs := FieldRepresentation.get allLogs_conc;
+      let currentTerm := FieldRepresentation.get currentTerm_conc;
+      let pcState := FieldRepresentation.get pcState_conc;
+      let votedFor := FieldRepresentation.get votedFor_conc;
+      let clientRequests := FieldRepresentation.get clientRequests_conc;
+      let logs := FieldRepresentation.get logs_conc;
+      let commitIndex := FieldRepresentation.get commitIndex_conc;
+      let committedLog := FieldRepresentation.get committedLog_conc;
+      let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+      let votesSent := FieldRepresentation.get votesSent_conc;
+      let votesGranted := FieldRepresentation.get votesGranted_conc;
+      let voterLog := FieldRepresentation.get voterLog_conc;
+      let nextIndex := FieldRepresentation.get nextIndex_conc;
+      let matchIndex := FieldRepresentation.get matchIndex_conc;
+      { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm,
+        pcState := pcState, votedFor := votedFor, clientRequests := clientRequests, logs := logs,
+        commitIndex := commitIndex, committedLog := committedLog, committedLogDecrease := committedLogDecrease,
+        votesSent := votesSent, votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex,
+        matchIndex := matchIndex })
+    (State.casesOn (getFrom s₁)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_con</pre></details><details><summary>8, local: heartbeats</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Raft__local__default__batch1.lean:1313:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats &lt;num&gt;` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+</pre></details><details><summary>8, cached: wall_timeout</summary><pre>From a✝).messages) ()
+                        (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                      (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                      (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                      (FieldRepresentation.get (getFrom a✝).votedFor)
+                      (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                      (FieldRepresentation.get (getFrom a✝).commitIndex)
+                      (FieldRepresentation.get (getFrom a✝).committedLog)
+                      (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                      (FieldRepresentation.get (getFrom a✝).votesSent)
+                      (FieldRepresentation.get (getFrom a✝).votesGranted)
+                      (FieldRepresentation.get (getFrom a✝).voterLog)
+                      (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                        (FieldRepresentation.get (getFrom a✝).nextIndex) (some m.mdest, some m.msource, ()) fun x x_1 =&gt;
+                        (FieldRepresentation.get (getFrom a✝).nextIndex m.mdest m.msource - 1).max 1)
+                      (FieldRepresentation.get (getFrom a✝).matchIndex)
+                else __veil_handler 12
+            else
+              LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE (FieldRepresentation.get (getFrom a✝).messages)
+                (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                (FieldRepresentation.get (getFrom a✝).votedFor) (FieldRepresentation.get (getFrom a✝).clientRequests)
+                (FieldRepresentation.get (getFrom a✝).logs) (FieldRepresentation.get (getFrom a✝).commitIndex)
+                (FieldRepresentation.get (getFrom a✝).committedLog)
+                (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                (FieldRepresentation.get (getFrom a✝).matchIndex)
+  step3Target: Receive.ext.wp (Theory server serverSet serverStates value logSet msetMsg electionSet)
+  (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+  serverStates value logSet msetMsg electionSet
+  (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) __veil_handler
+  (fun __veil_u __veil_th __veil_st =&gt;
+    Theory.casesOn __veil_th fun Nil MaxClientRequests fixServer SIZE =&gt;
+      State.casesOn __veil_st
+        fun messages elections allLogs currentTerm pcState votedFor clientRequests logs commitIndex committedLog
+          committedLogDecrease votesSent votesGranted voterLog nextIndex matchIndex =&gt;
+        LocalRProp.core χ (__veil_post ()) Nil MaxClientRequests fixServer SIZE messages elections allLogs currentTerm
+          pcState votedFor clientRequests logs commitIndex committedLog committedLogDecrease votesSent votesGranted
+          voterLog nextIndex matchIndex)
+  (readFrom a✝¹)
+  (State.casesOn (getFrom a✝)
+    fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+      logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+      voterLog_conc nextIndex_conc matchIndex_conc =&gt;
+    let messages := FieldRepresentation.get messages_conc;
+    let elections := FieldRepresentation.get elections_conc;
+    let allLogs := FieldRepresentation.get allLogs_conc;
+    let currentTerm := FieldRepresentation.get currentTerm_conc;
+    let pcState := FieldRepresentation.get pcState_conc;
+    let votedFor := FieldRepresentation.get votedFor_conc;
+    let clientRequests := FieldRepresentation.get clientRequests_conc;
+    let logs := FieldRepresentation.get logs_conc;
+    let commitIndex := FieldRepresentation.get commitIndex_conc;
+    let committedLog := FieldRepresentation.get committedLog_conc;
+    let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+    let votesSent := FieldRepresentation.get votesSent_conc;
+    let votesGranted := FieldRepresentation.get votesGranted_conc;
+    let voterLog := FieldRepresentation.get voterLog_conc;
+    let nextIndex := FieldRepresentation.get nextIndex_conc;
+    let matchIndex := FieldRepresentation.get matchIndex_conc;
+    { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm, pcState := pcState,
+      votedFor := votedFor, clientRequests := clientRequests, logs := logs, commitIndex := commitIndex,
+      committedLog := committedLog, committedLogDecrease := committedLogDecrease, votesSent := votesSent,
+      votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex, matchIndex := matchIndex })
+/tmp/veil-action-cache/results/batch-sources/TLA_Raft__cached__default__batch1.lean:1092:0: warning: unable to generate transition weakening theorem for Receive.ext: Failed to prove source → target (via transitionWeakeningLemma) for Receive.ext in defineTransitionAbstract, goal: Receive.ext.tr
+    ρ σ server serverSet serverStates value logSet msetMsg electionSet χ r₀ s₀ s₁ →
+  Receive.ext.tr (Theory server serverSet serverStates value logSet msetMsg electionSet)
+    (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+    serverStates value logSet msetMsg electionSet
+    (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) (readFrom r₀)
+    (State.casesOn (getFrom s₀)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+        voterLog_conc nextIndex_conc matchIndex_conc =&gt;
+      let messages := FieldRepresentation.get messages_conc;
+      let elections := FieldRepresentation.get elections_conc;
+      let allLogs := FieldRepresentation.get allLogs_conc;
+      let currentTerm := FieldRepresentation.get currentTerm_conc;
+      let pcState := FieldRepresentation.get pcState_conc;
+      let votedFor := FieldRepresentation.get votedFor_conc;
+      let clientRequests := FieldRepresentation.get clientRequests_conc;
+      let logs := FieldRepresentation.get logs_conc;
+      let commitIndex := FieldRepresentation.get commitIndex_conc;
+      let committedLog := FieldRepresentation.get committedLog_conc;
+      let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+      let votesSent := FieldRepresentation.get votesSent_conc;
+      let votesGranted := FieldRepresentation.get votesGranted_conc;
+      let voterLog := FieldRepresentation.get voterLog_conc;
+      let nextIndex := FieldRepresentation.get nextIndex_conc;
+      let matchIndex := FieldRepresentation.get matchIndex_conc;
+      { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm,
+        pcState := pcState, votedFor := votedFor, clientRequests := clientRequests, logs := logs,
+        commitIndex := commitIndex, committedLog := committedLog, committedLogDecrease := committedLogDecrease,
+        votesSent := votesSent, votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex,
+        matchIndex := matchIndex })
+    (State.casesOn (getFrom s₁)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_con</pre></details><details><summary>16, local: heartbeats</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Raft__local__default__batch1.lean:1349:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats &lt;num&gt;` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+</pre></details><details><summary>16, cached: wall_timeout</summary><pre>From a✝).messages) ()
+                        (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                      (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                      (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                      (FieldRepresentation.get (getFrom a✝).votedFor)
+                      (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                      (FieldRepresentation.get (getFrom a✝).commitIndex)
+                      (FieldRepresentation.get (getFrom a✝).committedLog)
+                      (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                      (FieldRepresentation.get (getFrom a✝).votesSent)
+                      (FieldRepresentation.get (getFrom a✝).votesGranted)
+                      (FieldRepresentation.get (getFrom a✝).voterLog)
+                      (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                        (FieldRepresentation.get (getFrom a✝).nextIndex) (some m.mdest, some m.msource, ()) fun x x_1 =&gt;
+                        (FieldRepresentation.get (getFrom a✝).nextIndex m.mdest m.msource - 1).max 1)
+                      (FieldRepresentation.get (getFrom a✝).matchIndex)
+                else __veil_handler 12
+            else
+              LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE (FieldRepresentation.get (getFrom a✝).messages)
+                (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                (FieldRepresentation.get (getFrom a✝).votedFor) (FieldRepresentation.get (getFrom a✝).clientRequests)
+                (FieldRepresentation.get (getFrom a✝).logs) (FieldRepresentation.get (getFrom a✝).commitIndex)
+                (FieldRepresentation.get (getFrom a✝).committedLog)
+                (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                (FieldRepresentation.get (getFrom a✝).matchIndex)
+  step3Target: Receive.ext.wp (Theory server serverSet serverStates value logSet msetMsg electionSet)
+  (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+  serverStates value logSet msetMsg electionSet
+  (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) __veil_handler
+  (fun __veil_u __veil_th __veil_st =&gt;
+    Theory.casesOn __veil_th fun Nil MaxClientRequests fixServer SIZE =&gt;
+      State.casesOn __veil_st
+        fun messages elections allLogs currentTerm pcState votedFor clientRequests logs commitIndex committedLog
+          committedLogDecrease votesSent votesGranted voterLog nextIndex matchIndex =&gt;
+        LocalRProp.core χ (__veil_post ()) Nil MaxClientRequests fixServer SIZE messages elections allLogs currentTerm
+          pcState votedFor clientRequests logs commitIndex committedLog committedLogDecrease votesSent votesGranted
+          voterLog nextIndex matchIndex)
+  (readFrom a✝¹)
+  (State.casesOn (getFrom a✝)
+    fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+      logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+      voterLog_conc nextIndex_conc matchIndex_conc =&gt;
+    let messages := FieldRepresentation.get messages_conc;
+    let elections := FieldRepresentation.get elections_conc;
+    let allLogs := FieldRepresentation.get allLogs_conc;
+    let currentTerm := FieldRepresentation.get currentTerm_conc;
+    let pcState := FieldRepresentation.get pcState_conc;
+    let votedFor := FieldRepresentation.get votedFor_conc;
+    let clientRequests := FieldRepresentation.get clientRequests_conc;
+    let logs := FieldRepresentation.get logs_conc;
+    let commitIndex := FieldRepresentation.get commitIndex_conc;
+    let committedLog := FieldRepresentation.get committedLog_conc;
+    let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+    let votesSent := FieldRepresentation.get votesSent_conc;
+    let votesGranted := FieldRepresentation.get votesGranted_conc;
+    let voterLog := FieldRepresentation.get voterLog_conc;
+    let nextIndex := FieldRepresentation.get nextIndex_conc;
+    let matchIndex := FieldRepresentation.get matchIndex_conc;
+    { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm, pcState := pcState,
+      votedFor := votedFor, clientRequests := clientRequests, logs := logs, commitIndex := commitIndex,
+      committedLog := committedLog, committedLogDecrease := committedLogDecrease, votesSent := votesSent,
+      votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex, matchIndex := matchIndex })
+/tmp/veil-action-cache/results/batch-sources/TLA_Raft__cached__default__batch1.lean:1092:0: warning: unable to generate transition weakening theorem for Receive.ext: Failed to prove source → target (via transitionWeakeningLemma) for Receive.ext in defineTransitionAbstract, goal: Receive.ext.tr
+    ρ σ server serverSet serverStates value logSet msetMsg electionSet χ r₀ s₀ s₁ →
+  Receive.ext.tr (Theory server serverSet serverStates value logSet msetMsg electionSet)
+    (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+    serverStates value logSet msetMsg electionSet
+    (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) (readFrom r₀)
+    (State.casesOn (getFrom s₀)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+        voterLog_conc nextIndex_conc matchIndex_conc =&gt;
+      let messages := FieldRepresentation.get messages_conc;
+      let elections := FieldRepresentation.get elections_conc;
+      let allLogs := FieldRepresentation.get allLogs_conc;
+      let currentTerm := FieldRepresentation.get currentTerm_conc;
+      let pcState := FieldRepresentation.get pcState_conc;
+      let votedFor := FieldRepresentation.get votedFor_conc;
+      let clientRequests := FieldRepresentation.get clientRequests_conc;
+      let logs := FieldRepresentation.get logs_conc;
+      let commitIndex := FieldRepresentation.get commitIndex_conc;
+      let committedLog := FieldRepresentation.get committedLog_conc;
+      let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+      let votesSent := FieldRepresentation.get votesSent_conc;
+      let votesGranted := FieldRepresentation.get votesGranted_conc;
+      let voterLog := FieldRepresentation.get voterLog_conc;
+      let nextIndex := FieldRepresentation.get nextIndex_conc;
+      let matchIndex := FieldRepresentation.get matchIndex_conc;
+      { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm,
+        pcState := pcState, votedFor := votedFor, clientRequests := clientRequests, logs := logs,
+        commitIndex := commitIndex, committedLog := committedLog, committedLogDecrease := committedLogDecrease,
+        votesSent := votesSent, votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex,
+        matchIndex := matchIndex })
+    (State.casesOn (getFrom s₁)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_con</pre></details><details><summary>32, local: heartbeats</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Raft__local__default__batch1.lean:1385:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats &lt;num&gt;` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+</pre></details><details><summary>32, cached: wall_timeout</summary><pre>From a✝).messages) ()
+                        (TMultiset.remove m (FieldRepresentation.get (getFrom a✝).messages)))
+                      (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                      (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                      (FieldRepresentation.get (getFrom a✝).votedFor)
+                      (FieldRepresentation.get (getFrom a✝).clientRequests) (FieldRepresentation.get (getFrom a✝).logs)
+                      (FieldRepresentation.get (getFrom a✝).commitIndex)
+                      (FieldRepresentation.get (getFrom a✝).committedLog)
+                      (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                      (FieldRepresentation.get (getFrom a✝).votesSent)
+                      (FieldRepresentation.get (getFrom a✝).votesGranted)
+                      (FieldRepresentation.get (getFrom a✝).voterLog)
+                      (CanonicalField.set (inferInstance, inferInstance, PUnit.unit)
+                        (FieldRepresentation.get (getFrom a✝).nextIndex) (some m.mdest, some m.msource, ()) fun x x_1 =&gt;
+                        (FieldRepresentation.get (getFrom a✝).nextIndex m.mdest m.msource - 1).max 1)
+                      (FieldRepresentation.get (getFrom a✝).matchIndex)
+                else __veil_handler 12
+            else
+              LocalRProp.core χ (__veil_post ()) (readFrom a✝¹).Nil (readFrom a✝¹).MaxClientRequests
+                (readFrom a✝¹).fixServer (readFrom a✝¹).SIZE (FieldRepresentation.get (getFrom a✝).messages)
+                (FieldRepresentation.get (getFrom a✝).elections) (FieldRepresentation.get (getFrom a✝).allLogs)
+                (FieldRepresentation.get (getFrom a✝).currentTerm) (FieldRepresentation.get (getFrom a✝).pcState)
+                (FieldRepresentation.get (getFrom a✝).votedFor) (FieldRepresentation.get (getFrom a✝).clientRequests)
+                (FieldRepresentation.get (getFrom a✝).logs) (FieldRepresentation.get (getFrom a✝).commitIndex)
+                (FieldRepresentation.get (getFrom a✝).committedLog)
+                (FieldRepresentation.get (getFrom a✝).committedLogDecrease)
+                (FieldRepresentation.get (getFrom a✝).votesSent) (FieldRepresentation.get (getFrom a✝).votesGranted)
+                (FieldRepresentation.get (getFrom a✝).voterLog) (FieldRepresentation.get (getFrom a✝).nextIndex)
+                (FieldRepresentation.get (getFrom a✝).matchIndex)
+  step3Target: Receive.ext.wp (Theory server serverSet serverStates value logSet msetMsg electionSet)
+  (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+  serverStates value logSet msetMsg electionSet
+  (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) __veil_handler
+  (fun __veil_u __veil_th __veil_st =&gt;
+    Theory.casesOn __veil_th fun Nil MaxClientRequests fixServer SIZE =&gt;
+      State.casesOn __veil_st
+        fun messages elections allLogs currentTerm pcState votedFor clientRequests logs commitIndex committedLog
+          committedLogDecrease votesSent votesGranted voterLog nextIndex matchIndex =&gt;
+        LocalRProp.core χ (__veil_post ()) Nil MaxClientRequests fixServer SIZE messages elections allLogs currentTerm
+          pcState votedFor clientRequests logs commitIndex committedLog committedLogDecrease votesSent votesGranted
+          voterLog nextIndex matchIndex)
+  (readFrom a✝¹)
+  (State.casesOn (getFrom a✝)
+    fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+      logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+      voterLog_conc nextIndex_conc matchIndex_conc =&gt;
+    let messages := FieldRepresentation.get messages_conc;
+    let elections := FieldRepresentation.get elections_conc;
+    let allLogs := FieldRepresentation.get allLogs_conc;
+    let currentTerm := FieldRepresentation.get currentTerm_conc;
+    let pcState := FieldRepresentation.get pcState_conc;
+    let votedFor := FieldRepresentation.get votedFor_conc;
+    let clientRequests := FieldRepresentation.get clientRequests_conc;
+    let logs := FieldRepresentation.get logs_conc;
+    let commitIndex := FieldRepresentation.get commitIndex_conc;
+    let committedLog := FieldRepresentation.get committedLog_conc;
+    let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+    let votesSent := FieldRepresentation.get votesSent_conc;
+    let votesGranted := FieldRepresentation.get votesGranted_conc;
+    let voterLog := FieldRepresentation.get voterLog_conc;
+    let nextIndex := FieldRepresentation.get nextIndex_conc;
+    let matchIndex := FieldRepresentation.get matchIndex_conc;
+    { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm, pcState := pcState,
+      votedFor := votedFor, clientRequests := clientRequests, logs := logs, commitIndex := commitIndex,
+      committedLog := committedLog, committedLogDecrease := committedLogDecrease, votesSent := votesSent,
+      votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex, matchIndex := matchIndex })
+/tmp/veil-action-cache/results/batch-sources/TLA_Raft__cached__default__batch1.lean:1092:0: warning: unable to generate transition weakening theorem for Receive.ext: Failed to prove source → target (via transitionWeakeningLemma) for Receive.ext in defineTransitionAbstract, goal: Receive.ext.tr
+    ρ σ server serverSet serverStates value logSet msetMsg electionSet χ r₀ s₀ s₁ →
+  Receive.ext.tr (Theory server serverSet serverStates value logSet msetMsg electionSet)
+    (State (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet)) server serverSet
+    serverStates value logSet msetMsg electionSet
+    (FieldAbstractType server serverSet serverStates value logSet msetMsg electionSet) (readFrom r₀)
+    (State.casesOn (getFrom s₀)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_conc committedLog_conc committedLogDecrease_conc votesSent_conc votesGranted_conc
+        voterLog_conc nextIndex_conc matchIndex_conc =&gt;
+      let messages := FieldRepresentation.get messages_conc;
+      let elections := FieldRepresentation.get elections_conc;
+      let allLogs := FieldRepresentation.get allLogs_conc;
+      let currentTerm := FieldRepresentation.get currentTerm_conc;
+      let pcState := FieldRepresentation.get pcState_conc;
+      let votedFor := FieldRepresentation.get votedFor_conc;
+      let clientRequests := FieldRepresentation.get clientRequests_conc;
+      let logs := FieldRepresentation.get logs_conc;
+      let commitIndex := FieldRepresentation.get commitIndex_conc;
+      let committedLog := FieldRepresentation.get committedLog_conc;
+      let committedLogDecrease := FieldRepresentation.get committedLogDecrease_conc;
+      let votesSent := FieldRepresentation.get votesSent_conc;
+      let votesGranted := FieldRepresentation.get votesGranted_conc;
+      let voterLog := FieldRepresentation.get voterLog_conc;
+      let nextIndex := FieldRepresentation.get nextIndex_conc;
+      let matchIndex := FieldRepresentation.get matchIndex_conc;
+      { messages := messages, elections := elections, allLogs := allLogs, currentTerm := currentTerm,
+        pcState := pcState, votedFor := votedFor, clientRequests := clientRequests, logs := logs,
+        commitIndex := commitIndex, committedLog := committedLog, committedLogDecrease := committedLogDecrease,
+        votesSent := votesSent, votesGranted := votesGranted, voterLog := voterLog, nextIndex := nextIndex,
+        matchIndex := matchIndex })
+    (State.casesOn (getFrom s₁)
+      fun messages_conc elections_conc allLogs_conc currentTerm_conc pcState_conc votedFor_conc clientRequests_conc
+        logs_conc commitIndex_con</pre></details>

@@ -1,0 +1,12 @@
+/tmp/veil-transition-local/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:330:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:353:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:389:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:425:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:448:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:471:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:507:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:543:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:566:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:589:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:625:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:661:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas

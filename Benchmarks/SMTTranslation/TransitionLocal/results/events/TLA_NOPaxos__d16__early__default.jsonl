@@ -1,0 +1,7 @@
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":209699111,"phase":"query_elaboration","status":"begin"}
+{"elapsed_ms":0,"event":"pipeline","maxHeartbeats":200000,"maxRecDepth":512,"mono_ms":209699480,"phase":"pipeline","status":"begin"}
+{"elapsed_ms":0,"event":"stage","mono_ms":209699480,"phase":"early_intros","status":"begin"}
+{"elapsed_ms":45,"event":"stage","heartbeats":94569,"mono_ms":209699525,"phase":"early_intros","status":"complete"}
+{"elapsed_ms":0,"event":"stage","mono_ms":209699525,"phase":"nextSimp","status":"begin"}
+{"elapsed_ms":15755,"error":"`simp` failed: maximum number of steps exceeded","event":"stage","heartbeats":150728244,"mono_ms":209715289,"phase":"nextSimp","status":"failed"}
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":209715764,"phase":"query_elaboration","status":"end"}

@@ -1,0 +1,79 @@
+{
+  "pipeline_wall_ms": {
+    "pairs": 132,
+    "median_early_over_local": 1.0389223241891403,
+    "minimum": 0.705685618729097,
+    "maximum": 2.018694885361552,
+    "local_faster_pairs": 85,
+    "local_slower_pairs": 46
+  },
+  "pipeline_phase_heartbeats": {
+    "pairs": 132,
+    "median_early_over_local": 1.007581555837571,
+    "minimum": 0.7090782177419342,
+    "maximum": 2.056435048778039,
+    "local_faster_pairs": 70,
+    "local_slower_pairs": 62
+  },
+  "preprocessing_phase_heartbeats": {
+    "pairs": 261,
+    "median_early_over_local": 1.0260054837002408,
+    "minimum": 0.5776620313285518,
+    "maximum": 5.3817581691041445,
+    "local_faster_pairs": 154,
+    "local_slower_pairs": 107
+  },
+  "vc_pipeline_solver_ms": {
+    "pairs": 83,
+    "median_early_over_local": 1.0177147918511957,
+    "minimum": 0.442914653784219,
+    "maximum": 4.3598540145985405,
+    "local_faster_pairs": 44,
+    "local_slower_pairs": 39
+  },
+  "pipeline_wall_by_depth": {
+    "1": {
+      "pairs": 25,
+      "median_early_over_local": 1.0498442367601246,
+      "local_faster": 13,
+      "local_slower": 12,
+      "equal": 0
+    },
+    "2": {
+      "pairs": 25,
+      "median_early_over_local": 1.0101522842639594,
+      "local_faster": 13,
+      "local_slower": 11,
+      "equal": 1
+    },
+    "4": {
+      "pairs": 25,
+      "median_early_over_local": 1.003544528134692,
+      "local_faster": 14,
+      "local_slower": 11,
+      "equal": 0
+    },
+    "8": {
+      "pairs": 23,
+      "median_early_over_local": 1.0282651072124755,
+      "local_faster": 16,
+      "local_slower": 7,
+      "equal": 0
+    },
+    "16": {
+      "pairs": 20,
+      "median_early_over_local": 1.0607157648201304,
+      "local_faster": 15,
+      "local_slower": 5,
+      "equal": 0
+    },
+    "32": {
+      "pairs": 14,
+      "median_early_over_local": 1.1567143634072767,
+      "local_faster": 14,
+      "local_slower": 0,
+      "equal": 0
+    }
+  },
+  "limits": "Phase heartbeat sums exclude allocations between phases; full pipeline wall includes dispatch and event IO. VC + pipeline + solver excludes setup and Lean proof/model reconstruction. One observation per cell. Ratios are only for matched completed work."
+}

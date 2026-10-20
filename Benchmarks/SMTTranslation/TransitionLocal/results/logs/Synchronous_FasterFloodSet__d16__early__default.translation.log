@@ -1,0 +1,21 @@
+/tmp/veil-transition-local/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean:626:34: error: `simp` failed: maximum number of steps exceeded
+
+Note: The target expression is not type-correct under the `instances` transparency level, which may have triggered the failure. This is usually caused by unfolding of semireducible definitions in prior tactic steps. Use `set_option linter.tacticCheckInstances true` to investigate the source of the issue.
+Full error:
+  Application type mismatch: The argument
+    instDecidableNot
+  has type
+    Decidable
+      ¬TSet.contains x✝
+            (FieldRepresentation.get
+              (getFrom
+                  { round := (getFrom st0).round, crashCount := (getFrom st0).crashCount,
+                    initialValue := (getFrom st0).initialValue, seen := (getFrom st0).seen,
+                    decision := (getFrom st0).decision, dead := (getFrom st0).dead,
+                    crashedInThisRound := (getFrom st0).crashedInThisRound,
+                    receivedFrom := (getFrom st0).receivedFrom }).dead) =
+          true
+  but is expected to have type
+    Decidable ¬TSet.contains x✝ st0.dead = true
+  in the application
+    @decide (¬TSet.contains x✝ st0.dead = true) instDecidableNot

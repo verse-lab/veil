@@ -1,0 +1,387 @@
+{
+  "row": {
+    "cell_id": "Ivy_DecentralizedLock__d2__early__default",
+    "model": "Ivy_DecentralizedLock",
+    "path": "Examples/Ivy/DecentralizedLock.lean",
+    "module": "DecentralizedLock",
+    "depth": 2,
+    "variant": "early",
+    "profile": "default",
+    "status": "unsat",
+    "translation_status": "complete",
+    "solver_status": "unsat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 18,
+    "batch_id": "Ivy_DecentralizedLock__default__batch1",
+    "batch_setup_ms": 5657,
+    "preprocessing_ms": 154,
+    "smt_preprocessing_ms": 9,
+    "translation_ms": 24,
+    "serialization_ms": 0,
+    "query_total_ms": 187,
+    "solver_ms": 16,
+    "completed_total_ms": 203,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 4186,
+    "query_commands": 33,
+    "query_sha256": "33fe99bba90bd6a2f4600aa3a570e4a92843f8933d3d10e9f4a6ea6f680f7574",
+    "query_path": "/tmp/veil-transition-local/results/queries/Ivy_DecentralizedLock__d2__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Ivy_DecentralizedLock__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_DecentralizedLock__d2__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Ivy_DecentralizedLock__d2__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_DecentralizedLock",
+    "path": "Examples/Ivy/DecentralizedLock.lean",
+    "module": "DecentralizedLock",
+    "cut_line": 57,
+    "query": "assert (∃ x y, has_lock x ∧ has_lock y ∧ x ≠ y)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "mutex safety, line51",
+    "notes": "",
+    "category": "Ivy",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "44a7e123471cc0db1e8265bb68db3475910c24095453b543cfc992a91fa83ccc"
+  },
+  "original_sha256": "44a7e123471cc0db1e8265bb68db3475910c24095453b543cfc992a91fa83ccc",
+  "inherited_setup_options": [],
+  "source_sha256": "51284531f493d6e847ae92a773c031a6d16c8d104ba41a6ba7cf4dd043dcdd6e",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Ivy_DecentralizedLock__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 206954461,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 206954479,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954479,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 5712,
+      "mono_ms": 206954481,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954481,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 82,
+      "event": "stage",
+      "heartbeats": 1085385,
+      "mono_ms": 206954563,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954563,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 51462,
+      "mono_ms": 206954567,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954568,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3406,
+      "mono_ms": 206954569,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954569,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 22,
+      "event": "stage",
+      "heartbeats": 302571,
+      "mono_ms": 206954591,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954591,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "heartbeats": 104475,
+      "mono_ms": 206954598,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954599,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 32,
+      "event": "stage",
+      "heartbeats": 448230,
+      "mono_ms": 206954631,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954633,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 74653,
+      "mono_ms": 206954637,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 158,
+      "event": "milestone",
+      "mono_ms": 206954637,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954637,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 16275,
+      "mono_ms": 206954639,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954639,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 163,
+      "mono_ms": 206954639,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954639,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 206954639,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954639,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 1674,
+      "mono_ms": 206954640,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954640,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 78652,
+      "mono_ms": 206954645,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954645,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 18741,
+      "mono_ms": 206954646,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954646,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 24,
+      "event": "stage",
+      "heartbeats": 261275,
+      "mono_ms": 206954670,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206954705,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 206954705,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 4186,
+      "commands": 33,
+      "elapsed_ms": 226,
+      "event": "pipeline",
+      "mono_ms": 206954705,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 206954737,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_DecentralizedLock__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Ivy_DecentralizedLock__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Ivy_DecentralizedLock__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 20882,
+    "setup_ms": 5657,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Ivy_DecentralizedLock__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 16,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unsat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_DecentralizedLock__d2__early__default.solver.jsonl",
+    "batch_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

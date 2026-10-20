@@ -1,0 +1,73 @@
+{
+  "recorded_utc": "2026-10-19T17:32:56.515385+00:00",
+  "platform": "Linux-6.12.113+deb13-amd64-x86_64-with-glibc2.41",
+  "cpu": "AMD EPYC 9645 96-Core Processor",
+  "logical_cpus_visible": 8,
+  "python": "3.13.5",
+  "lean_toolchain": "leanprover/lean4:v4.32.0",
+  "lean_version": "Lean (version 4.32.0, x86_64-unknown-linux-gnu, commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, Release)",
+  "dependencies": [
+    {
+      "name": "Loom",
+      "url": "https://github.com/verse-lab/loom.git",
+      "rev": "a8f79937ec8291f3ac4e3d41b5e4bf3ac7798367",
+      "inputRev": "v4.32.0-for-veil"
+    },
+    {
+      "name": "smt",
+      "url": "https://github.com/verse-lab/lean-smt.git",
+      "rev": "922af463373ce3f74d7b1aee36c6391f867aaaa2",
+      "inputRev": "v4.32.0-veil-no-mathlib"
+    },
+    {
+      "name": "cvc5",
+      "url": "https://github.com/abdoo8080/lean-cvc5.git",
+      "rev": "a3ffc29af30f97e41e32356f21296d0a3e0f7c04",
+      "inputRev": "a3ffc29"
+    },
+    {
+      "name": "auto",
+      "url": "https://github.com/leanprover-community/lean-auto.git",
+      "rev": "1175ff6b958ad9513fe4830f9fca11ebe59eb78d",
+      "inputRev": "1175ff6"
+    }
+  ],
+  "full_suite": {
+    "command": "lake build VeilTest",
+    "status": "passed",
+    "jobs": 1227,
+    "log_sha256": "dc791c702cda794fadba4622f9371d017569272c57e77322cb3a2df676ddbb8b"
+  },
+  "cgroups": {
+    "cpuset.cpus.effective": "0-7"
+  },
+  "cvc5_distribution": {
+    "version": "1.3.2",
+    "git": "86cecd8",
+    "evidence": "Bundled cvc5-Linux-x86_64-static/bin/cvc5 --version; lakefile pins cvc5-1.3.2",
+    "compiler": "Ubuntu Clang 18.1.3 (1ubuntu1)",
+    "build_time": "2025-12-12 19:02:46"
+  },
+  "plotting": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.4",
+    "backend": "Agg",
+    "python": "3.13.5"
+  },
+  "baseline_commit": "543817e690debe6fbc9b518fb2694549d5986e90",
+  "production_source_sha256": "4b60a070f1d7c6284a8506a55514141458d95f5abdfde0d959274786476937cc",
+  "comparison": "Fresh paired early-introduction vs per-transition normalization runs; prior timings are not reused.",
+  "primary_completion": {
+    "completed_utc": "2026-10-19T18:54:00.653660+00:00",
+    "frozen_build_verified": true
+  },
+  "diagnostic_completion": {
+    "completed_utc": "2026-10-19T19:05:54.876589+00:00"
+  },
+  "diagnostic_counts": {
+    "normalization_only_cells": 36,
+    "repeated_native_calls": 66,
+    "extended_cap_native_calls": 6,
+    "reordered_query_native_calls": 4
+  }
+}

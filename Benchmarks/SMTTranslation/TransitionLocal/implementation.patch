@@ -1,0 +1,289 @@
+diff --git a/Veil/Frontend/DSL/Tactic/Core.lean b/Veil/Frontend/DSL/Tactic/Core.lean
+index b6f87747..b3c84641 100644
+--- a/Veil/Frontend/DSL/Tactic/Core.lean
++++ b/Veil/Frontend/DSL/Tactic/Core.lean
+@@ -1351,30 +1351,120 @@ private partial def introBmcDataPrefix (goal : MVarId) : MetaM MVarId := goal.wi
+ elab "__veil_bmc_intro_data" : tactic => do
+   liftMetaTactic1 fun goal => return some (← introBmcDataPrefix goal)
+ 
++/-- Expose the trace conjunction without distributing action alternatives. Every
++leaf is proved by projections from the original hypothesis; state variables and
++all quantifier scopes are unchanged. -/
++elab "__veil_bmc_split_trace" : tactic => withMainContext do
++  let goal ← getMainGoal
++  let target ← instantiateMVars (← goal.getType)
++  unless target.consumeMData.isAppOfArity ``Not 1 do
++    throwError "per-transition BMC normalization requires a negated trace"
++  let (root, goal) ← goal.intro1
++  let goal ← goal.withContext do
++    let mut pending := #[(← root.getType, mkFVar root)]
++    let mut leaves : Array Hypothesis := #[]
++    while !pending.isEmpty do
++      let (ty, proof) := pending.back!
++      pending := pending.pop
++      let ty := ty.consumeMData
++      if ty.isAppOfArity ``And 2 then
++        let a := ty.appFn!.appArg!
++        let b := ty.appArg!
++        pending := pending.push (b, mkApp3 (mkConst ``And.right) a b proof)
++        pending := pending.push (a, mkApp3 (mkConst ``And.left) a b proof)
++      else
++        let name := (← getLCtx).getUnusedName (Name.mkSimple s!"bmc_clause_{leaves.size}")
++        leaves := leaves.push ⟨name, ty, proof, .default, .default⟩
++    let (_, goal) ← goal.assertHypotheses leaves
++    goal.clear root
++  replaceMainGoal [goal]
++
++/-- Simplify each formula separately, sharing the simp configuration but never
++hoisting a witness across another transition. Use FVarIds, not printed names,
++and Lean's proof-producing context transport. The final passes also process
++proposition fields exposed when the state/theory structures are eliminated. -/
++elab "__veil_bmc_hyps " t:tactic : tactic => withBackwardsCompatibility <| veilWithMainContext do
++  let isDSimp := t.raw.isOfKind ``Lean.Parser.Tactic.dsimp
++  unless isDSimp || t.raw.isOfKind ``Lean.Parser.Tactic.simp do
++    throwError "expected simp or dsimp"
++  let { ctx, simprocs, dischargeWrapper, .. } ← mkSimpContext t
++    (eraseLocal := false) (kind := if isDSimp then .dsimp else .simp)
++  let mut ids := #[]
++  for decl in (← getLCtx) do
++    if !decl.isImplementationDetail && (← isProp decl.type) then
++      ids := ids.push decl.fvarId
++  let goal ← getMainGoal
++  if isDSimp then
++    let (result, _) ← dsimpGoal goal ctx simprocs (simplifyTarget := false) (fvarIdsToSimp := ids)
++    replaceMainGoal result.toList
++  else
++    let (result, _) ← dischargeWrapper.with fun discharge? =>
++      simpGoal goal ctx simprocs discharge? (simplifyTarget := false) (fvarIdsToSimp := ids)
++    replaceMainGoal (result.toList.map (·.2))
++
++/-- `veil_smt` selects hypotheses by user name. Make those names injective before
++selection, then check that every visible non-instance proposition is selected.
++In particular, shadowed constraints must not silently disappear from SAT queries.
++Renaming changes no free-variable identity or type. -/
++elab "__veil_bmc_check_hints" : tactic => do
++  if (← getGoals).isEmpty then return
++  liftMetaTactic1 fun goal => goal.withContext do
++    let mut lctx ← getLCtx
++    let mut seen : NameSet := {}
++    for decl in lctx do
++      let name := if seen.contains decl.userName then lctx.getUnusedName decl.userName else decl.userName
++      seen := seen.insert name
++      lctx := lctx.setUserName decl.fvarId name
++    let next ← mkFreshExprMVarAt lctx (← getLocalInstances)
++      (← goal.getType) .syntheticOpaque (← goal.getTag)
++    goal.assign next
++    return some next.mvarId!
++  withMainContext do
++    let selected := FVarIdSet.ofArray (← getFVarIds (← getPropsInContext))
++    for decl in (← getLCtx) do
++      if decl.isImplementationDetail || !(← isProp decl.type) then continue
++      -- The ordinary backend deliberately omits proof-valued implementation
++      -- instances, including the Nonempty facts inferred for reconstruction.
++      if decl.binderInfo.isInstImplicit then continue
++      unless selected.contains decl.fvarId do
++        throwError "per-transition BMC: SMT hint collection omitted constraint {decl.toExpr}"
++
++/-- The trace shape is checked before doing work. Proof-valued headers retain
++whole-target normalization, which also normalizes their domains. -/
++elab "__veil_bmc_if_local " yes:tactic " else " no:tactic : tactic => withMainContext do
++  let target ← instantiateMVars (← (← getMainGoal).getType)
++  evalTactic (if target.consumeMData.isAppOfArity ``Not 1 then yes else no)
++
+ @[inherit_doc veil_bmc]
+ def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
+-  -- FIXME: sometimes we still have abstract dispatchers in the types, so as a
+-  -- hack, we just dsimp them here
+   let dsimpLemmas := #[mkIdent ``Inhabited.default, fieldAbstractDispatcher, fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
+-  let dsimpTac←  `(tactic| try dsimp +$(mkIdent `instances) [$[$dsimpLemmas:ident],*])
++  let dsimpTac ← `(tactic| try dsimp +$(mkIdent `instances) [$[$dsimpLemmas:ident],*])
+   let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
+-  -- Avoid rebuilding the outer data telescope during simplification. Its
+-  -- State/Theory binders also trigger the HO guard without nested witnesses.
+-  -- Keep proof binders in the target until their domains have been normalized,
+-  -- and retain the later intros for binders exposed by that normalization.
+-  let tac ← `(tacticSeq|
+-    __veil_bmc_intro_data
+-    $inferNonemptyTac:tactic
+-    veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]
+-    veil_simp +$(mkIdent `instances) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]
+-    veil_intros
+-    $inferNonemptyTac:tactic
+-    veil_destruct
+-    $dsimpTac:tactic
+-    veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]
+-    $dsimpTac:tactic
+-    veil_smt)
+-  veilEvalTactic tac
++  let conservative ← `(tactic|
++    ($inferNonemptyTac:tactic
++     veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]
++     veil_simp +$(mkIdent `instances) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]
++     veil_intros
++     $inferNonemptyTac:tactic
++     veil_destruct
++     $dsimpTac:tactic
++     veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]
++     $dsimpTac:tactic))
++  let localPath ← `(tactic|
++    (__veil_bmc_split_trace
++     $inferNonemptyTac:tactic
++     __veil_bmc_hyps simp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only [$(mkIdent `nextSimp):ident]
++     __veil_bmc_hyps simp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]
++     __veil_bmc_check_hints
++     veil_destruct
++     __veil_bmc_hyps dsimp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) [$[$dsimpLemmas:ident],*]
++     __veil_bmc_hyps simp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only [$(mkIdent `smtSimp):ident]
++     __veil_bmc_hyps dsimp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) [$[$dsimpLemmas:ident],*]
++     __veil_bmc_check_hints))
++  veilEvalTactic (← `(tactic| __veil_bmc_intro_data))
++  veilEvalTactic (← `(tactic| __veil_bmc_if_local $localPath:tactic else $conservative:tactic))
++  if !(← getGoals).isEmpty then
++    veilEvalTactic (← `(tactic| veil_smt))
+ 
+ def elabVeilSplitIfs : DesugarTacticM Unit := veilWithMainContext do
+   veilEvalTactic $ ← `(tactic| try split_ifs at *)
+diff --git a/VeilTest/Regression/TraceLocalNormalization.lean b/VeilTest/Regression/TraceLocalNormalization.lean
+new file mode 100644
+index 00000000..9b5004a2
+--- /dev/null
++++ b/VeilTest/Regression/TraceLocalNormalization.lean
+@@ -0,0 +1,138 @@
++module
++public import Veil
++public section
++
++-- The internal helper consumes simp syntax through mkSimpContext, not evalTactic.
++set_option linter.unreachableTactic false
++
++/-! Semantic regressions for per-transition normalization. The manual theorems
++below are kernel checked; SAT commands also exercise trace model decoding. -/
++
++section LogicalScopes
++open Lean Elab Tactic
++
++-- An inactive branch with an empty witness domain must stay satisfiable.
++theorem inactive_empty_witness :
++    ¬¬ (True ∨ (∃ _f : Unit → Empty, True)) := by
++  __veil_bmc_split_trace
++  __veil_bmc_hyps simp (failIfUnchanged := false) only [↓ Veil.existsQuantifierSimpGuarded]
++  exact bmc_clause_0 trivial
++
++-- Quantifier dependence cannot be exchanged even when both types are inhabited.
++theorem dependent_choice_scope :
++    (∀ x : Bool, ∃ f : Unit → Bool, f () = x) ∧
++    ¬ (∃ f : Unit → Bool, ∀ x : Bool, f () = x) := by
++  constructor
++  · intro x; exact ⟨fun _ => x, rfl⟩
++  · __veil_bmc_split_trace
++    __veil_bmc_hyps simp (failIfUnchanged := false) only [↓ Veil.existsQuantifierSimpGuarded]
++    rcases bmc_clause_0 with ⟨f, h⟩
++    have := (h true).symm.trans (h false)
++    contradiction
++
++-- Distinct witnesses survive splitting, and dependent witness types stay scoped.
++theorem independent_and_dependent_witnesses :
++    ¬ (((∃ f : Unit → Bool, f () = true) ∧ (∃ g : Unit → Bool, g () = false)) ∧
++        (∀ f : Unit → Bool, f () = true)) := by
++  __veil_bmc_split_trace
++  __veil_bmc_hyps simp (failIfUnchanged := false) only [↓ Veil.existsQuantifierSimpGuarded]
++  rcases bmc_clause_1 with ⟨g, hg⟩
++  have := (bmc_clause_2 g).symm.trans hg
++  contradiction
++
++theorem dependent_witness_type :
++    ¬ ((∃ n : Nat, ∃ w : Fin (n + 1), w.val > n) ∧ True) := by
++  __veil_bmc_split_trace
++  __veil_bmc_hyps simp (failIfUnchanged := false) only [↓ Veil.existsQuantifierSimpGuarded]
++  rcases bmc_clause_0 with ⟨n, w, h⟩
++  omega
++
++set_option veil.smt.trust false in
++theorem shadowed_constraints (p : Prop) (h : p) (h : ¬ p) : False := by
++  __veil_bmc_check_hints
++  veil_smt
++
++/-- info: 'shadowed_constraints' depends on axioms: [propext, Classical.choice, Quot.sound] -/
++#guard_msgs (whitespace := lax) in
++#print axioms shadowed_constraints
++end LogicalScopes
++
++veil module TraceLocalNormalization
++
++type node
++relation marked : node → Bool
++individual flag : Bool
++
++#gen_state
++
++after_init { marked N := false; flag := false }
++
++action fill {
++  let f ← pick (node → Bool)
++  require ∀ n, f n
++  marked N := f N
++}
++action clear {
++  let f ← pick (node → Bool)
++  require ∀ n, ¬ f n
++  marked N := f N
++}
++action once {
++  require ¬ flag
++  flag := true
++}
++invariant True
++#gen_spec
++
++section TrustedChecks
++set_option veil.smt.trust true
++
++-- These two steps require different function witnesses.
++#guard_msgs(drop info, drop warning) in
++sat trace [independent_choices] {
++  fill
++  assert (∀ n, marked n)
++  clear
++  assert (∀ n, ¬ marked n)
++}
++
++#guard_msgs(drop info, drop warning) in
++sat trace [alternative_choices] {
++  any 3 actions
++  assert (∃ n, marked n)
++}
++
++-- Both transition formulas are individually satisfiable; the shared middle
++-- state makes their conjunction impossible.
++#guard_msgs(drop info, drop warning) in
++unsat trace [shared_middle_state] {
++  once
++  once
++}
++
++#guard_msgs(drop info, drop warning) in
++sat trace [zero_actions] { assert (∀ n, ¬ marked n) }
++
++#guard_msgs(drop info, drop warning) in
++unsat trace [false_assertion] { assert False }
++
++end TrustedChecks
++
++section UntrustedChecks
++set_option veil.smt.trust false
++
++unsat trace [kernel_checked_shared_state] {
++  once
++  once
++} by
++  veil_bmc
++
++/-- info: 'TraceLocalNormalization.kernel_checked_shared_state' depends on axioms: [propext, Classical.choice, Quot.sound] -/
++#guard_msgs (whitespace := lax) in
++#print axioms kernel_checked_shared_state
++
++unsat trace [false_proof_header] (_h : False) { fill } by
++  veil_bmc
++
++end UntrustedChecks
++end TraceLocalNormalization

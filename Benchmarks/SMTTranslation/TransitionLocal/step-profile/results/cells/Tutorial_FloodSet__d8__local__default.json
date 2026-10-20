@@ -1,0 +1,218 @@
+{
+  "row": {
+    "cell_id": "Tutorial_FloodSet__d8__local__default",
+    "model": "Tutorial_FloodSet",
+    "path": "Examples/Tutorial/FloodSet.lean",
+    "module": "FloodSet",
+    "depth": 8,
+    "variant": "local",
+    "profile": "default",
+    "status": "profile_complete",
+    "translation_status": "not_attempted",
+    "solver_status": "not_needed",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 29,
+    "batch_id": "Tutorial_FloodSet__default__batch1",
+    "batch_setup_ms": 9885,
+    "preprocessing_ms": 889,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/step-profile/results/queries/Tutorial_FloodSet__d8__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/step-profile/results/batch-sources/Tutorial_FloodSet__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/step-profile/results/events/Tutorial_FloodSet__d8__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/step-profile/results/logs/Tutorial_FloodSet__d8__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/step-profile/results/logs/Tutorial_FloodSet__d8__local__default.solver.log",
+    "translation_exit": null,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Tutorial_FloodSet",
+    "path": "Examples/Tutorial/FloodSet.lean",
+    "module": "FloodSet",
+    "cut_line": 341,
+    "query": "assert (¬ (∀ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 → v1 = v2))",
+    "query_kind": "existing_safety_violation",
+    "expected_status": null,
+    "query_source": "Existing agreement_violation trace, lines392–395",
+    "notes": "Tutorial variant overlaps Synchronous/FloodSet but is retained as its own model-bearing file.",
+    "category": "Tutorial",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "1681ed0b9021af0c86687c2dc8f931b9d09b801d7b14cc59a25998f1039df8d4"
+  },
+  "original_sha256": "1681ed0b9021af0c86687c2dc8f931b9d09b801d7b14cc59a25998f1039df8d4",
+  "inherited_setup_options": [],
+  "source_sha256": "38fafcd182374c048ca46e9e9d2fcc81b0eb4c6eecebc9d65b01f61428902141",
+  "batch_log": "/tmp/veil-transition-local/step-profile/results/batch-logs/Tutorial_FloodSet__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 211787439,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 211787468,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 211787469,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "calls": 0,
+      "elapsed_ms": 0,
+      "event": "simp_work",
+      "mono_ms": 211787473,
+      "phase": "early_intros",
+      "status": "complete",
+      "steps": 0
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 12194,
+      "mono_ms": 211787473,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 211787473,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "calls": 0,
+      "elapsed_ms": 0,
+      "event": "simp_work",
+      "mono_ms": 211787474,
+      "phase": "split_trace",
+      "status": "complete",
+      "steps": 0
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 4010,
+      "mono_ms": 211787474,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 211787474,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "calls": 11,
+      "elapsed_ms": 0,
+      "event": "simp_work",
+      "mono_ms": 211788124,
+      "phase": "nextSimp",
+      "status": "complete",
+      "steps": 6665
+    },
+    {
+      "elapsed_ms": 650,
+      "event": "stage",
+      "heartbeats": 8457339,
+      "mono_ms": 211788124,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 211788124,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "calls": 20,
+      "elapsed_ms": 0,
+      "event": "simp_work",
+      "mono_ms": 211788357,
+      "phase": "hoist",
+      "status": "complete",
+      "steps": 2420
+    },
+    {
+      "elapsed_ms": 234,
+      "event": "stage",
+      "heartbeats": 3670743,
+      "mono_ms": 211788358,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 897,
+      "event": "milestone",
+      "mono_ms": 211788366,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "profile",
+      "mono_ms": 211788366,
+      "phase": "normalization",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 211788401,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Tutorial_FloodSet__default__batch1",
+    "source": "/tmp/veil-transition-local/step-profile/results/batch-sources/Tutorial_FloodSet__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/step-profile/results/batch-logs/Tutorial_FloodSet__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 52083,
+    "setup_ms": 9885,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/step-profile/results/batch-sources/Tutorial_FloodSet__default__batch1.lean"
+    ]
+  }
+}

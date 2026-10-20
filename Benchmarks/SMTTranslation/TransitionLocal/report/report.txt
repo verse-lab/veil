@@ -1,0 +1,897 @@
+Symbolic BMC before/after report: 49 models, 6 exact depths, two variants.
+
+Executive summary
+Per-transition normalization is implemented and preserves the joint trace problem. It improves translation at larger depths, but does not produce a net increase in definite solver answers under the primary 10-second limit. Solver behavior remains sensitive to the changed encoding.
+
+The completed early-introduction work was committed first as 543817e6. The new change is a separate worktree diff: 110 insertions and 20 deletions in Core.lean, plus TraceLocalNormalization.lean. It splits the outer trace conjunction using proof projections, normalizes the resulting hypotheses individually, retains shared states and guarded quantifier rules, audits SMT hint coverage, and makes one ordinary joint solver call. Proof-valued headers retain the committed conservative path. No dependency is patched.
+
+Coverage and limits: 49 model-bearing source files x exact action counts 1, 2, 4, 8, 16, 32 x early/local = 588 finalized cells. The same manifest/assertions, compiled checkout, 200000-command-heartbeat allowance, recursion limit 512, and 100000-step per-call simp setting are used. Setup retains source options. Native replay uses cvc5 with a 10-second checkSat limit and 15-second wrapper watchdog. The only excluded file is the support theory SCPTheory.lean. This is one selected symbolic assertion per file, not every example command or concrete model-checking instantiation.
+
+Primary outcomes (early introduction -> per-transition):
+  Serialized queries:             132 -> 134 (25 source files in both)
+  Definite native SAT/UNSAT:        86 -> 86  (23 source files in both)
+  Native solver timeouts:          36 -> 38
+  Native solver errors:            10 -> 10
+  Translation failures:           162 -> 160
+  Simp-step-limit failures:          9 -> 0
+  Recursion-limit failures:         39 -> 49
+  Heartbeat-limit failures:         24 -> 23
+  All Lean resource-limit cells:    72 -> 72
+There are no missing or unstarted cells. A serialized script rejected by cvc5 is a solver error, not a successful translated solver problem. All failures remain visible in the per-model graphs and outcome matrices.
+
+Depth gain: Blockchain now emits and solves its depth-8 and depth-16 queries (UNSAT, primary native times 0.520 s and 0.747 s). Early introduction stopped at the hoister's simp-step limit. Its largest successful sampled depth therefore moves from 4 to 16. At depth 32 the local path instead reaches a context-destructor heartbeat limit. No previously emitted query is lost. FloodSet and FasterFloodSet get past hoisting at depths 16/32 but still fail in embedding; that is progress in the pipeline, not a completed solver result.
+
+Translation cost: across the 132 pairs with complete queries, median early/local FULL pipeline wall-time ratio is 1.039x. Local is faster in 85 pairs, slower in 46, equal in one. Across the 14 matched depth-32 pairs, all improve and the median ratio is 1.157x. Ratios span 0.706x to 2.019x across the heterogeneous matched corpus. Examples at depth 32: Ivy Ring 5.435 -> 4.699 s; PaxosFirstOrder 17.079 -> 13.747 s; TLA Peterson 8.824 -> 7.283 s. These are single observations, not confidence intervals or a universal speedup. Across the 83 pairs with definite answers in both variants, the median ratio for VC elaboration + pipeline + native solver is only 1.018x; raw completed-phase allocation counts have a 1.008x median ratio across the 132 emitted pairs. The corpus-wide gain beyond early introduction is therefore small. Failed work is excluded from completed timings and remains in the coverage plots. Full wall time includes overhead between phase timers; stage sums and raw allocation-heartbeat sums are retained separately.
+
+Solver tradeoffs: besides the two new Blockchain answers, TLA TwoPhaseCommit depth 8 changes from timeout to UNSAT (5.048 s). Three previously definite results instead hit the local 10-second limit: Ivy TwoPhaseCommit depth 8 (early UNSAT in 4.097 s), TLA Peterson depth 8 (early UNSAT in 8.172 s), and CheckpointLeaseFailover depth 16 (early SAT in 7.447 s). Thus three gains balance three losses. All 83 pairs with two definite native answers agree. Equivalent assertion grouping and declaration ordering can change cvc5 search behavior. The separately reported repeated and extended-limit checks do not replace these primary outcomes.
+
+Separate solver controls: three fresh replays of 22 selected emitted queries (66 calls) confirm substantial solver-time differences, with some variation near the 10-second boundary. All three primary regressed local queries return the same answers as their baselines at a 30-second cap: Ivy TwoPhaseCommit UNSAT in 10.670 s, CheckpointLeaseFailover SAT in 17.054 s, and TLA Peterson UNSAT in 18.850 s. Four audit-verified declaration-order/assertion-grouping variants of the Ivy TwoPhaseCommit query still time out at 10 seconds; these simple reorganizations are not a demonstrated fix. SOLVER_BEHAVIOR.txt contains every repeated outcome and the negative experiment. An explicit early-introduction option would be prudent before adopting local normalization as a universal default; that option is follow-up work, not part of this diff.
+
+Semantic evidence: the full production lake build VeilTest passed 1227 jobs, including trusted/untrusted traces, model decoding, empty inactive witness types, dependent quantifier scopes, shadowed hypotheses, shared intermediate states and kernel-checked theorems without sorryAx. A separate conservative satisfiability audit matches all 132 paired emitted formulas after conjoining assertions, scope-aware renaming, classical Boolean identities and restricted positive existential lifting. All 122 pairs accepted by both native parsers match. This executable audit is not a Lean proof or a type checker; it does not modify solver inputs or certify the existing backend. The two newly emitted queries have no same-budget emitted baseline to compare.
+
+Why zero simp-step failures is not the whole story: each normalized hypothesis starts fresh simp runs, so the aggregate available step allowance increases despite the unchanged per-call limit. The whole query retains its command budget. A separate three-model step-count experiment and the primary allocation counters distinguish reduced traversal from counter resets. Its findings are in STEP_PROFILE_FINDINGS.txt. The remaining 72 resource-limit failures show that this change alone does not solve depth scalability.
+
+Next priorities: 94 local cells fail in SMT embedding, 43 in translation and one in backend normalization. Repair the independently diagnosed Nat/Fin dependent-proof handling, universe/decide symbol instantiation and explicit-transition exact bridges. For depth scalability, profile and localize context destruction, cache exact action normal forms, and avoid rebuilding a giant context telescope in embedding. All transition components must share one symbol/side-condition environment. Investigate solver ordering/grouping as a separate measured concern. NEXT_FIXES.txt explains the semantic constraints and implementation hazards for each proposal.
+
+The original issue's LamportMutexV1 reproducer is not in this corpus, so this report does not establish that that exact reproducer works at greater depth. Ivy Ring emits through depth 32 in both variants, but its primary solver checks time out from sampled depth 8 onward. Graphs for all 49 files distinguish query emission, native acceptance and actual solver answers.
+
+Recorded rows for 588/588 predeclared slots; 588 pipelines entered across 49 files; one observation per attempted cell.
+Early introduction replays the committed 543817e6 tactic order on the same compiled source base (543817e690debe6fbc9b518fb2694549d5986e90); it is not the historical issue commit. Each file has one selected assertion, which may combine safety clauses. The inventory contains overlapping variants, not 49 independent protocols.
+Query resource settings: maxHeartbeats=200000, maxRecDepth=512, Veil simp default maxSteps=100000; dependency-local overrides are retained.
+Per-transition normalization still has 0 observed simp-step-limit cells across 0 files and 72 total observed Lean resource-limit cells across 30 files.
+Definite solver outcomes: 83 matched pairs, 0 disagreements.
+Including preprocessing discharge as UNSAT: 83 matched definite pairs, 0 contradictory answers.
+Queries are for exactly N actions, not every trace length up to N. SAT/UNSAT concerns the manifest assertion, not general protocol safety.
+Symbolic types and parameters remain abstract or unbounded; concrete #model_check instantiations are not run. SAT for the chosen assertion need not establish a bug in an intended concrete instance.
+PRE denotes goal closure during preprocessing, separate from solver UNSAT. Query and VC elaboration failures are distinct from model setup.
+No reconstructed proof is claimed by these measurements; terminal benchmark scaffolds do not establish the trace proposition.
+Translation and solver failure durations are not completed timings. Model setup and query/VC elaboration are excluded from query-stage timers. Shared batch_setup_ms must not be summed across cells.
+Production validation is recorded in environment.json and the delivered full-suite.log, including proof-header fallback and kernel-checked local-normalization regressions.
+
+Included models and queries:
+AWS_AWSBuggy | Examples/AWS/AWSBuggy.lean | assert (dns_valid = false) | Buggy DNS race variant; same Veil namespace as AWSFixed and TLA/AWSDnsRace.
+AWS_AWSFixed | Examples/AWS/AWSFixed.lean | assert (dns_valid = false) | Repaired DNS race variant; include separately from AWSBuggy.
+Ivy_Blockchain | Examples/Ivy/Blockchain.lean | assert (¬ (∀ n1 n2 n b t tr t1 t2, (((honest n1 ∧ honest n2) → ((block_confirmed n1 b t ∧ block_confirmed n2 b t) ∨ (¬ block_confirmed n1 b t ∧ ¬ block_confirmed n2 b t))) ∧ ((honest n1 ∧ honest n2) → ((transaction_confirmed tr n1 ∧ transaction_confirmed tr n2) ∨ (¬ transaction_confirmed tr n1 ∧ ¬ transaction_confirmed tr n2))) ∧ ((honest n ∧ leader n t2 ∧ transaction_time tr t1 ∧ tot.le t1 t2 ∧ broadcasted n ∧ honest n1) → transaction_confirmed tr n1)))) | Negates all three conjuncts together and explicitly binds every source autoimplicit variable.
+Ivy_ChordRingMaintenance | Examples/Ivy/ChordRingMaintenance.lean | assert (∃ n, error n) | 
+Ivy_DecentralizedLock | Examples/Ivy/DecentralizedLock.lean | assert (∃ x y, has_lock x ∧ has_lock y ∧ x ≠ y) | 
+Ivy_MultiSigAll | Examples/Ivy/MultiSigAll.lean | assert (∃ n k v d, cancelled n k v d ∧ ¬ expired d) | Five sorts and high-arity relations; distinct query from the earlier paid-tuple reachability experiment.
+Ivy_MultiSigMajority | Examples/Ivy/MultiSigMajority.lean | assert (∃ n k v d, cancelled n k v d ∧ ¬ expired d) | Quorum-based variant, distinct from MultiSigAll.
+Ivy_NOPaxos | Examples/Ivy/NOPaxos.lean | assert (∃ s v1 v2, gh_committed s v1 ∧ gh_committed s v2 ∧ v1 ≠ v2) | Relational Ivy model; distinct from the collection-based TLA/NOPaxos.
+Ivy_PaxosEPR | Examples/Ivy/PaxosEPR.lean | assert (∃ n1 r1 v1 n2 r2 v2, decision n1 r1 v1 ∧ decision n2 r2 v2 ∧ v1 ≠ v2) | 
+Ivy_PaxosFirstOrder | Examples/Ivy/PaxosFirstOrder.lean | assert (∃ n1 r1 v1 n2 r2 v2, decision n1 r1 v1 ∧ decision n2 r2 v2 ∧ v1 ≠ v2) | Distinct first-order variant of PaxosEPR.
+Ivy_ReliableBroadcast | Examples/Ivy/ReliableBroadcast.lean | assert (∃ src dst r v, ¬ is_byz src ∧ ¬ is_byz dst ∧ voted dst src r v ∧ ¬ (sent src r ∧ initial_value src r v)) | Full Byzantine/round-indexed model; distinct from Simulate/ReliableBroadcast.
+Ivy_RicartAgrawala | Examples/Ivy/RicartAgrawala.lean | assert (∃ n1 n2, holds n1 ∧ holds n2 ∧ n1 ≠ n2) | 
+Ivy_Ring | Examples/Ivy/Ring.lean | assert (∃ n1 n2, n1 ≠ n2 ∧ leader n1 ∧ leader n2) | Relational ring; overlaps Tutorial/Ring and POPL26/RingDec. Prefix explicitly sets veil.smt.trust=false.
+Ivy_SuzukiKasami | Examples/Ivy/SuzukiKasami.lean | assert (∃ n m, crit n ∧ crit m ∧ n ≠ m) | No safety declaration; select the named mutex invariant.
+Ivy_TwoPhaseCommit | Examples/Ivy/TwoPhaseCommit.lean | assert (¬ (∀ n n2, (decide_commit n → ¬ decide_abort n2) ∧ (decide_commit n → vote_yes n2) ∧ (decide_abort n → abort_flag))) | Negates all three conjuncts: commit/abort agreement, unanimous yes votes on commit, and abort-flag consistency.
+Ivy_VerticalPaxosFirstOrder | Examples/Ivy/VerticalPaxosFirstOrder.lean | assert (∃ n1 r1 v1 n2 r2 v2, decision n1 r1 v1 ∧ decision n2 r2 v2 ∧ v1 ≠ v2) | Post-#gen_spec manual proof section is excluded; all model/invariant declarations are retained.
+Puzzles_DieHard | Examples/Puzzles/DieHard.lean | assert (big = 4) | Uses the puzzle objective rather than the structural jug-capacity invariant.
+Puzzles_Prisoners | Examples/Puzzles/Prisoners.lean | assert (Done ∧ ∃ p, p ≠ Counter ∧ timesSwitched p = 0) | Concrete cardPrisoner=4 from #model_check is not imposed; symbolic theory parameters remain general.
+Puzzles_RiverCrossing | Examples/Puzzles/RiverCrossing.lean | assert (goat_pos = far ∧ wolf_pos = far ∧ cabbage_pos = far ∧ farmer_pos = far) | Uses the puzzle objective; retains action safety guards.
+Simulate_CheckpointLeaseFailover | Examples/Simulate/CheckpointLeaseFailover.lean | assert (∃ l expiry now, checkpointed_until l expiry ∧ current_epoch now ∧ epochOrd.le expiry now ∧ active_on_leader l) | Designed for simulation, but retained to expose symbolic-backend limitations.
+Simulate_LeaseKeepaliveRace | Examples/Simulate/LeaseKeepaliveRace.lean | assert (∃ c k, keepalive_succeeded c ∧ key_attached c k ∧ ¬ key_present k) | Designed for simulation; no concrete client/key domain bounds are imported.
+Simulate_ReliableBroadcast | Examples/Simulate/ReliableBroadcast.lean | assert (∃ n1 n2 v1 v2, delivered n1 v1 ∧ delivered n2 v2 ∧ v1 ≠ v2) | Simplified simulation model, distinct from Ivy/ReliableBroadcast.
+StellarConsensus_SCP | Examples/StellarConsensus/SCP.lean | assert (∃ n1 n2 b1 b2 v1 v2, intertwined n1 ∧ intertwined n2 ∧ confirmed_committed n1 b1 v1 ∧ confirmed_committed n2 b2 v2 ∧ v1 ≠ v2) | Requires prebuilt Examples.StellarConsensus.SCPTheory; manual proof section after #gen_spec is excluded.
+Synchronous_FasterFloodSet | Examples/Synchronous/FasterFloodSet.lean | assert (∃ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 ∧ v1 ≠ v2) | Optimized collection-based FloodSet variant; same namespace as other FloodSet files, isolated process required.
+Synchronous_FloodSet | Examples/Synchronous/FloodSet.lean | assert (∃ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 ∧ v1 ≠ v2) | Contains genuine function-valued delivery choices.
+TLA_AWSDnsRace | Examples/TLA/AWSDnsRace.lean | assert (current_plan > 0 ∧ plan_deleted current_plan true) | Finite-enum/Fin-based DNS race model; distinct from both AWS variants.
+TLA_Bakery | Examples/TLA/Bakery.lean | assert (∃ i j, i ≠ j ∧ pc i = cs ∧ pc j = cs) | 
+TLA_BcastByz | Examples/TLA/BcastByz.lean | assert (∃ p, isCorrect p ∧ pc p = AC) | Uses correct-process acceptance, rather than the static partition/cardinality sanity invariants. Contains collections and an Enumeration parameter.
+TLA_BuggyCircularBuffer | Examples/TLA/BuggyCircularBuffer.lean | assert (count > BUFFER_SIZE) | 
+TLA_EPaxos | Examples/TLA/EPaxos.lean | assert (∃ i, commitSet.count (committedMap i) > 1) | Large collection/message model. Keep backend/elaboration failures as outcomes; do not replace its query with True.
+TLA_EWD840 | Examples/TLA/EWD840.lean | assert (terminationDetected ∧ ¬ terminated) | Uses earlier ghost definitions; Fin domain size is a symbolic Nat parameter.
+TLA_German | Examples/TLA/German.lean | assert (¬ (∀ i j, i ≠ j → (((cache i).state = cE → (cache j).state = cI) ∧ ((cache i).state = cS → ((cache j).state = cI ∨ (cache j).state = cS))))) | Explicitly binds the autoimplicit I/J variables from the source invariant.
+TLA_KVSnap | Examples/TLA/KVSnap.lean | assert (¬ serialization) | Retains CC definitions and Veil.Util.Permutations import. Serialization uses enumerations, lists and permutations; backend support is not assumed.
+TLA_KeyValueStore | Examples/TLA/KeyValueStore.lean | assert (¬ (snapshot_isolation ∧ transaction_cleanup)) | Both ghost predicates are defined before #gen_spec. Uses partial functions and sets.
+TLA_MultiPaxos | Examples/TLA/MultiPaxos.lean | assert (∃ v1 v2 s, Chosen v1 s ∧ Chosen v2 s ∧ v1 ≠ v2) | Uses earlier Chosen ghost predicate and collection-backed messages.
+TLA_MutexViolation | Examples/TLA/MutexViolation.lean | assert (∃ i j, i ≠ j ∧ pc i = cs ∧ pc j = cs) | Contains list-valued call stacks; symbolic translation may be unsupported independently of the optimization.
+TLA_NOPaxos | Examples/TLA/NOPaxos.lean | assert (¬ Linearizability) | Large collection/list/array model. Prefix sets veil.deferVCGeneration=true and maxHeartbeats=1600000.
+TLA_Paxos | Examples/TLA/Paxos.lean | assert (∃ v1 v2, Chosen v1 ∧ Chosen v2 ∧ v1 ≠ v2) | Uses earlier Chosen ghost predicate and bounded ballot datatype.
+TLA_Peterson | Examples/TLA/Peterson.lean | assert (∃ i j, i ≠ j ∧ lockcs i ∧ lockcs j) | lockcs is defined before #gen_spec; finite process/control enums.
+TLA_Raft | Examples/TLA/Raft.lean | assert (∃ i j, i ≠ j ∧ currentTerm i = currentTerm j ∧ pcState i Leader ∧ pcState j Leader) | No active safety/invariant declaration. Tests the documented election-safety condition. Retains source-specific large heartbeat/typeclass limits.
+TLA_Room | Examples/TLA/Room.lean | assert (∃ r g1 g2, guestTset.contains g1 (registered r) ∧ guestTset.contains g2 (registered r) ∧ g1 ≠ g2) | Collection-based hotel key model.
+TLA_SimpleAllocator | Examples/TLA/SimpleAllocator.lean | assert (¬ (∀ c1 c2 : client, c1 ≠ c2 → resSet.isEmpty (resSet.intersection (alloc c1) (alloc c2)))) | Negates the exact declared predicate; do not replace it by elementwise membership, since the abstract TSet class does not state an intersection-membership law.
+TLA_Traffic | Examples/TLA/Traffic.lean | assert (at_light = false) | Reaches the intended puzzle goal: the car leaves the light.
+TLA_TwoPhaseCommit | Examples/TLA/TwoPhaseCommit.lean | assert (∃ rm1 rm2, (rmState rm1 == committed) ∧ (rmState rm2 == aborted)) | Distinct finite-control-state model from Ivy/TwoPhaseCommit; preserves the original Bool equality predicate.
+Tutorial_FloodSet | Examples/Tutorial/FloodSet.lean | assert (¬ (∀ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 → v1 = v2)) | Tutorial variant overlaps Synchronous/FloodSet but is retained as its own model-bearing file.
+Tutorial_POPL26_RingDec | Examples/Tutorial/POPL26/RingDec.lean | assert (∃ n1 n2, n1 ≠ n2 ∧ leader n1 ∧ leader n2) | Near-duplicate relational Ring teaching variant, intentionally retained for complete file coverage.
+Tutorial_POPL26_RingFin | Examples/Tutorial/POPL26/RingFin.lean | assert (leader.length > 1) | List-based concrete implementation over a symbolic node type; distinct from relational Ring. No concrete nextNode/topology assignment is imported.
+Tutorial_POPL26_RingNat | Examples/Tutorial/POPL26/RingNat.lean | assert (leader.length > 1) | List-based Nat implementation. Concrete allNodes/nextNode values from #model_check are intentionally not imposed.
+Tutorial_Ring | Examples/Tutorial/Ring.lean | assert (∃ l1 l2, leader l1 ∧ leader l2 ∧ l1 ≠ l2) | Tutorial relational Ring, retained separately from Ivy/Ring and POPL26/RingDec.
+
+Largest successful SAMPLED exact depths (not monotone bounds):
+{"model": "AWS_AWSBuggy", "path": "Examples/AWS/AWSBuggy.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "AWS_AWSFixed", "path": "Examples/AWS/AWSFixed.lean", "early_serialized_depths": "1 2 4", "early_highest_sampled_serialized_depth": 4, "early_definite_solver_depths": "1 2 4", "early_highest_sampled_definite_solver_depth": 4, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4", "local_highest_sampled_serialized_depth": 4, "local_definite_solver_depths": "1 2 4", "local_highest_sampled_definite_solver_depth": 4, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_Blockchain", "path": "Examples/Ivy/Blockchain.lean", "early_serialized_depths": "1 2 4", "early_highest_sampled_serialized_depth": 4, "early_definite_solver_depths": "1 2 4", "early_highest_sampled_definite_solver_depth": 4, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16", "local_highest_sampled_serialized_depth": 16, "local_definite_solver_depths": "1 2 4 8 16", "local_highest_sampled_definite_solver_depth": 16, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_ChordRingMaintenance", "path": "Examples/Ivy/ChordRingMaintenance.lean", "early_serialized_depths": "1 2 4 8 16", "early_highest_sampled_serialized_depth": 16, "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16", "local_highest_sampled_serialized_depth": 16, "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_DecentralizedLock", "path": "Examples/Ivy/DecentralizedLock.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2 4 8 16 32", "early_highest_sampled_definite_solver_depth": 32, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2 4 8 16 32", "local_highest_sampled_definite_solver_depth": 32, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_MultiSigAll", "path": "Examples/Ivy/MultiSigAll.lean", "early_serialized_depths": "1 2 4 8 16", "early_highest_sampled_serialized_depth": 16, "early_definite_solver_depths": "1 2 4", "early_highest_sampled_definite_solver_depth": 4, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16", "local_highest_sampled_serialized_depth": 16, "local_definite_solver_depths": "1 2 4", "local_highest_sampled_definite_solver_depth": 4, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_MultiSigMajority", "path": "Examples/Ivy/MultiSigMajority.lean", "early_serialized_depths": "1 2 4 8 16", "early_highest_sampled_serialized_depth": 16, "early_definite_solver_depths": "1 2 4", "early_highest_sampled_definite_solver_depth": 4, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16", "local_highest_sampled_serialized_depth": 16, "local_definite_solver_depths": "1 2 4", "local_highest_sampled_definite_solver_depth": 4, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_NOPaxos", "path": "Examples/Ivy/NOPaxos.lean", "early_serialized_depths": "1 2 4 8", "early_highest_sampled_serialized_depth": 8, "early_definite_solver_depths": "1 2 4", "early_highest_sampled_definite_solver_depth": 4, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8", "local_highest_sampled_serialized_depth": 8, "local_definite_solver_depths": "1 2 4", "local_highest_sampled_definite_solver_depth": 4, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_PaxosEPR", "path": "Examples/Ivy/PaxosEPR.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_PaxosFirstOrder", "path": "Examples/Ivy/PaxosFirstOrder.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2", "early_highest_sampled_definite_solver_depth": 2, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2", "local_highest_sampled_definite_solver_depth": 2, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_ReliableBroadcast", "path": "Examples/Ivy/ReliableBroadcast.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_RicartAgrawala", "path": "Examples/Ivy/RicartAgrawala.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2 4", "early_highest_sampled_definite_solver_depth": 4, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2 4", "local_highest_sampled_definite_solver_depth": 4, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_Ring", "path": "Examples/Ivy/Ring.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2 4", "early_highest_sampled_definite_solver_depth": 4, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2 4", "local_highest_sampled_definite_solver_depth": 4, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_SuzukiKasami", "path": "Examples/Ivy/SuzukiKasami.lean", "early_serialized_depths": "1 2 4 8 16", "early_highest_sampled_serialized_depth": 16, "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16", "local_highest_sampled_serialized_depth": 16, "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_TwoPhaseCommit", "path": "Examples/Ivy/TwoPhaseCommit.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2 4 8", "early_highest_sampled_definite_solver_depth": 8, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2 4", "local_highest_sampled_definite_solver_depth": 4, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Ivy_VerticalPaxosFirstOrder", "path": "Examples/Ivy/VerticalPaxosFirstOrder.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Puzzles_DieHard", "path": "Examples/Puzzles/DieHard.lean", "early_serialized_depths": "1 2 4 8 16", "early_highest_sampled_serialized_depth": 16, "early_definite_solver_depths": "1 2 4 8", "early_highest_sampled_definite_solver_depth": 8, "early_solver_answer_at_highest_sample": "sat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16", "local_highest_sampled_serialized_depth": 16, "local_definite_solver_depths": "1 2 4 8", "local_highest_sampled_definite_solver_depth": 8, "local_solver_answer_at_highest_sample": "sat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Puzzles_Prisoners", "path": "Examples/Puzzles/Prisoners.lean", "early_serialized_depths": "1 2 4 8 16", "early_highest_sampled_serialized_depth": 16, "early_definite_solver_depths": "1 2 4 8 16", "early_highest_sampled_definite_solver_depth": 16, "early_solver_answer_at_highest_sample": "sat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16", "local_highest_sampled_serialized_depth": 16, "local_definite_solver_depths": "1 2 4 8 16", "local_highest_sampled_definite_solver_depth": 16, "local_solver_answer_at_highest_sample": "sat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Puzzles_RiverCrossing", "path": "Examples/Puzzles/RiverCrossing.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2 4 8 16 32", "early_highest_sampled_definite_solver_depth": 32, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2 4 8 16 32", "local_highest_sampled_definite_solver_depth": 32, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Simulate_CheckpointLeaseFailover", "path": "Examples/Simulate/CheckpointLeaseFailover.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2 4 8 16", "early_highest_sampled_definite_solver_depth": 16, "early_solver_answer_at_highest_sample": "sat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2 4 8", "local_highest_sampled_definite_solver_depth": 8, "local_solver_answer_at_highest_sample": "sat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Simulate_LeaseKeepaliveRace", "path": "Examples/Simulate/LeaseKeepaliveRace.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2 4 8 16 32", "early_highest_sampled_definite_solver_depth": 32, "early_solver_answer_at_highest_sample": "sat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2 4 8 16 32", "local_highest_sampled_definite_solver_depth": 32, "local_solver_answer_at_highest_sample": "sat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Simulate_ReliableBroadcast", "path": "Examples/Simulate/ReliableBroadcast.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2 4", "early_highest_sampled_definite_solver_depth": 4, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2 4", "local_highest_sampled_definite_solver_depth": 4, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "StellarConsensus_SCP", "path": "Examples/StellarConsensus/SCP.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Synchronous_FasterFloodSet", "path": "Examples/Synchronous/FasterFloodSet.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Synchronous_FloodSet", "path": "Examples/Synchronous/FloodSet.lean", "early_serialized_depths": "1 2 4 8", "early_highest_sampled_serialized_depth": 8, "early_definite_solver_depths": "1 2 4", "early_highest_sampled_definite_solver_depth": 4, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8", "local_highest_sampled_serialized_depth": 8, "local_definite_solver_depths": "1 2 4", "local_highest_sampled_definite_solver_depth": 4, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_AWSDnsRace", "path": "Examples/TLA/AWSDnsRace.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_Bakery", "path": "Examples/TLA/Bakery.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_BcastByz", "path": "Examples/TLA/BcastByz.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_BuggyCircularBuffer", "path": "Examples/TLA/BuggyCircularBuffer.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_EPaxos", "path": "Examples/TLA/EPaxos.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_EWD840", "path": "Examples/TLA/EWD840.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_German", "path": "Examples/TLA/German.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_KVSnap", "path": "Examples/TLA/KVSnap.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_KeyValueStore", "path": "Examples/TLA/KeyValueStore.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_MultiPaxos", "path": "Examples/TLA/MultiPaxos.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_MutexViolation", "path": "Examples/TLA/MutexViolation.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_NOPaxos", "path": "Examples/TLA/NOPaxos.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_Paxos", "path": "Examples/TLA/Paxos.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_Peterson", "path": "Examples/TLA/Peterson.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2 4 8", "early_highest_sampled_definite_solver_depth": 8, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2 4", "local_highest_sampled_definite_solver_depth": 4, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_Raft", "path": "Examples/TLA/Raft.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_Room", "path": "Examples/TLA/Room.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_SimpleAllocator", "path": "Examples/TLA/SimpleAllocator.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_Traffic", "path": "Examples/TLA/Traffic.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2 4 8 16 32", "early_highest_sampled_definite_solver_depth": 32, "early_solver_answer_at_highest_sample": "sat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2 4 8 16 32", "local_highest_sampled_definite_solver_depth": 32, "local_solver_answer_at_highest_sample": "sat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "TLA_TwoPhaseCommit", "path": "Examples/TLA/TwoPhaseCommit.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2 4", "early_highest_sampled_definite_solver_depth": 4, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2 4 8", "local_highest_sampled_definite_solver_depth": 8, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Tutorial_FloodSet", "path": "Examples/Tutorial/FloodSet.lean", "early_serialized_depths": "1 2 4 8", "early_highest_sampled_serialized_depth": 8, "early_definite_solver_depths": "1 2", "early_highest_sampled_definite_solver_depth": 2, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8", "local_highest_sampled_serialized_depth": 8, "local_definite_solver_depths": "1 2", "local_highest_sampled_definite_solver_depth": 2, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Tutorial_POPL26_RingDec", "path": "Examples/Tutorial/POPL26/RingDec.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2 4", "early_highest_sampled_definite_solver_depth": 4, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2 4", "local_highest_sampled_definite_solver_depth": 4, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Tutorial_POPL26_RingFin", "path": "Examples/Tutorial/POPL26/RingFin.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Tutorial_POPL26_RingNat", "path": "Examples/Tutorial/POPL26/RingNat.lean", "early_serialized_depths": "", "early_highest_sampled_serialized_depth": "", "early_definite_solver_depths": "", "early_highest_sampled_definite_solver_depth": "", "early_solver_answer_at_highest_sample": "", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "", "local_highest_sampled_serialized_depth": "", "local_definite_solver_depths": "", "local_highest_sampled_definite_solver_depth": "", "local_solver_answer_at_highest_sample": "", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+{"model": "Tutorial_Ring", "path": "Examples/Tutorial/Ring.lean", "early_serialized_depths": "1 2 4 8 16 32", "early_highest_sampled_serialized_depth": 32, "early_definite_solver_depths": "1 2 4", "early_highest_sampled_definite_solver_depth": 4, "early_solver_answer_at_highest_sample": "unsat", "early_preprocessing_discharge_depths": "", "early_highest_sampled_preprocessing_discharge_depth": "", "local_serialized_depths": "1 2 4 8 16 32", "local_highest_sampled_serialized_depth": 32, "local_definite_solver_depths": "1 2 4", "local_highest_sampled_definite_solver_depth": 4, "local_solver_answer_at_highest_sample": "unsat", "local_preprocessing_discharge_depths": "", "local_highest_sampled_preprocessing_discharge_depth": "", "interpretation": "Largest successful sampled exact depth only; no monotonicity or all-depths-up-to-N claim."}
+
+Outcome counts (all requested cells):
+{
+  "early": {
+    "embedding": 49,
+    "recursion": 39,
+    "heartbeat": 24,
+    "unsat": 69,
+    "simp_steps": 9,
+    "solver_error": 10,
+    "solver_timeout": 36,
+    "translation": 41,
+    "sat": 17
+  },
+  "local": {
+    "embedding": 45,
+    "recursion": 49,
+    "unsat": 70,
+    "heartbeat": 23,
+    "solver_error": 10,
+    "solver_timeout": 38,
+    "translation": 43,
+    "sat": 16
+  }
+}
+
+Completed query cells:
+{"early": 132, "local": 134}
+
+Query completion changes:
+{"local_only": 2, "early_only": 0}
+
+Failure counts by variant and phase:
+{'variant': 'early', 'outcome_family': 'embedding', 'phase': 'embedding', 'kind': 'type_mismatch', 'count': 49}
+{'variant': 'early', 'outcome_family': 'heartbeat', 'phase': 'destruct', 'kind': 'heartbeats', 'count': 7}
+{'variant': 'early', 'outcome_family': 'heartbeat', 'phase': 'dsimp1', 'kind': 'heartbeats', 'count': 1}
+{'variant': 'early', 'outcome_family': 'heartbeat', 'phase': 'hoist', 'kind': 'heartbeats', 'count': 7}
+{'variant': 'early', 'outcome_family': 'heartbeat', 'phase': 'nextSimp', 'kind': 'heartbeats', 'count': 1}
+{'variant': 'early', 'outcome_family': 'heartbeat', 'phase': 'smtSimp', 'kind': 'heartbeats', 'count': 8}
+{'variant': 'early', 'outcome_family': 'recursion', 'phase': 'embedding', 'kind': 'recursion', 'count': 39}
+{'variant': 'early', 'outcome_family': 'simp_steps', 'phase': 'hoist', 'kind': 'simp_steps', 'count': 6}
+{'variant': 'early', 'outcome_family': 'simp_steps', 'phase': 'nextSimp', 'kind': 'simp_steps', 'count': 3}
+{'variant': 'early', 'outcome_family': 'solver_error', 'phase': 'solver', 'kind': 'solver_error', 'count': 10}
+{'variant': 'early', 'outcome_family': 'solver_timeout', 'phase': 'solver', 'kind': 'solver_timeout', 'count': 36}
+{'variant': 'early', 'outcome_family': 'translation', 'phase': 'translate', 'kind': 'lean_error', 'count': 41}
+{'variant': 'local', 'outcome_family': 'embedding', 'phase': 'embedding', 'kind': 'type_mismatch', 'count': 45}
+{'variant': 'local', 'outcome_family': 'heartbeat', 'phase': 'destruct', 'kind': 'heartbeats', 'count': 4}
+{'variant': 'local', 'outcome_family': 'heartbeat', 'phase': 'dsimp1', 'kind': 'heartbeats', 'count': 1}
+{'variant': 'local', 'outcome_family': 'heartbeat', 'phase': 'dsimp2', 'kind': 'heartbeats', 'count': 1}
+{'variant': 'local', 'outcome_family': 'heartbeat', 'phase': 'hoist', 'kind': 'heartbeats', 'count': 4}
+{'variant': 'local', 'outcome_family': 'heartbeat', 'phase': 'nextSimp', 'kind': 'heartbeats', 'count': 3}
+{'variant': 'local', 'outcome_family': 'heartbeat', 'phase': 'normalize', 'kind': 'heartbeats', 'count': 1}
+{'variant': 'local', 'outcome_family': 'heartbeat', 'phase': 'smtSimp', 'kind': 'heartbeats', 'count': 9}
+{'variant': 'local', 'outcome_family': 'recursion', 'phase': 'embedding', 'kind': 'recursion', 'count': 49}
+{'variant': 'local', 'outcome_family': 'solver_error', 'phase': 'solver', 'kind': 'solver_error', 'count': 10}
+{'variant': 'local', 'outcome_family': 'solver_timeout', 'phase': 'solver', 'kind': 'solver_timeout', 'count': 38}
+{'variant': 'local', 'outcome_family': 'translation', 'phase': 'translate', 'kind': 'lean_error', 'count': 43}
+
+Execution method:
+The earlier seven-model benchmark used different assertions and raised budgets, and its backend helper omitted the production compatibility wrapper. Its Veil-preprocessing timings remain exploratory evidence; its backend measurements do not establish production behavior and are not merged here.
+The sweep uses the explicit early-introduction/per-transition trusted SMT pipelines with finite-model-find enabled and standardized query limits; original model definitions and setup are retained. It does not execute every original example command or retain source-specific query solver choices.
+Model setup is shared within each batch. Exact-N traces are separate Lean commands with separate command budgets; Elab.async=false enforces sequential elaboration. Early introduction/local order alternates across model/depth pairs. Process caches are shared, so these are paired single observations, not independent cold-start repetitions.
+A wall watchdog terminates the process group for the active query and restarts unattempted commands. Completed cells retain their emitted queries and timings. Solver replay is a separate sequential batch; shared process wall/setup time is not apportioned to cells. solver_ms measures Smt.solve including native manager/solver creation, SMT-LIB parsing, checkSat, native model values/domain retrieval or unsat-core retrieval. The 10-second tlimit-per limits checkSat; a separate 15-second watchdog covers the active wrapper call. Lean proof/model/trace reconstruction is excluded.
+{
+  "setup_timeout_seconds": 60,
+  "query_elaboration_timeout_seconds": 60,
+  "pipeline_timeout_seconds": 60,
+  "solver_timeout_seconds": 10
+}
+
+Paired SMT-query comparison:
+{}
+
+Additional classical logical-normal-form audit:
+{"pairs": 132, "matched": 132, "native_accepted_pairs": 122, "native_accepted_matches": 122}
+Uses scope-aware bound renaming, quantifier negation and Boolean identities; not an SMT type checker.
+
+Environment:
+{
+  "recorded_utc": "2026-10-19T17:32:56.515385+00:00",
+  "platform": "Linux-6.12.113+deb13-amd64-x86_64-with-glibc2.41",
+  "cpu": "AMD EPYC 9645 96-Core Processor",
+  "logical_cpus_visible": 8,
+  "python": "3.13.5",
+  "lean_toolchain": "leanprover/lean4:v4.32.0",
+  "lean_version": "Lean (version 4.32.0, x86_64-unknown-linux-gnu, commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, Release)",
+  "dependencies": [
+    {
+      "name": "Loom",
+      "url": "https://github.com/verse-lab/loom.git",
+      "rev": "a8f79937ec8291f3ac4e3d41b5e4bf3ac7798367",
+      "inputRev": "v4.32.0-for-veil"
+    },
+    {
+      "name": "smt",
+      "url": "https://github.com/verse-lab/lean-smt.git",
+      "rev": "922af463373ce3f74d7b1aee36c6391f867aaaa2",
+      "inputRev": "v4.32.0-veil-no-mathlib"
+    },
+    {
+      "name": "cvc5",
+      "url": "https://github.com/abdoo8080/lean-cvc5.git",
+      "rev": "a3ffc29af30f97e41e32356f21296d0a3e0f7c04",
+      "inputRev": "a3ffc29"
+    },
+    {
+      "name": "auto",
+      "url": "https://github.com/leanprover-community/lean-auto.git",
+      "rev": "1175ff6b958ad9513fe4830f9fca11ebe59eb78d",
+      "inputRev": "1175ff6"
+    }
+  ],
+  "full_suite": {
+    "command": "lake build VeilTest",
+    "status": "passed",
+    "jobs": 1227,
+    "log_sha256": "dc791c702cda794fadba4622f9371d017569272c57e77322cb3a2df676ddbb8b"
+  },
+  "cgroups": {
+    "cpuset.cpus.effective": "0-7"
+  },
+  "cvc5_distribution": {
+    "version": "1.3.2",
+    "git": "86cecd8",
+    "evidence": "Bundled cvc5-Linux-x86_64-static/bin/cvc5 --version; lakefile pins cvc5-1.3.2",
+    "compiler": "Ubuntu Clang 18.1.3 (1ubuntu1)",
+    "build_time": "2025-12-12 19:02:46"
+  },
+  "plotting": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.4",
+    "backend": "Agg",
+    "python": "3.13.5"
+  },
+  "baseline_commit": "543817e690debe6fbc9b518fb2694549d5986e90",
+  "production_source_sha256": "4b60a070f1d7c6284a8506a55514141458d95f5abdfde0d959274786476937cc",
+  "comparison": "Fresh paired early-introduction vs per-transition normalization runs; prior timings are not reused.",
+  "primary_completion": {
+    "completed_utc": "2026-10-19T18:54:00.653660+00:00",
+    "frozen_build_verified": true
+  },
+  "diagnostic_completion": {
+    "completed_utc": "2026-10-19T19:05:54.876589+00:00"
+  },
+  "diagnostic_counts": {
+    "normalization_only_cells": 36,
+    "repeated_native_calls": 66,
+    "extended_cap_native_calls": 6,
+    "reordered_query_native_calls": 4
+  }
+}
+
+Excluded files:
+{'path': 'Examples/StellarConsensus/SCPTheory.lean', 'reason': 'Support-only file: no veil module declaration; retained as an import dependency where needed.'}
+
+Remaining local simplifier step-limit cells:
+
+Original issue scope:
+The original LamportMutexV1 reproducer from issue #123 is not included in this corpus. These runs do not establish that that exact reproducer is fixed. The implemented change splits the negated trace conjunction into independent hypotheses, normalizes each using exact existing simp rules, preserves shared states and disjunctions, and checks backend hint coverage. Proof-valued headers use the committed early-introduction path. Downstream embedding and translation repairs remain separate work.
+
+METHODS.txt
+Fresh comparison of early introduction and per-transition normalization
+=====================================================================
+
+49 model-bearing example files, one documented selected assertion per file,
+exact depths 1, 2, 4, 8, 16, 32, two variants: 588 predeclared cells. The manifest
+is identical to the prior comprehensive sweep. The only excluded source is the
+support theory Examples/StellarConsensus/SCPTheory.lean. Overlapping examples
+are separate source files, not 49 independent protocols. Symbolic domains remain
+abstract/unbounded; original concrete #model_check instantiations are not used.
+
+Both variants are rerun on the same frozen compiled worktree. Early introduction
+replays the pipeline committed in 543817e6. Local normalization calls the new
+production helpers and has the same proof-header fallback. No previous timing
+is copied into this comparison. Sources are cut at the manifest's first genuine
+spec-generation command, with the previous nested-comment/namespace fixes.
+The helper is scoped so its open namespaces cannot pollute model definitions.
+
+Query limits are maxHeartbeats=200000 and maxRecDepth=512, with the unchanged
+100000-step default for each Veil simp invocation. Native cvc5 1.3.2 is loaded
+during both extraction and replay. The trusted pipeline retains
+Veil.withBackwardsCompatibility, withoutRecover, embedBool=false, finite-model-
+find=true, logic ALL and the ordinary Veil solver options. Model setup retains
+its source options; query options are standardized. Setup and each query have
+60-second process-group watchdogs; native replay has a 10-second checkSat cap
+and a separate 15-second wrapper watchdog.
+
+One model setup is shared by the twelve query commands in a batch. Each command
+has an independent Lean command heartbeat allowance, and Elab.async=false keeps
+elaboration sequential. Variant order alternates by model and depth. Completed
+cells are checkpointed; a timeout restarts only unstarted cells. All translation
+runs finish before sequential native solver replay. No competing builds, Lean
+probes, solver jobs or graph rendering are run during the recorded sweep.
+
+One observation per cell measures feasibility and approximate cost, not a stable
+speedup distribution or statistical confidence interval. Query time is the sum
+of completed stage timers, including local splitting, naming/hint audits,
+context destruction and backend preparation. It excludes startup, model setup,
+trace VC elaboration, event/log IO and solver execution. Setup and VC elaboration
+are recorded separately. Shared batch setup must not be summed once per cell.
+
+Each simpGoal invocation simplifies its hypothesis formulas individually. Fresh
+inner and outer simp calls reset their step counters. The aggregate permitted
+simp steps therefore differ even though the per-call setting is unchanged.
+No per-transition heartbeat reset is performed: the whole query retains the
+same 200000-command-heartbeat budget. Raw allocation heartbeat deltas are also
+recorded for each phase, including split/transport/destruction and the SMT
+pipeline, so success at a deeper depth is not the only evidence of reduced work.
+These counters are raw allocations, not the option's scaled heartbeat units.
+
+Queries are deliberately extracted from declarations that end with a distinct
+measurement error. No theorem is admitted or claimed by the measurement harness.
+Native SAT/UNSAT is determined by replaying the emitted script. Solver time is
+Smt.solve time: native setup, parsing, checkSat and native model values/domain or
+unsat-core retrieval. It excludes Lean proof/model/trace reconstruction. That
+plumbing is covered by the separate production regression suite.
+
+Failure and timeout durations never appear as completed timings. PRE denotes
+exact preprocessing closure and is reported separately from solver UNSAT.
+A serialized query that cvc5 rejects is a solver error, not a successful solver
+result. Every model receives a graph, including models without successful cells.
+A largest successful sampled exact depth is not a monotone depth bound; missing
+intermediate depths and different SAT/UNSAT answers remain visible.
+
+Full-pipeline wall-time supplement
+  Pipeline events also record the elapsed interval from pipeline entry through
+  query serialization. pipeline-work.csv and the dedicated plot use that full
+  interval, including dispatch/context/event overhead between phase timers.
+  Per-model solid query curves use this wall interval; their dashed preprocessing
+  curves remain completed Veil-stage sums. The phase breakdowns and original
+  matched-timings.csv retain stage sums for attribution. The exclusive
+  VC+pipeline+solver figure adds query/VC elaboration and a definite native call;
+  it still excludes shared setup and Lean proof/model reconstruction.
+
+
+IMPLEMENTATION.txt
+Per-transition symbolic BMC normalization
+=======================================
+
+Baseline
+  Commit 543817e6 commits conservative early introduction, its regression
+  tests, and the previous comprehensive benchmark/report. The new implementation
+  is a separate worktree diff against that commit. No dependency is patched.
+
+Logical shape
+  Early introduction leaves one target:
+    |- not (A(th) and Init(th,s0) and T1(s0,s1) and ... and Bad(sd))
+  Local normalization constructs one shared context:
+    hA:A(th), hI:Init(th,s0),
+    w1:W1, h1:M1(w1,s0,s1), ..., wd:Wd, hd:Md(wd,s[d-1],sd),
+    hB:Bad(sd) |- False
+  when Ti is exactly equivalent to exists wi, Mi. Action alternatives remain
+  inside Mi. Both encode the existence of the same complete trace, with the same
+  middle states. There is still one joint solver call.
+
+Transformation
+  After introducing the data/type/Type-valued instance prefix, recognize the
+  visible goal Not(trace). Proof-valued headers use the committed whole-target
+  path, including normalization of their domains. There is no expensive trial
+  and fallback, and no catch that turns resource exhaustion into success.
+
+  For the ordinary trace goal, introduce its negated conjunction to prove
+  False. Flatten only the outer conjunction, using And.left/And.right proof
+  projections. Assert all leaves in one batch and clear the original composite
+  hypothesis. Do not unfold a transition during this split, enter a disjunction,
+  duplicate a shared state, or enumerate action sequences.
+
+  Build one simplifier context per phase and normalize each hypothesis through
+  Lean's simpGoal/dsimpGoal APIs. The first two phases use precisely the existing
+  nextSimp and guarded existential rules. The latter's Nonempty side conditions
+  and dependent-quantifier checks remain unchanged. No one-way abstraction
+  theorem is substituted for the exact transition equations.
+
+  Reuse veil_destruct to eliminate state/theory structures, leading existential
+  witnesses and newly exposed conjunctions. Witnesses are independent fresh
+  locals; dependent types retain their ordering. Apply dsimp/smtSimp/dsimp to the
+  resulting hypotheses explicitly. Simplifying only the target False would
+  leave those constraints unprocessed.
+
+  Hint coverage is checked before destruction and before the backend. All local
+  user names become unique without changing FVarIds/types. Resolve backend
+  selections to FVarIds and check every visible, non-instance proposition is
+  present. Unsupported filtered constraints cause an explicit error. The same
+  backend policy omits implementation details and proof-valued implementation
+  instances. Each normalization phase enumerates the current live FVarIds, so
+  context transport cannot leave a cached array of stale matrix identities.
+
+  Invoke veil_smt once with the ordinary options, compatibility wrapper,
+  untrusted Nonempty inference and model/proof plumbing. Exact simplifier
+  closure is a preprocessing UNSAT result. The optimization is about producing
+  the complete query, not checking transitions separately.
+
+Semantic contract
+  Projecting every leaf of a conjunction and retaining all of them is reversible
+  by conjunction introduction. Existing simp rewrites carry equivalence/equality
+  proofs. Eliminating an existential introduces an arbitrary witness with its
+  entire matrix. Record elimination preserves the data and dependent constraints.
+  These steps preserve the satisfiability of the joint trace and the shared
+  state/action variables. They do not add a finite domain or default choices.
+
+Validation
+  lake build VeilTest passed 1227 jobs. TraceLocalNormalization adds kernel
+  checks for empty inactive witnesses, universal dependence, dependent witness
+  types and shadowed contradictory hypotheses; trace tests check distinct
+  function choices, action disjunctions, shared middle states, zero actions,
+  false assertions and false proof headers. The manual untrusted shared-state
+  theorem and shadowed-hypothesis theorem have no sorryAx. Existing trusted and
+  untrusted higher-order-choice checks, proof-header regressions, dependent
+  arguments, rigid bindings, model decoding and depth-32 checks also pass.
+  See full-suite.log and environment.json for the exact result/hash.
+
+Limits
+  This is not a proof that the existing SMT embedding/translator is universally
+  correct. The benchmark checks emitted scripts with native cvc5 and compares
+  paired outcomes. Logical-query auditing is separate and conservative.
+  The existing context destructor and whole-context SMT embedding remain; their
+  costs and limitations can dominate once global hoisting is removed.
+
+
+PIPELINE_PARITY_AUDIT.txt
+Pipeline parity audit
+=====================
+
+Baseline: committed early-introduction body in Core.lean at 543817e6. The runner
+uses that body explicitly: introduce data; nextSimp; guarded hoisting; intros;
+destruct; dsimp; smtSimp; dsimp. In trusted mode the production Nonempty hooks
+are no-ops. The benchmark's intro-data helper matches the committed definition.
+
+Local: early data introduction; __veil_bmc_if_local selects the same visible-Not
+form as production. Local steps are __veil_bmc_split_trace, __veil_bmc_hyps with
+nextSimp, __veil_bmc_hyps with guarded hoisting, __veil_bmc_check_hints,
+veil_destruct, __veil_bmc_hyps dsimp/smtSimp/dsimp, __veil_bmc_check_hints. The
+simp configuration includes instances=true and failIfUnchanged=false, matching
+veil_simp's ordinary wrapper. Internal helpers themselves apply the production
+backwards-compatibility options. Unsupported proof-header shapes use the early
+pipeline. No pipeline exceptions are caught as a fallback.
+
+The extraction wrapper replaces only the final solver invocation with the same
+trusted SMT preprocessing: getPropsInContext, cleanup with all hint dependencies,
+pushHintsToCtx, intros, negateGoal, normalize, embeddingWithConfig(embedBool=false),
+genUniqueFVarNames, prepareSmtQuery and cmdsAsQuery with logic ALL/checkSat.
+Veil.withBackwardsCompatibility and withoutRecover enclose this path. It writes
+the exact text that is replayed by native Smt.solve; hashes connect both stages.
+
+The paired scripts may have different assertion grouping and different fresh
+symbol names. Splitting into hypotheses can affect solver heuristics even for
+an equivalent formula. Native solver time/outcomes are measured separately;
+logical normalization used for the audit never changes a solver input.
+
+The full suite uses the actual veil_bmc command without an override. The bench
+uses the same internal helpers but wraps stages to measure costs. Benchmark
+sources, snapshots, core source/olean hashes and native plugin hashes are kept.
+
+
+QUERY_EQUIVALENCE.txt
+Paired-query logical audit
+==========================
+
+The local path can emit several assertions where early introduction emitted
+one conjunction, and embedding/elimination may choose different fresh names.
+The old byte/command comparator is therefore insufficient.
+
+compare_local_queries.py parses the emitted texts and conjoins ALL assertions.
+It applies classical Boolean identities, double-negation/implication expansion,
+quantifier duality under negation, scoped bound-variable renaming, associative/
+commutative/idempotent and/or, symmetric equality and Boolean-literal equality.
+For SMT's inhabited sorts, positive existentials outside universal scopes may
+be represented by fresh global constants for satisfiability checking. Quantifiers
+inside non-monotone positions such as equality or ite remain scoped. It never
+moves an existential through a universal. Unused free declarations are ignored;
+no assertion is removed except by the explicit identities.
+
+A graph-refinement search proposes a bijection between free declarations of the
+same signature. Named trace states, theory fields, action tags and trace arguments
+are anchored. Every candidate is then checked independently: applying the entire
+bijection must produce exactly the same normalized asserted formula and metadata.
+The JSON retains the successful renaming for inspection. Different forms or an
+unresolved mapping are inconclusive, not counterexamples. Boundary checks cover
+missing conjuncts, contradictions, bound capture, shared-state polarity,
+forall/exists dependence and existentials inside Boolean equality.
+
+This is a conservative executable audit, not a Lean proof or an SMT type checker.
+The same underlying SMT translation defects can affect both variants. Native
+acceptance and actual solver answers are recorded separately, and matches on
+invalid scripts must not be described as successfully translated solver problems.
+No normalization from this audit changes the scripts sent to cvc5. The production
+transform's exactness argument and kernel-checked regression evidence are in
+IMPLEMENTATION.txt and the full suite log. Final match counts and any unresolved
+differences are recorded in the logical-query-comparison CSV and executive summary.
+
+The audit's invented bound-variable/witness namespace is rejected if it occurs
+among input declarations, preventing a user symbol from being confused with an
+internal marker. Remaining unrecognized SMT commands cause an explicit
+inconclusive result; there is no optimistic fallback based on matching counts.
+
+Completed audit
+  132/132 paired emitted formulas matched. Native cvc5 accepted 122 of those
+  pairs, and all 122 matched. The remaining ten matched pairs contain existing
+  solver-rejected scripts; their match is not evidence of successful translation.
+  All 83 pairs with two definite primary solver answers agree. The two new
+  Blockchain queries lack a same-budget emitted early-introduction counterpart.
+  See query-comparison/logical-query-comparison.csv and its JSON renamings.
+
+
+STEP_PROFILE_FINDINGS.txt
+Separate simplifier-work experiment
+==================================
+
+After the primary 588-cell extraction/replay finished, a separate runner enabled
+trace.Meta.Tactic.simp.numSteps for the normalization phases. It recursively
+collects the counters of completed inner AND outer SimpM.run calls, resets trace
+state between phases, and stops immediately after transition unfolding and
+hoisting. It does not destruct contexts, embed, serialize or call the solver.
+The initial Ivy Ring depth-1 smoke check passed before the full diagnostic.
+
+The full diagnostic covers Blockchain, Tutorial FloodSet and Ivy Ring at the
+same six depths for both variants (36 cells). Thirty-one complete both phases;
+five early-introduction cells fail in hoisting. Local normalization completes
+both measured phases in all eighteen local cells. This does not imply complete
+translation: the primary Blockchain depth-32 query fails in destruction, and
+FloodSet at depths 16/32 fails in embedding.
+
+Completed hoisting-phase counter sums:
+
+                      depth     early        local
+  Ivy Blockchain          1      5,142        2,540
+                          2     11,261        5,077
+                          4     32,139       10,151
+                          8       fail       20,299
+                         16       fail       40,595
+                         32       fail       81,187
+  Tutorial FloodSet       1        826          327
+                          2      1,734          626
+                          4      5,000        1,224
+                          8     20,132        2,420
+                         16       fail        4,812
+                         32       fail        9,596
+
+This is direct evidence of reduced measured hoisting work on matched complete
+phases, followed by approximately linear growth in the local formulation. It is
+not merely evidence that restarting a per-call counter permits more total work.
+Blockchain depth 4 uses about 3.17x fewer counted hoisting steps, and FloodSet
+depth 8 about 8.32x fewer. Failed phases are omitted rather than assigning their
+limit as a completed count.
+
+There is no blanket reduction in all simplifier work. At depth 32, Blockchain's
+nextSimp counter increases from 45,819 to 50,335; FloodSet's from 19,801 to 25,049.
+Separate hypotheses repeat some unfolding/traversal. Ivy Ring has no applicable
+higher-order hoisting in these traces: the global guard reports one outer simp
+step, while the local path reports one per hypothesis (35 at depth 32). Guard
+traversal/type inference, proof construction and context transport are not all
+represented by numSteps. The primary allocation counters and complete-pipeline
+wall times are therefore retained as independent cost measurements.
+
+Counters from failed/abandoned runs may not be emitted. These are sums of the
+completed-run counters available from Lean's trace API, not a count of all
+machine operations or a complexity proof. Tracing changes allocation and timing;
+none of the diagnostic timings is pooled with the primary benchmark. A fresh
+simp counter is permitted for each hypothesis, but the runner does not reset the
+whole-query command heartbeat allowance per transition.
+
+The graph and raw tables are step-profile/simp-work.png, simp-work.svg,
+simp-work.csv and matched-simp-work.csv. All generated Lean sources, per-phase
+events and failure messages are preserved in step-profile/results.
+
+
+SOLVER_BEHAVIOR.txt
+Separate native solver diagnostics
+==================================
+
+The primary 588-cell comparison is unchanged. After it finished, twelve
+model/depth cases were selected deterministically: two newly emitted queries,
+four pairs with a definite-result change, and six pairs whose observed solver
+times differed by at least 5x with the slower call at least 500 ms. Each selected
+emitted query was replayed three times in a fresh native solver; pair order
+alternates between repeats. These 66 calls use the same emitted query hashes
+and 10-second checkSat / 15-second wrapper limits. No other Lean, graph-rendering
+or solver jobs ran concurrently. This is a targeted diagnostic, not a repeated
+sample of the whole corpus or a confidence interval.
+
+Repeated results (three calls per row):
+Model / depth / variant | outcomes | median definite-call time (seconds)
+Ivy_Blockchain / 8 / local | UNSAT 3/3 | 0.480
+Ivy_Blockchain / 16 / local | UNSAT 3/3 | 0.791
+Ivy_MultiSigAll / 4 / early | TIMEOUT 1/3, UNSAT 2/3 | 9.435
+Ivy_MultiSigAll / 4 / local | UNSAT 3/3 | 0.595
+Ivy_MultiSigMajority / 2 / early | UNSAT 3/3 | 0.524
+Ivy_MultiSigMajority / 2 / local | UNSAT 3/3 | 0.074
+Ivy_MultiSigMajority / 4 / early | UNSAT 3/3 | 7.345
+Ivy_MultiSigMajority / 4 / local | UNSAT 3/3 | 0.384
+Ivy_TwoPhaseCommit / 8 / early | UNSAT 3/3 | 4.819
+Ivy_TwoPhaseCommit / 8 / local | TIMEOUT 2/3, UNSAT 1/3 | 9.747
+Simulate_CheckpointLeaseFailover / 16 / early | SAT 3/3 | 8.641
+Simulate_CheckpointLeaseFailover / 16 / local | TIMEOUT 3/3 | —
+Synchronous_FloodSet / 4 / early | UNSAT 3/3 | 9.577
+Synchronous_FloodSet / 4 / local | UNSAT 3/3 | 1.552
+TLA_Peterson / 8 / early | UNSAT 3/3 | 7.230
+TLA_Peterson / 8 / local | TIMEOUT 3/3 | —
+TLA_Traffic / 16 / early | SAT 3/3 | 0.057
+TLA_Traffic / 16 / local | SAT 3/3 | 0.846
+TLA_Traffic / 32 / early | SAT 3/3 | 0.130
+TLA_Traffic / 32 / local | SAT 3/3 | 6.704
+TLA_TwoPhaseCommit / 8 / early | TIMEOUT 3/3 | —
+TLA_TwoPhaseCommit / 8 / local | UNSAT 3/3 | 5.193
+
+Medians include only definite calls, never timeout durations; mixed outcomes
+must be read together with their success counts. The primary measurements are
+not included in these three-repeat medians. Near-threshold results fluctuate:
+Ivy TwoPhaseCommit local finishes in one repeat at 9.747 s, and times out in two.
+The repeated Traffic slowdown shows that even preserved definite outcomes can
+cost much more solver time. There are no contradictory definite answers.
+
+Separate 30-second checks of the three primary regressions:
+Model / variant | result | native seconds
+Ivy_TwoPhaseCommit / early | UNSAT | 4.510
+Ivy_TwoPhaseCommit / local | UNSAT | 10.670
+Simulate_CheckpointLeaseFailover / early | SAT | 9.145
+Simulate_CheckpointLeaseFailover / local | SAT | 17.054
+TLA_Peterson / early | UNSAT | 7.506
+TLA_Peterson / local | UNSAT | 18.850
+
+All three local queries return the same answer as their baselines at this
+larger cap. This shows that cvc5 can handle these particular encodings with
+more time; it does not erase their regressions under the fixed primary cap.
+
+Controlled ordering/grouping experiment: Ivy TwoPhaseCommit depth 8
+The original early/local scripts contain the same multiset of 129 declarations
+but 3 versus 13 assertions. Four local-derived scripts were generated:
+  1. Move all local declarations before assertions, retaining their order.
+  2. Use the baseline declaration order, retaining local assertion grouping.
+  3. Use local declaration order and conjoin every assertion into one.
+  4. Use baseline declaration order and conjoin every assertion into one.
+The scope-aware formula audit independently verifies each script against the
+original local script before native replay. The exact texts/hashes are kept.
+  early_declaration_order: timeout (10.018 s)
+  early_order_single_assertion: timeout (10.020 s)
+  local_all_decls_first: timeout (10.016 s)
+  local_single_assertion: timeout (10.023 s)
+
+All four reach the 10-second solver limit. These limited reorganizations do
+not restore the baseline result. They neither isolate a particular heuristic
+as the cause nor rule out a better encoding; finer formula structure, witness
+names and preprocessing/search decisions may matter. Do not claim declaration
+sorting or assertion merging alone is a validated fix. A follow-up should
+profile solver preprocessing and quantifier instantiation, then benchmark any
+encoding policy across the corpus before making it the default. Keeping a
+user-selectable early-introduction strategy during rollout would be prudent.
+No such policy/option is implemented in this change.
+
+Evidence: solver-controls/selection.json, replays.csv, repeat-*/events and
+solver source files; solver-controls/extended-30s; solver-order-probe/queries,
+equivalence.json and runs.csv. Diagnostic timings are separate from primary
+outcome matrices and main per-model curves.
+
+
+NEXT_FIXES.txt
+What remains after per-transition normalization
+==============================================
+
+These are follow-ups, not additional implemented changes. Measured priorities:
+the local sweep has 94 embedding failures, 43 translation failures and one
+backend-normalization failure; the remaining 22 translation failures are frontend
+heartbeat limits. Thus low-depth backend repairs have broad corpus impact, while
+local context handling and exact action templates target larger depths. The
+separate solver diagnostics are also necessary: translation gains did not yield
+a net gain in definite 10-second solver results. The final report's
+failure tables and phase charts provide the measurements used to prioritize
+individual examples. A first-failure phase identifies where the query stopped;
+it does not assign all consumed command heartbeats to that phase.
+
+1. Keep the remaining context work local.
+   The new frontend removes hoisting across the entire trace, but reuses the
+   existing record/existential destructor. Core.lean:468-502 rescans the local
+   context and searches an Array LocalDecl of previously visited hypotheses.
+   In this source, Core.lean:131 explicitly defines BEq LocalDecl by USER NAME,
+   not by a full declaration snapshot. That is both a bookkeeping cost and a
+   reason not to use the present visitation mechanism as a correctness model
+   for a new cache. Unique names in the local path prevent shadowing, but do
+   not make a declaration's type/value immutable across cases and substitution.
+
+   Profile the cost of selection, rcases/proof transport and field dsimp
+   separately before assuming the linear membership search dominates. A safe
+   worklist needs FVarId identity plus explicit type/value/binder/kind snapshots,
+   checks for deleted/remapped declarations, and invalidation when unresolved
+   metavariables or relevant local instances change. Simply remembering each
+   FVarId once, or relying on the existing BEq instance, is insufficient.
+
+   Also test retaining conjunctions inside normalized transition matrices.
+   The current destructor splits their And structures as well as records and
+   existential prefixes. SMT can accept a matrix conjunction directly; extra
+   atomic hypotheses can increase context and assertion-management costs.
+   This experiment needs an explicit destructor policy: the existing recursive
+   call does not propagate excludedStructs, so passing a temporary exclusion
+   without fixing/testing that recursion would not implement the intended rule.
+
+   A larger change can instantiate states as field tuples and use exact local
+   transition theorems. Adjacent steps must share the very same field symbols.
+   Each interior state occurs in its two neighboring transition constraints,
+   so a dependency-aware transport can avoid traversing unrelated matrices.
+   This requires preserving dependent field types and model-decoding names.
+
+2. Cache exact action normalization at model setup.
+   Action/Elaborators.lean:605-650 already generates transition definitions and
+   exact equality artifacts. A reusable BMC normal form could normalize an
+   action once, then instantiate it for each state pair and action argument.
+   Use equality/iff artifacts, never the one-way tr_abstract implication at
+   829-840: weakening a transition would introduce spurious SAT traces.
+
+   Cache keys must include module parameters, universes, instances, dependent
+   argument types, and the unfolding/simplifier configuration. Measure added
+   cold setup cost separately from repeated-query and larger-depth savings.
+   A single transition with many branches/witnesses may still exhaust the
+   existing hoister: direct proof-producing prefix extraction is a possible
+   later improvement. Preserve Nonempty obligations for inactive alternatives,
+   dependent witness order, and the barrier at forall/exists alternation.
+
+3. Repair the backend defects that already occur at small depths.
+   The prior investigation's isolated probes identified independent problems;
+   none is silently repaired by this change:
+
+   * Nat/Fin embedding: the implication rewriter can build a dependent proof
+     binder using non-dependent congruence. A newly introduced nonnegativity
+     proof may occur inside a Fin-bound proof. Construct mkForallFVars and the
+     dependent implication congruence when the consequent depends on that proof,
+     under the intended compatibility/transparency settings. Minimal typed
+     probes passed with this repair; full AWS probes then reached a later
+     unsupported-zero translation, so it is not a complete AWS fix. Validate
+     kernel reconstruction and SAT model decoding as well as expression types.
+
+   * decide and universe instantiations: dependency discovery stores names and
+     later reconstructs bare constants, dropping universe levels. Preserve
+     complete instantiated constant expressions and distinguish type/instance
+     instantiations in symbol keys. A dedicated decide-to-SMT-Bool translation
+     can remove unnecessary decision-instance terms, but must have both proof
+     and model support. The earlier probes reached trusted depth-1 UNSAT for
+     PaxosEPR, ChordRingMaintenance and SuzukiKasami with a direct decide handler;
+     this was a diagnostic, not a production dependency patch.
+
+   * Explicit transition forms: externally supplied transitions can retain a
+     toTransitionDerived wrapper because the deriveTransition=false path skips
+     generated exact-normalization artifacts. The prior minimal Boolean stay
+     transition failed where the equivalent action succeeded. Generate the
+     appropriate exact bridge for the actual representation. A generic
+     (tr.toVeilM).derived = tr claim is not justified for arbitrary substate
+     access/update instances; frame behavior must be retained.
+
+   The detailed source probes and logs remain in the committed SymbolicBMC
+   report. These are separate fixes with separate semantic tests; increasing
+   recursion or heartbeat limits only changes which defect is encountered next.
+
+4. Avoid reconstructing a giant telescope inside SMT embedding.
+   The frontend now works with local matrices, but the SMT embedding path can
+   still revert the shared context and rebuild a large quantified expression.
+   A per-hypothesis embedding API would need ONE shared environment mapping
+   Lean variables/types to SMT symbols and side conditions. Calling independent
+   embedding sessions on each hypothesis could create distinct copies of a
+   middle state and incorrectly admit a trace. Nat/Int and function-field
+   encodings must share their variables and bound constraints consistently.
+   Preserve origin maps for proof reconstruction and counterexample decoding.
+
+5. Treat solver scalability as a separate problem.
+   Equivalent assertion groupings and different declaration/fresh-symbol orders
+   can change cvc5's heuristics. The primary sweep has three definite-result
+   gains and three losses; SOLVER_BEHAVIOR.txt records repeated controls and
+   the isolated order/grouping experiment. Stable ordering can improve
+   reproducibility, but should not be assumed faster without a corpus sweep. Keep the replay results visible and investigate regressions
+   using identical emitted queries and repeated isolated solver runs.
+
+   Incremental depth checking is a useful later design: retain assumptions,
+   initialization and the growing transition prefix, but push/pop the current
+   endpoint assertion before extending the trace. Keeping the old endpoint
+   assertion would change an exact-depth query. Stable declarations, fresh
+   witness namespaces, proof origins and model/state maps are prerequisites.
+   Existing native incremental operations alone do not provide that integration.
+
+   Solver-side sharing of repeated transition definitions also needs an encoding
+   that accepts the current function-valued state fields. Ordinary first-order
+   SMT define-fun cannot simply take those function values as arguments. Host-side
+   exact templates are a smaller first step; array/state-index encodings require
+   a separately justified equivalence and a fresh solver evaluation.
+
+
+RUNNER_README.txt
+Reproducing the paired sweep
+===========================
+
+Use the checkout at baseline commit 543817e6 and apply implementation.patch.
+Build with the repository's pinned dependencies and native cvc5 plugin:
+  lake build VeilTest
+
+From this artifact's root (adjust paths as necessary):
+  python3 runner/run_batch.py --repo /path/to/checkout \
+    --manifest manifest.json --out fresh-results
+  python3 runner/solve_batch.py --repo /path/to/checkout --out fresh-results
+  python3 runner/validate_results.py --manifest manifest.json \
+    --results fresh-results --output fresh-validation.json
+  python3 runner/compare_local_queries.py --results fresh-results \
+    --output fresh-logical-query-comparison
+
+Both pipelines run on the same compiled checkout. The early pipeline explicitly
+replays the committed tactic order; the local one calls the new internal helpers.
+The default variants are early/local, and default depths are 1,2,4,8,16,32.
+Do not merge this dataset with the prior old/early comparison. Use a fresh output
+directory for changed code, options, manifests or instrumentation.
+
+The runner loads the native cvc5 plugin even for extraction, since source setup
+may need native operations. Helpers are enclosed in an unnamed section; event
+marker commands use Lean.withOptions. The watchdog rejects a pipeline without
+its query-begin marker, and rejects source errors outside query boundaries.
+No output theorem is admitted. The extraction-complete diagnostic is expected.
+
+Render the report with matplotlib installed:
+  python3 report-tools/report.py --manifest manifest.json \
+    --exclusions exclusions.json --results fresh-results --out-dir fresh-report \
+    --logical-comparison fresh-logical-query-comparison.csv
+  python3 report-tools/check_reporting.py
+
+Review the executive summary and environment/suite evidence before reusing them
+for a new run. Report configuration records its data-input hashes; the delivered
+package additionally records every artifact's SHA-256. Raw paths describe the
+original execution location; the tools support relocated query/source artifacts.
+
+The optional step-profile runner is a separate normalization-only diagnostic.
+It enables simp step tracing and stops before context destruction/SMT; it is not
+part of the 588-cell outcome/timing dataset and does not yield solver answers.
+
+Additional diagnostics (after the primary run, so timing is uncontended):
+  python3 step-profile/runner/run_batch.py --repo /path/to/checkout \
+    --manifest manifest.json --out step-profile/results \
+    --models Ivy_Blockchain Tutorial_FloodSet Ivy_Ring
+  python3 runner/summarize_step_profile.py --root .
+  python3 runner/summarize_results.py --root .
+
+solver-controls records three fresh native replays of paired definite-result
+changes, newly emitted queries, and large observed solver-time changes (at least
+5x, with the slower call at least 500 ms). These data remain separate from the
+primary sweep. replay_controls.py documents the selection and alternating order.
+
+Extended native checks use a separate 30-second cap on the three pairs that lost
+a definite primary answer. The order/grouping probe generates four logically
+audited scripts for Ivy TwoPhaseCommit depth 8. These experiments do not modify
+primary queries. See SOLVER_BEHAVIOR.txt and runner/replay_extended.py,
+runner/probe_solver_order.py and runner/summarize_diagnostics.py. Historical
+run_full.py and run_diagnostics.py retain the original machine paths as execution
+records; the commands above accept explicit checkout/output paths for fresh runs.
+

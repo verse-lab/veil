@@ -1,0 +1,125 @@
+{
+  "selected_pairs": [
+    {
+      "model": "Ivy_Blockchain",
+      "depth": 16,
+      "reason": "primary definite/timeout difference"
+    },
+    {
+      "model": "Ivy_PaxosFirstOrder",
+      "depth": 4,
+      "reason": "primary definite/timeout difference"
+    },
+    {
+      "model": "TLA_Traffic",
+      "depth": 32,
+      "reason": "primary definite/timeout difference"
+    }
+  ],
+  "new_definite_queries": [
+    "Ivy_Blockchain__d32__cached__default"
+  ],
+  "repeat10": [
+    {
+      "primary_cell_id": "Ivy_Blockchain__d32__cached__default",
+      "cell_id": "Ivy_Blockchain__d32__cached__default__repeat2_t10",
+      "status": "unsat",
+      "solver_ms": 2979
+    },
+    {
+      "primary_cell_id": "Ivy_Blockchain__d32__cached__default",
+      "cell_id": "Ivy_Blockchain__d32__cached__default__repeat1_t10",
+      "status": "unsat",
+      "solver_ms": 2926
+    },
+    {
+      "primary_cell_id": "TLA_Traffic__d32__local__default",
+      "cell_id": "TLA_Traffic__d32__local__default__repeat2_t10",
+      "status": "sat",
+      "solver_ms": 9551
+    },
+    {
+      "primary_cell_id": "TLA_Traffic__d32__cached__default",
+      "cell_id": "TLA_Traffic__d32__cached__default__repeat2_t10",
+      "status": "sat",
+      "solver_ms": 4591
+    },
+    {
+      "primary_cell_id": "TLA_Traffic__d32__cached__default",
+      "cell_id": "TLA_Traffic__d32__cached__default__repeat1_t10",
+      "status": "sat",
+      "solver_ms": 3919
+    },
+    {
+      "primary_cell_id": "TLA_Traffic__d32__local__default",
+      "cell_id": "TLA_Traffic__d32__local__default__repeat1_t10",
+      "status": "solver_timeout",
+      "solver_ms": 10021
+    },
+    {
+      "primary_cell_id": "Ivy_PaxosFirstOrder__d4__local__default",
+      "cell_id": "Ivy_PaxosFirstOrder__d4__local__default__repeat2_t10",
+      "status": "solver_timeout",
+      "solver_ms": 10033
+    },
+    {
+      "primary_cell_id": "Ivy_PaxosFirstOrder__d4__cached__default",
+      "cell_id": "Ivy_PaxosFirstOrder__d4__cached__default__repeat2_t10",
+      "status": "unsat",
+      "solver_ms": 4000
+    },
+    {
+      "primary_cell_id": "Ivy_PaxosFirstOrder__d4__cached__default",
+      "cell_id": "Ivy_PaxosFirstOrder__d4__cached__default__repeat1_t10",
+      "status": "unsat",
+      "solver_ms": 4461
+    },
+    {
+      "primary_cell_id": "Ivy_PaxosFirstOrder__d4__local__default",
+      "cell_id": "Ivy_PaxosFirstOrder__d4__local__default__repeat1_t10",
+      "status": "solver_timeout",
+      "solver_ms": 10023
+    },
+    {
+      "primary_cell_id": "Ivy_Blockchain__d16__local__default",
+      "cell_id": "Ivy_Blockchain__d16__local__default__repeat2_t10",
+      "status": "unsat",
+      "solver_ms": 1105
+    },
+    {
+      "primary_cell_id": "Ivy_Blockchain__d16__cached__default",
+      "cell_id": "Ivy_Blockchain__d16__cached__default__repeat2_t10",
+      "status": "solver_timeout",
+      "solver_ms": 10051
+    },
+    {
+      "primary_cell_id": "Ivy_Blockchain__d16__cached__default",
+      "cell_id": "Ivy_Blockchain__d16__cached__default__repeat1_t10",
+      "status": "solver_timeout",
+      "solver_ms": 10057
+    },
+    {
+      "primary_cell_id": "Ivy_Blockchain__d16__local__default",
+      "cell_id": "Ivy_Blockchain__d16__local__default__repeat1_t10",
+      "status": "unsat",
+      "solver_ms": 1049
+    }
+  ],
+  "extended30": [
+    {
+      "primary_cell_id": "TLA_Traffic__d32__local__default",
+      "status": "sat",
+      "solver_ms": 10710
+    },
+    {
+      "primary_cell_id": "Ivy_PaxosFirstOrder__d4__local__default",
+      "status": "unsat",
+      "solver_ms": 22428
+    },
+    {
+      "primary_cell_id": "Ivy_Blockchain__d16__cached__default",
+      "status": "unsat",
+      "solver_ms": 17351
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+/tmp/veil-action-cache/results/batch-sources/Ivy_VerticalPaxosFirstOrder__cached__default__batch1.lean:307:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-action-cache/results/batch-sources/Ivy_VerticalPaxosFirstOrder__cached__default__batch1.lean:342:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-action-cache/results/batch-sources/Ivy_VerticalPaxosFirstOrder__cached__default__batch1.lean:377:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-action-cache/results/batch-sources/Ivy_VerticalPaxosFirstOrder__cached__default__batch1.lean:412:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-action-cache/results/batch-sources/Ivy_VerticalPaxosFirstOrder__cached__default__batch1.lean:447:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-action-cache/results/batch-sources/Ivy_VerticalPaxosFirstOrder__cached__default__batch1.lean:481:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.

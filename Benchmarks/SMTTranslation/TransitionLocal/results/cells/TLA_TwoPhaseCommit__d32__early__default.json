@@ -1,0 +1,387 @@
+{
+  "row": {
+    "cell_id": "TLA_TwoPhaseCommit__d32__early__default",
+    "model": "TLA_TwoPhaseCommit",
+    "path": "Examples/TLA/TwoPhaseCommit.lean",
+    "module": "TwoPhaseCommit",
+    "depth": 32,
+    "variant": "early",
+    "profile": "default",
+    "status": "solver_timeout",
+    "translation_status": "complete",
+    "solver_status": "timeout",
+    "failure_phase": "solver",
+    "failure_kind": "solver_timeout",
+    "failure_message": "TIMEOUT",
+    "setup_ms": null,
+    "query_elaboration_ms": 192,
+    "batch_id": "TLA_TwoPhaseCommit__default__batch1",
+    "batch_setup_ms": 8881,
+    "preprocessing_ms": 5021,
+    "smt_preprocessing_ms": 162,
+    "translation_ms": 349,
+    "serialization_ms": 0,
+    "query_total_ms": 5532,
+    "solver_ms": 10037,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 124021,
+    "query_commands": 415,
+    "query_sha256": "9fd5583827e83258d5272ca8334dfa894832d471ff6c232d45035b9d0f3d451c",
+    "query_path": "/tmp/veil-transition-local/results/queries/TLA_TwoPhaseCommit__d32__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/TLA_TwoPhaseCommit__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/TLA_TwoPhaseCommit__d32__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/TLA_TwoPhaseCommit__d32__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_TwoPhaseCommit",
+    "path": "Examples/TLA/TwoPhaseCommit.lean",
+    "module": "TwoPhaseCommit",
+    "cut_line": 222,
+    "query": "assert (∃ rm1 rm2, (rmState rm1 == committed) ∧ (rmState rm2 == aborted))",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "TCConsistency invariant, lines219–220",
+    "notes": "Distinct finite-control-state model from Ivy/TwoPhaseCommit; preserves the original Bool equality predicate.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "26ea68038d872d5310c24b4a101b32580b56cfd9ebb7ad79adee47b5d770fba2"
+  },
+  "original_sha256": "26ea68038d872d5310c24b4a101b32580b56cfd9ebb7ad79adee47b5d770fba2",
+  "inherited_setup_options": [],
+  "source_sha256": "edc67f74bd333625bb92f61313f03ce14f243a29638ec0db1253b948c40f9652",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/TLA_TwoPhaseCommit__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 210442947,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 210443139,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210443140,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 47,
+      "event": "stage",
+      "heartbeats": 133363,
+      "mono_ms": 210443187,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210443188,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1798,
+      "event": "stage",
+      "heartbeats": 19957384,
+      "mono_ms": 210444986,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210444986,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 43,
+      "event": "stage",
+      "heartbeats": 801994,
+      "mono_ms": 210445029,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210445051,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 3422,
+      "mono_ms": 210445056,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210445056,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1810,
+      "event": "stage",
+      "heartbeats": 24291947,
+      "mono_ms": 210446866,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210446867,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 80,
+      "event": "stage",
+      "heartbeats": 1431858,
+      "mono_ms": 210446947,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210446948,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1154,
+      "event": "stage",
+      "heartbeats": 13827578,
+      "mono_ms": 210448102,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210448131,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 84,
+      "event": "stage",
+      "heartbeats": 1314804,
+      "mono_ms": 210448215,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 5076,
+      "event": "milestone",
+      "mono_ms": 210448215,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210448215,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 9,
+      "event": "stage",
+      "heartbeats": 72796,
+      "mono_ms": 210448224,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210448224,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 295,
+      "mono_ms": 210448224,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210448224,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 210448224,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210448224,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 18041,
+      "mono_ms": 210448227,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210448227,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 130,
+      "event": "stage",
+      "heartbeats": 1532277,
+      "mono_ms": 210448357,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210448357,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 20,
+      "event": "stage",
+      "heartbeats": 333707,
+      "mono_ms": 210448377,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210448377,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 349,
+      "event": "stage",
+      "heartbeats": 3918867,
+      "mono_ms": 210448726,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210449785,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 210449786,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 124021,
+      "commands": 415,
+      "elapsed_ms": 6647,
+      "event": "pipeline",
+      "mono_ms": 210449786,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 210450116,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_TwoPhaseCommit__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/TLA_TwoPhaseCommit__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/TLA_TwoPhaseCommit__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 35974,
+    "setup_ms": 8881,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/TLA_TwoPhaseCommit__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "TIMEOUT",
+      "elapsed_ms": 10037,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unknown"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-transition-local/results/events/TLA_TwoPhaseCommit__d32__early__default.solver.jsonl",
+    "batch_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

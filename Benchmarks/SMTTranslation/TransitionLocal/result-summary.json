@@ -1,0 +1,269 @@
+{
+  "early": {
+    "cells": 294,
+    "statuses": {
+      "translation_failed": 162,
+      "unsat": 69,
+      "solver_error": 10,
+      "solver_timeout": 36,
+      "sat": 17
+    },
+    "emitted": 132,
+    "emitted_by_depth": {
+      "1": 25,
+      "2": 25,
+      "4": 25,
+      "8": 23,
+      "16": 20,
+      "32": 14
+    },
+    "files_emitting": 25,
+    "definite_solver": 86,
+    "files_definite_solver": 23,
+    "simp_step_cells": [
+      [
+        "Ivy_Blockchain",
+        16,
+        "hoist"
+      ],
+      [
+        "Ivy_Blockchain",
+        8,
+        "hoist"
+      ],
+      [
+        "Ivy_NOPaxos",
+        32,
+        "nextSimp"
+      ],
+      [
+        "Synchronous_FasterFloodSet",
+        16,
+        "hoist"
+      ],
+      [
+        "Synchronous_FasterFloodSet",
+        32,
+        "hoist"
+      ],
+      [
+        "TLA_NOPaxos",
+        16,
+        "nextSimp"
+      ],
+      [
+        "TLA_NOPaxos",
+        32,
+        "nextSimp"
+      ],
+      [
+        "Tutorial_FloodSet",
+        16,
+        "hoist"
+      ],
+      [
+        "Tutorial_FloodSet",
+        32,
+        "hoist"
+      ]
+    ],
+    "failure_counts": [
+      {
+        "phase": "destruct",
+        "kind": "heartbeats",
+        "count": 7
+      },
+      {
+        "phase": "dsimp1",
+        "kind": "heartbeats",
+        "count": 1
+      },
+      {
+        "phase": "embedding",
+        "kind": "recursion",
+        "count": 39
+      },
+      {
+        "phase": "embedding",
+        "kind": "type_mismatch",
+        "count": 49
+      },
+      {
+        "phase": "hoist",
+        "kind": "heartbeats",
+        "count": 7
+      },
+      {
+        "phase": "hoist",
+        "kind": "simp_steps",
+        "count": 6
+      },
+      {
+        "phase": "nextSimp",
+        "kind": "heartbeats",
+        "count": 1
+      },
+      {
+        "phase": "nextSimp",
+        "kind": "simp_steps",
+        "count": 3
+      },
+      {
+        "phase": "smtSimp",
+        "kind": "heartbeats",
+        "count": 8
+      },
+      {
+        "phase": "translate",
+        "kind": "lean_error",
+        "count": 41
+      }
+    ]
+  },
+  "local": {
+    "cells": 294,
+    "statuses": {
+      "translation_failed": 160,
+      "unsat": 70,
+      "solver_error": 10,
+      "solver_timeout": 38,
+      "sat": 16
+    },
+    "emitted": 134,
+    "emitted_by_depth": {
+      "1": 25,
+      "2": 25,
+      "4": 25,
+      "8": 24,
+      "16": 21,
+      "32": 14
+    },
+    "files_emitting": 25,
+    "definite_solver": 86,
+    "files_definite_solver": 23,
+    "simp_step_cells": [],
+    "failure_counts": [
+      {
+        "phase": "destruct",
+        "kind": "heartbeats",
+        "count": 4
+      },
+      {
+        "phase": "dsimp1",
+        "kind": "heartbeats",
+        "count": 1
+      },
+      {
+        "phase": "dsimp2",
+        "kind": "heartbeats",
+        "count": 1
+      },
+      {
+        "phase": "embedding",
+        "kind": "recursion",
+        "count": 49
+      },
+      {
+        "phase": "embedding",
+        "kind": "type_mismatch",
+        "count": 45
+      },
+      {
+        "phase": "hoist",
+        "kind": "heartbeats",
+        "count": 4
+      },
+      {
+        "phase": "nextSimp",
+        "kind": "heartbeats",
+        "count": 3
+      },
+      {
+        "phase": "normalize",
+        "kind": "heartbeats",
+        "count": 1
+      },
+      {
+        "phase": "smtSimp",
+        "kind": "heartbeats",
+        "count": 9
+      },
+      {
+        "phase": "translate",
+        "kind": "lean_error",
+        "count": 43
+      }
+    ]
+  },
+  "query_gains": [
+    [
+      "Ivy_Blockchain",
+      16,
+      "hoist",
+      "simp_steps",
+      "unsat"
+    ],
+    [
+      "Ivy_Blockchain",
+      8,
+      "hoist",
+      "simp_steps",
+      "unsat"
+    ]
+  ],
+  "query_losses": [],
+  "definite_solver_gains": [
+    [
+      "Ivy_Blockchain",
+      16,
+      "translation_failed",
+      "unsat",
+      "747"
+    ],
+    [
+      "Ivy_Blockchain",
+      8,
+      "translation_failed",
+      "unsat",
+      "520"
+    ],
+    [
+      "TLA_TwoPhaseCommit",
+      8,
+      "solver_timeout",
+      "unsat",
+      "5048"
+    ]
+  ],
+  "definite_solver_losses": [
+    [
+      "Ivy_TwoPhaseCommit",
+      8,
+      "unsat",
+      "4097",
+      "solver_timeout"
+    ],
+    [
+      "Simulate_CheckpointLeaseFailover",
+      16,
+      "sat",
+      "7447",
+      "solver_timeout"
+    ],
+    [
+      "TLA_Peterson",
+      8,
+      "unsat",
+      "8172",
+      "solver_timeout"
+    ]
+  ],
+  "matched_pipeline_wall": {
+    "pairs": 132,
+    "median_ratio": 1.0389223241891403,
+    "minimum_ratio": 0.705685618729097,
+    "maximum_ratio": 2.018694885361552,
+    "faster_local": 85,
+    "slower_local": 46
+  }
+}

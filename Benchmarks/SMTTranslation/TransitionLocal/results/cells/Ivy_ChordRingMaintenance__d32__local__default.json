@@ -1,0 +1,220 @@
+{
+  "row": {
+    "cell_id": "Ivy_ChordRingMaintenance__d32__local__default",
+    "model": "Ivy_ChordRingMaintenance",
+    "path": "Examples/Ivy/ChordRingMaintenance.lean",
+    "module": "ChordRingMaintenance",
+    "depth": 32,
+    "variant": "local",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "smtSimp",
+    "failure_kind": "heartbeats",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/Ivy_ChordRingMaintenance__default__batch1.lean:611:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached\n\nNote: Use `set_option maxHeartbeats <num>` to set the limit.\n\nHint: Additional diagnostic information may be available using the `set_option diagnostics true` command.\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 450,
+    "batch_id": "Ivy_ChordRingMaintenance__default__batch1",
+    "batch_setup_ms": 18530,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/Ivy_ChordRingMaintenance__d32__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Ivy_ChordRingMaintenance__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_ChordRingMaintenance__d32__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Ivy_ChordRingMaintenance__d32__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/Ivy_ChordRingMaintenance__d32__local__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_ChordRingMaintenance",
+    "path": "Examples/Ivy/ChordRingMaintenance.lean",
+    "module": "ChordRingMaintenance",
+    "cut_line": 165,
+    "query": "assert (∃ n, error n)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "no_error safety, line143",
+    "notes": "",
+    "category": "Ivy",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "2eedcdc41c0722fd5a77853fe96a7e9a495c2da32964b222a9c3508ca0051edf"
+  },
+  "original_sha256": "2eedcdc41c0722fd5a77853fe96a7e9a495c2da32964b222a9c3508ca0051edf",
+  "inherited_setup_options": [],
+  "source_sha256": "de6bcb445cfce8114a0d0516094bd1d62a79e9bfc2d7a3a6b002ede2c0f067ea",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Ivy_ChordRingMaintenance__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 206926070,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 206926520,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206926520,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 329,
+      "event": "stage",
+      "heartbeats": 767451,
+      "mono_ms": 206926849,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206926849,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 20323,
+      "mono_ms": 206926852,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206926852,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 10775,
+      "event": "stage",
+      "heartbeats": 97300901,
+      "mono_ms": 206937627,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206937628,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 200,
+      "event": "stage",
+      "heartbeats": 3419575,
+      "mono_ms": 206937828,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206937989,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6,
+      "event": "stage",
+      "heartbeats": 35324,
+      "mono_ms": 206937995,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206937995,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1747,
+      "event": "stage",
+      "heartbeats": 24803453,
+      "mono_ms": 206939742,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206939743,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 493,
+      "event": "stage",
+      "heartbeats": 7778404,
+      "mono_ms": 206940236,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206940237,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 206947796,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_ChordRingMaintenance__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Ivy_ChordRingMaintenance__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Ivy_ChordRingMaintenance__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 113225,
+    "setup_ms": 18530,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Ivy_ChordRingMaintenance__default__batch1.lean"
+    ]
+  }
+}

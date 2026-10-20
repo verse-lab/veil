@@ -1351,30 +1351,151 @@ private partial def introBmcDataPrefix (goal : MVarId) : MetaM MVarId := goal.wi
 elab "__veil_bmc_intro_data" : tactic => do
   liftMetaTactic1 fun goal => return some (← introBmcDataPrefix goal)
 
+/-- Expose the trace conjunction without distributing action alternatives. Every
+leaf is proved by projections from the original hypothesis; state variables and
+all quantifier scopes are unchanged. -/
+elab "__veil_bmc_split_trace" : tactic => withMainContext do
+  let goal ← getMainGoal
+  let target ← instantiateMVars (← goal.getType)
+  unless target.consumeMData.isAppOfArity ``Not 1 do
+    throwError "per-transition BMC normalization requires a negated trace"
+  let (root, goal) ← goal.intro1
+  let goal ← goal.withContext do
+    let mut pending := #[(← root.getType, mkFVar root)]
+    let mut leaves : Array Hypothesis := #[]
+    while !pending.isEmpty do
+      let (ty, proof) := pending.back!
+      pending := pending.pop
+      let ty := ty.consumeMData
+      if ty.isAppOfArity ``And 2 then
+        let a := ty.appFn!.appArg!
+        let b := ty.appArg!
+        pending := pending.push (b, mkApp3 (mkConst ``And.right) a b proof)
+        pending := pending.push (a, mkApp3 (mkConst ``And.left) a b proof)
+      else
+        let name := (← getLCtx).getUnusedName (Name.mkSimple s!"bmc_clause_{leaves.size}")
+        leaves := leaves.push ⟨name, ty, proof, .default, .default⟩
+    let (_, goal) ← goal.assertHypotheses leaves
+    goal.clear root
+  replaceMainGoal [goal]
+
+/-- Simplify each formula separately, sharing the simp configuration but never
+hoisting a witness across another transition. Use FVarIds, not printed names,
+and Lean's proof-producing context transport. The final passes also process
+proposition fields exposed when the state/theory structures are eliminated. -/
+elab "__veil_bmc_hyps " t:tactic : tactic => withBackwardsCompatibility <| veilWithMainContext do
+  let isDSimp := t.raw.isOfKind ``Lean.Parser.Tactic.dsimp
+  unless isDSimp || t.raw.isOfKind ``Lean.Parser.Tactic.simp do
+    throwError "expected simp or dsimp"
+  let { ctx, simprocs, dischargeWrapper, .. } ← mkSimpContext t
+    (eraseLocal := false) (kind := if isDSimp then .dsimp else .simp)
+  let mut ids := #[]
+  for decl in (← getLCtx) do
+    if !decl.isImplementationDetail && (← isProp decl.type) then
+      ids := ids.push decl.fvarId
+  let goal ← getMainGoal
+  if isDSimp then
+    let (result, _) ← dsimpGoal goal ctx simprocs (simplifyTarget := false) (fvarIdsToSimp := ids)
+    replaceMainGoal result.toList
+  else
+    let (result, _) ← dischargeWrapper.with fun discharge? =>
+      simpGoal goal ctx simprocs discharge? (simplifyTarget := false) (fvarIdsToSimp := ids)
+    replaceMainGoal (result.toList.map (·.2))
+
+initialize registerTraceClass `veil.bmc.cache
+
+/-- Apply a stored exact equality at the clause root and stop. In particular,
+do not traverse/hoist its already-normalized result again. A miss uses precisely
+the ordinary two normalization passes, with proofs composed by transitivity. -/
+def bmcNormalizeClause : Lean.Meta.Simp.Simproc := fun e => do
+  if veil.experimental.bmcCache.get (← getOptions) then
+    let some ext ← getSimpExtension? `bmcNormalize
+      | throwError "missing BMC normal form simp extension"
+    let thms ← ext.getTheorems
+    if let some result ← Lean.Meta.Simp.rewrite? e thms.post thms.erased "bmc-cache" false then
+      trace[veil.bmc.cache] "hit"
+      return .done result
+  trace[veil.bmc.cache] "miss"
+  let unfolded ← Veil.Simp.simp #[`nextSimp] { instances := true } e
+  let hoisted ← if ← hasHOQuantification unfolded.expr then
+      Veil.Simp.simp #[`existsQuantifierSimp] {} unfolded.expr
+    else pure { expr := unfolded.expr }
+  return .done (← unfolded.mkEqTrans hoisted)
+
+simproc_decl bmcNormalizeClauseProc (_) := bmcNormalizeClause
+
+elab "__veil_bmc_normalize" : tactic => do
+  evalTactic (← `(tactic| __veil_bmc_hyps simp +$(mkIdent `instances)
+    ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only
+    [↓ $(mkIdent ``bmcNormalizeClauseProc):ident]))
+
+/-- `veil_smt` selects hypotheses by user name. Make those names injective before
+selection, then check that every visible non-instance proposition is selected.
+In particular, shadowed constraints must not silently disappear from SAT queries.
+Renaming changes no free-variable identity or type. -/
+elab "__veil_bmc_check_hints" : tactic => do
+  if (← getGoals).isEmpty then return
+  liftMetaTactic1 fun goal => goal.withContext do
+    let mut lctx ← getLCtx
+    let mut seen : NameSet := {}
+    for decl in lctx do
+      let name := if seen.contains decl.userName then lctx.getUnusedName decl.userName else decl.userName
+      seen := seen.insert name
+      lctx := lctx.setUserName decl.fvarId name
+    let next ← mkFreshExprMVarAt lctx (← getLocalInstances)
+      (← goal.getType) .syntheticOpaque (← goal.getTag)
+    goal.assign next
+    return some next.mvarId!
+  withMainContext do
+    let selected := FVarIdSet.ofArray (← getFVarIds (← getPropsInContext))
+    for decl in (← getLCtx) do
+      if decl.isImplementationDetail || !(← isProp decl.type) then continue
+      -- The ordinary backend deliberately omits proof-valued implementation
+      -- instances, including the Nonempty facts inferred for reconstruction.
+      if decl.binderInfo.isInstImplicit then continue
+      unless selected.contains decl.fvarId do
+        throwError "per-transition BMC: SMT hint collection omitted constraint {decl.toExpr}"
+
+/-- The trace shape is checked before doing work. Proof-valued headers retain
+whole-target normalization, which also normalizes their domains. -/
+elab "__veil_bmc_if_local " yes:tactic " else " no:tactic : tactic => withMainContext do
+  let target ← instantiateMVars (← (← getMainGoal).getType)
+  evalTactic (if target.consumeMData.isAppOfArity ``Not 1 then yes else no)
+
 @[inherit_doc veil_bmc]
 def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
-  -- FIXME: sometimes we still have abstract dispatchers in the types, so as a
-  -- hack, we just dsimp them here
   let dsimpLemmas := #[mkIdent ``Inhabited.default, fieldAbstractDispatcher, fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
-  let dsimpTac←  `(tactic| try dsimp +$(mkIdent `instances) [$[$dsimpLemmas:ident],*])
+  let dsimpTac ← `(tactic| try dsimp +$(mkIdent `instances) [$[$dsimpLemmas:ident],*])
   let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
-  -- Avoid rebuilding the outer data telescope during simplification. Its
-  -- State/Theory binders also trigger the HO guard without nested witnesses.
-  -- Keep proof binders in the target until their domains have been normalized,
-  -- and retain the later intros for binders exposed by that normalization.
-  let tac ← `(tacticSeq|
-    __veil_bmc_intro_data
-    $inferNonemptyTac:tactic
-    veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]
-    veil_simp +$(mkIdent `instances) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]
-    veil_intros
-    $inferNonemptyTac:tactic
-    veil_destruct
-    $dsimpTac:tactic
-    veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]
-    $dsimpTac:tactic
-    veil_smt)
-  veilEvalTactic tac
+  let conservative ← `(tactic|
+    ($inferNonemptyTac:tactic
+     veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]
+     veil_simp +$(mkIdent `instances) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]
+     veil_intros
+     $inferNonemptyTac:tactic
+     veil_destruct
+     $dsimpTac:tactic
+     veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]
+     $dsimpTac:tactic))
+  let normalize ← if veil.experimental.bmcCache.get (← getOptions) then
+      `(tactic| __veil_bmc_normalize)
+    else `(tactic|
+      (__veil_bmc_hyps simp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only [$(mkIdent `nextSimp):ident]
+       __veil_bmc_hyps simp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]))
+  let localPath ← `(tactic|
+    (__veil_bmc_split_trace
+     $inferNonemptyTac:tactic
+     $normalize:tactic
+     __veil_bmc_check_hints
+     veil_destruct
+     __veil_bmc_hyps dsimp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) [$[$dsimpLemmas:ident],*]
+     __veil_bmc_hyps simp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only [$(mkIdent `smtSimp):ident]
+     __veil_bmc_hyps dsimp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) [$[$dsimpLemmas:ident],*]
+     __veil_bmc_check_hints))
+  veilEvalTactic (← `(tactic| __veil_bmc_intro_data))
+  veilEvalTactic (← `(tactic| __veil_bmc_if_local $localPath:tactic else $conservative:tactic))
+  if !(← getGoals).isEmpty then
+    veilEvalTactic (← `(tactic| veil_smt))
 
 def elabVeilSplitIfs : DesugarTacticM Unit := veilWithMainContext do
   veilEvalTactic $ ← `(tactic| try split_ifs at *)

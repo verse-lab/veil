@@ -1,0 +1,11 @@
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":211790974,"phase":"query_elaboration","status":"begin"}
+{"elapsed_ms":0,"event":"pipeline","maxHeartbeats":200000,"maxRecDepth":512,"mono_ms":211791017,"phase":"pipeline","status":"begin"}
+{"elapsed_ms":0,"event":"stage","mono_ms":211791017,"phase":"early_intros","status":"begin"}
+{"calls":0,"elapsed_ms":0,"event":"simp_work","mono_ms":211791024,"phase":"early_intros","status":"complete","steps":0}
+{"elapsed_ms":7,"event":"stage","heartbeats":23663,"mono_ms":211791024,"phase":"early_intros","status":"complete"}
+{"elapsed_ms":0,"event":"stage","mono_ms":211791024,"phase":"nextSimp","status":"begin"}
+{"calls":1,"elapsed_ms":0,"event":"simp_work","mono_ms":211792110,"phase":"nextSimp","status":"complete","steps":10137}
+{"elapsed_ms":1086,"event":"stage","heartbeats":12177435,"mono_ms":211792110,"phase":"nextSimp","status":"complete"}
+{"elapsed_ms":0,"event":"stage","mono_ms":211792110,"phase":"hoist","status":"begin"}
+{"elapsed_ms":11866,"error":"`simp` failed: maximum number of steps exceeded\n\nNote: The target expression is not type-correct under the `instances` transparency level, which may have triggered the failure. This is usually caused by unfolding of semireducible definitions in prior tactic steps. Use `set_option linter.tacticCheckInstances true` to investigate the source of the issue.\nFull error:\n  Application type mismatch: The argument\n    (fun delivery __veil_state N V => instDecidableOr) x✝¹ (getFrom st0) x✝ x\n  has type\n    Decidable\n      ((getFrom st0).3 x✝ x = true ∨\n        ¬(getFrom st0).5 x✝ = true ∧ ∃ sender, x✝¹ sender x✝ = true ∧ (getFrom st0).3 sender x = true)\n  but is expected to have type\n    Decidable (st0.W x✝ x = true ∨ ¬st0.crashed x✝ = true ∧ ∃ sender, x✝¹ sender x✝ = true ∧ st0.W sender x = true)\n  in the application\n    @decide (st0.W x✝ x = true ∨ ¬st0.crashed x✝ = true ∧ ∃ sender, x✝¹ sender x✝ = true ∧ st0.W sender x = true)\n      ((fun delivery __veil_state N V => instDecidableOr) x✝¹ (getFrom st0) x✝ x)","event":"stage","heartbeats":160749371,"mono_ms":211803985,"phase":"hoist","status":"failed"}
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":211804285,"phase":"query_elaboration","status":"end"}

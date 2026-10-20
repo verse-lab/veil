@@ -1,0 +1,14 @@
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":211770732,"phase":"query_elaboration","status":"begin"}
+{"elapsed_ms":0,"event":"pipeline","maxHeartbeats":200000,"maxRecDepth":512,"mono_ms":211770804,"phase":"pipeline","status":"begin"}
+{"elapsed_ms":0,"event":"stage","mono_ms":211770805,"phase":"early_intros","status":"begin"}
+{"calls":0,"elapsed_ms":0,"event":"simp_work","mono_ms":211770829,"phase":"early_intros","status":"complete","steps":0}
+{"elapsed_ms":24,"event":"stage","heartbeats":99743,"mono_ms":211770829,"phase":"early_intros","status":"complete"}
+{"elapsed_ms":0,"event":"stage","mono_ms":211770829,"phase":"nextSimp","status":"begin"}
+{"calls":1,"elapsed_ms":0,"event":"simp_work","mono_ms":211772432,"phase":"nextSimp","status":"complete","steps":12377}
+{"elapsed_ms":1603,"event":"stage","heartbeats":18245601,"mono_ms":211772432,"phase":"nextSimp","status":"complete"}
+{"elapsed_ms":0,"event":"stage","mono_ms":211772432,"phase":"hoist","status":"begin"}
+{"calls":1,"elapsed_ms":0,"event":"simp_work","mono_ms":211772465,"phase":"hoist","status":"complete","steps":1}
+{"elapsed_ms":33,"event":"stage","heartbeats":573398,"mono_ms":211772465,"phase":"hoist","status":"complete"}
+{"elapsed_ms":1688,"event":"milestone","mono_ms":211772493,"phase":"preprocessing","status":"complete"}
+{"elapsed_ms":0,"event":"profile","mono_ms":211772493,"phase":"normalization","status":"complete"}
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":211772640,"phase":"query_elaboration","status":"end"}

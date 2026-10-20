@@ -1,0 +1,785 @@
+BEGIN AWS_AWSBuggy batch1 cells=6
+  AWS_AWSBuggy__d1__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  AWS_AWSBuggy__d2__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  AWS_AWSBuggy__d4__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  AWS_AWSBuggy__d8__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  AWS_AWSBuggy__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  AWS_AWSBuggy__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END AWS_AWSBuggy__local__default__batch1 wall=44.2s setup=12147 timeout=None remaining=0
+BEGIN AWS_AWSBuggy batch1 cells=6
+  AWS_AWSBuggy__d1__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  AWS_AWSBuggy__d2__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  AWS_AWSBuggy__d4__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  AWS_AWSBuggy__d8__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  AWS_AWSBuggy__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  AWS_AWSBuggy__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END AWS_AWSBuggy__cached__default__batch1 wall=31.5s setup=12558 timeout=None remaining=0
+BEGIN AWS_AWSFixed batch1 cells=6
+  AWS_AWSFixed__d1__cached__default query_ready phase=None kind=None query_ms=542
+  AWS_AWSFixed__d2__cached__default query_ready phase=None kind=None query_ms=1207
+  AWS_AWSFixed__d4__cached__default query_ready phase=None kind=None query_ms=4242
+  AWS_AWSFixed__d8__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  AWS_AWSFixed__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  AWS_AWSFixed__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END AWS_AWSFixed__cached__default__batch1 wall=30.8s setup=12257 timeout=None remaining=0
+BEGIN AWS_AWSFixed batch1 cells=6
+  AWS_AWSFixed__d1__local__default query_ready phase=None kind=None query_ms=1167
+  AWS_AWSFixed__d2__local__default query_ready phase=None kind=None query_ms=1963
+  AWS_AWSFixed__d4__local__default query_ready phase=None kind=None query_ms=5302
+  AWS_AWSFixed__d8__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  AWS_AWSFixed__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  AWS_AWSFixed__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END AWS_AWSFixed__local__default__batch1 wall=45.3s setup=14682 timeout=None remaining=0
+BEGIN Ivy_Blockchain batch1 cells=6
+  Ivy_Blockchain__d1__local__default query_ready phase=None kind=None query_ms=835
+  Ivy_Blockchain__d2__local__default query_ready phase=None kind=None query_ms=1316
+  Ivy_Blockchain__d4__local__default query_ready phase=None kind=None query_ms=2505
+  Ivy_Blockchain__d8__local__default query_ready phase=None kind=None query_ms=5059
+  Ivy_Blockchain__d16__local__default query_ready phase=None kind=None query_ms=10734
+  Ivy_Blockchain__d32__local__default translation_failed phase=destruct kind=heartbeats query_ms=None
+END Ivy_Blockchain__local__default__batch1 wall=57.8s setup=14625 timeout=None remaining=0
+BEGIN Ivy_Blockchain batch1 cells=6
+  Ivy_Blockchain__d1__cached__default query_ready phase=None kind=None query_ms=315
+  Ivy_Blockchain__d2__cached__default query_ready phase=None kind=None query_ms=433
+  Ivy_Blockchain__d4__cached__default query_ready phase=None kind=None query_ms=869
+  Ivy_Blockchain__d8__cached__default query_ready phase=None kind=None query_ms=1669
+  Ivy_Blockchain__d16__cached__default query_ready phase=None kind=None query_ms=3583
+  Ivy_Blockchain__d32__cached__default query_ready phase=None kind=None query_ms=9795
+END Ivy_Blockchain__cached__default__batch1 wall=41.3s setup=15898 timeout=None remaining=0
+BEGIN Ivy_ChordRingMaintenance batch1 cells=6
+  Ivy_ChordRingMaintenance__d1__cached__default query_ready phase=None kind=None query_ms=308
+  Ivy_ChordRingMaintenance__d2__cached__default query_ready phase=None kind=None query_ms=586
+  Ivy_ChordRingMaintenance__d4__cached__default query_ready phase=None kind=None query_ms=1040
+  Ivy_ChordRingMaintenance__d8__cached__default query_ready phase=None kind=None query_ms=2312
+  Ivy_ChordRingMaintenance__d16__cached__default query_ready phase=None kind=None query_ms=5433
+  Ivy_ChordRingMaintenance__d32__cached__default query_ready phase=None kind=None query_ms=13010
+END Ivy_ChordRingMaintenance__cached__default__batch1 wall=53.1s setup=19518 timeout=None remaining=0
+BEGIN Ivy_ChordRingMaintenance batch1 cells=6
+  Ivy_ChordRingMaintenance__d1__local__default query_ready phase=None kind=None query_ms=772
+  Ivy_ChordRingMaintenance__d2__local__default query_ready phase=None kind=None query_ms=1187
+  Ivy_ChordRingMaintenance__d4__local__default query_ready phase=None kind=None query_ms=2095
+  Ivy_ChordRingMaintenance__d8__local__default query_ready phase=None kind=None query_ms=4561
+  Ivy_ChordRingMaintenance__d16__local__default query_ready phase=None kind=None query_ms=9612
+  Ivy_ChordRingMaintenance__d32__local__default translation_failed phase=smtSimp kind=heartbeats query_ms=None
+END Ivy_ChordRingMaintenance__local__default__batch1 wall=63.3s setup=18767 timeout=None remaining=0
+BEGIN Ivy_DecentralizedLock batch1 cells=6
+  Ivy_DecentralizedLock__d1__local__default query_ready phase=None kind=None query_ms=171
+  Ivy_DecentralizedLock__d2__local__default query_ready phase=None kind=None query_ms=217
+  Ivy_DecentralizedLock__d4__local__default query_ready phase=None kind=None query_ms=351
+  Ivy_DecentralizedLock__d8__local__default query_ready phase=None kind=None query_ms=659
+  Ivy_DecentralizedLock__d16__local__default query_ready phase=None kind=None query_ms=1290
+  Ivy_DecentralizedLock__d32__local__default query_ready phase=None kind=None query_ms=2699
+END Ivy_DecentralizedLock__local__default__batch1 wall=13.0s setup=5606 timeout=None remaining=0
+BEGIN Ivy_DecentralizedLock batch1 cells=6
+  Ivy_DecentralizedLock__d1__cached__default query_ready phase=None kind=None query_ms=109
+  Ivy_DecentralizedLock__d2__cached__default query_ready phase=None kind=None query_ms=139
+  Ivy_DecentralizedLock__d4__cached__default query_ready phase=None kind=None query_ms=211
+  Ivy_DecentralizedLock__d8__cached__default query_ready phase=None kind=None query_ms=342
+  Ivy_DecentralizedLock__d16__cached__default query_ready phase=None kind=None query_ms=725
+  Ivy_DecentralizedLock__d32__cached__default query_ready phase=None kind=None query_ms=1625
+END Ivy_DecentralizedLock__cached__default__batch1 wall=10.8s setup=5604 timeout=None remaining=0
+BEGIN Ivy_MultiSigAll batch1 cells=6
+  Ivy_MultiSigAll__d1__cached__default query_ready phase=None kind=None query_ms=283
+  Ivy_MultiSigAll__d2__cached__default query_ready phase=None kind=None query_ms=427
+  Ivy_MultiSigAll__d4__cached__default query_ready phase=None kind=None query_ms=851
+  Ivy_MultiSigAll__d8__cached__default query_ready phase=None kind=None query_ms=1817
+  Ivy_MultiSigAll__d16__cached__default query_ready phase=None kind=None query_ms=4645
+  Ivy_MultiSigAll__d32__cached__default query_ready phase=None kind=None query_ms=10316
+END Ivy_MultiSigAll__cached__default__batch1 wall=38.8s setup=12506 timeout=None remaining=0
+BEGIN Ivy_MultiSigAll batch1 cells=6
+  Ivy_MultiSigAll__d1__local__default query_ready phase=None kind=None query_ms=620
+  Ivy_MultiSigAll__d2__local__default query_ready phase=None kind=None query_ms=843
+  Ivy_MultiSigAll__d4__local__default query_ready phase=None kind=None query_ms=1711
+  Ivy_MultiSigAll__d8__local__default query_ready phase=None kind=None query_ms=3514
+  Ivy_MultiSigAll__d16__local__default query_ready phase=None kind=None query_ms=7409
+  Ivy_MultiSigAll__d32__local__default translation_failed phase=dsimp2 kind=heartbeats query_ms=None
+END Ivy_MultiSigAll__local__default__batch1 wall=47.7s setup=11492 timeout=None remaining=0
+BEGIN Ivy_MultiSigMajority batch1 cells=6
+  Ivy_MultiSigMajority__d1__local__default query_ready phase=None kind=None query_ms=628
+  Ivy_MultiSigMajority__d2__local__default query_ready phase=None kind=None query_ms=985
+  Ivy_MultiSigMajority__d4__local__default query_ready phase=None kind=None query_ms=1702
+  Ivy_MultiSigMajority__d8__local__default query_ready phase=None kind=None query_ms=3782
+  Ivy_MultiSigMajority__d16__local__default query_ready phase=None kind=None query_ms=8120
+  Ivy_MultiSigMajority__d32__local__default translation_failed phase=smtSimp kind=heartbeats query_ms=None
+END Ivy_MultiSigMajority__local__default__batch1 wall=50.0s setup=12248 timeout=None remaining=0
+BEGIN Ivy_MultiSigMajority batch1 cells=6
+  Ivy_MultiSigMajority__d1__cached__default query_ready phase=None kind=None query_ms=308
+  Ivy_MultiSigMajority__d2__cached__default query_ready phase=None kind=None query_ms=469
+  Ivy_MultiSigMajority__d4__cached__default query_ready phase=None kind=None query_ms=1003
+  Ivy_MultiSigMajority__d8__cached__default query_ready phase=None kind=None query_ms=1897
+  Ivy_MultiSigMajority__d16__cached__default query_ready phase=None kind=None query_ms=4571
+  Ivy_MultiSigMajority__d32__cached__default query_ready phase=None kind=None query_ms=11129
+END Ivy_MultiSigMajority__cached__default__batch1 wall=40.9s setup=13208 timeout=None remaining=0
+BEGIN Ivy_NOPaxos batch1 cells=6
+  Ivy_NOPaxos__d1__cached__default query_ready phase=None kind=None query_ms=936
+  Ivy_NOPaxos__d2__cached__default query_ready phase=None kind=None query_ms=1824
+  Ivy_NOPaxos__d4__cached__default query_ready phase=None kind=None query_ms=3858
+  Ivy_NOPaxos__d8__cached__default query_ready phase=None kind=None query_ms=8326
+  Ivy_NOPaxos__d16__cached__default query_ready phase=None kind=None query_ms=19202
+  Ivy_NOPaxos__d32__cached__default translation_failed phase=smtSimp kind=heartbeats query_ms=None
+END Ivy_NOPaxos__cached__default__batch1 wall=109.6s setup=37509 timeout=None remaining=0
+BEGIN Ivy_NOPaxos batch1 cells=6
+  Ivy_NOPaxos__d1__local__default query_ready phase=None kind=None query_ms=2036
+  Ivy_NOPaxos__d2__local__default query_ready phase=None kind=None query_ms=3056
+  Ivy_NOPaxos__d4__local__default query_ready phase=None kind=None query_ms=6187
+  Ivy_NOPaxos__d8__local__default query_ready phase=None kind=None query_ms=13715
+  Ivy_NOPaxos__d16__local__default translation_failed phase=smtSimp kind=heartbeats query_ms=None
+  Ivy_NOPaxos__d32__local__default translation_failed phase=nextSimp kind=heartbeats query_ms=None
+END Ivy_NOPaxos__local__default__batch1 wall=113.4s setup=36562 timeout=None remaining=0
+BEGIN Ivy_PaxosEPR batch1 cells=6
+  Ivy_PaxosEPR__d1__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_PaxosEPR__d2__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_PaxosEPR__d4__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_PaxosEPR__d8__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_PaxosEPR__d16__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_PaxosEPR__d32__local__default translation_failed phase=translate kind=lean_error query_ms=None
+END Ivy_PaxosEPR__local__default__batch1 wall=40.4s setup=13216 timeout=None remaining=0
+BEGIN Ivy_PaxosEPR batch1 cells=6
+  Ivy_PaxosEPR__d1__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_PaxosEPR__d2__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_PaxosEPR__d4__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_PaxosEPR__d8__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_PaxosEPR__d16__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_PaxosEPR__d32__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+END Ivy_PaxosEPR__cached__default__batch1 wall=31.1s setup=14472 timeout=None remaining=0
+BEGIN Ivy_PaxosFirstOrder batch1 cells=6
+  Ivy_PaxosFirstOrder__d1__cached__default query_ready phase=None kind=None query_ms=310
+  Ivy_PaxosFirstOrder__d2__cached__default query_ready phase=None kind=None query_ms=421
+  Ivy_PaxosFirstOrder__d4__cached__default query_ready phase=None kind=None query_ms=742
+  Ivy_PaxosFirstOrder__d8__cached__default query_ready phase=None kind=None query_ms=1404
+  Ivy_PaxosFirstOrder__d16__cached__default query_ready phase=None kind=None query_ms=3135
+  Ivy_PaxosFirstOrder__d32__cached__default query_ready phase=None kind=None query_ms=7960
+END Ivy_PaxosFirstOrder__cached__default__batch1 wall=35.2s setup=14925 timeout=None remaining=0
+BEGIN Ivy_PaxosFirstOrder batch1 cells=6
+  Ivy_PaxosFirstOrder__d1__local__default query_ready phase=None kind=None query_ms=617
+  Ivy_PaxosFirstOrder__d2__local__default query_ready phase=None kind=None query_ms=669
+  Ivy_PaxosFirstOrder__d4__local__default query_ready phase=None kind=None query_ms=1315
+  Ivy_PaxosFirstOrder__d8__local__default query_ready phase=None kind=None query_ms=2676
+  Ivy_PaxosFirstOrder__d16__local__default query_ready phase=None kind=None query_ms=5455
+  Ivy_PaxosFirstOrder__d32__local__default query_ready phase=None kind=None query_ms=12637
+END Ivy_PaxosFirstOrder__local__default__batch1 wall=43.1s setup=13412 timeout=None remaining=0
+BEGIN Ivy_ReliableBroadcast batch1 cells=6
+  Ivy_ReliableBroadcast__d1__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_ReliableBroadcast__d2__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_ReliableBroadcast__d4__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_ReliableBroadcast__d8__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_ReliableBroadcast__d16__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_ReliableBroadcast__d32__local__default translation_failed phase=translate kind=lean_error query_ms=None
+END Ivy_ReliableBroadcast__local__default__batch1 wall=45.8s setup=14479 timeout=None remaining=0
+BEGIN Ivy_ReliableBroadcast batch1 cells=6
+  Ivy_ReliableBroadcast__d1__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_ReliableBroadcast__d2__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_ReliableBroadcast__d4__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_ReliableBroadcast__d8__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_ReliableBroadcast__d16__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_ReliableBroadcast__d32__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+END Ivy_ReliableBroadcast__cached__default__batch1 wall=35.7s setup=15790 timeout=None remaining=0
+BEGIN Ivy_RicartAgrawala batch1 cells=6
+  Ivy_RicartAgrawala__d1__cached__default query_ready phase=None kind=None query_ms=104
+  Ivy_RicartAgrawala__d2__cached__default query_ready phase=None kind=None query_ms=156
+  Ivy_RicartAgrawala__d4__cached__default query_ready phase=None kind=None query_ms=268
+  Ivy_RicartAgrawala__d8__cached__default query_ready phase=None kind=None query_ms=541
+  Ivy_RicartAgrawala__d16__cached__default query_ready phase=None kind=None query_ms=1141
+  Ivy_RicartAgrawala__d32__cached__default query_ready phase=None kind=None query_ms=2675
+END Ivy_RicartAgrawala__cached__default__batch1 wall=14.5s setup=6654 timeout=None remaining=0
+BEGIN Ivy_RicartAgrawala batch1 cells=6
+  Ivy_RicartAgrawala__d1__local__default query_ready phase=None kind=None query_ms=187
+  Ivy_RicartAgrawala__d2__local__default query_ready phase=None kind=None query_ms=270
+  Ivy_RicartAgrawala__d4__local__default query_ready phase=None kind=None query_ms=504
+  Ivy_RicartAgrawala__d8__local__default query_ready phase=None kind=None query_ms=1043
+  Ivy_RicartAgrawala__d16__local__default query_ready phase=None kind=None query_ms=2012
+  Ivy_RicartAgrawala__d32__local__default query_ready phase=None kind=None query_ms=4376
+END Ivy_RicartAgrawala__local__default__batch1 wall=17.7s setup=6352 timeout=None remaining=0
+BEGIN Ivy_Ring batch1 cells=6
+  Ivy_Ring__d1__local__default query_ready phase=None kind=None query_ms=201
+  Ivy_Ring__d2__local__default query_ready phase=None kind=None query_ms=276
+  Ivy_Ring__d4__local__default query_ready phase=None kind=None query_ms=472
+  Ivy_Ring__d8__local__default query_ready phase=None kind=None query_ms=880
+  Ivy_Ring__d16__local__default query_ready phase=None kind=None query_ms=1705
+  Ivy_Ring__d32__local__default query_ready phase=None kind=None query_ms=3851
+END Ivy_Ring__local__default__batch1 wall=15.2s setup=5396 timeout=None remaining=0
+BEGIN Ivy_Ring batch1 cells=6
+  Ivy_Ring__d1__cached__default query_ready phase=None kind=None query_ms=148
+  Ivy_Ring__d2__cached__default query_ready phase=None kind=None query_ms=144
+  Ivy_Ring__d4__cached__default query_ready phase=None kind=None query_ms=275
+  Ivy_Ring__d8__cached__default query_ready phase=None kind=None query_ms=477
+  Ivy_Ring__d16__cached__default query_ready phase=None kind=None query_ms=962
+  Ivy_Ring__d32__cached__default query_ready phase=None kind=None query_ms=2165
+END Ivy_Ring__cached__default__batch1 wall=11.8s setup=5240 timeout=None remaining=0
+BEGIN Ivy_SuzukiKasami batch1 cells=6
+  Ivy_SuzukiKasami__d1__cached__default query_ready phase=None kind=None query_ms=392
+  Ivy_SuzukiKasami__d2__cached__default query_ready phase=None kind=None query_ms=675
+  Ivy_SuzukiKasami__d4__cached__default query_ready phase=None kind=None query_ms=1283
+  Ivy_SuzukiKasami__d8__cached__default query_ready phase=None kind=None query_ms=2603
+  Ivy_SuzukiKasami__d16__cached__default query_ready phase=None kind=None query_ms=5382
+  Ivy_SuzukiKasami__d32__cached__default query_ready phase=None kind=None query_ms=13099
+END Ivy_SuzukiKasami__cached__default__batch1 wall=50.6s setup=16689 timeout=None remaining=0
+BEGIN Ivy_SuzukiKasami batch1 cells=6
+  Ivy_SuzukiKasami__d1__local__default query_ready phase=None kind=None query_ms=1051
+  Ivy_SuzukiKasami__d2__local__default query_ready phase=None kind=None query_ms=1466
+  Ivy_SuzukiKasami__d4__local__default query_ready phase=None kind=None query_ms=2670
+  Ivy_SuzukiKasami__d8__local__default query_ready phase=None kind=None query_ms=5195
+  Ivy_SuzukiKasami__d16__local__default query_ready phase=None kind=None query_ms=11703
+  Ivy_SuzukiKasami__d32__local__default translation_failed phase=smtSimp kind=heartbeats query_ms=None
+END Ivy_SuzukiKasami__local__default__batch1 wall=65.7s setup=16546 timeout=None remaining=0
+BEGIN Ivy_TwoPhaseCommit batch1 cells=6
+  Ivy_TwoPhaseCommit__d1__local__default query_ready phase=None kind=None query_ms=311
+  Ivy_TwoPhaseCommit__d2__local__default query_ready phase=None kind=None query_ms=397
+  Ivy_TwoPhaseCommit__d4__local__default query_ready phase=None kind=None query_ms=679
+  Ivy_TwoPhaseCommit__d8__local__default query_ready phase=None kind=None query_ms=1420
+  Ivy_TwoPhaseCommit__d16__local__default query_ready phase=None kind=None query_ms=2856
+  Ivy_TwoPhaseCommit__d32__local__default query_ready phase=None kind=None query_ms=6081
+END Ivy_TwoPhaseCommit__local__default__batch1 wall=27.3s setup=10993 timeout=None remaining=0
+BEGIN Ivy_TwoPhaseCommit batch1 cells=6
+  Ivy_TwoPhaseCommit__d1__cached__default query_ready phase=None kind=None query_ms=117
+  Ivy_TwoPhaseCommit__d2__cached__default query_ready phase=None kind=None query_ms=166
+  Ivy_TwoPhaseCommit__d4__cached__default query_ready phase=None kind=None query_ms=336
+  Ivy_TwoPhaseCommit__d8__cached__default query_ready phase=None kind=None query_ms=665
+  Ivy_TwoPhaseCommit__d16__cached__default query_ready phase=None kind=None query_ms=1396
+  Ivy_TwoPhaseCommit__d32__cached__default query_ready phase=None kind=None query_ms=3275
+END Ivy_TwoPhaseCommit__cached__default__batch1 wall=21.2s setup=11142 timeout=None remaining=0
+BEGIN Ivy_VerticalPaxosFirstOrder batch1 cells=6
+  Ivy_VerticalPaxosFirstOrder__d1__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_VerticalPaxosFirstOrder__d2__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_VerticalPaxosFirstOrder__d4__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_VerticalPaxosFirstOrder__d8__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_VerticalPaxosFirstOrder__d16__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_VerticalPaxosFirstOrder__d32__cached__default translation_failed phase=smtSimp kind=heartbeats query_ms=None
+END Ivy_VerticalPaxosFirstOrder__cached__default__batch1 wall=52.2s setup=23661 timeout=None remaining=0
+BEGIN Ivy_VerticalPaxosFirstOrder batch1 cells=6
+  Ivy_VerticalPaxosFirstOrder__d1__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_VerticalPaxosFirstOrder__d2__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_VerticalPaxosFirstOrder__d4__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_VerticalPaxosFirstOrder__d8__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_VerticalPaxosFirstOrder__d16__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Ivy_VerticalPaxosFirstOrder__d32__local__default translation_failed phase=destruct kind=heartbeats query_ms=None
+END Ivy_VerticalPaxosFirstOrder__local__default__batch1 wall=66.6s setup=21929 timeout=None remaining=0
+BEGIN Puzzles_DieHard batch1 cells=6
+  Puzzles_DieHard__d1__local__default query_ready phase=None kind=None query_ms=121
+  Puzzles_DieHard__d2__local__default query_ready phase=None kind=None query_ms=159
+  Puzzles_DieHard__d4__local__default query_ready phase=None kind=None query_ms=331
+  Puzzles_DieHard__d8__local__default query_ready phase=None kind=None query_ms=732
+  Puzzles_DieHard__d16__local__default query_ready phase=None kind=None query_ms=1905
+  Puzzles_DieHard__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END Puzzles_DieHard__local__default__batch1 wall=12.0s setup=5340 timeout=None remaining=0
+BEGIN Puzzles_DieHard batch1 cells=6
+  Puzzles_DieHard__d1__cached__default query_ready phase=None kind=None query_ms=78
+  Puzzles_DieHard__d2__cached__default query_ready phase=None kind=None query_ms=119
+  Puzzles_DieHard__d4__cached__default query_ready phase=None kind=None query_ms=204
+  Puzzles_DieHard__d8__cached__default query_ready phase=None kind=None query_ms=462
+  Puzzles_DieHard__d16__cached__default query_ready phase=None kind=None query_ms=1423
+  Puzzles_DieHard__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END Puzzles_DieHard__cached__default__batch1 wall=9.8s setup=5241 timeout=None remaining=0
+BEGIN Puzzles_Prisoners batch1 cells=6
+  Puzzles_Prisoners__d1__cached__default query_ready phase=None kind=None query_ms=136
+  Puzzles_Prisoners__d2__cached__default query_ready phase=None kind=None query_ms=202
+  Puzzles_Prisoners__d4__cached__default query_ready phase=None kind=None query_ms=458
+  Puzzles_Prisoners__d8__cached__default query_ready phase=None kind=None query_ms=1264
+  Puzzles_Prisoners__d16__cached__default query_ready phase=None kind=None query_ms=4075
+  Puzzles_Prisoners__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END Puzzles_Prisoners__cached__default__batch1 wall=14.2s setup=5139 timeout=None remaining=0
+BEGIN Puzzles_Prisoners batch1 cells=6
+  Puzzles_Prisoners__d1__local__default query_ready phase=None kind=None query_ms=169
+  Puzzles_Prisoners__d2__local__default query_ready phase=None kind=None query_ms=216
+  Puzzles_Prisoners__d4__local__default query_ready phase=None kind=None query_ms=443
+  Puzzles_Prisoners__d8__local__default query_ready phase=None kind=None query_ms=1162
+  Puzzles_Prisoners__d16__local__default query_ready phase=None kind=None query_ms=4821
+  Puzzles_Prisoners__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END Puzzles_Prisoners__local__default__batch1 wall=15.9s setup=5241 timeout=None remaining=0
+BEGIN Puzzles_RiverCrossing batch1 cells=6
+  Puzzles_RiverCrossing__d1__local__default query_ready phase=None kind=None query_ms=138
+  Puzzles_RiverCrossing__d2__local__default query_ready phase=None kind=None query_ms=193
+  Puzzles_RiverCrossing__d4__local__default query_ready phase=None kind=None query_ms=328
+  Puzzles_RiverCrossing__d8__local__default query_ready phase=None kind=None query_ms=576
+  Puzzles_RiverCrossing__d16__local__default query_ready phase=None kind=None query_ms=1204
+  Puzzles_RiverCrossing__d32__local__default query_ready phase=None kind=None query_ms=2413
+END Puzzles_RiverCrossing__local__default__batch1 wall=15.0s setup=7110 timeout=None remaining=0
+BEGIN Puzzles_RiverCrossing batch1 cells=6
+  Puzzles_RiverCrossing__d1__cached__default query_ready phase=None kind=None query_ms=76
+  Puzzles_RiverCrossing__d2__cached__default query_ready phase=None kind=None query_ms=102
+  Puzzles_RiverCrossing__d4__cached__default query_ready phase=None kind=None query_ms=167
+  Puzzles_RiverCrossing__d8__cached__default query_ready phase=None kind=None query_ms=325
+  Puzzles_RiverCrossing__d16__cached__default query_ready phase=None kind=None query_ms=620
+  Puzzles_RiverCrossing__d32__cached__default query_ready phase=None kind=None query_ms=1330
+END Puzzles_RiverCrossing__cached__default__batch1 wall=12.8s setup=7105 timeout=None remaining=0
+BEGIN Simulate_CheckpointLeaseFailover batch1 cells=6
+  Simulate_CheckpointLeaseFailover__d1__cached__default query_ready phase=None kind=None query_ms=137
+  Simulate_CheckpointLeaseFailover__d2__cached__default query_ready phase=None kind=None query_ms=182
+  Simulate_CheckpointLeaseFailover__d4__cached__default query_ready phase=None kind=None query_ms=366
+  Simulate_CheckpointLeaseFailover__d8__cached__default query_ready phase=None kind=None query_ms=634
+  Simulate_CheckpointLeaseFailover__d16__cached__default query_ready phase=None kind=None query_ms=1364
+  Simulate_CheckpointLeaseFailover__d32__cached__default query_ready phase=None kind=None query_ms=3021
+END Simulate_CheckpointLeaseFailover__cached__default__batch1 wall=16.8s setup=7507 timeout=None remaining=0
+BEGIN Simulate_CheckpointLeaseFailover batch1 cells=6
+  Simulate_CheckpointLeaseFailover__d1__local__default query_ready phase=None kind=None query_ms=271
+  Simulate_CheckpointLeaseFailover__d2__local__default query_ready phase=None kind=None query_ms=301
+  Simulate_CheckpointLeaseFailover__d4__local__default query_ready phase=None kind=None query_ms=496
+  Simulate_CheckpointLeaseFailover__d8__local__default query_ready phase=None kind=None query_ms=960
+  Simulate_CheckpointLeaseFailover__d16__local__default query_ready phase=None kind=None query_ms=2016
+  Simulate_CheckpointLeaseFailover__d32__local__default query_ready phase=None kind=None query_ms=4689
+END Simulate_CheckpointLeaseFailover__local__default__batch1 wall=19.7s setup=7411 timeout=None remaining=0
+BEGIN Simulate_LeaseKeepaliveRace batch1 cells=6
+  Simulate_LeaseKeepaliveRace__d1__local__default query_ready phase=None kind=None query_ms=243
+  Simulate_LeaseKeepaliveRace__d2__local__default query_ready phase=None kind=None query_ms=341
+  Simulate_LeaseKeepaliveRace__d4__local__default query_ready phase=None kind=None query_ms=628
+  Simulate_LeaseKeepaliveRace__d8__local__default query_ready phase=None kind=None query_ms=1258
+  Simulate_LeaseKeepaliveRace__d16__local__default query_ready phase=None kind=None query_ms=2275
+  Simulate_LeaseKeepaliveRace__d32__local__default query_ready phase=None kind=None query_ms=5634
+END Simulate_LeaseKeepaliveRace__local__default__batch1 wall=21.3s setup=7106 timeout=None remaining=0
+BEGIN Simulate_LeaseKeepaliveRace batch1 cells=6
+  Simulate_LeaseKeepaliveRace__d1__cached__default query_ready phase=None kind=None query_ms=132
+  Simulate_LeaseKeepaliveRace__d2__cached__default query_ready phase=None kind=None query_ms=189
+  Simulate_LeaseKeepaliveRace__d4__cached__default query_ready phase=None kind=None query_ms=422
+  Simulate_LeaseKeepaliveRace__d8__cached__default query_ready phase=None kind=None query_ms=733
+  Simulate_LeaseKeepaliveRace__d16__cached__default query_ready phase=None kind=None query_ms=1712
+  Simulate_LeaseKeepaliveRace__d32__cached__default query_ready phase=None kind=None query_ms=3407
+END Simulate_LeaseKeepaliveRace__cached__default__batch1 wall=18.5s setup=7965 timeout=None remaining=0
+BEGIN Simulate_ReliableBroadcast batch1 cells=6
+  Simulate_ReliableBroadcast__d1__cached__default query_ready phase=None kind=None query_ms=120
+  Simulate_ReliableBroadcast__d2__cached__default query_ready phase=None kind=None query_ms=203
+  Simulate_ReliableBroadcast__d4__cached__default query_ready phase=None kind=None query_ms=317
+  Simulate_ReliableBroadcast__d8__cached__default query_ready phase=None kind=None query_ms=704
+  Simulate_ReliableBroadcast__d16__cached__default query_ready phase=None kind=None query_ms=1457
+  Simulate_ReliableBroadcast__d32__cached__default query_ready phase=None kind=None query_ms=3330
+END Simulate_ReliableBroadcast__cached__default__batch1 wall=16.9s setup=7160 timeout=None remaining=0
+BEGIN Simulate_ReliableBroadcast batch1 cells=6
+  Simulate_ReliableBroadcast__d1__local__default query_ready phase=None kind=None query_ms=264
+  Simulate_ReliableBroadcast__d2__local__default query_ready phase=None kind=None query_ms=345
+  Simulate_ReliableBroadcast__d4__local__default query_ready phase=None kind=None query_ms=571
+  Simulate_ReliableBroadcast__d8__local__default query_ready phase=None kind=None query_ms=1073
+  Simulate_ReliableBroadcast__d16__local__default query_ready phase=None kind=None query_ms=2570
+  Simulate_ReliableBroadcast__d32__local__default query_ready phase=None kind=None query_ms=5455
+END Simulate_ReliableBroadcast__local__default__batch1 wall=20.6s setup=6902 timeout=None remaining=0
+BEGIN StellarConsensus_SCP batch1 cells=6
+BEGIN StellarConsensus_SCP batch1 cells=6
+  StellarConsensus_SCP__d1__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  StellarConsensus_SCP__d2__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  StellarConsensus_SCP__d4__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  StellarConsensus_SCP__d8__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  StellarConsensus_SCP__d16__local__default translation_failed phase=smtSimp kind=heartbeats query_ms=None
+  StellarConsensus_SCP__d32__local__default translation_failed phase=destruct kind=heartbeats query_ms=None
+END StellarConsensus_SCP__local__default__batch1 wall=87.4s setup=27701 timeout=None remaining=0
+BEGIN StellarConsensus_SCP batch1 cells=6
+  StellarConsensus_SCP__d1__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  StellarConsensus_SCP__d2__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  StellarConsensus_SCP__d4__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  StellarConsensus_SCP__d8__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  StellarConsensus_SCP__d16__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  StellarConsensus_SCP__d32__cached__default translation_failed phase=dsimp1 kind=heartbeats query_ms=None
+END StellarConsensus_SCP__cached__default__batch1 wall=79.7s setup=30880 timeout=None remaining=0
+BEGIN Synchronous_FasterFloodSet batch1 cells=6
+  Synchronous_FasterFloodSet__d1__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Synchronous_FasterFloodSet__d2__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Synchronous_FasterFloodSet__d4__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Synchronous_FasterFloodSet__d8__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Synchronous_FasterFloodSet__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  Synchronous_FasterFloodSet__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END Synchronous_FasterFloodSet__cached__default__batch1 wall=33.4s setup=11203 timeout=None remaining=0
+BEGIN Synchronous_FasterFloodSet batch1 cells=6
+  Synchronous_FasterFloodSet__d1__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Synchronous_FasterFloodSet__d2__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Synchronous_FasterFloodSet__d4__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Synchronous_FasterFloodSet__d8__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Synchronous_FasterFloodSet__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  Synchronous_FasterFloodSet__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END Synchronous_FasterFloodSet__local__default__batch1 wall=37.5s setup=8774 timeout=None remaining=0
+BEGIN Synchronous_FloodSet batch1 cells=6
+  Synchronous_FloodSet__d1__local__default query_ready phase=None kind=None query_ms=570
+  Synchronous_FloodSet__d2__local__default query_ready phase=None kind=None query_ms=729
+  Synchronous_FloodSet__d4__local__default query_ready phase=None kind=None query_ms=1823
+  Synchronous_FloodSet__d8__local__default query_ready phase=None kind=None query_ms=5960
+  Synchronous_FloodSet__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  Synchronous_FloodSet__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END Synchronous_FloodSet__local__default__batch1 wall=32.4s setup=10404 timeout=None remaining=0
+BEGIN Synchronous_FloodSet batch1 cells=6
+  Synchronous_FloodSet__d1__cached__default query_ready phase=None kind=None query_ms=281
+  Synchronous_FloodSet__d2__cached__default query_ready phase=None kind=None query_ms=502
+  Synchronous_FloodSet__d4__cached__default query_ready phase=None kind=None query_ms=1413
+  Synchronous_FloodSet__d8__cached__default query_ready phase=None kind=None query_ms=5569
+  Synchronous_FloodSet__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  Synchronous_FloodSet__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END Synchronous_FloodSet__cached__default__batch1 wall=25.2s setup=10037 timeout=None remaining=0
+BEGIN TLA_AWSDnsRace batch1 cells=6
+  TLA_AWSDnsRace__d1__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_AWSDnsRace__d2__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_AWSDnsRace__d4__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_AWSDnsRace__d8__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_AWSDnsRace__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_AWSDnsRace__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_AWSDnsRace__cached__default__batch1 wall=23.2s setup=9541 timeout=None remaining=0
+BEGIN TLA_AWSDnsRace batch1 cells=6
+  TLA_AWSDnsRace__d1__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_AWSDnsRace__d2__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_AWSDnsRace__d4__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_AWSDnsRace__d8__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_AWSDnsRace__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_AWSDnsRace__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_AWSDnsRace__local__default__batch1 wall=30.3s setup=9943 timeout=None remaining=0
+BEGIN TLA_Bakery batch1 cells=6
+  TLA_Bakery__d1__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Bakery__d2__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Bakery__d4__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Bakery__d8__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Bakery__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Bakery__d32__local__default translation_failed phase=smtSimp kind=heartbeats query_ms=None
+END TLA_Bakery__local__default__batch1 wall=73.0s setup=15884 timeout=None remaining=0
+BEGIN TLA_Bakery batch1 cells=6
+  TLA_Bakery__d1__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Bakery__d2__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Bakery__d4__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Bakery__d8__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Bakery__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Bakery__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_Bakery__cached__default__batch1 wall=63.4s setup=17659 timeout=None remaining=0
+BEGIN TLA_BcastByz batch1 cells=6
+  TLA_BcastByz__d1__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d2__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d4__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d8__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_BcastByz__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_BcastByz__cached__default__batch1 wall=39.1s setup=11616 timeout=None remaining=0
+BEGIN TLA_BcastByz batch1 cells=6
+  TLA_BcastByz__d1__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d2__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d4__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d8__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BcastByz__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_BcastByz__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_BcastByz__local__default__batch1 wall=42.1s setup=9484 timeout=None remaining=0
+BEGIN TLA_BuggyCircularBuffer batch1 cells=6
+  TLA_BuggyCircularBuffer__d1__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BuggyCircularBuffer__d2__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BuggyCircularBuffer__d4__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BuggyCircularBuffer__d8__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BuggyCircularBuffer__d16__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BuggyCircularBuffer__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_BuggyCircularBuffer__local__default__batch1 wall=14.2s setup=5194 timeout=None remaining=0
+BEGIN TLA_BuggyCircularBuffer batch1 cells=6
+  TLA_BuggyCircularBuffer__d1__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BuggyCircularBuffer__d2__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BuggyCircularBuffer__d4__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BuggyCircularBuffer__d8__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BuggyCircularBuffer__d16__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_BuggyCircularBuffer__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_BuggyCircularBuffer__cached__default__batch1 wall=12.2s setup=5448 timeout=None remaining=0
+BEGIN TLA_EPaxos batch1 cells=6
+  TLA_EPaxos__d1__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_EPaxos__d2__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_EPaxos__d4__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_EPaxos__d8__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_EPaxos__d16__cached__default translation_failed phase=normalize kind=heartbeats query_ms=None
+  TLA_EPaxos__d32__cached__default translation_failed phase=destruct kind=heartbeats query_ms=None
+END TLA_EPaxos__cached__default__batch1 wall=110.4s setup=48721 timeout=None remaining=0
+BEGIN TLA_EPaxos batch1 cells=6
+  TLA_EPaxos__d1__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_EPaxos__d2__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_EPaxos__d4__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_EPaxos__d8__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_EPaxos__d16__local__default translation_failed phase=destruct kind=heartbeats query_ms=None
+  TLA_EPaxos__d32__local__default translation_failed phase=hoist kind=heartbeats query_ms=None
+END TLA_EPaxos__local__default__batch1 wall=120.4s setup=45050 timeout=None remaining=0
+BEGIN TLA_EWD840 batch1 cells=6
+  TLA_EWD840__d1__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_EWD840__d2__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_EWD840__d4__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_EWD840__d8__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_EWD840__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_EWD840__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_EWD840__local__default__batch1 wall=24.4s setup=8124 timeout=None remaining=0
+BEGIN TLA_EWD840 batch1 cells=6
+  TLA_EWD840__d1__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_EWD840__d2__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_EWD840__d4__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_EWD840__d8__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_EWD840__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_EWD840__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_EWD840__cached__default__batch1 wall=21.7s setup=8576 timeout=None remaining=0
+BEGIN TLA_German batch1 cells=6
+  TLA_German__d1__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  TLA_German__d2__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  TLA_German__d4__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  TLA_German__d8__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  TLA_German__d16__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  TLA_German__d32__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+END TLA_German__cached__default__batch1 wall=41.6s setup=23420 timeout=None remaining=0
+BEGIN TLA_German batch1 cells=6
+  TLA_German__d1__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  TLA_German__d2__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  TLA_German__d4__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  TLA_German__d8__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  TLA_German__d16__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  TLA_German__d32__local__default translation_failed phase=translate kind=lean_error query_ms=None
+END TLA_German__local__default__batch1 wall=54.5s setup=19370 timeout=None remaining=0
+BEGIN TLA_KVSnap batch1 cells=6
+  TLA_KVSnap__d1__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KVSnap__d2__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KVSnap__d4__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KVSnap__d8__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KVSnap__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_KVSnap__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_KVSnap__local__default__batch1 wall=67.2s setup=11453 timeout=None remaining=0
+BEGIN TLA_KVSnap batch1 cells=6
+  TLA_KVSnap__d1__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KVSnap__d2__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KVSnap__d4__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KVSnap__d8__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KVSnap__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_KVSnap__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_KVSnap__cached__default__batch1 wall=54.2s setup=11808 timeout=None remaining=0
+BEGIN TLA_KeyValueStore batch1 cells=6
+  TLA_KeyValueStore__d1__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KeyValueStore__d2__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KeyValueStore__d4__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KeyValueStore__d8__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_KeyValueStore__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_KeyValueStore__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_KeyValueStore__cached__default__batch1 wall=53.5s setup=11712 timeout=None remaining=0
+BEGIN TLA_KeyValueStore batch1 cells=6
+  TLA_KeyValueStore__d1__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KeyValueStore__d2__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KeyValueStore__d4__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_KeyValueStore__d8__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_KeyValueStore__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_KeyValueStore__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_KeyValueStore__local__default__batch1 wall=60.6s setup=11497 timeout=None remaining=0
+BEGIN TLA_MultiPaxos batch1 cells=6
+  TLA_MultiPaxos__d1__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_MultiPaxos__d2__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MultiPaxos__d4__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MultiPaxos__d8__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MultiPaxos__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MultiPaxos__d32__local__default translation_failed phase=smtSimp kind=heartbeats query_ms=None
+END TLA_MultiPaxos__local__default__batch1 wall=83.9s setup=12903 timeout=None remaining=0
+BEGIN TLA_MultiPaxos batch1 cells=6
+  TLA_MultiPaxos__d1__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_MultiPaxos__d2__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MultiPaxos__d4__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MultiPaxos__d8__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MultiPaxos__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MultiPaxos__d32__cached__default translation_failed phase=dsimp2 kind=heartbeats query_ms=None
+END TLA_MultiPaxos__cached__default__batch1 wall=95.8s setup=22466 timeout=None remaining=0
+BEGIN TLA_MutexViolation batch1 cells=6
+  TLA_MutexViolation__d1__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_MutexViolation__d2__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_MutexViolation__d4__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_MutexViolation__d8__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MutexViolation__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MutexViolation__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_MutexViolation__cached__default__batch1 wall=55.8s setup=18862 timeout=None remaining=0
+BEGIN TLA_MutexViolation batch1 cells=6
+  TLA_MutexViolation__d1__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_MutexViolation__d2__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_MutexViolation__d4__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_MutexViolation__d8__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MutexViolation__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_MutexViolation__d32__local__default translation_failed phase=smtSimp kind=heartbeats query_ms=None
+END TLA_MutexViolation__local__default__batch1 wall=77.4s setup=25630 timeout=None remaining=0
+BEGIN TLA_NOPaxos batch1 cells=6
+  TLA_NOPaxos__d1__local__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_NOPaxos__d2__local__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_NOPaxos__d4__local__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_NOPaxos__d8__local__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_NOPaxos__d16__local__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_NOPaxos__d32__local__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+END TLA_NOPaxos__local__default__batch1 wall=60.0s setup=None timeout=model_setup_timeout remaining=0
+BEGIN TLA_NOPaxos batch1 cells=6
+  TLA_NOPaxos__d1__cached__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_NOPaxos__d2__cached__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_NOPaxos__d4__cached__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_NOPaxos__d8__cached__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_NOPaxos__d16__cached__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_NOPaxos__d32__cached__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+END TLA_NOPaxos__cached__default__batch1 wall=60.1s setup=None timeout=model_setup_timeout remaining=0
+BEGIN TLA_Paxos batch1 cells=6
+  TLA_Paxos__d1__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Paxos__d2__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Paxos__d4__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Paxos__d8__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Paxos__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Paxos__d32__cached__default translation_failed phase=smtSimp kind=heartbeats query_ms=None
+END TLA_Paxos__cached__default__batch1 wall=127.5s setup=13734 timeout=None remaining=0
+BEGIN TLA_Paxos batch1 cells=6
+  TLA_Paxos__d1__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Paxos__d2__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Paxos__d4__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Paxos__d8__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Paxos__d16__local__default translation_failed phase=normalize kind=heartbeats query_ms=None
+  TLA_Paxos__d32__local__default translation_failed phase=hoist kind=heartbeats query_ms=None
+END TLA_Paxos__local__default__batch1 wall=139.7s setup=13471 timeout=None remaining=0
+BEGIN TLA_Peterson batch1 cells=6
+  TLA_Peterson__d1__local__default query_ready phase=None kind=None query_ms=312
+  TLA_Peterson__d2__local__default query_ready phase=None kind=None query_ms=436
+  TLA_Peterson__d4__local__default query_ready phase=None kind=None query_ms=784
+  TLA_Peterson__d8__local__default query_ready phase=None kind=None query_ms=1545
+  TLA_Peterson__d16__local__default query_ready phase=None kind=None query_ms=3166
+  TLA_Peterson__d32__local__default query_ready phase=None kind=None query_ms=7599
+END TLA_Peterson__local__default__batch1 wall=26.8s setup=8831 timeout=None remaining=0
+BEGIN TLA_Peterson batch1 cells=6
+  TLA_Peterson__d1__cached__default query_ready phase=None kind=None query_ms=183
+  TLA_Peterson__d2__cached__default query_ready phase=None kind=None query_ms=226
+  TLA_Peterson__d4__cached__default query_ready phase=None kind=None query_ms=416
+  TLA_Peterson__d8__cached__default query_ready phase=None kind=None query_ms=817
+  TLA_Peterson__d16__cached__default query_ready phase=None kind=None query_ms=2084
+  TLA_Peterson__d32__cached__default query_ready phase=None kind=None query_ms=4217
+END TLA_Peterson__cached__default__batch1 wall=20.8s setup=9136 timeout=None remaining=0
+BEGIN TLA_Raft batch1 cells=6
+  TLA_Raft__d1__cached__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_Raft__d2__cached__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_Raft__d4__cached__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_Raft__d8__cached__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_Raft__d16__cached__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+  TLA_Raft__d32__cached__default blocked_model_setup phase=model_setup kind=wall_timeout query_ms=None
+END TLA_Raft__cached__default__batch1 wall=60.0s setup=None timeout=model_setup_timeout remaining=0
+BEGIN TLA_Raft batch1 cells=6
+  TLA_Raft__d1__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Raft__d2__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Raft__d4__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Raft__d8__local__default translation_failed phase=smtSimp kind=heartbeats query_ms=None
+  TLA_Raft__d16__local__default translation_failed phase=hoist kind=heartbeats query_ms=None
+  TLA_Raft__d32__local__default translation_failed phase=nextSimp kind=heartbeats query_ms=None
+END TLA_Raft__local__default__batch1 wall=173.0s setup=56031 timeout=None remaining=0
+BEGIN TLA_Room batch1 cells=6
+  TLA_Room__d1__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d2__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d4__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d8__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Room__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Room__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_Room__local__default__batch1 wall=37.1s setup=10596 timeout=None remaining=0
+BEGIN TLA_Room batch1 cells=6
+  TLA_Room__d1__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d2__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d4__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_Room__d8__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Room__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_Room__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_Room__cached__default__batch1 wall=30.9s setup=10949 timeout=None remaining=0
+BEGIN TLA_SimpleAllocator batch1 cells=6
+  TLA_SimpleAllocator__d1__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_SimpleAllocator__d2__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_SimpleAllocator__d4__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_SimpleAllocator__d8__cached__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_SimpleAllocator__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_SimpleAllocator__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_SimpleAllocator__cached__default__batch1 wall=30.7s setup=6759 timeout=None remaining=0
+BEGIN TLA_SimpleAllocator batch1 cells=6
+  TLA_SimpleAllocator__d1__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_SimpleAllocator__d2__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_SimpleAllocator__d4__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_SimpleAllocator__d8__local__default translation_failed phase=embedding kind=type_mismatch query_ms=None
+  TLA_SimpleAllocator__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  TLA_SimpleAllocator__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END TLA_SimpleAllocator__local__default__batch1 wall=32.4s setup=6354 timeout=None remaining=0
+BEGIN TLA_Traffic batch1 cells=6
+  TLA_Traffic__d1__local__default query_ready phase=None kind=None query_ms=277
+  TLA_Traffic__d2__local__default query_ready phase=None kind=None query_ms=260
+  TLA_Traffic__d4__local__default query_ready phase=None kind=None query_ms=516
+  TLA_Traffic__d8__local__default query_ready phase=None kind=None query_ms=986
+  TLA_Traffic__d16__local__default query_ready phase=None kind=None query_ms=1936
+  TLA_Traffic__d32__local__default query_ready phase=None kind=None query_ms=3721
+END TLA_Traffic__local__default__batch1 wall=16.0s setup=6555 timeout=None remaining=0
+BEGIN TLA_Traffic batch1 cells=6
+  TLA_Traffic__d1__cached__default query_ready phase=None kind=None query_ms=123
+  TLA_Traffic__d2__cached__default query_ready phase=None kind=None query_ms=178
+  TLA_Traffic__d4__cached__default query_ready phase=None kind=None query_ms=297
+  TLA_Traffic__d8__cached__default query_ready phase=None kind=None query_ms=606
+  TLA_Traffic__d16__cached__default query_ready phase=None kind=None query_ms=1062
+  TLA_Traffic__d32__cached__default query_ready phase=None kind=None query_ms=2393
+END TLA_Traffic__cached__default__batch1 wall=13.3s setup=6811 timeout=None remaining=0
+BEGIN TLA_TwoPhaseCommit batch1 cells=6
+  TLA_TwoPhaseCommit__d1__cached__default query_ready phase=None kind=None query_ms=128
+  TLA_TwoPhaseCommit__d2__cached__default query_ready phase=None kind=None query_ms=169
+  TLA_TwoPhaseCommit__d4__cached__default query_ready phase=None kind=None query_ms=288
+  TLA_TwoPhaseCommit__d8__cached__default query_ready phase=None kind=None query_ms=652
+  TLA_TwoPhaseCommit__d16__cached__default query_ready phase=None kind=None query_ms=1363
+  TLA_TwoPhaseCommit__d32__cached__default query_ready phase=None kind=None query_ms=2819
+END TLA_TwoPhaseCommit__cached__default__batch1 wall=19.4s setup=10245 timeout=None remaining=0
+BEGIN TLA_TwoPhaseCommit batch1 cells=6
+  TLA_TwoPhaseCommit__d1__local__default query_ready phase=None kind=None query_ms=292
+  TLA_TwoPhaseCommit__d2__local__default query_ready phase=None kind=None query_ms=366
+  TLA_TwoPhaseCommit__d4__local__default query_ready phase=None kind=None query_ms=559
+  TLA_TwoPhaseCommit__d8__local__default query_ready phase=None kind=None query_ms=1170
+  TLA_TwoPhaseCommit__d16__local__default query_ready phase=None kind=None query_ms=2478
+  TLA_TwoPhaseCommit__d32__local__default query_ready phase=None kind=None query_ms=5450
+END TLA_TwoPhaseCommit__local__default__batch1 wall=23.8s setup=9533 timeout=None remaining=0
+BEGIN Tutorial_FloodSet batch1 cells=6
+  Tutorial_FloodSet__d1__local__default query_ready phase=None kind=None query_ms=555
+  Tutorial_FloodSet__d2__local__default query_ready phase=None kind=None query_ms=896
+  Tutorial_FloodSet__d4__local__default query_ready phase=None kind=None query_ms=2188
+  Tutorial_FloodSet__d8__local__default query_ready phase=None kind=None query_ms=9508
+  Tutorial_FloodSet__d16__local__default translation_failed phase=embedding kind=recursion query_ms=None
+  Tutorial_FloodSet__d32__local__default translation_failed phase=embedding kind=recursion query_ms=None
+END Tutorial_FloodSet__local__default__batch1 wall=42.2s setup=12059 timeout=None remaining=0
+BEGIN Tutorial_FloodSet batch1 cells=6
+  Tutorial_FloodSet__d1__cached__default query_ready phase=None kind=None query_ms=265
+  Tutorial_FloodSet__d2__cached__default query_ready phase=None kind=None query_ms=497
+  Tutorial_FloodSet__d4__cached__default query_ready phase=None kind=None query_ms=1438
+  Tutorial_FloodSet__d8__cached__default query_ready phase=None kind=None query_ms=5341
+  Tutorial_FloodSet__d16__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+  Tutorial_FloodSet__d32__cached__default translation_failed phase=embedding kind=recursion query_ms=None
+END Tutorial_FloodSet__cached__default__batch1 wall=26.2s setup=12254 timeout=None remaining=0
+BEGIN Tutorial_POPL26_RingDec batch1 cells=6
+  Tutorial_POPL26_RingDec__d1__cached__default query_ready phase=None kind=None query_ms=121
+  Tutorial_POPL26_RingDec__d2__cached__default query_ready phase=None kind=None query_ms=157
+  Tutorial_POPL26_RingDec__d4__cached__default query_ready phase=None kind=None query_ms=258
+  Tutorial_POPL26_RingDec__d8__cached__default query_ready phase=None kind=None query_ms=467
+  Tutorial_POPL26_RingDec__d16__cached__default query_ready phase=None kind=None query_ms=922
+  Tutorial_POPL26_RingDec__d32__cached__default query_ready phase=None kind=None query_ms=2180
+END Tutorial_POPL26_RingDec__cached__default__batch1 wall=12.0s setup=5548 timeout=None remaining=0
+BEGIN Tutorial_POPL26_RingDec batch1 cells=6
+  Tutorial_POPL26_RingDec__d1__local__default query_ready phase=None kind=None query_ms=182
+  Tutorial_POPL26_RingDec__d2__local__default query_ready phase=None kind=None query_ms=240
+  Tutorial_POPL26_RingDec__d4__local__default query_ready phase=None kind=None query_ms=439
+  Tutorial_POPL26_RingDec__d8__local__default query_ready phase=None kind=None query_ms=865
+  Tutorial_POPL26_RingDec__d16__local__default query_ready phase=None kind=None query_ms=1646
+  Tutorial_POPL26_RingDec__d32__local__default query_ready phase=None kind=None query_ms=3841
+END Tutorial_POPL26_RingDec__local__default__batch1 wall=14.6s setup=5090 timeout=None remaining=0
+BEGIN Tutorial_POPL26_RingFin batch1 cells=6
+  Tutorial_POPL26_RingFin__d1__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingFin__d2__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingFin__d4__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingFin__d8__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingFin__d16__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingFin__d32__local__default translation_failed phase=translate kind=lean_error query_ms=None
+END Tutorial_POPL26_RingFin__local__default__batch1 wall=17.8s setup=5598 timeout=None remaining=0
+BEGIN Tutorial_POPL26_RingFin batch1 cells=6
+  Tutorial_POPL26_RingFin__d1__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingFin__d2__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingFin__d4__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingFin__d8__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingFin__d16__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingFin__d32__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+END Tutorial_POPL26_RingFin__cached__default__batch1 wall=13.3s setup=5807 timeout=None remaining=0
+BEGIN Tutorial_POPL26_RingNat batch1 cells=6
+  Tutorial_POPL26_RingNat__d1__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingNat__d2__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingNat__d4__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingNat__d8__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingNat__d16__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingNat__d32__cached__default translation_failed phase=translate kind=lean_error query_ms=None
+END Tutorial_POPL26_RingNat__cached__default__batch1 wall=18.1s setup=5751 timeout=None remaining=0
+BEGIN Tutorial_POPL26_RingNat batch1 cells=6
+  Tutorial_POPL26_RingNat__d1__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingNat__d2__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingNat__d4__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingNat__d8__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingNat__d16__local__default translation_failed phase=translate kind=lean_error query_ms=None
+  Tutorial_POPL26_RingNat__d32__local__default translation_failed phase=translate kind=lean_error query_ms=None
+END Tutorial_POPL26_RingNat__local__default__batch1 wall=23.0s setup=5198 timeout=None remaining=0
+BEGIN Tutorial_Ring batch1 cells=6
+  Tutorial_Ring__d1__local__default query_ready phase=None kind=None query_ms=251
+  Tutorial_Ring__d2__local__default query_ready phase=None kind=None query_ms=290
+  Tutorial_Ring__d4__local__default query_ready phase=None kind=None query_ms=636
+  Tutorial_Ring__d8__local__default query_ready phase=None kind=None query_ms=1153
+  Tutorial_Ring__d16__local__default query_ready phase=None kind=None query_ms=2357
+  Tutorial_Ring__d32__local__default query_ready phase=None kind=None query_ms=4735
+END Tutorial_Ring__local__default__batch1 wall=18.2s setup=5959 timeout=None remaining=0
+BEGIN Tutorial_Ring batch1 cells=6
+  Tutorial_Ring__d1__cached__default query_ready phase=None kind=None query_ms=146
+  Tutorial_Ring__d2__cached__default query_ready phase=None kind=None query_ms=162
+  Tutorial_Ring__d4__cached__default query_ready phase=None kind=None query_ms=288
+  Tutorial_Ring__d8__cached__default query_ready phase=None kind=None query_ms=493
+  Tutorial_Ring__d16__cached__default query_ready phase=None kind=None query_ms=1003
+  Tutorial_Ring__d32__cached__default query_ready phase=None kind=None query_ms=2215
+END Tutorial_Ring__cached__default__batch1 wall=12.9s setup=6170 timeout=None remaining=0

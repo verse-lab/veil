@@ -1,0 +1,86 @@
+[
+  {
+    "model": "Ivy_Blockchain",
+    "depth": 16,
+    "reason": "new_query",
+    "primary_early": null,
+    "primary_local": "unsat"
+  },
+  {
+    "model": "Ivy_Blockchain",
+    "depth": 8,
+    "reason": "new_query",
+    "primary_early": null,
+    "primary_local": "unsat"
+  },
+  {
+    "model": "Ivy_MultiSigAll",
+    "depth": 4,
+    "reason": "paired_solver_time_ratio_at_least_5",
+    "primary_early": "unsat",
+    "primary_local": "unsat"
+  },
+  {
+    "model": "Ivy_MultiSigMajority",
+    "depth": 2,
+    "reason": "paired_solver_time_ratio_at_least_5",
+    "primary_early": "unsat",
+    "primary_local": "unsat"
+  },
+  {
+    "model": "Ivy_MultiSigMajority",
+    "depth": 4,
+    "reason": "paired_solver_time_ratio_at_least_5",
+    "primary_early": "unsat",
+    "primary_local": "unsat"
+  },
+  {
+    "model": "Ivy_TwoPhaseCommit",
+    "depth": 8,
+    "reason": "paired_definite_change",
+    "primary_early": "unsat",
+    "primary_local": "timeout"
+  },
+  {
+    "model": "Simulate_CheckpointLeaseFailover",
+    "depth": 16,
+    "reason": "paired_definite_change",
+    "primary_early": "sat",
+    "primary_local": "timeout"
+  },
+  {
+    "model": "Synchronous_FloodSet",
+    "depth": 4,
+    "reason": "paired_solver_time_ratio_at_least_5",
+    "primary_early": "unsat",
+    "primary_local": "unsat"
+  },
+  {
+    "model": "TLA_Peterson",
+    "depth": 8,
+    "reason": "paired_definite_change",
+    "primary_early": "unsat",
+    "primary_local": "timeout"
+  },
+  {
+    "model": "TLA_Traffic",
+    "depth": 16,
+    "reason": "paired_solver_time_ratio_at_least_5",
+    "primary_early": "sat",
+    "primary_local": "sat"
+  },
+  {
+    "model": "TLA_Traffic",
+    "depth": 32,
+    "reason": "paired_solver_time_ratio_at_least_5",
+    "primary_early": "sat",
+    "primary_local": "sat"
+  },
+  {
+    "model": "TLA_TwoPhaseCommit",
+    "depth": 8,
+    "reason": "paired_definite_change",
+    "primary_early": "timeout",
+    "primary_local": "unsat"
+  }
+]

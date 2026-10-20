@@ -1,0 +1,589 @@
+model,path,depth,variant,recorded,outcome_family,outcome_code,outcome,failure_phase,failure_kind,preprocessing_seconds,query_seconds,query_elaboration_seconds,solver_seconds,completed_solver_seconds,completed_seconds,cell_id
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.511,,0.027,,,,AWS_AWSBuggy__d1__early__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,1,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.416,,0.026,,,,AWS_AWSBuggy__d1__local__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.944,,0.028,,,,AWS_AWSBuggy__d2__early__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,2,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.682,,0.032,,,,AWS_AWSBuggy__d2__local__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.772,,0.032,,,,AWS_AWSBuggy__d4__early__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,4,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.601,,0.033,,,,AWS_AWSBuggy__d4__local__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,8,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.37,,0.04,,,,AWS_AWSBuggy__d8__early__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,8,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,3.153,,0.066,,,,AWS_AWSBuggy__d8__local__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,11.862,,0.088,,,,AWS_AWSBuggy__d16__early__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,6.811,,0.068,,,,AWS_AWSBuggy__d16__local__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,32,early,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.137,,,,AWS_AWSBuggy__d32__early__default
+AWS_AWSBuggy,Examples/AWS/AWSBuggy.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,15.188,,0.125,,,,AWS_AWSBuggy__d32__local__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.31,0.691,0.02,0.033,0.033,0.724,AWS_AWSFixed__d1__early__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.351,0.72,0.024,0.033,0.033,0.753,AWS_AWSFixed__d1__local__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.716,1.836,0.027,0.108,0.108,1.944,AWS_AWSFixed__d2__early__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.541,1.647,0.024,0.103,0.103,1.75,AWS_AWSFixed__d2__local__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.362,5.902,0.03,7.987,7.987,13.889,AWS_AWSFixed__d4__early__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,1.002,5.843,0.027,2.073,2.073,7.916,AWS_AWSFixed__d4__local__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,8,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.389,,0.038,,,,AWS_AWSFixed__d8__early__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,8,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.118,,0.048,,,,AWS_AWSFixed__d8__local__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,5.738,,0.074,,,,AWS_AWSFixed__d16__early__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.512,,0.075,,,,AWS_AWSFixed__d16__local__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,15.216,,0.112,,,,AWS_AWSFixed__d32__early__default
+AWS_AWSFixed,Examples/AWS/AWSFixed.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,10.882,,0.113,,,,AWS_AWSFixed__d32__local__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.088,1.162,0.038,0.054,0.054,1.216,Ivy_Blockchain__d1__early__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.631,0.705,0.032,0.045,0.045,0.75,Ivy_Blockchain__d1__local__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.752,1.876,0.043,0.083,0.083,1.959,Ivy_Blockchain__d2__early__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,1.166,1.282,0.054,0.078,0.078,1.36,Ivy_Blockchain__d2__local__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,5.076,5.275,0.048,0.188,0.188,5.463,Ivy_Blockchain__d4__early__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,2.245,2.446,0.048,0.175,0.175,2.621,Ivy_Blockchain__d4__local__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,8,early,True,simp_steps,H:S,Simplifier step limit; hoist,hoist,simp_steps,,,0.087,,,,Ivy_Blockchain__d8__early__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,8,local,True,unsat,UNSAT,Solver returned UNSAT,,,5.218,5.646,0.091,0.52,0.52,6.166,Ivy_Blockchain__d8__local__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,16,early,True,simp_steps,H:S,Simplifier step limit; hoist,hoist,simp_steps,,,0.122,,,,Ivy_Blockchain__d16__early__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,16,local,True,unsat,UNSAT,Solver returned UNSAT,,,10.358,11.106,0.137,0.747,0.747,11.853,Ivy_Blockchain__d16__local__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,32,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.276,,,,Ivy_Blockchain__d32__early__default
+Ivy_Blockchain,Examples/Ivy/Blockchain.lean,32,local,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.306,,,,Ivy_Blockchain__d32__local__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,1,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,0.505,0.599,0.03,0.011,,,Ivy_ChordRingMaintenance__d1__early__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,1,local,True,solver_error,Q:!,Solver error: error,solver,solver_error,0.661,0.771,0.028,0.001,,,Ivy_ChordRingMaintenance__d1__local__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,2,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,0.973,1.136,0.041,0.009,,,Ivy_ChordRingMaintenance__d2__early__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,2,local,True,solver_error,Q:!,Solver error: error,solver,solver_error,1.024,1.231,0.028,0.001,,,Ivy_ChordRingMaintenance__d2__local__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,4,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,2.514,2.888,0.069,0.008,,,Ivy_ChordRingMaintenance__d4__early__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,4,local,True,solver_error,Q:!,Solver error: error,solver,solver_error,2.206,2.554,0.075,0.001,,,Ivy_ChordRingMaintenance__d4__local__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,8,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,4.976,5.534,0.116,0.01,,,Ivy_ChordRingMaintenance__d8__early__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,8,local,True,solver_error,Q:!,Solver error: error,solver,solver_error,4.049,4.628,0.078,0.001,,,Ivy_ChordRingMaintenance__d8__local__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,16,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,10.971,12.121,0.145,0.007,,,Ivy_ChordRingMaintenance__d16__early__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,16,local,True,solver_error,Q:!,Solver error: error,solver,solver_error,8.911,10.05,0.197,0.001,,,Ivy_ChordRingMaintenance__d16__local__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,32,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.414,,,,Ivy_ChordRingMaintenance__d32__early__default
+Ivy_ChordRingMaintenance,Examples/Ivy/ChordRingMaintenance.lean,32,local,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.45,,,,Ivy_ChordRingMaintenance__d32__local__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.138,0.166,0.017,0.014,0.014,0.18,Ivy_DecentralizedLock__d1__early__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.123,0.151,0.015,0.013,0.013,0.164,Ivy_DecentralizedLock__d1__local__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.154,0.187,0.018,0.016,0.016,0.203,Ivy_DecentralizedLock__d2__early__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.179,0.217,0.019,0.015,0.015,0.232,Ivy_DecentralizedLock__d2__local__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.266,0.316,0.022,0.022,0.022,0.338,Ivy_DecentralizedLock__d4__early__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.348,0.413,0.024,0.016,0.016,0.429,Ivy_DecentralizedLock__d4__local__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,8,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.5,0.582,0.028,0.031,0.031,0.613,Ivy_DecentralizedLock__d8__early__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,8,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.559,0.66,0.031,0.023,0.023,0.683,Ivy_DecentralizedLock__d8__local__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,16,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.957,1.104,0.045,0.055,0.055,1.159,Ivy_DecentralizedLock__d16__early__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,16,local,True,unsat,UNSAT,Solver returned UNSAT,,,1.204,1.388,0.044,0.033,0.033,1.421,Ivy_DecentralizedLock__d16__local__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,32,early,True,unsat,UNSAT,Solver returned UNSAT,,,2.866,3.161,0.077,0.102,0.102,3.263,Ivy_DecentralizedLock__d32__early__default
+Ivy_DecentralizedLock,Examples/Ivy/DecentralizedLock.lean,32,local,True,unsat,UNSAT,Solver returned UNSAT,,,2.46,2.774,0.095,0.054,0.054,2.828,Ivy_DecentralizedLock__d32__local__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.409,0.473,0.029,0.036,0.036,0.509,Ivy_MultiSigAll__d1__early__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.564,0.634,0.04,0.033,0.033,0.667,Ivy_MultiSigAll__d1__local__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.757,0.859,0.033,0.081,0.081,0.94,Ivy_MultiSigAll__d2__early__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.705,0.829,0.033,0.09,0.09,0.919,Ivy_MultiSigAll__d2__local__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.7,1.9,0.056,9.639,9.639,11.539,Ivy_MultiSigAll__d4__early__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,1.564,1.795,0.048,0.538,0.538,2.333,Ivy_MultiSigAll__d4__local__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,3.751,4.184,0.088,10.024,,,Ivy_MultiSigAll__d8__early__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,8,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,3.254,3.696,0.085,10.023,,,Ivy_MultiSigAll__d8__local__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,8.568,9.351,0.136,10.035,,,Ivy_MultiSigAll__d16__early__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,16,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,7.663,8.593,0.143,10.034,,,Ivy_MultiSigAll__d16__local__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,32,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.316,,,,Ivy_MultiSigAll__d32__early__default
+Ivy_MultiSigAll,Examples/Ivy/MultiSigAll.lean,32,local,True,heartbeat,D:B,Heartbeat limit; dsimp2,dsimp2,heartbeats,,,0.336,,,,Ivy_MultiSigAll__d32__local__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.616,0.701,0.032,0.041,0.041,0.742,Ivy_MultiSigMajority__d1__early__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.517,0.591,0.041,0.032,0.032,0.623,Ivy_MultiSigMajority__d1__local__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.858,0.998,0.033,0.514,0.514,1.512,Ivy_MultiSigMajority__d2__early__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.83,0.954,0.036,0.067,0.067,1.021,Ivy_MultiSigMajority__d2__local__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.689,1.898,0.056,8.335,8.335,10.233,Ivy_MultiSigMajority__d4__early__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,1.683,1.913,0.055,0.383,0.383,2.296,Ivy_MultiSigMajority__d4__local__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,3.387,3.753,0.071,10.025,,,Ivy_MultiSigMajority__d8__early__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,8,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.814,3.208,0.09,10.019,,,Ivy_MultiSigMajority__d8__local__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,7.891,8.641,0.141,10.034,,,Ivy_MultiSigMajority__d16__early__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,16,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,6.979,7.828,0.141,10.032,,,Ivy_MultiSigMajority__d16__local__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,32,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.358,,,,Ivy_MultiSigMajority__d32__early__default
+Ivy_MultiSigMajority,Examples/Ivy/MultiSigMajority.lean,32,local,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.33,,,,Ivy_MultiSigMajority__d32__local__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.548,1.741,0.04,0.244,0.244,1.985,Ivy_NOPaxos__d1__early__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,1.602,1.797,0.039,0.257,0.257,2.054,Ivy_NOPaxos__d1__local__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,3.064,3.402,0.048,0.614,0.614,4.016,Ivy_NOPaxos__d2__early__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,2.868,3.279,0.054,0.551,0.551,3.83,Ivy_NOPaxos__d2__local__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,6.063,6.721,0.062,6.828,6.828,13.549,Ivy_NOPaxos__d4__early__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,5.281,5.922,0.069,5.317,5.317,11.239,Ivy_NOPaxos__d4__local__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,13.256,14.606,0.106,10.062,,,Ivy_NOPaxos__d8__early__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,8,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,11.926,13.36,0.111,10.052,,,Ivy_NOPaxos__d8__local__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,16,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.188,,,,Ivy_NOPaxos__d16__early__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,16,local,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.174,,,,Ivy_NOPaxos__d16__local__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,32,early,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.405,,,,Ivy_NOPaxos__d32__early__default
+Ivy_NOPaxos,Examples/Ivy/NOPaxos.lean,32,local,True,heartbeat,N:B,Heartbeat limit; nextSimp,nextSimp,heartbeats,,,0.363,,,,Ivy_NOPaxos__d32__local__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.535,,0.029,,,,Ivy_PaxosEPR__d1__early__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,1,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.412,,0.033,,,,Ivy_PaxosEPR__d1__local__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.53,,0.03,,,,Ivy_PaxosEPR__d2__early__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,2,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.593,,0.033,,,,Ivy_PaxosEPR__d2__local__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.093,,0.037,,,,Ivy_PaxosEPR__d4__early__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,4,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.21,,0.038,,,,Ivy_PaxosEPR__d4__local__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.898,,0.064,,,,Ivy_PaxosEPR__d8__early__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,8,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.396,,0.071,,,,Ivy_PaxosEPR__d8__local__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,16,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,6.077,,0.095,,,,Ivy_PaxosEPR__d16__early__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,16,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,5.794,,0.096,,,,Ivy_PaxosEPR__d16__local__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,32,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,15.815,,0.207,,,,Ivy_PaxosEPR__d32__early__default
+Ivy_PaxosEPR,Examples/Ivy/PaxosEPR.lean,32,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,13.077,,0.259,,,,Ivy_PaxosEPR__d32__local__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.285,0.343,0.025,0.047,0.047,0.39,Ivy_PaxosFirstOrder__d1__early__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.46,0.518,0.024,0.05,0.05,0.568,Ivy_PaxosFirstOrder__d1__local__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.612,0.712,0.03,0.21,0.21,0.922,Ivy_PaxosFirstOrder__d2__early__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.557,0.646,0.032,0.171,0.171,0.817,Ivy_PaxosFirstOrder__d2__local__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,4,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.114,1.298,0.038,10.027,,,Ivy_PaxosFirstOrder__d4__early__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,4,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.096,1.286,0.045,10.021,,,Ivy_PaxosFirstOrder__d4__local__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.094,2.382,0.063,10.031,,,Ivy_PaxosFirstOrder__d8__early__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,8,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.171,2.518,0.075,10.022,,,Ivy_PaxosFirstOrder__d8__local__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,5.018,5.603,0.108,10.029,,,Ivy_PaxosFirstOrder__d16__early__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,16,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.407,5.059,0.108,10.033,,,Ivy_PaxosFirstOrder__d16__local__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,13.311,14.663,0.242,10.048,,,Ivy_PaxosFirstOrder__d32__early__default
+Ivy_PaxosFirstOrder,Examples/Ivy/PaxosFirstOrder.lean,32,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,10.455,11.753,0.199,10.052,,,Ivy_PaxosFirstOrder__d32__local__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.75,,0.056,,,,Ivy_ReliableBroadcast__d1__early__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,1,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.41,,0.053,,,,Ivy_ReliableBroadcast__d1__local__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.781,,0.063,,,,Ivy_ReliableBroadcast__d2__early__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,2,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.755,,0.072,,,,Ivy_ReliableBroadcast__d2__local__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.458,,0.077,,,,Ivy_ReliableBroadcast__d4__early__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,4,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.461,,0.064,,,,Ivy_ReliableBroadcast__d4__local__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.747,,0.091,,,,Ivy_ReliableBroadcast__d8__early__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,8,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.822,,0.102,,,,Ivy_ReliableBroadcast__d8__local__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,16,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,6.307,,0.176,,,,Ivy_ReliableBroadcast__d16__early__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,16,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,5.931,,0.181,,,,Ivy_ReliableBroadcast__d16__local__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,32,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,15.835,,0.333,,,,Ivy_ReliableBroadcast__d32__early__default
+Ivy_ReliableBroadcast,Examples/Ivy/ReliableBroadcast.lean,32,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,14.761,,0.339,,,,Ivy_ReliableBroadcast__d32__local__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.144,0.172,0.015,0.025,0.025,0.197,Ivy_RicartAgrawala__d1__early__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.174,0.203,0.02,0.025,0.025,0.228,Ivy_RicartAgrawala__d1__local__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.24,0.28,0.018,0.092,0.092,0.372,Ivy_RicartAgrawala__d2__early__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.205,0.25,0.017,0.061,0.061,0.311,Ivy_RicartAgrawala__d2__local__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.425,0.503,0.033,1.076,1.076,1.579,Ivy_RicartAgrawala__d4__early__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.395,0.464,0.024,1.722,1.722,2.186,Ivy_RicartAgrawala__d4__local__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.928,1.058,0.039,10.018,,,Ivy_RicartAgrawala__d8__early__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,8,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.959,1.123,0.034,10.013,,,Ivy_RicartAgrawala__d8__local__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.02,2.271,0.074,10.02,,,Ivy_RicartAgrawala__d16__early__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,16,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.74,2.028,0.059,10.016,,,Ivy_RicartAgrawala__d16__local__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.986,5.475,0.099,10.029,,,Ivy_RicartAgrawala__d32__early__default
+Ivy_RicartAgrawala,Examples/Ivy/RicartAgrawala.lean,32,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.165,4.828,0.095,10.025,,,Ivy_RicartAgrawala__d32__local__default
+Ivy_Ring,Examples/Ivy/Ring.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.168,0.208,0.016,0.024,0.024,0.232,Ivy_Ring__d1__early__default
+Ivy_Ring,Examples/Ivy/Ring.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.142,0.179,0.016,0.022,0.022,0.201,Ivy_Ring__d1__local__default
+Ivy_Ring,Examples/Ivy/Ring.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.202,0.245,0.016,0.034,0.034,0.279,Ivy_Ring__d2__early__default
+Ivy_Ring,Examples/Ivy/Ring.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.212,0.256,0.021,0.032,0.032,0.288,Ivy_Ring__d2__local__default
+Ivy_Ring,Examples/Ivy/Ring.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.384,0.451,0.02,0.135,0.135,0.586,Ivy_Ring__d4__early__default
+Ivy_Ring,Examples/Ivy/Ring.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.382,0.453,0.018,0.122,0.122,0.575,Ivy_Ring__d4__local__default
+Ivy_Ring,Examples/Ivy/Ring.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.904,1.028,0.033,10.012,,,Ivy_Ring__d8__early__default
+Ivy_Ring,Examples/Ivy/Ring.lean,8,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.733,0.858,0.028,10.018,,,Ivy_Ring__d8__local__default
+Ivy_Ring,Examples/Ivy/Ring.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.866,2.082,0.043,10.014,,,Ivy_Ring__d16__early__default
+Ivy_Ring,Examples/Ivy/Ring.lean,16,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.581,1.83,0.041,10.013,,,Ivy_Ring__d16__local__default
+Ivy_Ring,Examples/Ivy/Ring.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.278,4.691,0.079,10.019,,,Ivy_Ring__d32__early__default
+Ivy_Ring,Examples/Ivy/Ring.lean,32,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,3.501,3.982,0.088,10.016,,,Ivy_Ring__d32__local__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,1,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,0.704,0.822,0.033,0.01,,,Ivy_SuzukiKasami__d1__early__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,1,local,True,solver_error,Q:!,Solver error: error,solver,solver_error,0.762,0.877,0.04,0.011,,,Ivy_SuzukiKasami__d1__local__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,2,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,1.245,1.416,0.03,0.009,,,Ivy_SuzukiKasami__d2__early__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,2,local,True,solver_error,Q:!,Solver error: error,solver,solver_error,1.139,1.326,0.029,0.01,,,Ivy_SuzukiKasami__d2__local__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,4,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,2.543,2.867,0.042,0.01,,,Ivy_SuzukiKasami__d4__early__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,4,local,True,solver_error,Q:!,Solver error: error,solver,solver_error,2.329,2.635,0.044,0.01,,,Ivy_SuzukiKasami__d4__local__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,8,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,4.855,5.398,0.05,0.012,,,Ivy_SuzukiKasami__d8__early__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,8,local,True,solver_error,Q:!,Solver error: error,solver,solver_error,4.868,5.41,0.05,0.011,,,Ivy_SuzukiKasami__d8__local__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,16,early,True,solver_error,Q:!,Solver error: error,solver,solver_error,11.393,12.503,0.111,0.012,,,Ivy_SuzukiKasami__d16__early__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,16,local,True,solver_error,Q:!,Solver error: error,solver,solver_error,9.616,10.871,0.108,0.011,,,Ivy_SuzukiKasami__d16__local__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,32,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.19,,,,Ivy_SuzukiKasami__d32__early__default
+Ivy_SuzukiKasami,Examples/Ivy/SuzukiKasami.lean,32,local,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.209,,,,Ivy_SuzukiKasami__d32__local__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.229,0.276,0.023,0.033,0.033,0.309,Ivy_TwoPhaseCommit__d1__early__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.205,0.243,0.025,0.033,0.033,0.276,Ivy_TwoPhaseCommit__d1__local__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.328,0.392,0.027,0.079,0.079,0.471,Ivy_TwoPhaseCommit__d2__early__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.311,0.369,0.024,0.101,0.101,0.47,Ivy_TwoPhaseCommit__d2__local__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.583,0.68,0.038,0.67,0.67,1.35,Ivy_TwoPhaseCommit__d4__early__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.603,0.705,0.031,0.765,0.765,1.47,Ivy_TwoPhaseCommit__d4__local__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,8,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.179,1.368,0.044,4.097,4.097,5.465,Ivy_TwoPhaseCommit__d8__early__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,8,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.112,1.307,0.061,10.016,,,Ivy_TwoPhaseCommit__d8__local__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.536,2.914,0.08,10.033,,,Ivy_TwoPhaseCommit__d16__early__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,16,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.569,2.989,0.088,10.033,,,Ivy_TwoPhaseCommit__d16__local__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,7.665,8.338,0.123,10.037,,,Ivy_TwoPhaseCommit__d32__early__default
+Ivy_TwoPhaseCommit,Examples/Ivy/TwoPhaseCommit.lean,32,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,5.259,6.061,0.162,10.044,,,Ivy_TwoPhaseCommit__d32__local__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.853,,0.033,,,,Ivy_VerticalPaxosFirstOrder__d1__early__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,1,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.04,,0.039,,,,Ivy_VerticalPaxosFirstOrder__d1__local__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.571,,0.048,,,,Ivy_VerticalPaxosFirstOrder__d2__early__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,2,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.569,,0.05,,,,Ivy_VerticalPaxosFirstOrder__d2__local__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,4.135,,0.062,,,,Ivy_VerticalPaxosFirstOrder__d4__early__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,4,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,3.194,,0.063,,,,Ivy_VerticalPaxosFirstOrder__d4__local__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,12.64,,0.084,,,,Ivy_VerticalPaxosFirstOrder__d8__early__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,8,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,5.422,,0.111,,,,Ivy_VerticalPaxosFirstOrder__d8__local__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,16,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.192,,,,Ivy_VerticalPaxosFirstOrder__d16__early__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,16,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,13.963,,0.186,,,,Ivy_VerticalPaxosFirstOrder__d16__local__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,32,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.363,,,,Ivy_VerticalPaxosFirstOrder__d32__early__default
+Ivy_VerticalPaxosFirstOrder,Examples/Ivy/VerticalPaxosFirstOrder.lean,32,local,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.439,,,,Ivy_VerticalPaxosFirstOrder__d32__local__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.095,0.136,0.013,0.022,0.022,0.158,Puzzles_DieHard__d1__early__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.077,0.123,0.012,0.026,0.026,0.149,Puzzles_DieHard__d1__local__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.127,0.203,0.016,0.044,0.044,0.247,Puzzles_DieHard__d2__early__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.135,0.212,0.017,0.044,0.044,0.256,Puzzles_DieHard__d2__local__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.18,0.333,0.018,0.135,0.135,0.468,Puzzles_DieHard__d4__early__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.247,0.401,0.018,0.142,0.142,0.543,Puzzles_DieHard__d4__local__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,8,early,True,sat,SAT,Solver returned SAT,,,0.464,0.938,0.023,0.416,0.416,1.354,Puzzles_DieHard__d8__early__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,8,local,True,sat,SAT,Solver returned SAT,,,0.43,0.923,0.027,0.511,0.511,1.434,Puzzles_DieHard__d8__local__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.905,2.349,0.058,10.016,,,Puzzles_DieHard__d16__early__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,16,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.996,2.894,0.051,10.018,,,Puzzles_DieHard__d16__local__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.043,,0.085,,,,Puzzles_DieHard__d32__early__default
+Puzzles_DieHard,Examples/Puzzles/DieHard.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,1.626,,0.083,,,,Puzzles_DieHard__d32__local__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,1,early,True,sat,SAT,Solver returned SAT,,,0.093,0.155,0.029,0.014,0.014,0.169,Puzzles_Prisoners__d1__early__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,1,local,True,sat,SAT,Solver returned SAT,,,0.118,0.186,0.035,0.017,0.017,0.203,Puzzles_Prisoners__d1__local__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,2,early,True,sat,SAT,Solver returned SAT,,,0.142,0.241,0.032,0.017,0.017,0.258,Puzzles_Prisoners__d2__early__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,2,local,True,sat,SAT,Solver returned SAT,,,0.136,0.254,0.031,0.022,0.022,0.276,Puzzles_Prisoners__d2__local__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,4,early,True,sat,SAT,Solver returned SAT,,,0.205,0.4,0.037,0.083,0.083,0.483,Puzzles_Prisoners__d4__early__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,4,local,True,sat,SAT,Solver returned SAT,,,0.277,0.519,0.04,0.046,0.046,0.565,Puzzles_Prisoners__d4__local__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,8,early,True,sat,SAT,Solver returned SAT,,,0.471,1.041,0.04,0.272,0.272,1.313,Puzzles_Prisoners__d8__early__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,8,local,True,sat,SAT,Solver returned SAT,,,0.485,1.441,0.042,0.176,0.176,1.617,Puzzles_Prisoners__d8__local__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,16,early,True,sat,SAT,Solver returned SAT,,,0.821,3.885,0.053,3.35,3.35,7.235,Puzzles_Prisoners__d16__early__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,16,local,True,sat,SAT,Solver returned SAT,,,0.913,5.292,0.062,2.216,2.216,7.508,Puzzles_Prisoners__d16__local__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.011,,0.076,,,,Puzzles_Prisoners__d32__early__default
+Puzzles_Prisoners,Examples/Puzzles/Prisoners.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,1.751,,0.07,,,,Puzzles_Prisoners__d32__local__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.117,0.14,0.015,0.014,0.014,0.154,Puzzles_RiverCrossing__d1__early__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.095,0.114,0.013,0.013,0.013,0.127,Puzzles_RiverCrossing__d1__local__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.12,0.148,0.014,0.018,0.018,0.166,Puzzles_RiverCrossing__d2__early__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.181,0.212,0.015,0.016,0.016,0.228,Puzzles_RiverCrossing__d2__local__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.251,0.297,0.018,0.023,0.023,0.32,Puzzles_RiverCrossing__d4__early__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.269,0.316,0.021,0.022,0.022,0.338,Puzzles_RiverCrossing__d4__local__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,8,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.492,0.579,0.024,0.042,0.042,0.621,Puzzles_RiverCrossing__d8__early__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,8,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.503,0.589,0.029,0.037,0.037,0.626,Puzzles_RiverCrossing__d8__local__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,16,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.069,1.224,0.041,0.091,0.091,1.315,Puzzles_RiverCrossing__d16__early__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,16,local,True,unsat,UNSAT,Solver returned UNSAT,,,1.045,1.208,0.049,0.061,0.061,1.269,Puzzles_RiverCrossing__d16__local__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,32,early,True,unsat,UNSAT,Solver returned UNSAT,,,2.589,2.903,0.081,0.175,0.175,3.078,Puzzles_RiverCrossing__d32__early__default
+Puzzles_RiverCrossing,Examples/Puzzles/RiverCrossing.lean,32,local,True,unsat,UNSAT,Solver returned UNSAT,,,2.359,2.661,0.096,0.17,0.17,2.831,Puzzles_RiverCrossing__d32__local__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.173,0.208,0.027,0.031,0.031,0.239,Simulate_CheckpointLeaseFailover__d1__early__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.235,0.272,0.023,0.029,0.029,0.301,Simulate_CheckpointLeaseFailover__d1__local__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.259,0.31,0.024,0.053,0.053,0.363,Simulate_CheckpointLeaseFailover__d2__early__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.269,0.314,0.03,0.06,0.06,0.374,Simulate_CheckpointLeaseFailover__d2__local__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,4,early,True,sat,SAT,Solver returned SAT,,,0.414,0.488,0.03,0.347,0.347,0.835,Simulate_CheckpointLeaseFailover__d4__early__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,4,local,True,sat,SAT,Solver returned SAT,,,0.445,0.53,0.031,0.282,0.282,0.812,Simulate_CheckpointLeaseFailover__d4__local__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,8,early,True,sat,SAT,Solver returned SAT,,,0.981,1.117,0.05,1.452,1.452,2.569,Simulate_CheckpointLeaseFailover__d8__early__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,8,local,True,sat,SAT,Solver returned SAT,,,0.989,1.13,0.079,2.378,2.378,3.508,Simulate_CheckpointLeaseFailover__d8__local__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,16,early,True,sat,SAT,Solver returned SAT,,,2.108,2.346,0.079,7.447,7.447,9.793,Simulate_CheckpointLeaseFailover__d16__early__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,16,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.93,2.198,0.078,10.023,,,Simulate_CheckpointLeaseFailover__d16__local__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.951,5.476,0.147,10.028,,,Simulate_CheckpointLeaseFailover__d32__early__default
+Simulate_CheckpointLeaseFailover,Examples/Simulate/CheckpointLeaseFailover.lean,32,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.375,4.908,0.13,10.03,,,Simulate_CheckpointLeaseFailover__d32__local__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.2,0.234,0.019,0.022,0.022,0.256,Simulate_LeaseKeepaliveRace__d1__early__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.166,0.195,0.027,0.019,0.019,0.214,Simulate_LeaseKeepaliveRace__d1__local__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.266,0.31,0.023,0.039,0.039,0.349,Simulate_LeaseKeepaliveRace__d2__early__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.267,0.312,0.022,0.037,0.037,0.349,Simulate_LeaseKeepaliveRace__d2__local__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.486,0.573,0.028,0.683,0.683,1.256,Simulate_LeaseKeepaliveRace__d4__early__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.53,0.622,0.026,0.538,0.538,1.16,Simulate_LeaseKeepaliveRace__d4__local__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,8,early,True,sat,SAT,Solver returned SAT,,,1.157,1.314,0.049,0.091,0.091,1.405,Simulate_LeaseKeepaliveRace__d8__early__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,8,local,True,sat,SAT,Solver returned SAT,,,1.065,1.238,0.041,0.102,0.102,1.34,Simulate_LeaseKeepaliveRace__d8__local__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,16,early,True,sat,SAT,Solver returned SAT,,,2.375,2.683,0.071,0.231,0.231,2.914,Simulate_LeaseKeepaliveRace__d16__early__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,16,local,True,sat,SAT,Solver returned SAT,,,2.192,2.498,0.067,0.341,0.341,2.839,Simulate_LeaseKeepaliveRace__d16__local__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,32,early,True,sat,SAT,Solver returned SAT,,,6.191,6.788,0.122,0.63,0.63,7.418,Simulate_LeaseKeepaliveRace__d32__early__default
+Simulate_LeaseKeepaliveRace,Examples/Simulate/LeaseKeepaliveRace.lean,32,local,True,sat,SAT,Solver returned SAT,,,4.691,5.303,0.17,1.234,1.234,6.537,Simulate_LeaseKeepaliveRace__d32__local__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.182,0.218,0.019,0.029,0.029,0.247,Simulate_ReliableBroadcast__d1__early__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.24,0.275,0.022,0.029,0.029,0.304,Simulate_ReliableBroadcast__d1__local__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.294,0.345,0.022,0.068,0.068,0.413,Simulate_ReliableBroadcast__d2__early__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.357,0.42,0.032,0.049,0.049,0.469,Simulate_ReliableBroadcast__d2__local__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.578,0.665,0.029,7.921,7.921,8.586,Simulate_ReliableBroadcast__d4__early__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.585,0.673,0.037,1.867,1.867,2.54,Simulate_ReliableBroadcast__d4__local__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.113,1.27,0.045,10.014,,,Simulate_ReliableBroadcast__d8__early__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,8,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.046,1.212,0.041,10.018,,,Simulate_ReliableBroadcast__d8__local__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.284,2.596,0.065,10.033,,,Simulate_ReliableBroadcast__d16__early__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,16,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.179,2.496,0.073,10.019,,,Simulate_ReliableBroadcast__d16__local__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,6.579,7.228,0.134,10.031,,,Simulate_ReliableBroadcast__d32__early__default
+Simulate_ReliableBroadcast,Examples/Simulate/ReliableBroadcast.lean,32,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,5.382,6.059,0.134,10.041,,,Simulate_ReliableBroadcast__d32__local__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.86,,0.038,,,,StellarConsensus_SCP__d1__early__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,1,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.375,,0.049,,,,StellarConsensus_SCP__d1__local__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.413,,0.043,,,,StellarConsensus_SCP__d2__early__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,2,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.425,,0.047,,,,StellarConsensus_SCP__d2__local__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,5.195,,0.06,,,,StellarConsensus_SCP__d4__early__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,4,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,4.585,,0.06,,,,StellarConsensus_SCP__d4__local__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,10.819,,0.105,,,,StellarConsensus_SCP__d8__early__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,8,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,9.299,,0.086,,,,StellarConsensus_SCP__d8__local__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,16,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.159,,,,StellarConsensus_SCP__d16__early__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,16,local,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.191,,,,StellarConsensus_SCP__d16__local__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,32,early,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.368,,,,StellarConsensus_SCP__d32__early__default
+StellarConsensus_SCP,Examples/StellarConsensus/SCP.lean,32,local,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.377,,,,StellarConsensus_SCP__d32__local__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.251,,0.021,,,,Synchronous_FasterFloodSet__d1__early__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,1,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.321,,0.023,,,,Synchronous_FasterFloodSet__d1__local__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.416,,0.022,,,,Synchronous_FasterFloodSet__d2__early__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,2,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.437,,0.028,,,,Synchronous_FasterFloodSet__d2__local__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.905,,0.026,,,,Synchronous_FasterFloodSet__d4__early__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,4,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.751,,0.028,,,,Synchronous_FasterFloodSet__d4__local__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,3.201,,0.031,,,,Synchronous_FasterFloodSet__d8__early__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,8,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.438,,0.039,,,,Synchronous_FasterFloodSet__d8__local__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,16,early,True,simp_steps,H:S,Simplifier step limit; hoist,hoist,simp_steps,,,0.059,,,,Synchronous_FasterFloodSet__d16__early__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,3.11,,0.061,,,,Synchronous_FasterFloodSet__d16__local__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,32,early,True,simp_steps,H:S,Simplifier step limit; hoist,hoist,simp_steps,,,0.082,,,,Synchronous_FasterFloodSet__d32__early__default
+Synchronous_FasterFloodSet,Examples/Synchronous/FasterFloodSet.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,6.771,,0.081,,,,Synchronous_FasterFloodSet__d32__local__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.29,0.433,0.022,0.031,0.031,0.464,Synchronous_FloodSet__d1__early__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.203,0.367,0.018,0.022,0.022,0.389,Synchronous_FloodSet__d1__local__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.465,0.849,0.022,0.067,0.067,0.916,Synchronous_FloodSet__d2__early__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.367,0.749,0.021,0.069,0.069,0.818,Synchronous_FloodSet__d2__local__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.925,1.845,0.027,8.392,8.392,10.237,Synchronous_FloodSet__d4__early__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.717,1.941,0.025,1.57,1.57,3.511,Synchronous_FloodSet__d4__local__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.885,6.231,0.031,10.025,,,Synchronous_FloodSet__d8__early__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,8,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.214,6.642,0.03,10.019,,,Synchronous_FloodSet__d8__local__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,15.461,,0.049,,,,Synchronous_FloodSet__d16__early__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.601,,0.054,,,,Synchronous_FloodSet__d16__local__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,32,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.081,,,,Synchronous_FloodSet__d32__early__default
+Synchronous_FloodSet,Examples/Synchronous/FloodSet.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,5.546,,0.085,,,,Synchronous_FloodSet__d32__local__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.265,,0.02,,,,TLA_AWSDnsRace__d1__early__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,1,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.265,,0.024,,,,TLA_AWSDnsRace__d1__local__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.436,,0.023,,,,TLA_AWSDnsRace__d2__early__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,2,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.488,,0.029,,,,TLA_AWSDnsRace__d2__local__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.856,,0.026,,,,TLA_AWSDnsRace__d4__early__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,4,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.856,,0.028,,,,TLA_AWSDnsRace__d4__local__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.897,,0.036,,,,TLA_AWSDnsRace__d8__early__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,8,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.739,,0.037,,,,TLA_AWSDnsRace__d8__local__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,5.292,,0.067,,,,TLA_AWSDnsRace__d16__early__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,3.589,,0.056,,,,TLA_AWSDnsRace__d16__local__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,14.117,,0.09,,,,TLA_AWSDnsRace__d32__early__default
+TLA_AWSDnsRace,Examples/TLA/AWSDnsRace.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,6.901,,0.098,,,,TLA_AWSDnsRace__d32__local__default
+TLA_Bakery,Examples/TLA/Bakery.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.695,,0.027,,,,TLA_Bakery__d1__early__default
+TLA_Bakery,Examples/TLA/Bakery.lean,1,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.555,,0.021,,,,TLA_Bakery__d1__local__default
+TLA_Bakery,Examples/TLA/Bakery.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.312,,0.04,,,,TLA_Bakery__d2__early__default
+TLA_Bakery,Examples/TLA/Bakery.lean,2,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.129,,0.028,,,,TLA_Bakery__d2__local__default
+TLA_Bakery,Examples/TLA/Bakery.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.596,,0.052,,,,TLA_Bakery__d4__early__default
+TLA_Bakery,Examples/TLA/Bakery.lean,4,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.104,,0.046,,,,TLA_Bakery__d4__local__default
+TLA_Bakery,Examples/TLA/Bakery.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,4.576,,0.076,,,,TLA_Bakery__d8__early__default
+TLA_Bakery,Examples/TLA/Bakery.lean,8,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.126,,0.072,,,,TLA_Bakery__d8__local__default
+TLA_Bakery,Examples/TLA/Bakery.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,11.253,,0.147,,,,TLA_Bakery__d16__early__default
+TLA_Bakery,Examples/TLA/Bakery.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,9.112,,0.122,,,,TLA_Bakery__d16__local__default
+TLA_Bakery,Examples/TLA/Bakery.lean,32,early,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.301,,,,TLA_Bakery__d32__early__default
+TLA_Bakery,Examples/TLA/Bakery.lean,32,local,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.31,,,,TLA_Bakery__d32__local__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.221,,0.069,,,,TLA_BcastByz__d1__early__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,1,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.326,,0.05,,,,TLA_BcastByz__d1__local__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.42,,0.069,,,,TLA_BcastByz__d2__early__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,2,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.36,,0.058,,,,TLA_BcastByz__d2__local__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.679,,0.076,,,,TLA_BcastByz__d4__early__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,4,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.791,,0.07,,,,TLA_BcastByz__d4__local__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.395,,0.099,,,,TLA_BcastByz__d8__early__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,8,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.37,,0.078,,,,TLA_BcastByz__d8__local__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.605,,0.1,,,,TLA_BcastByz__d16__early__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.299,,0.105,,,,TLA_BcastByz__d16__local__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,8.936,,0.181,,,,TLA_BcastByz__d32__early__default
+TLA_BcastByz,Examples/TLA/BcastByz.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,5.226,,0.2,,,,TLA_BcastByz__d32__local__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.143,,0.012,,,,TLA_BuggyCircularBuffer__d1__early__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,1,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.128,,0.012,,,,TLA_BuggyCircularBuffer__d1__local__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.206,,0.013,,,,TLA_BuggyCircularBuffer__d2__early__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,2,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.19,,0.014,,,,TLA_BuggyCircularBuffer__d2__local__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.375,,0.014,,,,TLA_BuggyCircularBuffer__d4__early__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,4,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.357,,0.015,,,,TLA_BuggyCircularBuffer__d4__local__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.852,,0.018,,,,TLA_BuggyCircularBuffer__d8__early__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,8,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.574,,0.019,,,,TLA_BuggyCircularBuffer__d8__local__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,16,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.139,,0.025,,,,TLA_BuggyCircularBuffer__d16__early__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,16,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.209,,0.022,,,,TLA_BuggyCircularBuffer__d16__local__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,6.503,,0.042,,,,TLA_BuggyCircularBuffer__d32__early__default
+TLA_BuggyCircularBuffer,Examples/TLA/BuggyCircularBuffer.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.413,,0.035,,,,TLA_BuggyCircularBuffer__d32__local__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,1,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,1.51,,0.049,,,,TLA_EPaxos__d1__early__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,1,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.202,,0.06,,,,TLA_EPaxos__d1__local__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,2,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,3.159,,0.064,,,,TLA_EPaxos__d2__early__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,2,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.282,,0.064,,,,TLA_EPaxos__d2__local__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,4,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,6.634,,0.097,,,,TLA_EPaxos__d4__early__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,4,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,5.281,,0.111,,,,TLA_EPaxos__d4__local__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,8,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,19.052,,0.157,,,,TLA_EPaxos__d8__early__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,8,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,11.551,,0.192,,,,TLA_EPaxos__d8__local__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,16,early,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.391,,,,TLA_EPaxos__d16__early__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,16,local,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.333,,,,TLA_EPaxos__d16__local__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,32,early,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.803,,,,TLA_EPaxos__d32__early__default
+TLA_EPaxos,Examples/TLA/EPaxos.lean,32,local,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.857,,,,TLA_EPaxos__d32__local__default
+TLA_EWD840,Examples/TLA/EWD840.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.235,,0.034,,,,TLA_EWD840__d1__early__default
+TLA_EWD840,Examples/TLA/EWD840.lean,1,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.182,,0.03,,,,TLA_EWD840__d1__local__default
+TLA_EWD840,Examples/TLA/EWD840.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.316,,0.031,,,,TLA_EWD840__d2__early__default
+TLA_EWD840,Examples/TLA/EWD840.lean,2,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.304,,0.031,,,,TLA_EWD840__d2__local__default
+TLA_EWD840,Examples/TLA/EWD840.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.606,,0.044,,,,TLA_EWD840__d4__early__default
+TLA_EWD840,Examples/TLA/EWD840.lean,4,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.584,,0.043,,,,TLA_EWD840__d4__local__default
+TLA_EWD840,Examples/TLA/EWD840.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.409,,0.052,,,,TLA_EWD840__d8__early__default
+TLA_EWD840,Examples/TLA/EWD840.lean,8,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.066,,0.056,,,,TLA_EWD840__d8__local__default
+TLA_EWD840,Examples/TLA/EWD840.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,3.749,,0.085,,,,TLA_EWD840__d16__early__default
+TLA_EWD840,Examples/TLA/EWD840.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.462,,0.073,,,,TLA_EWD840__d16__local__default
+TLA_EWD840,Examples/TLA/EWD840.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,10.679,,0.144,,,,TLA_EWD840__d32__early__default
+TLA_EWD840,Examples/TLA/EWD840.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.949,,0.15,,,,TLA_EWD840__d32__local__default
+TLA_German,Examples/TLA/German.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.456,,0.033,,,,TLA_German__d1__early__default
+TLA_German,Examples/TLA/German.lean,1,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.604,,0.031,,,,TLA_German__d1__local__default
+TLA_German,Examples/TLA/German.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.757,,0.048,,,,TLA_German__d2__early__default
+TLA_German,Examples/TLA/German.lean,2,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.805,,0.038,,,,TLA_German__d2__local__default
+TLA_German,Examples/TLA/German.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.682,,0.057,,,,TLA_German__d4__early__default
+TLA_German,Examples/TLA/German.lean,4,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.507,,0.058,,,,TLA_German__d4__local__default
+TLA_German,Examples/TLA/German.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,3.375,,0.111,,,,TLA_German__d8__early__default
+TLA_German,Examples/TLA/German.lean,8,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.9,,0.085,,,,TLA_German__d8__local__default
+TLA_German,Examples/TLA/German.lean,16,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,7.752,,0.174,,,,TLA_German__d16__early__default
+TLA_German,Examples/TLA/German.lean,16,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,6.021,,0.16,,,,TLA_German__d16__local__default
+TLA_German,Examples/TLA/German.lean,32,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.405,,,,TLA_German__d32__early__default
+TLA_German,Examples/TLA/German.lean,32,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,14.518,,0.363,,,,TLA_German__d32__local__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.437,,0.073,,,,TLA_KVSnap__d1__early__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,1,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.298,,0.06,,,,TLA_KVSnap__d1__local__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.527,,0.067,,,,TLA_KVSnap__d2__early__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,2,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.524,,0.065,,,,TLA_KVSnap__d2__local__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.066,,0.071,,,,TLA_KVSnap__d4__early__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,4,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.874,,0.075,,,,TLA_KVSnap__d4__local__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.068,,0.107,,,,TLA_KVSnap__d8__early__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,8,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.793,,0.091,,,,TLA_KVSnap__d8__local__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.813,,0.143,,,,TLA_KVSnap__d16__early__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,3.831,,0.116,,,,TLA_KVSnap__d16__local__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,12.334,,0.213,,,,TLA_KVSnap__d32__early__default
+TLA_KVSnap,Examples/TLA/KVSnap.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,8.419,,0.193,,,,TLA_KVSnap__d32__local__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.315,,0.14,,,,TLA_KeyValueStore__d1__early__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,1,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.433,,0.152,,,,TLA_KeyValueStore__d1__local__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.573,,0.156,,,,TLA_KeyValueStore__d2__early__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,2,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.478,,0.123,,,,TLA_KeyValueStore__d2__local__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.012,,0.151,,,,TLA_KeyValueStore__d4__early__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,4,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.02,,0.159,,,,TLA_KeyValueStore__d4__local__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,8,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.195,,0.226,,,,TLA_KeyValueStore__d8__early__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,8,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,1.828,,0.225,,,,TLA_KeyValueStore__d8__local__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.68,,0.342,,,,TLA_KeyValueStore__d16__early__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.001,,0.318,,,,TLA_KeyValueStore__d16__local__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,12.992,,0.644,,,,TLA_KeyValueStore__d32__early__default
+TLA_KeyValueStore,Examples/TLA/KeyValueStore.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,9.262,,0.644,,,,TLA_KeyValueStore__d32__local__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.774,,0.22,,,,TLA_MultiPaxos__d1__early__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,1,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.604,,0.225,,,,TLA_MultiPaxos__d1__local__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.01,,0.236,,,,TLA_MultiPaxos__d2__early__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,2,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,1.089,,0.276,,,,TLA_MultiPaxos__d2__local__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,4,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,1.89,,0.259,,,,TLA_MultiPaxos__d4__early__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,4,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,1.888,,0.308,,,,TLA_MultiPaxos__d4__local__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,8,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,3.851,,0.34,,,,TLA_MultiPaxos__d8__early__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,8,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.042,,0.297,,,,TLA_MultiPaxos__d8__local__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,8.089,,0.407,,,,TLA_MultiPaxos__d16__early__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,9.507,,0.471,,,,TLA_MultiPaxos__d16__local__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,32,early,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.847,,,,TLA_MultiPaxos__d32__early__default
+TLA_MultiPaxos,Examples/TLA/MultiPaxos.lean,32,local,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.715,,,,TLA_MultiPaxos__d32__local__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.631,,0.025,,,,TLA_MutexViolation__d1__early__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,1,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.611,,0.028,,,,TLA_MutexViolation__d1__local__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.074,,0.04,,,,TLA_MutexViolation__d2__early__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,2,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.923,,0.032,,,,TLA_MutexViolation__d2__local__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.037,,0.049,,,,TLA_MutexViolation__d4__early__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,4,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.362,,0.05,,,,TLA_MutexViolation__d4__local__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,8,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.603,,0.078,,,,TLA_MutexViolation__d8__early__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,8,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,3.827,,0.072,,,,TLA_MutexViolation__d8__local__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,11.206,,0.17,,,,TLA_MutexViolation__d16__early__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,8.317,,0.21,,,,TLA_MutexViolation__d16__local__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,32,early,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.377,,,,TLA_MutexViolation__d32__early__default
+TLA_MutexViolation,Examples/TLA/MutexViolation.lean,32,local,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.319,,,,TLA_MutexViolation__d32__local__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,4.717,,34.124,,,,TLA_NOPaxos__d1__early__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,1,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,4.088,,0.13,,,,TLA_NOPaxos__d1__local__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,2,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,7.095,,0.112,,,,TLA_NOPaxos__d2__early__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,2,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,6.881,,0.098,,,,TLA_NOPaxos__d2__local__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,4,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,12.904,,0.16,,,,TLA_NOPaxos__d4__early__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,4,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,14.986,,0.141,,,,TLA_NOPaxos__d4__local__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,8,early,True,heartbeat,D:B,Heartbeat limit; dsimp1,dsimp1,heartbeats,,,0.196,,,,TLA_NOPaxos__d8__early__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,8,local,True,heartbeat,D:B,Heartbeat limit; dsimp1,dsimp1,heartbeats,,,0.201,,,,TLA_NOPaxos__d8__local__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,16,early,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.369,,,,TLA_NOPaxos__d16__early__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,16,local,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.342,,,,TLA_NOPaxos__d16__local__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,32,early,True,simp_steps,N:S,Simplifier step limit; nextSimp,nextSimp,simp_steps,,,0.659,,,,TLA_NOPaxos__d32__early__default
+TLA_NOPaxos,Examples/TLA/NOPaxos.lean,32,local,True,heartbeat,N:B,Heartbeat limit; nextSimp,nextSimp,heartbeats,,,0.682,,,,TLA_NOPaxos__d32__local__default
+TLA_Paxos,Examples/TLA/Paxos.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.745,,0.139,,,,TLA_Paxos__d1__early__default
+TLA_Paxos,Examples/TLA/Paxos.lean,1,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.852,,0.126,,,,TLA_Paxos__d1__local__default
+TLA_Paxos,Examples/TLA/Paxos.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.29,,0.158,,,,TLA_Paxos__d2__early__default
+TLA_Paxos,Examples/TLA/Paxos.lean,2,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.592,,0.14,,,,TLA_Paxos__d2__local__default
+TLA_Paxos,Examples/TLA/Paxos.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,2.85,,0.216,,,,TLA_Paxos__d4__early__default
+TLA_Paxos,Examples/TLA/Paxos.lean,4,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,3.066,,0.161,,,,TLA_Paxos__d4__local__default
+TLA_Paxos,Examples/TLA/Paxos.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,6.003,,0.197,,,,TLA_Paxos__d8__early__default
+TLA_Paxos,Examples/TLA/Paxos.lean,8,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,6.658,,0.178,,,,TLA_Paxos__d8__local__default
+TLA_Paxos,Examples/TLA/Paxos.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,13.368,,0.269,,,,TLA_Paxos__d16__early__default
+TLA_Paxos,Examples/TLA/Paxos.lean,16,local,True,heartbeat,Z:B,Heartbeat limit; normalize,normalize,heartbeats,16.265,,0.267,,,,TLA_Paxos__d16__local__default
+TLA_Paxos,Examples/TLA/Paxos.lean,32,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.511,,,,TLA_Paxos__d32__early__default
+TLA_Paxos,Examples/TLA/Paxos.lean,32,local,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.452,,,,TLA_Paxos__d32__local__default
+TLA_Peterson,Examples/TLA/Peterson.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.236,0.281,0.041,0.034,0.034,0.315,TLA_Peterson__d1__early__default
+TLA_Peterson,Examples/TLA/Peterson.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.226,0.267,0.041,0.03,0.03,0.297,TLA_Peterson__d1__local__default
+TLA_Peterson,Examples/TLA/Peterson.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.351,0.412,0.048,0.068,0.068,0.48,TLA_Peterson__d2__early__default
+TLA_Peterson,Examples/TLA/Peterson.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.383,0.455,0.046,0.055,0.055,0.51,TLA_Peterson__d2__local__default
+TLA_Peterson,Examples/TLA/Peterson.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.684,0.781,0.053,0.339,0.339,1.12,TLA_Peterson__d4__early__default
+TLA_Peterson,Examples/TLA/Peterson.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.594,0.691,0.05,0.491,0.491,1.182,TLA_Peterson__d4__local__default
+TLA_Peterson,Examples/TLA/Peterson.lean,8,early,True,unsat,UNSAT,Solver returned UNSAT,,,1.282,1.442,0.064,8.172,8.172,9.614,TLA_Peterson__d8__early__default
+TLA_Peterson,Examples/TLA/Peterson.lean,8,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.226,1.413,0.083,10.022,,,TLA_Peterson__d8__local__default
+TLA_Peterson,Examples/TLA/Peterson.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.762,3.077,0.101,10.02,,,TLA_Peterson__d16__early__default
+TLA_Peterson,Examples/TLA/Peterson.lean,16,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.725,3.161,0.13,10.022,,,TLA_Peterson__d16__local__default
+TLA_Peterson,Examples/TLA/Peterson.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,7.192,7.854,0.23,10.024,,,TLA_Peterson__d32__early__default
+TLA_Peterson,Examples/TLA/Peterson.lean,32,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,5.557,6.341,0.217,10.024,,,TLA_Peterson__d32__local__default
+TLA_Raft,Examples/TLA/Raft.lean,1,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,5.553,,0.045,,,,TLA_Raft__d1__early__default
+TLA_Raft,Examples/TLA/Raft.lean,1,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,3.506,,0.057,,,,TLA_Raft__d1__local__default
+TLA_Raft,Examples/TLA/Raft.lean,2,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,11.918,,0.054,,,,TLA_Raft__d2__early__default
+TLA_Raft,Examples/TLA/Raft.lean,2,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,5.818,,0.054,,,,TLA_Raft__d2__local__default
+TLA_Raft,Examples/TLA/Raft.lean,4,early,True,heartbeat,D:B,Heartbeat limit; destruct,destruct,heartbeats,,,0.084,,,,TLA_Raft__d4__early__default
+TLA_Raft,Examples/TLA/Raft.lean,4,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,13.521,,0.072,,,,TLA_Raft__d4__local__default
+TLA_Raft,Examples/TLA/Raft.lean,8,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.128,,,,TLA_Raft__d8__early__default
+TLA_Raft,Examples/TLA/Raft.lean,8,local,True,heartbeat,M:B,Heartbeat limit; smtSimp,smtSimp,heartbeats,,,0.147,,,,TLA_Raft__d8__local__default
+TLA_Raft,Examples/TLA/Raft.lean,16,early,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.209,,,,TLA_Raft__d16__early__default
+TLA_Raft,Examples/TLA/Raft.lean,16,local,True,heartbeat,H:B,Heartbeat limit; hoist,hoist,heartbeats,,,0.196,,,,TLA_Raft__d16__local__default
+TLA_Raft,Examples/TLA/Raft.lean,32,early,True,heartbeat,N:B,Heartbeat limit; nextSimp,nextSimp,heartbeats,,,0.413,,,,TLA_Raft__d32__early__default
+TLA_Raft,Examples/TLA/Raft.lean,32,local,True,heartbeat,N:B,Heartbeat limit; nextSimp,nextSimp,heartbeats,,,0.468,,,,TLA_Raft__d32__local__default
+TLA_Room,Examples/TLA/Room.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.287,,0.024,,,,TLA_Room__d1__early__default
+TLA_Room,Examples/TLA/Room.lean,1,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.247,,0.023,,,,TLA_Room__d1__local__default
+TLA_Room,Examples/TLA/Room.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.345,,0.033,,,,TLA_Room__d2__early__default
+TLA_Room,Examples/TLA/Room.lean,2,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.405,,0.034,,,,TLA_Room__d2__local__default
+TLA_Room,Examples/TLA/Room.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.674,,0.039,,,,TLA_Room__d4__early__default
+TLA_Room,Examples/TLA/Room.lean,4,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.666,,0.043,,,,TLA_Room__d4__local__default
+TLA_Room,Examples/TLA/Room.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,1.148,,0.047,,,,TLA_Room__d8__early__default
+TLA_Room,Examples/TLA/Room.lean,8,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,1.103,,0.051,,,,TLA_Room__d8__local__default
+TLA_Room,Examples/TLA/Room.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.713,,0.097,,,,TLA_Room__d16__early__default
+TLA_Room,Examples/TLA/Room.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.365,,0.086,,,,TLA_Room__d16__local__default
+TLA_Room,Examples/TLA/Room.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,6.442,,0.214,,,,TLA_Room__d32__early__default
+TLA_Room,Examples/TLA/Room.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,5.173,,0.178,,,,TLA_Room__d32__local__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,1,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.12,,0.014,,,,TLA_SimpleAllocator__d1__early__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,1,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.21,,0.016,,,,TLA_SimpleAllocator__d1__local__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,2,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.164,,0.016,,,,TLA_SimpleAllocator__d2__early__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,2,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.224,,0.021,,,,TLA_SimpleAllocator__d2__local__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,4,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.289,,0.024,,,,TLA_SimpleAllocator__d4__early__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,4,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.321,,0.025,,,,TLA_SimpleAllocator__d4__local__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,8,early,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.583,,0.035,,,,TLA_SimpleAllocator__d8__early__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,8,local,True,embedding,E:!,SMT embedding failure,embedding,type_mismatch,0.55,,0.035,,,,TLA_SimpleAllocator__d8__local__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,16,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,1.271,,0.052,,,,TLA_SimpleAllocator__d16__early__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,1.21,,0.062,,,,TLA_SimpleAllocator__d16__local__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,32,early,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,3.146,,0.092,,,,TLA_SimpleAllocator__d32__early__default
+TLA_SimpleAllocator,Examples/TLA/SimpleAllocator.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.262,,0.094,,,,TLA_SimpleAllocator__d32__local__default
+TLA_Traffic,Examples/TLA/Traffic.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.185,0.215,0.017,0.016,0.016,0.231,TLA_Traffic__d1__early__default
+TLA_Traffic,Examples/TLA/Traffic.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.149,0.175,0.014,0.015,0.015,0.19,TLA_Traffic__d1__local__default
+TLA_Traffic,Examples/TLA/Traffic.lean,2,early,True,sat,SAT,Solver returned SAT,,,0.218,0.255,0.015,0.019,0.019,0.274,TLA_Traffic__d2__early__default
+TLA_Traffic,Examples/TLA/Traffic.lean,2,local,True,sat,SAT,Solver returned SAT,,,0.219,0.254,0.016,0.018,0.018,0.272,TLA_Traffic__d2__local__default
+TLA_Traffic,Examples/TLA/Traffic.lean,4,early,True,sat,SAT,Solver returned SAT,,,0.386,0.442,0.017,0.02,0.02,0.462,TLA_Traffic__d4__early__default
+TLA_Traffic,Examples/TLA/Traffic.lean,4,local,True,sat,SAT,Solver returned SAT,,,0.404,0.463,0.02,0.043,0.043,0.506,TLA_Traffic__d4__local__default
+TLA_Traffic,Examples/TLA/Traffic.lean,8,early,True,sat,SAT,Solver returned SAT,,,0.741,0.83,0.025,0.024,0.024,0.854,TLA_Traffic__d8__early__default
+TLA_Traffic,Examples/TLA/Traffic.lean,8,local,True,sat,SAT,Solver returned SAT,,,0.693,0.789,0.028,0.188,0.188,0.977,TLA_Traffic__d8__local__default
+TLA_Traffic,Examples/TLA/Traffic.lean,16,early,True,sat,SAT,Solver returned SAT,,,1.715,1.881,0.038,0.05,0.05,1.931,TLA_Traffic__d16__early__default
+TLA_Traffic,Examples/TLA/Traffic.lean,16,local,True,sat,SAT,Solver returned SAT,,,1.616,1.825,0.045,0.869,0.869,2.694,TLA_Traffic__d16__local__default
+TLA_Traffic,Examples/TLA/Traffic.lean,32,early,True,sat,SAT,Solver returned SAT,,,4.464,4.839,0.071,0.139,0.139,4.978,TLA_Traffic__d32__early__default
+TLA_Traffic,Examples/TLA/Traffic.lean,32,local,True,sat,SAT,Solver returned SAT,,,3.391,3.785,0.085,8.108,8.108,11.893,TLA_Traffic__d32__local__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.171,0.203,0.022,0.038,0.038,0.241,TLA_TwoPhaseCommit__d1__early__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.24,0.273,0.028,0.029,0.029,0.302,TLA_TwoPhaseCommit__d1__local__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.261,0.307,0.028,0.106,0.106,0.413,TLA_TwoPhaseCommit__d2__early__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.273,0.32,0.029,0.072,0.072,0.392,TLA_TwoPhaseCommit__d2__local__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.499,0.576,0.035,1.14,1.14,1.716,TLA_TwoPhaseCommit__d4__early__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.48,0.554,0.036,0.474,0.474,1.028,TLA_TwoPhaseCommit__d4__local__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.037,1.16,0.058,10.017,,,TLA_TwoPhaseCommit__d8__early__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,8,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.994,1.138,0.059,5.048,5.048,6.186,TLA_TwoPhaseCommit__d8__local__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,2.067,2.311,0.085,10.027,,,TLA_TwoPhaseCommit__d16__early__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,16,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.899,2.149,0.093,10.019,,,TLA_TwoPhaseCommit__d16__local__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,5.021,5.532,0.192,10.037,,,TLA_TwoPhaseCommit__d32__early__default
+TLA_TwoPhaseCommit,Examples/TLA/TwoPhaseCommit.lean,32,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.502,5.064,0.212,10.048,,,TLA_TwoPhaseCommit__d32__local__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.364,0.567,0.027,0.031,0.031,0.598,Tutorial_FloodSet__d1__early__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.248,0.417,0.019,0.029,0.029,0.446,Tutorial_FloodSet__d1__local__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.511,0.967,0.02,0.133,0.133,1.1,Tutorial_FloodSet__d2__early__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.382,0.79,0.02,0.111,0.111,0.901,Tutorial_FloodSet__d2__local__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,4,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.261,2.512,0.024,10.015,,,Tutorial_FloodSet__d4__early__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,4,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.754,2.06,0.031,10.019,,,Tutorial_FloodSet__d4__local__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,3.522,8.094,0.029,10.019,,,Tutorial_FloodSet__d8__early__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,8,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.292,6.858,0.033,10.017,,,Tutorial_FloodSet__d8__local__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,16,early,True,simp_steps,H:S,Simplifier step limit; hoist,hoist,simp_steps,,,0.041,,,,Tutorial_FloodSet__d16__early__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,16,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,2.817,,0.05,,,,Tutorial_FloodSet__d16__local__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,32,early,True,simp_steps,H:S,Simplifier step limit; hoist,hoist,simp_steps,,,0.072,,,,Tutorial_FloodSet__d32__early__default
+Tutorial_FloodSet,Examples/Tutorial/FloodSet.lean,32,local,True,recursion,E:R,Recursion limit; embedding,embedding,recursion,5.681,,0.085,,,,Tutorial_FloodSet__d32__local__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.107,0.138,0.014,0.024,0.024,0.162,Tutorial_POPL26_RingDec__d1__early__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.143,0.178,0.014,0.024,0.024,0.202,Tutorial_POPL26_RingDec__d1__local__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.205,0.252,0.016,0.04,0.04,0.292,Tutorial_POPL26_RingDec__d2__early__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.218,0.27,0.016,0.033,0.033,0.303,Tutorial_POPL26_RingDec__d2__local__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.467,0.558,0.019,0.134,0.134,0.692,Tutorial_POPL26_RingDec__d4__early__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.396,0.485,0.02,0.099,0.099,0.584,Tutorial_POPL26_RingDec__d4__local__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.777,0.894,0.025,10.012,,,Tutorial_POPL26_RingDec__d8__early__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,8,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.754,0.874,0.025,10.015,,,Tutorial_POPL26_RingDec__d8__local__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.6,1.806,0.038,10.016,,,Tutorial_POPL26_RingDec__d16__early__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,16,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.341,1.556,0.037,10.016,,,Tutorial_POPL26_RingDec__d16__local__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.195,4.622,0.067,10.023,,,Tutorial_POPL26_RingDec__d32__early__default
+Tutorial_POPL26_RingDec,Examples/Tutorial/POPL26/RingDec.lean,32,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,3.532,3.974,0.072,10.022,,,Tutorial_POPL26_RingDec__d32__local__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.138,,0.015,,,,Tutorial_POPL26_RingFin__d1__early__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,1,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.125,,0.014,,,,Tutorial_POPL26_RingFin__d1__local__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.231,,0.016,,,,Tutorial_POPL26_RingFin__d2__early__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,2,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.226,,0.016,,,,Tutorial_POPL26_RingFin__d2__local__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.422,,0.017,,,,Tutorial_POPL26_RingFin__d4__early__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,4,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.403,,0.018,,,,Tutorial_POPL26_RingFin__d4__local__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.754,,0.026,,,,Tutorial_POPL26_RingFin__d8__early__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,8,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.73,,0.02,,,,Tutorial_POPL26_RingFin__d8__local__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,16,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.655,,0.033,,,,Tutorial_POPL26_RingFin__d16__early__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,16,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.628,,0.032,,,,Tutorial_POPL26_RingFin__d16__local__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,32,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,3.811,,0.059,,,,Tutorial_POPL26_RingFin__d32__early__default
+Tutorial_POPL26_RingFin,Examples/Tutorial/POPL26/RingFin.lean,32,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,3.255,,0.067,,,,Tutorial_POPL26_RingFin__d32__local__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,1,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.17,,0.01,,,,Tutorial_POPL26_RingNat__d1__early__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,1,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.259,,0.013,,,,Tutorial_POPL26_RingNat__d1__local__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,2,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.31,,0.012,,,,Tutorial_POPL26_RingNat__d2__early__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,2,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.346,,0.012,,,,Tutorial_POPL26_RingNat__d2__local__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,4,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.527,,0.012,,,,Tutorial_POPL26_RingNat__d4__early__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,4,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.607,,0.014,,,,Tutorial_POPL26_RingNat__d4__local__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,8,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,1.081,,0.019,,,,Tutorial_POPL26_RingNat__d8__early__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,8,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,0.989,,0.015,,,,Tutorial_POPL26_RingNat__d8__local__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,16,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.159,,0.02,,,,Tutorial_POPL26_RingNat__d16__early__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,16,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,2.041,,0.02,,,,Tutorial_POPL26_RingNat__d16__local__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,32,early,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,5.527,,0.042,,,,Tutorial_POPL26_RingNat__d32__early__default
+Tutorial_POPL26_RingNat,Examples/Tutorial/POPL26/RingNat.lean,32,local,True,translation,T:!,SMT translation/serialization failure,translate,lean_error,4.923,,0.036,,,,Tutorial_POPL26_RingNat__d32__local__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,1,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.165,0.204,0.016,0.028,0.028,0.232,Tutorial_Ring__d1__early__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,1,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.145,0.18,0.015,0.024,0.024,0.204,Tutorial_Ring__d1__local__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,2,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.259,0.315,0.02,0.036,0.036,0.351,Tutorial_Ring__d2__early__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,2,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.214,0.261,0.016,0.053,0.053,0.314,Tutorial_Ring__d2__local__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,4,early,True,unsat,UNSAT,Solver returned UNSAT,,,0.433,0.502,0.031,0.132,0.132,0.634,Tutorial_Ring__d4__early__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,4,local,True,unsat,UNSAT,Solver returned UNSAT,,,0.463,0.544,0.022,0.226,0.226,0.77,Tutorial_Ring__d4__local__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,8,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.849,0.967,0.024,10.017,,,Tutorial_Ring__d8__early__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,8,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,0.915,1.057,0.024,10.012,,,Tutorial_Ring__d8__local__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,16,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.839,2.056,0.045,10.019,,,Tutorial_Ring__d16__early__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,16,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,1.674,1.948,0.041,10.014,,,Tutorial_Ring__d16__local__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,32,early,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.736,5.196,0.075,10.039,,,Tutorial_Ring__d32__early__default
+Tutorial_Ring,Examples/Tutorial/Ring.lean,32,local,True,solver_timeout,Q:T,Solver timeout,solver,solver_timeout,4.498,5.004,0.104,10.023,,,Tutorial_Ring__d32__local__default

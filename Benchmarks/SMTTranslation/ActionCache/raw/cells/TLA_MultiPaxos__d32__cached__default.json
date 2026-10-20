@@ -1,0 +1,220 @@
+{
+  "row": {
+    "cell_id": "TLA_MultiPaxos__d32__cached__default",
+    "model": "TLA_MultiPaxos",
+    "path": "Examples/TLA/MultiPaxos.lean",
+    "module": "MultiPaxos",
+    "depth": 32,
+    "variant": "cached",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "dsimp2",
+    "failure_kind": "heartbeats",
+    "failure_message": "/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__cached__default__batch1.lean:654:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached\n\nNote: Use `set_option maxHeartbeats <num>` to set the limit.\n\nHint: Additional diagnostic information may be available using the `set_option diagnostics true` command.\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 754,
+    "batch_id": "TLA_MultiPaxos__cached__default__batch1",
+    "batch_setup_ms": 22466,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-action-cache/results/queries/TLA_MultiPaxos__d32__cached__default.smt2",
+    "source_path": "/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__cached__default__batch1.lean",
+    "event_path": "/tmp/veil-action-cache/results/events/TLA_MultiPaxos__d32__cached__default.jsonl",
+    "translation_log": "/tmp/veil-action-cache/results/logs/TLA_MultiPaxos__d32__cached__default.translation.log",
+    "solver_log": "/tmp/veil-action-cache/results/logs/TLA_MultiPaxos__d32__cached__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_MultiPaxos",
+    "path": "Examples/TLA/MultiPaxos.lean",
+    "module": "MultiPaxos",
+    "cut_line": 349,
+    "query": "assert (∃ v1 v2 s, Chosen v1 s ∧ Chosen v2 s ∧ v1 ≠ v2)",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "consistency invariant, lines346–347",
+    "notes": "Uses earlier Chosen ghost predicate and collection-backed messages.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "09759f3d884331a9c416cd549d1ca54120f292b5c64a9bf090d2f3255a1e4136"
+  },
+  "original_sha256": "09759f3d884331a9c416cd549d1ca54120f292b5c64a9bf090d2f3255a1e4136",
+  "inherited_setup_options": [],
+  "source_sha256": "546bb8f2f32bc7dcc827cc8c23f2ede6f7bc420a4b0dfae1359e2ddd33f43c03",
+  "batch_log": "/tmp/veil-action-cache/results/batch-logs/TLA_MultiPaxos__cached__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 244613517,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 244614271,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244614271,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 68,
+      "event": "stage",
+      "heartbeats": 148798,
+      "mono_ms": 244614339,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244614340,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 15896,
+      "mono_ms": 244614342,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244614343,
+      "phase": "cached_normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 224,
+      "event": "stage",
+      "heartbeats": 3440277,
+      "mono_ms": 244614567,
+      "phase": "cached_normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244614567,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 14468,
+      "mono_ms": 244614570,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244614570,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2630,
+      "event": "stage",
+      "heartbeats": 38148353,
+      "mono_ms": 244617200,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244617200,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 633,
+      "event": "stage",
+      "heartbeats": 5210021,
+      "mono_ms": 244617833,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244617833,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 13440,
+      "event": "stage",
+      "heartbeats": 142714335,
+      "mono_ms": 244631273,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 244631285,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 244631984,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_MultiPaxos__cached__default__batch1",
+    "source": "/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__cached__default__batch1.lean",
+    "log": "/tmp/veil-action-cache/results/batch-logs/TLA_MultiPaxos__cached__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 95806,
+    "setup_ms": 22466,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__cached__default__batch1.lean"
+    ]
+  }
+}

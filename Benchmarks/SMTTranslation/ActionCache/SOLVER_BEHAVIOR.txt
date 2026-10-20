@@ -1,0 +1,35 @@
+Native solver behavior
+======================
+
+Primary results use the same fresh native cvc5 configuration and 10-second limit for both variants. Query-production gains do not imply solver-search gains.
+
+Primary outcome changes:
+gains:
+  Ivy_Blockchain depth 32: translation_failed → unsat
+  Ivy_PaxosFirstOrder depth 4: solver_timeout → unsat
+  TLA_Traffic depth 32: solver_timeout → sat
+losses:
+  Ivy_Blockchain depth 16: unsat → solver_timeout
+
+Separate controls select matched emitted queries with a definite/timeout change, or a >=3× slowdown above one second. Each selected script and each newly emitted definite query receives two further 10-second replays. Timings below are not pooled with primary results.
+  Ivy_Blockchain__d32__cached__default__repeat2_t10: unsat (2979 ms)
+  Ivy_Blockchain__d32__cached__default__repeat1_t10: unsat (2926 ms)
+  TLA_Traffic__d32__local__default__repeat2_t10: sat (9551 ms)
+  TLA_Traffic__d32__cached__default__repeat2_t10: sat (4591 ms)
+  TLA_Traffic__d32__cached__default__repeat1_t10: sat (3919 ms)
+  TLA_Traffic__d32__local__default__repeat1_t10: solver_timeout (10021 ms)
+  Ivy_PaxosFirstOrder__d4__local__default__repeat2_t10: solver_timeout (10033 ms)
+  Ivy_PaxosFirstOrder__d4__cached__default__repeat2_t10: unsat (4000 ms)
+  Ivy_PaxosFirstOrder__d4__cached__default__repeat1_t10: unsat (4461 ms)
+  Ivy_PaxosFirstOrder__d4__local__default__repeat1_t10: solver_timeout (10023 ms)
+  Ivy_Blockchain__d16__local__default__repeat2_t10: unsat (1105 ms)
+  Ivy_Blockchain__d16__cached__default__repeat2_t10: solver_timeout (10051 ms)
+  Ivy_Blockchain__d16__cached__default__repeat1_t10: solver_timeout (10057 ms)
+  Ivy_Blockchain__d16__local__default__repeat1_t10: unsat (1049 ms)
+
+Separate 30-second follow-ups:
+  TLA_Traffic__d32__local__default: sat (10710 ms)
+  Ivy_PaxosFirstOrder__d4__local__default: unsat (22428 ms)
+  Ivy_Blockchain__d16__cached__default: unsat (17351 ms)
+
+Equivalent assertions and different symbol/proof-normalization order can change cvc5 heuristics. No declaration-order or assertion-grouping change is claimed to cure regressions here. Solver errors are retained separately from native timeouts. Raw queries and replay events are packaged.

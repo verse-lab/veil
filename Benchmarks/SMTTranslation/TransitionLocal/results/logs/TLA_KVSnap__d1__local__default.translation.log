@@ -1,0 +1,177 @@
+/tmp/veil-transition-local/results/batch-sources/TLA_KVSnap__default__batch1.lean:431:2: error: Application type mismatch: The argument
+  fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun kset.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun kset.insert =>
+                forall_congr fun kset.remove =>
+                  forall_congr fun kset.ofList =>
+                    forall_congr fun kset.toList =>
+                      forall_congr fun kset.filter =>
+                        forall_congr fun kset.union =>
+                          forall_congr fun kset.diff =>
+                            forall_congr fun kset.intersection =>
+                              forall_congr fun kset.subsets =>
+                                forall_congr fun keyEnum.allValues =>
+                                  forall_congr fun txEnum.allValues =>
+                                    forall_congr fun pcLabel_Enum.START =>
+                                      forall_congr fun pcLabel_Enum.READ =>
+                                        forall_congr fun pcLabel_Enum.UPDATE =>
+                                          forall_congr fun pcLabel_Enum.COMMIT =>
+                                            forall_congr fun pcLabel_Enum.Done =>
+                                              forall_congr fun __veil_tag.Start =>
+                                                forall_congr fun __veil_tag.Read =>
+                                                  forall_congr fun __veil_tag.Update =>
+                                                    forall_congr fun __veil_tag.Commit =>
+                                                      forall_congr fun st0.store => ⋯))
+has type
+  ∀ (a : ∀ (a₁ : keySet), f a₁ ≥ 0),
+    (∀ (f_1 : key → keySet → Bool) (kset.empty : keySet) (kset.isEmpty : keySet → Bool)
+        (kset.insert kset.remove : key → keySet → keySet) (kset.ofList : List key → keySet)
+        (kset.toList : keySet → List key) (kset.filter : keySet → (key → Bool) → keySet)
+        (kset.union kset.diff kset.intersection : keySet → keySet → keySet) (kset.subsets : keySet → List keySet)
+        (keyEnum.allValues : List key) (txEnum.allValues : List txId)
+        (pcLabel_Enum.START pcLabel_Enum.READ pcLabel_Enum.UPDATE pcLabel_Enum.COMMIT pcLabel_Enum.Done : pcLabel)
+        (__veil_tag.Start __veil_tag.Read __veil_tag.Update __veil_tag.Commit : ActionTag)
+        (st0.store : key → Option txId) (st0.tx : txId → Bool) (st0.missed : txId → keySet) (st0.pc : txId → pcLabel)
+        (st0.snapshotStore : txId → key → Option txId) (st0.read_keys st0.write_keys : txId → keySet)
+        (st0.ops : txId → List (Operation key (Option txId))) (st1.store : key → Option txId) (st1.tx : txId → Bool)
+        (st1.missed : txId → keySet) (st1.pc : txId → pcLabel) (st1.snapshotStore : txId → key → Option txId)
+        (st1.read_keys st1.write_keys : txId → keySet) (st1.ops : txId → List (Operation key (Option txId))),
+        True →
+          (fun a₁ => (f a₁).toNat) kset.empty = 0 →
+            ∀ (kset.empty_count : (fun a₁ => (f a₁).toNat) kset.empty = 0),
+              (∀ (elem : key), f_1 elem kset.empty = false) →
+                ∀ (kset.empty_contains : ∀ (elem : key), f_1 elem kset.empty = false),
+                  (∀ (s : keySet), (kset.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)) →
+                    ∀
+                      (kset.isEmpty_iff_count_zero :
+                        ∀ (s : keySet), (kset.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)),
+                      (∀ (elem : key) (s : keySet), f_1 elem (kset.insert elem s) = true) →
+                        ∀
+                          (kset.contains_insert_self :
+                            ∀ (elem : key) (s : keySet), f_1 elem (kset.insert elem s) = true),
+                          (∀ (elem₁ elem₂ : key) (s : keySet),
+                              ¬elem₁ = elem₂ → f_1 elem₁ (kset.insert elem₂ s) = f_1 elem₁ s) →
+                            ∀
+                              (kset.contains_insert_other :
+                                ∀ (elem₁ elem₂ : key) (s : keySet),
+                                  ¬elem₁ = elem₂ → f_1 elem₁ (kset.insert elem₂ s) = f_1 elem₁ s),
+                              (∀ (elem : key) (s : keySet),
+                                  kset.toList (kset.insert elem (kset.insert elem s)) =
+                                    kset.toList (kset.insert elem s)) →
+                                ∀
+                                  (kset.insert_idempotent :
+                                    ∀ (elem : key) (s : keySet),
+                                      kset.toList (kset.insert elem (kset.insert elem s)) =
+                                        kset.toList (kset.insert elem s)),
+                                  (∀ (elem : key) (s : keySet),
+                                      (fun a₁ => (f a₁).toNat) (kset.insert elem s) =
+                                        if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s
+                                        else (fun a₁ => (f a₁).toNat) s + 1) →
+                                    ∀
+                                      (kset.count_insert :
+                                        ∀ (elem : key) (s : keySet),
+                                          (fun a₁ => (f a₁).toNat) (kset.insert elem s) =
+                                            if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s
+                                            else (fun a₁ => (f a₁).toNat) s + 1),
+                                      (∀ (elem : key) (s : keySet), f_1 elem (kset.remove elem s) = false) →
+                                        ∀
+                                          (kset.contains_remove_self :
+                                            ∀ (elem : key) (s : keySet), f_1 elem (kset.remove elem s) = false),
+                                          (∀ (elem₁ elem₂ : key) (s : keySet),
+                                              ¬elem₁ = elem₂ → f_1 elem₁ (kset.remove elem₂ s) = f_1 elem₁ s) →
+                                            ∀
+                                              (kset.contains_remove_other :
+                                                ∀ (elem₁ elem₂ : key) (s : keySet),
+                                                  ¬elem₁ = elem₂ → f_1 elem₁ (kset.remove elem₂ s) = f_1 elem₁ s),
+                                              (∀ (elem : key) (s : keySet),
+                                                  (fun a₁ => (f a₁).toNat) (kset.remove elem s) =
+                                                    if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s - 1
+                                                    else (fun a₁ => (f a₁).toNat) s) →
+                                                ∀
+                                                  (kset.count_remove :
+                                                    ∀ (elem : key) (s : keySet),
+                                                      (fun a₁ => (f a₁).toNat) (kset.remove elem s) =
+                                                        if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s - 1
+                                                        else (fun a₁ => (f a₁).toNat) s),
+                                                  (∀ (elem : key) (s1 s2 : keySet),
+                                                      f_1 elem (kset.union s1 s2) = (f_1 elem s1 || f_1 elem s2)) →
+                                                    ⋯) =
+      ∀ (a_1 : key → keySet → Prop) (a_2 : keySet) (a_3 : keySet → Prop) (a_4 a_5 : key → keySet → keySet)
+        (a_6 : List key → keySet) (a_7 : keySet → List key) (a_8 : keySet → (key → Bool) → keySet)
+        (a_9 a_10 a_11 : keySet → keySet → keySet) (a_12 : keySet → List keySet) (a_13 : List key) (a_14 : List txId)
+        (a_15 a_16 a_17 a_18 a_19 : pcLabel) (a_20 a_21 a_22 a_23 : ActionTag) (a_24 : key → Option txId)
+        (a_25 : txId → Prop) (a_26 : txId → keySet) (a_27 : txId → pcLabel) (a_28 : txId → key → Option txId)
+        (a_29 a_30 : txId → keySet) (a_31 : txId → List (Operation key (Option txId))) (a_32 : key → Option txId)
+        (a_33 : txId → Prop) (a_34 : txId → keySet) (a_35 : txId → pcLabel) (a_36 : txId → key → Option txId)
+        (a_37 a_38 : txId → keySet) (a_39 : txId → List (Operation key (Option txId))),
+        True →
+          f a_2 = 0 →
+            ∀ (a_42 : f a_2 = 0),
+              (∀ (elem : key), a_1 elem a_2 = False) →
+                ∀ (kset.empty_contains : ∀ (elem : key), a_1 elem a_2 = False),
+                  (∀ (s : keySet), a_3 s = (f s = 0)) →
+                    ∀ (kset.isEmpty_iff_count_zero : ∀ (s : keySet), a_3 s = (f s = 0)),
+                      (∀ (elem : key) (s : keySet), a_1 elem (a_4 elem s)) →
+                        ∀ (kset.contains_insert_self : ∀ (elem : key) (s : keySet), a_1 elem (a_4 elem s)),
+                          (∀ (elem₁ elem₂ : key) (s : keySet), ¬elem₁ = elem₂ → a_1 elem₁ (a_4 elem₂ s) = a_1 elem₁ s) →
+                            ∀
+                              (kset.contains_insert_other :
+                                ∀ (elem₁ elem₂ : key) (s : keySet),
+                                  ¬elem₁ = elem₂ → a_1 elem₁ (a_4 elem₂ s) = a_1 elem₁ s),
+                              (∀ (elem : key) (s : keySet), a_7 (a_4 elem (a_4 elem s)) = a_7 (a_4 elem s)) →
+                                ∀
+                                  (kset.insert_idempotent :
+                                    ∀ (elem : key) (s : keySet), a_7 (a_4 elem (a_4 elem s)) = a_7 (a_4 elem s)),
+                                  (∀ (elem : key) (s : keySet), f (a_4 elem s) = if a_1 elem s then f s else f s + 1) →
+                                    ∀
+                                      (kset.count_insert :
+                                        ∀ (elem : key) (s : keySet),
+                                          f (a_4 elem s) = if a_1 elem s then f s else f s + 1),
+                                      (∀ (elem : key) (s : keySet), a_1 elem (a_5 elem s) = False) →
+                                        ∀
+                                          (kset.contains_remove_self :
+                                            ∀ (elem : key) (s : keySet), a_1 elem (a_5 elem s) = False),
+                                          (∀ (elem₁ elem₂ : key) (s : keySet),
+                                              ¬elem₁ = elem₂ → a_1 elem₁ (a_5 elem₂ s) = a_1 elem₁ s) →
+                                            ∀
+                                              (kset.contains_remove_other :
+                                                ∀ (elem₁ elem₂ : key) (s : keySet),
+                                                  ¬elem₁ = elem₂ → a_1 elem₁ (a_5 elem₂ s) = a_1 elem₁ s),
+                                              (∀ (elem : key) (s : keySet), ⋯) →
+                                                ∀ (kset.count_remove : ∀ (elem : key), ⋯),
+                                                  (∀ (elem : key) (s1 s2 : keySet),
+                                                      a_1 elem (a_9 s1 s2) = (a_1 elem s1 ∨ a_1 elem s2)) →
+                                                    ⋯
+but is expected to have type
+  (∀ (a₁ : keySet), f a₁ ≥ 0) → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (∀ (a₁ : keySet), f a₁ ≥ 0)) fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun kset.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun kset.insert =>
+                forall_congr fun kset.remove =>
+                  forall_congr fun kset.ofList =>
+                    forall_congr fun kset.toList =>
+                      forall_congr fun kset.filter =>
+                        forall_congr fun kset.union =>
+                          forall_congr fun kset.diff =>
+                            forall_congr fun kset.intersection =>
+                              forall_congr fun kset.subsets =>
+                                forall_congr fun keyEnum.allValues =>
+                                  forall_congr fun txEnum.allValues =>
+                                    forall_congr fun pcLabel_Enum.START =>
+                                      forall_congr fun pcLabel_Enum.READ =>
+                                        forall_congr fun pcLabel_Enum.UPDATE =>
+                                          forall_congr fun pcLabel_Enum.COMMIT =>
+                                            forall_congr fun pcLabel_Enum.Done =>
+                                              forall_congr fun __veil_tag.Start =>
+                                                forall_congr fun __veil_tag.Read =>
+                                                  forall_congr fun __veil_tag.Update =>
+                                                    forall_congr fun __veil_tag.Commit => forall_congr ⋯))

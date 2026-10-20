@@ -1,0 +1,402 @@
+{
+  "row": {
+    "cell_id": "Simulate_CheckpointLeaseFailover__d2__cached__default",
+    "model": "Simulate_CheckpointLeaseFailover",
+    "path": "Examples/Simulate/CheckpointLeaseFailover.lean",
+    "module": "CheckpointLeaseFailover",
+    "depth": 2,
+    "variant": "cached",
+    "profile": "default",
+    "status": "unsat",
+    "translation_status": "complete",
+    "solver_status": "unsat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 28,
+    "batch_id": "Simulate_CheckpointLeaseFailover__cached__default__batch1",
+    "batch_setup_ms": 7507,
+    "preprocessing_ms": 134,
+    "smt_preprocessing_ms": 10,
+    "translation_ms": 38,
+    "serialization_ms": 0,
+    "query_total_ms": 182,
+    "solver_ms": 65,
+    "completed_total_ms": 247,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 8909,
+    "query_commands": 61,
+    "query_sha256": "71e53ce65826a8d9788079dcdd32c4327917107c5b528e9f12fea559ad9bc5c0",
+    "query_path": "/tmp/veil-action-cache/results/queries/Simulate_CheckpointLeaseFailover__d2__cached__default.smt2",
+    "source_path": "/tmp/veil-action-cache/results/batch-sources/Simulate_CheckpointLeaseFailover__cached__default__batch1.lean",
+    "event_path": "/tmp/veil-action-cache/results/events/Simulate_CheckpointLeaseFailover__d2__cached__default.jsonl",
+    "translation_log": "/tmp/veil-action-cache/results/logs/Simulate_CheckpointLeaseFailover__d2__cached__default.translation.log",
+    "solver_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Simulate_CheckpointLeaseFailover",
+    "path": "Examples/Simulate/CheckpointLeaseFailover.lean",
+    "module": "CheckpointLeaseFailover",
+    "cut_line": 82,
+    "query": "assert (∃ l expiry now, checkpointed_until l expiry ∧ current_epoch now ∧ epochOrd.le expiry now ∧ active_on_leader l)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "checkpointed_expiry_respected safety, lines77–80",
+    "notes": "Designed for simulation, but retained to expose symbolic-backend limitations.",
+    "category": "Simulate",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "cf9464cb7f1597fcdb4496ba5db410466042dc1da365f9c15e32916cccc61493"
+  },
+  "original_sha256": "cf9464cb7f1597fcdb4496ba5db410466042dc1da365f9c15e32916cccc61493",
+  "inherited_setup_options": [],
+  "source_sha256": "4cd054cc02e72f9754644d4e715dd306c0c1f0df65545bb2f0d7781e5adb1c53",
+  "batch_log": "/tmp/veil-action-cache/results/batch-logs/Simulate_CheckpointLeaseFailover__cached__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 243051901,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 243051929,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243051930,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 9038,
+      "mono_ms": 243051932,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243051932,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 2742,
+      "mono_ms": 243051933,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243051933,
+      "phase": "cached_normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 15,
+      "event": "stage",
+      "heartbeats": 199274,
+      "mono_ms": 243051948,
+      "phase": "cached_normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243051949,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 2850,
+      "mono_ms": 243051950,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243051950,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 30,
+      "event": "stage",
+      "heartbeats": 447430,
+      "mono_ms": 243051980,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243051981,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 10,
+      "event": "stage",
+      "heartbeats": 131768,
+      "mono_ms": 243051991,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243051992,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 67,
+      "event": "stage",
+      "heartbeats": 952531,
+      "mono_ms": 243052059,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243052059,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6,
+      "event": "stage",
+      "heartbeats": 106470,
+      "mono_ms": 243052065,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243052066,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 21438,
+      "mono_ms": 243052068,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 138,
+      "event": "milestone",
+      "mono_ms": 243052068,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243052068,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 18091,
+      "mono_ms": 243052070,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243052070,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 883,
+      "mono_ms": 243052070,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243052070,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 243052070,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243052070,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 243052070,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243052070,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "heartbeats": 103786,
+      "mono_ms": 243052077,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243052077,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 26812,
+      "mono_ms": 243052078,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243052078,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 38,
+      "event": "stage",
+      "heartbeats": 416136,
+      "mono_ms": 243052116,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243052191,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 243052191,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 8909,
+      "commands": 61,
+      "elapsed_ms": 261,
+      "event": "pipeline",
+      "mono_ms": 243052191,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 243052230,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Simulate_CheckpointLeaseFailover__cached__default__batch1",
+    "source": "/tmp/veil-action-cache/results/batch-sources/Simulate_CheckpointLeaseFailover__cached__default__batch1.lean",
+    "log": "/tmp/veil-action-cache/results/batch-logs/Simulate_CheckpointLeaseFailover__cached__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 16814,
+    "setup_ms": 7507,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-action-cache/results/batch-sources/Simulate_CheckpointLeaseFailover__cached__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 65,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unsat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-action-cache/results/events/Simulate_CheckpointLeaseFailover__d2__cached__default.solver.jsonl",
+    "batch_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

@@ -1,0 +1,205 @@
+{
+  "row": {
+    "cell_id": "TLA_German__d32__early__default",
+    "model": "TLA_German",
+    "path": "Examples/TLA/German.lean",
+    "module": "GermanCacheCoherence",
+    "depth": 32,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "smtSimp",
+    "failure_kind": "heartbeats",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/TLA_German__default__batch1.lean:629:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached\n\nNote: Use `set_option maxHeartbeats <num>` to set the limit.\n\nHint: Additional diagnostic information may be available using the `set_option diagnostics true` command.\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 405,
+    "batch_id": "TLA_German__default__batch1",
+    "batch_setup_ms": 18565,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/TLA_German__d32__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/TLA_German__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/TLA_German__d32__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/TLA_German__d32__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/TLA_German__d32__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_German",
+    "path": "Examples/TLA/German.lean",
+    "module": "GermanCacheCoherence",
+    "cut_line": 206,
+    "query": "assert (¬ (∀ i j, i ≠ j → (((cache i).state = cE → (cache j).state = cI) ∧ ((cache i).state = cS → ((cache j).state = cI ∨ (cache j).state = cS)))))",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "ctrlProp invariant, lines197–200",
+    "notes": "Explicitly binds the autoimplicit I/J variables from the source invariant.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "0b1e195a428ca148c3ead2e7b3219f3e613b560e0f0e62d1a924c57ba64d89af"
+  },
+  "original_sha256": "0b1e195a428ca148c3ead2e7b3219f3e613b560e0f0e62d1a924c57ba64d89af",
+  "inherited_setup_options": [],
+  "source_sha256": "dadef1c97cd0618e4a782571cc2528110c70bc24b0e9059c2799d5b34cc7015f",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/TLA_German__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 209006577,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 209006982,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209006982,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 150,
+      "event": "stage",
+      "heartbeats": 407171,
+      "mono_ms": 209007133,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209007133,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6503,
+      "event": "stage",
+      "heartbeats": 65642836,
+      "mono_ms": 209013636,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209013637,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 113,
+      "event": "stage",
+      "heartbeats": 2100057,
+      "mono_ms": 209013750,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209013839,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 19,
+      "event": "stage",
+      "heartbeats": 3414,
+      "mono_ms": 209013858,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209013858,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7375,
+      "event": "stage",
+      "heartbeats": 82821245,
+      "mono_ms": 209021233,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209021234,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 368,
+      "event": "stage",
+      "heartbeats": 4999710,
+      "mono_ms": 209021602,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209021604,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 209026165,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_German__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/TLA_German__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/TLA_German__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 86867,
+    "setup_ms": 18565,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/TLA_German__default__batch1.lean"
+    ]
+  }
+}

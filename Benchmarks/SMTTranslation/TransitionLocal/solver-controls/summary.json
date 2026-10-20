@@ -1,0 +1,667 @@
+{
+  "repeats": 3,
+  "selected_pairs_or_new_queries": 12,
+  "replays": 66,
+  "rows": [
+    {
+      "cell_id": "Ivy_Blockchain__d16__local__default",
+      "model": "Ivy_Blockchain",
+      "depth": 16,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 791,
+      "query_sha256": "c916127f66e85e739138f641174a6afb3a976d50e26c7a660e8f2bc7f44b5bb1",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Ivy_Blockchain__d8__local__default",
+      "model": "Ivy_Blockchain",
+      "depth": 8,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 513,
+      "query_sha256": "bee37adc6885431cc465c24b3cc9a7f1a5af1b8b6080e5893560cce1683084a3",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Ivy_MultiSigAll__d4__early__default",
+      "model": "Ivy_MultiSigAll",
+      "depth": 4,
+      "variant": "early",
+      "solver_status": "timeout",
+      "solver_ms": 10025,
+      "query_sha256": "42e79b698bcfb4c2fbd279b84c7fc07a65c49dba4db0c78f3cdd70c60a163cbe",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Ivy_MultiSigAll__d4__local__default",
+      "model": "Ivy_MultiSigAll",
+      "depth": 4,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 689,
+      "query_sha256": "fdbc933ddf86873d7980fffdaf3a62e96f2947501e4fce55371d752637a5e261",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Ivy_MultiSigMajority__d2__early__default",
+      "model": "Ivy_MultiSigMajority",
+      "depth": 2,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 605,
+      "query_sha256": "729709c8956867f33c31945fe071b33407098ddc9cddae1678702eb649d79ff9",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Ivy_MultiSigMajority__d2__local__default",
+      "model": "Ivy_MultiSigMajority",
+      "depth": 2,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 86,
+      "query_sha256": "cfc0127095aa6dcf4540dc58bf628b4d8dd5fdd4236b4ece4b8d4a51f94d1e67",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Ivy_MultiSigMajority__d4__early__default",
+      "model": "Ivy_MultiSigMajority",
+      "depth": 4,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 8241,
+      "query_sha256": "3a9ee5c0c674f5246e8b1427287dec1346660e25974be1ba63158016512dbac8",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Ivy_MultiSigMajority__d4__local__default",
+      "model": "Ivy_MultiSigMajority",
+      "depth": 4,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 401,
+      "query_sha256": "3a75f37bf7197341853cc50e537ea0dbb028e5611805c7fd97029aa48a1637e9",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Ivy_TwoPhaseCommit__d8__early__default",
+      "model": "Ivy_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 5352,
+      "query_sha256": "ffa4667aa094f768149166abba90d352ca628c9fe33fc06fdb39ac64b57bb049",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Ivy_TwoPhaseCommit__d8__local__default",
+      "model": "Ivy_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "local",
+      "solver_status": "timeout",
+      "solver_ms": 10018,
+      "query_sha256": "dcf7f4aee7ca55cfe981ca0c57b364e7361bc60f6a372eb373a659f1c2cac293",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Simulate_CheckpointLeaseFailover__d16__early__default",
+      "model": "Simulate_CheckpointLeaseFailover",
+      "depth": 16,
+      "variant": "early",
+      "solver_status": "sat",
+      "solver_ms": 8641,
+      "query_sha256": "41b42bb0f398c4a1c080dff7eb48ba0ee84a82f57922991311241f7a05ad48e7",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Simulate_CheckpointLeaseFailover__d16__local__default",
+      "model": "Simulate_CheckpointLeaseFailover",
+      "depth": 16,
+      "variant": "local",
+      "solver_status": "timeout",
+      "solver_ms": 10018,
+      "query_sha256": "92599e462f226591a0f24f013da543112325a0e32d17f52a584c6462dd28e69e",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Synchronous_FloodSet__d4__early__default",
+      "model": "Synchronous_FloodSet",
+      "depth": 4,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 9577,
+      "query_sha256": "735958c7bb6f6d9fcb67e49d42a03f9420b0ec51eebe96de9a8b2789f6b7fb18",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Synchronous_FloodSet__d4__local__default",
+      "model": "Synchronous_FloodSet",
+      "depth": 4,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 1489,
+      "query_sha256": "d57cf7f239c6a06b0ae34f1af131ba6d545df4a067cc836b61a896d4a1078ab2",
+      "repeat": 1
+    },
+    {
+      "cell_id": "TLA_Peterson__d8__early__default",
+      "model": "TLA_Peterson",
+      "depth": 8,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 7148,
+      "query_sha256": "f85b32c7c2d8243b78684da4181b4492fb6a3f497b52634d042223e15d00fbb5",
+      "repeat": 1
+    },
+    {
+      "cell_id": "TLA_Peterson__d8__local__default",
+      "model": "TLA_Peterson",
+      "depth": 8,
+      "variant": "local",
+      "solver_status": "timeout",
+      "solver_ms": 10019,
+      "query_sha256": "3da96e5fea336b34f98a28c42c23697a8b11c3e04d2950952862c788cecb39cc",
+      "repeat": 1
+    },
+    {
+      "cell_id": "TLA_Traffic__d16__early__default",
+      "model": "TLA_Traffic",
+      "depth": 16,
+      "variant": "early",
+      "solver_status": "sat",
+      "solver_ms": 56,
+      "query_sha256": "a1242a5c95536ee5e17b5bf485537fdafcdd09ca21f6420fb4fcbe0fa6a06e77",
+      "repeat": 1
+    },
+    {
+      "cell_id": "TLA_Traffic__d16__local__default",
+      "model": "TLA_Traffic",
+      "depth": 16,
+      "variant": "local",
+      "solver_status": "sat",
+      "solver_ms": 846,
+      "query_sha256": "6671bf976a25707e07e09ca20bf6bd528f57806db4c125b2030af24d4c74ab5d",
+      "repeat": 1
+    },
+    {
+      "cell_id": "TLA_Traffic__d32__early__default",
+      "model": "TLA_Traffic",
+      "depth": 32,
+      "variant": "early",
+      "solver_status": "sat",
+      "solver_ms": 130,
+      "query_sha256": "cb60fe8cdcd14ef120fafae7780b0da2252958172e071448ece0c5e5a341cc96",
+      "repeat": 1
+    },
+    {
+      "cell_id": "TLA_Traffic__d32__local__default",
+      "model": "TLA_Traffic",
+      "depth": 32,
+      "variant": "local",
+      "solver_status": "sat",
+      "solver_ms": 6704,
+      "query_sha256": "8e859c5b84f7026d7ba9f2ab82c9a87b37ac54ddc71935f5e5aa03a3cfe448bd",
+      "repeat": 1
+    },
+    {
+      "cell_id": "TLA_TwoPhaseCommit__d8__early__default",
+      "model": "TLA_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "early",
+      "solver_status": "timeout",
+      "solver_ms": 10016,
+      "query_sha256": "3107c945a7c9b22a5b331a77aee1a8ff84e6fbe46f18fb8b04794e0e76e3d6aa",
+      "repeat": 1
+    },
+    {
+      "cell_id": "TLA_TwoPhaseCommit__d8__local__default",
+      "model": "TLA_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 5272,
+      "query_sha256": "426d53f79a8bfa8e5c072708b74a9390d3a698866dfda5165ad6cba43466ba75",
+      "repeat": 1
+    },
+    {
+      "cell_id": "Ivy_Blockchain__d16__local__default",
+      "model": "Ivy_Blockchain",
+      "depth": 16,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 808,
+      "query_sha256": "c916127f66e85e739138f641174a6afb3a976d50e26c7a660e8f2bc7f44b5bb1",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Ivy_Blockchain__d8__local__default",
+      "model": "Ivy_Blockchain",
+      "depth": 8,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 480,
+      "query_sha256": "bee37adc6885431cc465c24b3cc9a7f1a5af1b8b6080e5893560cce1683084a3",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Ivy_MultiSigAll__d4__early__default",
+      "model": "Ivy_MultiSigAll",
+      "depth": 4,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 9775,
+      "query_sha256": "42e79b698bcfb4c2fbd279b84c7fc07a65c49dba4db0c78f3cdd70c60a163cbe",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Ivy_MultiSigAll__d4__local__default",
+      "model": "Ivy_MultiSigAll",
+      "depth": 4,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 595,
+      "query_sha256": "fdbc933ddf86873d7980fffdaf3a62e96f2947501e4fce55371d752637a5e261",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Ivy_MultiSigMajority__d2__early__default",
+      "model": "Ivy_MultiSigMajority",
+      "depth": 2,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 524,
+      "query_sha256": "729709c8956867f33c31945fe071b33407098ddc9cddae1678702eb649d79ff9",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Ivy_MultiSigMajority__d2__local__default",
+      "model": "Ivy_MultiSigMajority",
+      "depth": 2,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 74,
+      "query_sha256": "cfc0127095aa6dcf4540dc58bf628b4d8dd5fdd4236b4ece4b8d4a51f94d1e67",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Ivy_MultiSigMajority__d4__early__default",
+      "model": "Ivy_MultiSigMajority",
+      "depth": 4,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 7345,
+      "query_sha256": "3a9ee5c0c674f5246e8b1427287dec1346660e25974be1ba63158016512dbac8",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Ivy_MultiSigMajority__d4__local__default",
+      "model": "Ivy_MultiSigMajority",
+      "depth": 4,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 384,
+      "query_sha256": "3a75f37bf7197341853cc50e537ea0dbb028e5611805c7fd97029aa48a1637e9",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Ivy_TwoPhaseCommit__d8__early__default",
+      "model": "Ivy_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 4819,
+      "query_sha256": "ffa4667aa094f768149166abba90d352ca628c9fe33fc06fdb39ac64b57bb049",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Ivy_TwoPhaseCommit__d8__local__default",
+      "model": "Ivy_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 9747,
+      "query_sha256": "dcf7f4aee7ca55cfe981ca0c57b364e7361bc60f6a372eb373a659f1c2cac293",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Simulate_CheckpointLeaseFailover__d16__early__default",
+      "model": "Simulate_CheckpointLeaseFailover",
+      "depth": 16,
+      "variant": "early",
+      "solver_status": "sat",
+      "solver_ms": 8950,
+      "query_sha256": "41b42bb0f398c4a1c080dff7eb48ba0ee84a82f57922991311241f7a05ad48e7",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Simulate_CheckpointLeaseFailover__d16__local__default",
+      "model": "Simulate_CheckpointLeaseFailover",
+      "depth": 16,
+      "variant": "local",
+      "solver_status": "timeout",
+      "solver_ms": 10022,
+      "query_sha256": "92599e462f226591a0f24f013da543112325a0e32d17f52a584c6462dd28e69e",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Synchronous_FloodSet__d4__early__default",
+      "model": "Synchronous_FloodSet",
+      "depth": 4,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 9645,
+      "query_sha256": "735958c7bb6f6d9fcb67e49d42a03f9420b0ec51eebe96de9a8b2789f6b7fb18",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Synchronous_FloodSet__d4__local__default",
+      "model": "Synchronous_FloodSet",
+      "depth": 4,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 1593,
+      "query_sha256": "d57cf7f239c6a06b0ae34f1af131ba6d545df4a067cc836b61a896d4a1078ab2",
+      "repeat": 2
+    },
+    {
+      "cell_id": "TLA_Peterson__d8__early__default",
+      "model": "TLA_Peterson",
+      "depth": 8,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 7230,
+      "query_sha256": "f85b32c7c2d8243b78684da4181b4492fb6a3f497b52634d042223e15d00fbb5",
+      "repeat": 2
+    },
+    {
+      "cell_id": "TLA_Peterson__d8__local__default",
+      "model": "TLA_Peterson",
+      "depth": 8,
+      "variant": "local",
+      "solver_status": "timeout",
+      "solver_ms": 10012,
+      "query_sha256": "3da96e5fea336b34f98a28c42c23697a8b11c3e04d2950952862c788cecb39cc",
+      "repeat": 2
+    },
+    {
+      "cell_id": "TLA_Traffic__d16__early__default",
+      "model": "TLA_Traffic",
+      "depth": 16,
+      "variant": "early",
+      "solver_status": "sat",
+      "solver_ms": 57,
+      "query_sha256": "a1242a5c95536ee5e17b5bf485537fdafcdd09ca21f6420fb4fcbe0fa6a06e77",
+      "repeat": 2
+    },
+    {
+      "cell_id": "TLA_Traffic__d16__local__default",
+      "model": "TLA_Traffic",
+      "depth": 16,
+      "variant": "local",
+      "solver_status": "sat",
+      "solver_ms": 852,
+      "query_sha256": "6671bf976a25707e07e09ca20bf6bd528f57806db4c125b2030af24d4c74ab5d",
+      "repeat": 2
+    },
+    {
+      "cell_id": "TLA_Traffic__d32__early__default",
+      "model": "TLA_Traffic",
+      "depth": 32,
+      "variant": "early",
+      "solver_status": "sat",
+      "solver_ms": 167,
+      "query_sha256": "cb60fe8cdcd14ef120fafae7780b0da2252958172e071448ece0c5e5a341cc96",
+      "repeat": 2
+    },
+    {
+      "cell_id": "TLA_Traffic__d32__local__default",
+      "model": "TLA_Traffic",
+      "depth": 32,
+      "variant": "local",
+      "solver_status": "sat",
+      "solver_ms": 7055,
+      "query_sha256": "8e859c5b84f7026d7ba9f2ab82c9a87b37ac54ddc71935f5e5aa03a3cfe448bd",
+      "repeat": 2
+    },
+    {
+      "cell_id": "TLA_TwoPhaseCommit__d8__early__default",
+      "model": "TLA_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "early",
+      "solver_status": "timeout",
+      "solver_ms": 10017,
+      "query_sha256": "3107c945a7c9b22a5b331a77aee1a8ff84e6fbe46f18fb8b04794e0e76e3d6aa",
+      "repeat": 2
+    },
+    {
+      "cell_id": "TLA_TwoPhaseCommit__d8__local__default",
+      "model": "TLA_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 4689,
+      "query_sha256": "426d53f79a8bfa8e5c072708b74a9390d3a698866dfda5165ad6cba43466ba75",
+      "repeat": 2
+    },
+    {
+      "cell_id": "Ivy_Blockchain__d16__local__default",
+      "model": "Ivy_Blockchain",
+      "depth": 16,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 742,
+      "query_sha256": "c916127f66e85e739138f641174a6afb3a976d50e26c7a660e8f2bc7f44b5bb1",
+      "repeat": 3
+    },
+    {
+      "cell_id": "Ivy_Blockchain__d8__local__default",
+      "model": "Ivy_Blockchain",
+      "depth": 8,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 480,
+      "query_sha256": "bee37adc6885431cc465c24b3cc9a7f1a5af1b8b6080e5893560cce1683084a3",
+      "repeat": 3
+    },
+    {
+      "cell_id": "Ivy_MultiSigAll__d4__early__default",
+      "model": "Ivy_MultiSigAll",
+      "depth": 4,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 9095,
+      "query_sha256": "42e79b698bcfb4c2fbd279b84c7fc07a65c49dba4db0c78f3cdd70c60a163cbe",
+      "repeat": 3
+    },
+    {
+      "cell_id": "Ivy_MultiSigAll__d4__local__default",
+      "model": "Ivy_MultiSigAll",
+      "depth": 4,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 519,
+      "query_sha256": "fdbc933ddf86873d7980fffdaf3a62e96f2947501e4fce55371d752637a5e261",
+      "repeat": 3
+    },
+    {
+      "cell_id": "Ivy_MultiSigMajority__d2__early__default",
+      "model": "Ivy_MultiSigMajority",
+      "depth": 2,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 489,
+      "query_sha256": "729709c8956867f33c31945fe071b33407098ddc9cddae1678702eb649d79ff9",
+      "repeat": 3
+    },
+    {
+      "cell_id": "Ivy_MultiSigMajority__d2__local__default",
+      "model": "Ivy_MultiSigMajority",
+      "depth": 2,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 71,
+      "query_sha256": "cfc0127095aa6dcf4540dc58bf628b4d8dd5fdd4236b4ece4b8d4a51f94d1e67",
+      "repeat": 3
+    },
+    {
+      "cell_id": "Ivy_MultiSigMajority__d4__early__default",
+      "model": "Ivy_MultiSigMajority",
+      "depth": 4,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 6737,
+      "query_sha256": "3a9ee5c0c674f5246e8b1427287dec1346660e25974be1ba63158016512dbac8",
+      "repeat": 3
+    },
+    {
+      "cell_id": "Ivy_MultiSigMajority__d4__local__default",
+      "model": "Ivy_MultiSigMajority",
+      "depth": 4,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 361,
+      "query_sha256": "3a75f37bf7197341853cc50e537ea0dbb028e5611805c7fd97029aa48a1637e9",
+      "repeat": 3
+    },
+    {
+      "cell_id": "Ivy_TwoPhaseCommit__d8__early__default",
+      "model": "Ivy_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 4423,
+      "query_sha256": "ffa4667aa094f768149166abba90d352ca628c9fe33fc06fdb39ac64b57bb049",
+      "repeat": 3
+    },
+    {
+      "cell_id": "Ivy_TwoPhaseCommit__d8__local__default",
+      "model": "Ivy_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "local",
+      "solver_status": "timeout",
+      "solver_ms": 10019,
+      "query_sha256": "dcf7f4aee7ca55cfe981ca0c57b364e7361bc60f6a372eb373a659f1c2cac293",
+      "repeat": 3
+    },
+    {
+      "cell_id": "Simulate_CheckpointLeaseFailover__d16__early__default",
+      "model": "Simulate_CheckpointLeaseFailover",
+      "depth": 16,
+      "variant": "early",
+      "solver_status": "sat",
+      "solver_ms": 8557,
+      "query_sha256": "41b42bb0f398c4a1c080dff7eb48ba0ee84a82f57922991311241f7a05ad48e7",
+      "repeat": 3
+    },
+    {
+      "cell_id": "Simulate_CheckpointLeaseFailover__d16__local__default",
+      "model": "Simulate_CheckpointLeaseFailover",
+      "depth": 16,
+      "variant": "local",
+      "solver_status": "timeout",
+      "solver_ms": 10018,
+      "query_sha256": "92599e462f226591a0f24f013da543112325a0e32d17f52a584c6462dd28e69e",
+      "repeat": 3
+    },
+    {
+      "cell_id": "Synchronous_FloodSet__d4__early__default",
+      "model": "Synchronous_FloodSet",
+      "depth": 4,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 8896,
+      "query_sha256": "735958c7bb6f6d9fcb67e49d42a03f9420b0ec51eebe96de9a8b2789f6b7fb18",
+      "repeat": 3
+    },
+    {
+      "cell_id": "Synchronous_FloodSet__d4__local__default",
+      "model": "Synchronous_FloodSet",
+      "depth": 4,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 1552,
+      "query_sha256": "d57cf7f239c6a06b0ae34f1af131ba6d545df4a067cc836b61a896d4a1078ab2",
+      "repeat": 3
+    },
+    {
+      "cell_id": "TLA_Peterson__d8__early__default",
+      "model": "TLA_Peterson",
+      "depth": 8,
+      "variant": "early",
+      "solver_status": "unsat",
+      "solver_ms": 7639,
+      "query_sha256": "f85b32c7c2d8243b78684da4181b4492fb6a3f497b52634d042223e15d00fbb5",
+      "repeat": 3
+    },
+    {
+      "cell_id": "TLA_Peterson__d8__local__default",
+      "model": "TLA_Peterson",
+      "depth": 8,
+      "variant": "local",
+      "solver_status": "timeout",
+      "solver_ms": 10014,
+      "query_sha256": "3da96e5fea336b34f98a28c42c23697a8b11c3e04d2950952862c788cecb39cc",
+      "repeat": 3
+    },
+    {
+      "cell_id": "TLA_Traffic__d16__early__default",
+      "model": "TLA_Traffic",
+      "depth": 16,
+      "variant": "early",
+      "solver_status": "sat",
+      "solver_ms": 62,
+      "query_sha256": "a1242a5c95536ee5e17b5bf485537fdafcdd09ca21f6420fb4fcbe0fa6a06e77",
+      "repeat": 3
+    },
+    {
+      "cell_id": "TLA_Traffic__d16__local__default",
+      "model": "TLA_Traffic",
+      "depth": 16,
+      "variant": "local",
+      "solver_status": "sat",
+      "solver_ms": 792,
+      "query_sha256": "6671bf976a25707e07e09ca20bf6bd528f57806db4c125b2030af24d4c74ab5d",
+      "repeat": 3
+    },
+    {
+      "cell_id": "TLA_Traffic__d32__early__default",
+      "model": "TLA_Traffic",
+      "depth": 32,
+      "variant": "early",
+      "solver_status": "sat",
+      "solver_ms": 110,
+      "query_sha256": "cb60fe8cdcd14ef120fafae7780b0da2252958172e071448ece0c5e5a341cc96",
+      "repeat": 3
+    },
+    {
+      "cell_id": "TLA_Traffic__d32__local__default",
+      "model": "TLA_Traffic",
+      "depth": 32,
+      "variant": "local",
+      "solver_status": "sat",
+      "solver_ms": 6400,
+      "query_sha256": "8e859c5b84f7026d7ba9f2ab82c9a87b37ac54ddc71935f5e5aa03a3cfe448bd",
+      "repeat": 3
+    },
+    {
+      "cell_id": "TLA_TwoPhaseCommit__d8__early__default",
+      "model": "TLA_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "early",
+      "solver_status": "timeout",
+      "solver_ms": 10015,
+      "query_sha256": "3107c945a7c9b22a5b331a77aee1a8ff84e6fbe46f18fb8b04794e0e76e3d6aa",
+      "repeat": 3
+    },
+    {
+      "cell_id": "TLA_TwoPhaseCommit__d8__local__default",
+      "model": "TLA_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "local",
+      "solver_status": "unsat",
+      "solver_ms": 5193,
+      "query_sha256": "426d53f79a8bfa8e5c072708b74a9390d3a698866dfda5165ad6cba43466ba75",
+      "repeat": 3
+    }
+  ]
+}

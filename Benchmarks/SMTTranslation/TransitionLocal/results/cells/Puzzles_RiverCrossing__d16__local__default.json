@@ -1,0 +1,417 @@
+{
+  "row": {
+    "cell_id": "Puzzles_RiverCrossing__d16__local__default",
+    "model": "Puzzles_RiverCrossing",
+    "path": "Examples/Puzzles/RiverCrossing.lean",
+    "module": "RiverCrossing",
+    "depth": 16,
+    "variant": "local",
+    "profile": "default",
+    "status": "unsat",
+    "translation_status": "complete",
+    "solver_status": "unsat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 49,
+    "batch_id": "Puzzles_RiverCrossing__default__batch1",
+    "batch_setup_ms": 7419,
+    "preprocessing_ms": 1045,
+    "smt_preprocessing_ms": 52,
+    "translation_ms": 111,
+    "serialization_ms": 0,
+    "query_total_ms": 1208,
+    "solver_ms": 61,
+    "completed_total_ms": 1269,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 51430,
+    "query_commands": 118,
+    "query_sha256": "5a14ff9623725c2b6929cb3b2489b2f8f2a691d65d5f9b9164c3cc7a5b35c838",
+    "query_path": "/tmp/veil-transition-local/results/queries/Puzzles_RiverCrossing__d16__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Puzzles_RiverCrossing__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Puzzles_RiverCrossing__d16__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Puzzles_RiverCrossing__d16__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Puzzles_RiverCrossing",
+    "path": "Examples/Puzzles/RiverCrossing.lean",
+    "module": "RiverCrossing",
+    "cut_line": 83,
+    "query": "assert (goat_pos = far ∧ wolf_pos = far ∧ cabbage_pos = far ∧ farmer_pos = far)",
+    "query_kind": "puzzle_reachability",
+    "expected_status": null,
+    "query_source": "Negation of unsolved invariant, line81",
+    "notes": "Uses the puzzle objective; retains action safety guards.",
+    "category": "Puzzles",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "50f97ba2920f6f79b9151b582ef40c5f8f74cb5097910fb1f5529f50dffabbd4"
+  },
+  "original_sha256": "50f97ba2920f6f79b9151b582ef40c5f8f74cb5097910fb1f5529f50dffabbd4",
+  "inherited_setup_options": [],
+  "source_sha256": "7bf7f1bf5fca34baa2f7b728c50758a39f902bd35a00317cb4f6187fc45df2db",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Puzzles_RiverCrossing__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207981810,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 207981859,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207981860,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 13659,
+      "mono_ms": 207981863,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207981863,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 5316,
+      "mono_ms": 207981864,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207981864,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 593,
+      "event": "stage",
+      "heartbeats": 7190426,
+      "mono_ms": 207982457,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982457,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 19,
+      "event": "stage",
+      "heartbeats": 303302,
+      "mono_ms": 207982476,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982481,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 4530,
+      "mono_ms": 207982482,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982482,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 95,
+      "event": "stage",
+      "heartbeats": 1482796,
+      "mono_ms": 207982577,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982577,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 34,
+      "event": "stage",
+      "heartbeats": 600572,
+      "mono_ms": 207982612,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982612,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 271,
+      "event": "stage",
+      "heartbeats": 4039518,
+      "mono_ms": 207982883,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982884,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 24,
+      "event": "stage",
+      "heartbeats": 504739,
+      "mono_ms": 207982909,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982909,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 37644,
+      "mono_ms": 207982913,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 1055,
+      "event": "milestone",
+      "mono_ms": 207982914,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982914,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 34521,
+      "mono_ms": 207982917,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982917,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 1867,
+      "mono_ms": 207982917,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982917,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 207982917,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982917,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 207982918,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982918,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 41,
+      "event": "stage",
+      "heartbeats": 673425,
+      "mono_ms": 207982959,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982959,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "heartbeats": 115949,
+      "mono_ms": 207982966,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207982966,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 111,
+      "event": "stage",
+      "heartbeats": 1231395,
+      "mono_ms": 207983077,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207983643,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 207983643,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 51430,
+      "commands": 118,
+      "elapsed_ms": 1784,
+      "event": "pipeline",
+      "mono_ms": 207983644,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207983717,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Puzzles_RiverCrossing__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Puzzles_RiverCrossing__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Puzzles_RiverCrossing__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 24051,
+    "setup_ms": 7419,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Puzzles_RiverCrossing__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 61,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unsat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-transition-local/results/events/Puzzles_RiverCrossing__d16__local__default.solver.jsonl",
+    "batch_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

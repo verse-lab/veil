@@ -1,0 +1,412 @@
+{
+  "row": {
+    "cell_id": "Ivy_NOPaxos__d1__cached__default",
+    "model": "Ivy_NOPaxos",
+    "path": "Examples/Ivy/NOPaxos.lean",
+    "module": "NOPaxos",
+    "depth": 1,
+    "variant": "cached",
+    "profile": "default",
+    "status": "unsat",
+    "translation_status": "complete",
+    "solver_status": "unsat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 41,
+    "batch_id": "Ivy_NOPaxos__cached__default__batch1",
+    "batch_setup_ms": 37509,
+    "preprocessing_ms": 734,
+    "smt_preprocessing_ms": 53,
+    "translation_ms": 149,
+    "serialization_ms": 0,
+    "query_total_ms": 936,
+    "solver_ms": 356,
+    "completed_total_ms": 1292,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 60179,
+    "query_commands": 94,
+    "query_sha256": "14887bbfe25b211b0be2e3c4c7a0e960a282663cc4cd6e8fcc24f51934e9fe93",
+    "query_path": "/tmp/veil-action-cache/results/queries/Ivy_NOPaxos__d1__cached__default.smt2",
+    "source_path": "/tmp/veil-action-cache/results/batch-sources/Ivy_NOPaxos__cached__default__batch1.lean",
+    "event_path": "/tmp/veil-action-cache/results/events/Ivy_NOPaxos__d1__cached__default.jsonl",
+    "translation_log": "/tmp/veil-action-cache/results/logs/Ivy_NOPaxos__d1__cached__default.translation.log",
+    "solver_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_NOPaxos",
+    "path": "Examples/Ivy/NOPaxos.lean",
+    "module": "NOPaxos",
+    "cut_line": 267,
+    "query": "assert (∃ s v1 v2, gh_committed s v1 ∧ gh_committed s v2 ∧ v1 ≠ v2)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "consistency safety, line243",
+    "notes": "Relational Ivy model; distinct from the collection-based TLA/NOPaxos.",
+    "category": "Ivy",
+    "source_options": [
+      {
+        "line": 266,
+        "directive": "set_option maxHeartbeats 10000000"
+      }
+    ],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "054fea72d8e3b51c3b6c9d8cdc55c160dd9667ae4ae4db67da78ba6095fa6741"
+  },
+  "original_sha256": "054fea72d8e3b51c3b6c9d8cdc55c160dd9667ae4ae4db67da78ba6095fa6741",
+  "inherited_setup_options": [
+    {
+      "line": 266,
+      "directive": "set_option maxHeartbeats 10000000"
+    }
+  ],
+  "source_sha256": "d7ffe7309a3d02c5effbf83141c30cbde291befb934f60190a9edf58f7345d24",
+  "batch_log": "/tmp/veil-action-cache/results/batch-logs/Ivy_NOPaxos__cached__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 242203430,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 242203471,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242203472,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 17709,
+      "mono_ms": 242203477,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242203477,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 3944,
+      "mono_ms": 242203479,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242203479,
+      "phase": "cached_normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 39,
+      "event": "stage",
+      "heartbeats": 489936,
+      "mono_ms": 242203518,
+      "phase": "cached_normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242203518,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3550,
+      "mono_ms": 242203520,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242203520,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 77,
+      "event": "stage",
+      "heartbeats": 1051536,
+      "mono_ms": 242203597,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242203597,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 51,
+      "event": "stage",
+      "heartbeats": 762023,
+      "mono_ms": 242203648,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242203649,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 520,
+      "event": "stage",
+      "heartbeats": 6477389,
+      "mono_ms": 242204169,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242204170,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 35,
+      "event": "stage",
+      "heartbeats": 523795,
+      "mono_ms": 242204205,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242204206,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 44105,
+      "mono_ms": 242204210,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 739,
+      "event": "milestone",
+      "mono_ms": 242204210,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242204210,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 40395,
+      "mono_ms": 242204214,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242204214,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 1019,
+      "mono_ms": 242204215,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242204215,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 242204215,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242204215,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 242204215,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242204215,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 42,
+      "event": "stage",
+      "heartbeats": 568391,
+      "mono_ms": 242204257,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242204257,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6,
+      "event": "stage",
+      "heartbeats": 100919,
+      "mono_ms": 242204264,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242204264,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 149,
+      "event": "stage",
+      "heartbeats": 1429688,
+      "mono_ms": 242204413,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 242205009,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 14,
+      "mono_ms": 242205009,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 60179,
+      "commands": 94,
+      "elapsed_ms": 1538,
+      "event": "pipeline",
+      "mono_ms": 242205009,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 242205106,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_NOPaxos__cached__default__batch1",
+    "source": "/tmp/veil-action-cache/results/batch-sources/Ivy_NOPaxos__cached__default__batch1.lean",
+    "log": "/tmp/veil-action-cache/results/batch-logs/Ivy_NOPaxos__cached__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 109648,
+    "setup_ms": 37509,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-action-cache/results/batch-sources/Ivy_NOPaxos__cached__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 356,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unsat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-action-cache/results/events/Ivy_NOPaxos__d1__cached__default.solver.jsonl",
+    "batch_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

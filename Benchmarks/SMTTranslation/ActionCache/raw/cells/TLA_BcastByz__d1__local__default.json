@@ -1,0 +1,356 @@
+{
+  "row": {
+    "cell_id": "TLA_BcastByz__d1__local__default",
+    "model": "TLA_BcastByz",
+    "path": "Examples/TLA/BcastByz.lean",
+    "module": "BcastByz",
+    "depth": 1,
+    "variant": "local",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "type_mismatch",
+    "failure_message": "Application type mismatch: The argument\n  fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun pset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun pset.insert =>\n                forall_congr fun pset.remove =>\n                  forall_congr fun pset.ofList =>\n                    forall_congr fun pset.toList =>\n                      forall_congr fun pset.filter =>\n                        forall_congr fun pset.union =>\n                          forall_congr fun pset.diff =>\n                            forall_congr fun pset.intersection =>\n                              forall_congr fun pset.subsets =>\n                                forall_congr fun PCState_Enum.V0 =>\n                                  forall_congr fun PCState_Enum.V1 =>\n                                    forall_congr fun PCState_Enum.SE =>\n                                      forall_congr fun PCState_Enum.AC =>\n                                        forall_congr fun processEnumerable.allValues =>\n                                          forall_congr fun __veil_tag.Stutter =>\n                                            forall_congr fun __veil_tag.Step_UponV1 =>\n                                              forall_congr fun __veil_tag.Step_UponNonFaulty =>\n                                                forall_congr fun __veil_tag.Step_UponAcceptNotSentBefore =>\n                                                  forall_congr fun __veil_tag.Step_UponAcceptorSentBefore =>\n                                                    Eq.trans Smt.Preprocess.Embedding.forall_nat_as_int._simp_1\n                                                      (forall_congr fun f_3 =>\n                                                        implies_congr_ctx (Eq.refl (f_3 ≥ 0)) ⋯)))\nhas type\n  ∀ (a : ∀ (a₁ : procSet), f a₁ ≥ 0),\n    (∀ (f_1 : process → procSet → Bool) (pset.empty : procSet) (pset.isEmpty : procSet → Bool)\n        (pset.insert pset.remove : process → procSet → procSet) (pset.ofList : List process → procSet)\n        (pset.toList : procSet → List process) (pset.filter : procSet → (process → Bool) → procSet)\n        (pset.union pset.diff pset.intersection : procSet → procSet → procSet) (pset.subsets : procSet → List procSet)\n        (PCState_Enum.V0 PCState_Enum.V1 PCState_Enum.SE PCState_Enum.AC : PCState)\n        (processEnumerable.allValues : List process)\n        (__veil_tag.Stutter __veil_tag.Step_UponV1 __veil_tag.Step_UponNonFaulty __veil_tag.Step_UponAcceptNotSentBefore\n          __veil_tag.Step_UponAcceptorSentBefore : ActionTag)\n        (th.N th.T th.F : Nat) (st0.Corr st0.Faulty : procSet) (st0.pc : process → PCState) (st0.sent : procSet)\n        (st0.rcvd : process → procSet) (st1.Corr st1.Faulty : procSet) (st1.pc : process → PCState) (st1.sent : procSet)\n        (st1.rcvd : process → procSet) (p : process) (x x_1 : procSet),\n        True →\n          (fun a₁ => (f a₁).toNat) pset.empty = 0 →\n            ∀ (pset.empty_count : (fun a₁ => (f a₁).toNat) pset.empty = 0),\n              (∀ (elem : process), f_1 elem pset.empty = false) →\n                ∀ (pset.empty_contains : ∀ (elem : process), f_1 elem pset.empty = false),\n                  (∀ (s : procSet), (pset.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)) →\n                    ∀\n                      (pset.isEmpty_iff_count_zero :\n                        ∀ (s : procSet), (pset.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)),\n                      (∀ (elem : process) (s : procSet), f_1 elem (pset.insert elem s) = true) →\n                        ∀\n                          (pset.contains_insert_self :\n                            ∀ (elem : process) (s : procSet), f_1 elem (pset.insert elem s) = true),\n                          (∀ (elem₁ elem₂ : process) (s : procSet),\n                              ¬elem₁ = elem₂ → f_1 elem₁ (pset.insert elem₂ s) = f_1 elem₁ s) →\n                            ∀\n                              (pset.contains_insert_other :\n                                ∀ (elem₁ elem₂ : process) (s : procSet),\n                                  ¬elem₁ = elem₂ → f_1 elem₁ (pset.insert elem₂ s) = f_1 elem₁ s),\n                              (∀ (elem : process) (s : procSet),\n                                  pset.toList (pset.insert elem (pset.insert elem s)) =\n                                    pset.toList (pset.insert elem s)) →\n                                ∀\n                                  (pset.insert_idempotent :\n                                    ∀ (elem : process) (s : procSet),\n                                      pset.toList (pset.insert elem (pset.insert elem s)) =\n                                        pset.toList (pset.insert elem s)),\n                                  (∀ (elem : process) (s : procSet),\n                                      (fun a₁ => (f a₁).toNat) (pset.insert elem s) =\n                                        if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s\n                                        else (fun a₁ => (f a₁).toNat) s + 1) →\n                                    ∀\n                                      (pset.count_insert :\n                                        ∀ (elem : process) (s : procSet),\n                                          (fun a₁ => (f a₁).toNat) (pset.insert elem s) =\n                                            if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s\n                                            else (fun a₁ => (f a₁).toNat) s + 1),\n                                      (∀ (elem : process) (s : procSet), f_1 elem (pset.remove elem s) = false) →\n                                        ∀\n                                          (pset.contains_remove_self :\n                                            ∀ (elem : process) (s : procSet), f_1 elem (pset.remove elem s) = false),\n                                          (∀ (elem₁ elem₂ : process) (s : procSet),\n                                              ¬elem₁ = elem₂ → f_1 elem₁ (pset.remove elem₂ s) = f_1 elem₁ s) →\n                                            ∀\n                                              (pset.contains_remove_other :\n                                                ∀ (elem₁ elem₂ : process) (s : procSet),\n                                                  ¬elem₁ = elem₂ → f_1 elem₁ (pset.remove elem₂ s) = f_1 elem₁ s),\n                                              (∀ (elem : process) (s : procSet),\n                                                  (fun a₁ => (f a₁).toNat) (pset.remove elem s) =\n                                                    if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s - 1\n                                                    else (fun a₁ => (f a₁).toNat) s) →\n                                                ∀\n                                                  (pset.count_remove :\n                                                    ∀ (elem : process) (s : procSet),\n                                                      (fun a₁ => (f a₁).toNat) (pset.remove elem s) =\n                                                        if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s - 1\n                                                        else (fun a₁ => (f a₁).toNat) s),\n                                                  (∀ (elem : process) (s1 s2 : procSet),\n                                                      f_1 elem (pset.union s1 s2) = (f_1 elem s1 || f_1 elem s2)) →\n                                                    ∀\n                                                      (pset.contains_union :\n                                                        ∀ (elem : process) (s1 s2 : procSet),\n                                                          f_1 elem (pset.union s1 s2) = (f_1 elem s1 || f_1 elem s2)),\n                                                      (∀ (elem : ",
+    "setup_ms": null,
+    "query_elaboration_ms": 66,
+    "batch_id": "TLA_BcastByz__local__default__batch1",
+    "batch_setup_ms": 9484,
+    "preprocessing_ms": 301,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-action-cache/results/queries/TLA_BcastByz__d1__local__default.smt2",
+    "source_path": "/tmp/veil-action-cache/results/batch-sources/TLA_BcastByz__local__default__batch1.lean",
+    "event_path": "/tmp/veil-action-cache/results/events/TLA_BcastByz__d1__local__default.jsonl",
+    "translation_log": "/tmp/veil-action-cache/results/logs/TLA_BcastByz__d1__local__default.translation.log",
+    "solver_log": "/tmp/veil-action-cache/results/logs/TLA_BcastByz__d1__local__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_BcastByz",
+    "path": "Examples/TLA/BcastByz.lean",
+    "module": "BcastByz",
+    "cut_line": 202,
+    "query": "assert (∃ p, isCorrect p ∧ pc p = AC)",
+    "query_kind": "derived_reachability",
+    "expected_status": null,
+    "query_source": "PCState.AC and protocol step actions; no declared protocol safety property",
+    "notes": "Uses correct-process acceptance, rather than the static partition/cardinality sanity invariants. Contains collections and an Enumeration parameter.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "f7aa1867b40e8f453d3e227a8d33bf9c557796034b63a25997ab66de5e4d65c1"
+  },
+  "original_sha256": "f7aa1867b40e8f453d3e227a8d33bf9c557796034b63a25997ab66de5e4d65c1",
+  "inherited_setup_options": [],
+  "source_sha256": "96ef8e2af055ba77971cd826ae5897b025971acde14d925d140ff913a2ea7805",
+  "batch_log": "/tmp/veil-action-cache/results/batch-logs/TLA_BcastByz__local__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 243783260,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 243783326,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783326,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 7413,
+      "mono_ms": 243783328,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783329,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 2877,
+      "mono_ms": 243783329,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783330,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 163,
+      "event": "stage",
+      "heartbeats": 1503061,
+      "mono_ms": 243783494,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783494,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 65978,
+      "mono_ms": 243783499,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783500,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 3096,
+      "mono_ms": 243783502,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783502,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 37,
+      "event": "stage",
+      "heartbeats": 463089,
+      "mono_ms": 243783539,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783540,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 13,
+      "event": "stage",
+      "heartbeats": 184330,
+      "mono_ms": 243783553,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783553,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 65,
+      "event": "stage",
+      "heartbeats": 816624,
+      "mono_ms": 243783619,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783619,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 10,
+      "event": "stage",
+      "heartbeats": 144151,
+      "mono_ms": 243783629,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783629,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 39600,
+      "mono_ms": 243783634,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 308,
+      "event": "milestone",
+      "mono_ms": 243783634,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783634,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 35368,
+      "mono_ms": 243783637,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783637,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 2062,
+      "mono_ms": 243783637,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783637,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 208,
+      "mono_ms": 243783638,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783638,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 56,
+      "mono_ms": 243783638,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783638,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 29,
+      "event": "stage",
+      "heartbeats": 295539,
+      "mono_ms": 243783667,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 243783667,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 911,
+      "error": "Application type mismatch: The argument\n  fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun pset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun pset.insert =>\n                forall_congr fun pset.remove =>\n                  forall_congr fun pset.ofList =>\n                    forall_congr fun pset.toList =>\n                      forall_congr fun pset.filter =>\n                        forall_congr fun pset.union =>\n                          forall_congr fun pset.diff =>\n                            forall_congr fun pset.intersection =>\n                              forall_congr fun pset.subsets =>\n                                forall_congr fun PCState_Enum.V0 =>\n                                  forall_congr fun PCState_Enum.V1 =>\n                                    forall_congr fun PCState_Enum.SE =>\n                                      forall_congr fun PCState_Enum.AC =>\n                                        forall_congr fun processEnumerable.allValues =>\n                                          forall_congr fun __veil_tag.Stutter =>\n                                            forall_congr fun __veil_tag.Step_UponV1 =>\n                                              forall_congr fun __veil_tag.Step_UponNonFaulty =>\n                                                forall_congr fun __veil_tag.Step_UponAcceptNotSentBefore =>\n                                                  forall_congr fun __veil_tag.Step_UponAcceptorSentBefore =>\n                                                    Eq.trans Smt.Preprocess.Embedding.forall_nat_as_int._simp_1\n                                                      (forall_congr fun f_3 =>\n                                                        implies_congr_ctx (Eq.refl (f_3 ≥ 0)) ⋯)))\nhas type\n  ∀ (a : ∀ (a₁ : procSet), f a₁ ≥ 0),\n    (∀ (f_1 : process → procSet → Bool) (pset.empty : procSet) (pset.isEmpty : procSet → Bool)\n        (pset.insert pset.remove : process → procSet → procSet) (pset.ofList : List process → procSet)\n        (pset.toList : procSet → List process) (pset.filter : procSet → (process → Bool) → procSet)\n        (pset.union pset.diff pset.intersection : procSet → procSet → procSet) (pset.subsets : procSet → List procSet)\n        (PCState_Enum.V0 PCState_Enum.V1 PCState_Enum.SE PCState_Enum.AC : PCState)\n        (processEnumerable.allValues : List process)\n        (__veil_tag.Stutter __veil_tag.Step_UponV1 __veil_tag.Step_UponNonFaulty __veil_tag.Step_UponAcceptNotSentBefore\n          __veil_tag.Step_UponAcceptorSentBefore : ActionTag)\n        (th.N th.T th.F : Nat) (st0.Corr st0.Faulty : procSet) (st0.pc : process → PCState) (st0.sent : procSet)\n        (st0.rcvd : process → procSet) (st1.Corr st1.Faulty : procSet) (st1.pc : process → PCState) (st1.sent : procSet)\n        (st1.rcvd : process → procSet) (p : process) (x x_1 : procSet),\n        True →\n          (fun a₁ => (f a₁).toNat) pset.empty = 0 →\n            ∀ (pset.empty_count : (fun a₁ => (f a₁).toNat) pset.empty = 0),\n              (∀ (elem : process), f_1 elem pset.empty = false) →\n                ∀ (pset.empty_contains : ∀ (elem : process), f_1 elem pset.empty = false),\n                  (∀ (s : procSet), (pset.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)) →\n                    ∀\n                      (pset.isEmpty_iff_count_zero :\n                        ∀ (s : procSet), (pset.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)),\n                      (∀ (elem : process) (s : procSet), f_1 elem (pset.insert elem s) = true) →\n                        ∀\n                          (pset.contains_insert_self :\n                            ∀ (elem : process) (s : procSet), f_1 elem (pset.insert elem s) = true),\n                          (∀ (elem₁ elem₂ : process) (s : procSet),\n                              ¬elem₁ = elem₂ → f_1 elem₁ (pset.insert elem₂ s) = f_1 elem₁ s) →\n                            ∀\n                              (pset.contains_insert_other :\n                                ∀ (elem₁ elem₂ : process) (s : procSet),\n                                  ¬elem₁ = elem₂ → f_1 elem₁ (pset.insert elem₂ s) = f_1 elem₁ s),\n                              (∀ (elem : process) (s : procSet),\n                                  pset.toList (pset.insert elem (pset.insert elem s)) =\n                                    pset.toList (pset.insert elem s)) →\n                                ∀\n                                  (pset.insert_idempotent :\n                                    ∀ (elem : process) (s : procSet),\n                                      pset.toList (pset.insert elem (pset.insert elem s)) =\n                                        pset.toList (pset.insert elem s)),\n                                  (∀ (elem : process) (s : procSet),\n                                      (fun a₁ => (f a₁).toNat) (pset.insert elem s) =\n                                        if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s\n                                        else (fun a₁ => (f a₁).toNat) s + 1) →\n                                    ∀\n                                      (pset.count_insert :\n                                        ∀ (elem : process) (s : procSet),\n                                          (fun a₁ => (f a₁).toNat) (pset.insert elem s) =\n                                            if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s\n                                            else (fun a₁ => (f a₁).toNat) s + 1),\n                                      (∀ (elem : process) (s : procSet), f_1 elem (pset.remove elem s) = false) →\n                                        ∀\n                                          (pset.contains_remove_self :\n                                            ∀ (elem : process) (s : procSet), f_1 elem (pset.remove elem s) = false),\n                                          (∀ (elem₁ elem₂ : process) (s : procSet),\n                                              ¬elem₁ = elem₂ → f_1 elem₁ (pset.remove elem₂ s) = f_1 elem₁ s) →\n                                            ∀\n                                              (pset.contains_remove_other :\n                                                ∀ (elem₁ elem₂ : process) (s : procSet),\n                                                  ¬elem₁ = elem₂ → f_1 elem₁ (pset.remove elem₂ s) = f_1 elem₁ s),\n                                              (∀ (elem : process) (s : procSet),\n                                                  (fun a₁ => (f a₁).toNat) (pset.remove elem s) =\n                                                    if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s - 1\n                                                    else (fun a₁ => (f a₁).toNat) s) →\n                                                ∀\n                                                  (pset.count_remove :\n                                                    ∀ (elem : process) (s : procSet),\n                                                      (fun a₁ => (f a₁).toNat) (pset.remove elem s) =\n                                                        if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s - 1\n                                                        else (fun a₁ => (f a₁).toNat) s),\n                                                  (∀ (elem : process) (s1 s2 : procSet),\n                                                      f_1 elem (pset.union s1 s2) = (f_1 elem s1 || f_1 elem s2)) →\n                                                    ∀\n                                                      (pset.contains_union :\n                                                        ∀ (elem : process) (s1 s2 : procSet),\n                                                          f_1 elem (pset.union s1 s2) = (f_1 elem s1 || f_1 elem s2)),\n                                                      (∀ (elem : process) (s1 s2 : procSet),\n                                                          f_1 elem (pset.diff s1 s2) = (f_1 elem s1 && !f_1 elem s2)) →\n                                                        ∀\n                                                          (pset.contains_diff :\n                                                            ∀ (elem : process) (s1 s2 : procSet),\n                                                              f_1 elem (pset.diff s1 s2) =\n                                                                (f_1 elem s1 && !f_1 elem s2)),\n                                                          (∀ (elem : process) (s : procSet),\n                                                              (f_1 elem s = true) = (elem ∈ pset.toList s)) →\n                                                            ⋯) =\n      ∀ (a_1 : process → procSet → Prop) (a_2 : procSet) (a_3 : procSet → Prop) (a_4 a_5 : process → procSet → procSet)\n        (a_6 : List process → procSet) (a_7 : procSet → List process) (a_8 : procSet → (process → Bool) → procSet)\n        (a_9 a_10 a_11 : procSet → procSet → procSet) (a_12 : procSet → List procSet) (a_13 a_14 a_15 a_16 : PCState)\n        (a_17 : List process) (a_18 a_19 a_20 a_21 a_22 : ActionTag) (a_23 : Int),\n        a_23 ≥ 0 →\n          ∀ (a_25 : Int),\n            a_25 ≥ 0 →\n              ∀ (a_27 : Int),\n                a_27 ≥ 0 →\n                  ∀ (a_29 a_30 : procSet) (a_31 : process → PCState) (a_32 : procSet) (a_33 : process → procSet)\n                    (a_34 a_35 : procSet) (a_36 : process → PCState) (a_37 : procSet) (a_38 : process → procSet)\n                    (a_39 : process) (a_40 a_41 : procSet),\n                    True →\n                      f a_2 = 0 →\n                        ∀ (a_44 : f a_2 = 0),\n                          (∀ (elem : process), a_1 elem a_2 = False) →\n                            ∀ (pset.empty_contains : ∀ (elem : process), a_1 elem a_2 = False),\n                              (∀ (s : procSet), a_3 s = (f s = 0)) →\n                                ∀ (pset.isEmpty_iff_count_zero : ∀ (s : procSet), a_3 s = (f s = 0)),\n                                  (∀ (elem : process) (s : procSet), a_1 elem (a_4 elem s)) →\n                                    ∀\n                                      (pset.contains_insert_self :\n                                        ∀ (elem : process) (s : procSet), a_1 elem (a_4 elem s)),\n                                      (∀ (elem₁ elem₂ : process) (s : procSet),\n                                          ¬elem₁ = elem₂ → a_1 elem₁ (a_4 elem₂ s) = a_1 elem₁ s) →\n                                        ∀\n                                          (pset.contains_insert_other :\n                                            ∀ (elem₁ elem₂ : process) (s : procSet),\n                                              ¬elem₁ = elem₂ → a_1 elem₁ (a_4 elem₂ s) = a_1 elem₁ s),\n                                          (∀ (elem : process) (s : procSet),\n                                              a_7 (a_4 elem (a_4 elem s)) = a_7 (a_4 elem s)) →\n                                            ∀\n                                              (pset.insert_idempotent :\n                                                ∀ (elem : process) (s : procSet),\n                                                  a_7 (a_4 elem (a_4 elem s)) = a_7 (a_4 elem s)),\n                                              (∀ (elem : process) (s : procSet),\n                                                  f (a_4 elem s) = if a_1 elem s then f s else f s + 1) →\n                                                ∀\n                                                  (pset.count_insert :\n                                                    ∀ (elem : process) (s : procSet),\n                                                      f (a_4 elem s) = if a_1 elem s then f s else f s + 1),\n                                                  (∀ (elem : process) (s : procSet), a_1 elem (a_5 elem s) = False) →\n                                                    ∀\n                                                      (pset.contains_remove_self :\n                                                        ∀ (elem : process) (s : procSet),\n                                                          a_1 elem (a_5 elem s) = False),\n                                                      (∀ (elem₁ elem₂ : process) (s : procSet),\n                                                          ¬elem₁ = elem₂ → a_1 elem₁ (a_5 elem₂ s) = a_1 elem₁ s) →\n                                                        ∀\n                                                          (pset.contains_remove_other :\n                                                            ∀ (elem₁ elem₂ : process) (s : procSet),\n                                                              ¬elem₁ = elem₂ → a_1 elem₁ (a_5 elem₂ s) = a_1 elem₁ s),\n                                                          (∀ (elem : process), ⋯) → ∀ (pset.count_remove : ⋯), ⋯\nbut is expected to have type\n  (∀ (a₁ : procSet), f a₁ ≥ 0) → ?q₁ = ?q₂\nin the application\n  implies_congr_ctx (Eq.refl (∀ (a₁ : procSet), f a₁ ≥ 0)) fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun pset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun pset.insert =>\n                forall_congr fun pset.remove =>\n                  forall_congr fun pset.ofList =>\n                    forall_congr fun pset.toList =>\n                      forall_congr fun pset.filter =>\n                        forall_congr fun pset.union =>\n                          forall_congr fun pset.diff =>\n                            forall_congr fun pset.intersection =>\n                              forall_congr fun pset.subsets =>\n                                forall_congr fun PCState_Enum.V0 =>\n                                  forall_congr fun PCState_Enum.V1 =>\n                                    forall_congr fun PCState_Enum.SE =>\n                                      forall_congr fun PCState_Enum.AC =>\n                                        forall_congr fun processEnumerable.allValues =>\n                                          forall_congr fun __veil_tag.Stutter =>\n                                            forall_congr fun __veil_tag.Step_UponV1 =>\n                                              forall_congr fun __veil_tag.Step_UponNonFaulty =>\n                                                forall_congr fun __veil_tag.Step_UponAcceptNotSentBefore =>\n                                                  forall_congr fun __veil_tag.Step_UponAcceptorSentBefore =>\n                                                    Eq.trans Smt.Preprocess.Embedding.forall_nat_as_int._simp_1\n                                                      (forall_congr fun f_3 => ⋯)))",
+      "event": "stage",
+      "heartbeats": 3114943,
+      "mono_ms": 243784733,
+      "phase": "embedding",
+      "status": "failed"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 243784866,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_BcastByz__local__default__batch1",
+    "source": "/tmp/veil-action-cache/results/batch-sources/TLA_BcastByz__local__default__batch1.lean",
+    "log": "/tmp/veil-action-cache/results/batch-logs/TLA_BcastByz__local__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 42093,
+    "setup_ms": 9484,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-action-cache/results/batch-sources/TLA_BcastByz__local__default__batch1.lean"
+    ]
+  }
+}

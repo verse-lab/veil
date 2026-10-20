@@ -1,0 +1,372 @@
+{
+  "row": {
+    "cell_id": "StellarConsensus_SCP__d8__local__default",
+    "model": "StellarConsensus_SCP",
+    "path": "Examples/StellarConsensus/SCP.lean",
+    "module": "SCP",
+    "depth": 8,
+    "variant": "local",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "translate",
+    "failure_kind": "lean_error",
+    "failure_message": "cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas",
+    "setup_ms": null,
+    "query_elaboration_ms": 86,
+    "batch_id": "StellarConsensus_SCP__default__batch1",
+    "batch_setup_ms": 27299,
+    "preprocessing_ms": 9299,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/StellarConsensus_SCP__d8__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/StellarConsensus_SCP__d8__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/StellarConsensus_SCP__d8__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/StellarConsensus_SCP__d8__local__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "StellarConsensus_SCP",
+    "path": "Examples/StellarConsensus/SCP.lean",
+    "module": "SCP",
+    "cut_line": 246,
+    "query": "assert (∃ n1 n2 b1 b2 v1 v2, intertwined n1 ∧ intertwined n2 ∧ confirmed_committed n1 b1 v1 ∧ confirmed_committed n2 b2 v2 ∧ v1 ≠ v2)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "intertwined_safe safety, lines218–220",
+    "notes": "Requires prebuilt Examples.StellarConsensus.SCPTheory; manual proof section after #gen_spec is excluded.",
+    "category": "StellarConsensus",
+    "source_options": [],
+    "imports": [
+      "Veil",
+      "Examples.StellarConsensus.SCPTheory"
+    ],
+    "source_sha256": "5efa11b5ea8f24205760bedb19eed6c81e5f3cfe37c647bd0eeb39f202f6c76a"
+  },
+  "original_sha256": "5efa11b5ea8f24205760bedb19eed6c81e5f3cfe37c647bd0eeb39f202f6c76a",
+  "inherited_setup_options": [],
+  "source_sha256": "c5fb713f74a33c16e5455a0bec3420f9de30f4ca4788955bc43602838b2e35eb",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/StellarConsensus_SCP__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208149238,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 208149324,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208149324,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 29,
+      "event": "stage",
+      "heartbeats": 82653,
+      "mono_ms": 208149353,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208149353,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 7158,
+      "mono_ms": 208149355,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208149355,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3368,
+      "event": "stage",
+      "heartbeats": 41346673,
+      "mono_ms": 208152723,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208152723,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 114,
+      "event": "stage",
+      "heartbeats": 1725337,
+      "mono_ms": 208152837,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208152907,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 9366,
+      "mono_ms": 208152910,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208152910,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 783,
+      "event": "stage",
+      "heartbeats": 12172518,
+      "mono_ms": 208153693,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208153693,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1381,
+      "event": "stage",
+      "heartbeats": 18452301,
+      "mono_ms": 208155075,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208155075,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2845,
+      "event": "stage",
+      "heartbeats": 30920585,
+      "mono_ms": 208157920,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208157934,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 770,
+      "event": "stage",
+      "heartbeats": 10902632,
+      "mono_ms": 208158704,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208158706,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 40258,
+      "mono_ms": 208158711,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 9388,
+      "event": "milestone",
+      "mono_ms": 208158712,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208158712,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "heartbeats": 54174,
+      "mono_ms": 208158719,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208158719,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 1899,
+      "mono_ms": 208158719,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208158719,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 208158719,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208158719,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 208158719,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208158719,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 408,
+      "event": "stage",
+      "heartbeats": 3643339,
+      "mono_ms": 208159127,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208159127,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 49,
+      "event": "stage",
+      "heartbeats": 823800,
+      "mono_ms": 208159176,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208159176,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 87,
+      "error": "cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas",
+      "event": "stage",
+      "heartbeats": 857191,
+      "mono_ms": 208159264,
+      "phase": "translate",
+      "status": "failed"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208159590,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "StellarConsensus_SCP__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/StellarConsensus_SCP__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 150365,
+    "setup_ms": 27299,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean"
+    ]
+  }
+}

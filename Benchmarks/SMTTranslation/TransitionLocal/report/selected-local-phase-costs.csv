@@ -1,0 +1,50 @@
+model,selected_exact_depth,query_seconds,nextSimp_seconds,hoist_seconds,other_Veil_seconds,embedding_seconds,other_SMT_seconds,outcome,selection,cell_id
+AWS_AWSBuggy,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+AWS_AWSFixed,4,5.843,0.525,0.015,0.462,4.66,0.181,unsat,largest sampled exact depth with a completed local query,AWS_AWSFixed__d4__local__default
+Ivy_Blockchain,16,11.106,2.85,4.249,3.259,0.027,0.721,unsat,largest sampled exact depth with a completed local query,Ivy_Blockchain__d16__local__default
+Ivy_ChordRingMaintenance,16,10.05,4.925,0.115,3.871,0.045,1.094,solver_error,largest sampled exact depth with a completed local query,Ivy_ChordRingMaintenance__d16__local__default
+Ivy_DecentralizedLock,32,2.774,1.183,0.029,1.248,0.011,0.303,unsat,largest sampled exact depth with a completed local query,Ivy_DecentralizedLock__d32__local__default
+Ivy_MultiSigAll,16,8.593,3.607,0.066,3.99,0.032,0.898,solver_timeout,largest sampled exact depth with a completed local query,Ivy_MultiSigAll__d16__local__default
+Ivy_MultiSigMajority,16,7.828,3.198,0.065,3.716,0.032,0.817,solver_timeout,largest sampled exact depth with a completed local query,Ivy_MultiSigMajority__d16__local__default
+Ivy_NOPaxos,8,13.36,4.854,0.105,6.967,0.043,1.391,solver_timeout,largest sampled exact depth with a completed local query,Ivy_NOPaxos__d8__local__default
+Ivy_PaxosEPR,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+Ivy_PaxosFirstOrder,32,11.753,4.525,0.127,5.803,0.048,1.25,solver_timeout,largest sampled exact depth with a completed local query,Ivy_PaxosFirstOrder__d32__local__default
+Ivy_ReliableBroadcast,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+Ivy_RicartAgrawala,32,4.828,1.881,0.058,2.226,0.023,0.64,solver_timeout,largest sampled exact depth with a completed local query,Ivy_RicartAgrawala__d32__local__default
+Ivy_Ring,32,3.982,1.866,0.047,1.588,0.018,0.463,solver_timeout,largest sampled exact depth with a completed local query,Ivy_Ring__d32__local__default
+Ivy_SuzukiKasami,16,10.871,5.216,0.095,4.305,0.038,1.217,solver_error,largest sampled exact depth with a completed local query,Ivy_SuzukiKasami__d16__local__default
+Ivy_TwoPhaseCommit,32,6.061,2.542,0.06,2.657,0.03,0.772,solver_timeout,largest sampled exact depth with a completed local query,Ivy_TwoPhaseCommit__d32__local__default
+Ivy_VerticalPaxosFirstOrder,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+Puzzles_DieHard,16,2.894,0.631,0.02,0.345,1.743,0.155,solver_timeout,largest sampled exact depth with a completed local query,Puzzles_DieHard__d16__local__default
+Puzzles_Prisoners,16,5.292,0.502,0.017,0.394,4.257,0.122,sat,largest sampled exact depth with a completed local query,Puzzles_Prisoners__d16__local__default
+Puzzles_RiverCrossing,32,2.661,1.411,0.042,0.906,0.014,0.288,unsat,largest sampled exact depth with a completed local query,Puzzles_RiverCrossing__d32__local__default
+Simulate_CheckpointLeaseFailover,32,4.908,1.77,0.049,2.556,0.019,0.514,solver_timeout,largest sampled exact depth with a completed local query,Simulate_CheckpointLeaseFailover__d32__local__default
+Simulate_LeaseKeepaliveRace,32,5.303,2.447,0.051,2.193,0.022,0.59,sat,largest sampled exact depth with a completed local query,Simulate_LeaseKeepaliveRace__d32__local__default
+Simulate_ReliableBroadcast,32,6.059,2.365,0.055,2.962,0.023,0.654,solver_timeout,largest sampled exact depth with a completed local query,Simulate_ReliableBroadcast__d32__local__default
+StellarConsensus_SCP,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+Synchronous_FasterFloodSet,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+Synchronous_FloodSet,8,6.642,0.528,0.225,0.461,5.284,0.144,solver_timeout,largest sampled exact depth with a completed local query,Synchronous_FloodSet__d8__local__default
+TLA_AWSDnsRace,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_Bakery,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_BcastByz,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_BuggyCircularBuffer,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_EPaxos,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_EWD840,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_German,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_KVSnap,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_KeyValueStore,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_MultiPaxos,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_MutexViolation,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_NOPaxos,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_Paxos,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_Peterson,32,6.341,2.658,0.057,2.842,0.025,0.759,solver_timeout,largest sampled exact depth with a completed local query,TLA_Peterson__d32__local__default
+TLA_Raft,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_Room,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_SimpleAllocator,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+TLA_Traffic,32,3.785,1.728,0.057,1.606,0.014,0.38,sat,largest sampled exact depth with a completed local query,TLA_Traffic__d32__local__default
+TLA_TwoPhaseCommit,32,5.064,2.25,0.057,2.195,0.024,0.538,solver_timeout,largest sampled exact depth with a completed local query,TLA_TwoPhaseCommit__d32__local__default
+Tutorial_FloodSet,8,6.858,0.617,0.263,0.412,5.409,0.157,solver_timeout,largest sampled exact depth with a completed local query,Tutorial_FloodSet__d8__local__default
+Tutorial_POPL26_RingDec,32,3.974,1.914,0.051,1.567,0.018,0.424,solver_timeout,largest sampled exact depth with a completed local query,Tutorial_POPL26_RingDec__d32__local__default
+Tutorial_POPL26_RingFin,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+Tutorial_POPL26_RingNat,,,,,,,,no_completed_query,no sampled depth emitted a local query,
+Tutorial_Ring,32,5.004,2.394,0.071,2.033,0.017,0.489,solver_timeout,largest sampled exact depth with a completed local query,Tutorial_Ring__d32__local__default

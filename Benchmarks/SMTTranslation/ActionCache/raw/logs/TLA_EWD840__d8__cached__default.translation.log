@@ -1,0 +1,497 @@
+/tmp/veil-action-cache/results/batch-sources/TLA_EWD840__cached__default__batch1.lean:346:2: error: Application type mismatch: The argument
+  fun a =>
+    implies_congr (Eq.refl True)
+      (implies_congr (Eq.refl (distinctN [Color_Enum.white, Color_Enum.black]))
+        (implies_congr (Eq.refl (∀ (__veil_x : Color), __veil_x = Color_Enum.white ∨ __veil_x = Color_Enum.black))
+          (implies_congr
+            (Eq.refl
+              (distinctN [__veil_tag.InitStateProbe, __veil_tag.PassToken, __veil_tag.SendMsg, __veil_tag.Deactivate]))
+            (implies_congr
+              (Eq.refl
+                (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.InitStateProbe ∨
+                    __veil_x = __veil_tag.PassToken ∨ __veil_x = __veil_tag.SendMsg ∨ __veil_x = __veil_tag.Deactivate))
+              (implies_congr
+                (Eq.trans Int.ofNat_lt._simp_2
+                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁶))
+                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2
+                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁶))
+                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                  fun _tr1_act_SendMsg_arg0_i.isLt =>
+                  implies_congr
+                    (Eq.trans Int.ofNat_lt._simp_2
+                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁵))
+                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                    (forall_prop_domain_congr
+                      (Eq.trans Int.ofNat_lt._simp_2
+                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁵))
+                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                      fun _tr1_act_Deactivate_arg0_i.isLt =>
+                      implies_congr
+                        (Eq.trans Int.ofNat_lt._simp_2
+                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁴))
+                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                        (forall_prop_domain_congr
+                          (Eq.trans Int.ofNat_lt._simp_2
+                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁴))
+                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                          fun _tr2_act_SendMsg_arg0_i.isLt =>
+                          implies_congr
+                            (Eq.trans Int.ofNat_lt._simp_2
+                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²³))
+                                (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                            (forall_prop_domain_congr
+                              (Eq.trans Int.ofNat_lt._simp_2
+                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²³))
+                                  (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                              fun _tr2_act_Deactivate_arg0_i.isLt =>
+                              implies_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²²))
+                                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                (forall_prop_domain_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²²))
+                                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                  fun _tr3_act_SendMsg_arg0_i.isLt =>
+                                  implies_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²¹))
+                                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                    (forall_prop_domain_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²¹))
+                                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                      fun _tr3_act_Deactivate_arg0_i.isLt =>
+                                      implies_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁰))
+                                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                        (forall_prop_domain_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁰))
+                                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                          fun _tr4_act_SendMsg_arg0_i.isLt =>
+                                          implies_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁹))
+                                                (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                            (forall_prop_domain_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁹))
+                                                  (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                              fun _tr4_act_Deactivate_arg0_i.isLt =>
+                                              implies_congr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁸))
+                                                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                                (forall_prop_domain_congr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁸))
+                                                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                                  fun _tr5_act_SendMsg_arg0_i.isLt =>
+                                                  implies_congr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁷))
+                                                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                                    (forall_prop_domain_congr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁷))
+                                                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷))
+                                                            1)))
+                                                      fun _tr5_act_Deactivate_arg0_i.isLt =>
+                                                      implies_congr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶))
+                                                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷))
+                                                              1)))
+                                                        (forall_prop_domain_congr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶))
+                                                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷))
+                                                                1)))
+                                                          fun _tr6_act_SendMsg_arg0_i.isLt =>
+                                                          implies_congr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵))
+                                                                (congrFun'
+                                                                  (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                                            (forall_prop_domain_congr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵))
+                                                                  (congrFun'
+                                                                    (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                                              fun _tr6_act_Deactivate_arg0_i.isLt =>
+                                                              implies_congr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴))
+                                                                    (congrFun'
+                                                                      (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷))
+                                                                      1)))
+                                                                (forall_prop_domain_congr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴))
+                                                                      (congrFun'
+                                                                        (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷))
+                                                                        1)))
+                                                                  fun _tr7_act_SendMsg_arg0_i.isLt =>
+                                                                  implies_congr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³))
+                                                                        (congrFun'
+                                                                          (congrArg HAdd.hAdd
+                                                                            (Int.toNat_of_nonneg a✝²⁷))
+                                                                          1)))
+                                                                    (forall_prop_domain_congr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congr
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³))
+                                                                          (congrFun'
+                                                                            (congrArg HAdd.hAdd
+                                                                              (Int.toNat_of_nonneg a✝²⁷))
+                                                                            1)))
+                                                                      fun _tr7_act_Deactivate_arg0_i.isLt =>
+                                                                      implies_congr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝²⁷))
+                                                                              1)))
+                                                                        (forall_prop_domain_congr
+                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                            (congr
+                                                                              (congrArg LT.lt
+                                                                                (Int.toNat_of_nonneg a✝¹²))
+                                                                              (congrFun'
+                                                                                (congrArg HAdd.hAdd
+                                                                                  (Int.toNat_of_nonneg a✝²⁷))
+                                                                                1)))
+                                                                          fun _tr8_act_SendMsg_arg0_i.isLt =>
+                                                                          ⋯))))))))))))))))))))
+has type
+  ∀ (a : f ≥ 0),
+    (True →
+        distinctN [Color_Enum.white, Color_Enum.black] →
+          (∀ (__veil_x : Color), __veil_x = Color_Enum.white ∨ __veil_x = Color_Enum.black) →
+            distinctN [__veil_tag.InitStateProbe, __veil_tag.PassToken, __veil_tag.SendMsg, __veil_tag.Deactivate] →
+              (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.InitStateProbe ∨
+                    __veil_x = __veil_tag.PassToken ∨
+                      __veil_x = __veil_tag.SendMsg ∨ __veil_x = __veil_tag.Deactivate) →
+                f✝²⁶.toNat < f✝³⁶.toNat + 1 →
+                  ∀ (a : f✝²⁶.toNat < f✝³⁶.toNat + 1),
+                    f✝²⁵.toNat < f✝³⁶.toNat + 1 →
+                      ∀ (_tr1_act_Deactivate_arg0_i.isLt : f✝²⁵.toNat < f✝³⁶.toNat + 1),
+                        f✝²⁴.toNat < f✝³⁶.toNat + 1 →
+                          ∀ (_tr2_act_SendMsg_arg0_i.isLt : f✝²⁴.toNat < f✝³⁶.toNat + 1),
+                            f✝²³.toNat < f✝³⁶.toNat + 1 →
+                              ∀ (_tr2_act_Deactivate_arg0_i.isLt : f✝²³.toNat < f✝³⁶.toNat + 1),
+                                f✝²².toNat < f✝³⁶.toNat + 1 →
+                                  ∀ (_tr3_act_SendMsg_arg0_i.isLt : f✝²².toNat < f✝³⁶.toNat + 1),
+                                    f✝²¹.toNat < f✝³⁶.toNat + 1 →
+                                      ∀ (_tr3_act_Deactivate_arg0_i.isLt : f✝²¹.toNat < f✝³⁶.toNat + 1),
+                                        f✝²⁰.toNat < f✝³⁶.toNat + 1 →
+                                          ∀ (_tr4_act_SendMsg_arg0_i.isLt : f✝²⁰.toNat < f✝³⁶.toNat + 1),
+                                            f✝¹⁹.toNat < f✝³⁶.toNat + 1 →
+                                              ∀ (_tr4_act_Deactivate_arg0_i.isLt : f✝¹⁹.toNat < f✝³⁶.toNat + 1),
+                                                f✝¹⁸.toNat < f✝³⁶.toNat + 1 →
+                                                  ∀ (_tr5_act_SendMsg_arg0_i.isLt : f✝¹⁸.toNat < f✝³⁶.toNat + 1),
+                                                    f✝¹⁷.toNat < f✝³⁶.toNat + 1 →
+                                                      ∀ (_tr5_act_Deactivate_arg0_i.isLt : f✝¹⁷.toNat < f✝³⁶.toNat + 1),
+                                                        f✝¹⁶.toNat < f✝³⁶.toNat + 1 →
+                                                          ∀
+                                                            (_tr6_act_SendMsg_arg0_i.isLt :
+                                                              f✝¹⁶.toNat < f✝³⁶.toNat + 1),
+                                                            f✝¹⁵.toNat < f✝³⁶.toNat + 1 →
+                                                              ∀
+                                                                (_tr6_act_Deactivate_arg0_i.isLt :
+                                                                  f✝¹⁵.toNat < f✝³⁶.toNat + 1),
+                                                                f✝¹⁴.toNat < f✝³⁶.toNat + 1 →
+                                                                  ∀
+                                                                    (_tr7_act_SendMsg_arg0_i.isLt :
+                                                                      f✝¹⁴.toNat < f✝³⁶.toNat + 1),
+                                                                    f✝¹³.toNat < f✝³⁶.toNat + 1 →
+                                                                      ∀
+                                                                        (_tr7_act_Deactivate_arg0_i.isLt :
+                                                                          f✝¹³.toNat < f✝³⁶.toNat + 1),
+                                                                        f✝¹².toNat < f✝³⁶.toNat + 1 →
+                                                                          ∀
+                                                                            (_tr8_act_SendMsg_arg0_i.isLt :
+                                                                              f✝¹².toNat < f✝³⁶.toNat + 1),
+                                                                            f✝¹¹.toNat < f✝³⁶.toNat + 1 →
+                                                                              ∀
+                                                                                (_tr8_act_Deactivate_arg0_i.isLt :
+                                                                                  f✝¹¹.toNat < f✝³⁶.toNat + 1),
+                                                                                f✝⁹.toNat < f✝³⁶.toNat + 1 →
+                                                                                  ∀
+                                                                                    (st0.tpos.isLt :
+                                                                                      f✝⁹.toNat < f✝³⁶.toNat + 1),
+                                                                                    f✝⁸.toNat < f✝³⁶.toNat + 1 →
+                                                                                      ∀
+                                                                                        (st1.tpos.isLt :
+                                                                                          f✝⁸.toNat < f✝³⁶.toNat + 1),
+                                                                                        f✝⁷.toNat < f✝³⁶.toNat + 1 →
+                                                                                          ∀
+                                                                                            (st2.tpos.isLt :
+                                                                                              f✝⁷.toNat <
+                                                                                                f✝³⁶.toNat + 1),
+                                                                                            f✝⁶.toNat < f✝³⁶.toNat + 1 →
+                                                                                              ∀
+                                                                                                (st3.tpos.isLt :
+                                                                                                  f✝⁶.toNat <
+                                                                                                    f✝³⁶.toNat + 1),
+                                                                                                f✝⁵.toNat <
+                                                                                                    f✝³⁶.toNat + 1 →
+                                                                                                  ∀
+                                                                                                    (st4.tpos.isLt :
+                                                                                                      f✝⁵.toNat <
+                                                                                                        f✝³⁶.toNat + 1),
+                                                                                                    f✝⁴.toNat <
+                                                                                                        f✝³⁶.toNat + 1 →
+                                                                                                      ∀
+                                                                                                        (st5.tpos.isLt :
+                                                                                                          f✝⁴.toNat <
+                                                                                                            f✝³⁶.toNat +
+                                                                                                              1),
+                                                                                                        ⋯) =
+      (True →
+        distinctN [Color_Enum.white, Color_Enum.black] →
+          (∀ (__veil_x : Color), __veil_x = Color_Enum.white ∨ __veil_x = Color_Enum.black) →
+            distinctN [__veil_tag.InitStateProbe, __veil_tag.PassToken, __veil_tag.SendMsg, __veil_tag.Deactivate] →
+              (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.InitStateProbe ∨
+                    __veil_x = __veil_tag.PassToken ∨
+                      __veil_x = __veil_tag.SendMsg ∨ __veil_x = __veil_tag.Deactivate) →
+                f✝²⁶ < f✝³⁶ + 1 →
+                  ∀ (a_7 : f✝²⁶ < f✝³⁶ + 1),
+                    f✝²⁵ < f✝³⁶ + 1 →
+                      ∀ (_tr1_act_Deactivate_arg0_i.isLt : f✝²⁵ < f✝³⁶ + 1),
+                        f✝²⁴ < f✝³⁶ + 1 →
+                          ∀ (_tr2_act_SendMsg_arg0_i.isLt : f✝²⁴ < f✝³⁶ + 1),
+                            f✝²³ < f✝³⁶ + 1 →
+                              ∀ (_tr2_act_Deactivate_arg0_i.isLt : f✝²³ < f✝³⁶ + 1),
+                                f✝²² < f✝³⁶ + 1 →
+                                  ∀ (_tr3_act_SendMsg_arg0_i.isLt : f✝²² < f✝³⁶ + 1),
+                                    f✝²¹ < f✝³⁶ + 1 →
+                                      ∀ (_tr3_act_Deactivate_arg0_i.isLt : f✝²¹ < f✝³⁶ + 1),
+                                        f✝²⁰ < f✝³⁶ + 1 →
+                                          ∀ (_tr4_act_SendMsg_arg0_i.isLt : f✝²⁰ < f✝³⁶ + 1),
+                                            f✝¹⁹ < f✝³⁶ + 1 →
+                                              ∀ (_tr4_act_Deactivate_arg0_i.isLt : f✝¹⁹ < f✝³⁶ + 1),
+                                                f✝¹⁸ < f✝³⁶ + 1 →
+                                                  ∀ (_tr5_act_SendMsg_arg0_i.isLt : f✝¹⁸ < f✝³⁶ + 1),
+                                                    f✝¹⁷ < f✝³⁶ + 1 →
+                                                      ∀ (_tr5_act_Deactivate_arg0_i.isLt : f✝¹⁷ < f✝³⁶ + 1),
+                                                        f✝¹⁶ < f✝³⁶ + 1 →
+                                                          ∀ (_tr6_act_SendMsg_arg0_i.isLt : f✝¹⁶ < f✝³⁶ + 1),
+                                                            f✝¹⁵ < f✝³⁶ + 1 →
+                                                              ∀ (_tr6_act_Deactivate_arg0_i.isLt : f✝¹⁵ < f✝³⁶ + 1),
+                                                                f✝¹⁴ < f✝³⁶ + 1 →
+                                                                  ∀ (_tr7_act_SendMsg_arg0_i.isLt : f✝¹⁴ < f✝³⁶ + 1),
+                                                                    f✝¹³ < f✝³⁶ + 1 →
+                                                                      ∀
+                                                                        (_tr7_act_Deactivate_arg0_i.isLt :
+                                                                          f✝¹³ < f✝³⁶ + 1),
+                                                                        f✝¹² < f✝³⁶ + 1 →
+                                                                          ∀
+                                                                            (_tr8_act_SendMsg_arg0_i.isLt :
+                                                                              f✝¹² < f✝³⁶ + 1),
+                                                                            f✝¹¹ < f✝³⁶ + 1 →
+                                                                              ∀
+                                                                                (_tr8_act_Deactivate_arg0_i.isLt :
+                                                                                  f✝¹¹ < f✝³⁶ + 1),
+                                                                                f✝⁹ < f✝³⁶ + 1 →
+                                                                                  ∀ (st0.tpos.isLt : f✝⁹ < f✝³⁶ + 1),
+                                                                                    f✝⁸ < f✝³⁶ + 1 →
+                                                                                      ∀
+                                                                                        (st1.tpos.isLt :
+                                                                                          f✝⁸ < f✝³⁶ + 1),
+                                                                                        f✝⁷ < f✝³⁶ + 1 →
+                                                                                          ∀
+                                                                                            (st2.tpos.isLt :
+                                                                                              f✝⁷ < f✝³⁶ + 1),
+                                                                                            f✝⁶ < f✝³⁶ + 1 →
+                                                                                              ∀
+                                                                                                (st3.tpos.isLt :
+                                                                                                  f✝⁶ < f✝³⁶ + 1),
+                                                                                                f✝⁵ < f✝³⁶ + 1 →
+                                                                                                  ∀
+                                                                                                    (st4.tpos.isLt :
+                                                                                                      f✝⁵ < f✝³⁶ + 1),
+                                                                                                    f✝⁴ < f✝³⁶ + 1 →
+                                                                                                      ∀
+                                                                                                        (st5.tpos.isLt :
+                                                                                                          f✝⁴ <
+                                                                                                            f✝³⁶ + 1),
+                                                                                                        ⋯)
+but is expected to have type
+  f ≥ 0 → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (f ≥ 0)) fun a =>
+    implies_congr (Eq.refl True)
+      (implies_congr (Eq.refl (distinctN [Color_Enum.white, Color_Enum.black]))
+        (implies_congr (Eq.refl (∀ (__veil_x : Color), __veil_x = Color_Enum.white ∨ __veil_x = Color_Enum.black))
+          (implies_congr
+            (Eq.refl
+              (distinctN [__veil_tag.InitStateProbe, __veil_tag.PassToken, __veil_tag.SendMsg, __veil_tag.Deactivate]))
+            (implies_congr
+              (Eq.refl
+                (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.InitStateProbe ∨
+                    __veil_x = __veil_tag.PassToken ∨ __veil_x = __veil_tag.SendMsg ∨ __veil_x = __veil_tag.Deactivate))
+              (implies_congr
+                (Eq.trans Int.ofNat_lt._simp_2
+                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁶))
+                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2
+                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁶))
+                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                  fun _tr1_act_SendMsg_arg0_i.isLt =>
+                  implies_congr
+                    (Eq.trans Int.ofNat_lt._simp_2
+                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁵))
+                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                    (forall_prop_domain_congr
+                      (Eq.trans Int.ofNat_lt._simp_2
+                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁵))
+                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                      fun _tr1_act_Deactivate_arg0_i.isLt =>
+                      implies_congr
+                        (Eq.trans Int.ofNat_lt._simp_2
+                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁴))
+                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                        (forall_prop_domain_congr
+                          (Eq.trans Int.ofNat_lt._simp_2
+                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁴))
+                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                          fun _tr2_act_SendMsg_arg0_i.isLt =>
+                          implies_congr
+                            (Eq.trans Int.ofNat_lt._simp_2
+                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²³))
+                                (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                            (forall_prop_domain_congr
+                              (Eq.trans Int.ofNat_lt._simp_2
+                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²³))
+                                  (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                              fun _tr2_act_Deactivate_arg0_i.isLt =>
+                              implies_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²²))
+                                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                (forall_prop_domain_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²²))
+                                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                  fun _tr3_act_SendMsg_arg0_i.isLt =>
+                                  implies_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²¹))
+                                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                    (forall_prop_domain_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²¹))
+                                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                      fun _tr3_act_Deactivate_arg0_i.isLt =>
+                                      implies_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁰))
+                                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                        (forall_prop_domain_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²⁰))
+                                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                          fun _tr4_act_SendMsg_arg0_i.isLt =>
+                                          implies_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁹))
+                                                (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                            (forall_prop_domain_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁹))
+                                                  (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                              fun _tr4_act_Deactivate_arg0_i.isLt =>
+                                              implies_congr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁸))
+                                                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                                (forall_prop_domain_congr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁸))
+                                                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                                  fun _tr5_act_SendMsg_arg0_i.isLt =>
+                                                  implies_congr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁷))
+                                                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                                    (forall_prop_domain_congr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁷))
+                                                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷))
+                                                            1)))
+                                                      fun _tr5_act_Deactivate_arg0_i.isLt =>
+                                                      implies_congr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶))
+                                                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷))
+                                                              1)))
+                                                        (forall_prop_domain_congr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁶))
+                                                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷))
+                                                                1)))
+                                                          fun _tr6_act_SendMsg_arg0_i.isLt =>
+                                                          implies_congr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵))
+                                                                (congrFun'
+                                                                  (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                                            (forall_prop_domain_congr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁵))
+                                                                  (congrFun'
+                                                                    (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷)) 1)))
+                                                              fun _tr6_act_Deactivate_arg0_i.isLt =>
+                                                              implies_congr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴))
+                                                                    (congrFun'
+                                                                      (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷))
+                                                                      1)))
+                                                                (forall_prop_domain_congr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴))
+                                                                      (congrFun'
+                                                                        (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝²⁷))
+                                                                        1)))
+                                                                  fun _tr7_act_SendMsg_arg0_i.isLt =>
+                                                                  implies_congr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³))
+                                                                        (congrFun'
+                                                                          (congrArg HAdd.hAdd
+                                                                            (Int.toNat_of_nonneg a✝²⁷))
+                                                                          1)))
+                                                                    (forall_prop_domain_congr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congr
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³))
+                                                                          (congrFun'
+                                                                            (congrArg HAdd.hAdd
+                                                                              (Int.toNat_of_nonneg a✝²⁷))
+                                                                            1)))
+                                                                      fun _tr7_act_Deactivate_arg0_i.isLt =>
+                                                                      implies_congr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝²⁷))
+                                                                              1)))
+                                                                        (forall_prop_domain_congr ⋯
+                                                                          ⋯))))))))))))))))))))

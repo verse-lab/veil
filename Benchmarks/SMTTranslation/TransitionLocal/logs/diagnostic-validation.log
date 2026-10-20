@@ -1,0 +1,211 @@
+{
+  "passed": true,
+  "repeated_queries": 66,
+  "step_profile_cells": 36,
+  "profile_complete": 31,
+  "paired_replay_query_hashes": "match primary",
+  "extended_queries": 6,
+  "order_probes": 4,
+  "repeated_summary": [
+    {
+      "model": "Ivy_Blockchain",
+      "depth": 8,
+      "variant": "local",
+      "statuses": {
+        "unsat": 3
+      },
+      "completed_median_ms": 480
+    },
+    {
+      "model": "Ivy_Blockchain",
+      "depth": 16,
+      "variant": "local",
+      "statuses": {
+        "unsat": 3
+      },
+      "completed_median_ms": 791
+    },
+    {
+      "model": "Ivy_MultiSigAll",
+      "depth": 4,
+      "variant": "early",
+      "statuses": {
+        "timeout": 1,
+        "unsat": 2
+      },
+      "completed_median_ms": 9435.0
+    },
+    {
+      "model": "Ivy_MultiSigAll",
+      "depth": 4,
+      "variant": "local",
+      "statuses": {
+        "unsat": 3
+      },
+      "completed_median_ms": 595
+    },
+    {
+      "model": "Ivy_MultiSigMajority",
+      "depth": 2,
+      "variant": "early",
+      "statuses": {
+        "unsat": 3
+      },
+      "completed_median_ms": 524
+    },
+    {
+      "model": "Ivy_MultiSigMajority",
+      "depth": 2,
+      "variant": "local",
+      "statuses": {
+        "unsat": 3
+      },
+      "completed_median_ms": 74
+    },
+    {
+      "model": "Ivy_MultiSigMajority",
+      "depth": 4,
+      "variant": "early",
+      "statuses": {
+        "unsat": 3
+      },
+      "completed_median_ms": 7345
+    },
+    {
+      "model": "Ivy_MultiSigMajority",
+      "depth": 4,
+      "variant": "local",
+      "statuses": {
+        "unsat": 3
+      },
+      "completed_median_ms": 384
+    },
+    {
+      "model": "Ivy_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "early",
+      "statuses": {
+        "unsat": 3
+      },
+      "completed_median_ms": 4819
+    },
+    {
+      "model": "Ivy_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "local",
+      "statuses": {
+        "timeout": 2,
+        "unsat": 1
+      },
+      "completed_median_ms": 9747
+    },
+    {
+      "model": "Simulate_CheckpointLeaseFailover",
+      "depth": 16,
+      "variant": "early",
+      "statuses": {
+        "sat": 3
+      },
+      "completed_median_ms": 8641
+    },
+    {
+      "model": "Simulate_CheckpointLeaseFailover",
+      "depth": 16,
+      "variant": "local",
+      "statuses": {
+        "timeout": 3
+      },
+      "completed_median_ms": null
+    },
+    {
+      "model": "Synchronous_FloodSet",
+      "depth": 4,
+      "variant": "early",
+      "statuses": {
+        "unsat": 3
+      },
+      "completed_median_ms": 9577
+    },
+    {
+      "model": "Synchronous_FloodSet",
+      "depth": 4,
+      "variant": "local",
+      "statuses": {
+        "unsat": 3
+      },
+      "completed_median_ms": 1552
+    },
+    {
+      "model": "TLA_Peterson",
+      "depth": 8,
+      "variant": "early",
+      "statuses": {
+        "unsat": 3
+      },
+      "completed_median_ms": 7230
+    },
+    {
+      "model": "TLA_Peterson",
+      "depth": 8,
+      "variant": "local",
+      "statuses": {
+        "timeout": 3
+      },
+      "completed_median_ms": null
+    },
+    {
+      "model": "TLA_Traffic",
+      "depth": 16,
+      "variant": "early",
+      "statuses": {
+        "sat": 3
+      },
+      "completed_median_ms": 57
+    },
+    {
+      "model": "TLA_Traffic",
+      "depth": 16,
+      "variant": "local",
+      "statuses": {
+        "sat": 3
+      },
+      "completed_median_ms": 846
+    },
+    {
+      "model": "TLA_Traffic",
+      "depth": 32,
+      "variant": "early",
+      "statuses": {
+        "sat": 3
+      },
+      "completed_median_ms": 130
+    },
+    {
+      "model": "TLA_Traffic",
+      "depth": 32,
+      "variant": "local",
+      "statuses": {
+        "sat": 3
+      },
+      "completed_median_ms": 6704
+    },
+    {
+      "model": "TLA_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "early",
+      "statuses": {
+        "timeout": 3
+      },
+      "completed_median_ms": null
+    },
+    {
+      "model": "TLA_TwoPhaseCommit",
+      "depth": 8,
+      "variant": "local",
+      "statuses": {
+        "unsat": 3
+      },
+      "completed_median_ms": 5193
+    }
+  ]
+}

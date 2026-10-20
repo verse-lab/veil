@@ -1,0 +1,387 @@
+{
+  "row": {
+    "cell_id": "Puzzles_Prisoners__d1__early__default",
+    "model": "Puzzles_Prisoners",
+    "path": "Examples/Puzzles/Prisoners.lean",
+    "module": "Prisoners",
+    "depth": 1,
+    "variant": "early",
+    "profile": "default",
+    "status": "sat",
+    "translation_status": "complete",
+    "solver_status": "sat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 29,
+    "batch_id": "Puzzles_Prisoners__default__batch1",
+    "batch_setup_ms": 5299,
+    "preprocessing_ms": 93,
+    "smt_preprocessing_ms": 48,
+    "translation_ms": 14,
+    "serialization_ms": 0,
+    "query_total_ms": 155,
+    "solver_ms": 14,
+    "completed_total_ms": 169,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 2127,
+    "query_commands": 24,
+    "query_sha256": "003f87542a04bb90e37b4a3b98e144c15ae3c26e385ba1da2832dd23511ab3d0",
+    "query_path": "/tmp/veil-transition-local/results/queries/Puzzles_Prisoners__d1__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Puzzles_Prisoners__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Puzzles_Prisoners__d1__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Puzzles_Prisoners__d1__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Puzzles_Prisoners",
+    "path": "Examples/Puzzles/Prisoners.lean",
+    "module": "Prisoners",
+    "cut_line": 86,
+    "query": "assert (Done ∧ ∃ p, p ≠ Counter ∧ timesSwitched p = 0)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "Safety declaration, line85",
+    "notes": "Concrete cardPrisoner=4 from #model_check is not imposed; symbolic theory parameters remain general.",
+    "category": "Puzzles",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "4316c7869f61c878c691170f785a3ed0b4ab8a2df71b4267a7e8489456b40909"
+  },
+  "original_sha256": "4316c7869f61c878c691170f785a3ed0b4ab8a2df71b4267a7e8489456b40909",
+  "inherited_setup_options": [],
+  "source_sha256": "887016ddc910429aabcdfffa80acf77cfb51e9a1b14c40726d2b00ff2cf62469",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Puzzles_Prisoners__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207947377,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 207947406,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947406,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 2430,
+      "mono_ms": 207947407,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947407,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 43,
+      "event": "stage",
+      "heartbeats": 532371,
+      "mono_ms": 207947450,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947450,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 30695,
+      "mono_ms": 207947453,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947454,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 3409,
+      "mono_ms": 207947454,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947454,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 15,
+      "event": "stage",
+      "heartbeats": 182984,
+      "mono_ms": 207947470,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947470,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "heartbeats": 86208,
+      "mono_ms": 207947478,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947478,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 19,
+      "event": "stage",
+      "heartbeats": 229427,
+      "mono_ms": 207947497,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947498,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 62024,
+      "mono_ms": 207947503,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 97,
+      "event": "milestone",
+      "mono_ms": 207947503,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947503,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 15451,
+      "mono_ms": 207947505,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947505,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 163,
+      "mono_ms": 207947505,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947506,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 207947506,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947506,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 1284,
+      "mono_ms": 207947506,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947506,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 45194,
+      "mono_ms": 207947510,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947510,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 42,
+      "event": "stage",
+      "heartbeats": 407948,
+      "mono_ms": 207947552,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947552,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 14,
+      "event": "stage",
+      "heartbeats": 127560,
+      "mono_ms": 207947566,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207947579,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 207947579,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 2127,
+      "commands": 24,
+      "elapsed_ms": 173,
+      "event": "pipeline",
+      "mono_ms": 207947579,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207947611,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Puzzles_Prisoners__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Puzzles_Prisoners__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Puzzles_Prisoners__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 26389,
+    "setup_ms": 5299,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Puzzles_Prisoners__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 14,
+      "event": "solver",
+      "phase": "solver",
+      "status": "sat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-transition-local/results/events/Puzzles_Prisoners__d1__early__default.solver.jsonl",
+    "batch_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

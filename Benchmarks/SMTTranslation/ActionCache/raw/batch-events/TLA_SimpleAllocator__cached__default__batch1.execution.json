@@ -1,0 +1,19 @@
+{
+  "batch_id": "TLA_SimpleAllocator__cached__default__batch1",
+  "source": "/tmp/veil-action-cache/results/batch-sources/TLA_SimpleAllocator__cached__default__batch1.lean",
+  "log": "/tmp/veil-action-cache/results/batch-logs/TLA_SimpleAllocator__cached__default__batch1.log",
+  "exit_code": 1,
+  "wall_ms": 30658,
+  "setup_ms": 6759,
+  "timeout": null,
+  "active_cell": null,
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-action-cache/results/batch-sources/TLA_SimpleAllocator__cached__default__batch1.lean"
+  ]
+}

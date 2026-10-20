@@ -1,0 +1,33 @@
+{
+  "batch_id": "solver-batch-0001",
+  "cells": [
+    "local_all_decls_first__d8__local__default",
+    "early_declaration_order__d8__local__default",
+    "local_single_assertion__d8__local__default",
+    "early_order_single_assertion__d8__local__default"
+  ],
+  "source": "/tmp/veil-transition-local/solver-order-probe/solver-sources/solver-batch-0001.lean",
+  "source_sha256": "60e4547e9b206c77ae240e591a52df4f279ff2cc75b88306de8d014c12f85cce",
+  "log": "/tmp/veil-transition-local/solver-order-probe/logs/solver-batch-0001.log",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-transition-local/solver-order-probe/solver-sources/solver-batch-0001.lean"
+  ],
+  "solver_timeout_seconds": 10,
+  "query_watchdog_seconds": 15,
+  "setup_watchdog_seconds": 60,
+  "attribution": "solver_ms is measured inside Smt.solve; batch wall time is separate",
+  "exit_code": 0,
+  "batch_wall_ms": 42202,
+  "completed_cells": [
+    "local_all_decls_first__d8__local__default",
+    "early_declaration_order__d8__local__default",
+    "local_single_assertion__d8__local__default",
+    "early_order_single_assertion__d8__local__default"
+  ]
+}

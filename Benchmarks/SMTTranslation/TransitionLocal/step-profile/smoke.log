@@ -1,0 +1,4 @@
+BEGIN Ivy_Ring batch1 cells=2
+  Ivy_Ring__d1__early__default profile_complete phase=None kind=None query_ms=None
+  Ivy_Ring__d1__local__default profile_complete phase=None kind=None query_ms=None
+END Ivy_Ring__default__batch1 wall=6.6s setup=6143 timeout=None remaining=0

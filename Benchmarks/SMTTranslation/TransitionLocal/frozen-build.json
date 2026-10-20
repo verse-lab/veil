@@ -1,0 +1,10 @@
+{
+  "started_utc": "2026-10-19T17:30:30.465415+00:00",
+  "baseline_commit": "543817e690debe6fbc9b518fb2694549d5986e90",
+  "files": {
+    "/home/george/src/veil-issue-123/Veil/Frontend/DSL/Tactic/Core.lean": "4b60a070f1d7c6284a8506a55514141458d95f5abdfde0d959274786476937cc",
+    "/home/george/src/veil-issue-123/.lake/build/lib/lean/Veil/Frontend/DSL/Tactic/Core.olean": "5144c022a9dff565de0e21685831a41a30af02c9d9e21f99e7eeff3a97720527",
+    "/home/george/src/veil-issue-123/VeilTest/Regression/TraceLocalNormalization.lean": "67168ba20ce157dbfe877e0db584b67094d7dd9f8eb937a5f34eaa4f10a8c936"
+  },
+  "suite_sha256": "dc791c702cda794fadba4622f9371d017569272c57e77322cb3a2df676ddbb8b"
+}

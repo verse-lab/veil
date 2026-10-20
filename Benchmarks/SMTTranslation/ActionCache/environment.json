@@ -1,0 +1,123 @@
+{
+  "platform": "Linux-6.12.113+deb13-amd64-x86_64-with-glibc2.41",
+  "python": "3.13.5",
+  "lean_toolchain": "leanprover/lean4:v4.32.0",
+  "native_plugin_sha256": "ac9f732f2ecfc268cf9d0e35cd9cdabc63be0ff24ea2a4a35d8b40c6d91b6b34",
+  "lake_manifest": {
+    "version": "1.2.0",
+    "packagesDir": ".lake/packages",
+    "packages": [
+      {
+        "url": "https://github.com/leanprover-community/ProofWidgets4",
+        "type": "git",
+        "subDir": null,
+        "scope": "",
+        "rev": "6e311e2a844da9b2cc3971187df2fe0066947b93",
+        "name": "proofwidgets",
+        "manifestFile": "lake-manifest.json",
+        "inputRev": "6e311e2a844da9b2cc3971187df2fe0066947b93",
+        "inherited": false,
+        "configFile": "lakefile.lean"
+      },
+      {
+        "url": "https://github.com/leanprover-community/aesop",
+        "type": "git",
+        "subDir": null,
+        "scope": "",
+        "rev": "a7dbf0c63b694e47f425f3dcddbc0e178bb432d3",
+        "name": "aesop",
+        "manifestFile": "lake-manifest.json",
+        "inputRev": "v4.32.0",
+        "inherited": false,
+        "configFile": "lakefile.toml"
+      },
+      {
+        "url": "https://github.com/leanprover-community/batteries",
+        "type": "git",
+        "subDir": null,
+        "scope": "",
+        "rev": "023ce7d62a0531e22a5331e20b587817a80d49ff",
+        "name": "batteries",
+        "manifestFile": "lake-manifest.json",
+        "inputRev": "v4.32.0",
+        "inherited": false,
+        "configFile": "lakefile.toml"
+      },
+      {
+        "url": "https://github.com/verse-lab/VerifiedHAMT.git",
+        "type": "git",
+        "subDir": null,
+        "scope": "",
+        "rev": "24bbc61c6ca37ef38f984566399461c9afa2b0d3",
+        "name": "VerifiedHAMT",
+        "manifestFile": "lake-manifest.json",
+        "inputRev": "24bbc61c6ca37ef38f984566399461c9afa2b0d3",
+        "inherited": false,
+        "configFile": "lakefile.toml"
+      },
+      {
+        "url": "https://github.com/verse-lab/loom.git",
+        "type": "git",
+        "subDir": null,
+        "scope": "",
+        "rev": "a8f79937ec8291f3ac4e3d41b5e4bf3ac7798367",
+        "name": "Loom",
+        "manifestFile": "lake-manifest.json",
+        "inputRev": "v4.32.0-for-veil",
+        "inherited": false,
+        "configFile": "lakefile.lean"
+      },
+      {
+        "url": "https://github.com/verse-lab/lean-smt.git",
+        "type": "git",
+        "subDir": null,
+        "scope": "",
+        "rev": "922af463373ce3f74d7b1aee36c6391f867aaaa2",
+        "name": "smt",
+        "manifestFile": "lake-manifest.json",
+        "inputRev": "v4.32.0-veil-no-mathlib",
+        "inherited": false,
+        "configFile": "lakefile.lean"
+      },
+      {
+        "url": "https://github.com/leanprover-community/quote4",
+        "type": "git",
+        "subDir": null,
+        "scope": "",
+        "rev": "38d591e778f100aec9762bb582f9c7f55f50e9dc",
+        "name": "Qq",
+        "manifestFile": "lake-manifest.json",
+        "inputRev": "v4.32.0",
+        "inherited": true,
+        "configFile": "lakefile.toml"
+      },
+      {
+        "url": "https://github.com/abdoo8080/lean-cvc5.git",
+        "type": "git",
+        "subDir": null,
+        "scope": "",
+        "rev": "a3ffc29af30f97e41e32356f21296d0a3e0f7c04",
+        "name": "cvc5",
+        "manifestFile": "lake-manifest.json",
+        "inputRev": "a3ffc29",
+        "inherited": true,
+        "configFile": "lakefile.lean"
+      },
+      {
+        "url": "https://github.com/leanprover-community/lean-auto.git",
+        "type": "git",
+        "subDir": null,
+        "scope": "",
+        "rev": "1175ff6b958ad9513fe4830f9fca11ebe59eb78d",
+        "name": "auto",
+        "manifestFile": "lake-manifest.json",
+        "inputRev": "1175ff6",
+        "inherited": true,
+        "configFile": "lakefile.lean"
+      }
+    ],
+    "name": "veil",
+    "lakeDir": ".lake",
+    "fixedToolchain": false
+  }
+}

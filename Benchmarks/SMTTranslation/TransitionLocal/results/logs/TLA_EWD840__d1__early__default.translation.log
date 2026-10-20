@@ -1,0 +1,882 @@
+/tmp/veil-transition-local/results/batch-sources/TLA_EWD840__default__batch1.lean:239:2: error: Application type mismatch: The argument
+  fun a =>
+    implies_congr (Eq.refl (distinctN [Color_Enum.white, Color_Enum.black]))
+      (implies_congr (Eq.refl (∀ (__veil_x : Color), __veil_x = Color_Enum.white ∨ __veil_x = Color_Enum.black))
+        (implies_congr
+          (Eq.refl
+            (distinctN [__veil_tag.InitStateProbe, __veil_tag.PassToken, __veil_tag.SendMsg, __veil_tag.Deactivate]))
+          (implies_congr
+            (Eq.refl
+              (∀ (__veil_x : ActionTag),
+                __veil_x = __veil_tag.InitStateProbe ∨
+                  __veil_x = __veil_tag.PassToken ∨ __veil_x = __veil_tag.SendMsg ∨ __veil_x = __veil_tag.Deactivate))
+            (implies_congr
+              (Eq.trans Int.ofNat_lt._simp_2
+                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                  (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+              (forall_prop_domain_congr
+                (Eq.trans Int.ofNat_lt._simp_2
+                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                fun _tr1_act_SendMsg_arg0_i.isLt =>
+                implies_congr
+                  (Eq.trans Int.ofNat_lt._simp_2
+                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                  (forall_prop_domain_congr
+                    (Eq.trans Int.ofNat_lt._simp_2
+                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                    fun _tr1_act_Deactivate_arg0_i.isLt =>
+                    implies_congr
+                      (Eq.trans Int.ofNat_lt._simp_2
+                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_lt._simp_2
+                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                        fun st0.tpos.isLt =>
+                        implies_congr
+                          (Eq.trans Int.ofNat_lt._simp_2
+                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a))
+                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                          (forall_prop_domain_congr
+                            (Eq.trans Int.ofNat_lt._simp_2
+                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                            fun st1.tpos.isLt =>
+                            implies_congr
+                              (congrArg Not
+                                (congrArg Not
+                                  (congr
+                                    (congrArg And
+                                      (congrArg Exists
+                                        (funext fun x =>
+                                          congrFun'
+                                            (congrArg And
+                                              (forall_congr fun a =>
+                                                Eq.trans (propext Bool.eq_eq_true)
+                                                  (congr (congrArg Eq decide_eq_true_iff._simp_2)
+                                                    decide_eq_true_iff._simp_2)))
+                                            ((∀ (a : Fin (f✝⁶.toNat + 1)), x_1 a = st0.colormap a) ∧
+                                              x =
+                                                  ⟨f✝.toNat,
+                                                    Eq.substr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                                                      st0.tpos.isLt⟩ ∧
+                                                Color_Enum.black = st0.tcolor))))
+                                    (congr
+                                      (congrArg And
+                                        (congr
+                                          (congrArg Or
+                                            (congrArg (And (_tr1_tag = __veil_tag.InitStateProbe))
+                                              (congrArg
+                                                (And
+                                                  (⟨f✝.toNat,
+                                                      Eq.substr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴))
+                                                              1)))
+                                                        st0.tpos.isLt⟩ =
+                                                    0))
+                                                (congrArg
+                                                  (And
+                                                    (st0.tcolor = Color_Enum.black ∨ st0.colormap 0 = Color_Enum.black))
+                                                  (congrFun'
+                                                    (congrArg And
+                                                      (forall_congr fun a =>
+                                                        Eq.trans (propext Bool.eq_eq_true)
+                                                          (congr (congrArg Eq decide_eq_true_iff._simp_2)
+                                                            decide_eq_true_iff._simp_2)))
+                                                    ((∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                        (if 0 = a then Color_Enum.white else st0.colormap a) =
+                                                          st1.colormap a) ∧
+                                                      Fin.last f✝⁶.toNat =
+                                                          ⟨f.toNat,
+                                                            Eq.substr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                  (congrFun'
+                                                                    (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                                                              st1.tpos.isLt⟩ ∧
+                                                        Color_Enum.white = st1.tcolor))))))
+                                          (congr
+                                            (congrArg Or
+                                              (congrArg (And (_tr1_tag = __veil_tag.PassToken))
+                                                (congrArg
+                                                  (And
+                                                    ¬⟨f✝.toNat,
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                (congrFun'
+                                                                  (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                                                            st0.tpos.isLt⟩ =
+                                                        0)
+                                                  (congr
+                                                    (congrArg And
+                                                      (congrFun'
+                                                        (congrArg Or
+                                                          (Eq.trans Bool.ne_eq_true._simp_1
+                                                            (congr (congrArg Ne decide_eq_true_iff._simp_2)
+                                                              Bool.true_eq_true._simp_1)))
+                                                        (st0.colormap
+                                                              ⟨f✝.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                      (congrFun'
+                                                                        (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴))
+                                                                        1)))
+                                                                  st0.tpos.isLt⟩ =
+                                                            Color_Enum.black ∨
+                                                          st0.tcolor = Color_Enum.black)))
+                                                    (congrFun'
+                                                      (congrArg And
+                                                        (forall_congr fun a =>
+                                                          Eq.trans (propext Bool.eq_eq_true)
+                                                            (congr (congrArg Eq decide_eq_true_iff._simp_2)
+                                                              decide_eq_true_iff._simp_2)))
+                                                      ((∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                          (if
+                                                                ⟨f✝.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congr
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                          (congrFun'
+                                                                            (congrArg HAdd.hAdd
+                                                                              (Int.toNat_of_nonneg a✝⁴))
+                                                                            1)))
+                                                                      st0.tpos.isLt⟩ =
+                                                                  a then
+                                                              Color_Enum.white
+                                                            else st0.colormap a) =
+                                                            st1.colormap a) ∧
+                                                        ⟨f✝.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                      (congrFun'
+                                                                        (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴))
+                                                                        1)))
+                                                                  st0.tpos.isLt⟩ -
+                                                              1 =
+                                                            ⟨f.toNat,
+                                                              Eq.substr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                    (congrFun'
+                                                                      (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴))
+                                                                      1)))
+                                                                st1.tpos.isLt⟩ ∧
+                                                          (if
+                                                                st0.colormap
+                                                                    ⟨f✝.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝⁴))
+                                                                              1)))
+                                                                        st0.tpos.isLt⟩ =
+                                                                  Color_Enum.black then
+                                                              Color_Enum.black
+                                                            else st0.tcolor) =
+                                                            st1.tcolor))))))
+                                            (congr
+                                              (congrArg Or
+                                                (congrArg (And (_tr1_tag = __veil_tag.SendMsg))
+                                                  (congrArg Exists
+                                                    (funext fun x =>
+                                                      congr (congrArg And decide_eq_true_iff._simp_2)
+                                                        (congrArg
+                                                          (And
+                                                            ¬x =
+                                                                ⟨f✝².toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                        (congrFun'
+                                                                          (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴))
+                                                                          1)))
+                                                                    _tr1_act_SendMsg_arg0_i.isLt⟩)
+                                                          (Smt.Preprocess.Embedding.ite_congr'
+                                                            (Eq.refl
+                                                              (x >
+                                                                ⟨f✝².toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                        (congrFun'
+                                                                          (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴))
+                                                                          1)))
+                                                                    _tr1_act_SendMsg_arg0_i.isLt⟩))
+                                                            (congrFun'
+                                                              (congrArg And
+                                                                (forall_congr fun a =>
+                                                                  Eq.trans (propext Bool.eq_eq_true)
+                                                                    (congr
+                                                                      (congrArg Eq
+                                                                        (Eq.trans ite_eq_true._simp_1
+                                                                          (Smt.Preprocess.Embedding.ite_congr'
+                                                                            (Eq.refl (x = a)) Bool.true_eq_true._simp_1
+                                                                            decide_eq_true_iff._simp_2)))
+                                                                      decide_eq_true_iff._simp_2)))
+                                                              ((∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                                  (if
+                                                                        ⟨f✝².toNat,
+                                                                            Eq.substr
+                                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                                (congr
+                                                                                  (congrArg LT.lt
+                                                                                    (Int.toNat_of_nonneg a✝³))
+                                                                                  (congrFun'
+                                                                                    (congrArg HAdd.hAdd
+                                                                                      (Int.toNat_of_nonneg a✝⁴))
+                                                                                    1)))
+                                                                              _tr1_act_SendMsg_arg0_i.isLt⟩ =
+                                                                          a then
+                                                                      Color_Enum.black
+                                                                    else st0.colormap a) =
+                                                                    st1.colormap a) ∧
+                                                                ⟨f✝.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝⁴))
+                                                                              1)))
+                                                                        st0.tpos.isLt⟩ =
+                                                                    ⟨f.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝⁴))
+                                                                              1)))
+                                                                        st1.tpos.isLt⟩ ∧
+                                                                  st0.tcolor = st1.tcolor))
+                                                            (congrFun'
+                                                              (congrArg And
+                                                                (forall_congr fun a =>
+                                                                  Eq.trans (propext Bool.eq_eq_true)
+                                                                    (congr
+                                                                      (congrArg Eq
+                                                                        (Eq.trans ite_eq_true._simp_1
+                                                                          (Smt.Preprocess.Embedding.ite_congr'
+                                                                            (Eq.refl (x = a)) Bool.true_eq_true._simp_1
+                                                                            decide_eq_true_iff._simp_2)))
+                                                                      decide_eq_true_iff._simp_2)))
+                                                              ((∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                                  st0.colormap a = st1.colormap a) ∧
+                                                                ⟨f✝.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝⁴))
+                                                                              1)))
+                                                                        st0.tpos.isLt⟩ =
+                                                                    ⟨f.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝⁴))
+                                                                              1)))
+                                                                        st1.tpos.isLt⟩ ∧
+                                                                  st0.tcolor = st1.tcolor))))))))
+                                              (congrArg (And (_tr1_tag = __veil_tag.Deactivate))
+                                                (congr (congrArg And decide_eq_true_iff._simp_2)
+                                                  (congrFun'
+                                                    (congrArg And
+                                                      (forall_congr fun a =>
+                                                        Eq.trans (propext Bool.eq_eq_true)
+                                                          (congr
+                                                            (congrArg Eq
+                                                              (Eq.trans ite_eq_true._simp_1
+                                                                (Smt.Preprocess.Embedding.ite_congr'
+                                                                  (Eq.refl
+                                                                    (⟨f✝¹.toNat,
+                                                                        Eq.substr
+                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                            (congr
+                                                                              (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                              (congrFun'
+                                                                                (congrArg HAdd.hAdd
+                                                                                  (Int.toNat_of_nonneg a✝⁴))
+                                                                                1)))
+                                                                          _tr1_act_Deactivate_arg0_i.isLt⟩ =
+                                                                      a))
+                                                                  Bool.false_eq_true decide_eq_true_iff._simp_2)))
+                                                            decide_eq_true_iff._simp_2)))
+                                                    ((∀ (a : Fin (f✝⁶.toNat + 1)), st0.colormap a = st1.colormap a) ∧
+                                                      ⟨f✝.toNat,
+                                                            Eq.substr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                  (congrFun'
+                                                                    (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                                                              st0.tpos.isLt⟩ =
+                                                          ⟨f.toNat,
+                                                            Eq.substr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                  (congrFun'
+                                                                    (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                                                              st1.tpos.isLt⟩ ∧
+                                                        st0.tcolor = st1.tcolor))))))))
+                                      (congr
+                                        (congrArg And
+                                          (congrArg
+                                            (And
+                                              (⟨f.toNat,
+                                                  Eq.substr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                                                    st1.tpos.isLt⟩ =
+                                                0))
+                                            (congrArg (And (st1.tcolor = Color_Enum.white))
+                                              (congrArg (And (st1.colormap 0 = Color_Enum.white))
+                                                (Eq.trans Bool.ne_eq_true._simp_1
+                                                  (congr (congrArg Ne decide_eq_true_iff._simp_2)
+                                                    Bool.true_eq_true._simp_1))))))
+                                        (congrArg Exists (funext fun x => decide_eq_true_iff._simp_2)))))))
+                              (Eq.refl False)))))))))
+has type
+  ∀ (a : f ≥ 0),
+    (distinctN [Color_Enum.white, Color_Enum.black] →
+        (∀ (__veil_x : Color), __veil_x = Color_Enum.white ∨ __veil_x = Color_Enum.black) →
+          distinctN [__veil_tag.InitStateProbe, __veil_tag.PassToken, __veil_tag.SendMsg, __veil_tag.Deactivate] →
+            (∀ (__veil_x : ActionTag),
+                __veil_x = __veil_tag.InitStateProbe ∨
+                  __veil_x = __veil_tag.PassToken ∨ __veil_x = __veil_tag.SendMsg ∨ __veil_x = __veil_tag.Deactivate) →
+              f✝².toNat < f✝⁶.toNat + 1 →
+                ∀ (a : f✝².toNat < f✝⁶.toNat + 1),
+                  f✝¹.toNat < f✝⁶.toNat + 1 →
+                    ∀ (_tr1_act_Deactivate_arg0_i.isLt : f✝¹.toNat < f✝⁶.toNat + 1),
+                      f✝.toNat < f✝⁶.toNat + 1 →
+                        ∀ (st0.tpos.isLt : f✝.toNat < f✝⁶.toNat + 1),
+                          f.toNat < f✝⁶.toNat + 1 →
+                            ∀ (st1.tpos.isLt : f.toNat < f✝⁶.toNat + 1),
+                              ¬¬((∃ x,
+                                        (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                            (fun a₁ => decide (f✝⁵ a₁)) a = (fun a₁ => decide (f✝⁴ a₁)) a) ∧
+                                          (∀ (a : Fin (f✝⁶.toNat + 1)), x_1 a = st0.colormap a) ∧
+                                            x = ⟨f✝.toNat, st0.tpos.isLt⟩ ∧ Color_Enum.black = st0.tcolor) ∧
+                                      (_tr1_tag = __veil_tag.InitStateProbe ∧
+                                            ⟨f✝.toNat, st0.tpos.isLt⟩ = 0 ∧
+                                              (st0.tcolor = Color_Enum.black ∨ st0.colormap 0 = Color_Enum.black) ∧
+                                                (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                    (fun a₁ => decide (f✝⁴ a₁)) a = (fun a₁ => decide (f✝³ a₁)) a) ∧
+                                                  (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                      (if 0 = a then Color_Enum.white else st0.colormap a) =
+                                                        st1.colormap a) ∧
+                                                    Fin.last f✝⁶.toNat = ⟨f.toNat, st1.tpos.isLt⟩ ∧
+                                                      Color_Enum.white = st1.tcolor ∨
+                                          _tr1_tag = __veil_tag.PassToken ∧
+                                              ¬⟨f✝.toNat, st0.tpos.isLt⟩ = 0 ∧
+                                                (¬(fun a₁ => decide (f✝⁴ a₁)) ⟨f✝.toNat, st0.tpos.isLt⟩ = true ∨
+                                                    st0.colormap ⟨f✝.toNat, st0.tpos.isLt⟩ = Color_Enum.black ∨
+                                                      st0.tcolor = Color_Enum.black) ∧
+                                                  (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                      (fun a₁ => decide (f✝⁴ a₁)) a = (fun a₁ => decide (f✝³ a₁)) a) ∧
+                                                    (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                        (if ⟨f✝.toNat, st0.tpos.isLt⟩ = a then Color_Enum.white
+                                                          else st0.colormap a) =
+                                                          st1.colormap a) ∧
+                                                      ⟨f✝.toNat, st0.tpos.isLt⟩ - 1 = ⟨f.toNat, st1.tpos.isLt⟩ ∧
+                                                        (if
+                                                              st0.colormap ⟨f✝.toNat, st0.tpos.isLt⟩ =
+                                                                Color_Enum.black then
+                                                            Color_Enum.black
+                                                          else st0.tcolor) =
+                                                          st1.tcolor ∨
+                                            (_tr1_tag = __veil_tag.SendMsg ∧
+                                                ∃ x,
+                                                  (fun a₁ => decide (f✝⁴ a₁)) ⟨f✝².toNat, a⟩ = true ∧
+                                                    ¬x = ⟨f✝².toNat, a⟩ ∧
+                                                      if x > ⟨f✝².toNat, a⟩ then
+                                                        (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                            (if x = a then true else (fun a₁ => decide (f✝⁴ a₁)) a) =
+                                                              (fun a₁ => decide (f✝³ a₁)) a) ∧
+                                                          (∀ (a_1 : Fin (f✝⁶.toNat + 1)),
+                                                              (if ⟨f✝².toNat, a⟩ = a_1 then Color_Enum.black
+                                                                else st0.colormap a_1) =
+                                                                st1.colormap a_1) ∧
+                                                            ⟨f✝.toNat, st0.tpos.isLt⟩ = ⟨f.toNat, st1.tpos.isLt⟩ ∧
+                                                              st0.tcolor = st1.tcolor
+                                                      else
+                                                        (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                            (if x = a then true else (fun a₁ => decide (f✝⁴ a₁)) a) =
+                                                              (fun a₁ => decide (f✝³ a₁)) a) ∧
+                                                          (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                              st0.colormap a = st1.colormap a) ∧
+                                                            ⟨f✝.toNat, st0.tpos.isLt⟩ = ⟨f.toNat, st1.tpos.isLt⟩ ∧
+                                                              st0.tcolor = st1.tcolor) ∨
+                                              _tr1_tag = __veil_tag.Deactivate ∧
+                                                (fun a₁ => decide (f✝⁴ a₁))
+                                                      ⟨f✝¹.toNat, _tr1_act_Deactivate_arg0_i.isLt⟩ =
+                                                    true ∧
+                                                  (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                      (if ⟨f✝¹.toNat, _tr1_act_Deactivate_arg0_i.isLt⟩ = a then false
+                                                        else (fun a₁ => decide (f✝⁴ a₁)) a) =
+                                                        (fun a₁ => decide (f✝³ a₁)) a) ∧
+                                                    (∀ (a : Fin (f✝⁶.toNat + 1)), st0.colormap a = st1.colormap a) ∧
+                                                      ⟨f✝.toNat, st0.tpos.isLt⟩ = ⟨f.toNat, st1.tpos.isLt⟩ ∧
+                                                        st0.tcolor = st1.tcolor) ∧
+                                        (⟨f.toNat, st1.tpos.isLt⟩ = 0 ∧
+                                            st1.tcolor = Color_Enum.white ∧
+                                              st1.colormap 0 = Color_Enum.white ∧
+                                                ¬(fun a₁ => decide (f✝³ a₁)) 0 = true) ∧
+                                          ∃ x, (fun a₁ => decide (f✝³ a₁)) x = true) →
+                                False) =
+      (distinctN [Color_Enum.white, Color_Enum.black] →
+        (∀ (__veil_x : Color), __veil_x = Color_Enum.white ∨ __veil_x = Color_Enum.black) →
+          distinctN [__veil_tag.InitStateProbe, __veil_tag.PassToken, __veil_tag.SendMsg, __veil_tag.Deactivate] →
+            (∀ (__veil_x : ActionTag),
+                __veil_x = __veil_tag.InitStateProbe ∨
+                  __veil_x = __veil_tag.PassToken ∨ __veil_x = __veil_tag.SendMsg ∨ __veil_x = __veil_tag.Deactivate) →
+              f✝² < f✝⁶ + 1 →
+                ∀ (a_6 : f✝² < f✝⁶ + 1),
+                  f✝¹ < f✝⁶ + 1 →
+                    ∀ (_tr1_act_Deactivate_arg0_i.isLt : f✝¹ < f✝⁶ + 1),
+                      f✝ < f✝⁶ + 1 →
+                        ∀ (st0.tpos.isLt : f✝ < f✝⁶ + 1),
+                          f < f✝⁶ + 1 →
+                            ∀ (st1.tpos.isLt : f < f✝⁶ + 1),
+                              ¬¬((∃ x,
+                                        (∀ (a : Fin (f✝⁶.toNat + 1)), f✝⁵ a = f✝⁴ a) ∧
+                                          (∀ (a : Fin (f✝⁶.toNat + 1)), x_1 a = st0.colormap a) ∧
+                                            x = ⟨f✝.toNat, ⋯⟩ ∧ Color_Enum.black = st0.tcolor) ∧
+                                      (_tr1_tag = __veil_tag.InitStateProbe ∧
+                                            ⟨f✝.toNat, ⋯⟩ = 0 ∧
+                                              (st0.tcolor = Color_Enum.black ∨ st0.colormap 0 = Color_Enum.black) ∧
+                                                (∀ (a : Fin (f✝⁶.toNat + 1)), f✝⁴ a = f✝³ a) ∧
+                                                  (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                      (if 0 = a then Color_Enum.white else st0.colormap a) =
+                                                        st1.colormap a) ∧
+                                                    Fin.last f✝⁶.toNat = ⟨f.toNat, ⋯⟩ ∧ Color_Enum.white = st1.tcolor ∨
+                                          _tr1_tag = __veil_tag.PassToken ∧
+                                              ¬⟨f✝.toNat, ⋯⟩ = 0 ∧
+                                                (f✝⁴ ⟨f✝.toNat, ⋯⟩ ≠ True ∨
+                                                    st0.colormap ⟨f✝.toNat, ⋯⟩ = Color_Enum.black ∨
+                                                      st0.tcolor = Color_Enum.black) ∧
+                                                  (∀ (a : Fin (f✝⁶.toNat + 1)), f✝⁴ a = f✝³ a) ∧
+                                                    (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                        (if ⟨f✝.toNat, ⋯⟩ = a then Color_Enum.white
+                                                          else st0.colormap a) =
+                                                          st1.colormap a) ∧
+                                                      ⟨f✝.toNat, ⋯⟩ - 1 = ⟨f.toNat, ⋯⟩ ∧
+                                                        (if st0.colormap ⟨f✝.toNat, ⋯⟩ = Color_Enum.black then
+                                                            Color_Enum.black
+                                                          else st0.tcolor) =
+                                                          st1.tcolor ∨
+                                            (_tr1_tag = __veil_tag.SendMsg ∧
+                                                ∃ x,
+                                                  f✝⁴ ⟨f✝².toNat, ⋯⟩ ∧
+                                                    ¬x = ⟨f✝².toNat, ⋯⟩ ∧
+                                                      if x > ⟨f✝².toNat, ⋯⟩ then
+                                                        (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                            (if x = a then True else f✝⁴ a) = f✝³ a) ∧
+                                                          (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                              (if ⟨f✝².toNat, ⋯⟩ = a then Color_Enum.black
+                                                                else st0.colormap a) =
+                                                                st1.colormap a) ∧
+                                                            ⟨f✝.toNat, ⋯⟩ = ⟨f.toNat, ⋯⟩ ∧ st0.tcolor = st1.tcolor
+                                                      else
+                                                        (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                            (if x = a then True else f✝⁴ a) = f✝³ a) ∧
+                                                          (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                              st0.colormap a = st1.colormap a) ∧
+                                                            ⟨f✝.toNat, ⋯⟩ = ⟨f.toNat, ⋯⟩ ∧ st0.tcolor = st1.tcolor) ∨
+                                              _tr1_tag = __veil_tag.Deactivate ∧
+                                                f✝⁴ ⟨f✝¹.toNat, ⋯⟩ ∧
+                                                  (∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                      (if ⟨f✝¹.toNat, ⋯⟩ = a then False else f✝⁴ a) = f✝³ a) ∧
+                                                    (∀ (a : Fin (f✝⁶.toNat + 1)), st0.colormap a = st1.colormap a) ∧
+                                                      ⟨f✝.toNat, ⋯⟩ = ⟨f.toNat, ⋯⟩ ∧ st0.tcolor = st1.tcolor) ∧
+                                        (⟨f.toNat, ⋯⟩ = 0 ∧
+                                            st1.tcolor = Color_Enum.white ∧
+                                              st1.colormap 0 = Color_Enum.white ∧ f✝³ 0 ≠ True) ∧
+                                          ∃ x, f✝³ x) →
+                                False)
+but is expected to have type
+  f ≥ 0 → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (f ≥ 0)) fun a =>
+    implies_congr (Eq.refl (distinctN [Color_Enum.white, Color_Enum.black]))
+      (implies_congr (Eq.refl (∀ (__veil_x : Color), __veil_x = Color_Enum.white ∨ __veil_x = Color_Enum.black))
+        (implies_congr
+          (Eq.refl
+            (distinctN [__veil_tag.InitStateProbe, __veil_tag.PassToken, __veil_tag.SendMsg, __veil_tag.Deactivate]))
+          (implies_congr
+            (Eq.refl
+              (∀ (__veil_x : ActionTag),
+                __veil_x = __veil_tag.InitStateProbe ∨
+                  __veil_x = __veil_tag.PassToken ∨ __veil_x = __veil_tag.SendMsg ∨ __veil_x = __veil_tag.Deactivate))
+            (implies_congr
+              (Eq.trans Int.ofNat_lt._simp_2
+                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                  (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+              (forall_prop_domain_congr
+                (Eq.trans Int.ofNat_lt._simp_2
+                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                fun _tr1_act_SendMsg_arg0_i.isLt =>
+                implies_congr
+                  (Eq.trans Int.ofNat_lt._simp_2
+                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                  (forall_prop_domain_congr
+                    (Eq.trans Int.ofNat_lt._simp_2
+                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                    fun _tr1_act_Deactivate_arg0_i.isLt =>
+                    implies_congr
+                      (Eq.trans Int.ofNat_lt._simp_2
+                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                      (forall_prop_domain_congr
+                        (Eq.trans Int.ofNat_lt._simp_2
+                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                        fun st0.tpos.isLt =>
+                        implies_congr
+                          (Eq.trans Int.ofNat_lt._simp_2
+                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a))
+                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                          (forall_prop_domain_congr
+                            (Eq.trans Int.ofNat_lt._simp_2
+                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                            fun st1.tpos.isLt =>
+                            implies_congr
+                              (congrArg Not
+                                (congrArg Not
+                                  (congr
+                                    (congrArg And
+                                      (congrArg Exists
+                                        (funext fun x =>
+                                          congrFun'
+                                            (congrArg And
+                                              (forall_congr fun a =>
+                                                Eq.trans (propext Bool.eq_eq_true)
+                                                  (congr (congrArg Eq decide_eq_true_iff._simp_2)
+                                                    decide_eq_true_iff._simp_2)))
+                                            ((∀ (a : Fin (f✝⁶.toNat + 1)), x_1 a = st0.colormap a) ∧
+                                              x =
+                                                  ⟨f✝.toNat,
+                                                    Eq.substr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                                                      st0.tpos.isLt⟩ ∧
+                                                Color_Enum.black = st0.tcolor))))
+                                    (congr
+                                      (congrArg And
+                                        (congr
+                                          (congrArg Or
+                                            (congrArg (And (_tr1_tag = __veil_tag.InitStateProbe))
+                                              (congrArg
+                                                (And
+                                                  (⟨f✝.toNat,
+                                                      Eq.substr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴))
+                                                              1)))
+                                                        st0.tpos.isLt⟩ =
+                                                    0))
+                                                (congrArg
+                                                  (And
+                                                    (st0.tcolor = Color_Enum.black ∨ st0.colormap 0 = Color_Enum.black))
+                                                  (congrFun'
+                                                    (congrArg And
+                                                      (forall_congr fun a =>
+                                                        Eq.trans (propext Bool.eq_eq_true)
+                                                          (congr (congrArg Eq decide_eq_true_iff._simp_2)
+                                                            decide_eq_true_iff._simp_2)))
+                                                    ((∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                        (if 0 = a then Color_Enum.white else st0.colormap a) =
+                                                          st1.colormap a) ∧
+                                                      Fin.last f✝⁶.toNat =
+                                                          ⟨f.toNat,
+                                                            Eq.substr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                  (congrFun'
+                                                                    (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                                                              st1.tpos.isLt⟩ ∧
+                                                        Color_Enum.white = st1.tcolor))))))
+                                          (congr
+                                            (congrArg Or
+                                              (congrArg (And (_tr1_tag = __veil_tag.PassToken))
+                                                (congrArg
+                                                  (And
+                                                    ¬⟨f✝.toNat,
+                                                          Eq.substr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                (congrFun'
+                                                                  (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                                                            st0.tpos.isLt⟩ =
+                                                        0)
+                                                  (congr
+                                                    (congrArg And
+                                                      (congrFun'
+                                                        (congrArg Or
+                                                          (Eq.trans Bool.ne_eq_true._simp_1
+                                                            (congr (congrArg Ne decide_eq_true_iff._simp_2)
+                                                              Bool.true_eq_true._simp_1)))
+                                                        (st0.colormap
+                                                              ⟨f✝.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                      (congrFun'
+                                                                        (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴))
+                                                                        1)))
+                                                                  st0.tpos.isLt⟩ =
+                                                            Color_Enum.black ∨
+                                                          st0.tcolor = Color_Enum.black)))
+                                                    (congrFun'
+                                                      (congrArg And
+                                                        (forall_congr fun a =>
+                                                          Eq.trans (propext Bool.eq_eq_true)
+                                                            (congr (congrArg Eq decide_eq_true_iff._simp_2)
+                                                              decide_eq_true_iff._simp_2)))
+                                                      ((∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                          (if
+                                                                ⟨f✝.toNat,
+                                                                    Eq.substr
+                                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                                        (congr
+                                                                          (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                          (congrFun'
+                                                                            (congrArg HAdd.hAdd
+                                                                              (Int.toNat_of_nonneg a✝⁴))
+                                                                            1)))
+                                                                      st0.tpos.isLt⟩ =
+                                                                  a then
+                                                              Color_Enum.white
+                                                            else st0.colormap a) =
+                                                            st1.colormap a) ∧
+                                                        ⟨f✝.toNat,
+                                                                Eq.substr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                      (congrFun'
+                                                                        (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴))
+                                                                        1)))
+                                                                  st0.tpos.isLt⟩ -
+                                                              1 =
+                                                            ⟨f.toNat,
+                                                              Eq.substr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                    (congrFun'
+                                                                      (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴))
+                                                                      1)))
+                                                                st1.tpos.isLt⟩ ∧
+                                                          (if
+                                                                st0.colormap
+                                                                    ⟨f✝.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝⁴))
+                                                                              1)))
+                                                                        st0.tpos.isLt⟩ =
+                                                                  Color_Enum.black then
+                                                              Color_Enum.black
+                                                            else st0.tcolor) =
+                                                            st1.tcolor))))))
+                                            (congr
+                                              (congrArg Or
+                                                (congrArg (And (_tr1_tag = __veil_tag.SendMsg))
+                                                  (congrArg Exists
+                                                    (funext fun x =>
+                                                      congr (congrArg And decide_eq_true_iff._simp_2)
+                                                        (congrArg
+                                                          (And
+                                                            ¬x =
+                                                                ⟨f✝².toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                        (congrFun'
+                                                                          (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴))
+                                                                          1)))
+                                                                    _tr1_act_SendMsg_arg0_i.isLt⟩)
+                                                          (Smt.Preprocess.Embedding.ite_congr'
+                                                            (Eq.refl
+                                                              (x >
+                                                                ⟨f✝².toNat,
+                                                                  Eq.substr
+                                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                        (congrFun'
+                                                                          (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴))
+                                                                          1)))
+                                                                    _tr1_act_SendMsg_arg0_i.isLt⟩))
+                                                            (congrFun'
+                                                              (congrArg And
+                                                                (forall_congr fun a =>
+                                                                  Eq.trans (propext Bool.eq_eq_true)
+                                                                    (congr
+                                                                      (congrArg Eq
+                                                                        (Eq.trans ite_eq_true._simp_1
+                                                                          (Smt.Preprocess.Embedding.ite_congr'
+                                                                            (Eq.refl (x = a)) Bool.true_eq_true._simp_1
+                                                                            decide_eq_true_iff._simp_2)))
+                                                                      decide_eq_true_iff._simp_2)))
+                                                              ((∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                                  (if
+                                                                        ⟨f✝².toNat,
+                                                                            Eq.substr
+                                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                                (congr
+                                                                                  (congrArg LT.lt
+                                                                                    (Int.toNat_of_nonneg a✝³))
+                                                                                  (congrFun'
+                                                                                    (congrArg HAdd.hAdd
+                                                                                      (Int.toNat_of_nonneg a✝⁴))
+                                                                                    1)))
+                                                                              _tr1_act_SendMsg_arg0_i.isLt⟩ =
+                                                                          a then
+                                                                      Color_Enum.black
+                                                                    else st0.colormap a) =
+                                                                    st1.colormap a) ∧
+                                                                ⟨f✝.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝⁴))
+                                                                              1)))
+                                                                        st0.tpos.isLt⟩ =
+                                                                    ⟨f.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝⁴))
+                                                                              1)))
+                                                                        st1.tpos.isLt⟩ ∧
+                                                                  st0.tcolor = st1.tcolor))
+                                                            (congrFun'
+                                                              (congrArg And
+                                                                (forall_congr fun a =>
+                                                                  Eq.trans (propext Bool.eq_eq_true)
+                                                                    (congr
+                                                                      (congrArg Eq
+                                                                        (Eq.trans ite_eq_true._simp_1
+                                                                          (Smt.Preprocess.Embedding.ite_congr'
+                                                                            (Eq.refl (x = a)) Bool.true_eq_true._simp_1
+                                                                            decide_eq_true_iff._simp_2)))
+                                                                      decide_eq_true_iff._simp_2)))
+                                                              ((∀ (a : Fin (f✝⁶.toNat + 1)),
+                                                                  st0.colormap a = st1.colormap a) ∧
+                                                                ⟨f✝.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝⁴))
+                                                                              1)))
+                                                                        st0.tpos.isLt⟩ =
+                                                                    ⟨f.toNat,
+                                                                      Eq.substr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝⁴))
+                                                                              1)))
+                                                                        st1.tpos.isLt⟩ ∧
+                                                                  st0.tcolor = st1.tcolor))))))))
+                                              (congrArg (And (_tr1_tag = __veil_tag.Deactivate))
+                                                (congr (congrArg And decide_eq_true_iff._simp_2)
+                                                  (congrFun'
+                                                    (congrArg And
+                                                      (forall_congr fun a =>
+                                                        Eq.trans (propext Bool.eq_eq_true)
+                                                          (congr
+                                                            (congrArg Eq
+                                                              (Eq.trans ite_eq_true._simp_1
+                                                                (Smt.Preprocess.Embedding.ite_congr'
+                                                                  (Eq.refl
+                                                                    (⟨f✝¹.toNat,
+                                                                        Eq.substr
+                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                            (congr
+                                                                              (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                              (congrFun'
+                                                                                (congrArg HAdd.hAdd
+                                                                                  (Int.toNat_of_nonneg a✝⁴))
+                                                                                1)))
+                                                                          _tr1_act_Deactivate_arg0_i.isLt⟩ =
+                                                                      a))
+                                                                  Bool.false_eq_true decide_eq_true_iff._simp_2)))
+                                                            decide_eq_true_iff._simp_2)))
+                                                    ((∀ (a : Fin (f✝⁶.toNat + 1)), st0.colormap a = st1.colormap a) ∧
+                                                      ⟨f✝.toNat,
+                                                            Eq.substr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                  (congrFun'
+                                                                    (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                                                              st0.tpos.isLt⟩ =
+                                                          ⟨f.toNat,
+                                                            Eq.substr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                                  (congrFun'
+                                                                    (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                                                              st1.tpos.isLt⟩ ∧
+                                                        st0.tcolor = st1.tcolor))))))))
+                                      (congr
+                                        (congrArg And
+                                          (congrArg
+                                            (And
+                                              (⟨f.toNat,
+                                                  Eq.substr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a))
+                                                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝⁴)) 1)))
+                                                    st1.tpos.isLt⟩ =
+                                                0))
+                                            (congrArg (And (st1.tcolor = Color_Enum.white))
+                                              (congrArg (And (st1.colormap 0 = Color_Enum.white))
+                                                (Eq.trans Bool.ne_eq_true._simp_1
+                                                  (congr (congrArg Ne decide_eq_true_iff._simp_2)
+                                                    Bool.true_eq_true._simp_1))))))
+                                        (congrArg Exists (funext fun x => decide_eq_true_iff._simp_2)))))))
+                              (Eq.refl False)))))))))

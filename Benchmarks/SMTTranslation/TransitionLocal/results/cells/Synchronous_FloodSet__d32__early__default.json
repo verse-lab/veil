@@ -1,0 +1,145 @@
+{
+  "row": {
+    "cell_id": "Synchronous_FloodSet__d32__early__default",
+    "model": "Synchronous_FloodSet",
+    "path": "Examples/Synchronous/FloodSet.lean",
+    "module": "FloodSet",
+    "depth": 32,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "hoist",
+    "failure_kind": "heartbeats",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean:673:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached\n\nNote: Use `set_option maxHeartbeats <num>` to set the limit.\n\nHint: Additional diagnostic information may be available using the `set_option diagnostics true` command.\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 81,
+    "batch_id": "Synchronous_FloodSet__default__batch1",
+    "batch_setup_ms": 8782,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/Synchronous_FloodSet__d32__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Synchronous_FloodSet__d32__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Synchronous_FloodSet__d32__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/Synchronous_FloodSet__d32__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Synchronous_FloodSet",
+    "path": "Examples/Synchronous/FloodSet.lean",
+    "module": "FloodSet",
+    "cut_line": 214,
+    "query": "assert (∃ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 ∧ v1 ≠ v2)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "agreement safety, lines137–138",
+    "notes": "Contains genuine function-valued delivery choices.",
+    "category": "Synchronous",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "71e30b3e1e732b752052029b4a31e037cab323758a94cfc2edef3f6a772c5f0e"
+  },
+  "original_sha256": "71e30b3e1e732b752052029b4a31e037cab323758a94cfc2edef3f6a772c5f0e",
+  "inherited_setup_options": [],
+  "source_sha256": "2611ad24c8578c489e830bd3b716a3e73a9771a26418fc237dc051fc4a786d36",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Synchronous_FloodSet__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208395999,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 208396080,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208396080,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 21,
+      "event": "stage",
+      "heartbeats": 54524,
+      "mono_ms": 208396101,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208396101,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1884,
+      "event": "stage",
+      "heartbeats": 21838304,
+      "mono_ms": 208397986,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208397986,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208412394,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Synchronous_FloodSet__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Synchronous_FloodSet__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 73588,
+    "setup_ms": 8782,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Synchronous_FloodSet__default__batch1.lean"
+    ]
+  }
+}

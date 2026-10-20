@@ -1,0 +1,925 @@
+/tmp/veil-action-cache/results/batch-sources/TLA_EWD840__local__default__batch1.lean:313:2: error: Application type mismatch: The argument
+  fun a =>
+    implies_congr (Eq.refl True)
+      (implies_congr (Eq.refl (distinctN [Color_Enum.white, Color_Enum.black]))
+        (implies_congr (Eq.refl (∀ (__veil_x : Color), __veil_x = Color_Enum.white ∨ __veil_x = Color_Enum.black))
+          (implies_congr
+            (Eq.refl
+              (distinctN [__veil_tag.InitStateProbe, __veil_tag.PassToken, __veil_tag.SendMsg, __veil_tag.Deactivate]))
+            (implies_congr
+              (Eq.refl
+                (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.InitStateProbe ∨
+                    __veil_x = __veil_tag.PassToken ∨ __veil_x = __veil_tag.SendMsg ∨ __veil_x = __veil_tag.Deactivate))
+              (implies_congr
+                (Eq.trans Int.ofNat_lt._simp_2
+                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴))
+                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2
+                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴))
+                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                  fun _tr1_act_SendMsg_arg0_i.isLt =>
+                  implies_congr
+                    (Eq.trans Int.ofNat_lt._simp_2
+                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³))
+                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                    (forall_prop_domain_congr
+                      (Eq.trans Int.ofNat_lt._simp_2
+                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³))
+                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                      fun _tr1_act_Deactivate_arg0_i.isLt =>
+                      implies_congr
+                        (Eq.trans Int.ofNat_lt._simp_2
+                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²))
+                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                        (forall_prop_domain_congr
+                          (Eq.trans Int.ofNat_lt._simp_2
+                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²))
+                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                          fun _tr2_act_SendMsg_arg0_i.isLt =>
+                          implies_congr
+                            (Eq.trans Int.ofNat_lt._simp_2
+                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹))
+                                (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                            (forall_prop_domain_congr
+                              (Eq.trans Int.ofNat_lt._simp_2
+                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹))
+                                  (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                              fun _tr2_act_Deactivate_arg0_i.isLt =>
+                              implies_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰))
+                                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                (forall_prop_domain_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰))
+                                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                  fun _tr3_act_SendMsg_arg0_i.isLt =>
+                                  implies_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹))
+                                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                    (forall_prop_domain_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹))
+                                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                      fun _tr3_act_Deactivate_arg0_i.isLt =>
+                                      implies_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸))
+                                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                        (forall_prop_domain_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸))
+                                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                          fun _tr4_act_SendMsg_arg0_i.isLt =>
+                                          implies_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷))
+                                                (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                            (forall_prop_domain_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷))
+                                                  (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                              fun _tr4_act_Deactivate_arg0_i.isLt =>
+                                              implies_congr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶))
+                                                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                                (forall_prop_domain_congr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶))
+                                                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                                  fun st0.tpos.isLt =>
+                                                  implies_congr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵))
+                                                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                                    (forall_prop_domain_congr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵))
+                                                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵))
+                                                            1)))
+                                                      fun st1.tpos.isLt =>
+                                                      implies_congr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))
+                                                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵))
+                                                              1)))
+                                                        (forall_prop_domain_congr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))
+                                                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵))
+                                                                1)))
+                                                          fun st2.tpos.isLt =>
+                                                          implies_congr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                (congrFun'
+                                                                  (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                                            (forall_prop_domain_congr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                  (congrFun'
+                                                                    (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                                              fun st3.tpos.isLt =>
+                                                              implies_congr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                    (congrFun'
+                                                                      (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵))
+                                                                      1)))
+                                                                (forall_prop_domain_congr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                      (congrFun'
+                                                                        (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵))
+                                                                        1)))
+                                                                  fun st4.tpos.isLt =>
+                                                                  implies_congr
+                                                                    (Eq.refl
+                                                                      (⟨f✝¹.toNat,
+                                                                          Eq.substr
+                                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                                              (congr
+                                                                                (congrArg LT.lt
+                                                                                  (Int.toNat_of_nonneg a✝²))
+                                                                                (congrFun'
+                                                                                  (congrArg HAdd.hAdd
+                                                                                    (Int.toNat_of_nonneg a✝¹⁵))
+                                                                                  1)))
+                                                                            st4.tpos.isLt⟩ =
+                                                                        0))
+                                                                    (implies_congr
+                                                                      (Eq.refl (st4.tcolor = Color_Enum.white))
+                                                                      (implies_congr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝¹⁵))
+                                                                              1)))
+                                                                        (forall_prop_domain_congr
+                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                            (congr
+                                                                              (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                              (congrFun'
+                                                                                (congrArg HAdd.hAdd
+                                                                                  (Int.toNat_of_nonneg a✝¹⁵))
+                                                                                1)))
+                                                                          fun x_1.isLt =>
+                                                                          implies_congr ⋯ ⋯)))))))))))))))))))))
+has type
+  ∀ (a : f ≥ 0),
+    (True →
+        distinctN [Color_Enum.white, Color_Enum.black] →
+          (∀ (__veil_x : Color), __veil_x = Color_Enum.white ∨ __veil_x = Color_Enum.black) →
+            distinctN [__veil_tag.InitStateProbe, __veil_tag.PassToken, __veil_tag.SendMsg, __veil_tag.Deactivate] →
+              (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.InitStateProbe ∨
+                    __veil_x = __veil_tag.PassToken ∨
+                      __veil_x = __veil_tag.SendMsg ∨ __veil_x = __veil_tag.Deactivate) →
+                f✝¹⁴.toNat < f✝²⁰.toNat + 1 →
+                  ∀ (a : f✝¹⁴.toNat < f✝²⁰.toNat + 1),
+                    f✝¹³.toNat < f✝²⁰.toNat + 1 →
+                      ∀ (_tr1_act_Deactivate_arg0_i.isLt : f✝¹³.toNat < f✝²⁰.toNat + 1),
+                        f✝¹².toNat < f✝²⁰.toNat + 1 →
+                          ∀ (_tr2_act_SendMsg_arg0_i.isLt : f✝¹².toNat < f✝²⁰.toNat + 1),
+                            f✝¹¹.toNat < f✝²⁰.toNat + 1 →
+                              ∀ (_tr2_act_Deactivate_arg0_i.isLt : f✝¹¹.toNat < f✝²⁰.toNat + 1),
+                                f✝¹⁰.toNat < f✝²⁰.toNat + 1 →
+                                  ∀ (_tr3_act_SendMsg_arg0_i.isLt : f✝¹⁰.toNat < f✝²⁰.toNat + 1),
+                                    f✝⁹.toNat < f✝²⁰.toNat + 1 →
+                                      ∀ (_tr3_act_Deactivate_arg0_i.isLt : f✝⁹.toNat < f✝²⁰.toNat + 1),
+                                        f✝⁸.toNat < f✝²⁰.toNat + 1 →
+                                          ∀ (_tr4_act_SendMsg_arg0_i.isLt : f✝⁸.toNat < f✝²⁰.toNat + 1),
+                                            f✝⁷.toNat < f✝²⁰.toNat + 1 →
+                                              ∀ (_tr4_act_Deactivate_arg0_i.isLt : f✝⁷.toNat < f✝²⁰.toNat + 1),
+                                                f✝⁵.toNat < f✝²⁰.toNat + 1 →
+                                                  ∀ (st0.tpos.isLt : f✝⁵.toNat < f✝²⁰.toNat + 1),
+                                                    f✝⁴.toNat < f✝²⁰.toNat + 1 →
+                                                      ∀ (st1.tpos.isLt : f✝⁴.toNat < f✝²⁰.toNat + 1),
+                                                        f✝³.toNat < f✝²⁰.toNat + 1 →
+                                                          ∀ (st2.tpos.isLt : f✝³.toNat < f✝²⁰.toNat + 1),
+                                                            f✝².toNat < f✝²⁰.toNat + 1 →
+                                                              ∀ (st3.tpos.isLt : f✝².toNat < f✝²⁰.toNat + 1),
+                                                                f✝¹.toNat < f✝²⁰.toNat + 1 →
+                                                                  ∀ (st4.tpos.isLt : f✝¹.toNat < f✝²⁰.toNat + 1),
+                                                                    ⟨f✝¹.toNat, st4.tpos.isLt⟩ = 0 →
+                                                                      st4.tcolor = Color_Enum.white →
+                                                                        f✝.toNat < f✝²⁰.toNat + 1 →
+                                                                          ∀ (x_1.isLt : f✝.toNat < f✝²⁰.toNat + 1),
+                                                                            (fun a₁ => decide (f✝¹⁵ a₁))
+                                                                                  ⟨f✝.toNat, x_1.isLt⟩ =
+                                                                                true →
+                                                                              f.toNat < f✝²⁰.toNat + 1 →
+                                                                                ∀ (x_2.isLt : f.toNat < f✝²⁰.toNat + 1),
+                                                                                  st4.colormap 0 = Color_Enum.white →
+                                                                                    ¬(fun a₁ => decide (f✝¹⁵ a₁)) 0 =
+                                                                                          true →
+                                                                                      _tr1_tag =
+                                                                                              __veil_tag.InitStateProbe ∧
+                                                                                            ⟨f✝⁵.toNat, st0.tpos.isLt⟩ =
+                                                                                                0 ∧
+                                                                                              (st0.tcolor =
+                                                                                                    Color_Enum.black ∨
+                                                                                                  st0.colormap 0 =
+                                                                                                    Color_Enum.black) ∧
+                                                                                                (∀
+                                                                                                    (a :
+                                                                                                      Fin
+                                                                                                        (f✝²⁰.toNat +
+                                                                                                          1)),
+                                                                                                    (fun a₁ =>
+                                                                                                          decide
+                                                                                                            (f✝¹⁹ a₁))
+                                                                                                        a =
+                                                                                                      (fun a₁ =>
+                                                                                                          decide
+                                                                                                            (f✝¹⁸ a₁))
+                                                                                                        a) ∧
+                                                                                                  (∀
+                                                                                                      (a :
+                                                                                                        Fin
+                                                                                                          (f✝²⁰.toNat +
+                                                                                                            1)),
+                                                                                                      ⋯ =
+                                                                                                        st1.colormap
+                                                                                                          a) ∧
+                                                                                                    Fin.last
+                                                                                                          f✝²⁰.toNat =
+                                                                                                        ⟨f✝⁴.toNat,
+                                                                                                          st1.tpos.isLt⟩ ∧
+                                                                                                      Color_Enum.white =
+                                                                                                        st1.tcolor ∨
+                                                                                          _tr1_tag =
+                                                                                                __veil_tag.PassToken ∧
+                                                                                              ¬⟨f✝⁵.toNat,
+                                                                                                      st0.tpos.isLt⟩ =
+                                                                                                    0 ∧
+                                                                                                (¬(fun a₁ =>
+                                                                                                            decide
+                                                                                                              (f✝¹⁹ a₁))
+                                                                                                          ⟨f✝⁵.toNat,
+                                                                                                            st0.tpos.isLt⟩ =
+                                                                                                        true ∨
+                                                                                                    st0.colormap
+                                                                                                          ⟨f✝⁵.toNat,
+                                                                                                            st0.tpos.isLt⟩ =
+                                                                                                        Color_Enum.black ∨
+                                                                                                      st0.tcolor =
+                                                                                                        Color_Enum.black) ∧
+                                                                                                  (∀
+                                                                                                      (a :
+                                                                                                        Fin
+                                                                                                          (f✝²⁰.toNat +
+                                                                                                            1)),
+                                                                                                      (fun a₁ =>
+                                                                                                            decide
+                                                                                                              (f✝¹⁹ a₁))
+                                                                                                          a =
+                                                                                                        (fun a₁ =>
+                                                                                                            decide
+                                                                                                              (f✝¹⁸ a₁))
+                                                                                                          a) ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            (f✝²⁰.toNat +
+                                                                                                              1)),
+                                                                                                        ⋯) ∧
+                                                                                                      ⋯ ∧ ⋯ ∨
+                                                                                            (_tr1_tag =
+                                                                                                  __veil_tag.SendMsg ∧
+                                                                                                ∃ x,
+                                                                                                  (fun a₁ =>
+                                                                                                          decide
+                                                                                                            (f✝¹⁹ a₁))
+                                                                                                        ⟨f✝¹⁴.toNat,
+                                                                                                          a⟩ =
+                                                                                                      true ∧
+                                                                                                    ¬x =
+                                                                                                          ⟨f✝¹⁴.toNat,
+                                                                                                            a⟩ ∧
+                                                                                                      ⋯) ∨
+                                                                                              _tr1_tag =
+                                                                                                  __veil_tag.Deactivate ∧
+                                                                                                (fun a₁ =>
+                                                                                                        decide
+                                                                                                          (f✝¹⁹ a₁))
+                                                                                                      ⟨f✝¹³.toNat,
+                                                                                                        _tr1_act_Deactivate_arg0_i.isLt⟩ =
+                                                                                                    true ∧
+                                                                                                  (∀
+                                                                                                      (a :
+                                                                                                        Fin
+                                                                                                          (f✝²⁰.toNat +
+                                                                                                            1)),
+                                                                                                      ⋯ =
+                                                                                                        (fun a₁ =>
+                                                                                                            decide
+                                                                                                              (f✝¹⁸ a₁))
+                                                                                                          a) ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            (f✝²⁰.toNat +
+                                                                                                              1)),
+                                                                                                        st0.colormap a =
+                                                                                                          st1.colormap
+                                                                                                            a) ∧
+                                                                                                      ⟨f✝⁵.toNat,
+                                                                                                            st0.tpos.isLt⟩ =
+                                                                                                          ⟨f✝⁴.toNat,
+                                                                                                            st1.tpos.isLt⟩ ∧
+                                                                                                        st0.tcolor =
+                                                                                                          st1.tcolor →
+                                                                                        _tr2_tag =
+                                                                                                __veil_tag.InitStateProbe ∧
+                                                                                              ⟨f✝⁴.toNat,
+                                                                                                    st1.tpos.isLt⟩ =
+                                                                                                  0 ∧
+                                                                                                (st1.tcolor =
+                                                                                                      Color_Enum.black ∨
+                                                                                                    st1.colormap 0 =
+                                                                                                      Color_Enum.black) ∧
+                                                                                                  (∀
+                                                                                                      (a :
+                                                                                                        Fin
+                                                                                                          (f✝²⁰.toNat +
+                                                                                                            1)),
+                                                                                                      (fun a₁ =>
+                                                                                                            decide
+                                                                                                              (f✝¹⁸ a₁))
+                                                                                                          a =
+                                                                                                        (fun a₁ =>
+                                                                                                            decide
+                                                                                                              (f✝¹⁷ a₁))
+                                                                                                          a) ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            (f✝²⁰.toNat +
+                                                                                                              1)),
+                                                                                                        ⋯) ∧
+                                                                                                      Fin.last
+                                                                                                            f✝²⁰.toNat =
+                                                                                                          ⟨f✝³.toNat,
+                                                                                                            st2.tpos.isLt⟩ ∧
+                                                                                                        Color_Enum.white =
+                                                                                                          st2.tcolor ∨
+                                                                                            _tr2_tag =
+                                                                                                  __veil_tag.PassToken ∧
+                                                                                                ¬⟨f✝⁴.toNat,
+                                                                                                        st1.tpos.isLt⟩ =
+                                                                                                      0 ∧
+                                                                                                  (¬⋯ ∨
+                                                                                                      ⋯ ∨
+                                                                                                        st1.tcolor =
+                                                                                                          Color_Enum.black) ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            (f✝²⁰.toNat +
+                                                                                                              1)),
+                                                                                                        (fun a₁ =>
+                                                                                                              decide
+                                                                                                                (f✝¹⁸
+                                                                                                                  a₁))
+                                                                                                            a =
+                                                                                                          (fun a₁ =>
+                                                                                                              decide
+                                                                                                                (f✝¹⁷
+                                                                                                                  a₁))
+                                                                                                            a) ∧
+                                                                                                      ⋯ ∧ ⋯ ∨
+                                                                                              (_tr2_tag =
+                                                                                                    __veil_tag.SendMsg ∧
+                                                                                                  ∃ x, ⋯ ∧ ⋯) ∨
+                                                                                                _tr2_tag =
+                                                                                                    __veil_tag.Deactivate ∧
+                                                                                                  (fun a₁ =>
+                                                                                                          decide
+                                                                                                            (f✝¹⁸ a₁))
+                                                                                                        ⟨f✝¹¹.toNat,
+                                                                                                          _tr2_act_Deactivate_arg0_i.isLt⟩ =
+                                                                                                      true ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            (f✝²⁰.toNat +
+                                                                                                              1)),
+                                                                                                        ⋯) ∧
+                                                                                                      (∀
+                                                                                                          (a :
+                                                                                                            Fin
+                                                                                                              (f✝²⁰.toNat +
+                                                                                                                1)),
+                                                                                                          st1.colormap
+                                                                                                              a =
+                                                                                                            st2.colormap
+                                                                                                              a) ∧
+                                                                                                        ⋯ →
+                                                                                          _tr3_tag =
+                                                                                                  __veil_tag.InitStateProbe ∧
+                                                                                                ⟨f✝³.toNat,
+                                                                                                      st2.tpos.isLt⟩ =
+                                                                                                    0 ∧
+                                                                                                  (st2.tcolor =
+                                                                                                        Color_Enum.black ∨
+                                                                                                      st2.colormap 0 =
+                                                                                                        Color_Enum.black) ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            (f✝²⁰.toNat +
+                                                                                                              1)),
+                                                                                                        (fun a₁ =>
+                                                                                                              decide
+                                                                                                                (f✝¹⁷
+                                                                                                                  a₁))
+                                                                                                            a =
+                                                                                                          (fun a₁ =>
+                                                                                                              decide
+                                                                                                                (f✝¹⁶
+                                                                                                                  a₁))
+                                                                                                            a) ∧
+                                                                                                      ⋯ ∧ ⋯ ∨
+                                                                                              _tr3_tag =
+                                                                                                    __veil_tag.PassToken ∧
+                                                                                                  ¬⟨f✝³.toNat,
+                                                                                                          st2.tpos.isLt⟩ =
+                                                                                                        0 ∧
+                                                                                                    (⋯ ∨ ⋯) ∧ ⋯ ∧ ⋯ ∨
+                                                                                                (_tr3_tag =
+                                                                                                      __veil_tag.SendMsg ∧
+                                                                                                    ∃ x, ⋯) ∨
+                                                                                                  _tr3_tag =
+                                                                                                      __veil_tag.Deactivate ∧
+                                                                                                    (fun a₁ =>
+                                                                                                            decide
+                                                                                                              (f✝¹⁷ a₁))
+                                                                                                          ⟨f✝⁹.toNat,
+                                                                                                            _tr3_act_Deactivate_arg0_i.isLt⟩ =
+                                                                                                        true ∧
+                                                                                                      ⋯ ∧ ⋯ →
+                                                                                            _tr4_tag =
+                                                                                                    __veil_tag.InitStateProbe ∧
+                                                                                                  ⟨f✝².toNat,
+                                                                                                        st3.tpos.isLt⟩ =
+                                                                                                      0 ∧
+                                                                                                    (st3.tcolor =
+                                                                                                          Color_Enum.black ∨
+                                                                                                        ⋯) ∧
+                                                                                                      ⋯ ∧ ⋯ ∨
+                                                                                                _tr4_tag =
+                                                                                                      __veil_tag.PassToken ∧
+                                                                                                    ¬⟨f✝².toNat,
+                                                                                                            st3.tpos.isLt⟩ =
+                                                                                                          0 ∧
+                                                                                                      ⋯ ∧ ⋯ ∨
+                                                                                                  _tr4_tag =
+                                                                                                        __veil_tag.SendMsg ∧
+                                                                                                      Exists ⋯ ∨
+                                                                                                    _tr4_tag =
+                                                                                                        __veil_tag.Deactivate ∧
+                                                                                                      ⋯ ∧ ⋯ →
+                                                                                              (∀
+                                                                                                    (a :
+                                                                                                      Fin
+                                                                                                        (f✝²⁰.toNat +
+                                                                                                          1)),
+                                                                                                    (fun a₁ =>
+                                                                                                          decide
+                                                                                                            (f✝⁶ a₁))
+                                                                                                        a =
+                                                                                                      (fun a₁ =>
+                                                                                                          decide
+                                                                                                            (f✝¹⁹ a₁))
+                                                                                                        a) ∧
+                                                                                                  (∀
+                                                                                                      (a :
+                                                                                                        Fin
+                                                                                                          (f✝²⁰.toNat +
+                                                                                                            1)),
+                                                                                                      x_1 a =
+                                                                                                        st0.colormap
+                                                                                                          a) ∧
+                                                                                                    ⟨f.toNat,
+                                                                                                          x_2.isLt⟩ =
+                                                                                                        ⟨f✝⁵.toNat,
+                                                                                                          st0.tpos.isLt⟩ ∧
+                                                                                                      Color_Enum.black =
+                                                                                                        st0.tcolor →
+                                                                                                False) =
+      (True →
+        distinctN [Color_Enum.white, Color_Enum.black] →
+          (∀ (__veil_x : Color), __veil_x = Color_Enum.white ∨ __veil_x = Color_Enum.black) →
+            distinctN [__veil_tag.InitStateProbe, __veil_tag.PassToken, __veil_tag.SendMsg, __veil_tag.Deactivate] →
+              (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.InitStateProbe ∨
+                    __veil_x = __veil_tag.PassToken ∨
+                      __veil_x = __veil_tag.SendMsg ∨ __veil_x = __veil_tag.Deactivate) →
+                f✝¹⁴ < f✝²⁰ + 1 →
+                  ∀ (a_7 : f✝¹⁴ < f✝²⁰ + 1),
+                    f✝¹³ < f✝²⁰ + 1 →
+                      ∀ (_tr1_act_Deactivate_arg0_i.isLt : f✝¹³ < f✝²⁰ + 1),
+                        f✝¹² < f✝²⁰ + 1 →
+                          ∀ (_tr2_act_SendMsg_arg0_i.isLt : f✝¹² < f✝²⁰ + 1),
+                            f✝¹¹ < f✝²⁰ + 1 →
+                              ∀ (_tr2_act_Deactivate_arg0_i.isLt : f✝¹¹ < f✝²⁰ + 1),
+                                f✝¹⁰ < f✝²⁰ + 1 →
+                                  ∀ (_tr3_act_SendMsg_arg0_i.isLt : f✝¹⁰ < f✝²⁰ + 1),
+                                    f✝⁹ < f✝²⁰ + 1 →
+                                      ∀ (_tr3_act_Deactivate_arg0_i.isLt : f✝⁹ < f✝²⁰ + 1),
+                                        f✝⁸ < f✝²⁰ + 1 →
+                                          ∀ (_tr4_act_SendMsg_arg0_i.isLt : f✝⁸ < f✝²⁰ + 1),
+                                            f✝⁷ < f✝²⁰ + 1 →
+                                              ∀ (_tr4_act_Deactivate_arg0_i.isLt : f✝⁷ < f✝²⁰ + 1),
+                                                f✝⁵ < f✝²⁰ + 1 →
+                                                  ∀ (st0.tpos.isLt : f✝⁵ < f✝²⁰ + 1),
+                                                    f✝⁴ < f✝²⁰ + 1 →
+                                                      ∀ (st1.tpos.isLt : f✝⁴ < f✝²⁰ + 1),
+                                                        f✝³ < f✝²⁰ + 1 →
+                                                          ∀ (st2.tpos.isLt : f✝³ < f✝²⁰ + 1),
+                                                            f✝² < f✝²⁰ + 1 →
+                                                              ∀ (st3.tpos.isLt : f✝² < f✝²⁰ + 1),
+                                                                f✝¹ < f✝²⁰ + 1 →
+                                                                  ∀ (st4.tpos.isLt : f✝¹ < f✝²⁰ + 1),
+                                                                    ⟨f✝¹.toNat, ⋯⟩ = 0 →
+                                                                      st4.tcolor = Color_Enum.white →
+                                                                        f✝ < f✝²⁰ + 1 →
+                                                                          ∀ (x_1.isLt : f✝ < f✝²⁰ + 1),
+                                                                            f✝¹⁵ ⟨f✝.toNat, ⋯⟩ →
+                                                                              f < f✝²⁰ + 1 →
+                                                                                ∀ (x_2.isLt : f < f✝²⁰ + 1),
+                                                                                  st4.colormap 0 = Color_Enum.white →
+                                                                                    f✝¹⁵ 0 ≠ True →
+                                                                                      _tr1_tag =
+                                                                                              __veil_tag.InitStateProbe ∧
+                                                                                            ⟨f✝⁵.toNat, ⋯⟩ = 0 ∧
+                                                                                              (st0.tcolor =
+                                                                                                    Color_Enum.black ∨
+                                                                                                  st0.colormap 0 =
+                                                                                                    Color_Enum.black) ∧
+                                                                                                (∀
+                                                                                                    (a :
+                                                                                                      Fin
+                                                                                                        (f✝²⁰.toNat +
+                                                                                                          1)),
+                                                                                                    f✝¹⁹ a = f✝¹⁸ a) ∧
+                                                                                                  (∀
+                                                                                                      (a :
+                                                                                                        Fin
+                                                                                                          (f✝²⁰.toNat +
+                                                                                                            1)),
+                                                                                                      ⋯ =
+                                                                                                        st1.colormap
+                                                                                                          a) ∧
+                                                                                                    Fin.last
+                                                                                                          f✝²⁰.toNat =
+                                                                                                        ⋯ ∧
+                                                                                                      Color_Enum.white =
+                                                                                                        st1.tcolor ∨
+                                                                                          _tr1_tag =
+                                                                                                __veil_tag.PassToken ∧
+                                                                                              ¬⟨f✝⁵.toNat, ⋯⟩ = 0 ∧
+                                                                                                (f✝¹⁹ ⋯ ≠ True ∨
+                                                                                                    ⋯ =
+                                                                                                        Color_Enum.black ∨
+                                                                                                      st0.tcolor =
+                                                                                                        Color_Enum.black) ∧
+                                                                                                  (∀
+                                                                                                      (a :
+                                                                                                        Fin
+                                                                                                          (f✝²⁰.toNat +
+                                                                                                            1)),
+                                                                                                      f✝¹⁹ a = f✝¹⁸ a) ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            (f✝²⁰.toNat +
+                                                                                                              1)),
+                                                                                                        ⋯) ∧
+                                                                                                      ⋯ ∧ ⋯ ∨
+                                                                                            (_tr1_tag =
+                                                                                                  __veil_tag.SendMsg ∧
+                                                                                                ∃ x, f✝¹⁹ ⋯ ∧ ⋯ ∧ ⋯) ∨
+                                                                                              _tr1_tag =
+                                                                                                  __veil_tag.Deactivate ∧
+                                                                                                f✝¹⁹ ⟨f✝¹³.toNat, ⋯⟩ ∧
+                                                                                                  (∀
+                                                                                                      (a :
+                                                                                                        Fin
+                                                                                                          (f✝²⁰.toNat +
+                                                                                                            1)),
+                                                                                                      ⋯ = f✝¹⁸ a) ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            (f✝²⁰.toNat +
+                                                                                                              1)),
+                                                                                                        st0.colormap a =
+                                                                                                          st1.colormap
+                                                                                                            a) ∧
+                                                                                                      ⋯ ∧
+                                                                                                        st0.tcolor =
+                                                                                                          st1.tcolor →
+                                                                                        _tr2_tag =
+                                                                                                __veil_tag.InitStateProbe ∧
+                                                                                              ⟨f✝⁴.toNat, ⋯⟩ = 0 ∧
+                                                                                                (st1.tcolor =
+                                                                                                      Color_Enum.black ∨
+                                                                                                    st1.colormap 0 =
+                                                                                                      Color_Enum.black) ∧
+                                                                                                  (∀
+                                                                                                      (a :
+                                                                                                        Fin
+                                                                                                          (f✝²⁰.toNat +
+                                                                                                            1)),
+                                                                                                      f✝¹⁸ a = f✝¹⁷ a) ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            (f✝²⁰.toNat +
+                                                                                                              1)),
+                                                                                                        ⋯) ∧
+                                                                                                      ⋯ ∧
+                                                                                                        Color_Enum.white =
+                                                                                                          st2.tcolor ∨
+                                                                                            _tr2_tag =
+                                                                                                  __veil_tag.PassToken ∧
+                                                                                                ¬⟨f✝⁴.toNat, ⋯⟩ = 0 ∧
+                                                                                                  (⋯ ≠ True ∨
+                                                                                                      ⋯ ∨
+                                                                                                        st1.tcolor =
+                                                                                                          Color_Enum.black) ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            (f✝²⁰.toNat +
+                                                                                                              1)),
+                                                                                                        f✝¹⁸ a =
+                                                                                                          f✝¹⁷ a) ∧
+                                                                                                      ⋯ ∧ ⋯ ∨
+                                                                                              (_tr2_tag =
+                                                                                                    __veil_tag.SendMsg ∧
+                                                                                                  ∃ x, ⋯ ∧ ⋯) ∨
+                                                                                                _tr2_tag =
+                                                                                                    __veil_tag.Deactivate ∧
+                                                                                                  f✝¹⁸ ⟨f✝¹¹.toNat, ⋯⟩ ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            (f✝²⁰.toNat +
+                                                                                                              1)),
+                                                                                                        ⋯) ∧
+                                                                                                      (∀
+                                                                                                          (a :
+                                                                                                            Fin
+                                                                                                              (f✝²⁰.toNat +
+                                                                                                                1)),
+                                                                                                          st1.colormap
+                                                                                                              a =
+                                                                                                            st2.colormap
+                                                                                                              a) ∧
+                                                                                                        ⋯ →
+                                                                                          _tr3_tag =
+                                                                                                  __veil_tag.InitStateProbe ∧
+                                                                                                ⟨f✝³.toNat, ⋯⟩ = 0 ∧
+                                                                                                  (st2.tcolor =
+                                                                                                        Color_Enum.black ∨
+                                                                                                      st2.colormap 0 =
+                                                                                                        Color_Enum.black) ∧
+                                                                                                    (∀
+                                                                                                        (a :
+                                                                                                          Fin
+                                                                                                            (f✝²⁰.toNat +
+                                                                                                              1)),
+                                                                                                        f✝¹⁷ a =
+                                                                                                          f✝¹⁶ a) ∧
+                                                                                                      ⋯ ∧ ⋯ ∨
+                                                                                              _tr3_tag =
+                                                                                                    __veil_tag.PassToken ∧
+                                                                                                  ¬⋯ = 0 ∧
+                                                                                                    (⋯ ∨ ⋯) ∧
+                                                                                                      (∀
+                                                                                                          (a :
+                                                                                                            Fin
+                                                                                                              (f✝²⁰.toNat +
+                                                                                                                1)),
+                                                                                                          f✝¹⁷ a =
+                                                                                                            f✝¹⁶ a) ∧
+                                                                                                        ⋯ ∨
+                                                                                                (_tr3_tag =
+                                                                                                      __veil_tag.SendMsg ∧
+                                                                                                    ∃ x, ⋯) ∨
+                                                                                                  _tr3_tag =
+                                                                                                      __veil_tag.Deactivate ∧
+                                                                                                    f✝¹⁷ ⋯ ∧ ⋯ ∧ ⋯ →
+                                                                                            _tr4_tag =
+                                                                                                    __veil_tag.InitStateProbe ∧
+                                                                                                  ⟨f✝².toNat, ⋯⟩ = 0 ∧
+                                                                                                    (st3.tcolor =
+                                                                                                          Color_Enum.black ∨
+                                                                                                        ⋯) ∧
+                                                                                                      (∀
+                                                                                                          (a :
+                                                                                                            Fin
+                                                                                                              (f✝²⁰.toNat +
+                                                                                                                1)),
+                                                                                                          f✝¹⁶ a =
+                                                                                                            f✝¹⁵ a) ∧
+                                                                                                        ⋯ ∨
+                                                                                                _tr4_tag =
+                                                                                                      __veil_tag.PassToken ∧
+                                                                                                    ¬⋯ ∧ ⋯ ∧ ⋯ ∨
+                                                                                                  _tr4_tag =
+                                                                                                        __veil_tag.SendMsg ∧
+                                                                                                      Exists ⋯ ∨
+                                                                                                    _tr4_tag =
+                                                                                                        __veil_tag.Deactivate ∧
+                                                                                                      ⋯ ∧ ⋯ →
+                                                                                              (∀
+                                                                                                    (a :
+                                                                                                      Fin
+                                                                                                        (f✝²⁰.toNat +
+                                                                                                          1)),
+                                                                                                    f✝⁶ a = f✝¹⁹ a) ∧
+                                                                                                  (∀
+                                                                                                      (a :
+                                                                                                        Fin
+                                                                                                          (f✝²⁰.toNat +
+                                                                                                            1)),
+                                                                                                      x_1 a =
+                                                                                                        st0.colormap
+                                                                                                          a) ∧
+                                                                                                    ⋯ = ⋯ ∧
+                                                                                                      Color_Enum.black =
+                                                                                                        st0.tcolor →
+                                                                                                False)
+but is expected to have type
+  f ≥ 0 → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (f ≥ 0)) fun a =>
+    implies_congr (Eq.refl True)
+      (implies_congr (Eq.refl (distinctN [Color_Enum.white, Color_Enum.black]))
+        (implies_congr (Eq.refl (∀ (__veil_x : Color), __veil_x = Color_Enum.white ∨ __veil_x = Color_Enum.black))
+          (implies_congr
+            (Eq.refl
+              (distinctN [__veil_tag.InitStateProbe, __veil_tag.PassToken, __veil_tag.SendMsg, __veil_tag.Deactivate]))
+            (implies_congr
+              (Eq.refl
+                (∀ (__veil_x : ActionTag),
+                  __veil_x = __veil_tag.InitStateProbe ∨
+                    __veil_x = __veil_tag.PassToken ∨ __veil_x = __veil_tag.SendMsg ∨ __veil_x = __veil_tag.Deactivate))
+              (implies_congr
+                (Eq.trans Int.ofNat_lt._simp_2
+                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴))
+                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                (forall_prop_domain_congr
+                  (Eq.trans Int.ofNat_lt._simp_2
+                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁴))
+                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                  fun _tr1_act_SendMsg_arg0_i.isLt =>
+                  implies_congr
+                    (Eq.trans Int.ofNat_lt._simp_2
+                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³))
+                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                    (forall_prop_domain_congr
+                      (Eq.trans Int.ofNat_lt._simp_2
+                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹³))
+                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                      fun _tr1_act_Deactivate_arg0_i.isLt =>
+                      implies_congr
+                        (Eq.trans Int.ofNat_lt._simp_2
+                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²))
+                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                        (forall_prop_domain_congr
+                          (Eq.trans Int.ofNat_lt._simp_2
+                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹²))
+                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                          fun _tr2_act_SendMsg_arg0_i.isLt =>
+                          implies_congr
+                            (Eq.trans Int.ofNat_lt._simp_2
+                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹))
+                                (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                            (forall_prop_domain_congr
+                              (Eq.trans Int.ofNat_lt._simp_2
+                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹¹))
+                                  (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                              fun _tr2_act_Deactivate_arg0_i.isLt =>
+                              implies_congr
+                                (Eq.trans Int.ofNat_lt._simp_2
+                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰))
+                                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                (forall_prop_domain_congr
+                                  (Eq.trans Int.ofNat_lt._simp_2
+                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝¹⁰))
+                                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                  fun _tr3_act_SendMsg_arg0_i.isLt =>
+                                  implies_congr
+                                    (Eq.trans Int.ofNat_lt._simp_2
+                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹))
+                                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                    (forall_prop_domain_congr
+                                      (Eq.trans Int.ofNat_lt._simp_2
+                                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁹))
+                                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                      fun _tr3_act_Deactivate_arg0_i.isLt =>
+                                      implies_congr
+                                        (Eq.trans Int.ofNat_lt._simp_2
+                                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸))
+                                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                        (forall_prop_domain_congr
+                                          (Eq.trans Int.ofNat_lt._simp_2
+                                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁸))
+                                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                          fun _tr4_act_SendMsg_arg0_i.isLt =>
+                                          implies_congr
+                                            (Eq.trans Int.ofNat_lt._simp_2
+                                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷))
+                                                (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                            (forall_prop_domain_congr
+                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁷))
+                                                  (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                              fun _tr4_act_Deactivate_arg0_i.isLt =>
+                                              implies_congr
+                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶))
+                                                    (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                                (forall_prop_domain_congr
+                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁶))
+                                                      (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                                  fun st0.tpos.isLt =>
+                                                  implies_congr
+                                                    (Eq.trans Int.ofNat_lt._simp_2
+                                                      (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵))
+                                                        (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                                    (forall_prop_domain_congr
+                                                      (Eq.trans Int.ofNat_lt._simp_2
+                                                        (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁵))
+                                                          (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵))
+                                                            1)))
+                                                      fun st1.tpos.isLt =>
+                                                      implies_congr
+                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                          (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))
+                                                            (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵))
+                                                              1)))
+                                                        (forall_prop_domain_congr
+                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                            (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝⁴))
+                                                              (congrFun' (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵))
+                                                                1)))
+                                                          fun st2.tpos.isLt =>
+                                                          implies_congr
+                                                            (Eq.trans Int.ofNat_lt._simp_2
+                                                              (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                (congrFun'
+                                                                  (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                                            (forall_prop_domain_congr
+                                                              (Eq.trans Int.ofNat_lt._simp_2
+                                                                (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝³))
+                                                                  (congrFun'
+                                                                    (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵)) 1)))
+                                                              fun st3.tpos.isLt =>
+                                                              implies_congr
+                                                                (Eq.trans Int.ofNat_lt._simp_2
+                                                                  (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                    (congrFun'
+                                                                      (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵))
+                                                                      1)))
+                                                                (forall_prop_domain_congr
+                                                                  (Eq.trans Int.ofNat_lt._simp_2
+                                                                    (congr (congrArg LT.lt (Int.toNat_of_nonneg a✝²))
+                                                                      (congrFun'
+                                                                        (congrArg HAdd.hAdd (Int.toNat_of_nonneg a✝¹⁵))
+                                                                        1)))
+                                                                  fun st4.tpos.isLt =>
+                                                                  implies_congr
+                                                                    (Eq.refl
+                                                                      (⟨f✝¹.toNat, Eq.substr ⋯ st4.tpos.isLt⟩ = 0))
+                                                                    (implies_congr
+                                                                      (Eq.refl (st4.tcolor = Color_Enum.white))
+                                                                      (implies_congr
+                                                                        (Eq.trans Int.ofNat_lt._simp_2
+                                                                          (congr
+                                                                            (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                            (congrFun'
+                                                                              (congrArg HAdd.hAdd
+                                                                                (Int.toNat_of_nonneg a✝¹⁵))
+                                                                              1)))
+                                                                        (forall_prop_domain_congr
+                                                                          (Eq.trans Int.ofNat_lt._simp_2
+                                                                            (congr
+                                                                              (congrArg LT.lt (Int.toNat_of_nonneg a✝¹))
+                                                                              (congrFun'
+                                                                                (congrArg HAdd.hAdd
+                                                                                  (Int.toNat_of_nonneg a✝¹⁵))
+                                                                                1)))
+                                                                          fun x_1.isLt => ⋯)))))))))))))))))))))

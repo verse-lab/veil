@@ -1,0 +1,175 @@
+{
+  "row": {
+    "cell_id": "AWS_AWSBuggy__d32__early__default",
+    "model": "AWS_AWSBuggy",
+    "path": "Examples/AWS/AWSBuggy.lean",
+    "module": "AWSDnsRace",
+    "depth": 32,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "destruct",
+    "failure_kind": "heartbeats",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/AWS_AWSBuggy__default__batch1.lean:593:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached\n\nNote: Use `set_option maxHeartbeats <num>` to set the limit.\n\nHint: Additional diagnostic information may be available using the `set_option diagnostics true` command.\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 137,
+    "batch_id": "AWS_AWSBuggy__default__batch1",
+    "batch_setup_ms": 12522,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/AWS_AWSBuggy__d32__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/AWS_AWSBuggy__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/AWS_AWSBuggy__d32__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/AWS_AWSBuggy__d32__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/AWS_AWSBuggy__d32__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "AWS_AWSBuggy",
+    "path": "Examples/AWS/AWSBuggy.lean",
+    "module": "AWSDnsRace",
+    "cut_line": 134,
+    "query": "assert (dns_valid = false)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "DnsConsistent safety, line132",
+    "notes": "Buggy DNS race variant; same Veil namespace as AWSFixed and TLA/AWSDnsRace.",
+    "category": "AWS",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "b41f31f16d354cf64cd73e1c69d5bd7e6c05d6c5109920b0ce03dae6dfab1f05"
+  },
+  "original_sha256": "b41f31f16d354cf64cd73e1c69d5bd7e6c05d6c5109920b0ce03dae6dfab1f05",
+  "inherited_setup_options": [],
+  "source_sha256": "3704fa8f39d4d0e3eeb01c621cd5a8ab605417da1d69a2a684131613f1f6df31",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/AWS_AWSBuggy__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 206613255,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 206613392,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206613393,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 61,
+      "event": "stage",
+      "heartbeats": 95378,
+      "mono_ms": 206613454,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206613454,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5637,
+      "event": "stage",
+      "heartbeats": 48717091,
+      "mono_ms": 206619092,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206619092,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1027,
+      "event": "stage",
+      "heartbeats": 11852854,
+      "mono_ms": 206620119,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206620200,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 24,
+      "event": "stage",
+      "heartbeats": 3420,
+      "mono_ms": 206620225,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 206620225,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 206636554,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "AWS_AWSBuggy__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/AWS_AWSBuggy__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/AWS_AWSBuggy__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 95113,
+    "setup_ms": 12522,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/AWS_AWSBuggy__default__batch1.lean"
+    ]
+  }
+}

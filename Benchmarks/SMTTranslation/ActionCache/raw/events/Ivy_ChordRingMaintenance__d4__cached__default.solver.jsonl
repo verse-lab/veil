@@ -1,0 +1,2 @@
+{"detail":"","elapsed_ms":0,"event":"solver","phase":"solver","status":"begin"}
+{"detail":"cvc5.Error.error \"Expected SMT-LIBv2 sort constructor, got `(` (LPAREN_TOK).\"","elapsed_ms":2,"event":"solver","phase":"solver","status":"error"}

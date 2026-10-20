@@ -1,0 +1,11 @@
+/tmp/veil-action-cache/results/batch-sources/Ivy_DecentralizedLock__cached__default__batch1.lean:148:18: warning: Variable name `x` is not explicitly referenced.
+
+The binding can be removed (if unused) or named `_` (if used implicitly).
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+/tmp/veil-action-cache/results/batch-sources/Ivy_DecentralizedLock__cached__default__batch1.lean:188:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-action-cache/results/batch-sources/Ivy_DecentralizedLock__cached__default__batch1.lean:223:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-action-cache/results/batch-sources/Ivy_DecentralizedLock__cached__default__batch1.lean:258:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-action-cache/results/batch-sources/Ivy_DecentralizedLock__cached__default__batch1.lean:293:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-action-cache/results/batch-sources/Ivy_DecentralizedLock__cached__default__batch1.lean:328:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-action-cache/results/batch-sources/Ivy_DecentralizedLock__cached__default__batch1.lean:363:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed

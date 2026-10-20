@@ -1,0 +1,317 @@
+{
+  "row": {
+    "cell_id": "TLA_MutexViolation__d8__early__default",
+    "model": "TLA_MutexViolation",
+    "path": "Examples/TLA/MutexViolation.lean",
+    "module": "MutexViolation",
+    "depth": 8,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/TLA_MutexViolation__default__batch1.lean:622:2: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 78,
+    "batch_id": "TLA_MutexViolation__default__batch1",
+    "batch_setup_ms": 16501,
+    "preprocessing_ms": 4603,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/TLA_MutexViolation__d8__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/TLA_MutexViolation__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/TLA_MutexViolation__d8__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/TLA_MutexViolation__d8__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/TLA_MutexViolation__d8__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_MutexViolation",
+    "path": "Examples/TLA/MutexViolation.lean",
+    "module": "MutexViolation",
+    "cut_line": 316,
+    "query": "assert (∃ i j, i ≠ j ∧ pc i = cs ∧ pc j = cs)",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "mutual_exclusion invariant, line313",
+    "notes": "Contains list-valued call stacks; symbolic translation may be unsupported independently of the optimization.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "f3c88c8d38d5ea314fdb4b3b04aedce04d2074780fe1f719a3990a3cbcb8ff04"
+  },
+  "original_sha256": "f3c88c8d38d5ea314fdb4b3b04aedce04d2074780fe1f719a3990a3cbcb8ff04",
+  "inherited_setup_options": [],
+  "source_sha256": "8819723c0d1d2a8ba4cd8a502683f67eccc3dd41e30bf093da175ee434cbd1d0",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/TLA_MutexViolation__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 209429521,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 209429599,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209429599,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 20,
+      "event": "stage",
+      "heartbeats": 46871,
+      "mono_ms": 209429619,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209429619,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2038,
+      "event": "stage",
+      "heartbeats": 20938405,
+      "mono_ms": 209431657,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209431657,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 35,
+      "event": "stage",
+      "heartbeats": 585067,
+      "mono_ms": 209431692,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209431722,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 3412,
+      "mono_ms": 209431728,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209431728,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1239,
+      "event": "stage",
+      "heartbeats": 14316116,
+      "mono_ms": 209432967,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209432967,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 151,
+      "event": "stage",
+      "heartbeats": 1880926,
+      "mono_ms": 209433118,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209433119,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1030,
+      "event": "stage",
+      "heartbeats": 12170735,
+      "mono_ms": 209434149,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209434175,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 85,
+      "event": "stage",
+      "heartbeats": 1621381,
+      "mono_ms": 209434261,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 4663,
+      "event": "milestone",
+      "mono_ms": 209434262,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209434262,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 8,
+      "event": "stage",
+      "heartbeats": 88615,
+      "mono_ms": 209434270,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209434270,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 851,
+      "mono_ms": 209434270,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209434270,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 209434270,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209434270,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 18663,
+      "mono_ms": 209434273,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209434273,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 155,
+      "event": "stage",
+      "heartbeats": 2240858,
+      "mono_ms": 209434428,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 209434428,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 209434784,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_MutexViolation__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/TLA_MutexViolation__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/TLA_MutexViolation__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 100371,
+    "setup_ms": 16501,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/TLA_MutexViolation__default__batch1.lean"
+    ]
+  }
+}

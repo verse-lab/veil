@@ -1,0 +1,921 @@
+{
+  "repo": "/home/george/src/veil-issue-123",
+  "commit": "543817e690debe6fbc9b518fb2694549d5986e90",
+  "script_sha256": "0fe22f37b22996f5a72a92f891c5fd8038f79a24bb16060edb72575b2a746a92",
+  "common_script_sha256": "75ed43fd9ee2abbd6c3041068b238913f4c1361ee3c5cfd47105b0dfdc3c79c6",
+  "manifest_sha256": "6ec18dcb816fd8909801f14ea93bf80f726c4acdcdaf198f79476b1cd6fce8f5",
+  "models": [
+    {
+      "model": "AWS_AWSBuggy",
+      "path": "Examples/AWS/AWSBuggy.lean",
+      "module": "AWSDnsRace",
+      "cut_line": 134,
+      "query": "assert (dns_valid = false)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "DnsConsistent safety, line132",
+      "notes": "Buggy DNS race variant; same Veil namespace as AWSFixed and TLA/AWSDnsRace.",
+      "category": "AWS",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "b41f31f16d354cf64cd73e1c69d5bd7e6c05d6c5109920b0ce03dae6dfab1f05"
+    },
+    {
+      "model": "AWS_AWSFixed",
+      "path": "Examples/AWS/AWSFixed.lean",
+      "module": "AWSDnsRace",
+      "cut_line": 164,
+      "query": "assert (dns_valid = false)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "DnsConsistent safety, line125",
+      "notes": "Repaired DNS race variant; include separately from AWSBuggy.",
+      "category": "AWS",
+      "source_options": [
+        {
+          "line": 162,
+          "directive": "set_option veil.solver \"grind+smt\""
+        }
+      ],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "dc2dc5ffb8f19c619effabf68fda7d2e68b4f6cc13cbb6dc518e6f5159c30431"
+    },
+    {
+      "model": "Ivy_Blockchain",
+      "path": "Examples/Ivy/Blockchain.lean",
+      "module": "Blockchain",
+      "cut_line": 107,
+      "query": "assert (¬ (∀ n1 n2 n b t tr t1 t2, (((honest n1 ∧ honest n2) → ((block_confirmed n1 b t ∧ block_confirmed n2 b t) ∨ (¬ block_confirmed n1 b t ∧ ¬ block_confirmed n2 b t))) ∧ ((honest n1 ∧ honest n2) → ((transaction_confirmed tr n1 ∧ transaction_confirmed tr n2) ∨ (¬ transaction_confirmed tr n1 ∧ ¬ transaction_confirmed tr n2))) ∧ ((honest n ∧ leader n t2 ∧ transaction_time tr t1 ∧ tot.le t1 t2 ∧ broadcasted n ∧ honest n1) → transaction_confirmed tr n1))))",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "Entire combined safety declaration, lines87–90",
+      "notes": "Negates all three conjuncts together and explicitly binds every source autoimplicit variable.",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "b30613fcf224af61ab5e85cf42fb3fa33b739d2961b91687d4bbc0f711c8db20"
+    },
+    {
+      "model": "Ivy_ChordRingMaintenance",
+      "path": "Examples/Ivy/ChordRingMaintenance.lean",
+      "module": "ChordRingMaintenance",
+      "cut_line": 165,
+      "query": "assert (∃ n, error n)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "no_error safety, line143",
+      "notes": "",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "2eedcdc41c0722fd5a77853fe96a7e9a495c2da32964b222a9c3508ca0051edf"
+    },
+    {
+      "model": "Ivy_DecentralizedLock",
+      "path": "Examples/Ivy/DecentralizedLock.lean",
+      "module": "DecentralizedLock",
+      "cut_line": 57,
+      "query": "assert (∃ x y, has_lock x ∧ has_lock y ∧ x ≠ y)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "mutex safety, line51",
+      "notes": "",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "44a7e123471cc0db1e8265bb68db3475910c24095453b543cfc992a91fa83ccc"
+    },
+    {
+      "model": "Ivy_MultiSigAll",
+      "path": "Examples/Ivy/MultiSigAll.lean",
+      "module": "MultiSigAll",
+      "cut_line": 85,
+      "query": "assert (∃ n k v d, cancelled n k v d ∧ ¬ expired d)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "cancelled_after_deadline safety, line78",
+      "notes": "Five sorts and high-arity relations; distinct query from the earlier paid-tuple reachability experiment.",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "7550361739a54ef68b10ce343140bf00a51917b65bb4344b75effb1a1bfbcfdf"
+    },
+    {
+      "model": "Ivy_MultiSigMajority",
+      "path": "Examples/Ivy/MultiSigMajority.lean",
+      "module": "MultiSigMajority",
+      "cut_line": 95,
+      "query": "assert (∃ n k v d, cancelled n k v d ∧ ¬ expired d)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "cancelled_after_deadline safety, line88",
+      "notes": "Quorum-based variant, distinct from MultiSigAll.",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "725aa85ca8aaee64fada61e1a9d547b2c4a5f10c4babb06c76c7f1ca7fd82d5f"
+    },
+    {
+      "model": "Ivy_NOPaxos",
+      "path": "Examples/Ivy/NOPaxos.lean",
+      "module": "NOPaxos",
+      "cut_line": 267,
+      "query": "assert (∃ s v1 v2, gh_committed s v1 ∧ gh_committed s v2 ∧ v1 ≠ v2)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "consistency safety, line243",
+      "notes": "Relational Ivy model; distinct from the collection-based TLA/NOPaxos.",
+      "category": "Ivy",
+      "source_options": [
+        {
+          "line": 266,
+          "directive": "set_option maxHeartbeats 10000000"
+        }
+      ],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "054fea72d8e3b51c3b6c9d8cdc55c160dd9667ae4ae4db67da78ba6095fa6741"
+    },
+    {
+      "model": "Ivy_PaxosEPR",
+      "path": "Examples/Ivy/PaxosEPR.lean",
+      "module": "PaxosEPR",
+      "cut_line": 121,
+      "query": "assert (∃ n1 r1 v1 n2 r2 v2, decision n1 r1 v1 ∧ decision n2 r2 v2 ∧ v1 ≠ v2)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "coherence safety, line91",
+      "notes": "",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "4c26bee219ecdc7def7e0d9a70a1648f6e728bb5adeb05bc72a159e62b972085"
+    },
+    {
+      "model": "Ivy_PaxosFirstOrder",
+      "path": "Examples/Ivy/PaxosFirstOrder.lean",
+      "module": "PaxosFirstOrder",
+      "cut_line": 128,
+      "query": "assert (∃ n1 r1 v1 n2 r2 v2, decision n1 r1 v1 ∧ decision n2 r2 v2 ∧ v1 ≠ v2)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "coherence safety, line99",
+      "notes": "Distinct first-order variant of PaxosEPR.",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "f3af1a3b0eb631451d186185a655b463954c3bde3c9227e55122e0296c7f7059"
+    },
+    {
+      "model": "Ivy_ReliableBroadcast",
+      "path": "Examples/Ivy/ReliableBroadcast.lean",
+      "module": "ReliableBroadcast",
+      "cut_line": 201,
+      "query": "assert (∃ src dst r v, ¬ is_byz src ∧ ¬ is_byz dst ∧ voted dst src r v ∧ ¬ (sent src r ∧ initial_value src r v))",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "vote_integrity safety, lines122–124",
+      "notes": "Full Byzantine/round-indexed model; distinct from Simulate/ReliableBroadcast.",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "412edec1c3846060bd08d11f38aa42be3ed2075d82b7dbf0ca1f29d19520c001"
+    },
+    {
+      "model": "Ivy_RicartAgrawala",
+      "path": "Examples/Ivy/RicartAgrawala.lean",
+      "module": "RicartAgrawala",
+      "cut_line": 55,
+      "query": "assert (∃ n1 n2, holds n1 ∧ holds n2 ∧ n1 ≠ n2)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "mutual_exclusion safety, line51",
+      "notes": "",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "6bfdbe383c29168a92026857c38b3debe29e394acdff217cbaf3b58ca6c13d2b"
+    },
+    {
+      "model": "Ivy_Ring",
+      "path": "Examples/Ivy/Ring.lean",
+      "module": "Ring",
+      "cut_line": 48,
+      "query": "assert (∃ n1 n2, n1 ≠ n2 ∧ leader n1 ∧ leader n2)",
+      "query_kind": "existing_safety_violation",
+      "expected_status": null,
+      "query_source": "Existing unsat trace, lines57–60; single_leader safety, line42",
+      "notes": "Relational ring; overlaps Tutorial/Ring and POPL26/RingDec. Prefix explicitly sets veil.smt.trust=false.",
+      "category": "Ivy",
+      "source_options": [
+        {
+          "line": 47,
+          "directive": "set_option veil.smt.trust false"
+        }
+      ],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "b07c460e7767a50bd27801f02c3e7bdc73e68ccbe7fbcc59634845863b9b4d66"
+    },
+    {
+      "model": "Ivy_SuzukiKasami",
+      "path": "Examples/Ivy/SuzukiKasami.lean",
+      "module": "SuzukiKasami",
+      "cut_line": 126,
+      "query": "assert (∃ n m, crit n ∧ crit m ∧ n ≠ m)",
+      "query_kind": "invariant_violation",
+      "expected_status": null,
+      "query_source": "mutex invariant, line111",
+      "notes": "No safety declaration; select the named mutex invariant.",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "d8728fda446e3f67a1e7003c40874d6cdaaccc943fa66bcd35e10ef45a5712bd"
+    },
+    {
+      "model": "Ivy_TwoPhaseCommit",
+      "path": "Examples/Ivy/TwoPhaseCommit.lean",
+      "module": "TwoPhaseCommit",
+      "cut_line": 97,
+      "query": "assert (¬ (∀ n n2, (decide_commit n → ¬ decide_abort n2) ∧ (decide_commit n → vote_yes n2) ∧ (decide_abort n → abort_flag)))",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "Entire combined safety declaration, lines85–87",
+      "notes": "Negates all three conjuncts: commit/abort agreement, unanimous yes votes on commit, and abort-flag consistency.",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "e2e1976595f147e9f56d3d08f1b0b57cb6586352b4435d8a768348805bcb54fd"
+    },
+    {
+      "model": "Ivy_VerticalPaxosFirstOrder",
+      "path": "Examples/Ivy/VerticalPaxosFirstOrder.lean",
+      "module": "VerticalPaxosFirstOrder",
+      "cut_line": 176,
+      "query": "assert (∃ n1 r1 v1 n2 r2 v2, decision n1 r1 v1 ∧ decision n2 r2 v2 ∧ v1 ≠ v2)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "coherence safety, line132",
+      "notes": "Post-#gen_spec manual proof section is excluded; all model/invariant declarations are retained.",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "b502405d2a61a4c713c9aa16aa0b744d7d2b656c92f826e5cc48dc501b92cf00"
+    },
+    {
+      "model": "Puzzles_DieHard",
+      "path": "Examples/Puzzles/DieHard.lean",
+      "module": "DieHard",
+      "cut_line": 62,
+      "query": "assert (big = 4)",
+      "query_kind": "puzzle_reachability",
+      "expected_status": null,
+      "query_source": "Negation of not_solved invariant, line59",
+      "notes": "Uses the puzzle objective rather than the structural jug-capacity invariant.",
+      "category": "Puzzles",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "003f896257b7ed5578ff76197e57ef5876e3458879851989661adfe1f00386d2"
+    },
+    {
+      "model": "Puzzles_Prisoners",
+      "path": "Examples/Puzzles/Prisoners.lean",
+      "module": "Prisoners",
+      "cut_line": 86,
+      "query": "assert (Done ∧ ∃ p, p ≠ Counter ∧ timesSwitched p = 0)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "Safety declaration, line85",
+      "notes": "Concrete cardPrisoner=4 from #model_check is not imposed; symbolic theory parameters remain general.",
+      "category": "Puzzles",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "4316c7869f61c878c691170f785a3ed0b4ab8a2df71b4267a7e8489456b40909"
+    },
+    {
+      "model": "Puzzles_RiverCrossing",
+      "path": "Examples/Puzzles/RiverCrossing.lean",
+      "module": "RiverCrossing",
+      "cut_line": 83,
+      "query": "assert (goat_pos = far ∧ wolf_pos = far ∧ cabbage_pos = far ∧ farmer_pos = far)",
+      "query_kind": "puzzle_reachability",
+      "expected_status": null,
+      "query_source": "Negation of unsolved invariant, line81",
+      "notes": "Uses the puzzle objective; retains action safety guards.",
+      "category": "Puzzles",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "50f97ba2920f6f79b9151b582ef40c5f8f74cb5097910fb1f5529f50dffabbd4"
+    },
+    {
+      "model": "Simulate_CheckpointLeaseFailover",
+      "path": "Examples/Simulate/CheckpointLeaseFailover.lean",
+      "module": "CheckpointLeaseFailover",
+      "cut_line": 82,
+      "query": "assert (∃ l expiry now, checkpointed_until l expiry ∧ current_epoch now ∧ epochOrd.le expiry now ∧ active_on_leader l)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "checkpointed_expiry_respected safety, lines77–80",
+      "notes": "Designed for simulation, but retained to expose symbolic-backend limitations.",
+      "category": "Simulate",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "cf9464cb7f1597fcdb4496ba5db410466042dc1da365f9c15e32916cccc61493"
+    },
+    {
+      "model": "Simulate_LeaseKeepaliveRace",
+      "path": "Examples/Simulate/LeaseKeepaliveRace.lean",
+      "module": "LeaseKeepaliveRace",
+      "cut_line": 76,
+      "query": "assert (∃ c k, keepalive_succeeded c ∧ key_attached c k ∧ ¬ key_present k)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "renewal_keeps_keys_live safety, lines73–74",
+      "notes": "Designed for simulation; no concrete client/key domain bounds are imported.",
+      "category": "Simulate",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "b7260456926f066778e048945d6899f823df2e23780429a4866f147d75c68018"
+    },
+    {
+      "model": "Simulate_ReliableBroadcast",
+      "path": "Examples/Simulate/ReliableBroadcast.lean",
+      "module": "ReliableBroadcastSim",
+      "cut_line": 64,
+      "query": "assert (∃ n1 n2 v1 v2, delivered n1 v1 ∧ delivered n2 v2 ∧ v1 ≠ v2)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "agreement safety, lines61–62",
+      "notes": "Simplified simulation model, distinct from Ivy/ReliableBroadcast.",
+      "category": "Simulate",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "8ea7d65d03ceec84cf591eb9f55add7414bf1384dbdae0280bd8039ea20535ab"
+    },
+    {
+      "model": "StellarConsensus_SCP",
+      "path": "Examples/StellarConsensus/SCP.lean",
+      "module": "SCP",
+      "cut_line": 246,
+      "query": "assert (∃ n1 n2 b1 b2 v1 v2, intertwined n1 ∧ intertwined n2 ∧ confirmed_committed n1 b1 v1 ∧ confirmed_committed n2 b2 v2 ∧ v1 ≠ v2)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "intertwined_safe safety, lines218–220",
+      "notes": "Requires prebuilt Examples.StellarConsensus.SCPTheory; manual proof section after #gen_spec is excluded.",
+      "category": "StellarConsensus",
+      "source_options": [],
+      "imports": [
+        "Veil",
+        "Examples.StellarConsensus.SCPTheory"
+      ],
+      "source_sha256": "5efa11b5ea8f24205760bedb19eed6c81e5f3cfe37c647bd0eeb39f202f6c76a"
+    },
+    {
+      "model": "Synchronous_FasterFloodSet",
+      "path": "Examples/Synchronous/FasterFloodSet.lean",
+      "module": "FloodSet",
+      "cut_line": 221,
+      "query": "assert (∃ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 ∧ v1 ≠ v2)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "agreement safety, lines179–180",
+      "notes": "Optimized collection-based FloodSet variant; same namespace as other FloodSet files, isolated process required.",
+      "category": "Synchronous",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "8a2981a4b415a85d19969609b8b1b4798e138e4ea6e8992933a710aea9b53fbe"
+    },
+    {
+      "model": "Synchronous_FloodSet",
+      "path": "Examples/Synchronous/FloodSet.lean",
+      "module": "FloodSet",
+      "cut_line": 214,
+      "query": "assert (∃ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 ∧ v1 ≠ v2)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "agreement safety, lines137–138",
+      "notes": "Contains genuine function-valued delivery choices.",
+      "category": "Synchronous",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "71e30b3e1e732b752052029b4a31e037cab323758a94cfc2edef3f6a772c5f0e"
+    },
+    {
+      "model": "TLA_AWSDnsRace",
+      "path": "Examples/TLA/AWSDnsRace.lean",
+      "module": "AWSDnsRace",
+      "cut_line": 93,
+      "query": "assert (current_plan > 0 ∧ plan_deleted current_plan true)",
+      "query_kind": "invariant_violation",
+      "expected_status": null,
+      "query_source": "NeverDeleteActive invariant, line89",
+      "notes": "Finite-enum/Fin-based DNS race model; distinct from both AWS variants.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "0d18a8d84a66ceffa70e55c0a195892aa5939fa559c85fefd5c79a96d2e9ba9f"
+    },
+    {
+      "model": "TLA_Bakery",
+      "path": "Examples/TLA/Bakery.lean",
+      "module": "Bakery",
+      "cut_line": 195,
+      "query": "assert (∃ i j, i ≠ j ∧ pc i = cs ∧ pc j = cs)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "mutual_exclusion safety, line192",
+      "notes": "",
+      "category": "TLA",
+      "source_options": [
+        {
+          "line": 194,
+          "directive": "set_option maxHeartbeats 2500000"
+        }
+      ],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "0d2b12623cbba49860a40208dc1c54bf6583627563dffae95ed70329e32489ce"
+    },
+    {
+      "model": "TLA_BcastByz",
+      "path": "Examples/TLA/BcastByz.lean",
+      "module": "BcastByz",
+      "cut_line": 202,
+      "query": "assert (∃ p, isCorrect p ∧ pc p = AC)",
+      "query_kind": "derived_reachability",
+      "expected_status": null,
+      "query_source": "PCState.AC and protocol step actions; no declared protocol safety property",
+      "notes": "Uses correct-process acceptance, rather than the static partition/cardinality sanity invariants. Contains collections and an Enumeration parameter.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "f7aa1867b40e8f453d3e227a8d33bf9c557796034b63a25997ab66de5e4d65c1"
+    },
+    {
+      "model": "TLA_BuggyCircularBuffer",
+      "path": "Examples/TLA/BuggyCircularBuffer.lean",
+      "module": "BuggyCircularBuffer",
+      "cut_line": 60,
+      "query": "assert (count > BUFFER_SIZE)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "Safety declaration, line58",
+      "notes": "",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "a52834a85c2cbc1986560bb8818238197dbaa9c796ed353a1061b1a402ef7bb3"
+    },
+    {
+      "model": "TLA_EPaxos",
+      "path": "Examples/TLA/EPaxos.lean",
+      "module": "EPaxos",
+      "cut_line": 1388,
+      "query": "assert (∃ i, commitSet.count (committedMap i) > 1)",
+      "query_kind": "invariant_violation",
+      "expected_status": null,
+      "query_source": "Consistency invariant, lines1378–1379",
+      "notes": "Large collection/message model. Keep backend/elaboration failures as outcomes; do not replace its query with True.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "9f33f0fd15fa5c873302f7c521744277aaaca0373fa43b20d0e255549d742dd4"
+    },
+    {
+      "model": "TLA_EWD840",
+      "path": "Examples/TLA/EWD840.lean",
+      "module": "EWD840",
+      "cut_line": 110,
+      "query": "assert (terminationDetected ∧ ¬ terminated)",
+      "query_kind": "invariant_violation",
+      "expected_status": null,
+      "query_source": "TerminationDetection invariant, line103",
+      "notes": "Uses earlier ghost definitions; Fin domain size is a symbolic Nat parameter.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "3dd60c0b153252a030410b77c940884ff872010360482ccadab9b53e720dd3df"
+    },
+    {
+      "model": "TLA_German",
+      "path": "Examples/TLA/German.lean",
+      "module": "GermanCacheCoherence",
+      "cut_line": 206,
+      "query": "assert (¬ (∀ i j, i ≠ j → (((cache i).state = cE → (cache j).state = cI) ∧ ((cache i).state = cS → ((cache j).state = cI ∨ (cache j).state = cS)))))",
+      "query_kind": "invariant_violation",
+      "expected_status": null,
+      "query_source": "ctrlProp invariant, lines197–200",
+      "notes": "Explicitly binds the autoimplicit I/J variables from the source invariant.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "0b1e195a428ca148c3ead2e7b3219f3e613b560e0f0e62d1a924c57ba64d89af"
+    },
+    {
+      "model": "TLA_KVSnap",
+      "path": "Examples/TLA/KVSnap.lean",
+      "module": "KVsnapNew",
+      "cut_line": 279,
+      "query": "assert (¬ serialization)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "Serialization safety, line277; ghost serialization, lines273–275",
+      "notes": "Retains CC definitions and Veil.Util.Permutations import. Serialization uses enumerations, lists and permutations; backend support is not assumed.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil",
+        "Veil.Util.Permutations"
+      ],
+      "source_sha256": "7ab796b71fe418a896206b5430ef70d827464052ddad87c35650049f33997455"
+    },
+    {
+      "model": "TLA_KeyValueStore",
+      "path": "Examples/TLA/KeyValueStore.lean",
+      "module": "KeyValueStoreRe",
+      "cut_line": 161,
+      "query": "assert (¬ (snapshot_isolation ∧ transaction_cleanup))",
+      "query_kind": "invariant_violation",
+      "expected_status": null,
+      "query_source": "Txlifecycle invariant, line159",
+      "notes": "Both ghost predicates are defined before #gen_spec. Uses partial functions and sets.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "68603d3c98c1c595b2aed77f0d1927ddd6befd277209d3b8a3b7d4e2785c25e7"
+    },
+    {
+      "model": "TLA_MultiPaxos",
+      "path": "Examples/TLA/MultiPaxos.lean",
+      "module": "MultiPaxos",
+      "cut_line": 349,
+      "query": "assert (∃ v1 v2 s, Chosen v1 s ∧ Chosen v2 s ∧ v1 ≠ v2)",
+      "query_kind": "invariant_violation",
+      "expected_status": null,
+      "query_source": "consistency invariant, lines346–347",
+      "notes": "Uses earlier Chosen ghost predicate and collection-backed messages.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "09759f3d884331a9c416cd549d1ca54120f292b5c64a9bf090d2f3255a1e4136"
+    },
+    {
+      "model": "TLA_MutexViolation",
+      "path": "Examples/TLA/MutexViolation.lean",
+      "module": "MutexViolation",
+      "cut_line": 316,
+      "query": "assert (∃ i j, i ≠ j ∧ pc i = cs ∧ pc j = cs)",
+      "query_kind": "invariant_violation",
+      "expected_status": null,
+      "query_source": "mutual_exclusion invariant, line313",
+      "notes": "Contains list-valued call stacks; symbolic translation may be unsupported independently of the optimization.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "f3c88c8d38d5ea314fdb4b3b04aedce04d2074780fe1f719a3990a3cbcb8ff04"
+    },
+    {
+      "model": "TLA_NOPaxos",
+      "path": "Examples/TLA/NOPaxos.lean",
+      "module": "NOPaxos",
+      "cut_line": 955,
+      "query": "assert (¬ Linearizability)",
+      "query_kind": "invariant_violation",
+      "expected_status": null,
+      "query_source": "linearizability invariant, line944; ghost predicate, line316",
+      "notes": "Large collection/list/array model. Prefix sets veil.deferVCGeneration=true and maxHeartbeats=1600000.",
+      "category": "TLA",
+      "source_options": [
+        {
+          "line": 10,
+          "directive": "set_option veil.deferVCGeneration true"
+        },
+        {
+          "line": 954,
+          "directive": "set_option maxHeartbeats 1600000"
+        }
+      ],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "dba347dc4275045efe9f76d1c576e31e51aac3970aced1a97aae351095d5a566"
+    },
+    {
+      "model": "TLA_Paxos",
+      "path": "Examples/TLA/Paxos.lean",
+      "module": "Paxos",
+      "cut_line": 300,
+      "query": "assert (∃ v1 v2, Chosen v1 ∧ Chosen v2 ∧ v1 ≠ v2)",
+      "query_kind": "invariant_violation",
+      "expected_status": null,
+      "query_source": "Consistency invariant, line298",
+      "notes": "Uses earlier Chosen ghost predicate and bounded ballot datatype.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "33d64f8c189aaee8673022a912da0b5598fc3d99d8e7923cde919235df7b709b"
+    },
+    {
+      "model": "TLA_Peterson",
+      "path": "Examples/TLA/Peterson.lean",
+      "module": "Peterson",
+      "cut_line": 124,
+      "query": "assert (∃ i j, i ≠ j ∧ lockcs i ∧ lockcs j)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "mutual_exclusion safety, lines108–109",
+      "notes": "lockcs is defined before #gen_spec; finite process/control enums.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "9c457ac1ab56f8e611c756bc584c4b1cd2502994a1376b56870ee40fb5c4731a"
+    },
+    {
+      "model": "TLA_Raft",
+      "path": "Examples/TLA/Raft.lean",
+      "module": "Raft",
+      "cut_line": 1075,
+      "query": "assert (∃ i j, i ≠ j ∧ currentTerm i = currentTerm j ∧ pcState i Leader ∧ pcState j Leader)",
+      "query_kind": "documented_safety_violation",
+      "expected_status": null,
+      "query_source": "BothLeader/MoreThanOneLeader specification comments, lines1059–1066",
+      "notes": "No active safety/invariant declaration. Tests the documented election-safety condition. Retains source-specific large heartbeat/typeclass limits.",
+      "category": "TLA",
+      "source_options": [
+        {
+          "line": 1071,
+          "directive": "set_option synthInstance.maxHeartbeats 1000000"
+        },
+        {
+          "line": 1072,
+          "directive": "set_option synthInstance.maxSize 200000"
+        },
+        {
+          "line": 1073,
+          "directive": "set_option maxHeartbeats 10000000"
+        }
+      ],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "d3470b019df35dc5338f193755454f3729f6473d879c19062b82eb1e5d5aa6d4"
+    },
+    {
+      "model": "TLA_Room",
+      "path": "Examples/TLA/Room.lean",
+      "module": "RoomMC",
+      "cut_line": 146,
+      "query": "assert (∃ r g1 g2, guestTset.contains g1 (registered r) ∧ guestTset.contains g2 (registered r) ∧ g1 ≠ g2)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "registered_at_most_one safety, lines122–123",
+      "notes": "Collection-based hotel key model.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "2788514236d97e13f50cfeb72326b5a9b4bd70e153bcf2e3b15e93a5963ca2e7"
+    },
+    {
+      "model": "TLA_SimpleAllocator",
+      "path": "Examples/TLA/SimpleAllocator.lean",
+      "module": "SimpleAllocator",
+      "cut_line": 84,
+      "query": "assert (¬ (∀ c1 c2 : client, c1 ≠ c2 → resSet.isEmpty (resSet.intersection (alloc c1) (alloc c2))))",
+      "query_kind": "invariant_violation",
+      "expected_status": null,
+      "query_source": "resource_mutex invariant, line83",
+      "notes": "Negates the exact declared predicate; do not replace it by elementwise membership, since the abstract TSet class does not state an intersection-membership law.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "c58ca2069d44940f76e086cc5ca82d52ff8a586858759015c01a86c4676bab23"
+    },
+    {
+      "model": "TLA_Traffic",
+      "path": "Examples/TLA/Traffic.lean",
+      "module": "Traffic",
+      "cut_line": 74,
+      "query": "assert (at_light = false)",
+      "query_kind": "puzzle_reachability",
+      "expected_status": null,
+      "query_source": "Negation of puzzle_unsolvable safety, lines70–72",
+      "notes": "Reaches the intended puzzle goal: the car leaves the light.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "8418d4a7338b69616502eda57d3e360af78fa2208f43ee990a267aa263b86a16"
+    },
+    {
+      "model": "TLA_TwoPhaseCommit",
+      "path": "Examples/TLA/TwoPhaseCommit.lean",
+      "module": "TwoPhaseCommit",
+      "cut_line": 222,
+      "query": "assert (∃ rm1 rm2, (rmState rm1 == committed) ∧ (rmState rm2 == aborted))",
+      "query_kind": "invariant_violation",
+      "expected_status": null,
+      "query_source": "TCConsistency invariant, lines219–220",
+      "notes": "Distinct finite-control-state model from Ivy/TwoPhaseCommit; preserves the original Bool equality predicate.",
+      "category": "TLA",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "26ea68038d872d5310c24b4a101b32580b56cfd9ebb7ad79adee47b5d770fba2"
+    },
+    {
+      "model": "Tutorial_FloodSet",
+      "path": "Examples/Tutorial/FloodSet.lean",
+      "module": "FloodSet",
+      "cut_line": 341,
+      "query": "assert (¬ (∀ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 → v1 = v2))",
+      "query_kind": "existing_safety_violation",
+      "expected_status": null,
+      "query_source": "Existing agreement_violation trace, lines392–395",
+      "notes": "Tutorial variant overlaps Synchronous/FloodSet but is retained as its own model-bearing file.",
+      "category": "Tutorial",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "1681ed0b9021af0c86687c2dc8f931b9d09b801d7b14cc59a25998f1039df8d4"
+    },
+    {
+      "model": "Tutorial_POPL26_RingDec",
+      "path": "Examples/Tutorial/POPL26/RingDec.lean",
+      "module": "RingDec",
+      "cut_line": 47,
+      "query": "assert (∃ n1 n2, n1 ≠ n2 ∧ leader n1 ∧ leader n2)",
+      "query_kind": "existing_safety_violation",
+      "expected_status": null,
+      "query_source": "Existing unsat trace, lines56–59",
+      "notes": "Near-duplicate relational Ring teaching variant, intentionally retained for complete file coverage.",
+      "category": "Tutorial",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "0d58807677e872861fc11e9f219a89c2434ead057a4b68ae443de9640a2e151c"
+    },
+    {
+      "model": "Tutorial_POPL26_RingFin",
+      "path": "Examples/Tutorial/POPL26/RingFin.lean",
+      "module": "RingFin",
+      "cut_line": 56,
+      "query": "assert (leader.length > 1)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "single_leader safety, line53",
+      "notes": "List-based concrete implementation over a symbolic node type; distinct from relational Ring. No concrete nextNode/topology assignment is imported.",
+      "category": "Tutorial",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "9122e6041a7fa3b1ef168cf04396101b8be21663f537ad46ba56a9a4e0f05695"
+    },
+    {
+      "model": "Tutorial_POPL26_RingNat",
+      "path": "Examples/Tutorial/POPL26/RingNat.lean",
+      "module": "RingNat",
+      "cut_line": 53,
+      "query": "assert (leader.length > 1)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "single_leader safety, line50",
+      "notes": "List-based Nat implementation. Concrete allNodes/nextNode values from #model_check are intentionally not imposed.",
+      "category": "Tutorial",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "ff1870e857f3d90c92eadbf62594c53b33be6d70cce6d6a4a6d656f4fdd85117"
+    },
+    {
+      "model": "Tutorial_Ring",
+      "path": "Examples/Tutorial/Ring.lean",
+      "module": "Ring",
+      "cut_line": 229,
+      "query": "assert (∃ l1 l2, leader l1 ∧ leader l2 ∧ l1 ≠ l2)",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "single_leader safety, line217",
+      "notes": "Tutorial relational Ring, retained separately from Ivy/Ring and POPL26/RingDec.",
+      "category": "Tutorial",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "3cb4e2274ab3192d8d2064ca93661527b26f0a0af14da77ff103be53f42d1be2"
+    }
+  ],
+  "depths": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "variants": [
+    "local",
+    "cached"
+  ],
+  "selected_profile": "default",
+  "query_limits": {
+    "maxHeartbeats": 200000,
+    "maxRecDepth": 512,
+    "simp_maxSteps": 100000
+  },
+  "setup_options": "Preserved from model prefix; setup explicitly awaits doesNotThrow tasks before query timing.",
+  "query_trust": true,
+  "embedBool": false,
+  "finiteModelFind": true,
+  "native_cvc5_plugin": "/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+  "native_cvc5_plugin_sha256": "ac9f732f2ecfc268cf9d0e35cd9cdabc63be0ff24ea2a4a35d8b40c6d91b6b34",
+  "execution": "Separate uncached/cached setups per model; independent trace commands and command budgets. Shared process/cache state; variant order alternates per model. Timeout kills process group and restarts unstarted cells.",
+  "setup_timeout_seconds": 60,
+  "query_elaboration_timeout_seconds": 60,
+  "pipeline_timeout_seconds": 60,
+  "solver_timeout_seconds": 10,
+  "samples_per_cell": 1,
+  "trace_semantics": "exactly N actions; does not cover all lengths <= N",
+  "timing": "Completed stage sums exclude model setup, trace VC elaboration, event IO, UI/model reconstruction and kernel proof reconstruction. Process wall times live in batch-events/*.execution.json; do not sum shared setup once per cell.",
+  "proof_status": "Query-extraction declarations deliberately error; no sorry or claimed theorem. Results come from separate trusted solver replay.",
+  "core_source_sha256": "b980c7af0e335933101b9fb9f631c50796a899af2994554821b6a1f987f12ed0",
+  "core_olean_sha256": "647621dd2af6ad2c08dbde4d54e71d60c15d70421cf3507ca24127ba6c8d54ae"
+}

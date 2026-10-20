@@ -1,0 +1,417 @@
+{
+  "row": {
+    "cell_id": "Ivy_PaxosFirstOrder__d1__local__default",
+    "model": "Ivy_PaxosFirstOrder",
+    "path": "Examples/Ivy/PaxosFirstOrder.lean",
+    "module": "PaxosFirstOrder",
+    "depth": 1,
+    "variant": "local",
+    "profile": "default",
+    "status": "unsat",
+    "translation_status": "complete",
+    "solver_status": "unsat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 24,
+    "batch_id": "Ivy_PaxosFirstOrder__default__batch1",
+    "batch_setup_ms": 12771,
+    "preprocessing_ms": 460,
+    "smt_preprocessing_ms": 10,
+    "translation_ms": 48,
+    "serialization_ms": 0,
+    "query_total_ms": 518,
+    "solver_ms": 50,
+    "completed_total_ms": 568,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 8986,
+    "query_commands": 55,
+    "query_sha256": "80bb9f328b85b177e747464b41f5d55a47ac80e95c8c39d83acd090f6be788ee",
+    "query_path": "/tmp/veil-transition-local/results/queries/Ivy_PaxosFirstOrder__d1__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_PaxosFirstOrder__d1__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Ivy_PaxosFirstOrder__d1__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_PaxosFirstOrder",
+    "path": "Examples/Ivy/PaxosFirstOrder.lean",
+    "module": "PaxosFirstOrder",
+    "cut_line": 128,
+    "query": "assert (∃ n1 r1 v1 n2 r2 v2, decision n1 r1 v1 ∧ decision n2 r2 v2 ∧ v1 ≠ v2)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "coherence safety, line99",
+    "notes": "Distinct first-order variant of PaxosEPR.",
+    "category": "Ivy",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "f3af1a3b0eb631451d186185a655b463954c3bde3c9227e55122e0296c7f7059"
+  },
+  "original_sha256": "f3af1a3b0eb631451d186185a655b463954c3bde3c9227e55122e0296c7f7059",
+  "inherited_setup_options": [],
+  "source_sha256": "70a930fa45dc5fcbc6a27e6b5cd18cce2b9bbf95ba8a843812421fbe8c2457f0",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Ivy_PaxosFirstOrder__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207427776,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 207427800,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207427800,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 9203,
+      "mono_ms": 207427803,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207427803,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 2957,
+      "mono_ms": 207427804,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207427804,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 321,
+      "event": "stage",
+      "heartbeats": 3955496,
+      "mono_ms": 207428125,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428125,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6,
+      "event": "stage",
+      "heartbeats": 79999,
+      "mono_ms": 207428131,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428135,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3417,
+      "mono_ms": 207428136,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428136,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 36,
+      "event": "stage",
+      "heartbeats": 488085,
+      "mono_ms": 207428172,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428172,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 11,
+      "event": "stage",
+      "heartbeats": 182120,
+      "mono_ms": 207428184,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428185,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 72,
+      "event": "stage",
+      "heartbeats": 1034380,
+      "mono_ms": 207428257,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428258,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 8,
+      "event": "stage",
+      "heartbeats": 134123,
+      "mono_ms": 207428266,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428266,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 23194,
+      "mono_ms": 207428268,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 468,
+      "event": "milestone",
+      "mono_ms": 207428268,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428269,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 20025,
+      "mono_ms": 207428270,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428271,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 603,
+      "mono_ms": 207428271,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428271,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 208,
+      "mono_ms": 207428271,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428271,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 56,
+      "mono_ms": 207428271,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428271,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "heartbeats": 107557,
+      "mono_ms": 207428278,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428278,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 31425,
+      "mono_ms": 207428280,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428280,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 48,
+      "event": "stage",
+      "heartbeats": 511437,
+      "mono_ms": 207428328,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207428398,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 14,
+      "mono_ms": 207428398,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 8986,
+      "commands": 55,
+      "elapsed_ms": 598,
+      "event": "pipeline",
+      "mono_ms": 207428398,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207428441,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_PaxosFirstOrder__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Ivy_PaxosFirstOrder__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 72236,
+    "setup_ms": 12771,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosFirstOrder__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 50,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unsat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_PaxosFirstOrder__d1__local__default.solver.jsonl",
+    "batch_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

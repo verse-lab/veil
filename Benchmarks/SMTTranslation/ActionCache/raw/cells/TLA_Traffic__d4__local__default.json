@@ -1,0 +1,417 @@
+{
+  "row": {
+    "cell_id": "TLA_Traffic__d4__local__default",
+    "model": "TLA_Traffic",
+    "path": "Examples/TLA/Traffic.lean",
+    "module": "Traffic",
+    "depth": 4,
+    "variant": "local",
+    "profile": "default",
+    "status": "sat",
+    "translation_status": "complete",
+    "solver_status": "sat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 20,
+    "batch_id": "TLA_Traffic__local__default__batch1",
+    "batch_setup_ms": 6555,
+    "preprocessing_ms": 448,
+    "smt_preprocessing_ms": 24,
+    "translation_ms": 44,
+    "serialization_ms": 0,
+    "query_total_ms": 516,
+    "solver_ms": 110,
+    "completed_total_ms": 626,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 6885,
+    "query_commands": 48,
+    "query_sha256": "dee01545c90ca42e934a825a73cfc2def9ae076d4144afa705a32cfbe9892ef9",
+    "query_path": "/tmp/veil-action-cache/results/queries/TLA_Traffic__d4__local__default.smt2",
+    "source_path": "/tmp/veil-action-cache/results/batch-sources/TLA_Traffic__local__default__batch1.lean",
+    "event_path": "/tmp/veil-action-cache/results/events/TLA_Traffic__d4__local__default.jsonl",
+    "translation_log": "/tmp/veil-action-cache/results/logs/TLA_Traffic__d4__local__default.translation.log",
+    "solver_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_Traffic",
+    "path": "Examples/TLA/Traffic.lean",
+    "module": "Traffic",
+    "cut_line": 74,
+    "query": "assert (at_light = false)",
+    "query_kind": "puzzle_reachability",
+    "expected_status": null,
+    "query_source": "Negation of puzzle_unsolvable safety, lines70–72",
+    "notes": "Reaches the intended puzzle goal: the car leaves the light.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "8418d4a7338b69616502eda57d3e360af78fa2208f43ee990a267aa263b86a16"
+  },
+  "original_sha256": "8418d4a7338b69616502eda57d3e360af78fa2208f43ee990a267aa263b86a16",
+  "inherited_setup_options": [],
+  "source_sha256": "77b46cff930ddd10ce228501f97d2d6c04d90479591d1387502ea81fe427b966",
+  "batch_log": "/tmp/veil-action-cache/results/batch-logs/TLA_Traffic__local__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 245574198,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 245574218,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574218,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 7359,
+      "mono_ms": 245574220,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574220,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 2804,
+      "mono_ms": 245574221,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574221,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 184,
+      "event": "stage",
+      "heartbeats": 2204559,
+      "mono_ms": 245574405,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574405,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 9,
+      "event": "stage",
+      "heartbeats": 125420,
+      "mono_ms": 245574414,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574416,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 2749,
+      "mono_ms": 245574418,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574418,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 36,
+      "event": "stage",
+      "heartbeats": 411201,
+      "mono_ms": 245574454,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574454,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 40,
+      "event": "stage",
+      "heartbeats": 382139,
+      "mono_ms": 245574495,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574495,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 159,
+      "event": "stage",
+      "heartbeats": 1794073,
+      "mono_ms": 245574654,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574654,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 11,
+      "event": "stage",
+      "heartbeats": 168982,
+      "mono_ms": 245574666,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574666,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 55221,
+      "mono_ms": 245574671,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 453,
+      "event": "milestone",
+      "mono_ms": 245574671,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574671,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 48555,
+      "mono_ms": 245574675,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574675,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 915,
+      "mono_ms": 245574675,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574675,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 245574675,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574675,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 245574675,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574675,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 18,
+      "event": "stage",
+      "heartbeats": 195316,
+      "mono_ms": 245574693,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574693,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 33889,
+      "mono_ms": 245574696,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574696,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 44,
+      "event": "stage",
+      "heartbeats": 395745,
+      "mono_ms": 245574740,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245574804,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 245574804,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 6885,
+      "commands": 48,
+      "elapsed_ms": 586,
+      "event": "pipeline",
+      "mono_ms": 245574804,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 245574861,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_Traffic__local__default__batch1",
+    "source": "/tmp/veil-action-cache/results/batch-sources/TLA_Traffic__local__default__batch1.lean",
+    "log": "/tmp/veil-action-cache/results/batch-logs/TLA_Traffic__local__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 15961,
+    "setup_ms": 6555,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-action-cache/results/batch-sources/TLA_Traffic__local__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 110,
+      "event": "solver",
+      "phase": "solver",
+      "status": "sat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-action-cache/results/events/TLA_Traffic__d4__local__default.solver.jsonl",
+    "batch_log": "/tmp/veil-action-cache/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

@@ -1,0 +1,1 @@
+/tmp/veil-transition-local/results/batch-sources/Ivy_ReliableBroadcast__default__batch1.lean:330:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas

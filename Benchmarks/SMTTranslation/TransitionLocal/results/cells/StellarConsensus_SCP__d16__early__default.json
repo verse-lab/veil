@@ -1,0 +1,206 @@
+{
+  "row": {
+    "cell_id": "StellarConsensus_SCP__d16__early__default",
+    "model": "StellarConsensus_SCP",
+    "path": "Examples/StellarConsensus/SCP.lean",
+    "module": "SCP",
+    "depth": 16,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "smtSimp",
+    "failure_kind": "heartbeats",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean:610:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached\n\nNote: Use `set_option maxHeartbeats <num>` to set the limit.\n\nHint: Additional diagnostic information may be available using the `set_option diagnostics true` command.\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 159,
+    "batch_id": "StellarConsensus_SCP__default__batch1",
+    "batch_setup_ms": 27299,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/StellarConsensus_SCP__d16__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/StellarConsensus_SCP__d16__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/StellarConsensus_SCP__d16__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/StellarConsensus_SCP__d16__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "StellarConsensus_SCP",
+    "path": "Examples/StellarConsensus/SCP.lean",
+    "module": "SCP",
+    "cut_line": 246,
+    "query": "assert (∃ n1 n2 b1 b2 v1 v2, intertwined n1 ∧ intertwined n2 ∧ confirmed_committed n1 b1 v1 ∧ confirmed_committed n2 b2 v2 ∧ v1 ≠ v2)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "intertwined_safe safety, lines218–220",
+    "notes": "Requires prebuilt Examples.StellarConsensus.SCPTheory; manual proof section after #gen_spec is excluded.",
+    "category": "StellarConsensus",
+    "source_options": [],
+    "imports": [
+      "Veil",
+      "Examples.StellarConsensus.SCPTheory"
+    ],
+    "source_sha256": "5efa11b5ea8f24205760bedb19eed6c81e5f3cfe37c647bd0eeb39f202f6c76a"
+  },
+  "original_sha256": "5efa11b5ea8f24205760bedb19eed6c81e5f3cfe37c647bd0eeb39f202f6c76a",
+  "inherited_setup_options": [],
+  "source_sha256": "c5fb713f74a33c16e5455a0bec3420f9de30f4ca4788955bc43602838b2e35eb",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/StellarConsensus_SCP__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208171573,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 208171732,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208171732,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 90,
+      "event": "stage",
+      "heartbeats": 222407,
+      "mono_ms": 208171822,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208171823,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6354,
+      "event": "stage",
+      "heartbeats": 69521050,
+      "mono_ms": 208178177,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208178177,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 158,
+      "event": "stage",
+      "heartbeats": 2215578,
+      "mono_ms": 208178335,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208178454,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 30,
+      "event": "stage",
+      "heartbeats": 3413,
+      "mono_ms": 208178485,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208178485,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4946,
+      "event": "stage",
+      "heartbeats": 50947226,
+      "mono_ms": 208183431,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208183431,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2880,
+      "event": "stage",
+      "heartbeats": 35785237,
+      "mono_ms": 208186311,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208186319,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208191057,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "StellarConsensus_SCP__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/StellarConsensus_SCP__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 150365,
+    "setup_ms": 27299,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean"
+    ]
+  }
+}

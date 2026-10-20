@@ -1,0 +1,6 @@
+/tmp/veil-action-cache/results/batch-sources/Tutorial_POPL26_RingFin__cached__default__batch1.lean:187:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-action-cache/results/batch-sources/Tutorial_POPL26_RingFin__cached__default__batch1.lean:222:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-action-cache/results/batch-sources/Tutorial_POPL26_RingFin__cached__default__batch1.lean:257:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-action-cache/results/batch-sources/Tutorial_POPL26_RingFin__cached__default__batch1.lean:292:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-action-cache/results/batch-sources/Tutorial_POPL26_RingFin__cached__default__batch1.lean:327:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas
+/tmp/veil-action-cache/results/batch-sources/Tutorial_POPL26_RingFin__cached__default__batch1.lean:362:2: error: cannot translate fun a b => instDecidableEqMessage a b, SMT-LIB does not support lambdas

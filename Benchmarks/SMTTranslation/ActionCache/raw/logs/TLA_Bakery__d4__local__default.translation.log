@@ -1,0 +1,137 @@
+/tmp/veil-action-cache/results/batch-sources/TLA_Bakery__local__default__batch1.lean:398:2: error: Application type mismatch: The argument
+  fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun pSet.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun pSet.insert =>
+                forall_congr fun pSet.remove =>
+                  forall_congr fun pSet.ofList =>
+                    forall_congr fun pSet.toList =>
+                      forall_congr fun pSet.filter =>
+                        forall_congr fun pSet.union =>
+                          forall_congr fun pSet.diff =>
+                            forall_congr fun pSet.intersection =>
+                              forall_congr fun pSet.subsets =>
+                                forall_congr fun __veil_tag.evtNCS =>
+                                  forall_congr fun __veil_tag.evtE1 =>
+                                    forall_congr fun __veil_tag.evtE2 =>
+                                      forall_congr fun __veil_tag.evtE3 =>
+                                        forall_congr fun __veil_tag.evtE4 =>
+                                          forall_congr fun __veil_tag.evtW1 =>
+                                            forall_congr fun __veil_tag.evtW2 =>
+                                              forall_congr fun __veil_tag.evtCS =>
+                                                forall_congr fun __veil_tag.evtExit =>
+                                                  forall_congr fun st0.num =>
+                                                    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                                      (forall_congr fun f_3 => forall_congr ⋯)))
+has type
+  ∀ (a : ∀ (a₁ : ProcessSet), f a₁ ≥ 0),
+    (∀ (f_1 : ProcTy f✝¹.toNat → ProcessSet → Bool) (pSet.empty : ProcessSet) (pSet.isEmpty : ProcessSet → Bool)
+        (pSet.insert pSet.remove : ProcTy f✝¹.toNat → ProcessSet → ProcessSet)
+        (pSet.ofList : List (ProcTy f✝¹.toNat) → ProcessSet) (pSet.toList : ProcessSet → List (ProcTy f✝¹.toNat))
+        (pSet.filter : ProcessSet → (ProcTy f✝¹.toNat → Bool) → ProcessSet)
+        (pSet.union pSet.diff pSet.intersection : ProcessSet → ProcessSet → ProcessSet)
+        (pSet.subsets : ProcessSet → List ProcessSet)
+        (__veil_tag.evtNCS __veil_tag.evtE1 __veil_tag.evtE2 __veil_tag.evtE3 __veil_tag.evtE4 __veil_tag.evtW1
+          __veil_tag.evtW2 __veil_tag.evtCS __veil_tag.evtExit : ActionTag)
+        (st0.num : ProcTy f✝¹.toNat → TicketNum f✝.toNat) (st0.flag : ProcTy f✝¹.toNat → Bool)
+        (st0.unchecked : ProcTy f✝¹.toNat → ProcessSet) (st0.max : ProcTy f✝¹.toNat → TicketNum f✝.toNat)
+        (st0.nxt : ProcTy f✝¹.toNat → ProcTy f✝¹.toNat) (st0.pc : ProcTy f✝¹.toNat → pc_state)
+        (st1.num : ProcTy f✝¹.toNat → TicketNum f✝.toNat) (st1.flag : ProcTy f✝¹.toNat → Bool)
+        (st1.unchecked : ProcTy f✝¹.toNat → ProcessSet) (st1.max : ProcTy f✝¹.toNat → TicketNum f✝.toNat)
+        (st1.nxt : ProcTy f✝¹.toNat → ProcTy f✝¹.toNat) (st1.pc : ProcTy f✝¹.toNat → pc_state)
+        (st2.num : ProcTy f✝¹.toNat → TicketNum f✝.toNat) (st2.flag : ProcTy f✝¹.toNat → Bool)
+        (st2.unchecked : ProcTy f✝¹.toNat → ProcessSet) (st2.max : ProcTy f✝¹.toNat → TicketNum f✝.toNat)
+        (st2.nxt : ProcTy f✝¹.toNat → ProcTy f✝¹.toNat) (st2.pc : ProcTy f✝¹.toNat → pc_state)
+        (st3.num : ProcTy f✝¹.toNat → TicketNum f✝.toNat) (st3.flag : ProcTy f✝¹.toNat → Bool)
+        (st3.unchecked : ProcTy f✝¹.toNat → ProcessSet) (st3.max : ProcTy f✝¹.toNat → TicketNum f✝.toNat)
+        (st3.nxt : ProcTy f✝¹.toNat → ProcTy f✝¹.toNat) (st3.pc : ProcTy f✝¹.toNat → pc_state)
+        (st4.num : ProcTy f✝¹.toNat → TicketNum f✝.toNat) (st4.flag : ProcTy f✝¹.toNat → Bool)
+        (st4.unchecked : ProcTy f✝¹.toNat → ProcessSet) (st4.max : ProcTy f✝¹.toNat → TicketNum f✝.toNat)
+        (st4.nxt : ProcTy f✝¹.toNat → ProcTy f✝¹.toNat) (st4.pc : ProcTy f✝¹.toNat → pc_state) (i j : ProcTy f✝¹.toNat),
+        True →
+          distinctN
+              [pc_state_Enum.ncs, pc_state_Enum.e1, pc_state_Enum.e2, pc_state_Enum.e3, pc_state_Enum.e4,
+                pc_state_Enum.w1, pc_state_Enum.w2, pc_state_Enum.cs, pc_state_Enum.exit] →
+            (∀ (__veil_x : pc_state),
+                __veil_x = pc_state_Enum.ncs ∨
+                  __veil_x = pc_state_Enum.e1 ∨
+                    __veil_x = pc_state_Enum.e2 ∨
+                      __veil_x = pc_state_Enum.e3 ∨
+                        __veil_x = pc_state_Enum.e4 ∨
+                          __veil_x = pc_state_Enum.w1 ∨
+                            __veil_x = pc_state_Enum.w2 ∨ __veil_x = pc_state_Enum.cs ∨ __veil_x = pc_state_Enum.exit) →
+              (fun a₁ => (f a₁).toNat) pSet.empty = 0 →
+                ∀ (pSet.empty_count : (fun a₁ => (f a₁).toNat) pSet.empty = 0),
+                  (∀ (elem : ProcTy f✝¹.toNat), f_1 elem pSet.empty = false) →
+                    ∀ (pSet.empty_contains : ∀ (elem : ProcTy f✝¹.toNat), f_1 elem pSet.empty = false),
+                      (∀ (s : ProcessSet), (pSet.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)) → ⋯) =
+      ∀ (a_1 : ProcTy f✝¹.toNat → ProcessSet → Prop) (a_2 : ProcessSet) (a_3 : ProcessSet → Prop)
+        (a_4 a_5 : ProcTy f✝¹.toNat → ProcessSet → ProcessSet) (a_6 : List (ProcTy f✝¹.toNat) → ProcessSet)
+        (a_7 : ProcessSet → List (ProcTy f✝¹.toNat)) (a_8 : ProcessSet → (ProcTy f✝¹.toNat → Bool) → ProcessSet)
+        (a_9 a_10 a_11 : ProcessSet → ProcessSet → ProcessSet) (a_12 : ProcessSet → List ProcessSet)
+        (a_13 a_14 a_15 a_16 a_17 a_18 a_19 a_20 a_21 : ActionTag) (a_22 : ProcTy f✝¹.toNat → TicketNum f✝.toNat)
+        (a_23 : ProcTy f✝¹.toNat → Prop) (a_24 : ProcTy f✝¹.toNat → ProcessSet)
+        (a_25 : ProcTy f✝¹.toNat → TicketNum f✝.toNat) (a_26 : ProcTy f✝¹.toNat → ProcTy f✝¹.toNat)
+        (a_27 : ProcTy f✝¹.toNat → pc_state) (a_28 : ProcTy f✝¹.toNat → TicketNum f✝.toNat)
+        (a_29 : ProcTy f✝¹.toNat → Prop) (a_30 : ProcTy f✝¹.toNat → ProcessSet)
+        (a_31 : ProcTy f✝¹.toNat → TicketNum f✝.toNat) (a_32 : ProcTy f✝¹.toNat → ProcTy f✝¹.toNat)
+        (a_33 : ProcTy f✝¹.toNat → pc_state) (a_34 : ProcTy f✝¹.toNat → TicketNum f✝.toNat)
+        (a_35 : ProcTy f✝¹.toNat → Prop) (a_36 : ProcTy f✝¹.toNat → ProcessSet)
+        (a_37 : ProcTy f✝¹.toNat → TicketNum f✝.toNat) (a_38 : ProcTy f✝¹.toNat → ProcTy f✝¹.toNat)
+        (a_39 : ProcTy f✝¹.toNat → pc_state) (a_40 : ProcTy f✝¹.toNat → TicketNum f✝.toNat)
+        (a_41 : ProcTy f✝¹.toNat → Prop) (a_42 : ProcTy f✝¹.toNat → ProcessSet)
+        (a_43 : ProcTy f✝¹.toNat → TicketNum f✝.toNat) (a_44 : ProcTy f✝¹.toNat → ProcTy f✝¹.toNat)
+        (a_45 : ProcTy f✝¹.toNat → pc_state) (a_46 : ProcTy f✝¹.toNat → TicketNum f✝.toNat)
+        (a_47 : ProcTy f✝¹.toNat → Prop) (a_48 : ProcTy f✝¹.toNat → ProcessSet)
+        (a_49 : ProcTy f✝¹.toNat → TicketNum f✝.toNat) (a_50 : ProcTy f✝¹.toNat → ProcTy f✝¹.toNat)
+        (a_51 : ProcTy f✝¹.toNat → pc_state) (a_52 a_53 : ProcTy f✝¹.toNat),
+        True →
+          distinctN
+              [pc_state_Enum.ncs, pc_state_Enum.e1, pc_state_Enum.e2, pc_state_Enum.e3, pc_state_Enum.e4,
+                pc_state_Enum.w1, pc_state_Enum.w2, pc_state_Enum.cs, pc_state_Enum.exit] →
+            (∀ (__veil_x : pc_state),
+                __veil_x = pc_state_Enum.ncs ∨
+                  __veil_x = pc_state_Enum.e1 ∨
+                    __veil_x = pc_state_Enum.e2 ∨
+                      __veil_x = pc_state_Enum.e3 ∨
+                        __veil_x = pc_state_Enum.e4 ∨
+                          __veil_x = pc_state_Enum.w1 ∨
+                            __veil_x = pc_state_Enum.w2 ∨ __veil_x = pc_state_Enum.cs ∨ __veil_x = pc_state_Enum.exit) →
+              f a_2 = 0 →
+                ∀ (a_58 : f a_2 = 0),
+                  (∀ (elem : ProcTy f✝¹.toNat), a_1 elem a_2 = False) →
+                    ∀ (pSet.empty_contains : ∀ (elem : ProcTy f✝¹.toNat), a_1 elem a_2 = False),
+                      (∀ (s : ProcessSet), a_3 s = (f s = 0)) → ⋯
+but is expected to have type
+  (∀ (a₁ : ProcessSet), f a₁ ≥ 0) → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (∀ (a₁ : ProcessSet), f a₁ ≥ 0)) fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun pSet.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun pSet.insert =>
+                forall_congr fun pSet.remove =>
+                  forall_congr fun pSet.ofList =>
+                    forall_congr fun pSet.toList =>
+                      forall_congr fun pSet.filter =>
+                        forall_congr fun pSet.union =>
+                          forall_congr fun pSet.diff =>
+                            forall_congr fun pSet.intersection =>
+                              forall_congr fun pSet.subsets =>
+                                forall_congr fun __veil_tag.evtNCS =>
+                                  forall_congr fun __veil_tag.evtE1 =>
+                                    forall_congr fun __veil_tag.evtE2 =>
+                                      forall_congr fun __veil_tag.evtE3 =>
+                                        forall_congr fun __veil_tag.evtE4 =>
+                                          forall_congr fun __veil_tag.evtW1 =>
+                                            forall_congr fun __veil_tag.evtW2 =>
+                                              forall_congr fun __veil_tag.evtCS =>
+                                                forall_congr fun __veil_tag.evtExit =>
+                                                  forall_congr fun st0.num =>
+                                                    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                                      (forall_congr fun f_3 => ⋯)))

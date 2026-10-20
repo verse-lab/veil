@@ -1,0 +1,47 @@
+Paired-query logical audit
+==========================
+
+The local path can emit several assertions where early introduction emitted
+one conjunction, and embedding/elimination may choose different fresh names.
+The old byte/command comparator is therefore insufficient.
+
+compare_local_queries.py parses the emitted texts and conjoins ALL assertions.
+It applies classical Boolean identities, double-negation/implication expansion,
+quantifier duality under negation, scoped bound-variable renaming, associative/
+commutative/idempotent and/or, symmetric equality and Boolean-literal equality.
+For SMT's inhabited sorts, positive existentials outside universal scopes may
+be represented by fresh global constants for satisfiability checking. Quantifiers
+inside non-monotone positions such as equality or ite remain scoped. It never
+moves an existential through a universal. Unused free declarations are ignored;
+no assertion is removed except by the explicit identities.
+
+A graph-refinement search proposes a bijection between free declarations of the
+same signature. Named trace states, theory fields, action tags and trace arguments
+are anchored. Every candidate is then checked independently: applying the entire
+bijection must produce exactly the same normalized asserted formula and metadata.
+The JSON retains the successful renaming for inspection. Different forms or an
+unresolved mapping are inconclusive, not counterexamples. Boundary checks cover
+missing conjuncts, contradictions, bound capture, shared-state polarity,
+forall/exists dependence and existentials inside Boolean equality.
+
+This is a conservative executable audit, not a Lean proof or an SMT type checker.
+The same underlying SMT translation defects can affect both variants. Native
+acceptance and actual solver answers are recorded separately, and matches on
+invalid scripts must not be described as successfully translated solver problems.
+No normalization from this audit changes the scripts sent to cvc5. The production
+transform's exactness argument and kernel-checked regression evidence are in
+IMPLEMENTATION.txt and the full suite log. Final match counts and any unresolved
+differences are recorded in the logical-query-comparison CSV and executive summary.
+
+The audit's invented bound-variable/witness namespace is rejected if it occurs
+among input declarations, preventing a user symbol from being confused with an
+internal marker. Remaining unrecognized SMT commands cause an explicit
+inconclusive result; there is no optimistic fallback based on matching counts.
+
+Completed audit
+  132/132 paired emitted formulas matched. Native cvc5 accepted 122 of those
+  pairs, and all 122 matched. The remaining ten matched pairs contain existing
+  solver-rejected scripts; their match is not evidence of successful translation.
+  All 83 pairs with two definite primary solver answers agree. The two new
+  Blockchain queries lack a same-budget emitted early-introduction counterpart.
+  See query-comparison/logical-query-comparison.csv and its JSON renamings.

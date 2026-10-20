@@ -1,0 +1,215 @@
+{
+  "row": {
+    "cell_id": "Ivy_NOPaxos__d16__early__default",
+    "model": "Ivy_NOPaxos",
+    "path": "Examples/Ivy/NOPaxos.lean",
+    "module": "NOPaxos",
+    "depth": 16,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "smtSimp",
+    "failure_kind": "heartbeats",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean:667:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached\n\nNote: Use `set_option maxHeartbeats <num>` to set the limit.\n\nHint: Additional diagnostic information may be available using the `set_option diagnostics true` command.\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 188,
+    "batch_id": "Ivy_NOPaxos__default__batch1",
+    "batch_setup_ms": 34864,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/Ivy_NOPaxos__d16__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_NOPaxos__d16__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Ivy_NOPaxos__d16__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/Ivy_NOPaxos__d16__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_NOPaxos",
+    "path": "Examples/Ivy/NOPaxos.lean",
+    "module": "NOPaxos",
+    "cut_line": 267,
+    "query": "assert (∃ s v1 v2, gh_committed s v1 ∧ gh_committed s v2 ∧ v1 ≠ v2)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "consistency safety, line243",
+    "notes": "Relational Ivy model; distinct from the collection-based TLA/NOPaxos.",
+    "category": "Ivy",
+    "source_options": [
+      {
+        "line": 266,
+        "directive": "set_option maxHeartbeats 10000000"
+      }
+    ],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "054fea72d8e3b51c3b6c9d8cdc55c160dd9667ae4ae4db67da78ba6095fa6741"
+  },
+  "original_sha256": "054fea72d8e3b51c3b6c9d8cdc55c160dd9667ae4ae4db67da78ba6095fa6741",
+  "inherited_setup_options": [
+    {
+      "line": 266,
+      "directive": "set_option maxHeartbeats 10000000"
+    }
+  ],
+  "source_sha256": "247e57afc99db85f1fb3170df12ae1488ad92a454e9bd7aa401aad97d6d17e3b",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Ivy_NOPaxos__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207277273,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 207277461,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207277461,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 140,
+      "event": "stage",
+      "heartbeats": 206147,
+      "mono_ms": 207277601,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207277601,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 10586,
+      "event": "stage",
+      "heartbeats": 95812545,
+      "mono_ms": 207288188,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207288188,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 208,
+      "event": "stage",
+      "heartbeats": 3168021,
+      "mono_ms": 207288396,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207288575,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 26,
+      "event": "stage",
+      "heartbeats": 3412,
+      "mono_ms": 207288601,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207288601,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 8076,
+      "event": "stage",
+      "heartbeats": 67249610,
+      "mono_ms": 207296677,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207296678,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 870,
+      "event": "stage",
+      "heartbeats": 10371898,
+      "mono_ms": 207297548,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207297551,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207300473,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_NOPaxos__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Ivy_NOPaxos__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 188146,
+    "setup_ms": 34864,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean"
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "variant": "local_all_decls_first",
+    "matches_original_local": true,
+    "audit_detail": "checked explicit bijection and normalized formula",
+    "query_sha256": "0cff2b9fab25ddcd851574cd8f24cc1c3a61d678a22ca1031c25788ff54f1926"
+  },
+  {
+    "variant": "early_declaration_order",
+    "matches_original_local": true,
+    "audit_detail": "checked explicit bijection and normalized formula",
+    "query_sha256": "efddfeab2ab45f2faa0e9a684a48358076e6c7294ab1abdca227e83733bf8aff"
+  },
+  {
+    "variant": "local_single_assertion",
+    "matches_original_local": true,
+    "audit_detail": "checked explicit bijection and normalized formula",
+    "query_sha256": "461344904234322d98d4f1f1c7b316b6512f80afc8e3bdb0e9b6872810e7e71a"
+  },
+  {
+    "variant": "early_order_single_assertion",
+    "matches_original_local": true,
+    "audit_detail": "checked explicit bijection and normalized formula",
+    "query_sha256": "384fe08a2b7ce5c0f6bab1d0ba57324158164b736ce583d3f0e43d4555fc2c0b"
+  }
+]

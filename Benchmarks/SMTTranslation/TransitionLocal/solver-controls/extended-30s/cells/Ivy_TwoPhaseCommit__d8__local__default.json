@@ -1,0 +1,417 @@
+{
+  "row": {
+    "cell_id": "Ivy_TwoPhaseCommit__d8__local__default",
+    "model": "Ivy_TwoPhaseCommit",
+    "path": "Examples/Ivy/TwoPhaseCommit.lean",
+    "module": "TwoPhaseCommit",
+    "depth": 8,
+    "variant": "local",
+    "profile": "default",
+    "status": "unsat",
+    "translation_status": "complete",
+    "solver_status": "unsat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 61,
+    "batch_id": "Ivy_TwoPhaseCommit__default__batch1",
+    "batch_setup_ms": 10751,
+    "preprocessing_ms": 1112,
+    "smt_preprocessing_ms": 46,
+    "translation_ms": 149,
+    "serialization_ms": 0,
+    "query_total_ms": 1307,
+    "solver_ms": 10670,
+    "completed_total_ms": 11977,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 44664,
+    "query_commands": 142,
+    "query_sha256": "dcf7f4aee7ca55cfe981ca0c57b364e7361bc60f6a372eb373a659f1c2cac293",
+    "query_path": "/tmp/veil-transition-local/results/queries/Ivy_TwoPhaseCommit__d8__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Ivy_TwoPhaseCommit__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_TwoPhaseCommit__d8__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Ivy_TwoPhaseCommit__d8__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/solver-controls/extended-30s/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_TwoPhaseCommit",
+    "path": "Examples/Ivy/TwoPhaseCommit.lean",
+    "module": "TwoPhaseCommit",
+    "cut_line": 97,
+    "query": "assert (¬ (∀ n n2, (decide_commit n → ¬ decide_abort n2) ∧ (decide_commit n → vote_yes n2) ∧ (decide_abort n → abort_flag)))",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "Entire combined safety declaration, lines85–87",
+    "notes": "Negates all three conjuncts: commit/abort agreement, unanimous yes votes on commit, and abort-flag consistency.",
+    "category": "Ivy",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "e2e1976595f147e9f56d3d08f1b0b57cb6586352b4435d8a768348805bcb54fd"
+  },
+  "original_sha256": "e2e1976595f147e9f56d3d08f1b0b57cb6586352b4435d8a768348805bcb54fd",
+  "inherited_setup_options": [],
+  "source_sha256": "858c86127cd055ce2926a4137c52bf0c16922dfd62c558a2a76c3080949237b0",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Ivy_TwoPhaseCommit__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207750524,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 207750585,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207750585,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 18069,
+      "mono_ms": 207750590,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207750590,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 4782,
+      "mono_ms": 207750591,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207750591,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 623,
+      "event": "stage",
+      "heartbeats": 7374031,
+      "mono_ms": 207751214,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751214,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 17,
+      "event": "stage",
+      "heartbeats": 285712,
+      "mono_ms": 207751232,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751239,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 4367,
+      "mono_ms": 207751240,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751240,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 48,
+      "event": "stage",
+      "heartbeats": 763890,
+      "mono_ms": 207751289,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751289,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 47,
+      "event": "stage",
+      "heartbeats": 744930,
+      "mono_ms": 207751336,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751336,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 332,
+      "event": "stage",
+      "heartbeats": 4288120,
+      "mono_ms": 207751669,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751670,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 35,
+      "event": "stage",
+      "heartbeats": 607986,
+      "mono_ms": 207751705,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751706,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 31788,
+      "mono_ms": 207751709,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 1124,
+      "event": "milestone",
+      "mono_ms": 207751709,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751710,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 29858,
+      "mono_ms": 207751712,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751712,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 962,
+      "mono_ms": 207751713,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751713,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 207751713,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751713,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 207751713,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751713,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 34,
+      "event": "stage",
+      "heartbeats": 570859,
+      "mono_ms": 207751747,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751748,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 9,
+      "event": "stage",
+      "heartbeats": 136354,
+      "mono_ms": 207751757,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207751757,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 149,
+      "event": "stage",
+      "heartbeats": 1660358,
+      "mono_ms": 207751906,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207752278,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 207752278,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 44664,
+      "commands": 142,
+      "elapsed_ms": 1693,
+      "event": "pipeline",
+      "mono_ms": 207752279,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207752341,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_TwoPhaseCommit__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Ivy_TwoPhaseCommit__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Ivy_TwoPhaseCommit__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 45125,
+    "setup_ms": 10751,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Ivy_TwoPhaseCommit__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 10670,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unsat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-transition-local/solver-controls/extended-30s/events/Ivy_TwoPhaseCommit__d8__local__default.solver.jsonl",
+    "batch_log": "/tmp/veil-transition-local/solver-controls/extended-30s/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 30,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

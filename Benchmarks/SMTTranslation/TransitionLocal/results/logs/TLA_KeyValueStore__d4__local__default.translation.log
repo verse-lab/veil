@@ -1,0 +1,173 @@
+/tmp/veil-transition-local/results/batch-sources/TLA_KeyValueStore__default__batch1.lean:408:2: error: Application type mismatch: The argument
+  fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun tSet.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun tSet.insert =>
+                forall_congr fun tSet.remove =>
+                  forall_congr fun tSet.ofList =>
+                    forall_congr fun tSet.toList =>
+                      forall_congr fun tSet.filter =>
+                        forall_congr fun tSet.union =>
+                          forall_congr fun tSet.diff =>
+                            forall_congr fun tSet.intersection =>
+                              forall_congr fun tSet.subsets =>
+                                forall_congr fun __veil_tag.OpenTx =>
+                                  forall_congr fun __veil_tag.Add =>
+                                    forall_congr fun __veil_tag.Update =>
+                                      forall_congr fun __veil_tag.Remove =>
+                                        forall_congr fun __veil_tag.RollbackTx =>
+                                          forall_congr fun __veil_tag.CloseTx =>
+                                            forall_congr fun st0.store =>
+                                              forall_congr fun st0.tx =>
+                                                forall_congr fun st0.snapshotStore =>
+                                                  forall_congr fun st0.written =>
+                                                    forall_congr fun st0.missed => forall_congr fun st1.store => ⋯))
+has type
+  ∀ (a : ∀ (a₁ : TxIdSet), f a₁ ≥ 0),
+    (∀ (f_1 : txId → TxIdSet → Bool) (tSet.empty : TxIdSet) (tSet.isEmpty : TxIdSet → Bool)
+        (tSet.insert tSet.remove : txId → TxIdSet → TxIdSet) (tSet.ofList : List txId → TxIdSet)
+        (tSet.toList : TxIdSet → List txId) (tSet.filter : TxIdSet → (txId → Bool) → TxIdSet)
+        (tSet.union tSet.diff tSet.intersection : TxIdSet → TxIdSet → TxIdSet) (tSet.subsets : TxIdSet → List TxIdSet)
+        (__veil_tag.OpenTx __veil_tag.Add __veil_tag.Update __veil_tag.Remove __veil_tag.RollbackTx __veil_tag.CloseTx :
+          ActionTag)
+        (st0.store : key → Option value) (st0.tx : TxIdSet) (st0.snapshotStore : txId → key → Option value)
+        (st0.written st0.missed : txId → KeySet) (st1.store : key → Option value) (st1.tx : TxIdSet)
+        (st1.snapshotStore : txId → key → Option value) (st1.written st1.missed : txId → KeySet)
+        (st2.store : key → Option value) (st2.tx : TxIdSet) (st2.snapshotStore : txId → key → Option value)
+        (st2.written st2.missed : txId → KeySet) (st3.store : key → Option value) (st3.tx : TxIdSet)
+        (st3.snapshotStore : txId → key → Option value) (st3.written st3.missed : txId → KeySet)
+        (st4.store : key → Option value) (st4.tx : TxIdSet) (st4.snapshotStore : txId → key → Option value)
+        (st4.written st4.missed : txId → KeySet),
+        True →
+          (fun a₁ => (f✝² a₁).toNat) kSet.empty = 0 →
+            ∀ (kSet.empty_count : (fun a₁ => (f✝² a₁).toNat) kSet.empty = 0),
+              (∀ (elem : key), (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem kSet.empty = false) →
+                ∀ (kSet.empty_contains : ∀ (elem : key), (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem kSet.empty = false),
+                  (∀ (s : KeySet), ((fun a₁ => decide (f✝ a₁)) s = true) = ((fun a₁ => (f✝² a₁).toNat) s = 0)) →
+                    ∀
+                      (kSet.isEmpty_iff_count_zero :
+                        ∀ (s : KeySet), ((fun a₁ => decide (f✝ a₁)) s = true) = ((fun a₁ => (f✝² a₁).toNat) s = 0)),
+                      (∀ (elem : key) (s : KeySet),
+                          (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (kSet.insert elem s) = true) →
+                        ∀
+                          (kSet.contains_insert_self :
+                            ∀ (elem : key) (s : KeySet),
+                              (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (kSet.insert elem s) = true),
+                          (∀ (elem₁ elem₂ : key) (s : KeySet),
+                              ¬elem₁ = elem₂ →
+                                (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (kSet.insert elem₂ s) =
+                                  (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s) →
+                            ∀
+                              (kSet.contains_insert_other :
+                                ∀ (elem₁ elem₂ : key) (s : KeySet),
+                                  ¬elem₁ = elem₂ →
+                                    (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (kSet.insert elem₂ s) =
+                                      (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s),
+                              (∀ (elem : key) (s : KeySet),
+                                  kSet.toList (kSet.insert elem (kSet.insert elem s)) =
+                                    kSet.toList (kSet.insert elem s)) →
+                                ∀
+                                  (kSet.insert_idempotent :
+                                    ∀ (elem : key) (s : KeySet),
+                                      kSet.toList (kSet.insert elem (kSet.insert elem s)) =
+                                        kSet.toList (kSet.insert elem s)),
+                                  (∀ (elem : key) (s : KeySet),
+                                      (fun a₁ => (f✝² a₁).toNat) (kSet.insert elem s) =
+                                        if (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s = true then
+                                          (fun a₁ => (f✝² a₁).toNat) s
+                                        else (fun a₁ => (f✝² a₁).toNat) s + 1) →
+                                    ∀
+                                      (kSet.count_insert :
+                                        ∀ (elem : key) (s : KeySet),
+                                          (fun a₁ => (f✝² a₁).toNat) (kSet.insert elem s) =
+                                            if (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s = true then
+                                              (fun a₁ => (f✝² a₁).toNat) s
+                                            else (fun a₁ => (f✝² a₁).toNat) s + 1),
+                                      (∀ (elem : key) (s : KeySet),
+                                          (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (kSet.remove elem s) = false) →
+                                        ∀
+                                          (kSet.contains_remove_self :
+                                            ∀ (elem : key) (s : KeySet),
+                                              (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (kSet.remove elem s) = false),
+                                          (∀ (elem₁ elem₂ : key), ⋯) → ∀ (kSet.contains_remove_other : ⋯), ⋯) =
+      ∀ (a_1 : txId → TxIdSet → Prop) (a_2 : TxIdSet) (a_3 : TxIdSet → Prop) (a_4 a_5 : txId → TxIdSet → TxIdSet)
+        (a_6 : List txId → TxIdSet) (a_7 : TxIdSet → List txId) (a_8 : TxIdSet → (txId → Bool) → TxIdSet)
+        (a_9 a_10 a_11 : TxIdSet → TxIdSet → TxIdSet) (a_12 : TxIdSet → List TxIdSet)
+        (a_13 a_14 a_15 a_16 a_17 a_18 : ActionTag) (a_19 : key → Option value) (a_20 : TxIdSet)
+        (a_21 : txId → key → Option value) (a_22 a_23 : txId → KeySet) (a_24 : key → Option value) (a_25 : TxIdSet)
+        (a_26 : txId → key → Option value) (a_27 a_28 : txId → KeySet) (a_29 : key → Option value) (a_30 : TxIdSet)
+        (a_31 : txId → key → Option value) (a_32 a_33 : txId → KeySet) (a_34 : key → Option value) (a_35 : TxIdSet)
+        (a_36 : txId → key → Option value) (a_37 a_38 : txId → KeySet) (a_39 : key → Option value) (a_40 : TxIdSet)
+        (a_41 : txId → key → Option value) (a_42 a_43 : txId → KeySet),
+        True →
+          f✝² kSet.empty = 0 →
+            ∀ (a_46 : f✝² kSet.empty = 0),
+              (∀ (elem : key), f✝¹ elem kSet.empty = False) →
+                ∀ (kSet.empty_contains : ∀ (elem : key), f✝¹ elem kSet.empty = False),
+                  (∀ (s : KeySet), f✝ s = (f✝² s = 0)) →
+                    ∀ (kSet.isEmpty_iff_count_zero : ∀ (s : KeySet), f✝ s = (f✝² s = 0)),
+                      (∀ (elem : key) (s : KeySet), f✝¹ elem (kSet.insert elem s)) →
+                        ∀ (kSet.contains_insert_self : ∀ (elem : key) (s : KeySet), f✝¹ elem (kSet.insert elem s)),
+                          (∀ (elem₁ elem₂ : key) (s : KeySet),
+                              ¬elem₁ = elem₂ → f✝¹ elem₁ (kSet.insert elem₂ s) = f✝¹ elem₁ s) →
+                            ∀
+                              (kSet.contains_insert_other :
+                                ∀ (elem₁ elem₂ : key) (s : KeySet),
+                                  ¬elem₁ = elem₂ → f✝¹ elem₁ (kSet.insert elem₂ s) = f✝¹ elem₁ s),
+                              (∀ (elem : key) (s : KeySet),
+                                  kSet.toList (kSet.insert elem (kSet.insert elem s)) =
+                                    kSet.toList (kSet.insert elem s)) →
+                                ∀
+                                  (kSet.insert_idempotent :
+                                    ∀ (elem : key) (s : KeySet),
+                                      kSet.toList (kSet.insert elem (kSet.insert elem s)) =
+                                        kSet.toList (kSet.insert elem s)),
+                                  (∀ (elem : key) (s : KeySet),
+                                      f✝² (kSet.insert elem s) = if f✝¹ elem s then f✝² s else f✝² s + 1) →
+                                    ∀
+                                      (kSet.count_insert :
+                                        ∀ (elem : key) (s : KeySet),
+                                          f✝² (kSet.insert elem s) = if f✝¹ elem s then f✝² s else f✝² s + 1),
+                                      (∀ (elem : key) (s : KeySet), f✝¹ elem (kSet.remove elem s) = False) →
+                                        ∀
+                                          (kSet.contains_remove_self :
+                                            ∀ (elem : key) (s : KeySet), f✝¹ elem (kSet.remove elem s) = False),
+                                          (∀ (elem₁ elem₂ : key) (s : KeySet),
+                                              ¬elem₁ = elem₂ → f✝¹ elem₁ (kSet.remove elem₂ s) = f✝¹ elem₁ s) →
+                                            ∀
+                                              (kSet.contains_remove_other :
+                                                ∀ (elem₁ elem₂ : key) (s : KeySet),
+                                                  ¬elem₁ = elem₂ → f✝¹ elem₁ (kSet.remove elem₂ s) = f✝¹ elem₁ s),
+                                              ⋯
+but is expected to have type
+  (∀ (a₁ : TxIdSet), f a₁ ≥ 0) → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (∀ (a₁ : TxIdSet), f a₁ ≥ 0)) fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun tSet.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun tSet.insert =>
+                forall_congr fun tSet.remove =>
+                  forall_congr fun tSet.ofList =>
+                    forall_congr fun tSet.toList =>
+                      forall_congr fun tSet.filter =>
+                        forall_congr fun tSet.union =>
+                          forall_congr fun tSet.diff =>
+                            forall_congr fun tSet.intersection =>
+                              forall_congr fun tSet.subsets =>
+                                forall_congr fun __veil_tag.OpenTx =>
+                                  forall_congr fun __veil_tag.Add =>
+                                    forall_congr fun __veil_tag.Update =>
+                                      forall_congr fun __veil_tag.Remove =>
+                                        forall_congr fun __veil_tag.RollbackTx =>
+                                          forall_congr fun __veil_tag.CloseTx =>
+                                            forall_congr fun st0.store =>
+                                              forall_congr fun st0.tx =>
+                                                forall_congr fun st0.snapshotStore =>
+                                                  forall_congr fun st0.written =>
+                                                    forall_congr fun st0.missed => forall_congr ⋯))

@@ -1,0 +1,31 @@
+{
+  "batch_id": "solver-batch-0001",
+  "cells": [
+    "Ivy_Blockchain__d16__cached__default__repeat1_t30",
+    "Ivy_PaxosFirstOrder__d4__local__default__repeat1_t30",
+    "TLA_Traffic__d32__local__default__repeat1_t30"
+  ],
+  "source": "/tmp/veil-action-cache/controls/extended30/solver-sources/solver-batch-0001.lean",
+  "source_sha256": "eadd391bbfcde3e48966a09edd119107fcdda2d299807262e2c5f144c9f0b014",
+  "log": "/tmp/veil-action-cache/controls/extended30/logs/solver-batch-0001.log",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-action-cache/controls/extended30/solver-sources/solver-batch-0001.lean"
+  ],
+  "solver_timeout_seconds": 30,
+  "query_watchdog_seconds": 35,
+  "setup_watchdog_seconds": 60,
+  "attribution": "solver_ms is measured inside Smt.solve; batch wall time is separate",
+  "exit_code": 0,
+  "batch_wall_ms": 53358,
+  "completed_cells": [
+    "Ivy_Blockchain__d16__cached__default__repeat1_t30",
+    "Ivy_PaxosFirstOrder__d4__local__default__repeat1_t30",
+    "TLA_Traffic__d32__local__default__repeat1_t30"
+  ]
+}

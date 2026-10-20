@@ -157,6 +157,11 @@ register_option veil.experimental.wpCompact : Bool := {
   descr := "Experimental. If true, compact generated `wp_local_eq.pred` definitions by sharing duplicated postcondition branches with `letEq` and exposing abstract-state conditionals field-wise."
 }
 
+register_option veil.experimental.bmcCache : Bool := {
+  defValue := false
+  descr := "Precompute exact symbolic transition normal forms at specification setup and reuse them in veil_bmc. Set before #gen_spec; unmatched formulas use ordinary normalization."
+}
+
 register_option veil.deferVCGeneration : Bool := {
   defValue := false
   descr := "If true, procedures and actions declared while this option is set do not generate their verification definitions, \

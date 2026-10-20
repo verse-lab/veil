@@ -1,0 +1,1 @@
+/tmp/veil-action-cache/results/batch-sources/StellarConsensus_SCP__local__default__batch1.lean:413:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas

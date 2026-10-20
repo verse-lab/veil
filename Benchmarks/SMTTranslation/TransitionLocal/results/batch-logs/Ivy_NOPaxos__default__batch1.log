@@ -1,0 +1,24 @@
+/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean:396:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean:432:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean:455:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean:478:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean:514:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean:550:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean:573:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean:596:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean:631:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean:667:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean:694:37: error: `simp` failed: maximum number of steps exceeded
+/tmp/veil-transition-local/results/batch-sources/Ivy_NOPaxos__default__batch1.lean:713:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.

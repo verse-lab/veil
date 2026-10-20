@@ -1,0 +1,387 @@
+{
+  "row": {
+    "cell_id": "Simulate_LeaseKeepaliveRace__d32__early__default",
+    "model": "Simulate_LeaseKeepaliveRace",
+    "path": "Examples/Simulate/LeaseKeepaliveRace.lean",
+    "module": "LeaseKeepaliveRace",
+    "depth": 32,
+    "variant": "early",
+    "profile": "default",
+    "status": "sat",
+    "translation_status": "complete",
+    "solver_status": "sat",
+    "failure_phase": null,
+    "failure_kind": null,
+    "failure_message": null,
+    "setup_ms": null,
+    "query_elaboration_ms": 122,
+    "batch_id": "Simulate_LeaseKeepaliveRace__default__batch1",
+    "batch_setup_ms": 7120,
+    "preprocessing_ms": 6191,
+    "smt_preprocessing_ms": 208,
+    "translation_ms": 389,
+    "serialization_ms": 0,
+    "query_total_ms": 6788,
+    "solver_ms": 630,
+    "completed_total_ms": 7418,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 121235,
+    "query_commands": 432,
+    "query_sha256": "0e67ee36700061dc2d55a7f4247dedcbe48ac753ab33acd9418bafadfd6a1c5f",
+    "query_path": "/tmp/veil-transition-local/results/queries/Simulate_LeaseKeepaliveRace__d32__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Simulate_LeaseKeepaliveRace__d32__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Simulate_LeaseKeepaliveRace__d32__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Simulate_LeaseKeepaliveRace",
+    "path": "Examples/Simulate/LeaseKeepaliveRace.lean",
+    "module": "LeaseKeepaliveRace",
+    "cut_line": 76,
+    "query": "assert (∃ c k, keepalive_succeeded c ∧ key_attached c k ∧ ¬ key_present k)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "renewal_keeps_keys_live safety, lines73–74",
+    "notes": "Designed for simulation; no concrete client/key domain bounds are imported.",
+    "category": "Simulate",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "b7260456926f066778e048945d6899f823df2e23780429a4866f147d75c68018"
+  },
+  "original_sha256": "b7260456926f066778e048945d6899f823df2e23780429a4866f147d75c68018",
+  "inherited_setup_options": [],
+  "source_sha256": "dcb1167391d07ffae024ea49ccf3565279a0cd5f373ec5434df849146216385b",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Simulate_LeaseKeepaliveRace__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208054430,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 208054552,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208054552,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 52,
+      "event": "stage",
+      "heartbeats": 157387,
+      "mono_ms": 208054604,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208054605,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2180,
+      "event": "stage",
+      "heartbeats": 23448355,
+      "mono_ms": 208056785,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208056785,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 44,
+      "event": "stage",
+      "heartbeats": 808892,
+      "mono_ms": 208056829,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208056865,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 3424,
+      "mono_ms": 208056870,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208056871,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2176,
+      "event": "stage",
+      "heartbeats": 26713187,
+      "mono_ms": 208059047,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208059047,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 131,
+      "event": "stage",
+      "heartbeats": 1828046,
+      "mono_ms": 208059178,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208059179,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1518,
+      "event": "stage",
+      "heartbeats": 15636878,
+      "mono_ms": 208060698,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208060754,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 85,
+      "event": "stage",
+      "heartbeats": 1707083,
+      "mono_ms": 208060840,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 6289,
+      "event": "milestone",
+      "mono_ms": 208060841,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208060841,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6,
+      "event": "stage",
+      "heartbeats": 41654,
+      "mono_ms": 208060847,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208060847,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 163,
+      "mono_ms": 208060847,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208060847,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 208060847,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208060847,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 19683,
+      "mono_ms": 208060851,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208060851,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 169,
+      "event": "stage",
+      "heartbeats": 2183383,
+      "mono_ms": 208061020,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208061020,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 29,
+      "event": "stage",
+      "heartbeats": 395419,
+      "mono_ms": 208061049,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208061049,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 389,
+      "event": "stage",
+      "heartbeats": 4546621,
+      "mono_ms": 208061438,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208062510,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 208062510,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 121235,
+      "commands": 432,
+      "elapsed_ms": 7958,
+      "event": "pipeline",
+      "mono_ms": 208062511,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208062900,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Simulate_LeaseKeepaliveRace__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Simulate_LeaseKeepaliveRace__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 36548,
+    "setup_ms": 7120,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Simulate_LeaseKeepaliveRace__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "",
+      "elapsed_ms": 630,
+      "event": "solver",
+      "phase": "solver",
+      "status": "sat"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-transition-local/results/events/Simulate_LeaseKeepaliveRace__d32__early__default.solver.jsonl",
+    "batch_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

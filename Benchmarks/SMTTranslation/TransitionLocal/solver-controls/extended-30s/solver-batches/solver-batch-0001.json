@@ -1,0 +1,37 @@
+{
+  "batch_id": "solver-batch-0001",
+  "cells": [
+    "Ivy_TwoPhaseCommit__d8__early__default",
+    "Ivy_TwoPhaseCommit__d8__local__default",
+    "Simulate_CheckpointLeaseFailover__d16__early__default",
+    "Simulate_CheckpointLeaseFailover__d16__local__default",
+    "TLA_Peterson__d8__early__default",
+    "TLA_Peterson__d8__local__default"
+  ],
+  "source": "/tmp/veil-transition-local/solver-controls/extended-30s/solver-sources/solver-batch-0001.lean",
+  "source_sha256": "321a8481b452d0151e8d352c0085eba7476ad1d70608efb1628aac54c290ec0b",
+  "log": "/tmp/veil-transition-local/solver-controls/extended-30s/logs/solver-batch-0001.log",
+  "command": [
+    "lake",
+    "env",
+    "lean",
+    "-D",
+    "Elab.async=false",
+    "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+    "/tmp/veil-transition-local/solver-controls/extended-30s/solver-sources/solver-batch-0001.lean"
+  ],
+  "solver_timeout_seconds": 30,
+  "query_watchdog_seconds": 35,
+  "setup_watchdog_seconds": 60,
+  "attribution": "solver_ms is measured inside Smt.solve; batch wall time is separate",
+  "exit_code": 0,
+  "batch_wall_ms": 70138,
+  "completed_cells": [
+    "Ivy_TwoPhaseCommit__d8__early__default",
+    "Ivy_TwoPhaseCommit__d8__local__default",
+    "Simulate_CheckpointLeaseFailover__d16__early__default",
+    "Simulate_CheckpointLeaseFailover__d16__local__default",
+    "TLA_Peterson__d8__early__default",
+    "TLA_Peterson__d8__local__default"
+  ]
+}

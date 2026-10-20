@@ -1,0 +1,10 @@
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":208889791,"phase":"query_elaboration","status":"begin"}
+{"elapsed_ms":0,"event":"pipeline","maxHeartbeats":200000,"maxRecDepth":512,"mono_ms":208890648,"phase":"pipeline","status":"begin"}
+{"elapsed_ms":0,"event":"stage","mono_ms":208890649,"phase":"early_intros","status":"begin"}
+{"elapsed_ms":455,"event":"stage","heartbeats":957881,"mono_ms":208891104,"phase":"early_intros","status":"complete"}
+{"elapsed_ms":0,"event":"stage","mono_ms":208891104,"phase":"split_trace","status":"begin"}
+{"elapsed_ms":5,"event":"stage","heartbeats":35046,"mono_ms":208891109,"phase":"split_trace","status":"complete"}
+{"elapsed_ms":0,"event":"stage","mono_ms":208891109,"phase":"nextSimp","status":"begin"}
+{"elapsed_ms":15629,"event":"stage","heartbeats":150322699,"mono_ms":208906738,"phase":"nextSimp","status":"complete"}
+{"elapsed_ms":0,"event":"stage","mono_ms":208906738,"phase":"hoist","status":"begin"}
+{"elapsed_ms":0,"event":"query_elaboration","mono_ms":208911430,"phase":"query_elaboration","status":"end"}

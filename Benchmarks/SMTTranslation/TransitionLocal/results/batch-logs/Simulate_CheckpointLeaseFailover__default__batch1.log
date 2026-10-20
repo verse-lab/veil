@@ -1,0 +1,12 @@
+/tmp/veil-transition-local/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean:211:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean:247:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean:270:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean:293:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean:329:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean:365:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean:388:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean:411:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean:447:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean:483:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean:506:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed
+/tmp/veil-transition-local/results/batch-sources/Simulate_CheckpointLeaseFailover__default__batch1.lean:529:2: error: SYMBOLIC_BMC_EXTRACTION_COMPLETE: query extraction only; no proof claimed

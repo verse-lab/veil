@@ -1,0 +1,76 @@
+Exact-cache benchmark methods
+=============================
+
+49 model-bearing existing source files, one symbolic assertion per file, depths
+1, 2, 4, 8, 16, 32, both local and cached: 588 cells. The manifest is identical
+to the prior TransitionLocal study. Examples/StellarConsensus/SCPTheory.lean is
+a support theory rather than a model and remains the sole excluded source.
+The original issue's LamportMutexV1 source is not part of this corpus; successful
+results for these examples are not a claim that that exact reproducer is fixed.
+These are abstract symbolic queries with exactly N actions, not all lengths <= N
+and not finite concrete #model_check instances.
+
+Both variants run on the same compiled worktree. "local" explicitly replays the
+preceding per-transition pipeline, with the cache option false before model
+setup. "cached" enables generation before setup and uses the production root
+normalization helper. Each model/variant uses a separate fresh process; their
+order alternates by model. Within that setup, six depth queries run sequentially
+with independent Lean command budgets. There is no competing benchmark or build
+job during recorded runs. A process timeout kills the process group and restarts
+only unstarted cells. Each variant's setup time is measured independently. After #gen_spec, setup
+explicitly awaits doesNotThrow verification tasks using waitFilteredSync before
+the ready marker. Elab.async=false alone does not join Veil's background manager.
+
+Source setup budgets are preserved. TLA_NOPaxos explicitly requests deferred
+verification; its benchmark setup uses a scoped veil.deferVCGeneration=false
+for #gen_spec so verification and cache construction finish before query timing.
+This affects scheduling, not the trace proposition. Other models already finalize
+verification at #gen_spec. setup-amendment.json records the runner amendment
+before TLA_NOPaxos ran; previously completed sources are byte-identical. Queries use maxHeartbeats=200000,
+maxRecDepth=512, simp maxSteps=100000 per call, 60-second setup/query/pipeline
+watchdogs, asynchronous elaboration disabled, trusted extraction and the native
+cvc5 plugin. The complete source, event logs, errors, queries, hashes and frozen
+source/olean fingerprints are retained. Extraction ends with an intentional
+measurement error and never claims a proof of the benchmark assertion.
+
+Native cvc5 replay uses a fresh solver for every emitted script: logic ALL,
+finite-model-find=true, Veil's normal native solver options, 10-second native
+limit and 15-second process watchdog. Calls run sequentially. Solver times
+include parsing, manager creation, checkSat and native result/model retrieval;
+Lean proof reconstruction and UI counterexample reconstruction are not timed.
+Kernel proof and actual trace-decoding regressions are tested separately.
+
+Timings distinguish model setup, trace VC elaboration, full query-production wall
+time, measured individual phases, and solving. Full query wall time is the
+pipeline begin-to-complete interval, including its dispatch/context overhead.
+The older query_total_ms field is the sum of measured stages; it is retained but
+is NOT used as the full-pipeline wall metric in the new report. Allocation
+heartbeat deltas are raw IO.getNumHeartbeats deltas, not the configured heartbeat
+allowance (Lean scales the latter). Counter sums omit uninstrumented overhead.
+
+Normalization is nextSimp + hoist for local and the exact root cache/fallback
+pass for cached. Completed normalization is plotted even if a later phase fails.
+Full query timing is plotted only for completed emitted queries or explicitly
+preprocessing-discharged queries. Timing resolution is one millisecond; zero-duration completed points are shown
+at 1 ms on logarithmic axes. Failed elapsed times are not treated as
+completed timings or as speedups. Solver timeouts are separately marked as
+censored observations. Error categories and stopping phases stay visible.
+
+Cold-to-query combines setup + VC elaboration + complete query production; it
+charges the entire setup to that one depth. Setup is paid once if several queries
+share a specification, so this is a conservative single-query view. Timings have
+one observation per cell; model variants run in different processes and machine
+noise exists. Ratios omit zero denominators and are medians over matching completed pairs, with the pair
+count shown. They are not population-wide speedups over failed cases.
+
+The formula audit retains all assertions, anchors named states/theory/action
+arguments, and verifies an explicit typed symbol bijection after conservative
+Boolean/scoped-quantifier normalization. It does not change any query supplied
+to cvc5. It is an executable cross-check, not a kernel proof of the SMT encoding.
+Solver rejection of a script is separate from two emitted formulas matching.
+
+Separate post-primary solver controls replay changed definite/timeout outcomes
+and large slowdowns twice at the same 10-second limit. Newly emitted definite
+queries also receive two repeats. The nondefinite side of selected pairs is then
+replayed with a 30-second limit. These are selected diagnostics, not repetitions
+of the entire benchmark, and are never pooled into the primary timings/counts.

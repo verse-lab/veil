@@ -1,0 +1,32 @@
+Pipeline parity audit
+=====================
+
+Baseline: committed early-introduction body in Core.lean at 543817e6. The runner
+uses that body explicitly: introduce data; nextSimp; guarded hoisting; intros;
+destruct; dsimp; smtSimp; dsimp. In trusted mode the production Nonempty hooks
+are no-ops. The benchmark's intro-data helper matches the committed definition.
+
+Local: early data introduction; __veil_bmc_if_local selects the same visible-Not
+form as production. Local steps are __veil_bmc_split_trace, __veil_bmc_hyps with
+nextSimp, __veil_bmc_hyps with guarded hoisting, __veil_bmc_check_hints,
+veil_destruct, __veil_bmc_hyps dsimp/smtSimp/dsimp, __veil_bmc_check_hints. The
+simp configuration includes instances=true and failIfUnchanged=false, matching
+veil_simp's ordinary wrapper. Internal helpers themselves apply the production
+backwards-compatibility options. Unsupported proof-header shapes use the early
+pipeline. No pipeline exceptions are caught as a fallback.
+
+The extraction wrapper replaces only the final solver invocation with the same
+trusted SMT preprocessing: getPropsInContext, cleanup with all hint dependencies,
+pushHintsToCtx, intros, negateGoal, normalize, embeddingWithConfig(embedBool=false),
+genUniqueFVarNames, prepareSmtQuery and cmdsAsQuery with logic ALL/checkSat.
+Veil.withBackwardsCompatibility and withoutRecover enclose this path. It writes
+the exact text that is replayed by native Smt.solve; hashes connect both stages.
+
+The paired scripts may have different assertion grouping and different fresh
+symbol names. Splitting into hypotheses can affect solver heuristics even for
+an equivalent formula. Native solver time/outcomes are measured separately;
+logical normalization used for the audit never changes a solver input.
+
+The full suite uses the actual veil_bmc command without an override. The bench
+uses the same internal helpers but wraps stages to measure costs. Benchmark
+sources, snapshots, core source/olean hashes and native plugin hashes are kept.

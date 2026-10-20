@@ -1,0 +1,28 @@
+/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean:375:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean:398:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean:434:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean:470:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean:493:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean:516:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean:552:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean:588:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean:610:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean:633:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean:669:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+/tmp/veil-transition-local/results/batch-sources/StellarConsensus_SCP__default__batch1.lean:705:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats <num>` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.

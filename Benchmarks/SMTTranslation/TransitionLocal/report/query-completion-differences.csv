@@ -1,0 +1,3 @@
+model,depth,early_outcome,local_outcome,early_query_complete,local_query_complete
+Ivy_Blockchain,8,simp_steps,unsat,False,True
+Ivy_Blockchain,16,simp_steps,unsat,False,True

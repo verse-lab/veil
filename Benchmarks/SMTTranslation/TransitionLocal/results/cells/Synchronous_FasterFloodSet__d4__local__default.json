@@ -1,0 +1,371 @@
+{
+  "row": {
+    "cell_id": "Synchronous_FasterFloodSet__d4__local__default",
+    "model": "Synchronous_FasterFloodSet",
+    "path": "Examples/Synchronous/FasterFloodSet.lean",
+    "module": "FloodSet",
+    "depth": 4,
+    "variant": "local",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "translate",
+    "failure_kind": "lean_error",
+    "failure_message": "incorrect number of universe levels List",
+    "setup_ms": null,
+    "query_elaboration_ms": 28,
+    "batch_id": "Synchronous_FasterFloodSet__default__batch1",
+    "batch_setup_ms": 10001,
+    "preprocessing_ms": 751,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/Synchronous_FasterFloodSet__d4__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Synchronous_FasterFloodSet__d4__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Synchronous_FasterFloodSet__d4__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/Synchronous_FasterFloodSet__d4__local__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Synchronous_FasterFloodSet",
+    "path": "Examples/Synchronous/FasterFloodSet.lean",
+    "module": "FloodSet",
+    "cut_line": 221,
+    "query": "assert (∃ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 ∧ v1 ≠ v2)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "agreement safety, lines179–180",
+    "notes": "Optimized collection-based FloodSet variant; same namespace as other FloodSet files, isolated process required.",
+    "category": "Synchronous",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "8a2981a4b415a85d19969609b8b1b4798e138e4ea6e8992933a710aea9b53fbe"
+  },
+  "original_sha256": "8a2981a4b415a85d19969609b8b1b4798e138e4ea6e8992933a710aea9b53fbe",
+  "inherited_setup_options": [],
+  "source_sha256": "5d276eb5ffbd83212526eb2b69539f1f4a96013c38f7a2812f3b1ba7fa4a66c7",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Synchronous_FasterFloodSet__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208266740,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 208266768,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208266768,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 9663,
+      "mono_ms": 208266771,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208266771,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3207,
+      "mono_ms": 208266772,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208266772,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 349,
+      "event": "stage",
+      "heartbeats": 4009532,
+      "mono_ms": 208267121,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208267121,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 117,
+      "event": "stage",
+      "heartbeats": 1613654,
+      "mono_ms": 208267238,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208267243,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 2955,
+      "mono_ms": 208267245,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208267245,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 77,
+      "event": "stage",
+      "heartbeats": 1327474,
+      "mono_ms": 208267322,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208267323,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 34,
+      "event": "stage",
+      "heartbeats": 450904,
+      "mono_ms": 208267357,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208267358,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 141,
+      "event": "stage",
+      "heartbeats": 1850693,
+      "mono_ms": 208267499,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208267500,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 23,
+      "event": "stage",
+      "heartbeats": 328641,
+      "mono_ms": 208267523,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208267523,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 22443,
+      "mono_ms": 208267527,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 759,
+      "event": "milestone",
+      "mono_ms": 208267527,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208267527,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 20155,
+      "mono_ms": 208267530,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208267530,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 1963,
+      "mono_ms": 208267530,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208267530,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 208267530,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208267530,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 208267530,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208267530,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 23,
+      "event": "stage",
+      "heartbeats": 374632,
+      "mono_ms": 208267553,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208267553,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2513,
+      "event": "stage",
+      "heartbeats": 6537654,
+      "mono_ms": 208270066,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 208270066,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 73,
+      "error": "incorrect number of universe levels List",
+      "event": "stage",
+      "heartbeats": 804449,
+      "mono_ms": 208270139,
+      "phase": "translate",
+      "status": "failed"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 208270424,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Synchronous_FasterFloodSet__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Synchronous_FasterFloodSet__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 87337,
+    "setup_ms": 10001,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Synchronous_FasterFloodSet__default__batch1.lean"
+    ]
+  }
+}

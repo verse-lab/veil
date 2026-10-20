@@ -1,0 +1,317 @@
+{
+  "row": {
+    "cell_id": "TLA_SimpleAllocator__d32__early__default",
+    "model": "TLA_SimpleAllocator",
+    "path": "Examples/TLA/SimpleAllocator.lean",
+    "module": "SimpleAllocator",
+    "depth": 32,
+    "variant": "early",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "recursion",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/TLA_SimpleAllocator__default__batch1.lean:508:2: error: Tactic `simp` failed with a nested error:\nmaximum recursion depth has been reached\nuse `set_option maxRecDepth <num>` to increase limit\nuse `set_option diagnostics true` to get diagnostic information\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 92,
+    "batch_id": "TLA_SimpleAllocator__default__batch1",
+    "batch_setup_ms": 5801,
+    "preprocessing_ms": 3146,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/TLA_SimpleAllocator__d32__early__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/TLA_SimpleAllocator__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/TLA_SimpleAllocator__d32__early__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/TLA_SimpleAllocator__d32__early__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/TLA_SimpleAllocator__d32__early__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_SimpleAllocator",
+    "path": "Examples/TLA/SimpleAllocator.lean",
+    "module": "SimpleAllocator",
+    "cut_line": 84,
+    "query": "assert (¬ (∀ c1 c2 : client, c1 ≠ c2 → resSet.isEmpty (resSet.intersection (alloc c1) (alloc c2))))",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "resource_mutex invariant, line83",
+    "notes": "Negates the exact declared predicate; do not replace it by elementwise membership, since the abstract TSet class does not state an intersection-membership law.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "c58ca2069d44940f76e086cc5ca82d52ff8a586858759015c01a86c4676bab23"
+  },
+  "original_sha256": "c58ca2069d44940f76e086cc5ca82d52ff8a586858759015c01a86c4676bab23",
+  "inherited_setup_options": [],
+  "source_sha256": "4cc1f2c6a61dac5daa9942e203f95b8e530cc1e2c942b5417fa09ad2cd2a629b",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/TLA_SimpleAllocator__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 210387336,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 210387428,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210387428,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 46,
+      "event": "stage",
+      "heartbeats": 140786,
+      "mono_ms": 210387474,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210387474,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1169,
+      "event": "stage",
+      "heartbeats": 12522633,
+      "mono_ms": 210388643,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210388644,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 30,
+      "event": "stage",
+      "heartbeats": 506479,
+      "mono_ms": 210388674,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210388690,
+      "phase": "intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 3405,
+      "mono_ms": 210388695,
+      "phase": "intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210388696,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1310,
+      "event": "stage",
+      "heartbeats": 15968312,
+      "mono_ms": 210390006,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210390006,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 72,
+      "event": "stage",
+      "heartbeats": 1188167,
+      "mono_ms": 210390078,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210390078,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 458,
+      "event": "stage",
+      "heartbeats": 5867298,
+      "mono_ms": 210390536,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210390568,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 56,
+      "event": "stage",
+      "heartbeats": 937921,
+      "mono_ms": 210390624,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 3196,
+      "event": "milestone",
+      "mono_ms": 210390624,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210390624,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 34293,
+      "mono_ms": 210390628,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210390628,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 1995,
+      "mono_ms": 210390629,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210390629,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 210390629,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210390629,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 12995,
+      "mono_ms": 210390631,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210390631,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 530,
+      "event": "stage",
+      "heartbeats": 3020999,
+      "mono_ms": 210391161,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 210391161,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 210391687,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_SimpleAllocator__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/TLA_SimpleAllocator__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/TLA_SimpleAllocator__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 47837,
+    "setup_ms": 5801,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/TLA_SimpleAllocator__default__batch1.lean"
+    ]
+  }
+}

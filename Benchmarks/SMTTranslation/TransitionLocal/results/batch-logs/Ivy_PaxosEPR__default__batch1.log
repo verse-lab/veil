@@ -1,0 +1,12 @@
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosEPR__default__batch1.lean:250:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosEPR__default__batch1.lean:273:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosEPR__default__batch1.lean:309:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosEPR__default__batch1.lean:345:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosEPR__default__batch1.lean:368:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosEPR__default__batch1.lean:391:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosEPR__default__batch1.lean:427:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosEPR__default__batch1.lean:463:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosEPR__default__batch1.lean:486:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosEPR__default__batch1.lean:509:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosEPR__default__batch1.lean:545:2: error: incorrect number of universe levels DecidableEq
+/tmp/veil-transition-local/results/batch-sources/Ivy_PaxosEPR__default__batch1.lean:581:2: error: incorrect number of universe levels DecidableEq

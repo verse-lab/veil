@@ -1,0 +1,341 @@
+{
+  "row": {
+    "cell_id": "TLA_Room__d1__cached__default",
+    "model": "TLA_Room",
+    "path": "Examples/TLA/Room.lean",
+    "module": "RoomMC",
+    "depth": 1,
+    "variant": "cached",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "embedding",
+    "failure_kind": "type_mismatch",
+    "failure_message": "Application type mismatch: The argument\n  fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun keyTset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun keyTset.insert =>\n                forall_congr fun keyTset.remove =>\n                  forall_congr fun keyTset.ofList =>\n                    forall_congr fun keyTset.toList =>\n                      forall_congr fun keyTset.filter =>\n                        forall_congr fun keyTset.union =>\n                          forall_congr fun keyTset.diff =>\n                            forall_congr fun keyTset.intersection =>\n                              forall_congr fun keyTset.subsets =>\n                                forall_congr fun Position_Enum.noroom =>\n                                  forall_congr fun Position_Enum.room =>\n                                    forall_congr fun Occupied_Enum.nobody =>\n                                      forall_congr fun Occupied_Enum.body =>\n                                        forall_congr fun __veil_tag.CheckIn =>\n                                          forall_congr fun __veil_tag.CheckOut =>\n                                            forall_congr fun __veil_tag.EnterRoom =>\n                                              forall_congr fun __veil_tag.LeaveRoom =>\n                                                forall_congr fun st0.assignedKey =>\n                                                  forall_congr fun st0.registered =>\n                                                    forall_congr fun st0.roomKey =>\n                                                      forall_congr fun st0.guestKeys => ⋯))\nhas type\n  ∀ (a : ∀ (a₁ : KeySet), f a₁ ≥ 0),\n    (∀ (f_1 : RoomMC.Key Room → KeySet → Bool) (keyTset.empty : KeySet) (keyTset.isEmpty : KeySet → Bool)\n        (keyTset.insert keyTset.remove : RoomMC.Key Room → KeySet → KeySet)\n        (keyTset.ofList : List (RoomMC.Key Room) → KeySet) (keyTset.toList : KeySet → List (RoomMC.Key Room))\n        (keyTset.filter : KeySet → (RoomMC.Key Room → Bool) → KeySet)\n        (keyTset.union keyTset.diff keyTset.intersection : KeySet → KeySet → KeySet)\n        (keyTset.subsets : KeySet → List KeySet) (Position_Enum.noroom Position_Enum.room : Position)\n        (Occupied_Enum.nobody Occupied_Enum.body : Occupied)\n        (__veil_tag.CheckIn __veil_tag.CheckOut __veil_tag.EnterRoom __veil_tag.LeaveRoom : ActionTag)\n        (st0.assignedKey : Guest → Position) (st0.registered : Room → GuestSet) (st0.roomKey : Room → RoomMC.Key Room)\n        (st0.guestKeys : Guest → KeySet) (st0.inside : Room → Occupied) (st1.assignedKey : Guest → Position)\n        (st1.registered : Room → GuestSet) (st1.roomKey : Room → RoomMC.Key Room) (st1.guestKeys : Guest → KeySet)\n        (st1.inside : Room → Occupied) (r : Room) (g1 g2 : Guest),\n        True →\n          distinctN [Room_Enum.Elm, Room_Enum.Cendana] →\n            (∀ (__veil_x : Room), __veil_x = Room_Enum.Elm ∨ __veil_x = Room_Enum.Cendana) →\n              distinctN [Guest_Enum.Olivier, Guest_Enum.Bruno, Guest_Enum.Aquinas] →\n                (∀ (__veil_x : Guest),\n                    __veil_x = Guest_Enum.Olivier ∨ __veil_x = Guest_Enum.Bruno ∨ __veil_x = Guest_Enum.Aquinas) →\n                  (fun a₁ => (f✝² a₁).toNat) guestTset.empty = 0 →\n                    (∀ (elem : Guest), (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem guestTset.empty = false) →\n                      (∀ (s : GuestSet), ((fun a₁ => decide (f✝ a₁)) s = true) = ((fun a₁ => (f✝² a₁).toNat) s = 0)) →\n                        (∀ (elem : Guest) (s : GuestSet),\n                            (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (guestTset.insert elem s) = true) →\n                          (∀ (elem₁ elem₂ : Guest) (s : GuestSet),\n                              ¬elem₁ = elem₂ →\n                                (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (guestTset.insert elem₂ s) =\n                                  (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s) →\n                            (∀ (elem : Guest) (s : GuestSet),\n                                guestTset.toList (guestTset.insert elem (guestTset.insert elem s)) =\n                                  guestTset.toList (guestTset.insert elem s)) →\n                              (∀ (elem : Guest) (s : GuestSet),\n                                  (fun a₁ => (f✝² a₁).toNat) (guestTset.insert elem s) =\n                                    if (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s = true then (fun a₁ => (f✝² a₁).toNat) s\n                                    else (fun a₁ => (f✝² a₁).toNat) s + 1) →\n                                (∀ (elem : Guest) (s : GuestSet),\n                                    (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (guestTset.remove elem s) = false) →\n                                  (∀ (elem₁ elem₂ : Guest) (s : GuestSet),\n                                      ¬elem₁ = elem₂ →\n                                        (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (guestTset.remove elem₂ s) =\n                                          (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s) →\n                                    (∀ (elem : Guest) (s : GuestSet),\n                                        (fun a₁ => (f✝² a₁).toNat) (guestTset.remove elem s) =\n                                          if (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s = true then\n                                            (fun a₁ => (f✝² a₁).toNat) s - 1\n                                          else (fun a₁ => (f✝² a₁).toNat) s) →\n                                      (∀ (elem : Guest) (s1 s2 : GuestSet),\n                                          (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (guestTset.union s1 s2) =\n                                            ((fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s1 ||\n                                              (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s2)) →\n                                        (∀ (elem : Guest) (s1 s2 : GuestSet),\n                                            (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (guestTset.diff s1 s2) =\n                                              ((fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s1 &&\n                                                !(fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s2)) →\n                                          (∀ (elem : Guest) (s : GuestSet),\n                                              ((fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s = true) =\n                                                (elem ∈ guestTset.toList s)) →\n                                            (∀ (s1 s2 : GuestSet),\n                                                (s1 ∈ guestTset.subsets s2) =\n                                                  ∀ (elem : Guest),\n                                                    (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s1 = true →\n                                                      (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s2 = true) →\n                                              (fun a₁ => (f a₁).toNat) keyTset.empty = 0 →\n                                                ∀ (keyTset.empty_count : (fun a₁ => (f a₁).toNat) keyTset.empty = 0),\n                                                  (∀ (elem : RoomMC.Key Room), f_1 elem keyTset.empty = false) →\n                                                    ∀\n                                                      (keyTset.empty_contains :\n                                                        ∀ (elem : RoomMC.Key Room), f_1 elem keyTset.empty = false),\n                                                      (∀ (s : KeySet),\n                                                          (keyTset.isEmpty s = true) =\n                                                            ((fun a₁ => (f a₁).toNat) s = 0)) →\n                                                        ∀\n                                                          (key",
+    "setup_ms": null,
+    "query_elaboration_ms": 32,
+    "batch_id": "TLA_Room__cached__default__batch1",
+    "batch_setup_ms": 10949,
+    "preprocessing_ms": 249,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-action-cache/results/queries/TLA_Room__d1__cached__default.smt2",
+    "source_path": "/tmp/veil-action-cache/results/batch-sources/TLA_Room__cached__default__batch1.lean",
+    "event_path": "/tmp/veil-action-cache/results/events/TLA_Room__d1__cached__default.jsonl",
+    "translation_log": "/tmp/veil-action-cache/results/logs/TLA_Room__d1__cached__default.translation.log",
+    "solver_log": "/tmp/veil-action-cache/results/logs/TLA_Room__d1__cached__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_Room",
+    "path": "Examples/TLA/Room.lean",
+    "module": "RoomMC",
+    "cut_line": 146,
+    "query": "assert (∃ r g1 g2, guestTset.contains g1 (registered r) ∧ guestTset.contains g2 (registered r) ∧ g1 ≠ g2)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "registered_at_most_one safety, lines122–123",
+    "notes": "Collection-based hotel key model.",
+    "category": "TLA",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "2788514236d97e13f50cfeb72326b5a9b4bd70e153bcf2e3b15e93a5963ca2e7"
+  },
+  "original_sha256": "2788514236d97e13f50cfeb72326b5a9b4bd70e153bcf2e3b15e93a5963ca2e7",
+  "inherited_setup_options": [],
+  "source_sha256": "f086fb6aa01531c7e5c560f0ba2f0540651c2549d367109e9807dae6e0615f7d",
+  "batch_log": "/tmp/veil-action-cache/results/batch-logs/TLA_Room__cached__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 245483419,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 245483451,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483451,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 12965,
+      "mono_ms": 245483455,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483455,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1,
+      "event": "stage",
+      "heartbeats": 3155,
+      "mono_ms": 245483456,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483456,
+      "phase": "cached_normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 19,
+      "event": "stage",
+      "heartbeats": 202965,
+      "mono_ms": 245483475,
+      "phase": "cached_normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483475,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 3990,
+      "mono_ms": 245483477,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483477,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 85,
+      "event": "stage",
+      "heartbeats": 1194393,
+      "mono_ms": 245483562,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483563,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 25,
+      "event": "stage",
+      "heartbeats": 236036,
+      "mono_ms": 245483588,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483588,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 89,
+      "event": "stage",
+      "heartbeats": 862367,
+      "mono_ms": 245483677,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483677,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 17,
+      "event": "stage",
+      "heartbeats": 183885,
+      "mono_ms": 245483694,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483694,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 7,
+      "event": "stage",
+      "heartbeats": 72696,
+      "mono_ms": 245483701,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 251,
+      "event": "milestone",
+      "mono_ms": 245483702,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483702,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 6,
+      "event": "stage",
+      "heartbeats": 65584,
+      "mono_ms": 245483708,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483709,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 2670,
+      "mono_ms": 245483709,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483709,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 208,
+      "mono_ms": 245483709,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483709,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 56,
+      "mono_ms": 245483709,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483709,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 45,
+      "event": "stage",
+      "heartbeats": 505639,
+      "mono_ms": 245483754,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 245483754,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1330,
+      "error": "Application type mismatch: The argument\n  fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun keyTset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun keyTset.insert =>\n                forall_congr fun keyTset.remove =>\n                  forall_congr fun keyTset.ofList =>\n                    forall_congr fun keyTset.toList =>\n                      forall_congr fun keyTset.filter =>\n                        forall_congr fun keyTset.union =>\n                          forall_congr fun keyTset.diff =>\n                            forall_congr fun keyTset.intersection =>\n                              forall_congr fun keyTset.subsets =>\n                                forall_congr fun Position_Enum.noroom =>\n                                  forall_congr fun Position_Enum.room =>\n                                    forall_congr fun Occupied_Enum.nobody =>\n                                      forall_congr fun Occupied_Enum.body =>\n                                        forall_congr fun __veil_tag.CheckIn =>\n                                          forall_congr fun __veil_tag.CheckOut =>\n                                            forall_congr fun __veil_tag.EnterRoom =>\n                                              forall_congr fun __veil_tag.LeaveRoom =>\n                                                forall_congr fun st0.assignedKey =>\n                                                  forall_congr fun st0.registered =>\n                                                    forall_congr fun st0.roomKey =>\n                                                      forall_congr fun st0.guestKeys => ⋯))\nhas type\n  ∀ (a : ∀ (a₁ : KeySet), f a₁ ≥ 0),\n    (∀ (f_1 : RoomMC.Key Room → KeySet → Bool) (keyTset.empty : KeySet) (keyTset.isEmpty : KeySet → Bool)\n        (keyTset.insert keyTset.remove : RoomMC.Key Room → KeySet → KeySet)\n        (keyTset.ofList : List (RoomMC.Key Room) → KeySet) (keyTset.toList : KeySet → List (RoomMC.Key Room))\n        (keyTset.filter : KeySet → (RoomMC.Key Room → Bool) → KeySet)\n        (keyTset.union keyTset.diff keyTset.intersection : KeySet → KeySet → KeySet)\n        (keyTset.subsets : KeySet → List KeySet) (Position_Enum.noroom Position_Enum.room : Position)\n        (Occupied_Enum.nobody Occupied_Enum.body : Occupied)\n        (__veil_tag.CheckIn __veil_tag.CheckOut __veil_tag.EnterRoom __veil_tag.LeaveRoom : ActionTag)\n        (st0.assignedKey : Guest → Position) (st0.registered : Room → GuestSet) (st0.roomKey : Room → RoomMC.Key Room)\n        (st0.guestKeys : Guest → KeySet) (st0.inside : Room → Occupied) (st1.assignedKey : Guest → Position)\n        (st1.registered : Room → GuestSet) (st1.roomKey : Room → RoomMC.Key Room) (st1.guestKeys : Guest → KeySet)\n        (st1.inside : Room → Occupied) (r : Room) (g1 g2 : Guest),\n        True →\n          distinctN [Room_Enum.Elm, Room_Enum.Cendana] →\n            (∀ (__veil_x : Room), __veil_x = Room_Enum.Elm ∨ __veil_x = Room_Enum.Cendana) →\n              distinctN [Guest_Enum.Olivier, Guest_Enum.Bruno, Guest_Enum.Aquinas] →\n                (∀ (__veil_x : Guest),\n                    __veil_x = Guest_Enum.Olivier ∨ __veil_x = Guest_Enum.Bruno ∨ __veil_x = Guest_Enum.Aquinas) →\n                  (fun a₁ => (f✝² a₁).toNat) guestTset.empty = 0 →\n                    (∀ (elem : Guest), (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem guestTset.empty = false) →\n                      (∀ (s : GuestSet), ((fun a₁ => decide (f✝ a₁)) s = true) = ((fun a₁ => (f✝² a₁).toNat) s = 0)) →\n                        (∀ (elem : Guest) (s : GuestSet),\n                            (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (guestTset.insert elem s) = true) →\n                          (∀ (elem₁ elem₂ : Guest) (s : GuestSet),\n                              ¬elem₁ = elem₂ →\n                                (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (guestTset.insert elem₂ s) =\n                                  (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s) →\n                            (∀ (elem : Guest) (s : GuestSet),\n                                guestTset.toList (guestTset.insert elem (guestTset.insert elem s)) =\n                                  guestTset.toList (guestTset.insert elem s)) →\n                              (∀ (elem : Guest) (s : GuestSet),\n                                  (fun a₁ => (f✝² a₁).toNat) (guestTset.insert elem s) =\n                                    if (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s = true then (fun a₁ => (f✝² a₁).toNat) s\n                                    else (fun a₁ => (f✝² a₁).toNat) s + 1) →\n                                (∀ (elem : Guest) (s : GuestSet),\n                                    (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (guestTset.remove elem s) = false) →\n                                  (∀ (elem₁ elem₂ : Guest) (s : GuestSet),\n                                      ¬elem₁ = elem₂ →\n                                        (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ (guestTset.remove elem₂ s) =\n                                          (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem₁ s) →\n                                    (∀ (elem : Guest) (s : GuestSet),\n                                        (fun a₁ => (f✝² a₁).toNat) (guestTset.remove elem s) =\n                                          if (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s = true then\n                                            (fun a₁ => (f✝² a₁).toNat) s - 1\n                                          else (fun a₁ => (f✝² a₁).toNat) s) →\n                                      (∀ (elem : Guest) (s1 s2 : GuestSet),\n                                          (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (guestTset.union s1 s2) =\n                                            ((fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s1 ||\n                                              (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s2)) →\n                                        (∀ (elem : Guest) (s1 s2 : GuestSet),\n                                            (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem (guestTset.diff s1 s2) =\n                                              ((fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s1 &&\n                                                !(fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s2)) →\n                                          (∀ (elem : Guest) (s : GuestSet),\n                                              ((fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s = true) =\n                                                (elem ∈ guestTset.toList s)) →\n                                            (∀ (s1 s2 : GuestSet),\n                                                (s1 ∈ guestTset.subsets s2) =\n                                                  ∀ (elem : Guest),\n                                                    (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s1 = true →\n                                                      (fun a₁ a₂ => decide (f✝¹ a₁ a₂)) elem s2 = true) →\n                                              (fun a₁ => (f a₁).toNat) keyTset.empty = 0 →\n                                                ∀ (keyTset.empty_count : (fun a₁ => (f a₁).toNat) keyTset.empty = 0),\n                                                  (∀ (elem : RoomMC.Key Room), f_1 elem keyTset.empty = false) →\n                                                    ∀\n                                                      (keyTset.empty_contains :\n                                                        ∀ (elem : RoomMC.Key Room), f_1 elem keyTset.empty = false),\n                                                      (∀ (s : KeySet),\n                                                          (keyTset.isEmpty s = true) =\n                                                            ((fun a₁ => (f a₁).toNat) s = 0)) →\n                                                        ∀\n                                                          (keyTset.isEmpty_iff_count_zero :\n                                                            ∀ (s : KeySet),\n                                                              (keyTset.isEmpty s = true) =\n                                                                ((fun a₁ => (f a₁).toNat) s = 0)),\n                                                          ⋯) =\n      ∀ (a_1 : RoomMC.Key Room → KeySet → Prop) (a_2 : KeySet) (a_3 : KeySet → Prop)\n        (a_4 a_5 : RoomMC.Key Room → KeySet → KeySet) (a_6 : List (RoomMC.Key Room) → KeySet)\n        (a_7 : KeySet → List (RoomMC.Key Room)) (a_8 : KeySet → (RoomMC.Key Room → Bool) → KeySet)\n        (a_9 a_10 a_11 : KeySet → KeySet → KeySet) (a_12 : KeySet → List KeySet) (a_13 a_14 : Position)\n        (a_15 a_16 : Occupied) (a_17 a_18 a_19 a_20 : ActionTag) (a_21 : Guest → Position) (a_22 : Room → GuestSet)\n        (a_23 : Room → RoomMC.Key Room) (a_24 : Guest → KeySet) (a_25 : Room → Occupied) (a_26 : Guest → Position)\n        (a_27 : Room → GuestSet) (a_28 : Room → RoomMC.Key Room) (a_29 : Guest → KeySet) (a_30 : Room → Occupied)\n        (a_31 : Room) (a_32 a_33 : Guest),\n        True →\n          distinctN [Room_Enum.Elm, Room_Enum.Cendana] →\n            (∀ (__veil_x : Room), __veil_x = Room_Enum.Elm ∨ __veil_x = Room_Enum.Cendana) →\n              distinctN [Guest_Enum.Olivier, Guest_Enum.Bruno, Guest_Enum.Aquinas] →\n                (∀ (__veil_x : Guest),\n                    __veil_x = Guest_Enum.Olivier ∨ __veil_x = Guest_Enum.Bruno ∨ __veil_x = Guest_Enum.Aquinas) →\n                  f✝² guestTset.empty = 0 →\n                    (∀ (a : Guest), f✝¹ a guestTset.empty = False) →\n                      (∀ (a : GuestSet), f✝ a = (f✝² a = 0)) →\n                        (∀ (a : Guest) (a_42 : GuestSet), f✝¹ a (guestTset.insert a a_42)) →\n                          (∀ (a a_43 : Guest) (a_44 : GuestSet),\n                              ¬a = a_43 → f✝¹ a (guestTset.insert a_43 a_44) = f✝¹ a a_44) →\n                            (∀ (elem : Guest) (s : GuestSet),\n                                guestTset.toList (guestTset.insert elem (guestTset.insert elem s)) =\n                                  guestTset.toList (guestTset.insert elem s)) →\n                              (∀ (a : Guest) (a_45 : GuestSet),\n                                  f✝² (guestTset.insert a a_45) = if f✝¹ a a_45 then f✝² a_45 else f✝² a_45 + 1) →\n                                (∀ (a : Guest) (a_46 : GuestSet), f✝¹ a (guestTset.remove a a_46) = False) →\n                                  (∀ (a a_47 : Guest) (a_48 : GuestSet),\n                                      ¬a = a_47 → f✝¹ a (guestTset.remove a_47 a_48) = f✝¹ a a_48) →\n                                    (∀ (a : Guest) (a_48 : GuestSet),\n                                        f✝² (guestTset.remove a a_48) =\n                                          if f✝¹ a a_48 then if 1 ≤ f✝² a_48 then f✝² a_48 - 1 else 0 else f✝² a_48) →\n                                      (∀ (a : Guest) (a_49 a_50 : GuestSet),\n                                          f✝¹ a (guestTset.union a_49 a_50) = (f✝¹ a a_49 ∨ f✝¹ a a_50)) →\n                                        (∀ (a : Guest) (a_50 a_51 : GuestSet),\n                                            f✝¹ a (guestTset.diff a_50 a_51) = (f✝¹ a a_50 ∧ f✝¹ a a_51 ≠ True)) →\n                                          (∀ (a : Guest) (a_51 : GuestSet), f✝¹ a a_51 = (a ∈ guestTset.toList a_51)) →\n                                            (∀ (a a_52 : GuestSet),\n                                                (a ∈ guestTset.subsets a_52) =\n                                                  ∀ (elem : Guest), f✝¹ elem a → f✝¹ elem a_52) →\n                                              f a_2 = 0 →\n                                                ∀ (a_54 : f a_2 = 0),\n                                                  (∀ (elem : RoomMC.Key Room), a_1 elem a_2 = False) →\n                                                    ∀\n                                                      (keyTset.empty_contains :\n                                                        ∀ (elem : RoomMC.Key Room), a_1 elem a_2 = False),\n                                                      (∀ (s : KeySet), a_3 s = (f s = 0)) →\n                                                        ∀\n                                                          (keyTset.isEmpty_iff_count_zero :\n                                                            ∀ (s : KeySet), a_3 s = (f s = 0)),\n                                                          ⋯\nbut is expected to have type\n  (∀ (a₁ : KeySet), f a₁ ≥ 0) → ?q₁ = ?q₂\nin the application\n  implies_congr_ctx (Eq.refl (∀ (a₁ : KeySet), f a₁ ≥ 0)) fun a =>\n    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1\n      (forall_congr fun f_1 =>\n        forall_congr fun keyTset.empty =>\n          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1\n            (forall_congr fun f_2 =>\n              forall_congr fun keyTset.insert =>\n                forall_congr fun keyTset.remove =>\n                  forall_congr fun keyTset.ofList =>\n                    forall_congr fun keyTset.toList =>\n                      forall_congr fun keyTset.filter =>\n                        forall_congr fun keyTset.union =>\n                          forall_congr fun keyTset.diff =>\n                            forall_congr fun keyTset.intersection =>\n                              forall_congr fun keyTset.subsets =>\n                                forall_congr fun Position_Enum.noroom =>\n                                  forall_congr fun Position_Enum.room =>\n                                    forall_congr fun Occupied_Enum.nobody =>\n                                      forall_congr fun Occupied_Enum.body =>\n                                        forall_congr fun __veil_tag.CheckIn =>\n                                          forall_congr fun __veil_tag.CheckOut =>\n                                            forall_congr fun __veil_tag.EnterRoom =>\n                                              forall_congr fun __veil_tag.LeaveRoom =>\n                                                forall_congr fun st0.assignedKey =>\n                                                  forall_congr fun st0.registered =>\n                                                    forall_congr fun st0.roomKey => forall_congr ⋯))",
+      "event": "stage",
+      "heartbeats": 4008445,
+      "mono_ms": 245485323,
+      "phase": "embedding",
+      "status": "failed"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 245485496,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "TLA_Room__cached__default__batch1",
+    "source": "/tmp/veil-action-cache/results/batch-sources/TLA_Room__cached__default__batch1.lean",
+    "log": "/tmp/veil-action-cache/results/batch-logs/TLA_Room__cached__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 30932,
+    "setup_ms": 10949,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-action-cache/results/batch-sources/TLA_Room__cached__default__batch1.lean"
+    ]
+  }
+}

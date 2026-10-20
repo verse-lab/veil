@@ -1,0 +1,850 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>TLA_Paxos</title><style>body{max-width:1250px;margin:35px auto;padding:0 24px;font:16px/1.5 system-ui;color:#162a35;background:#fafcfb}h1,h2{line-height:1.2}a{color:#007562}img{max-width:100%;background:white}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:8px;border-bottom:1px solid #dbe4df;text-align:left;vertical-align:top}th{background:#e9f0ed}code{background:#edf1ef;padding:2px 5px}.note{background:#edf3f0;padding:18px;border-left:4px solid #00856a}details{margin:12px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere}nav{display:flex;gap:15px;flex-wrap:wrap}.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:20px}.gallery a{background:white;padding:10px;text-decoration:none;border:1px solid #dbe4df}</style><nav><a href="../index.html">All models</a><a href="TLA_Paxos.svg">SVG figure</a></nav><h1>TLA_Paxos</h1><p><code>Examples/TLA/Paxos.lean</code> · <code>assert (∃ v1 v2, Chosen v1 ∧ Chosen v2 ∧ v1 ≠ v2)</code></p><img src="TLA_Paxos.png"><table><thead><tr><th>Depth</th><th>Variant</th><th>Result</th><th>Normalize s</th><th>Query s</th><th>VC s</th><th>Cold→query s</th><th>Solver s</th><th>Stopped at</th><th>Failure kind</th><th>Evidence</th></tr></thead><tbody><tr><td>1</td><td>local</td><td>translation_failed</td><td>0.592</td><td>—</td><td>0.162</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Paxos__d1__local__default.translation.log">log</a></td></tr><tr><td>1</td><td>cached</td><td>translation_failed</td><td>0.040</td><td>—</td><td>0.147</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Paxos__d1__cached__default.translation.log">log</a></td></tr><tr><td>2</td><td>local</td><td>translation_failed</td><td>1.013</td><td>—</td><td>0.166</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Paxos__d2__local__default.translation.log">log</a></td></tr><tr><td>2</td><td>cached</td><td>translation_failed</td><td>0.041</td><td>—</td><td>0.143</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Paxos__d2__cached__default.translation.log">log</a></td></tr><tr><td>4</td><td>local</td><td>translation_failed</td><td>1.826</td><td>—</td><td>0.185</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Paxos__d4__local__default.translation.log">log</a></td></tr><tr><td>4</td><td>cached</td><td>translation_failed</td><td>0.052</td><td>—</td><td>0.168</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Paxos__d4__cached__default.translation.log">log</a></td></tr><tr><td>8</td><td>local</td><td>translation_failed</td><td>3.938</td><td>—</td><td>0.236</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Paxos__d8__local__default.translation.log">log</a></td></tr><tr><td>8</td><td>cached</td><td>translation_failed</td><td>0.073</td><td>—</td><td>0.232</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_Paxos__d8__cached__default.translation.log">log</a></td></tr><tr><td>16</td><td>local</td><td>translation_failed</td><td>8.517</td><td>—</td><td>0.311</td><td>—</td><td>—</td><td>normalize</td><td>heartbeats</td><td> <a href="../../raw/logs/TLA_Paxos__d16__local__default.translation.log">log</a></td></tr><tr><td>16</td><td>cached</td><td>translation_failed</td><td>0.089</td><td>—</td><td>0.297</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_Paxos__d16__cached__default.translation.log">log</a></td></tr><tr><td>32</td><td>local</td><td>translation_failed</td><td>—</td><td>—</td><td>0.464</td><td>—</td><td>—</td><td>hoist</td><td>heartbeats</td><td> <a href="../../raw/logs/TLA_Paxos__d32__local__default.translation.log">log</a></td></tr><tr><td>32</td><td>cached</td><td>translation_failed</td><td>0.201</td><td>—</td><td>0.436</td><td>—</td><td>—</td><td>smtSimp</td><td>heartbeats</td><td> <a href="../../raw/logs/TLA_Paxos__d32__cached__default.translation.log">log</a></td></tr></tbody></table><details><summary>1, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun msgSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun msgSet.insert =&gt;
+                forall_congr fun msgSet.remove =&gt;
+                  forall_congr fun msgSet.ofList =&gt;
+                    forall_congr fun msgSet.toList =&gt;
+                      forall_congr fun msgSet.filter =&gt;
+                        forall_congr fun msgSet.union =&gt;
+                          forall_congr fun msgSet.diff =&gt;
+                            forall_congr fun msgSet.intersection =&gt;
+                              forall_congr fun msgSet.subsets =&gt;
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =&gt;
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =&gt;
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =&gt;
+                                          forall_congr fun acSet.empty =&gt;
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun f_5 =&gt;
+                                                forall_congr fun acSet.insert =&gt;
+                                                  forall_congr fun acSet.remove =&gt;
+                                                    forall_congr fun acSet.toList =&gt;
+                                                      forall_congr fun acSet.union =&gt;
+                                                        forall_congr fun acSet.diff =&gt; forall_congr ⋯)))))
+has type
+  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),
+    (∀ (f_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Bool) (msgSet.empty : MsgSet)
+        (msgSet.isEmpty : MsgSet → Bool)
+        (msgSet.insert msgSet.remove : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (msgSet.ofList : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (msgSet.toList : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (msgSet.filter : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (msgSet.union msgSet.diff msgSet.intersection : MsgSet → MsgSet → MsgSet)
+        (msgSet.subsets : MsgSet → List MsgSet) (acSet.count : AcceptorSet → Nat)
+        (acSet.contains : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet)
+        (acSet.isEmpty : AcceptorSet → Bool) (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet)
+        (acSet.toList : AcceptorSet → List acceptor) (acSet.union acSet.diff : AcceptorSet → AcceptorSet → AcceptorSet)
+        (acSet.subsets : AcceptorSet → List AcceptorSet)
+        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag) (st0.msgs : MsgSet)
+        (st0.maxVBal st0.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st0.maxVal : acceptor → Option value)
+        (st1.msgs : MsgSet) (st1.maxVBal st1.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st1.maxVal : acceptor → Option value) (v1 v2 : value) (b : Paxos.BallotTy f✝.toNat) (Q : quorum)
+        (b_1 : Paxos.BallotTy f✝.toNat) (Q_1 : quorum),
+        (∀ (q1 q2 : quorum), ∃ r, mem.mem q1 r ∧ mem.mem q2 r) →
+          (fun a₁ =&gt; (f a₁).toNat) msgSet.empty = 0 →
+            ∀ (msgSet.empty_count : (fun a₁ =&gt; (f a₁).toNat) msgSet.empty = 0),
+              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false) →
+                ∀
+                  (msgSet.empty_contains :
+                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false),
+                  (∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)) →
+                    ∀
+                      (msgSet.isEmpty_iff_count_zero :
+                        ∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)),
+                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                          f_1 elem (msgSet.insert elem s) = true) →
+                        ∀
+                          (msgSet.contains_insert_self :
+                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                              f_1 elem (msgSet.insert elem s) = true),
+                          (∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                              ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s) →
+                            ∀
+                              (msgSet.contains_insert_other :
+                                ∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                  ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s),
+                              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                  msgSet.toList (msgSet.insert elem (msgSet.insert elem s)) =
+                                    msgSet.toList (msgSet.insert elem s)) →
+                                ∀
+                                  (msgSet.insert_idempotent :
+                                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                      msgSet.toList (msgSet.insert elem (msgSet.insert elem s)) =
+                                        msgSet.toList (msgSet.insert elem s)),
+                                  (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                      (fun a₁ =&gt; (f a₁).toNat) (msgSet.insert elem s) =
+                                        if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                        else (fun a₁ =&gt; (f a₁).toNat) s + 1) →
+                                    ∀
+                                      (msgSet.count_insert :
+                                        ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                          (fun a₁ =&gt; (f a₁).toNat) (msgSet.insert elem s) =
+                                            if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                            else (fun a₁ =&gt; (f a₁).toNat) s + 1),
+                                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                          f_1 elem (msgSet.remove elem s) = false) →
+                                        ∀
+                                          (msgSet.contains_remove_self :
+                                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                              f_1 elem (msgSet.remove elem s) = false),
+                                          (∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                              ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.remove elem₂ s) = f_1 elem₁ s) →
+                                            ∀
+                                              (msgSet.contains_remove_other :
+                                                ∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                                  ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.remove elem₂ s) = f_1 elem₁ s),
+                                              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                                  (fun a₁ =&gt; (f a₁).toNat) (msgSet.remove elem s) =
+                                                    if f_1 elem s = true then (fun a₁ =&gt; (f a₁).to</pre></details><details><summary>1, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun msgSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun msgSet.insert =&gt;
+                forall_congr fun msgSet.remove =&gt;
+                  forall_congr fun msgSet.ofList =&gt;
+                    forall_congr fun msgSet.toList =&gt;
+                      forall_congr fun msgSet.filter =&gt;
+                        forall_congr fun msgSet.union =&gt;
+                          forall_congr fun msgSet.diff =&gt;
+                            forall_congr fun msgSet.intersection =&gt;
+                              forall_congr fun msgSet.subsets =&gt;
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =&gt;
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =&gt;
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =&gt;
+                                          forall_congr fun acSet.empty =&gt;
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun f_5 =&gt;
+                                                forall_congr fun acSet.insert =&gt;
+                                                  forall_congr fun acSet.remove =&gt;
+                                                    forall_congr fun acSet.toList =&gt;
+                                                      forall_congr fun acSet.union =&gt;
+                                                        forall_congr fun acSet.diff =&gt; forall_congr ⋯)))))
+has type
+  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),
+    (∀ (f_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Bool) (msgSet.empty : MsgSet)
+        (msgSet.isEmpty : MsgSet → Bool)
+        (msgSet.insert msgSet.remove : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (msgSet.ofList : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (msgSet.toList : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (msgSet.filter : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (msgSet.union msgSet.diff msgSet.intersection : MsgSet → MsgSet → MsgSet)
+        (msgSet.subsets : MsgSet → List MsgSet) (acSet.count : AcceptorSet → Nat)
+        (acSet.contains : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet)
+        (acSet.isEmpty : AcceptorSet → Bool) (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet)
+        (acSet.toList : AcceptorSet → List acceptor) (acSet.union acSet.diff : AcceptorSet → AcceptorSet → AcceptorSet)
+        (acSet.subsets : AcceptorSet → List AcceptorSet)
+        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag) (st0.msgs : MsgSet)
+        (st0.maxVBal st0.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st0.maxVal : acceptor → Option value)
+        (st1.msgs : MsgSet) (st1.maxVBal st1.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st1.maxVal : acceptor → Option value) (v1 v2 : value) (b : Paxos.BallotTy f✝.toNat) (Q : quorum)
+        (b_1 : Paxos.BallotTy f✝.toNat) (Q_1 : quorum),
+        (∀ (q1 q2 : quorum), ∃ r, mem.mem q1 r ∧ mem.mem q2 r) →
+          (fun a₁ =&gt; (f a₁).toNat) msgSet.empty = 0 →
+            ∀ (msgSet.empty_count : (fun a₁ =&gt; (f a₁).toNat) msgSet.empty = 0),
+              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false) →
+                ∀
+                  (msgSet.empty_contains :
+                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false),
+                  (∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)) →
+                    ∀
+                      (msgSet.isEmpty_iff_count_zero :
+                        ∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)),
+                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                          f_1 elem (msgSet.insert elem s) = true) →
+                        ∀
+                          (msgSet.contains_insert_self :
+                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                              f_1 elem (msgSet.insert elem s) = true),
+                          (∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                              ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s) →
+                            ∀
+                              (msgSet.contains_insert_other :
+                                ∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                  ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s),
+                              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                  msgSet.toList (msgSet.insert elem (msgSet.insert elem s)) =
+                                    msgSet.toList (msgSet.insert elem s)) →
+                                ∀
+                                  (msgSet.insert_idempotent :
+                                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                      msgSet.toList (msgSet.insert elem (msgSet.insert elem s)) =
+                                        msgSet.toList (msgSet.insert elem s)),
+                                  (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                      (fun a₁ =&gt; (f a₁).toNat) (msgSet.insert elem s) =
+                                        if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                        else (fun a₁ =&gt; (f a₁).toNat) s + 1) →
+                                    ∀
+                                      (msgSet.count_insert :
+                                        ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                          (fun a₁ =&gt; (f a₁).toNat) (msgSet.insert elem s) =
+                                            if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                            else (fun a₁ =&gt; (f a₁).toNat) s + 1),
+                                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                          f_1 elem (msgSet.remove elem s) = false) →
+                                        ∀
+                                          (msgSet.contains_remove_self :
+                                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                              f_1 elem (msgSet.remove elem s) = false),
+                                          (∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                              ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.remove elem₂ s) = f_1 elem₁ s) →
+                                            ∀
+                                              (msgSet.contains_remove_other :
+                                                ∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                                  ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.remove elem₂ s) = f_1 elem₁ s),
+                                              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                                  (fun a₁ =&gt; (f a₁).toNat) (msgSet.remove elem s) =
+                                                    if f_1 elem s = true then (fun a₁ =&gt; (f a₁).to</pre></details><details><summary>2, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun msgSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun msgSet.insert =&gt;
+                forall_congr fun msgSet.remove =&gt;
+                  forall_congr fun msgSet.ofList =&gt;
+                    forall_congr fun msgSet.toList =&gt;
+                      forall_congr fun msgSet.filter =&gt;
+                        forall_congr fun msgSet.union =&gt;
+                          forall_congr fun msgSet.diff =&gt;
+                            forall_congr fun msgSet.intersection =&gt;
+                              forall_congr fun msgSet.subsets =&gt;
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =&gt;
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =&gt;
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =&gt;
+                                          forall_congr fun acSet.empty =&gt;
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun f_5 =&gt;
+                                                forall_congr fun acSet.insert =&gt;
+                                                  forall_congr fun acSet.remove =&gt;
+                                                    forall_congr fun acSet.toList =&gt;
+                                                      forall_congr fun acSet.union =&gt;
+                                                        forall_congr fun acSet.diff =&gt; forall_congr ⋯)))))
+has type
+  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),
+    (∀ (f_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Bool) (msgSet.empty : MsgSet)
+        (msgSet.isEmpty : MsgSet → Bool)
+        (msgSet.insert msgSet.remove : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (msgSet.ofList : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (msgSet.toList : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (msgSet.filter : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (msgSet.union msgSet.diff msgSet.intersection : MsgSet → MsgSet → MsgSet)
+        (msgSet.subsets : MsgSet → List MsgSet) (acSet.count : AcceptorSet → Nat)
+        (acSet.contains : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet)
+        (acSet.isEmpty : AcceptorSet → Bool) (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet)
+        (acSet.toList : AcceptorSet → List acceptor) (acSet.union acSet.diff : AcceptorSet → AcceptorSet → AcceptorSet)
+        (acSet.subsets : AcceptorSet → List AcceptorSet)
+        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag) (st0.msgs : MsgSet)
+        (st0.maxVBal st0.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st0.maxVal : acceptor → Option value)
+        (st1.msgs : MsgSet) (st1.maxVBal st1.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st1.maxVal : acceptor → Option value) (st2.msgs : MsgSet)
+        (st2.maxVBal st2.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st2.maxVal : acceptor → Option value)
+        (v1 v2 : value) (b : Paxos.BallotTy f✝.toNat) (Q : quorum) (b_1 : Paxos.BallotTy f✝.toNat) (Q_1 : quorum),
+        (∀ (q1 q2 : quorum), ∃ r, mem.mem q1 r ∧ mem.mem q2 r) →
+          (fun a₁ =&gt; (f a₁).toNat) msgSet.empty = 0 →
+            ∀ (msgSet.empty_count : (fun a₁ =&gt; (f a₁).toNat) msgSet.empty = 0),
+              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false) →
+                ∀
+                  (msgSet.empty_contains :
+                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false),
+                  (∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)) →
+                    ∀
+                      (msgSet.isEmpty_iff_count_zero :
+                        ∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)),
+                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                          f_1 elem (msgSet.insert elem s) = true) →
+                        ∀
+                          (msgSet.contains_insert_self :
+                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                              f_1 elem (msgSet.insert elem s) = true),
+                          (∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                              ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s) →
+                            ∀
+                              (msgSet.contains_insert_other :
+                                ∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                  ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s),
+                              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                  msgSet.toList (msgSet.insert elem (msgSet.insert elem s)) =
+                                    msgSet.toList (msgSet.insert elem s)) →
+                                ∀
+                                  (msgSet.insert_idempotent :
+                                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                      msgSet.toList (msgSet.insert elem (msgSet.insert elem s)) =
+                                        msgSet.toList (msgSet.insert elem s)),
+                                  (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                      (fun a₁ =&gt; (f a₁).toNat) (msgSet.insert elem s) =
+                                        if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                        else (fun a₁ =&gt; (f a₁).toNat) s + 1) →
+                                    ∀
+                                      (msgSet.count_insert :
+                                        ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                          (fun a₁ =&gt; (f a₁).toNat) (msgSet.insert elem s) =
+                                            if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                            else (fun a₁ =&gt; (f a₁).toNat) s + 1),
+                                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                          f_1 elem (msgSet.remove elem s) = false) →
+                                        ∀
+                                          (msgSet.contains_remove_self :
+                                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                              f_1 elem (msgSet.remove elem s) = false),
+                                          ⋯) =
+      ∀ (a_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Prop) (a_2 : MsgSet) (a_3 : MsgSet → Prop)
+        (a_4 a_5 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (a_6 : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (a_7 : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (a_8 : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (a_9 a_10 a_11 : MsgSet → MsgSet → MsgSet) (a_12 : MsgSet → List MsgSet) (a_13 : AcceptorSet → Int),
+        (∀ (a₁ : AcceptorSet), a_13 a₁ ≥ 0) →
+          ∀ (a_15 : acceptor → AcceptorSet → Prop) (a_16 : AcceptorSet) (a_17 : AcceptorSet → Prop)
+            (a_18 a_19 : acceptor → AcceptorSet → Accepto</pre></details><details><summary>2, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun msgSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun msgSet.insert =&gt;
+                forall_congr fun msgSet.remove =&gt;
+                  forall_congr fun msgSet.ofList =&gt;
+                    forall_congr fun msgSet.toList =&gt;
+                      forall_congr fun msgSet.filter =&gt;
+                        forall_congr fun msgSet.union =&gt;
+                          forall_congr fun msgSet.diff =&gt;
+                            forall_congr fun msgSet.intersection =&gt;
+                              forall_congr fun msgSet.subsets =&gt;
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =&gt;
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =&gt;
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =&gt;
+                                          forall_congr fun acSet.empty =&gt;
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun f_5 =&gt;
+                                                forall_congr fun acSet.insert =&gt;
+                                                  forall_congr fun acSet.remove =&gt;
+                                                    forall_congr fun acSet.toList =&gt;
+                                                      forall_congr fun acSet.union =&gt;
+                                                        forall_congr fun acSet.diff =&gt; forall_congr ⋯)))))
+has type
+  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),
+    (∀ (f_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Bool) (msgSet.empty : MsgSet)
+        (msgSet.isEmpty : MsgSet → Bool)
+        (msgSet.insert msgSet.remove : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (msgSet.ofList : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (msgSet.toList : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (msgSet.filter : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (msgSet.union msgSet.diff msgSet.intersection : MsgSet → MsgSet → MsgSet)
+        (msgSet.subsets : MsgSet → List MsgSet) (acSet.count : AcceptorSet → Nat)
+        (acSet.contains : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet)
+        (acSet.isEmpty : AcceptorSet → Bool) (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet)
+        (acSet.toList : AcceptorSet → List acceptor) (acSet.union acSet.diff : AcceptorSet → AcceptorSet → AcceptorSet)
+        (acSet.subsets : AcceptorSet → List AcceptorSet)
+        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag) (st0.msgs : MsgSet)
+        (st0.maxVBal st0.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st0.maxVal : acceptor → Option value)
+        (st1.msgs : MsgSet) (st1.maxVBal st1.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st1.maxVal : acceptor → Option value) (st2.msgs : MsgSet)
+        (st2.maxVBal st2.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st2.maxVal : acceptor → Option value)
+        (v1 v2 : value) (b : Paxos.BallotTy f✝.toNat) (Q : quorum) (b_1 : Paxos.BallotTy f✝.toNat) (Q_1 : quorum),
+        (∀ (q1 q2 : quorum), ∃ r, mem.mem q1 r ∧ mem.mem q2 r) →
+          (fun a₁ =&gt; (f a₁).toNat) msgSet.empty = 0 →
+            ∀ (msgSet.empty_count : (fun a₁ =&gt; (f a₁).toNat) msgSet.empty = 0),
+              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false) →
+                ∀
+                  (msgSet.empty_contains :
+                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false),
+                  (∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)) →
+                    ∀
+                      (msgSet.isEmpty_iff_count_zero :
+                        ∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)),
+                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                          f_1 elem (msgSet.insert elem s) = true) →
+                        ∀
+                          (msgSet.contains_insert_self :
+                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                              f_1 elem (msgSet.insert elem s) = true),
+                          (∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                              ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s) →
+                            ∀
+                              (msgSet.contains_insert_other :
+                                ∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                  ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s),
+                              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                  msgSet.toList (msgSet.insert elem (msgSet.insert elem s)) =
+                                    msgSet.toList (msgSet.insert elem s)) →
+                                ∀
+                                  (msgSet.insert_idempotent :
+                                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                      msgSet.toList (msgSet.insert elem (msgSet.insert elem s)) =
+                                        msgSet.toList (msgSet.insert elem s)),
+                                  (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                      (fun a₁ =&gt; (f a₁).toNat) (msgSet.insert elem s) =
+                                        if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                        else (fun a₁ =&gt; (f a₁).toNat) s + 1) →
+                                    ∀
+                                      (msgSet.count_insert :
+                                        ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                          (fun a₁ =&gt; (f a₁).toNat) (msgSet.insert elem s) =
+                                            if f_1 elem s = true then (fun a₁ =&gt; (f a₁).toNat) s
+                                            else (fun a₁ =&gt; (f a₁).toNat) s + 1),
+                                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                          f_1 elem (msgSet.remove elem s) = false) →
+                                        ∀
+                                          (msgSet.contains_remove_self :
+                                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                              f_1 elem (msgSet.remove elem s) = false),
+                                          ⋯) =
+      ∀ (a_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Prop) (a_2 : MsgSet) (a_3 : MsgSet → Prop)
+        (a_4 a_5 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (a_6 : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (a_7 : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (a_8 : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (a_9 a_10 a_11 : MsgSet → MsgSet → MsgSet) (a_12 : MsgSet → List MsgSet) (a_13 : AcceptorSet → Int),
+        (∀ (a₁ : AcceptorSet), a_13 a₁ ≥ 0) →
+          ∀ (a_15 : acceptor → AcceptorSet → Prop) (a_16 : AcceptorSet) (a_17 : AcceptorSet → Prop)
+            (a_18 a_19 : acceptor → AcceptorSet → Accepto</pre></details><details><summary>4, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun msgSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun msgSet.insert =&gt;
+                forall_congr fun msgSet.remove =&gt;
+                  forall_congr fun msgSet.ofList =&gt;
+                    forall_congr fun msgSet.toList =&gt;
+                      forall_congr fun msgSet.filter =&gt;
+                        forall_congr fun msgSet.union =&gt;
+                          forall_congr fun msgSet.diff =&gt;
+                            forall_congr fun msgSet.intersection =&gt;
+                              forall_congr fun msgSet.subsets =&gt;
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =&gt;
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =&gt;
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =&gt;
+                                          forall_congr fun acSet.empty =&gt;
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun f_5 =&gt;
+                                                forall_congr fun acSet.insert =&gt;
+                                                  forall_congr fun acSet.remove =&gt;
+                                                    forall_congr fun acSet.toList =&gt;
+                                                      forall_congr fun acSet.union =&gt;
+                                                        forall_congr fun acSet.diff =&gt; forall_congr ⋯)))))
+has type
+  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),
+    (∀ (f_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Bool) (msgSet.empty : MsgSet)
+        (msgSet.isEmpty : MsgSet → Bool)
+        (msgSet.insert msgSet.remove : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (msgSet.ofList : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (msgSet.toList : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (msgSet.filter : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (msgSet.union msgSet.diff msgSet.intersection : MsgSet → MsgSet → MsgSet)
+        (msgSet.subsets : MsgSet → List MsgSet) (acSet.count : AcceptorSet → Nat)
+        (acSet.contains : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet)
+        (acSet.isEmpty : AcceptorSet → Bool) (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet)
+        (acSet.toList : AcceptorSet → List acceptor) (acSet.union acSet.diff : AcceptorSet → AcceptorSet → AcceptorSet)
+        (acSet.subsets : AcceptorSet → List AcceptorSet)
+        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag) (st0.msgs : MsgSet)
+        (st0.maxVBal st0.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st0.maxVal : acceptor → Option value)
+        (st1.msgs : MsgSet) (st1.maxVBal st1.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st1.maxVal : acceptor → Option value) (st2.msgs : MsgSet)
+        (st2.maxVBal st2.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st2.maxVal : acceptor → Option value)
+        (st3.msgs : MsgSet) (st3.maxVBal st3.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st3.maxVal : acceptor → Option value) (st4.msgs : MsgSet)
+        (st4.maxVBal st4.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st4.maxVal : acceptor → Option value)
+        (v1 v2 : value) (b : Paxos.BallotTy f✝.toNat) (Q : quorum) (b_1 : Paxos.BallotTy f✝.toNat) (Q_1 : quorum),
+        (∀ (q1 q2 : quorum), ∃ r, mem.mem q1 r ∧ mem.mem q2 r) →
+          (fun a₁ =&gt; (f a₁).toNat) msgSet.empty = 0 →
+            ∀ (msgSet.empty_count : (fun a₁ =&gt; (f a₁).toNat) msgSet.empty = 0),
+              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false) →
+                ∀
+                  (msgSet.empty_contains :
+                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false),
+                  (∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)) →
+                    ∀
+                      (msgSet.isEmpty_iff_count_zero :
+                        ∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)),
+                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                          f_1 elem (msgSet.insert elem s) = true) →
+                        ∀
+                          (msgSet.contains_insert_self :
+                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                              f_1 elem (msgSet.insert elem s) = true),
+                          (∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                              ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s) →
+                            ∀
+                              (msgSet.contains_insert_other :
+                                ∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                  ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s),
+                              ⋯) =
+      ∀ (a_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Prop) (a_2 : MsgSet) (a_3 : MsgSet → Prop)
+        (a_4 a_5 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (a_6 : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (a_7 : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (a_8 : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (a_9 a_10 a_11 : MsgSet → MsgSet → MsgSet) (a_12 : MsgSet → List MsgSet) (a_13 : AcceptorSet → Int),
+        (∀ (a₁ : AcceptorSet), a_13 a₁ ≥ 0) →
+          ∀ (a_15 : acceptor → AcceptorSet → Prop) (a_16 : AcceptorSet) (a_17 : AcceptorSet → Prop)
+            (a_18 a_19 : acceptor → AcceptorSet → AcceptorSet) (a_20 : AcceptorSet → List acceptor)
+            (a_21 a_22 : AcceptorSet → AcceptorSet → AcceptorSet) (a_23 : AcceptorSet → List AcceptorSet)
+            (a_24 a_25 a_26 a_27 : ActionTag) (a_28 : MsgSet) (a_29 a_30 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_31 : acceptor → Option value) (a_32 : MsgSet) (a_33 a_34 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_35 : acceptor → Option value) (a_36 : MsgSet) (a_37 a_38 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_39 : acceptor → Option value) (a_40 : MsgSet) (a_41 a_42 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_43 : acceptor → Option value) (a_44 : MsgSet) (a_45 a_46 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_47 : acceptor → Option value) (a_48 a_49 : value) (a_50 : Paxos.BallotTy f✝.toNat) (a_51 : quorum)
+            (a_52 : Paxos.BallotTy f✝.toNat) (a_53 : quorum),
+            (∀ (q1 q2 : quorum), ∃ r, mem.mem q1 r ∧ mem.mem q2 r) →
+              f a_2 = 0 →
+                ∀ (a_56 : f a_2 = 0),
+                  (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), a_1 elem a_2 = False) →
+                    ∀ (msgSet.empty_contains : ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), a_1 elem a_2 = False),
+                      (∀ (s : MsgSet), a_3 s = (f s = 0)) →
+                        ∀ (msgSet.isEmpty_iff_count_zero : ∀ (s : MsgSet), a_3 s = (f s = 0)),
+                          (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet), a_1 elem (a_4 elem s)) →
+                            ∀
+                              (msgSet.contains_insert_self :
+                                ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet), a_1 elem (a_4 elem s)),
+          </pre></details><details><summary>4, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun msgSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun msgSet.insert =&gt;
+                forall_congr fun msgSet.remove =&gt;
+                  forall_congr fun msgSet.ofList =&gt;
+                    forall_congr fun msgSet.toList =&gt;
+                      forall_congr fun msgSet.filter =&gt;
+                        forall_congr fun msgSet.union =&gt;
+                          forall_congr fun msgSet.diff =&gt;
+                            forall_congr fun msgSet.intersection =&gt;
+                              forall_congr fun msgSet.subsets =&gt;
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =&gt;
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =&gt;
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =&gt;
+                                          forall_congr fun acSet.empty =&gt;
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun f_5 =&gt;
+                                                forall_congr fun acSet.insert =&gt;
+                                                  forall_congr fun acSet.remove =&gt;
+                                                    forall_congr fun acSet.toList =&gt;
+                                                      forall_congr fun acSet.union =&gt;
+                                                        forall_congr fun acSet.diff =&gt; forall_congr ⋯)))))
+has type
+  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),
+    (∀ (f_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Bool) (msgSet.empty : MsgSet)
+        (msgSet.isEmpty : MsgSet → Bool)
+        (msgSet.insert msgSet.remove : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (msgSet.ofList : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (msgSet.toList : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (msgSet.filter : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (msgSet.union msgSet.diff msgSet.intersection : MsgSet → MsgSet → MsgSet)
+        (msgSet.subsets : MsgSet → List MsgSet) (acSet.count : AcceptorSet → Nat)
+        (acSet.contains : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet)
+        (acSet.isEmpty : AcceptorSet → Bool) (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet)
+        (acSet.toList : AcceptorSet → List acceptor) (acSet.union acSet.diff : AcceptorSet → AcceptorSet → AcceptorSet)
+        (acSet.subsets : AcceptorSet → List AcceptorSet)
+        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag) (st0.msgs : MsgSet)
+        (st0.maxVBal st0.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st0.maxVal : acceptor → Option value)
+        (st1.msgs : MsgSet) (st1.maxVBal st1.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st1.maxVal : acceptor → Option value) (st2.msgs : MsgSet)
+        (st2.maxVBal st2.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st2.maxVal : acceptor → Option value)
+        (st3.msgs : MsgSet) (st3.maxVBal st3.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st3.maxVal : acceptor → Option value) (st4.msgs : MsgSet)
+        (st4.maxVBal st4.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st4.maxVal : acceptor → Option value)
+        (v1 v2 : value) (b : Paxos.BallotTy f✝.toNat) (Q : quorum) (b_1 : Paxos.BallotTy f✝.toNat) (Q_1 : quorum),
+        (∀ (q1 q2 : quorum), ∃ r, mem.mem q1 r ∧ mem.mem q2 r) →
+          (fun a₁ =&gt; (f a₁).toNat) msgSet.empty = 0 →
+            ∀ (msgSet.empty_count : (fun a₁ =&gt; (f a₁).toNat) msgSet.empty = 0),
+              (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false) →
+                ∀
+                  (msgSet.empty_contains :
+                    ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), f_1 elem msgSet.empty = false),
+                  (∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)) →
+                    ∀
+                      (msgSet.isEmpty_iff_count_zero :
+                        ∀ (s : MsgSet), (msgSet.isEmpty s = true) = ((fun a₁ =&gt; (f a₁).toNat) s = 0)),
+                      (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                          f_1 elem (msgSet.insert elem s) = true) →
+                        ∀
+                          (msgSet.contains_insert_self :
+                            ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                              f_1 elem (msgSet.insert elem s) = true),
+                          (∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                              ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s) →
+                            ∀
+                              (msgSet.contains_insert_other :
+                                ∀ (elem₁ elem₂ : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet),
+                                  ¬elem₁ = elem₂ → f_1 elem₁ (msgSet.insert elem₂ s) = f_1 elem₁ s),
+                              ⋯) =
+      ∀ (a_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Prop) (a_2 : MsgSet) (a_3 : MsgSet → Prop)
+        (a_4 a_5 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (a_6 : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (a_7 : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (a_8 : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (a_9 a_10 a_11 : MsgSet → MsgSet → MsgSet) (a_12 : MsgSet → List MsgSet) (a_13 : AcceptorSet → Int),
+        (∀ (a₁ : AcceptorSet), a_13 a₁ ≥ 0) →
+          ∀ (a_15 : acceptor → AcceptorSet → Prop) (a_16 : AcceptorSet) (a_17 : AcceptorSet → Prop)
+            (a_18 a_19 : acceptor → AcceptorSet → AcceptorSet) (a_20 : AcceptorSet → List acceptor)
+            (a_21 a_22 : AcceptorSet → AcceptorSet → AcceptorSet) (a_23 : AcceptorSet → List AcceptorSet)
+            (a_24 a_25 a_26 a_27 : ActionTag) (a_28 : MsgSet) (a_29 a_30 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_31 : acceptor → Option value) (a_32 : MsgSet) (a_33 a_34 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_35 : acceptor → Option value) (a_36 : MsgSet) (a_37 a_38 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_39 : acceptor → Option value) (a_40 : MsgSet) (a_41 a_42 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_43 : acceptor → Option value) (a_44 : MsgSet) (a_45 a_46 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_47 : acceptor → Option value) (a_48 a_49 : value) (a_50 : Paxos.BallotTy f✝.toNat) (a_51 : quorum)
+            (a_52 : Paxos.BallotTy f✝.toNat) (a_53 : quorum),
+            (∀ (q1 q2 : quorum), ∃ r, mem.mem q1 r ∧ mem.mem q2 r) →
+              f a_2 = 0 →
+                ∀ (a_56 : f a_2 = 0),
+                  (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), a_1 elem a_2 = False) →
+                    ∀ (msgSet.empty_contains : ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat), a_1 elem a_2 = False),
+                      (∀ (s : MsgSet), a_3 s = (f s = 0)) →
+                        ∀ (msgSet.isEmpty_iff_count_zero : ∀ (s : MsgSet), a_3 s = (f s = 0)),
+                          (∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet), a_1 elem (a_4 elem s)) →
+                            ∀
+                              (msgSet.contains_insert_self :
+                                ∀ (elem : Paxos.PaxosMsg acceptor value f✝.toNat) (s : MsgSet), a_1 elem (a_4 elem s)),
+          </pre></details><details><summary>8, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun msgSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun msgSet.insert =&gt;
+                forall_congr fun msgSet.remove =&gt;
+                  forall_congr fun msgSet.ofList =&gt;
+                    forall_congr fun msgSet.toList =&gt;
+                      forall_congr fun msgSet.filter =&gt;
+                        forall_congr fun msgSet.union =&gt;
+                          forall_congr fun msgSet.diff =&gt;
+                            forall_congr fun msgSet.intersection =&gt;
+                              forall_congr fun msgSet.subsets =&gt;
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =&gt;
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =&gt;
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =&gt;
+                                          forall_congr fun acSet.empty =&gt;
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun f_5 =&gt;
+                                                forall_congr fun acSet.insert =&gt;
+                                                  forall_congr fun acSet.remove =&gt;
+                                                    forall_congr fun acSet.toList =&gt;
+                                                      forall_congr fun acSet.union =&gt;
+                                                        forall_congr fun acSet.diff =&gt; forall_congr ⋯)))))
+has type
+  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),
+    (∀ (f_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Bool) (msgSet.empty : MsgSet)
+        (msgSet.isEmpty : MsgSet → Bool)
+        (msgSet.insert msgSet.remove : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (msgSet.ofList : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (msgSet.toList : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (msgSet.filter : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (msgSet.union msgSet.diff msgSet.intersection : MsgSet → MsgSet → MsgSet)
+        (msgSet.subsets : MsgSet → List MsgSet) (acSet.count : AcceptorSet → Nat)
+        (acSet.contains : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet)
+        (acSet.isEmpty : AcceptorSet → Bool) (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet)
+        (acSet.toList : AcceptorSet → List acceptor) (acSet.union acSet.diff : AcceptorSet → AcceptorSet → AcceptorSet)
+        (acSet.subsets : AcceptorSet → List AcceptorSet)
+        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag) (st0.msgs : MsgSet)
+        (st0.maxVBal st0.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st0.maxVal : acceptor → Option value)
+        (st1.msgs : MsgSet) (st1.maxVBal st1.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st1.maxVal : acceptor → Option value) (st2.msgs : MsgSet)
+        (st2.maxVBal st2.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st2.maxVal : acceptor → Option value)
+        (st3.msgs : MsgSet) (st3.maxVBal st3.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st3.maxVal : acceptor → Option value) (st4.msgs : MsgSet)
+        (st4.maxVBal st4.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st4.maxVal : acceptor → Option value)
+        (st5.msgs : MsgSet) (st5.maxVBal st5.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st5.maxVal : acceptor → Option value) (st6.msgs : MsgSet)
+        (st6.maxVBal st6.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st6.maxVal : acceptor → Option value)
+        (st7.msgs : MsgSet) (st7.maxVBal st7.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st7.maxVal : acceptor → Option value) (st8.msgs : MsgSet)
+        (st8.maxVBal st8.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st8.maxVal : acceptor → Option value)
+        (v1 v2 : value) (b : Paxos.BallotTy f✝.toNat) (Q : quorum) (b_1 : Paxos.BallotTy f✝.toNat), ⋯) =
+      ∀ (a_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Prop) (a_2 : MsgSet) (a_3 : MsgSet → Prop)
+        (a_4 a_5 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (a_6 : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (a_7 : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (a_8 : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (a_9 a_10 a_11 : MsgSet → MsgSet → MsgSet) (a_12 : MsgSet → List MsgSet) (a_13 : AcceptorSet → Int),
+        (∀ (a₁ : AcceptorSet), a_13 a₁ ≥ 0) →
+          ∀ (a_15 : acceptor → AcceptorSet → Prop) (a_16 : AcceptorSet) (a_17 : AcceptorSet → Prop)
+            (a_18 a_19 : acceptor → AcceptorSet → AcceptorSet) (a_20 : AcceptorSet → List acceptor)
+            (a_21 a_22 : AcceptorSet → AcceptorSet → AcceptorSet) (a_23 : AcceptorSet → List AcceptorSet)
+            (a_24 a_25 a_26 a_27 : ActionTag) (a_28 : MsgSet) (a_29 a_30 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_31 : acceptor → Option value) (a_32 : MsgSet) (a_33 a_34 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_35 : acceptor → Option value) (a_36 : MsgSet) (a_37 a_38 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_39 : acceptor → Option value) (a_40 : MsgSet) (a_41 a_42 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_43 : acceptor → Option value) (a_44 : MsgSet) (a_45 a_46 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_47 : acceptor → Option value) (a_48 : MsgSet) (a_49 a_50 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_51 : acceptor → Option value) (a_52 : MsgSet) (a_53 a_54 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_55 : acceptor → Option value) (a_56 : MsgSet) (a_57 a_58 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_59 : acceptor → Option value) (a_60 : MsgSet) (a_61 a_62 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_63 : acceptor → Option value) (a_64 a_65 : value) (a_66 : Paxos.BallotTy f✝.toNat) (a_67 : quorum), ⋯
+but is expected to have type
+  (∀ (a₁ : MsgSet), f a₁ ≥ 0) → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (∀ (a₁ : MsgSet), f a₁ ≥ 0)) fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun msgSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun msgSet.insert =&gt;
+                forall_congr fun msgSet.remove =&gt;
+                  forall_congr fun msgSet.ofList =&gt;
+                    forall_congr fun msgSet.toList =&gt;
+                      forall_congr fun msgSet.filter =&gt;
+                        forall_congr fun msgSet.union =&gt;
+                          forall_congr fun msgSet.diff =&gt;
+                            forall_congr fun msgSet.intersection =&gt;
+                              forall_congr fun msgSet.subsets =&gt;
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =&gt;
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =&gt;
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =&gt;
+                                          forall_congr fun acSet.empty =&gt;
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun</pre></details><details><summary>8, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun msgSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun msgSet.insert =&gt;
+                forall_congr fun msgSet.remove =&gt;
+                  forall_congr fun msgSet.ofList =&gt;
+                    forall_congr fun msgSet.toList =&gt;
+                      forall_congr fun msgSet.filter =&gt;
+                        forall_congr fun msgSet.union =&gt;
+                          forall_congr fun msgSet.diff =&gt;
+                            forall_congr fun msgSet.intersection =&gt;
+                              forall_congr fun msgSet.subsets =&gt;
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =&gt;
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =&gt;
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =&gt;
+                                          forall_congr fun acSet.empty =&gt;
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun f_5 =&gt;
+                                                forall_congr fun acSet.insert =&gt;
+                                                  forall_congr fun acSet.remove =&gt;
+                                                    forall_congr fun acSet.toList =&gt;
+                                                      forall_congr fun acSet.union =&gt;
+                                                        forall_congr fun acSet.diff =&gt; forall_congr ⋯)))))
+has type
+  ∀ (a : ∀ (a₁ : MsgSet), f a₁ ≥ 0),
+    (∀ (f_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Bool) (msgSet.empty : MsgSet)
+        (msgSet.isEmpty : MsgSet → Bool)
+        (msgSet.insert msgSet.remove : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (msgSet.ofList : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (msgSet.toList : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (msgSet.filter : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (msgSet.union msgSet.diff msgSet.intersection : MsgSet → MsgSet → MsgSet)
+        (msgSet.subsets : MsgSet → List MsgSet) (acSet.count : AcceptorSet → Nat)
+        (acSet.contains : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet)
+        (acSet.isEmpty : AcceptorSet → Bool) (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet)
+        (acSet.toList : AcceptorSet → List acceptor) (acSet.union acSet.diff : AcceptorSet → AcceptorSet → AcceptorSet)
+        (acSet.subsets : AcceptorSet → List AcceptorSet)
+        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag) (st0.msgs : MsgSet)
+        (st0.maxVBal st0.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st0.maxVal : acceptor → Option value)
+        (st1.msgs : MsgSet) (st1.maxVBal st1.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st1.maxVal : acceptor → Option value) (st2.msgs : MsgSet)
+        (st2.maxVBal st2.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st2.maxVal : acceptor → Option value)
+        (st3.msgs : MsgSet) (st3.maxVBal st3.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st3.maxVal : acceptor → Option value) (st4.msgs : MsgSet)
+        (st4.maxVBal st4.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st4.maxVal : acceptor → Option value)
+        (st5.msgs : MsgSet) (st5.maxVBal st5.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st5.maxVal : acceptor → Option value) (st6.msgs : MsgSet)
+        (st6.maxVBal st6.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st6.maxVal : acceptor → Option value)
+        (st7.msgs : MsgSet) (st7.maxVBal st7.maxBal : acceptor → Paxos.BallotTy f✝.toNat)
+        (st7.maxVal : acceptor → Option value) (st8.msgs : MsgSet)
+        (st8.maxVBal st8.maxBal : acceptor → Paxos.BallotTy f✝.toNat) (st8.maxVal : acceptor → Option value)
+        (v1 v2 : value) (b : Paxos.BallotTy f✝.toNat) (Q : quorum) (b_1 : Paxos.BallotTy f✝.toNat), ⋯) =
+      ∀ (a_1 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → Prop) (a_2 : MsgSet) (a_3 : MsgSet → Prop)
+        (a_4 a_5 : Paxos.PaxosMsg acceptor value f✝.toNat → MsgSet → MsgSet)
+        (a_6 : List (Paxos.PaxosMsg acceptor value f✝.toNat) → MsgSet)
+        (a_7 : MsgSet → List (Paxos.PaxosMsg acceptor value f✝.toNat))
+        (a_8 : MsgSet → (Paxos.PaxosMsg acceptor value f✝.toNat → Bool) → MsgSet)
+        (a_9 a_10 a_11 : MsgSet → MsgSet → MsgSet) (a_12 : MsgSet → List MsgSet) (a_13 : AcceptorSet → Int),
+        (∀ (a₁ : AcceptorSet), a_13 a₁ ≥ 0) →
+          ∀ (a_15 : acceptor → AcceptorSet → Prop) (a_16 : AcceptorSet) (a_17 : AcceptorSet → Prop)
+            (a_18 a_19 : acceptor → AcceptorSet → AcceptorSet) (a_20 : AcceptorSet → List acceptor)
+            (a_21 a_22 : AcceptorSet → AcceptorSet → AcceptorSet) (a_23 : AcceptorSet → List AcceptorSet)
+            (a_24 a_25 a_26 a_27 : ActionTag) (a_28 : MsgSet) (a_29 a_30 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_31 : acceptor → Option value) (a_32 : MsgSet) (a_33 a_34 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_35 : acceptor → Option value) (a_36 : MsgSet) (a_37 a_38 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_39 : acceptor → Option value) (a_40 : MsgSet) (a_41 a_42 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_43 : acceptor → Option value) (a_44 : MsgSet) (a_45 a_46 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_47 : acceptor → Option value) (a_48 : MsgSet) (a_49 a_50 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_51 : acceptor → Option value) (a_52 : MsgSet) (a_53 a_54 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_55 : acceptor → Option value) (a_56 : MsgSet) (a_57 a_58 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_59 : acceptor → Option value) (a_60 : MsgSet) (a_61 a_62 : acceptor → Paxos.BallotTy f✝.toNat)
+            (a_63 : acceptor → Option value) (a_64 a_65 : value) (a_66 : Paxos.BallotTy f✝.toNat) (a_67 : quorum), ⋯
+but is expected to have type
+  (∀ (a₁ : MsgSet), f a₁ ≥ 0) → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (∀ (a₁ : MsgSet), f a₁ ≥ 0)) fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun msgSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun msgSet.insert =&gt;
+                forall_congr fun msgSet.remove =&gt;
+                  forall_congr fun msgSet.ofList =&gt;
+                    forall_congr fun msgSet.toList =&gt;
+                      forall_congr fun msgSet.filter =&gt;
+                        forall_congr fun msgSet.union =&gt;
+                          forall_congr fun msgSet.diff =&gt;
+                            forall_congr fun msgSet.intersection =&gt;
+                              forall_congr fun msgSet.subsets =&gt;
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =&gt;
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : AcceptorSet), f_3 a₁ ≥ 0)) fun a_1 =&gt;
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =&gt;
+                                          forall_congr fun acSet.empty =&gt;
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun</pre></details><details><summary>16, local: heartbeats</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Paxos__local__default__batch1.lean:574:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats &lt;num&gt;` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+</pre></details><details><summary>16, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Paxos__cached__default__batch1.lean:571:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>32, local: heartbeats</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Paxos__local__default__batch1.lean:610:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats &lt;num&gt;` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+</pre></details><details><summary>32, cached: heartbeats</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_Paxos__cached__default__batch1.lean:605:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats &lt;num&gt;` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+</pre></details>

@@ -1,0 +1,17 @@
+[
+  {
+    "model": "Ivy_Blockchain",
+    "depth": 16,
+    "reason": "primary definite/timeout difference"
+  },
+  {
+    "model": "Ivy_PaxosFirstOrder",
+    "depth": 4,
+    "reason": "primary definite/timeout difference"
+  },
+  {
+    "model": "TLA_Traffic",
+    "depth": 32,
+    "reason": "primary definite/timeout difference"
+  }
+]

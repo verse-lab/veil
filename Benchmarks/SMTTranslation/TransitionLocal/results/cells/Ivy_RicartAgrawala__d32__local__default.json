@@ -1,0 +1,417 @@
+{
+  "row": {
+    "cell_id": "Ivy_RicartAgrawala__d32__local__default",
+    "model": "Ivy_RicartAgrawala",
+    "path": "Examples/Ivy/RicartAgrawala.lean",
+    "module": "RicartAgrawala",
+    "depth": 32,
+    "variant": "local",
+    "profile": "default",
+    "status": "solver_timeout",
+    "translation_status": "complete",
+    "solver_status": "timeout",
+    "failure_phase": "solver",
+    "failure_kind": "solver_timeout",
+    "failure_message": "TIMEOUT",
+    "setup_ms": null,
+    "query_elaboration_ms": 95,
+    "batch_id": "Ivy_RicartAgrawala__default__batch1",
+    "batch_setup_ms": 6462,
+    "preprocessing_ms": 4165,
+    "smt_preprocessing_ms": 207,
+    "translation_ms": 456,
+    "serialization_ms": 0,
+    "query_total_ms": 4828,
+    "solver_ms": 10025,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": 90345,
+    "query_commands": 370,
+    "query_sha256": "e150b5f16057af52431276cef54bd90c5a2b9ae4cfc5fbeca648468c33b956a2",
+    "query_path": "/tmp/veil-transition-local/results/queries/Ivy_RicartAgrawala__d32__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_RicartAgrawala__d32__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Ivy_RicartAgrawala__d32__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_RicartAgrawala",
+    "path": "Examples/Ivy/RicartAgrawala.lean",
+    "module": "RicartAgrawala",
+    "cut_line": 55,
+    "query": "assert (∃ n1 n2, holds n1 ∧ holds n2 ∧ n1 ≠ n2)",
+    "query_kind": "safety_violation",
+    "expected_status": null,
+    "query_source": "mutual_exclusion safety, line51",
+    "notes": "",
+    "category": "Ivy",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "6bfdbe383c29168a92026857c38b3debe29e394acdff217cbaf3b58ca6c13d2b"
+  },
+  "original_sha256": "6bfdbe383c29168a92026857c38b3debe29e394acdff217cbaf3b58ca6c13d2b",
+  "inherited_setup_options": [],
+  "source_sha256": "b994ce35f690fbb3bfc931400d06088f7d662a99787eab16518bbd2d83ea1fd0",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Ivy_RicartAgrawala__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207588581,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 207588676,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207588676,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 40,
+      "event": "stage",
+      "heartbeats": 123686,
+      "mono_ms": 207588716,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207588716,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 10499,
+      "mono_ms": 207588718,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207588718,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1881,
+      "event": "stage",
+      "heartbeats": 21930113,
+      "mono_ms": 207590599,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207590599,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 58,
+      "event": "stage",
+      "heartbeats": 884315,
+      "mono_ms": 207590658,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207590695,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 3,
+      "event": "stage",
+      "heartbeats": 14904,
+      "mono_ms": 207590698,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207590698,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 454,
+      "event": "stage",
+      "heartbeats": 7873729,
+      "mono_ms": 207591152,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207591153,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 183,
+      "event": "stage",
+      "heartbeats": 2204539,
+      "mono_ms": 207591336,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207591337,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1409,
+      "event": "stage",
+      "heartbeats": 14151284,
+      "mono_ms": 207592746,
+      "phase": "smtSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207592749,
+      "phase": "dsimp2",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 131,
+      "event": "stage",
+      "heartbeats": 1790329,
+      "mono_ms": 207592880,
+      "phase": "dsimp2",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207592881,
+      "phase": "check_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 4,
+      "event": "stage",
+      "heartbeats": 38055,
+      "mono_ms": 207592885,
+      "phase": "check_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 4209,
+      "event": "milestone",
+      "mono_ms": 207592885,
+      "phase": "preprocessing",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207592885,
+      "phase": "cleanup",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 5,
+      "event": "stage",
+      "heartbeats": 37923,
+      "mono_ms": 207592890,
+      "phase": "cleanup",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207592890,
+      "phase": "pushHints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 2283,
+      "mono_ms": 207592890,
+      "phase": "pushHints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207592890,
+      "phase": "smt-intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 79,
+      "mono_ms": 207592891,
+      "phase": "smt-intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207592891,
+      "phase": "negateGoal",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 28,
+      "mono_ms": 207592891,
+      "phase": "negateGoal",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207592891,
+      "phase": "normalize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 179,
+      "event": "stage",
+      "heartbeats": 2153425,
+      "mono_ms": 207593070,
+      "phase": "normalize",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207593070,
+      "phase": "embedding",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 23,
+      "event": "stage",
+      "heartbeats": 344048,
+      "mono_ms": 207593093,
+      "phase": "embedding",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207593093,
+      "phase": "translate",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 456,
+      "event": "stage",
+      "heartbeats": 4187203,
+      "mono_ms": 207593549,
+      "phase": "translate",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207594415,
+      "phase": "serialize",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "heartbeats": 11,
+      "mono_ms": 207594415,
+      "phase": "serialize",
+      "status": "complete"
+    },
+    {
+      "bytes": 90345,
+      "commands": 370,
+      "elapsed_ms": 5740,
+      "event": "pipeline",
+      "mono_ms": 207594417,
+      "phase": "pipeline",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207594778,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_RicartAgrawala__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Ivy_RicartAgrawala__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 31247,
+    "setup_ms": 6462,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Ivy_RicartAgrawala__default__batch1.lean"
+    ]
+  },
+  "solver_events": [
+    {
+      "detail": "",
+      "elapsed_ms": 0,
+      "event": "solver",
+      "phase": "solver",
+      "status": "begin"
+    },
+    {
+      "detail": "TIMEOUT",
+      "elapsed_ms": 10025,
+      "event": "solver",
+      "phase": "solver",
+      "status": "unknown"
+    }
+  ],
+  "solver_execution": {
+    "batch_id": "solver-batch-0001",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_RicartAgrawala__d32__local__default.solver.jsonl",
+    "batch_log": "/tmp/veil-transition-local/results/logs/solver-batch-0001.log",
+    "solver_timeout_seconds": 10,
+    "process_wall_attribution": "See solver-batches metadata; not apportioned per cell"
+  }
+}

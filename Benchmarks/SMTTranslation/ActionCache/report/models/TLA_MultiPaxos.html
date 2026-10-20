@@ -1,0 +1,253 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>TLA_MultiPaxos</title><style>body{max-width:1250px;margin:35px auto;padding:0 24px;font:16px/1.5 system-ui;color:#162a35;background:#fafcfb}h1,h2{line-height:1.2}a{color:#007562}img{max-width:100%;background:white}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:8px;border-bottom:1px solid #dbe4df;text-align:left;vertical-align:top}th{background:#e9f0ed}code{background:#edf1ef;padding:2px 5px}.note{background:#edf3f0;padding:18px;border-left:4px solid #00856a}details{margin:12px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere}nav{display:flex;gap:15px;flex-wrap:wrap}.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:20px}.gallery a{background:white;padding:10px;text-decoration:none;border:1px solid #dbe4df}</style><nav><a href="../index.html">All models</a><a href="TLA_MultiPaxos.svg">SVG figure</a></nav><h1>TLA_MultiPaxos</h1><p><code>Examples/TLA/MultiPaxos.lean</code> · <code>assert (∃ v1 v2 s, Chosen v1 s ∧ Chosen v2 s ∧ v1 ≠ v2)</code></p><img src="TLA_MultiPaxos.png"><table><thead><tr><th>Depth</th><th>Variant</th><th>Result</th><th>Normalize s</th><th>Query s</th><th>VC s</th><th>Cold→query s</th><th>Solver s</th><th>Stopped at</th><th>Failure kind</th><th>Evidence</th></tr></thead><tbody><tr><td>1</td><td>local</td><td>translation_failed</td><td>0.343</td><td>—</td><td>0.212</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_MultiPaxos__d1__local__default.translation.log">log</a></td></tr><tr><td>1</td><td>cached</td><td>translation_failed</td><td>0.052</td><td>—</td><td>0.476</td><td>—</td><td>—</td><td>embedding</td><td>type_mismatch</td><td> <a href="../../raw/logs/TLA_MultiPaxos__d1__cached__default.translation.log">log</a></td></tr><tr><td>2</td><td>local</td><td>translation_failed</td><td>0.432</td><td>—</td><td>0.291</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_MultiPaxos__d2__local__default.translation.log">log</a></td></tr><tr><td>2</td><td>cached</td><td>translation_failed</td><td>0.051</td><td>—</td><td>0.271</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_MultiPaxos__d2__cached__default.translation.log">log</a></td></tr><tr><td>4</td><td>local</td><td>translation_failed</td><td>0.929</td><td>—</td><td>0.272</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_MultiPaxos__d4__local__default.translation.log">log</a></td></tr><tr><td>4</td><td>cached</td><td>translation_failed</td><td>0.056</td><td>—</td><td>0.320</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_MultiPaxos__d4__cached__default.translation.log">log</a></td></tr><tr><td>8</td><td>local</td><td>translation_failed</td><td>1.740</td><td>—</td><td>0.418</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_MultiPaxos__d8__local__default.translation.log">log</a></td></tr><tr><td>8</td><td>cached</td><td>translation_failed</td><td>0.089</td><td>—</td><td>0.461</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_MultiPaxos__d8__cached__default.translation.log">log</a></td></tr><tr><td>16</td><td>local</td><td>translation_failed</td><td>4.205</td><td>—</td><td>0.526</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_MultiPaxos__d16__local__default.translation.log">log</a></td></tr><tr><td>16</td><td>cached</td><td>translation_failed</td><td>0.108</td><td>—</td><td>0.577</td><td>—</td><td>—</td><td>embedding</td><td>recursion</td><td> <a href="../../raw/logs/TLA_MultiPaxos__d16__cached__default.translation.log">log</a></td></tr><tr><td>32</td><td>local</td><td>translation_failed</td><td>12.062</td><td>—</td><td>0.778</td><td>—</td><td>—</td><td>smtSimp</td><td>heartbeats</td><td> <a href="../../raw/logs/TLA_MultiPaxos__d32__local__default.translation.log">log</a></td></tr><tr><td>32</td><td>cached</td><td>translation_failed</td><td>0.224</td><td>—</td><td>0.754</td><td>—</td><td>—</td><td>dsimp2</td><td>heartbeats</td><td> <a href="../../raw/logs/TLA_MultiPaxos__d32__cached__default.translation.log">log</a></td></tr></tbody></table><details><summary>1, local: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun acSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun acSet.insert =&gt;
+                forall_congr fun acSet.remove =&gt;
+                  forall_congr fun acSet.ofList =&gt;
+                    forall_congr fun acSet.toList =&gt;
+                      forall_congr fun acSet.filter =&gt;
+                        forall_congr fun acSet.union =&gt;
+                          forall_congr fun acSet.diff =&gt;
+                            forall_congr fun acSet.intersection =&gt;
+                              forall_congr fun acSet.subsets =&gt;
+                                forall_congr fun mem.mem =&gt;
+                                  forall_congr fun slotEnumerable.allValues =&gt;
+                                    forall_congr fun __veil_tag.Phase1a =&gt;
+                                      forall_congr fun __veil_tag.Phase1b =&gt;
+                                        forall_congr fun __veil_tag.Phase2a =&gt;
+                                          forall_congr fun __veil_tag.Phase2b =&gt;
+                                            forall_congr fun st0.sent =&gt;
+                                              forall_congr fun st1.sent =&gt;
+                                                forall_congr fun v1 =&gt;
+                                                  forall_congr fun v2 =&gt; forall_congr fun s =&gt; forall_congr fun b =&gt; ⋯))
+has type
+  ∀ (a : ∀ (a₁ : AcceptorSet), f a₁ ≥ 0),
+    (∀ (f_1 : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet) (acSet.isEmpty : AcceptorSet → Bool)
+        (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet) (acSet.ofList : List acceptor → AcceptorSet)
+        (acSet.toList : AcceptorSet → List acceptor) (acSet.filter : AcceptorSet → (acceptor → Bool) → AcceptorSet)
+        (acSet.union acSet.diff acSet.intersection : AcceptorSet → AcceptorSet → AcceptorSet)
+        (acSet.subsets : AcceptorSet → List AcceptorSet) (mem.mem : quorum → acceptor → Prop)
+        (slotEnumerable.allValues : List slot)
+        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag)
+        (st0.sent st1.sent : MsgSet) (v1 v2 : value) (s : slot) (b : MultiPaxos.BallotTy f✝⁹.toNat) (Q : quorum)
+        (b_1 : MultiPaxos.BallotTy f✝⁹.toNat) (Q_1 : quorum),
+        (fun a₁ =&gt; (f✝⁸ a₁).toNat) voteSet.empty = 0 →
+          ∀ (voteSet.empty_count : (fun a₁ =&gt; (f✝⁸ a₁).toNat) voteSet.empty = 0),
+            (∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value),
+                (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem voteSet.empty = false) →
+              ∀
+                (voteSet.empty_contains :
+                  ∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value),
+                    (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem voteSet.empty = false),
+                (∀ (s : VotedSet), ((fun a₁ =&gt; decide (f✝⁶ a₁)) s = true) = ((fun a₁ =&gt; (f✝⁸ a₁).toNat) s = 0)) →
+                  ∀
+                    (voteSet.isEmpty_iff_count_zero :
+                      ∀ (s : VotedSet), ((fun a₁ =&gt; decide (f✝⁶ a₁)) s = true) = ((fun a₁ =&gt; (f✝⁸ a₁).toNat) s = 0)),
+                    (∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                        (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem (voteSet.insert elem s) = true) →
+                      ∀
+                        (voteSet.contains_insert_self :
+                          ∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                            (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem (voteSet.insert elem s) = true),
+                        (∀ (elem₁ elem₂ : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                            ¬elem₁ = elem₂ →
+                              (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ (voteSet.insert elem₂ s) =
+                                (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ s) →
+                          ∀
+                            (voteSet.contains_insert_other :
+                              ∀ (elem₁ elem₂ : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                ¬elem₁ = elem₂ →
+                                  (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ (voteSet.insert elem₂ s) =
+                                    (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ s),
+                            (∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                voteSet.toList (voteSet.insert elem (voteSet.insert elem s)) =
+                                  voteSet.toList (voteSet.insert elem s)) →
+                              ∀
+                                (voteSet.insert_idempotent :
+                                  ∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                    voteSet.toList (voteSet.insert elem (voteSet.insert elem s)) =
+                                      voteSet.toList (voteSet.insert elem s)),
+                                (∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                    (fun a₁ =&gt; (f✝⁸ a₁).toNat) (voteSet.insert elem s) =
+                                      if (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem s = true then
+                                        (fun a₁ =&gt; (f✝⁸ a₁).toNat) s
+                                      else (fun a₁ =&gt; (f✝⁸ a₁).toNat) s + 1) →
+                                  ∀
+                                    (voteSet.count_insert :
+                                      ∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                        (fun a₁ =&gt; (f✝⁸ a₁).toNat) (voteSet.insert elem s) =
+                                          if (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem s = true then
+                                            (fun a₁ =&gt; (f✝⁸ a₁).toNat) s
+                                          else (fun a₁ =&gt; (f✝⁸ a₁).toNat) s + 1),
+                                    (∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                        (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem (voteSet.remove elem s) = false) →
+                                      ∀
+                                        (voteSet.contains_remove_self :
+                                          ∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                            (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem (voteSet.remove elem s) = false),
+                                        (∀ (elem₁ elem₂ : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value)
+                                            (s : VotedSet),
+                                            ¬elem₁ = elem₂ →
+                                              (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ (voteSet.remove elem₂ s) =
+                                                (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ s) →
+                                          ∀
+                                            (voteSet.contains_remove_other :
+                                              ∀ (elem₁ elem₂ : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value)
+                                                (s : VotedSet),
+                                                ¬elem₁ = elem₂ →
+                                                  (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ (voteSet.remove elem₂ s) =
+                                                    (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ s),
+                                            (∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                                (fun a₁ =&gt; (f✝⁸ a₁).toNat) (voteSet.remove elem s) =
+ </pre></details><details><summary>1, cached: type_mismatch</summary><pre>Application type mismatch: The argument
+  fun a =&gt;
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =&gt;
+        forall_congr fun acSet.empty =&gt;
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =&gt;
+              forall_congr fun acSet.insert =&gt;
+                forall_congr fun acSet.remove =&gt;
+                  forall_congr fun acSet.ofList =&gt;
+                    forall_congr fun acSet.toList =&gt;
+                      forall_congr fun acSet.filter =&gt;
+                        forall_congr fun acSet.union =&gt;
+                          forall_congr fun acSet.diff =&gt;
+                            forall_congr fun acSet.intersection =&gt;
+                              forall_congr fun acSet.subsets =&gt;
+                                forall_congr fun mem.mem =&gt;
+                                  forall_congr fun slotEnumerable.allValues =&gt;
+                                    forall_congr fun __veil_tag.Phase1a =&gt;
+                                      forall_congr fun __veil_tag.Phase1b =&gt;
+                                        forall_congr fun __veil_tag.Phase2a =&gt;
+                                          forall_congr fun __veil_tag.Phase2b =&gt;
+                                            forall_congr fun st0.sent =&gt;
+                                              forall_congr fun st1.sent =&gt;
+                                                forall_congr fun v1 =&gt;
+                                                  forall_congr fun v2 =&gt; forall_congr fun s =&gt; forall_congr fun b =&gt; ⋯))
+has type
+  ∀ (a : ∀ (a₁ : AcceptorSet), f a₁ ≥ 0),
+    (∀ (f_1 : acceptor → AcceptorSet → Bool) (acSet.empty : AcceptorSet) (acSet.isEmpty : AcceptorSet → Bool)
+        (acSet.insert acSet.remove : acceptor → AcceptorSet → AcceptorSet) (acSet.ofList : List acceptor → AcceptorSet)
+        (acSet.toList : AcceptorSet → List acceptor) (acSet.filter : AcceptorSet → (acceptor → Bool) → AcceptorSet)
+        (acSet.union acSet.diff acSet.intersection : AcceptorSet → AcceptorSet → AcceptorSet)
+        (acSet.subsets : AcceptorSet → List AcceptorSet) (mem.mem : quorum → acceptor → Prop)
+        (slotEnumerable.allValues : List slot)
+        (__veil_tag.Phase1a __veil_tag.Phase1b __veil_tag.Phase2a __veil_tag.Phase2b : ActionTag)
+        (st0.sent st1.sent : MsgSet) (v1 v2 : value) (s : slot) (b : MultiPaxos.BallotTy f✝⁹.toNat) (Q : quorum)
+        (b_1 : MultiPaxos.BallotTy f✝⁹.toNat) (Q_1 : quorum),
+        (fun a₁ =&gt; (f✝⁸ a₁).toNat) voteSet.empty = 0 →
+          ∀ (voteSet.empty_count : (fun a₁ =&gt; (f✝⁸ a₁).toNat) voteSet.empty = 0),
+            (∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value),
+                (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem voteSet.empty = false) →
+              ∀
+                (voteSet.empty_contains :
+                  ∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value),
+                    (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem voteSet.empty = false),
+                (∀ (s : VotedSet), ((fun a₁ =&gt; decide (f✝⁶ a₁)) s = true) = ((fun a₁ =&gt; (f✝⁸ a₁).toNat) s = 0)) →
+                  ∀
+                    (voteSet.isEmpty_iff_count_zero :
+                      ∀ (s : VotedSet), ((fun a₁ =&gt; decide (f✝⁶ a₁)) s = true) = ((fun a₁ =&gt; (f✝⁸ a₁).toNat) s = 0)),
+                    (∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                        (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem (voteSet.insert elem s) = true) →
+                      ∀
+                        (voteSet.contains_insert_self :
+                          ∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                            (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem (voteSet.insert elem s) = true),
+                        (∀ (elem₁ elem₂ : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                            ¬elem₁ = elem₂ →
+                              (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ (voteSet.insert elem₂ s) =
+                                (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ s) →
+                          ∀
+                            (voteSet.contains_insert_other :
+                              ∀ (elem₁ elem₂ : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                ¬elem₁ = elem₂ →
+                                  (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ (voteSet.insert elem₂ s) =
+                                    (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ s),
+                            (∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                voteSet.toList (voteSet.insert elem (voteSet.insert elem s)) =
+                                  voteSet.toList (voteSet.insert elem s)) →
+                              ∀
+                                (voteSet.insert_idempotent :
+                                  ∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                    voteSet.toList (voteSet.insert elem (voteSet.insert elem s)) =
+                                      voteSet.toList (voteSet.insert elem s)),
+                                (∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                    (fun a₁ =&gt; (f✝⁸ a₁).toNat) (voteSet.insert elem s) =
+                                      if (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem s = true then
+                                        (fun a₁ =&gt; (f✝⁸ a₁).toNat) s
+                                      else (fun a₁ =&gt; (f✝⁸ a₁).toNat) s + 1) →
+                                  ∀
+                                    (voteSet.count_insert :
+                                      ∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                        (fun a₁ =&gt; (f✝⁸ a₁).toNat) (voteSet.insert elem s) =
+                                          if (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem s = true then
+                                            (fun a₁ =&gt; (f✝⁸ a₁).toNat) s
+                                          else (fun a₁ =&gt; (f✝⁸ a₁).toNat) s + 1),
+                                    (∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                        (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem (voteSet.remove elem s) = false) →
+                                      ∀
+                                        (voteSet.contains_remove_self :
+                                          ∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                            (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem (voteSet.remove elem s) = false),
+                                        (∀ (elem₁ elem₂ : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value)
+                                            (s : VotedSet),
+                                            ¬elem₁ = elem₂ →
+                                              (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ (voteSet.remove elem₂ s) =
+                                                (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ s) →
+                                          ∀
+                                            (voteSet.contains_remove_other :
+                                              ∀ (elem₁ elem₂ : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value)
+                                                (s : VotedSet),
+                                                ¬elem₁ = elem₂ →
+                                                  (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ (voteSet.remove elem₂ s) =
+                                                    (fun a₁ a₂ =&gt; decide (f✝⁷ a₁ a₂)) elem₁ s),
+                                            (∀ (elem : MultiPaxos.MultiPaxosVoted f✝⁹.toNat slot value) (s : VotedSet),
+                                                (fun a₁ =&gt; (f✝⁸ a₁).toNat) (voteSet.remove elem s) =
+ </pre></details><details><summary>2, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__local__default__batch1.lean:516:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>2, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__cached__default__batch1.lean:515:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>4, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__local__default__batch1.lean:552:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>4, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__cached__default__batch1.lean:550:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>8, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__local__default__batch1.lean:588:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>8, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__cached__default__batch1.lean:585:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>16, local: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__local__default__batch1.lean:624:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>16, cached: recursion</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__cached__default__batch1.lean:620:2: error: Tactic `simp` failed with a nested error:
+maximum recursion depth has been reached
+use `set_option maxRecDepth &lt;num&gt;` to increase limit
+use `set_option diagnostics true` to get diagnostic information
+</pre></details><details><summary>32, local: heartbeats</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__local__default__batch1.lean:659:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats &lt;num&gt;` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+</pre></details><details><summary>32, cached: heartbeats</summary><pre>/tmp/veil-action-cache/results/batch-sources/TLA_MultiPaxos__cached__default__batch1.lean:654:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached
+
+Note: Use `set_option maxHeartbeats &lt;num&gt;` to set the limit.
+
+Hint: Additional diagnostic information may be available using the `set_option diagnostics true` command.
+</pre></details>

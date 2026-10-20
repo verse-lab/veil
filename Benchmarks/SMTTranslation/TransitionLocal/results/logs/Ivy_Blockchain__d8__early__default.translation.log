@@ -1,0 +1,26 @@
+/tmp/veil-transition-local/results/batch-sources/Ivy_Blockchain__default__batch1.lean:453:34: error: `simp` failed: maximum number of steps exceeded
+
+Note: The target expression is not type-correct under the `instances` transparency level, which may have triggered the failure. This is usually caused by unfolding of semireducible definitions in prior tactic steps. Use `set_option linter.tacticCheckInstances true` to investigate the source of the issue.
+Full error:
+  Application type mismatch: The argument
+    instDecidableOr
+  has type
+    Decidable
+      (FieldRepresentation.get (getFrom st0).transaction_confirmed x✝ x = true ∨
+        FieldRepresentation.get (getFrom st0).transaction_in_block x✝ _tr1_act_byzantine_broadcast_arg1_b = true ∧
+            FieldRepresentation.get (getFrom st0).honest _tr1_act_byzantine_broadcast_arg0_n = true ∨
+          ¬FieldRepresentation.get (getFrom st0).honest _tr1_act_byzantine_broadcast_arg0_n = true ∧
+            FieldRepresentation.get (getFrom st0).transaction_confirmed x✝ x = true)
+  but is expected to have type
+    Decidable
+      (st0.transaction_confirmed x✝ x = true ∨
+        st0.transaction_in_block x✝ _tr1_act_byzantine_broadcast_arg1_b = true ∧
+            st0.honest _tr1_act_byzantine_broadcast_arg0_n = true ∨
+          ¬st0.honest _tr1_act_byzantine_broadcast_arg0_n = true ∧ st0.transaction_confirmed x✝ x = true)
+  in the application
+    @decide
+      (st0.transaction_confirmed x✝ x = true ∨
+        st0.transaction_in_block x✝ _tr1_act_byzantine_broadcast_arg1_b = true ∧
+            st0.honest _tr1_act_byzantine_broadcast_arg0_n = true ∨
+          ¬st0.honest _tr1_act_byzantine_broadcast_arg0_n = true ∧ st0.transaction_confirmed x✝ x = true)
+      instDecidableOr

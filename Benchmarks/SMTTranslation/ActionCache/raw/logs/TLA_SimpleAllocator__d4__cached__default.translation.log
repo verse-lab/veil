@@ -1,0 +1,251 @@
+/tmp/veil-action-cache/results/batch-sources/TLA_SimpleAllocator__cached__default__batch1.lean:285:2: error: Application type mismatch: The argument
+  fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun resSet.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun resSet.insert =>
+                forall_congr fun resSet.remove =>
+                  forall_congr fun resSet.ofList =>
+                    forall_congr fun resSet.toList =>
+                      forall_congr fun resSet.filter =>
+                        forall_congr fun resSet.union =>
+                          forall_congr fun resSet.diff =>
+                            forall_congr fun resSet.intersection =>
+                              forall_congr fun resSet.subsets =>
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =>
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : ClientsSet), f_3 a₁ ≥ 0)) fun a_1 =>
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =>
+                                          forall_congr fun cSet.empty =>
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun f_5 =>
+                                                forall_congr fun cSet.insert =>
+                                                  forall_congr fun cSet.remove =>
+                                                    forall_congr fun cSet.toList =>
+                                                      forall_congr fun cSet.union =>
+                                                        forall_congr fun cSet.diff => forall_congr ⋯)))))
+has type
+  ∀ (a : ∀ (a₁ : ResourceSet), f a₁ ≥ 0),
+    (∀ (f_1 : resource → ResourceSet → Bool) (resSet.empty : ResourceSet) (resSet.isEmpty : ResourceSet → Bool)
+        (resSet.insert resSet.remove : resource → ResourceSet → ResourceSet)
+        (resSet.ofList : List resource → ResourceSet) (resSet.toList : ResourceSet → List resource)
+        (resSet.filter : ResourceSet → (resource → Bool) → ResourceSet)
+        (resSet.union resSet.diff resSet.intersection : ResourceSet → ResourceSet → ResourceSet)
+        (resSet.subsets : ResourceSet → List ResourceSet) (cSet.count : ClientsSet → Nat)
+        (cSet.contains : client → ClientsSet → Bool) (cSet.empty : ClientsSet) (cSet.isEmpty : ClientsSet → Bool)
+        (cSet.insert cSet.remove : client → ClientsSet → ClientsSet) (cSet.toList : ClientsSet → List client)
+        (cSet.union cSet.diff : ClientsSet → ClientsSet → ClientsSet) (cSet.subsets : ClientsSet → List ClientsSet)
+        (__veil_tag.Request __veil_tag.Allocate __veil_tag.Return : ActionTag)
+        (st0.unsatisfy st0.alloc st1.unsatisfy st1.alloc st2.unsatisfy st2.alloc st3.unsatisfy st3.alloc st4.unsatisfy
+          st4.alloc : client → ResourceSet),
+        True →
+          (fun a₁ => (f a₁).toNat) resSet.empty = 0 →
+            ∀ (resSet.empty_count : (fun a₁ => (f a₁).toNat) resSet.empty = 0),
+              (∀ (elem : resource), f_1 elem resSet.empty = false) →
+                ∀ (resSet.empty_contains : ∀ (elem : resource), f_1 elem resSet.empty = false),
+                  (∀ (s : ResourceSet), (resSet.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)) →
+                    ∀
+                      (resSet.isEmpty_iff_count_zero :
+                        ∀ (s : ResourceSet), (resSet.isEmpty s = true) = ((fun a₁ => (f a₁).toNat) s = 0)),
+                      (∀ (elem : resource) (s : ResourceSet), f_1 elem (resSet.insert elem s) = true) →
+                        ∀
+                          (resSet.contains_insert_self :
+                            ∀ (elem : resource) (s : ResourceSet), f_1 elem (resSet.insert elem s) = true),
+                          (∀ (elem₁ elem₂ : resource) (s : ResourceSet),
+                              ¬elem₁ = elem₂ → f_1 elem₁ (resSet.insert elem₂ s) = f_1 elem₁ s) →
+                            ∀
+                              (resSet.contains_insert_other :
+                                ∀ (elem₁ elem₂ : resource) (s : ResourceSet),
+                                  ¬elem₁ = elem₂ → f_1 elem₁ (resSet.insert elem₂ s) = f_1 elem₁ s),
+                              (∀ (elem : resource) (s : ResourceSet),
+                                  resSet.toList (resSet.insert elem (resSet.insert elem s)) =
+                                    resSet.toList (resSet.insert elem s)) →
+                                ∀
+                                  (resSet.insert_idempotent :
+                                    ∀ (elem : resource) (s : ResourceSet),
+                                      resSet.toList (resSet.insert elem (resSet.insert elem s)) =
+                                        resSet.toList (resSet.insert elem s)),
+                                  (∀ (elem : resource) (s : ResourceSet),
+                                      (fun a₁ => (f a₁).toNat) (resSet.insert elem s) =
+                                        if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s
+                                        else (fun a₁ => (f a₁).toNat) s + 1) →
+                                    ∀
+                                      (resSet.count_insert :
+                                        ∀ (elem : resource) (s : ResourceSet),
+                                          (fun a₁ => (f a₁).toNat) (resSet.insert elem s) =
+                                            if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s
+                                            else (fun a₁ => (f a₁).toNat) s + 1),
+                                      (∀ (elem : resource) (s : ResourceSet), f_1 elem (resSet.remove elem s) = false) →
+                                        ∀
+                                          (resSet.contains_remove_self :
+                                            ∀ (elem : resource) (s : ResourceSet),
+                                              f_1 elem (resSet.remove elem s) = false),
+                                          (∀ (elem₁ elem₂ : resource) (s : ResourceSet),
+                                              ¬elem₁ = elem₂ → f_1 elem₁ (resSet.remove elem₂ s) = f_1 elem₁ s) →
+                                            ∀
+                                              (resSet.contains_remove_other :
+                                                ∀ (elem₁ elem₂ : resource) (s : ResourceSet),
+                                                  ¬elem₁ = elem₂ → f_1 elem₁ (resSet.remove elem₂ s) = f_1 elem₁ s),
+                                              (∀ (elem : resource) (s : ResourceSet),
+                                                  (fun a₁ => (f a₁).toNat) (resSet.remove elem s) =
+                                                    if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s - 1
+                                                    else (fun a₁ => (f a₁).toNat) s) →
+                                                ∀
+                                                  (resSet.count_remove :
+                                                    ∀ (elem : resource) (s : ResourceSet),
+                                                      (fun a₁ => (f a₁).toNat) (resSet.remove elem s) =
+                                                        if f_1 elem s = true then (fun a₁ => (f a₁).toNat) s - 1
+                                                        else (fun a₁ => (f a₁).toNat) s),
+                                                  (∀ (elem : resource) (s1 s2 : ResourceSet),
+                                                      f_1 elem (resSet.union s1 s2) = (f_1 elem s1 || f_1 elem s2)) →
+                                                    ∀
+                                                      (resSet.contains_union :
+                                                        ∀ (elem : resource) (s1 s2 : ResourceSet),
+                                                          f_1 elem (resSet.union s1 s2) = (f_1 elem s1 || f_1 elem s2)),
+                                                      (∀ (elem : resource) (s1 s2 : ResourceSet),
+                                                          f_1 elem (resSet.diff s1 s2) =
+                                                            (f_1 elem s1 && !f_1 elem s2)) →
+                                                        ∀
+                                                          (resSet.contains_diff :
+                                                            ∀ (elem : resource) (s1 s2 : ResourceSet),
+                                                              f_1 elem (resSet.diff s1 s2) =
+                                                                (f_1 elem s1 && !f_1 elem s2)),
+                                                          (∀ (elem : resource) (s : ResourceSet),
+                                                              (f_1 elem s = true) = (elem ∈ resSet.toList s)) →
+                                                            ∀
+                                                              (resSet.toList_contains_iff :
+                                                                ∀ (elem : resource) (s : ResourceSet),
+                                                                  (f_1 elem s = true) = (elem ∈ resSet.toList s)),
+                                                              (∀ (s1 s2 : ResourceSet),
+                                                                  (s1 ∈ resSet.subsets s2) =
+                                                                    ∀ (elem : resource),
+                                                                      f_1 elem s1 = true → f_1 elem s2 = true) →
+                                                                ∀
+                                                                  (resSet.subsets_iff :
+                                                                    ∀ (s1 s2 : ResourceSet),
+                                                                      (s1 ∈ resSet.subsets s2) =
+                                                                        ∀ (elem : resource),
+                                                                          f_1 elem s1 = true → f_1 elem s2 = true),
+                                                                  cSet.count cSet.empty = 0 → ⋯) =
+      ∀ (a_1 : resource → ResourceSet → Prop) (a_2 : ResourceSet) (a_3 : ResourceSet → Prop)
+        (a_4 a_5 : resource → ResourceSet → ResourceSet) (a_6 : List resource → ResourceSet)
+        (a_7 : ResourceSet → List resource) (a_8 : ResourceSet → (resource → Bool) → ResourceSet)
+        (a_9 a_10 a_11 : ResourceSet → ResourceSet → ResourceSet) (a_12 : ResourceSet → List ResourceSet)
+        (a_13 : ClientsSet → Int),
+        (∀ (a₁ : ClientsSet), a_13 a₁ ≥ 0) →
+          ∀ (a_15 : client → ClientsSet → Prop) (a_16 : ClientsSet) (a_17 : ClientsSet → Prop)
+            (a_18 a_19 : client → ClientsSet → ClientsSet) (a_20 : ClientsSet → List client)
+            (a_21 a_22 : ClientsSet → ClientsSet → ClientsSet) (a_23 : ClientsSet → List ClientsSet)
+            (a_24 a_25 a_26 : ActionTag) (a_27 a_28 a_29 a_30 a_31 a_32 a_33 a_34 a_35 a_36 : client → ResourceSet),
+            True →
+              f a_2 = 0 →
+                ∀ (a_39 : f a_2 = 0),
+                  (∀ (elem : resource), a_1 elem a_2 = False) →
+                    ∀ (resSet.empty_contains : ∀ (elem : resource), a_1 elem a_2 = False),
+                      (∀ (s : ResourceSet), a_3 s = (f s = 0)) →
+                        ∀ (resSet.isEmpty_iff_count_zero : ∀ (s : ResourceSet), a_3 s = (f s = 0)),
+                          (∀ (elem : resource) (s : ResourceSet), a_1 elem (a_4 elem s)) →
+                            ∀
+                              (resSet.contains_insert_self :
+                                ∀ (elem : resource) (s : ResourceSet), a_1 elem (a_4 elem s)),
+                              (∀ (elem₁ elem₂ : resource) (s : ResourceSet),
+                                  ¬elem₁ = elem₂ → a_1 elem₁ (a_4 elem₂ s) = a_1 elem₁ s) →
+                                ∀
+                                  (resSet.contains_insert_other :
+                                    ∀ (elem₁ elem₂ : resource) (s : ResourceSet),
+                                      ¬elem₁ = elem₂ → a_1 elem₁ (a_4 elem₂ s) = a_1 elem₁ s),
+                                  (∀ (elem : resource) (s : ResourceSet),
+                                      a_7 (a_4 elem (a_4 elem s)) = a_7 (a_4 elem s)) →
+                                    ∀
+                                      (resSet.insert_idempotent :
+                                        ∀ (elem : resource) (s : ResourceSet),
+                                          a_7 (a_4 elem (a_4 elem s)) = a_7 (a_4 elem s)),
+                                      (∀ (elem : resource) (s : ResourceSet),
+                                          f (a_4 elem s) = if a_1 elem s then f s else f s + 1) →
+                                        ∀
+                                          (resSet.count_insert :
+                                            ∀ (elem : resource) (s : ResourceSet),
+                                              f (a_4 elem s) = if a_1 elem s then f s else f s + 1),
+                                          (∀ (elem : resource) (s : ResourceSet), a_1 elem (a_5 elem s) = False) →
+                                            ∀
+                                              (resSet.contains_remove_self :
+                                                ∀ (elem : resource) (s : ResourceSet), a_1 elem (a_5 elem s) = False),
+                                              (∀ (elem₁ elem₂ : resource) (s : ResourceSet),
+                                                  ¬elem₁ = elem₂ → a_1 elem₁ (a_5 elem₂ s) = a_1 elem₁ s) →
+                                                ∀
+                                                  (resSet.contains_remove_other :
+                                                    ∀ (elem₁ elem₂ : resource) (s : ResourceSet),
+                                                      ¬elem₁ = elem₂ → a_1 elem₁ (a_5 elem₂ s) = a_1 elem₁ s),
+                                                  (∀ (elem : resource) (s : ResourceSet),
+                                                      f (a_5 elem s) =
+                                                        if a_1 elem s then if 1 ≤ f s then f s - 1 else 0 else f s) →
+                                                    ∀
+                                                      (resSet.count_remove :
+                                                        ∀ (elem : resource) (s : ResourceSet),
+                                                          f (a_5 elem s) =
+                                                            if a_1 elem s then if 1 ≤ f s then f s - 1 else 0 else f s),
+                                                      (∀ (elem : resource) (s1 s2 : ResourceSet),
+                                                          a_1 elem (a_9 s1 s2) = (a_1 elem s1 ∨ a_1 elem s2)) →
+                                                        ∀
+                                                          (resSet.contains_union :
+                                                            ∀ (elem : resource) (s1 s2 : ResourceSet),
+                                                              a_1 elem (a_9 s1 s2) = (a_1 elem s1 ∨ a_1 elem s2)),
+                                                          (∀ (elem : resource) (s1 s2 : ResourceSet),
+                                                              a_1 elem (a_10 s1 s2) =
+                                                                (a_1 elem s1 ∧ a_1 elem s2 ≠ True)) →
+                                                            ∀
+                                                              (resSet.contains_diff :
+                                                                ∀ (elem : resource) (s1 s2 : ResourceSet),
+                                                                  a_1 elem (a_10 s1 s2) =
+                                                                    (a_1 elem s1 ∧ a_1 elem s2 ≠ True)),
+                                                              (∀ (elem : resource) (s : ResourceSet),
+                                                                  a_1 elem s = (elem ∈ a_7 s)) →
+                                                                ∀
+                                                                  (resSet.toList_contains_iff :
+                                                                    ∀ (elem : resource) (s : ResourceSet),
+                                                                      a_1 elem s = (elem ∈ a_7 s)),
+                                                                  (∀ (s1 s2 : ResourceSet),
+                                                                      (s1 ∈ a_12 s2) =
+                                                                        ∀ (elem : resource),
+                                                                          a_1 elem s1 → a_1 elem s2) →
+                                                                    ∀
+                                                                      (resSet.subsets_iff :
+                                                                        ∀ (s1 s2 : ResourceSet),
+                                                                          (s1 ∈ a_12 s2) =
+                                                                            ∀ (elem : resource),
+                                                                              a_1 elem s1 → a_1 elem s2),
+                                                                      ⋯
+but is expected to have type
+  (∀ (a₁ : ResourceSet), f a₁ ≥ 0) → ?q₁ = ?q₂
+in the application
+  implies_congr_ctx (Eq.refl (∀ (a₁ : ResourceSet), f a₁ ≥ 0)) fun a =>
+    Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+      (forall_congr fun f_1 =>
+        forall_congr fun resSet.empty =>
+          Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+            (forall_congr fun f_2 =>
+              forall_congr fun resSet.insert =>
+                forall_congr fun resSet.remove =>
+                  forall_congr fun resSet.ofList =>
+                    forall_congr fun resSet.toList =>
+                      forall_congr fun resSet.filter =>
+                        forall_congr fun resSet.union =>
+                          forall_congr fun resSet.diff =>
+                            forall_congr fun resSet.intersection =>
+                              forall_congr fun resSet.subsets =>
+                                Eq.trans Smt.Preprocess.Embedding.forall_nat_out_as_int₁._simp_1
+                                  (forall_congr fun f_3 =>
+                                    implies_congr_ctx (Eq.refl (∀ (a₁ : ClientsSet), f_3 a₁ ≥ 0)) fun a_1 =>
+                                      Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₂._simp_1
+                                        (forall_congr fun f_4 =>
+                                          forall_congr fun cSet.empty =>
+                                            Eq.trans Smt.Preprocess.Embedding.forall_bool_out_as_prop₁._simp_1
+                                              (forall_congr fun f_5 =>
+                                                forall_congr fun cSet.insert =>
+                                                  forall_congr fun cSet.remove =>
+                                                    forall_congr fun cSet.toList =>
+                                                      forall_congr fun cSet.union =>
+                                                        forall_congr fun cSet.diff => ⋯)))))

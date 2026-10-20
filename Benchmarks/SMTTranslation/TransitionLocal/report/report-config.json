@@ -1,0 +1,53 @@
+{
+  "manifest": "/tmp/veil-transition-local/manifest.json",
+  "exclusions": "/tmp/veil-transition-local/exclusions.json",
+  "results": "/tmp/veil-transition-local/results",
+  "out_dir": "/tmp/veil-transition-local/report",
+  "depths": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "profile": "default",
+  "rows_per_page": 25,
+  "heartbeats": 200000,
+  "recdepth": 512,
+  "simpsteps": 100000,
+  "appendix": [
+    "/tmp/veil-transition-local/METHODS.txt",
+    "/tmp/veil-transition-local/IMPLEMENTATION.txt",
+    "/tmp/veil-transition-local/PIPELINE_PARITY_AUDIT.txt",
+    "/tmp/veil-transition-local/QUERY_EQUIVALENCE.txt",
+    "/tmp/veil-transition-local/STEP_PROFILE_FINDINGS.txt",
+    "/tmp/veil-transition-local/SOLVER_BEHAVIOR.txt",
+    "/tmp/veil-transition-local/NEXT_FIXES.txt",
+    "/tmp/veil-transition-local/RUNNER_README.txt"
+  ],
+  "executive_summary": "/tmp/veil-transition-local/EXECUTIVE_SUMMARY.txt",
+  "environment": "/tmp/veil-transition-local/environment.json",
+  "query_comparison": null,
+  "logical_comparison": "/tmp/veil-transition-local/query-comparison/logical-query-comparison.csv",
+  "tables_only": false,
+  "inputs": {
+    "/tmp/veil-transition-local/manifest.json": "6ec18dcb816fd8909801f14ea93bf80f726c4acdcdaf198f79476b1cd6fce8f5",
+    "/tmp/veil-transition-local/exclusions.json": "36df7ec77518e57a92d725fb9cd7bbf9c432fd397cf5a60facb93c9c67658140",
+    "/tmp/veil-transition-local/results/runs.csv": "58eec18522844f83e9d4522e456f293c7166cfa7ec851d1b204f94380ac6a730",
+    "/tmp/veil-transition-local/results/stages.csv": "2632c2a69174f664fde4cbabbb11799ab6ae94df07454362a0faf15f92199497",
+    "/tmp/veil-transition-local/results/metadata.json": "ff230382131998ab4d48004b814726f98f7fbcba9923b5f560675844ddfbc5d9",
+    "/tmp/veil-transition-local/query-comparison/logical-query-comparison.csv": "15fad2250135eb15878bf12cbbf5dad01d7628ee4aa6fbbfa98427b6b3545e07",
+    "/tmp/veil-transition-local/environment.json": "beb5b685378e279e4b1a662f2afdd6cc124a7706cd5f07806e2c7835ad9ac7ec",
+    "/tmp/veil-transition-local/EXECUTIVE_SUMMARY.txt": "47180e18ca86be432aafffb4b8aad087f0a1cc0c9ebae060fa9b207f0297b9c7",
+    "/tmp/veil-transition-local/METHODS.txt": "a416d6cf42ba4293609bd900999a31d6bd6156f5a498acc2869e08c02e16f7f1",
+    "/tmp/veil-transition-local/IMPLEMENTATION.txt": "758d27b2664ff5cd4450207fba4e4ba3995f3f6868a37f222ff13e5a07736245",
+    "/tmp/veil-transition-local/PIPELINE_PARITY_AUDIT.txt": "6be389810c1b286a8c1b5cb1ccb72474569117d39ee89f53657130bf695f68ee",
+    "/tmp/veil-transition-local/QUERY_EQUIVALENCE.txt": "9d365e091e52e1dd47b970524ed9a2ff1f8a36d49ff94e72a3073f2804600bba",
+    "/tmp/veil-transition-local/STEP_PROFILE_FINDINGS.txt": "e5b5b615b09e634f6a7c5bc3c4f75d01934561b577e53a5a609a55869af76675",
+    "/tmp/veil-transition-local/SOLVER_BEHAVIOR.txt": "3623d0ddc80a25239acb5bedf6070e7775fdebfb29694aa40ea8f38f63deebd9",
+    "/tmp/veil-transition-local/NEXT_FIXES.txt": "9fe65d012ce65ec96aca4989ee33c8dc50f815e73734acdc97a2f3a6d744172c",
+    "/tmp/veil-transition-local/RUNNER_README.txt": "c5bcfb83e1f5b628b1c71b854b74e707eca6fe83964a9afb1b245c43591e85db"
+  },
+  "model_count": 49
+}

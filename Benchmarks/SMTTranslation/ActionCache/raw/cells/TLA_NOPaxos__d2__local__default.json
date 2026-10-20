@@ -1,0 +1,102 @@
+{
+  "row": {
+    "cell_id": "TLA_NOPaxos__d2__local__default",
+    "model": "TLA_NOPaxos",
+    "path": "Examples/TLA/NOPaxos.lean",
+    "module": "NOPaxos",
+    "depth": 2,
+    "variant": "local",
+    "profile": "default",
+    "status": "blocked_model_setup",
+    "translation_status": "not_started",
+    "solver_status": "not_reached",
+    "failure_phase": "model_setup",
+    "failure_kind": "wall_timeout",
+    "failure_message": "",
+    "setup_ms": null,
+    "query_elaboration_ms": null,
+    "batch_id": "TLA_NOPaxos__local__default__batch1",
+    "batch_setup_ms": null,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-action-cache/results/queries/TLA_NOPaxos__d2__local__default.smt2",
+    "source_path": "/tmp/veil-action-cache/results/batch-sources/TLA_NOPaxos__local__default__batch1.lean",
+    "event_path": "/tmp/veil-action-cache/results/events/TLA_NOPaxos__d2__local__default.jsonl",
+    "translation_log": "/tmp/veil-action-cache/results/logs/TLA_NOPaxos__d2__local__default.translation.log",
+    "solver_log": "/tmp/veil-action-cache/results/logs/TLA_NOPaxos__d2__local__default.solver.log",
+    "translation_exit": -9,
+    "solver_exit": null,
+    "translation_timeout": "model_setup_timeout",
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "TLA_NOPaxos",
+    "path": "Examples/TLA/NOPaxos.lean",
+    "module": "NOPaxos",
+    "cut_line": 955,
+    "query": "assert (¬ Linearizability)",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "linearizability invariant, line944; ghost predicate, line316",
+    "notes": "Large collection/list/array model. Prefix sets veil.deferVCGeneration=true and maxHeartbeats=1600000.",
+    "category": "TLA",
+    "source_options": [
+      {
+        "line": 10,
+        "directive": "set_option veil.deferVCGeneration true"
+      },
+      {
+        "line": 954,
+        "directive": "set_option maxHeartbeats 1600000"
+      }
+    ],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "dba347dc4275045efe9f76d1c576e31e51aac3970aced1a97aae351095d5a566"
+  },
+  "original_sha256": "dba347dc4275045efe9f76d1c576e31e51aac3970aced1a97aae351095d5a566",
+  "inherited_setup_options": [
+    {
+      "line": 10,
+      "directive": "set_option veil.deferVCGeneration true"
+    },
+    {
+      "line": 954,
+      "directive": "set_option maxHeartbeats 1600000"
+    }
+  ],
+  "source_sha256": "3f13c0bb401b1b13ebbcac28f43089894b00c00a40afd2bf0ae81b6fade621e4",
+  "batch_log": "/tmp/veil-action-cache/results/batch-logs/TLA_NOPaxos__local__default__batch1.log",
+  "events": [],
+  "batch_execution": {
+    "batch_id": "TLA_NOPaxos__local__default__batch1",
+    "source": "/tmp/veil-action-cache/results/batch-sources/TLA_NOPaxos__local__default__batch1.lean",
+    "log": "/tmp/veil-action-cache/results/batch-logs/TLA_NOPaxos__local__default__batch1.log",
+    "exit_code": -9,
+    "wall_ms": 60029,
+    "setup_ms": null,
+    "timeout": "model_setup_timeout",
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-action-cache/results/batch-sources/TLA_NOPaxos__local__default__batch1.lean"
+    ]
+  }
+}

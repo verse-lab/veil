@@ -1,0 +1,72 @@
+Fresh comparison of early introduction and per-transition normalization
+=====================================================================
+
+49 model-bearing example files, one documented selected assertion per file,
+exact depths 1, 2, 4, 8, 16, 32, two variants: 588 predeclared cells. The manifest
+is identical to the prior comprehensive sweep. The only excluded source is the
+support theory Examples/StellarConsensus/SCPTheory.lean. Overlapping examples
+are separate source files, not 49 independent protocols. Symbolic domains remain
+abstract/unbounded; original concrete #model_check instantiations are not used.
+
+Both variants are rerun on the same frozen compiled worktree. Early introduction
+replays the pipeline committed in 543817e6. Local normalization calls the new
+production helpers and has the same proof-header fallback. No previous timing
+is copied into this comparison. Sources are cut at the manifest's first genuine
+spec-generation command, with the previous nested-comment/namespace fixes.
+The helper is scoped so its open namespaces cannot pollute model definitions.
+
+Query limits are maxHeartbeats=200000 and maxRecDepth=512, with the unchanged
+100000-step default for each Veil simp invocation. Native cvc5 1.3.2 is loaded
+during both extraction and replay. The trusted pipeline retains
+Veil.withBackwardsCompatibility, withoutRecover, embedBool=false, finite-model-
+find=true, logic ALL and the ordinary Veil solver options. Model setup retains
+its source options; query options are standardized. Setup and each query have
+60-second process-group watchdogs; native replay has a 10-second checkSat cap
+and a separate 15-second wrapper watchdog.
+
+One model setup is shared by the twelve query commands in a batch. Each command
+has an independent Lean command heartbeat allowance, and Elab.async=false keeps
+elaboration sequential. Variant order alternates by model and depth. Completed
+cells are checkpointed; a timeout restarts only unstarted cells. All translation
+runs finish before sequential native solver replay. No competing builds, Lean
+probes, solver jobs or graph rendering are run during the recorded sweep.
+
+One observation per cell measures feasibility and approximate cost, not a stable
+speedup distribution or statistical confidence interval. Query time is the sum
+of completed stage timers, including local splitting, naming/hint audits,
+context destruction and backend preparation. It excludes startup, model setup,
+trace VC elaboration, event/log IO and solver execution. Setup and VC elaboration
+are recorded separately. Shared batch setup must not be summed once per cell.
+
+Each simpGoal invocation simplifies its hypothesis formulas individually. Fresh
+inner and outer simp calls reset their step counters. The aggregate permitted
+simp steps therefore differ even though the per-call setting is unchanged.
+No per-transition heartbeat reset is performed: the whole query retains the
+same 200000-command-heartbeat budget. Raw allocation heartbeat deltas are also
+recorded for each phase, including split/transport/destruction and the SMT
+pipeline, so success at a deeper depth is not the only evidence of reduced work.
+These counters are raw allocations, not the option's scaled heartbeat units.
+
+Queries are deliberately extracted from declarations that end with a distinct
+measurement error. No theorem is admitted or claimed by the measurement harness.
+Native SAT/UNSAT is determined by replaying the emitted script. Solver time is
+Smt.solve time: native setup, parsing, checkSat and native model values/domain or
+unsat-core retrieval. It excludes Lean proof/model/trace reconstruction. That
+plumbing is covered by the separate production regression suite.
+
+Failure and timeout durations never appear as completed timings. PRE denotes
+exact preprocessing closure and is reported separately from solver UNSAT.
+A serialized query that cvc5 rejects is a solver error, not a successful solver
+result. Every model receives a graph, including models without successful cells.
+A largest successful sampled exact depth is not a monotone depth bound; missing
+intermediate depths and different SAT/UNSAT answers remain visible.
+
+Full-pipeline wall-time supplement
+  Pipeline events also record the elapsed interval from pipeline entry through
+  query serialization. pipeline-work.csv and the dedicated plot use that full
+  interval, including dispatch/context/event overhead between phase timers.
+  Per-model solid query curves use this wall interval; their dashed preprocessing
+  curves remain completed Veil-stage sums. The phase breakdowns and original
+  matched-timings.csv retain stage sums for attribution. The exclusive
+  VC+pipeline+solver figure adds query/VC elaboration and a definite native call;
+  it still excludes shared setup and Lean proof/model reconstruction.

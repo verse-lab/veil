@@ -1,0 +1,6 @@
+/tmp/veil-action-cache/results/batch-sources/Ivy_ReliableBroadcast__local__default__batch1.lean:332:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-action-cache/results/batch-sources/Ivy_ReliableBroadcast__local__default__batch1.lean:368:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-action-cache/results/batch-sources/Ivy_ReliableBroadcast__local__default__batch1.lean:404:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-action-cache/results/batch-sources/Ivy_ReliableBroadcast__local__default__batch1.lean:440:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-action-cache/results/batch-sources/Ivy_ReliableBroadcast__local__default__batch1.lean:476:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas
+/tmp/veil-action-cache/results/batch-sources/Ivy_ReliableBroadcast__local__default__batch1.lean:512:2: error: cannot translate fun a b => Classical.propDecidable (a = b), SMT-LIB does not support lambdas

@@ -1,0 +1,220 @@
+{
+  "row": {
+    "cell_id": "Ivy_SuzukiKasami__d32__local__default",
+    "model": "Ivy_SuzukiKasami",
+    "path": "Examples/Ivy/SuzukiKasami.lean",
+    "module": "SuzukiKasami",
+    "depth": 32,
+    "variant": "local",
+    "profile": "default",
+    "status": "translation_failed",
+    "translation_status": "failed",
+    "solver_status": "not_reached",
+    "failure_phase": "smtSimp",
+    "failure_kind": "heartbeats",
+    "failure_message": "/tmp/veil-transition-local/results/batch-sources/Ivy_SuzukiKasami__default__batch1.lean:572:2: error: (deterministic) timeout at `whnf`, maximum number of heartbeats (200000) has been reached\n\nNote: Use `set_option maxHeartbeats <num>` to set the limit.\n\nHint: Additional diagnostic information may be available using the `set_option diagnostics true` command.\n",
+    "setup_ms": null,
+    "query_elaboration_ms": 209,
+    "batch_id": "Ivy_SuzukiKasami__default__batch1",
+    "batch_setup_ms": 15197,
+    "preprocessing_ms": null,
+    "smt_preprocessing_ms": null,
+    "translation_ms": null,
+    "serialization_ms": null,
+    "query_total_ms": null,
+    "solver_ms": null,
+    "completed_total_ms": null,
+    "process_wall_ms": null,
+    "solver_process_wall_ms": null,
+    "query_bytes": null,
+    "query_commands": null,
+    "query_sha256": null,
+    "query_path": "/tmp/veil-transition-local/results/queries/Ivy_SuzukiKasami__d32__local__default.smt2",
+    "source_path": "/tmp/veil-transition-local/results/batch-sources/Ivy_SuzukiKasami__default__batch1.lean",
+    "event_path": "/tmp/veil-transition-local/results/events/Ivy_SuzukiKasami__d32__local__default.jsonl",
+    "translation_log": "/tmp/veil-transition-local/results/logs/Ivy_SuzukiKasami__d32__local__default.translation.log",
+    "solver_log": "/tmp/veil-transition-local/results/logs/Ivy_SuzukiKasami__d32__local__default.solver.log",
+    "translation_exit": 1,
+    "solver_exit": null,
+    "translation_timeout": null,
+    "solver_timeout": null,
+    "proof_status": "no_reconstructed_proof"
+  },
+  "model": {
+    "model": "Ivy_SuzukiKasami",
+    "path": "Examples/Ivy/SuzukiKasami.lean",
+    "module": "SuzukiKasami",
+    "cut_line": 126,
+    "query": "assert (∃ n m, crit n ∧ crit m ∧ n ≠ m)",
+    "query_kind": "invariant_violation",
+    "expected_status": null,
+    "query_source": "mutex invariant, line111",
+    "notes": "No safety declaration; select the named mutex invariant.",
+    "category": "Ivy",
+    "source_options": [],
+    "imports": [
+      "Veil"
+    ],
+    "source_sha256": "d8728fda446e3f67a1e7003c40874d6cdaaccc943fa66bcd35e10ef45a5712bd"
+  },
+  "original_sha256": "d8728fda446e3f67a1e7003c40874d6cdaaccc943fa66bcd35e10ef45a5712bd",
+  "inherited_setup_options": [],
+  "source_sha256": "67e64759525e229bdc293d91341df1b1deabe0342fced163e8a6b1e100129e7b",
+  "batch_log": "/tmp/veil-transition-local/results/batch-logs/Ivy_SuzukiKasami__default__batch1.log",
+  "events": [
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207713772,
+      "phase": "query_elaboration",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "pipeline",
+      "maxHeartbeats": 200000,
+      "maxRecDepth": 512,
+      "mono_ms": 207713981,
+      "phase": "pipeline",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207713981,
+      "phase": "early_intros",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 102,
+      "event": "stage",
+      "heartbeats": 218343,
+      "mono_ms": 207714084,
+      "phase": "early_intros",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207714084,
+      "phase": "split_trace",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 14455,
+      "mono_ms": 207714086,
+      "phase": "split_trace",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207714087,
+      "phase": "nextSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 11147,
+      "event": "stage",
+      "heartbeats": 102879514,
+      "mono_ms": 207725234,
+      "phase": "nextSimp",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207725234,
+      "phase": "hoist",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 174,
+      "event": "stage",
+      "heartbeats": 3061997,
+      "mono_ms": 207725410,
+      "phase": "hoist",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207725594,
+      "phase": "prepare_hints",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2,
+      "event": "stage",
+      "heartbeats": 18923,
+      "mono_ms": 207725597,
+      "phase": "prepare_hints",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207725598,
+      "phase": "destruct",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 2220,
+      "event": "stage",
+      "heartbeats": 25738010,
+      "mono_ms": 207727819,
+      "phase": "destruct",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207727819,
+      "phase": "dsimp1",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 1050,
+      "event": "stage",
+      "heartbeats": 10359894,
+      "mono_ms": 207728869,
+      "phase": "dsimp1",
+      "status": "complete"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "stage",
+      "mono_ms": 207728869,
+      "phase": "smtSimp",
+      "status": "begin"
+    },
+    {
+      "elapsed_ms": 0,
+      "event": "query_elaboration",
+      "mono_ms": 207734944,
+      "phase": "query_elaboration",
+      "status": "end"
+    }
+  ],
+  "batch_execution": {
+    "batch_id": "Ivy_SuzukiKasami__default__batch1",
+    "source": "/tmp/veil-transition-local/results/batch-sources/Ivy_SuzukiKasami__default__batch1.lean",
+    "log": "/tmp/veil-transition-local/results/batch-logs/Ivy_SuzukiKasami__default__batch1.log",
+    "exit_code": 1,
+    "wall_ms": 113919,
+    "setup_ms": 15197,
+    "timeout": null,
+    "active_cell": null,
+    "command": [
+      "lake",
+      "env",
+      "lean",
+      "-D",
+      "Elab.async=false",
+      "--plugin=/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+      "/tmp/veil-transition-local/results/batch-sources/Ivy_SuzukiKasami__default__batch1.lean"
+    ]
+  }
+}

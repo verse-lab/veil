@@ -1,0 +1,100 @@
+{
+  "repo": "/home/george/src/veil-issue-123",
+  "commit": "543817e690debe6fbc9b518fb2694549d5986e90",
+  "script_sha256": "8a07e58935989959bb20c7f52688875800d63eaac69da543d9672b3abfbe9802",
+  "common_script_sha256": "462a041fe996fda71a6287b170ca0b052fe09a9ec576b35b4ebba628ff592ea7",
+  "manifest_sha256": "6ec18dcb816fd8909801f14ea93bf80f726c4acdcdaf198f79476b1cd6fce8f5",
+  "models": [
+    {
+      "model": "Ivy_Blockchain",
+      "path": "Examples/Ivy/Blockchain.lean",
+      "module": "Blockchain",
+      "cut_line": 107,
+      "query": "assert (¬ (∀ n1 n2 n b t tr t1 t2, (((honest n1 ∧ honest n2) → ((block_confirmed n1 b t ∧ block_confirmed n2 b t) ∨ (¬ block_confirmed n1 b t ∧ ¬ block_confirmed n2 b t))) ∧ ((honest n1 ∧ honest n2) → ((transaction_confirmed tr n1 ∧ transaction_confirmed tr n2) ∨ (¬ transaction_confirmed tr n1 ∧ ¬ transaction_confirmed tr n2))) ∧ ((honest n ∧ leader n t2 ∧ transaction_time tr t1 ∧ tot.le t1 t2 ∧ broadcasted n ∧ honest n1) → transaction_confirmed tr n1))))",
+      "query_kind": "safety_violation",
+      "expected_status": null,
+      "query_source": "Entire combined safety declaration, lines87–90",
+      "notes": "Negates all three conjuncts together and explicitly binds every source autoimplicit variable.",
+      "category": "Ivy",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "b30613fcf224af61ab5e85cf42fb3fa33b739d2961b91687d4bbc0f711c8db20"
+    },
+    {
+      "model": "Ivy_Ring",
+      "path": "Examples/Ivy/Ring.lean",
+      "module": "Ring",
+      "cut_line": 48,
+      "query": "assert (∃ n1 n2, n1 ≠ n2 ∧ leader n1 ∧ leader n2)",
+      "query_kind": "existing_safety_violation",
+      "expected_status": null,
+      "query_source": "Existing unsat trace, lines57–60; single_leader safety, line42",
+      "notes": "Relational ring; overlaps Tutorial/Ring and POPL26/RingDec. Prefix explicitly sets veil.smt.trust=false.",
+      "category": "Ivy",
+      "source_options": [
+        {
+          "line": 47,
+          "directive": "set_option veil.smt.trust false"
+        }
+      ],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "b07c460e7767a50bd27801f02c3e7bdc73e68ccbe7fbcc59634845863b9b4d66"
+    },
+    {
+      "model": "Tutorial_FloodSet",
+      "path": "Examples/Tutorial/FloodSet.lean",
+      "module": "FloodSet",
+      "cut_line": 341,
+      "query": "assert (¬ (∀ n1 n2 v1 v2, decision n1 v1 ∧ decision n2 v2 → v1 = v2))",
+      "query_kind": "existing_safety_violation",
+      "expected_status": null,
+      "query_source": "Existing agreement_violation trace, lines392–395",
+      "notes": "Tutorial variant overlaps Synchronous/FloodSet but is retained as its own model-bearing file.",
+      "category": "Tutorial",
+      "source_options": [],
+      "imports": [
+        "Veil"
+      ],
+      "source_sha256": "1681ed0b9021af0c86687c2dc8f931b9d09b801d7b14cc59a25998f1039df8d4"
+    }
+  ],
+  "depths": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "variants": [
+    "early",
+    "local"
+  ],
+  "selected_profile": "default",
+  "query_limits": {
+    "maxHeartbeats": 200000,
+    "maxRecDepth": 512,
+    "simp_maxSteps": 100000
+  },
+  "setup_options": "Preserved from model prefix; per-cell manifest records source options.",
+  "query_trust": true,
+  "embedBool": false,
+  "finiteModelFind": true,
+  "native_cvc5_plugin": "/home/george/src/veil-issue-123/.lake/packages/cvc5/.lake/build/lib/libcvc5_cvc5.so",
+  "native_cvc5_plugin_sha256": "ac9f732f2ecfc268cf9d0e35cd9cdabc63be0ff24ea2a4a35d8b40c6d91b6b34",
+  "execution": "One model setup per batch; independent trace commands and command budgets. Shared process/cache state; variant order alternates per depth/model. Timeout kills process group and restarts unstarted cells.",
+  "setup_timeout_seconds": 60,
+  "query_elaboration_timeout_seconds": 60,
+  "pipeline_timeout_seconds": 60,
+  "solver_timeout_seconds": 10,
+  "samples_per_cell": 1,
+  "trace_semantics": "exactly N actions; does not cover all lengths <= N",
+  "timing": "Completed stage sums exclude model setup, trace VC elaboration, event IO, UI/model reconstruction and kernel proof reconstruction. Process wall times live in batch-events/*.execution.json; do not sum shared setup once per cell.",
+  "proof_status": "Query-extraction declarations deliberately error; no sorry or claimed theorem. Results come from separate trusted solver replay.",
+  "core_source_sha256": "4b60a070f1d7c6284a8506a55514141458d95f5abdfde0d959274786476937cc",
+  "core_olean_sha256": "5144c022a9dff565de0e21685831a41a30af02c9d9e21f99e7eeff3a97720527"
+}
