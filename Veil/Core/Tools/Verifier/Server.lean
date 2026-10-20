@@ -292,9 +292,11 @@ private def awaitFilteredWithLogging (managerId : ManagerId) (filter : VCMetadat
 Uses `wrapAsyncAsSnapshot` so that errors from the callback are reported to the user.
 This task also polls for discharger tasks from the manager and registers them with
 `logSnapshotTask`, enabling profiler trace propagation.
+Returns the requested generation so widget consumers use the same generation as
+the observer, even if the manager is reset before widget construction.
 Note: Widget display does not work in the callback since it runs in an async context. -/
-def runFilteredAsync (filter : VCMetadata → Bool)
-    (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) : CommandElabM Unit := do
+def runFilteredAsyncWithManagerId (filter : VCMetadata → Bool)
+    (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) : CommandElabM ManagerId := do
   let managerId ← requestFiltered filter
   let cancelTk ← IO.CancelToken.new
   let wrappedTask ← Command.wrapAsyncAsSnapshot (fun () => do
@@ -303,6 +305,12 @@ def runFilteredAsync (filter : VCMetadata → Bool)
     callback results) cancelTk
   let task ← (wrappedTask ()).asTask (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := cancelTk, task := task }
+  return managerId
+
+/-- Start asynchronous verification without retaining its requested generation. -/
+def runFilteredAsync (filter : VCMetadata → Bool)
+    (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) : CommandElabM Unit := do
+  discard <| runFilteredAsyncWithManagerId filter callback
 
 /-- Start VCs matching the filter and wait synchronously for completion.
 Returns the results on the main thread, allowing widget display.

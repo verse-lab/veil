@@ -302,11 +302,10 @@ private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (getManag
       token.update (.text s!"{formatTraceStatus isExpectedSat vcResult.status}")
 
 /-- Display a streaming widget for trace verification that shows the TraceDisplayViewer when done. -/
-private def displayTraceStreamingResults (stx : Syntax) (isExpectedSat : Bool)
+private def displayTraceStreamingResults (stx : Syntax) (managerId : ManagerId) (isExpectedSat : Bool)
     (vcName : Name) (vcFilter : VCMetadata → Bool) : CommandElabM Unit := do
   let owner ← Verifier.getVCManagerOwner
   let getManager ← Verifier.captureVCManager
-  let managerId := (← getManager)._managerId
   let html ← liftCoreM <| mkRefreshComponentM (.text traceLoadingMessage)
     (runTraceRefreshStep owner getManager managerId isExpectedSat vcName vcFilter)
   liftCoreM <| Widget.savePanelWidgetInfo
@@ -409,10 +408,10 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
       return vcId
 
     -- Start async verification with logging callback
-    Verifier.runFilteredAsync vcFilter (logTraceResults stx isExpectedSat vcName vcFilter)
+    let managerId ← Verifier.runFilteredAsyncWithManagerId vcFilter (logTraceResults stx isExpectedSat vcName vcFilter)
 
     -- Display streaming widget (shows progress then trace widget)
-    displayTraceStreamingResults stx isExpectedSat vcName vcFilter
+    displayTraceStreamingResults stx managerId isExpectedSat vcName vcFilter
 
 
 elab_rules : command

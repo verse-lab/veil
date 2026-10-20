@@ -9,7 +9,7 @@ meta section
 -- cannot safely interpose during enqueue. Exercise the exact production request
 -- and waiter across an explicit prelaunch replacement boundary instead.
 open private Veil.Verifier.requestFiltered Veil.Verifier.awaitFilteredWithLogging
-  in Veil.Verifier.runFilteredAsync in
+  in Veil.Verifier.runFilteredAsyncWithManagerId in
 run_cmd do
   runManager
   let _ ← fresh #[`original]
