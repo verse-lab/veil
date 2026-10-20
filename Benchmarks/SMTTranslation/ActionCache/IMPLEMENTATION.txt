@@ -1,0 +1,64 @@
+Exact transition-normalization cache
+===================================
+
+Enable with:
+  set_option veil.experimental.bmcCache true
+before #gen_spec (or before deferred verification is first finalized).
+The option is experimental and off by default. Set it false at query time to
+use the existing per-transition normalization even if the cache was generated.
+Enabling it only after #gen_spec safely falls back when no artifact is available.
+
+The implementation precomputes exact equality theorems for the initializer,
+each named action, and the complete tagged disjunction used by "any action".
+The last form is essential: reusing just the individual action bodies would
+still repeat witness hoisting across alternatives at every depth.
+
+At model setup, saveBmcNormalForm elaborates the very same parameterized trace
+expressions used by TraceLang, specializes to the symbolic Theory/State/field
+representation, and runs nextSimp followed by the guarded existential hoister.
+The shared TraceTemplates builders preserve the original tags, argument names,
+dependent argument telescope and connectives. Cache-only binder names and argument
+prefixes are fresh, so module sorts called pre/post/tag cannot be captured.
+Trace VC statements are unchanged.
+
+Every artifact is a closed kernel-checked theorem of the form
+  forall module parameters, instances, theory, states, arguments,
+    original_transition = normalized_transition.
+The statement and proof abstract the whole parameter telescope and generalize
+universe levels. Unbound free variables and metavariables are rejected. There
+is no process-global expression memo or cache keyed only by declaration names.
+Lean's typed theorem matching instantiates the module/universe/instance/state/
+argument parameters on every use. Different intermediate states remain different
+arguments, and neighboring transitions use the same original middle-state value.
+
+At query time the root simproc matches one cached equality and returns .done.
+This skips traversing/unfolding/hoisting the normalized result again. A miss runs
+the original nextSimp and guarded hoisting passes and composes their proofs.
+Assertions still use that path. Existing proof-header fallback, hypothesis
+selection checks, field destruction, SMT preprocessing and model decoding remain
+in use. No alternative is split into independent solver checks.
+
+This is equality, not the existing one-way tr_abstract implication. No assumption
+is weakened, no witness is selected during setup, no witness is reused between
+steps, and no existential crosses a universal except through the existing valid
+rewriting rules. Inactive alternatives still require the same Nonempty proofs
+before witnesses can be moved outside their branch. Dependent witness scopes
+are enforced by Lean's types and the hoister's existing dependence checks.
+
+The normal form records the simplifier configuration and theorem environment
+used at specification setup in its actual theorem statement/proof. Later changes
+to nextSimp cannot invalidate that equality, but they do not recompute the stored
+normal form. Disable caching if such later custom simplification behavior is
+wanted. This implementation does not claim a configuration-invalidation scheme
+or an optimal normal form for arbitrary subsequently added rules.
+
+The baseline in this comparison is the preceding uncommitted per-transition
+implementation on top of commit 543817e690debe6fbc9b518fb2694549d5986e90.
+It is snapshotted in baseline/Core.lean. implementation.patch contains only the
+additional caching change; the previous TransitionLocal report contains the
+patch needed to reproduce its baseline from that commit.
+
+The generated theorem shapes and large proofs also consume setup resources.
+Caching does not replace the hoister with a new algorithm, nor repair SMT
+embedding/translation defects. If generation fails with the option enabled,
+that model setup failure is reported; no silently weakened artifact is installed.

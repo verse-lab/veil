@@ -1,0 +1,37 @@
+[
+  {
+    "file": "/home/george/src/veil-issue-123/VeilTest/Regression/TraceBindingsDependent.lean",
+    "exit": 0,
+    "log": "/tmp/veil-action-cache/focused-TraceBindingsDependent.log"
+  },
+  {
+    "file": "/home/george/src/veil-issue-123/VeilTest/Regression/TraceBindingsHygiene.lean",
+    "exit": 0,
+    "log": "/tmp/veil-action-cache/focused-TraceBindingsHygiene.log"
+  },
+  {
+    "file": "/home/george/src/veil-issue-123/VeilTest/Regression/TraceBindingWitness.lean",
+    "exit": 0,
+    "log": "/tmp/veil-action-cache/focused-TraceBindingWitness.log"
+  },
+  {
+    "file": "/home/george/src/veil-issue-123/VeilTest/Regression/TraceInhabitedFunction.lean",
+    "exit": 0,
+    "log": "/tmp/veil-action-cache/focused-TraceInhabitedFunction.log"
+  },
+  {
+    "file": "/home/george/src/veil-issue-123/VeilTest/Regression/TraceWithNoActions.lean",
+    "exit": 0,
+    "log": "/tmp/veil-action-cache/focused-TraceWithNoActions.log"
+  },
+  {
+    "file": "/home/george/src/veil-issue-123/VeilTest/Regression/TraceLabelDependentReconstruction.lean",
+    "exit": 0,
+    "log": "/tmp/veil-action-cache/focused-TraceLabelDependentReconstruction.log"
+  },
+  {
+    "file": "/home/george/src/veil-issue-123/VeilTest/Performance/DeepBmcTranslation.lean",
+    "exit": 0,
+    "log": "/tmp/veil-action-cache/focused-DeepBmcTranslation.log"
+  }
+]

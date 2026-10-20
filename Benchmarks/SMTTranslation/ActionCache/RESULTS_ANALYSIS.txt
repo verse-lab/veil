@@ -1,0 +1,65 @@
+What this changes in practice
+============================
+
+This is a useful opt-in frontend optimization, with a much smaller improvement
+in the number of bounded checks solved. All 279 matched completed normalization
+measurements were faster: median speedup 25.39x, with a 21.11x reduction in raw
+allocation-counter deltas. Complete query production was faster in 132/134
+matched completed cases, at a median 1.58x speedup; its measured allocations
+fell by a median factor of 1.70. Once cold setup and VC elaboration are included,
+the median ratio is only 1.03x, with 40/134 cases slower. These are single primary
+observations per cell, not estimates of statistical significance. The cache is
+most attractive when a specification is reused for several depths or traces.
+
+The benchmark emits six additional queries, losing none: Blockchain, Chord,
+MultiSigAll, MultiSigMajority and SuzukiKasami at depth 32, plus NOPaxos at depth
+16. Four are accepted by cvc5. The new Blockchain depth-32 query returns UNSAT:
+12.536 seconds producing SMT, 2.590 seconds in the solver, plus 0.316 seconds VC
+elaboration and 15.898 seconds cold setup. Two extra solver replays also return
+UNSAT in 2.926 and 2.979 seconds. NOPaxos and the two MultiSig queries time out
+at 10 seconds; Chord and SuzukiKasami encounter the same solver-rejection class
+seen in their shallower emitted queries. Thus emitted queries rise 134 to 140,
+but native acceptance rises 124 to 128 and definite answers only 84 to 86.
+
+The primary definite-answer changes are not uniformly beneficial. PaxosFirstOrder
+at depth 4 improves from timeout to UNSAT (3.542 seconds); its cached repeats
+also solve, while the uncached 30-second control takes 22.428 seconds. Traffic
+at depth 32 improves from timeout to SAT (6.519 seconds), but its uncached
+repeats straddle the 10-second boundary: one times out and one solves in 9.551
+seconds, with a 30-second control solving in 10.710 seconds. Conversely,
+Blockchain depth 16 regresses from UNSAT in 0.929 seconds to a 10-second timeout;
+that regression repeats, and the cached 30-second control needs 17.351 seconds.
+Equivalent query presentation can affect solver search. The experiment does not
+isolate which naming, ordering or normalization detail causes each search change.
+No SAT/UNSAT contradiction was observed. Solver hardness need not increase
+monotonically with exact trace length, as Blockchain depths 16 and 32 illustrate.
+
+Setup costs matter. The median added setup is 0.355 seconds across the 47 pairs
+where both setups finish. MultiPaxos increases from 12.903 to 22.466 seconds;
+no query is emitted for either variant. Raft's uncached setup takes 56.031 seconds
+and cached setup exceeds the 60-second limit; uncached queries also fail later.
+NOPaxos in the TLA directory exceeds that setup limit in both variants. Those
+timeouts are censored measurements, not zero setup cost. A cache assembled from
+normalized individual actions, or selective template generation, could reduce
+the eager cost; lazy generation alone would simply move it to the first query.
+
+The query cells have no simp maxSteps failures in this run, but simp-related
+problems remain. Cached NOPaxos depth 32, VerticalPaxosFirstOrder depth 32 and
+TLA Paxos depth 32 exhaust the overall heartbeat budget in smtSimp. More broadly,
+frontend heartbeat failures fall from 20 to seven, while recursion failures
+remain at 46 and type-mismatch failures at 45 per variant. First failure phases
+can shift when an earlier bottleneck is removed; these counts are not separate
+causal effects. Cached runs still stop 91 times in embedding and 44 times in
+translation. Better normalization cannot repair those independent backend defects.
+
+The semantic evidence is stronger than equal outcome counts: cache entries are
+closed, kernel-checked equality theorems, and all 134 paired emitted formulas
+match in the independent conservative logical audit. Of those, 124 pairs are
+accepted by native cvc5; all 83 paired definite answers agree. Regression checks
+exercise dependent arguments, independent function witnesses, shared intermediate
+states, trace decoding and untrusted proof reconstruction. The option remains
+experimental and off by default because setup and solver tradeoffs are real.
+For supported-query performance, the next target is the remaining smtSimp and
+context-processing work. For broader corpus coverage, prioritize the embedding
+and translation failures. NEXT_FIXES.txt spells out those experiments and the
+semantic constraints they must preserve.

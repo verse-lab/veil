@@ -1,0 +1,90 @@
+Follow-ups after exact transition caching
+========================================
+
+Priority depends on the objective. For faster queries on models that already
+translate, target the remaining smtSimp/context work first. For broader example
+coverage, the backend is the bigger obstacle: cached runs still stopped 91 times
+in embedding and 44 times in translation, versus seven frontend heartbeat
+failures in total. These are first stopping points, not independent root-cause
+counts; one repair may expose another failure. The phase-cost figure records the
+performance evidence, and each model page retains the actual error messages.
+
+1. Extend reusable normalization toward the remaining SMT simplification.
+   The current cache intentionally covers nextSimp and existential hoisting.
+   It does not cache the later field dsimp or smtSimp passes. Use the phase-cost
+   figure and per-cell allocation counters to identify models dominated by
+   those stages. Try applying the representation-independent part of smtSimp
+   to the generic symbolic-state template at setup, storing another exact
+   equality. Separate rewrites that require destructed field variables from
+   rewrites that work on generic record projections. Keep the residual runtime
+   pass for theory facts and formulas exposed only by destruction. Validate
+   both reconstruction and SMT shape; removing work from one pass does not
+   guarantee the solver receives a better search problem.
+
+2. Reduce repeated local-context processing and preserve transition matrices.
+   Destruction still revisits the context and splits many internal conjunctions.
+   Keeping an already-normalized transition matrix as a single conjunction can
+   reduce hypotheses and their repeated proof transport. Extract record fields
+   and higher-order existential prefixes while retaining first-order matrices.
+   Every retained constraint must remain selected as an SMT hint. A worklist
+   must track FVarIds AND type/value changes and context remapping, not printed
+   names. The existing recursive destructor also fails to pass excludedStructs
+   recursively; a policy to retain And must address and test that detail.
+
+3. Give the whole tagged transition choice a named, parameterized predicate.
+   The cache currently matches the existing inline disjunction, preserving the
+   trace statement syntax. A generated reducible predicate for that exact
+   disjunction would reduce repeated VC construction and simplify cache lookup
+   to matching one constant application. Its definition must bind all module
+   instances, tags, dependent action arguments and the two state values, with
+   the same shared middle state across neighbors. An exact unfolding theorem
+   supplies the semantic bridge. Measure VC elaboration separately; this is a
+   different cost from the normalization already removed by this change.
+
+4. Repair the independent SMT backend failures.
+   The cache does not fix dependent Nat/Fin proof handling, decide/universe
+   translation, or explicit-transition wrapper support. The report's stopping
+   phases and errors show which still block the corpus. These need focused
+   typed examples and proof/model reconstruction tests, not larger limits.
+   For explicit transitions, preserve the actual frame/representation semantics;
+   a generic (tr.toVeilM).derived = tr assertion is not justified for arbitrary
+   substate representations. Never substitute the one-way tr_abstract theorem
+   for an exact transition.
+
+5. Keep embedding local with a single shared symbol map.
+   Frontend normalization is local, but the backend can still reconstruct a
+   large quantified telescope during embedding. A hypothesis-wise API should
+   share one mapping for all original variables, types, bounds and side
+   conditions. Independent embeddings that create separate copies of an
+   intermediate state would be unsound. Retain origins for proof reconstruction
+   and trace decoding. Context recursion failures require this kind of
+   structural change; raising maxRecDepth only moves the failure point.
+
+6. Treat solver heuristics and incremental depths as separate experiments.
+   Equivalent symbol/assertion ordering can change cvc5's quantifier search.
+   Retain the uncached option while evaluating solver results, not just emitted
+   query counts. The separate replay controls in this report distinguish the
+   primary observation from repeated/longer-limit outcomes. Prior experiments
+   did not establish that merely rearranging declarations fixes regressions.
+   A later incremental solver can keep initial constraints and the transition
+   prefix, push the bad-state assertion at depth k, solve, then pop it before
+   extending to k+1. Leaving old endpoint assertions active changes semantics.
+   Incremental proof and witness maps also need consistent state identities.
+
+7. Reduce eager setup cost before considering enabling the cache by default.
+   The generator currently normalizes every named action and then the complete
+   any-action disjunction. The latter repeats some action normalization during
+   setup. Build that exact disjunction proof from the already-normalized action
+   equalities, followed by the required combined hoist; or investigate generating
+   only demanded templates. Keep configuration/instance dependencies explicit.
+   Lazy generation merely moves the bill to the first query unless the unused
+   templates are actually avoided, so measure cold and amortized costs separately.
+   TLA_Raft exceeded the 60-second cached setup cap in this run while local setup
+   completed; MultiPaxos also had a substantial added setup cost. Neither example
+   emitted a query in the primary run, but these setup penalties still matter.
+
+The cache still runs the existing hoister once per template. If a single action
+or full action disjunction becomes too large even at setup, direct proof-producing
+prefix extraction remains worth investigating. Check Nonempty conditions for
+inactive alternatives and preserve dependent binders/quantifier alternation.
+Caching alone does not change that single-template worst case.

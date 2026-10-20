@@ -15,7 +15,7 @@ syntax traceAnyAction := any_action_star <|> any_action
 
 syntax (name := traceAnyNActions) "any " num " actions": trace_line
 
-syntax (name := traceActionName) ident : trace_line
+syntax (name := traceActionName) ident (ppSpace colGt term:max)* : trace_line
 syntax traceAction := (traceActionName <|> traceAnyAction <|> traceAnyNActions)
 
 syntax (name := traceAssertion) "assert " term:max : trace_line
@@ -23,7 +23,10 @@ syntax (name := traceAssertion) "assert " term:max : trace_line
 syntax traceLine := (traceAction <|> traceAssertion)
 syntax traceSpec := manyIndent(traceLine)
 
-syntax expected_smt_result "trace" ("[" ident "]")? "{"
+/-- Explicit existential witnesses shared by all lines of a trace. -/
+syntax traceBinder := "(" ident+ " : " term ")"
+
+syntax expected_smt_result "trace" ("[" ident "]")? traceBinder* "{"
   traceSpec
 "}" (term)? : command
 

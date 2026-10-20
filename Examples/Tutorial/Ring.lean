@@ -312,11 +312,12 @@ unsat trace {
   assert (¬ ∃ n next, pending n next)
 }
 
-/- Bounded verification: within 6 arbitrary actions, it is impossible to
-violate the `leader_greatest` invariant—for any number of nodes. -/
-unsat trace [trace_any] {
-  any 6 actions
-  assert ¬ (leader L → le N L)
+/- Bounded verification: after exactly 3 arbitrary actions, it is impossible to
+violate the `leader_greatest` invariant—for any number of nodes. The query
+parameters name a potential leader and a node with a greater identifier. -/
+unsat trace [trace_any] (l n : node) {
+  any 3 actions
+  assert ¬ (leader l → le n l)
 }
 
 /-! ## Verifying the specification

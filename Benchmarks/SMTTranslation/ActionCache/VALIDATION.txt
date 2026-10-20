@@ -1,0 +1,15 @@
+Validation
+==========
+
+lake build VeilTest passed (1230 build jobs; this is not a test count).
+Seven focused files passed with caching explicitly enabled: dependent arguments, binder hygiene, persistent witnesses, inhabited functions, no-action specifications, dependent label reconstruction, and deep BMC translation.
+
+TraceCachedNormalization covers independent function witnesses, quantifier dependence, an inactive empty witness domain, shared middle states, zero steps, proof headers, trusted trace decoding, and an untrusted kernel-checked trace theorem. Cache artifacts in that regression are checked for absence of sorryAx. The dedicated template-name regression uses sorts named pre, post and tag; the pre-fix probe fails and the corrected probe passes.
+
+588 terminal primary cells, generated-source and emitted-query hashes verified. Production sources and compiled oleans still match the frozen build.
+134/134 paired emitted formulas pass the conservative logical audit; 124 matching pairs were accepted by cvc5. A match on a solver-rejected script is not counted as native acceptance.
+83 paired primary definite answers agree. Replayed control answers are also checked against known primary verdicts.
+
+The audit checks an explicit symbol bijection and retains named states, action arguments and all asserted constraints. It is an executable cross-check, not a proof of the SMT backend. The production frontend transform itself uses kernel equality proofs.
+
+No primary timing from pilot1, pilot2 or smoke runs is included. setup-amendment.json documents the deferred-source setup adjustment and byte-identical regeneration of the 264 retained cells.

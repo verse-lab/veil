@@ -435,9 +435,10 @@ theory, optionally followed by the settings:
 
 #### Symbolic Bounded Model Checking
 
-Explore system behaviors with trace queries, discharged via SMT. Unlike
-`#model_check`, these queries check **all** instantiations of the module's
-parameters at once, but only up to a bounded number of steps:
+Explore system behaviors with trace queries, discharged via SMT. These queries
+search over instantiations of the module's parameters and background theory that
+satisfy its assumptions, with a bounded number of steps. A `sat trace` asks for
+one such execution; an `unsat trace` checks that none exists.
 
 ##### Satisfiable Traces
 
@@ -460,8 +461,53 @@ sat trace [some_progress] {
 }
 ```
 
+##### Trace Parameters and Action Arguments
+
+Declare typed parameters in the trace header to refer to the same values across
+steps and assertions:
+
+```lean
+sat trace [same_sender] (n next : node) {
+  assert (n ≠ next)
+  send n next
+  recv n _ _
+  recv n _ _
+  assert (leader n)
+}
+```
+
+Each header parameter is an **existential witness for the whole query**. Here,
+`n` has one value throughout the trace. Distinct names may denote the same value;
+add an assertion such as `n ≠ next` when they must differ. Parameters are local to
+this trace and do not add fields or constants to the module. Multiple binder
+groups, such as `(n : node) (v : value)`, are also supported. Parameter names must
+be distinct, unqualified, and must not shadow module declarations or reserved
+trace names such as `th`, `st0`, and `ActionTag`. Avoid shadowing type names used
+by the module, such as `Bool`, since this can cause elaboration errors.
+A satisfying trace displays
+these witnesses under **Bindings**, alongside the instantiated action arguments.
+
+Action arguments have three forms:
+
+- A bare action name, such as `send`, chooses all its arguments afresh.
+- `_` chooses a fresh argument at that occurrence, as in `send n _`.
+- An explicit argument uses a header parameter or another expression, as in
+  `send n (successor n)`. Parenthesize compound expressions. State fields in an
+  argument are evaluated in the state immediately before that action.
+
+When any arguments are supplied, their number must match the action's parameter
+count; use `_` for each unconstrained position. Put each action on its own line.
+Undeclared names and arguments of the wrong type are errors. Reusing `_` does not
+connect the choices across steps.
+
+An `assert` constrains the current state without advancing the trace. Quantifiers
+inside an assertion retain their ordinary scope: `assert (∃ n, leader n)` does
+not introduce an `n` for subsequent steps. The same parameter and argument
+syntax applies to `unsat trace`, which asks whether the entire query has no
+satisfying assignment.
+
 A query worth including in any specification is `sat trace { }` (the empty
-trace): it checks that the module's assumptions are satisfiable, guarding
+trace): it checks that the module's assumptions admit an initial state, guarding
 against vacuously-verified specifications.
 
 ##### Unsatisfiable Traces
