@@ -302,10 +302,9 @@ structure VCManager (VCMetaT ResultT: Type) where
   enabledVCs : HashSet VCId := HashSet.emptyWithCapacity
 
   protected _nextVcId : VCId := 0
-  /-- Number of dischargers that have finished executing. -/
+  /-- Number of distinct accepted discharger results. -/
   protected _totalDischarged : Nat := 0
-  /-- Number of dischargers that have finished successfully. This is equal to
-  the number of VCs that have been proven. -/
+  /-- Number of VCs currently proven by effective accepted results. -/
   protected _totalSolved : Nat := 0
 
   protected _doneWith : HashMap VCId VCStatus := HashMap.emptyWithCapacity
@@ -623,73 +622,66 @@ private def VCManager.exhaustedVCStatus (mgr : VCManager VCMetaT ResultT)
     else
       .unknown
 
-def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerIdentifier) (res : DischargerResult ResultT) (cancelAutomatic : Bool := true): BaseIO (VCManager VCMetaT ResultT) := do
-  let mut mgr := mgr
-  let vcId := id.vcId
-  let mut .some vc := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} not found"; return mgr
-  let incomingIsInteractive := match vc.dischargers[id.dischargerId]? with
-    | some discharger => discharger.isInteractive
-    | none => false
-  if vc.hasInteractiveDischarger && !incomingIsInteractive then
-    return mgr
-  let wasAlreadySuccessful := vc.successful.isSome
-  if incomingIsInteractive then
-    if cancelAutomatic then vc.cancelNonInteractiveDischargers
-    if wasAlreadySuccessful then
-      vc := { vc with successful := none }
-      mgr := { mgr with
-        nodes := mgr.nodes.insert vcId vc
-        _doneWith := mgr._doneWith.erase vcId }
-  let mut vcStatus := .unknown
-  -- Store the discharger result for JSON serialization
-  mgr := { mgr with _dischargerResults := mgr._dischargerResults.insert (vcId, id.dischargerId) res }
-  -- A late failure from another discharger must not undo a proof we already recorded.
-  if vc.successful.isSome && !res.isSuccessful && !incomingIsInteractive then
-    return { mgr with _doneWith := mgr._doneWith.insert vcId .proven }
-  -- Update downstream in-degrees
-  match res with
-  | .proven _ _ _ => do
-    vcStatus := .proven
-    if vc.successful.isNone then
-      vc := { vc with successful := some id.dischargerId }
-      mgr := { mgr with nodes := mgr.nodes.insert vcId vc }
-      unless wasAlreadySuccessful do
-        let downstream := match mgr.downstream[vcId]? with
-        | some downstream => downstream
-        | none => HashSet.emptyWithCapacity 0
-        for downstreamVc in downstream do
-          let .some downstreamInDegree := mgr.inDegree[downstreamVc]? | dbg_trace "VCManager.markDischarger: VC {downstreamVc} not found in the in-degree map"; return mgr
-          mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (downstreamInDegree - 1) }
-  | .disproven _ _ => vcStatus := .disproven
-  | .unknown _ _ => vcStatus := .unknown
-  | .error _ _ => vcStatus := .error
-  let .some vc' := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} disappeared"; return mgr
-  -- Pending results must be committed before exhaustion can finalize the VC.
-  if mgr.isVCComplete vc' then
-    vcStatus := mgr.exhaustedVCStatus vc'
-    mgr := { mgr with _doneWith := mgr._doneWith.insert vcId vcStatus }
-    -- Trigger alternative VCs if this VC failed (not proven)
-    if vcStatus != .proven && !vc'.hasInteractiveDischarger then
-      if let .some altIds := mgr.alternativeVCs[vcId]? then
-        for altId in altIds do
-          -- Wake up the alternative VC: remove from the dormant set and
-          -- enable it (its primary was necessarily enabled to have run).
-          mgr := { mgr with
-            dormantVCs := mgr.dormantVCs.erase altId
-            enabledVCs := mgr.enabledVCs.insert altId }
+/-- Accept an exact current discharger result and update all derived bookkeeping.
+Automatic results are accepted once; interactive results may replace their own
+entry as a proof is edited. Rejected notifications have no side effects. -/
+def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT)
+    (id : DischargerIdentifier) (res : DischargerResult ResultT)
+    (cancelAutomatic : Bool := true) : BaseIO (VCManager VCMetaT ResultT) := do
+  if id.managerId != mgr._managerId then return mgr
+  let some vc := mgr.nodes[id.vcId]? | return mgr
+  if vc.uid != id.vcId then return mgr
+  let some discharger := vc.dischargers[id.dischargerId]? | return mgr
+  if discharger.id != id then return mgr
+  let incomingIsInteractive := discharger.isInteractive
+  if vc.hasInteractiveDischarger && !incomingIsInteractive then return mgr
+  let key := (id.vcId, id.dischargerId)
+  let alreadyRecorded := mgr._dischargerResults.contains key
+  if alreadyRecorded && !incomingIsInteractive then return mgr
+
+  if incomingIsInteractive && cancelAutomatic then
+    vc.cancelNonInteractiveDischargers
+  let wasSuccessful := vc.successful.isSome
+  let mut mgr := { mgr with
+    _dischargerResults := mgr._dischargerResults.insert key res
+    _totalDischarged := mgr._totalDischarged + if alreadyRecorded then 0 else 1 }
+  -- Only editable interactive entries can invalidate an accepted proof. Keep
+  -- the previous witness if it is still effective, otherwise select another
+  -- accepted interactive proof before reporting failure.
+  let successful := if incomingIsInteractive then Id.run do
+      if let some old := vc.successful then
+        if vc.dischargers[old]?.any (·.isInteractive) &&
+            (mgr._dischargerResults[(vc.uid, old)]?.any (·.isSuccessful)) then
+          return some old
+      return (vc.effectiveDischargers.find? fun d =>
+        mgr._dischargerResults[(vc.uid, d.id.dischargerId)]?.any (·.isSuccessful)).map
+          (·.id.dischargerId)
+    else if vc.successful.isSome then vc.successful
+    else if res.isSuccessful then some id.dischargerId else none
+  let vc := { vc with successful }
+  mgr := { mgr with
+    nodes := mgr.nodes.insert id.vcId vc
+    _totalSolved := (mgr._totalSolved - if wasSuccessful then 1 else 0) +
+      if successful.isSome then 1 else 0
+    _doneWith := mgr._doneWith.erase id.vcId }
+  if !wasSuccessful && successful.isSome then
+    for downstreamVc in mgr.downstream[id.vcId]?.getD {} do
+      if let some degree := mgr.inDegree[downstreamVc]? then
+        mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (degree - 1) }
+  if mgr.isVCComplete vc then
+    let status := mgr.exhaustedVCStatus vc
+    mgr := { mgr with _doneWith := mgr._doneWith.insert id.vcId status }
+    if status != .proven && !vc.hasInteractiveDischarger then
+      for altId in mgr.alternativeVCs[id.vcId]?.getD #[] do
+        mgr := { mgr with
+          dormantVCs := mgr.dormantVCs.erase altId
+          enabledVCs := mgr.enabledVCs.insert altId }
   return mgr
 
-/-- Record a finished discharger result, updating aggregate counters and VC
-status bookkeeping together. -/
+/-- Record a finished discharger result through the common acceptance path. -/
 def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
     (id : DischargerIdentifier) (res : DischargerResult ResultT) :
-    BaseIO (VCManager VCMetaT ResultT) := do
-  let alreadySolved := match mgr.nodes[id.vcId]? with
-    | some vc => vc.successful.isSome
-    | none => false
-  let mut mgr := { mgr with _totalDischarged := mgr._totalDischarged + 1 }
-  if res.isSuccessful && !alreadySolved then
-    mgr := { mgr with _totalSolved := mgr._totalSolved + 1 }
+    BaseIO (VCManager VCMetaT ResultT) :=
   mgr.markDischarger id res
 
 /-- Project checkpoint-local completed interactive proofs over shared automatic
@@ -708,10 +700,6 @@ def VCManager.withInteractiveResults (mgr : VCManager VCMetaT ResultT)
     let vc := { vc with dischargers := vc.dischargers.push discharger }
     mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc }
     mgr ← mgr.markDischarger discharger.id result (cancelAutomatic := false)
-  if !registrations.isEmpty then
-    mgr := { mgr with
-      _totalSolved := mgr.nodes.fold (fun n _ vc => n + if vc.successful.isSome then 1 else 0) 0
-      _totalDischarged := mgr._dischargerResults.size }
   return mgr
 
 def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : String := Id.run do
