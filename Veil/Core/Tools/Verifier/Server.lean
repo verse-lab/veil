@@ -24,7 +24,9 @@ abbrev InteractiveRegistrations := Array (Discharger SmtResult × DischargerResu
 initialize interactiveRegistrationsExt : EnvExtension (HashMap ManagerId InteractiveRegistrations) ←
   registerEnvExtension (pure {}) (asyncMode := .local)
 
-/-- Detached workers must not retain runtime owners through saved environments. -/
+/-- Remove direct runtime access from detached workers. Historical realization
+contexts can still retain owners; source-snapshot cleanup releases abandoned
+worker captures without changing Lean declaration realization. -/
 def clearVerifierRuntime (env : Environment) : Environment :=
   interactiveRegistrationsExt.setState (vcManagerExt.setState env {}) {}
 
@@ -35,7 +37,11 @@ def getVCManagerOwner [Monad m] [MonadEnv m] [MonadError m] : m VCManagerEnviron
   return owner
 
 def withVCManager (f : IO.Ref (VCManager VCMetadata SmtResult) → CommandElabM α) : CommandElabM α := do
-  (← getVCManagerOwner).manager.atomically f
+  let owner ← getVCManagerOwner
+  owner.manager.atomically fun ref => do
+    if ← owner.cancelTk.isSet then
+      throwError "verification interrupted: specification owner was canceled"
+    f ref
 
 /-- Capture the caller's proof checkpoint once, while allowing shared automatic
 results to advance. Safe for CoreM/widget refreshes in a different context. -/
@@ -188,7 +194,10 @@ def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotTh
 creating command cancellation ownership without an infinite snapshot task.
 Cancellation is checked before each admission, including completion refills. -/
 def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
-  let cancelTk := cancelTk?.getD (← IO.CancelToken.new)
+  -- Keep the execution token separate even when callers supply the frontend's
+  -- origin token; retaining that token in `owner` would recreate the cycle.
+  let cancelTk ← IO.CancelToken.new
+  if let some supplied := cancelTk? then supplied.onSet cancelTk.set
   let mgr ← liftM <| dispatcher.atomically newManagerLocked
   let owner := { manager := ← Std.Mutex.new mgr, errors := ← IO.mkRef #[], cancelTk : VCManagerEnvironment }
   let key := ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
@@ -196,7 +205,29 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
     let previousId ← previous.manager.atomically fun ref => return (← ref.get)._managerId
     modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.erase previousId)
   modifyEnv fun env => vcManagerExt.modifyState env (·.insert key owner)
-  Command.logSnapshotTask { stx? := none, cancelTk? := some cancelTk, task := .pure default }
+  -- The frontend's command token owns this runtime's lifetime. It survives
+  -- wrappers such as #guard_msgs that consume child snapshot tasks, and must
+  -- never be retained by the owner or detached workers. Releasing/canceling the
+  -- originating command invalidates saved bare environments as well, breaking
+  -- cycles through declaration realization contexts without changing them.
+  let originLifetime ← match (← read).cancelTk? with
+    | some token => pure token
+    | none => IO.CancelToken.new
+  originLifetime.onSet do
+    owner.cancelTk.set
+    discard <| BaseIO.asTask do
+      dispatcher.atomically fun pool => do
+        owner.manager.atomically fun ref => do
+          let mgr ← ref.get
+          cancelAbandonedWork mgr
+          ref.set (← newManagerLocked pool)
+          pool.modify fun st => { st with owners := st.owners.erase mgr._managerId }
+        handleNotificationLocked pool .fill
+      frontendNotification.notifyAll
+  -- A child marker grants cancellation of only this owner. Without a frontend
+  -- token, the marker also supplies the origin lifetime for tool callers.
+  let markerToken := if (← read).cancelTk?.isSome then cancelTk else originLifetime
+  Command.logSnapshotTask { stx? := none, cancelTk? := some markerToken, task := .pure default }
   startDispatcher
 
 /-- Preserve diagnostics, traces, and asynchronous children without granting an

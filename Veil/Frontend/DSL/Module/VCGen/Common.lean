@@ -111,8 +111,9 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
   let savedState ← get
   let mk ← try
     -- Automatic workers need the specification environment, but never own its
-    -- mutable runtime. Excluding handles from their captured environment breaks
-    -- owner -> discharger closure -> environment -> owner reference cycles.
+    -- mutable runtime. Exclude handles from the worker's current environment.
+    -- Declaration realization contexts may still retain older environments;
+    -- the origin snapshot's lifetime cleanup releases abandoned task closures.
     -- wrapAsync captures state before its execution-time resets. Strip earlier
     -- diagnostics, info trees and snapshots as well: they can hold environments
     -- or observer closures pointing back to this runtime.
@@ -122,7 +123,7 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
       infoState := { enabled := st.infoState.enabled }
       traceState := {}
       snapshotTasks := #[] }
-    withReader (fun ctx : Command.Context => { ctx with snap? := none }) do
+    withReader (fun ctx : Command.Context => { ctx with snap? := none, cancelTk? := none }) do
       Command.wrapAsyncAsSnapshot (fun vcStatement : VCStatement => do
         -- Resolve the start time promise when the discharger actually begins
         let startTime ← IO.monoMsNow
