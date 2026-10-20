@@ -64,7 +64,11 @@ private def mkTraceDischargerResult [Monad m] [MonadEnv m] [MonadError m] [Monad
       match ← unknownReasonFromException? ex with
       | some reason => return .unknown (.some (.unknown #[reason])) time
       | none => return .error #[(ex, s!"{← ex.toMessageData.toString}")] time
-    | none => return .proven none .none time
+    | none =>
+      -- Normalization can prove the generated nonexistence proposition before
+      -- invoking SMT. This is UNSAT regardless of the expected query polarity.
+      let result := some (SmtResult.unsat #[])
+      return if isExpectedSat then .disproven result time else .proven none result time
   | .some (.error exs) => return .error exs time
   | .some (.unknown _) => return .unknown result time
   | .some r@(.sat _) | .some r@(.unsat _) =>
