@@ -51,9 +51,9 @@ export function snippetText(parts: SnippetPart[]): string {
 }
 
 /** Where a new config file for the module of `moduleFile` goes: next to it, as TLC's model files go,
- * e.g. `MCPaxos.lean` for `Paxos.lean` */
+ * e.g. `PaxosMC.lean` for `Paxos.lean` */
 export function configFileFor(moduleFile: string): string {
-  return path.join(path.dirname(moduleFile), `MC${path.basename(moduleFile, '.lean')}.lean`);
+  return path.join(path.dirname(moduleFile), `${path.basename(moduleFile, '.lean')}MC.lean`);
 }
 
 /** Whether `#model_check_build written` is of the module that `veil module declared` declares. The

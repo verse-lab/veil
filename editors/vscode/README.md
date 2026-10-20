@@ -1,4 +1,4 @@
-# Veil Model Checker for VS Code
+# Veil for VS Code
 
 Runs the model checkers that `#model_check_build` builds, and shows their progress
 and results. See [ModelChecker-VSCode-Architecture.md](../../docs/ModelChecker-VSCode-Architecture.md)
@@ -24,7 +24,7 @@ public import MyProject.Paxos
 ```
 
 **Check model**, above each `veil module` and its `#gen_executable`, runs a config
-file of the module once Lean has built it, or else creates `MC<File>.lean` next to the
+file of the module once Lean has built it, or else creates `<File>MC.lean` next to the
 module, with the values to fill in. Lean gives the template, whose values are holes
 (`_`): Lean fills in those that the module's constraints determine, such as `MsgSet`
 above, and reports the others for you to fill in.

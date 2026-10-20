@@ -100,7 +100,7 @@ test('writes the config file of a template, with placeholders for its values', (
 });
 
 test('puts a new config file next to its module, and finds the configs of a module', () => {
-  assert.strictEqual(configFileFor('/repo/Examples/Paxos.lean'), '/repo/Examples/MCPaxos.lean');
+  assert.strictEqual(configFileFor('/repo/Examples/Paxos.lean'), '/repo/Examples/PaxosMC.lean');
   assert.ok(isOfModule('Paxos', 'Paxos'));
   assert.ok(isOfModule('Paxos', 'Examples.Paxos'));
   assert.ok(isOfModule('Examples.Paxos', 'Paxos'));
@@ -197,7 +197,7 @@ test('passes the parallel settings as arguments', () => {
 
 function snapshot(fields: Partial<RunSnapshot>): RunSnapshot {
   return {
-    module: 'Paxos', source: 'MCPaxos.lean:12', binary: '/tmp/checker', args: ['8', '20', '1'],
+    module: 'Paxos', source: 'PaxosMC.lean:12', binary: '/tmp/checker', args: ['8', '20', '1'],
     status: 'running', startedAt: 0, history: [], ...fields,
   };
 }
@@ -232,7 +232,7 @@ test('the panel shows the progress of a running check', () => {
     } } },
   };
   assertShows(render(snapshot({ progress, history: [point(0), point(1000)] })), [
-    'Paxos', 'MCPaxos.lean:12', 'Running...', 'Stop', '8 workers', 'Diameter:', '123,456', '65,432',
+    'Paxos', 'PaxosMC.lean:12', 'Running...', 'Stop', '8 workers', 'Diameter:', '123,456', '65,432',
     'Elapsed time:', '1m 3.0s', 'Metrics History (2 samples, 1.0s)', 'Graph', 'Table', 'Copy JSON',
     'States Found', 'Queue Size', '<path class="chart-line"', 'Action Coverage (2 actions',
     '2 never enabled', 'Never enabled: decide, prepare', 'send', 'from=0, to=1',
@@ -535,8 +535,10 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
       env: { ...process.env, [pathKey]: bin + path.delimiter + (process.env[pathKey] ?? '') },
     });
     assert.strictEqual(installed.status, 0, installed.stdout + installed.stderr);
-    const installDir = path.join(workspace, '.vscode', 'extensions', 'veil-model-checker');
+    const installDir = path.join(workspace, '.vscode', 'extensions', 'veil');
     const manifest = JSON.parse(fs.readFileSync(path.join(installDir, 'package.json'), 'utf8'));
+    assert.strictEqual(manifest.name, 'veil');
+    assert.strictEqual(manifest.displayName, 'Veil');
     assert.strictEqual(manifest.icon, 'icon.png');
     assert.deepStrictEqual(fs.readFileSync(path.join(installDir, manifest.icon)),
       fs.readFileSync(path.join(repoRoot, 'editors', 'vscode', manifest.icon)));

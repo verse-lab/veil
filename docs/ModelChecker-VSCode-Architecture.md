@@ -58,7 +58,7 @@ lake script run veilInstallVSCodeExtension
 ```
 
 The script builds the extension with npm and copies it to
-`.vscode/extensions/veil-model-checker`. Then reload the VS Code window: VS Code
+`.vscode/extensions/veil`. Then reload the VS Code window: VS Code
 offers to install the recommended extensions of the workspace, and you choose
 Install. If it does not offer, install the extension from Workspace
 Recommendations in the Extensions view. This needs the workspace to be trusted,

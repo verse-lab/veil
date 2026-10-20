@@ -204,7 +204,7 @@ USAGE:
   lake script run veilInstallVSCodeExtension [<workspace>]
 
 Builds the extension with npm and copies it to
-`<workspace>/.vscode/extensions/veil-model-checker`. VS Code (1.89 or later) then
+`<workspace>/.vscode/extensions/veil`. VS Code (1.89 or later) then
 recommends it for the workspace: once the window is reloaded, VS Code offers to install
 it, and the Extensions view lists it under Workspace Recommendations. `<workspace>`
 defaults to the directory of the root package. Run the script again after updating
@@ -224,7 +224,7 @@ script veilInstallVSCodeExtension args do
     let code ← (← IO.Process.spawn (npmCommand source npmArgs)).wait
     unless code == 0 do
       throw <| IO.userError s!"'npm {" ".intercalate npmArgs.toList}' in '{source}' exited with code {code}"
-  let installDir := workspace / ".vscode" / "extensions" / "veil-model-checker"
+  let installDir := workspace / ".vscode" / "extensions" / "veil"
   if ← installDir.pathExists then
     IO.FS.removeDirAll installDir
   IO.FS.createDirAll (installDir / "dist")
@@ -239,7 +239,7 @@ script veilInstallVSCodeExtension args do
   IO.println s!"Copied the extension to '{← IO.FS.realPath installDir}'.\n\
     Next, reload the VS Code window (Developer: Reload Window). If the extension is not installed\n\
     yet, VS Code then offers to install the recommended extensions of this workspace: choose\n\
-    Install. If it does not offer, install Veil Model Checker from Workspace Recommendations\n\
+    Install. If it does not offer, install Veil from Workspace Recommendations\n\
     in the Extensions view. This is needed once per workspace."
   return 0
 
