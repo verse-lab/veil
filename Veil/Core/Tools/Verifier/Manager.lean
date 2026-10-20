@@ -357,9 +357,8 @@ def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dep
     mgr' := { mgr' with dormantVCs := mgr'.dormantVCs.insert uid }
   (mgr', uid)
 
-/-- Add an alternative VC associated with a primary VC. The alternative
-starts dormant and will only be triggered when the primary VC fails
-(i.e., all of its dischargers fail). -/
+/-- Add an alternative VC associated with a primary VC. It starts dormant
+unless the primary already has an accepted terminal automatic failure. -/
 def VCManager.addAlternativeVC (mgr : VCManager VCMetaT ResultT)
     (vc : VCData VCMetaT)
     (primaryVCId : VCId)
@@ -373,6 +372,11 @@ def VCManager.addAlternativeVC (mgr : VCManager VCMetaT ResultT)
   let mgr'' := { mgr' with
     alternativeVCs := mgr'.alternativeVCs.insert primaryVCId (alts.push altId)
   }
+  if mgr._doneWith[primaryVCId]?.any (· != .proven) &&
+      mgr.nodes[primaryVCId]?.any (fun primary => !primary.dischargers.any (·.isInteractive)) then
+    return ({ mgr'' with
+      dormantVCs := mgr''.dormantVCs.erase altId
+      enabledVCs := mgr''.enabledVCs.insert altId }, altId)
   (mgr'', altId)
 
 private def VCManager.mkDischargerIdentifier (mgr : VCManager VCMetaT ResultT)
@@ -717,9 +721,11 @@ def VCManager.findVCByFilter (mgr : VCManager VCMetaT ResultT) (filter : VCMetaT
 /-- Check if all VCs are done. A VC is considered "done" if it's either:
 - In `_doneWith` (has been processed), or
 - In `dormantVCs` (is dormant and won't be processed because its primary succeeded)
-This correctly handles alternative VCs that remain dormant when their primary succeeds. -/
+A dormant alternative may also have an accepted interactive result. Check each
+actual VC once so overlap and extraneous set IDs cannot change coverage. -/
 def VCManager.isDone (mgr : VCManager VCMetaT ResultT) : Bool :=
-  mgr._doneWith.size + mgr.dormantVCs.size == mgr.nodes.size
+  mgr.nodes.toArray.all fun (vcId, _) =>
+    mgr._doneWith.contains vcId || mgr.dormantVCs.contains vcId
 
 /-- Check if all VCs matching the filter are done. -/
 def VCManager.isDoneFiltered (mgr : VCManager VCMetaT ResultT) (filter : VCMetaT → Bool) : Bool :=
