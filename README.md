@@ -1,13 +1,11 @@
-# Veil: A Framework for Automated and Interactive Verification of Transition Systems
+# Veil: A Multi-Modal Verifier for Transition Systems
 
 <!-- [![Actions status](https://github.com/verse-lab/veil/actions/workflows/ci.yml/badge.svg)](https://github.com/verse-lab/veil/actions) -->
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 <a href="https://leanprover.zulipchat.com/#narrow/channel/537982-Veil"><img src="https://img.shields.io/badge/zulip-join_chat-brightgreen.svg" /></a>
 
 Veil is a _foundational_ framework for (1) specifying, (2)
-implementing, (3) testing, and (4) proving safety (and, in the future,
-liveness) properties of state transition systems, with a focus on
-distributed protocols.
+implementing, (3) model-checking, and (4) proving safety and liveness properties of state transition systems, with a focus on distributed protocols.
 
 Veil is embedded in the [Lean 4 proof assistant](https://lean-lang.org/) and provides push-button
 verification for transition systems and their properties expressed in
