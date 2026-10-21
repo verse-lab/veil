@@ -38,6 +38,9 @@ jobs:
       uses: leanprover/lean-action@v1
       with:
         use-github-cache: true
+    - name: Test VC manager incrementality through LSP
+      run: python3 scripts/tests/test-vc-manager-incrementality.py
+      timeout-minutes: 10
     - name: Build examples
       run: lake build Examples
       timeout-minutes: 15

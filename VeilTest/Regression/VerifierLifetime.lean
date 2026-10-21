@@ -12,10 +12,11 @@ private def await (label : String) (condition : BaseIO Bool) : IO Unit := do
     if (← IO.monoMsNow) > deadline then throw <| IO.userError s!"timeout: {label}"
     IO.sleep 1
 
-private def makeAbandoned (dropSentinel : IO.Ref Bool) (mode : Nat) : CommandElabM VCManagerEnvironment := do
-  let origin ← IO.CancelToken.new
+private def makeAbandoned (dropSentinel : IO.Ref Bool) (mode : Nat)
+    (origin : IO.CancelToken) : CommandElabM VCManagerEnvironment := do
   withReader (fun ctx : Command.Context => { ctx with cancelTk? := if mode == 4 then none else some origin }) do
     let before ← get
+    if mode == 5 then modifyInfoState fun st => { st with enabled := false }
     let currentOrigin := (← read).cancelTk?
     runManager (if mode == 3 then currentOrigin else none)
     let owner ← getVCManagerOwner
@@ -44,22 +45,32 @@ private def makeAbandoned (dropSentinel : IO.Ref Bool) (mode : Nat) : CommandEla
       ref.set (if mode == 2 then { mgr with dormantVCs := mgr.dormantVCs.insert 0 } else mgr)
     if mode != 0 then startAll
     unless !(← d.startTimePromise.isResolved) do throwError "abandoned worker started"
-    -- Discard only the origin marker. The owner is deliberately returned and
-    -- retained by the test, making the required finite cleanup observable.
-    modify fun st => { st with env := before.env, snapshotTasks := before.snapshotTasks }
-    if mode != 4 then
-      unless !(← owner.cancelTk.isSet) do throwError "consuming child snapshots canceled a live source"
-    unless !(← origin.isSet) do throwError "source token unexpectedly canceled"
+    -- Wrappers consume snapshot tasks while preserving the command info tree.
+    modify fun st => { st with snapshotTasks := before.snapshotTasks }
+    unless !(← owner.cancelTk.isSet) do throwError "consuming child snapshots canceled a live source"
+    if mode != 3 then
+      -- Lean also cancels this token for edits after the creating command.
+      origin.set
+      unless !(← owner.cancelTk.isSet) do throwError "later-command cancellation invalidated a live owner"
+      unless (← readVCManager).nodes.size == 1 do throwError "live owner lost its VC"
+    -- Abandon the source metadata too. A bare retained runtime is deliberately
+    -- not lifetime authority: the callback must break historical-env cycles.
+    modify fun st => { st with env := before.env, infoState := before.infoState }
     return owner
 
 run_cmd do
   numCoresCache.set (some 0)
   try
-    for mode in [0, 1, 2, 3, 4] do
+    for mode in [0, 1, 2, 3, 4, 5] do
       let dropped ← IO.mkRef false
-      let owner ← makeAbandoned dropped mode
-      await "origin marker finalizer" owner.cancelTk.isSet
+      let origin ← IO.CancelToken.new
+      let owner ← makeAbandoned dropped mode origin
+      await "source metadata finalizer" owner.cancelTk.isSet
       await "unstarted closure released" dropped.get
+      if mode == 3 then
+        -- Retaining an explicitly supplied cancellation handle must not keep
+        -- abandoned source work alive. It is not a source-lifetime lease.
+        unless !(← origin.isSet) do throwError "source cleanup set the caller's token"
       let mgr ← owner.manager.atomically fun ref => ref.get
       unless mgr.nodes.isEmpty do throwError "abandoned manager retained deferred closures"
       let rejected ← withEnv (vcManagerExt.setState (← getEnv) (({} : Std.HashMap Name VCManagerEnvironment).insert .anonymous owner)) do
@@ -72,7 +83,7 @@ run_cmd do
       unless active == 0 do throwError "abandoned owner retained by dispatcher"
   finally
     numCoresCache.set none
-  IO.println "unrequested, queued, dormant, supplied-origin and standalone-tool workers release retained environments: PASS"
+  IO.println "unrequested, queued, dormant, supplied-token, standalone and metadata-disabled workers release retained environments: PASS"
 
 run_cmd do
   runManager
@@ -100,4 +111,20 @@ run_cmd do
     | .error errors _ => throwError "live realization failed: {errors.map (·.1.toMessageData)}"
     | _ => throwError "live worker failed"
   unless !(← owner.cancelTk.isSet) do throwError "live marker canceled finished owner"
-  IO.println "live origin preserves queued work, local declaration elaboration and realization semantics: PASS"
+  IO.println "live source metadata preserves queued work, local declaration elaboration and realization semantics: PASS"
+
+-- The real wrapper waits for and consumes all child snapshot tasks. Its info
+-- tree must continue owning the runtime for subsequent commands.
+#guard_msgs in
+run_cmd do
+  runManager
+  withVCManager fun ref => do
+    let (mgr, _) := (← ref.get).addVC {
+      name := `liveAcrossGuard, params := #[], statement := ← `(True), metadata := default } {}
+    ref.set mgr
+
+run_cmd do
+  unless (← readVCManager).nodes.size == 1 do
+    throwError "#guard_msgs discarded the live manager"
+  withVCManager fun _ => pure ()
+  IO.println "#guard_msgs preserves manager ownership for later commands: PASS"

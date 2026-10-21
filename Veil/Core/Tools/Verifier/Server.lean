@@ -190,14 +190,19 @@ def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := do
 
 def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
 
-/-- Prepare an independent owner. Completed snapshot registration gives the
-creating command cancellation ownership without an infinite snapshot task.
-Cancellation is checked before each admission, including completion refills. -/
+/-- Keeps the lifetime marker in the creating command's info tree even when a
+wrapper such as `#guard_msgs` consumes its child snapshot tasks. It must not be
+stored in the environment or runtime: deferred workers can retain historical
+environments through Lean's declaration realization contexts. -/
+private structure ManagerLifetimeInfo where
+  token : IO.CancelToken
+  deriving TypeName
+
+/-- Prepare an independent owner tied to the creating command's snapshots.
+The frontend's `Context.cancelTk?` also cancels parsing of later commands, so it
+does not own the lifetime of this command's reusable environment. -/
 def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
-  -- Keep the execution token separate even when callers supply the frontend's
-  -- origin token; retaining that token in `owner` would recreate the cycle.
   let cancelTk ← IO.CancelToken.new
-  if let some supplied := cancelTk? then supplied.onSet cancelTk.set
   let mgr ← liftM <| dispatcher.atomically newManagerLocked
   let owner := { manager := ← Std.Mutex.new mgr, errors := ← IO.mkRef #[], cancelTk : VCManagerEnvironment }
   let key := ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
@@ -205,16 +210,12 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
     let previousId ← previous.manager.atomically fun ref => return (← ref.get)._managerId
     modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.erase previousId)
   modifyEnv fun env => vcManagerExt.modifyState env (·.insert key owner)
-  -- The frontend's command token owns this runtime's lifetime. It survives
-  -- wrappers such as #guard_msgs that consume child snapshot tasks, and must
-  -- never be retained by the owner or detached workers. Releasing/canceling the
-  -- originating command invalidates saved bare environments as well, breaking
-  -- cycles through declaration realization contexts without changing them.
-  let originLifetime ← match (← read).cancelTk? with
-    | some token => pure token
-    | none => IO.CancelToken.new
-  originLifetime.onSet do
-    owner.cancelTk.set
+  let lifetime ← IO.CancelToken.new
+  let cleanupOnce ← IO.CancelToken.new
+  cleanupOnce.onSet do
+    -- Finalizers and explicitly supplied tokens can fire under the owner lock.
+    -- Publish cancellation synchronously, then release captures under the
+    -- dispatcher's normal lock order in a separate task.
     discard <| BaseIO.asTask do
       dispatcher.atomically fun pool => do
         owner.manager.atomically fun ref => do
@@ -224,10 +225,22 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
           pool.modify fun st => { st with owners := st.owners.erase mgr._managerId }
         handleNotificationLocked pool .fill
       frontendNotification.notifyAll
-  -- A child marker grants cancellation of only this owner. Without a frontend
-  -- token, the marker also supplies the origin lifetime for tool callers.
-  let markerToken := if (← read).cancelTk?.isSome then cancelTk else originLifetime
-  Command.logSnapshotTask { stx? := none, cancelTk? := some markerToken, task := .pure default }
+  -- CancelToken callbacks run before its isSet flag is published. Finish
+  -- setting cancellation before scheduling cleanup, so a late mutation cannot
+  -- observe an uncanceled owner after cleanup has already cleared it.
+  let close : BaseIO Unit := do
+    cancelTk.set
+    cleanupOnce.set
+  lifetime.onSet close
+  -- An explicitly supplied token is cancellation authority; the implicit
+  -- frontend token is not. Neither is retained by the runtime.
+  if let some supplied := cancelTk? then supplied.onSet close
+  Command.logSnapshotTask { stx? := none, cancelTk? := some lifetime, task := .pure default }
+  -- Insert directly even when UI info is disabled: this leaf owns a resource,
+  -- not UI metadata. #guard_msgs preserves info trees while consuming tasks.
+  -- Detached workers must clear both infoState and snapshotTasks before capture.
+  let info := Info.ofCustomInfo { stx := .missing, value := .mk { token := lifetime : ManagerLifetimeInfo } }
+  modifyInfoState fun st => { st with trees := st.trees.push (.node info {}) }
   startDispatcher
 
 /-- Preserve diagnostics, traces, and asynchronous children without granting an
