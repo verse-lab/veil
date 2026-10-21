@@ -49,6 +49,8 @@ The [docs/](docs/) directory documents the Veil DSL and its tools:
 
 - [DSL-Reference.md](docs/DSL-Reference.md) — the constructs of the Veil DSL
   and its commands.
+- [Distributed-DSL.md](docs/Distributed-DSL.md) — message-passing protocols
+  written as the program each node runs, connected by a network with chosen assumptions.
 - [ModelChecker-Guide.md](docs/ModelChecker-Guide.md) — explicit-state model
   checking with `#model_check`.
 - [TemporalChecker-Guide.md](docs/TemporalChecker-Guide.md) — model checking
