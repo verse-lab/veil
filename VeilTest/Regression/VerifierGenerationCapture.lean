@@ -6,7 +6,7 @@ open Lean Elab Command Veil Veil.Verifier VeilTest.VerifierGeneration
 meta section
 
 -- Frontend requests now execute atomically, so an inline channel continuation
--- cannot safely interpose during enqueue. Exercise the exact production request
+-- cannot safely interpose during applyFrontendRequest. Exercise the exact production request
 -- and waiter across an explicit prelaunch replacement boundary instead.
 open private Veil.Verifier.requestFiltered Veil.Verifier.awaitFilteredWithLogging
   in Veil.Verifier.runFilteredAsyncWithManagerId in

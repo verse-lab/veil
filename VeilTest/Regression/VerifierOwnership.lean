@@ -21,7 +21,7 @@ private def barrier (o : VCManagerEnvironment) : CommandElabM Unit := do
     let (mgr, id) := mgr.addVC (← data `barrier) {}
     ref.set mgr
     return id
-  enqueue o (.startFiltered (← readOwner o)._managerId (fun m => m.propertyName? == some `barrier))
+  applyFrontendRequest o (.startFiltered (← readOwner o)._managerId (fun m => m.propertyName? == some `barrier))
   await "dispatcher barrier" do return (← readOwner o).enabledVCs.contains n
 
 private structure Worker where

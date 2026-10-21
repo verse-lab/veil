@@ -70,7 +70,7 @@ def queuedStart (filtered : Bool) : CommandElabM Unit := do
       return .pure default }
   try
     withVCManager fun ref => ref.set (mgr.addDischarger 0 worker)
-    sendNotification (if filtered then .startFiltered original._managerId (matching `target)
+    applyCurrentRequest (if filtered then .startFiltered original._managerId (matching `target)
       else .startAll original._managerId)
     barrier
     check (!(← manager).enabledVCs.contains 0) "stale scoped start enabled replacement VC"

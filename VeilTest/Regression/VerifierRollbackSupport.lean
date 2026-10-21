@@ -9,5 +9,5 @@ elab "reset_during_validation_type" : term => do
     resetDuringValidation.set false
     let owner ← getVCManagerOwner
     let managerId := (← readVCManager)._managerId
-    enqueue owner (.reset managerId)
+    applyFrontendRequest owner (.reset managerId)
   return mkConst ``True

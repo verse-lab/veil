@@ -123,7 +123,7 @@ private def run : CommandElabM Unit := do
     vcManager.atomically fun ref => ref.set mgr
     let _ ← awaitTask "cleanup observer" observer.task
     check failures (!(← a.cancelTk.isSet) && !(← b.cancelTk.isSet)) "async observer cancellation set worker token"
-    cancelAbandonedWork mgr
+    mgr.cancelAllDischargers
     check failures ((← a.cancelTk.isSet) && (← b.cancelTk.isSet)) "explicit reset did not cancel workers"
     let errors ← failures.get
     for error in errors do liftIO <| IO.println s!"FAIL: {error}"

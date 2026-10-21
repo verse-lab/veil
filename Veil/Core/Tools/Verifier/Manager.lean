@@ -213,10 +213,9 @@ inductive ManagerNotification (VCMetaT ResultT : Type) where
   | startAll (managerId : ManagerId)
   /-- Start VCs matching the filter in this generation. -/
   | startFiltered (managerId : ManagerId) (filter : VCMetaT → Bool)
-  /-- Top the pool of running dischargers back up to capacity from already-
-  enabled VCs, without enabling anything new. Sent after frontend mutations
-  that can make enabled work ready (e.g. an interactive `@[veil]` result that
-  completes a VC or re-opens one). -/
+  /-- Reap finished physical tasks and refill capacity from already-enabled
+  VCs, without enabling new work. Physical task completion sends this even
+  when its result was published earlier. -/
   | fill
 deriving Inhabited
 
@@ -309,7 +308,8 @@ structure VCManager (VCMetaT ResultT: Type) where
 
   protected _doneWith : HashMap VCId VCStatus := HashMap.emptyWithCapacity
 
-  /-- Store discharger results for each VC, indexed by (VCId, DischargerId). -/
+  /-- Accepted results, indexed by (VCId, DischargerId). Scheduling and
+  completion use this ledger, not the independently published promises. -/
   protected _dischargerResults : HashMap (VCId × DischargerId) (DischargerResult ResultT) := HashMap.emptyWithCapacity
 
   protected _managerId : ManagerId := 0
@@ -560,20 +560,17 @@ def VCManager.enableMatchingFromView (mgr view : VCManager VCMetaT ResultT)
 /-- The enabled, not-yet-done, non-dormant VCs with no outstanding
 dependencies whose next discharger can be started. -/
 def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT)
-    : BaseIO (List (VerificationCondition VCMetaT ResultT × Discharger ResultT)) := do
-  let ready ← mgr.inDegree.toList.filterMapM (fun (vcId, inDegree) => do
+    : List (VerificationCondition VCMetaT ResultT × Discharger ResultT) :=
+  mgr.inDegree.toList.filterMap fun (vcId, inDegree) => do
     let .some vc := mgr.nodes[vcId]? | panic! "VCManager.readyTasks: VC {vcId} not found"
     -- Only VCs some verifier command has requested
-    if !mgr.enabledVCs.contains vcId then pure none
+    if !mgr.enabledVCs.contains vcId then none
     -- Skip completed VCs (also covers `.blocked`-style terminal states)
-    else if mgr._doneWith.contains vcId then pure none
+    else if mgr._doneWith.contains vcId then none
     -- Skip dormant VCs (e.g., alternative VCs waiting for their primary to fail)
-    else if mgr.dormantVCs.contains vcId then pure none
-    else if inDegree != 0 then pure none else
-      match mgr.nextDischarger? vc with
-      | some discharger => pure (some (vc, discharger))
-      | none => pure none)
-  return ready
+    else if mgr.dormantVCs.contains vcId then none
+    else if inDegree != 0 then none
+    else mgr.nextDischarger? vc |>.map (vc, ·)
 
 /-- Logical number of effective dischargers that have been started but have not yet published a
 result. Hidden automatic tasks remain in the separate physical pool. Relies on every started discharger eventually resolving its result
@@ -616,29 +613,26 @@ private def VCManager.exhaustedVCStatus (mgr : VCManager VCMetaT ResultT)
   else
     let results := vc.effectiveDischargers.filterMap fun discharger =>
       mgr._dischargerResults[(vc.uid, discharger.id.dischargerId)]?
-    let (hasDisproven, hasUnknown, hasError, allErrorsAreTimeout) :=
+    let (hasDisproven, hasError, allErrorsAreTimeout) :=
       results.foldl
-        (init := (false, false, false, true))
-        fun (hasDisproven, hasUnknown, hasError, allErrorsAreTimeout) result =>
+        (init := (false, false, true))
+        fun (hasDisproven, hasError, allErrorsAreTimeout) result =>
           match result with
-          | .disproven _ _ => (true, hasUnknown, hasError, allErrorsAreTimeout)
-          | .unknown _ _ => (hasDisproven, true, hasError, allErrorsAreTimeout)
+          | .disproven _ _ => (true, hasError, allErrorsAreTimeout)
           | .error _ _ =>
-            (hasDisproven, hasUnknown, true, allErrorsAreTimeout && dischargerErrorIsTimeout result)
-          | .proven _ _ _ => (hasDisproven, hasUnknown, hasError, allErrorsAreTimeout)
+            (hasDisproven, true, allErrorsAreTimeout && dischargerErrorIsTimeout result)
+          | .unknown _ _ | .proven _ _ _ => (hasDisproven, hasError, allErrorsAreTimeout)
     if hasDisproven then
       .disproven
     else if hasError then
       if allErrorsAreTimeout then .timeout else .error
-    else if hasUnknown then
-      .unknown
     else
       .unknown
 
 /-- Accept an exact current discharger result and update all derived bookkeeping.
 Automatic results are accepted once; interactive results may replace their own
 entry as a proof is edited. Rejected notifications have no side effects. -/
-def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT)
+def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
     (id : DischargerIdentifier) (res : DischargerResult ResultT)
     (cancelAutomatic : Bool := true) : BaseIO (VCManager VCMetaT ResultT) := do
   if id.managerId != mgr._managerId then return mgr
@@ -691,12 +685,6 @@ def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT)
           enabledVCs := mgr.enabledVCs.insert altId }
   return mgr
 
-/-- Record a finished discharger result through the common acceptance path. -/
-def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
-    (id : DischargerIdentifier) (res : DischargerResult ResultT) :
-    BaseIO (VCManager VCMetaT ResultT) :=
-  mgr.markDischarger id res
-
 /-- Project checkpoint-local completed interactive proofs over shared automatic
 attempts. This is an immutable view: no automatic task is canceled or replaced.
 The runtime manager must not be replaced with the resulting view. -/
@@ -712,7 +700,7 @@ def VCManager.withInteractiveResults (mgr : VCManager VCMetaT ResultT)
     let discharger := { discharger with id.dischargerId := vc.dischargers.size }
     let vc := { vc with dischargers := vc.dischargers.push discharger }
     mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc }
-    mgr ← mgr.markDischarger discharger.id result (cancelAutomatic := false)
+    mgr ← mgr.recordDischargerResult discharger.id result (cancelAutomatic := false)
     -- A shared automatic failure may have activated these alternatives for an
     -- older checkpoint. This proof view must keep them dormant regardless.
     if discharger.isInteractive then

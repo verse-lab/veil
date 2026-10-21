@@ -35,8 +35,8 @@ private def mkManager (ds : Array (Discharger Unit))
   let (mgr, _) := mgr.addAlternativeVC default 0 #[fallback]
   mgr.enableAll
 
-private def readyIds (mgr : VCManager Unit Unit) : BaseIO (List (VCId × DischargerId)) := do
-  return (← mgr.readyTasks).map fun (vc, d) => (vc.uid, d.id.dischargerId)
+private def readyIds (mgr : VCManager Unit Unit) : List (VCId × DischargerId) :=
+  mgr.readyTasks.map fun (vc, d) => (vc.uid, d.id.dischargerId)
 
 private def checkPending (mgr : VCManager Unit Unit) : IO Unit := do
   check (!mgr._doneWith.contains 0) "pending VC was finalized"
@@ -51,10 +51,10 @@ run_cmd do
   try
     let mgr := mkManager #[a, b] fallback
     a.resultPromise.resolve (.unknown none 0)
-    check ((← readyIds mgr).isEmpty) "uncommitted A made B ready"
+    check ((readyIds mgr).isEmpty) "uncommitted A made B ready"
     let mgr ← mgr.recordDischargerResult a.id (.unknown none 0)
     checkPending mgr
-    check ((← readyIds mgr) == [(0, 1)]) "committed unknown did not advance to B"
+    check ((readyIds mgr) == [(0, 1)]) "committed unknown did not advance to B"
   finally
     release #[a, b, fallback]
 
@@ -68,7 +68,7 @@ run_cmd do
     a.resultPromise.resolve (.unknown none 0)
     let mgr ← (mkManager #[a, b] fallback).recordDischargerResult a.id (.unknown none 0)
     checkPending mgr
-    check ((← readyIds mgr).isEmpty) "running B was offered for scheduling"
+    check ((readyIds mgr).isEmpty) "running B was offered for scheduling"
     b.resultPromise.resolve (.proven none none 0)
     let mgr ← mgr.recordDischargerResult b.id (.proven none none 0)
     check (mgr._doneWith[0]? == some .proven) "B's proof did not finish the VC"
@@ -91,7 +91,7 @@ run_cmd do
     check (mgr._doneWith[0]? == some .error) "final committed error was omitted"
     check (!mgr.dormantVCs.contains 1) "exhausted primary did not wake alternative"
     check (mgr.enabledVCs.contains 1) "alternative was not enabled"
-    check ((← readyIds mgr) == [(1, 0)]) "woken alternative was not runnable"
+    check ((readyIds mgr) == [(1, 0)]) "woken alternative was not runnable"
   finally
     release #[a, b, fallback]
 
@@ -108,18 +108,18 @@ run_cmd do
         a.resultPromise.resolve first
         let mgr ← (mkManager #[a, b, c] fallback).recordDischargerResult a.id first
         checkPending mgr
-        check ((← readyIds mgr) == [(0, 1)]) "inconclusive result did not advance"
+        check ((readyIds mgr) == [(0, 1)]) "inconclusive result did not advance"
         -- Follow the server's start/write-back path before completing B.
         let b ← b.run
         let vc := {mgr.nodes[0]! with dischargers := mgr.nodes[0]!.dischargers.set! 1 b}
         let mgr := {mgr with nodes := mgr.nodes.insert 0 vc}
-        check ((← readyIds mgr).isEmpty) "started B was offered for scheduling again"
+        check ((readyIds mgr).isEmpty) "started B was offered for scheduling again"
         b.resultPromise.resolve last
         let mgr ← mgr.recordDischargerResult b.id last
         let expected := if last.isSuccessful then VCStatus.proven else .disproven
         check (mgr._doneWith[0]? == some expected) "conclusive result did not finish"
         let expectedReady := if last.isSuccessful then [] else [(1, 0)]
-        check ((← readyIds mgr) == expectedReady) "wrong work after conclusive result"
+        check ((readyIds mgr) == expectedReady) "wrong work after conclusive result"
         check (mgr.dormantVCs.contains 1 == last.isSuccessful) "wrong fallback activation"
       finally
         release #[a, b, c, fallback]
@@ -139,7 +139,7 @@ run_cmd do
     check (mgr.nodes[0]!.successful.isNone) "automatic proof overrode interactive work"
     let mgr ← mgr.recordDischargerResult first.id (.error #[] 0)
     checkPending mgr
-    check ((← readyIds mgr).isEmpty) "interactive VC scheduled an automatic solver"
+    check ((readyIds mgr).isEmpty) "interactive VC scheduled an automatic solver"
     second.resultPromise.resolve (.unknown none 0)
     let mgr ← mgr.recordDischargerResult second.id (.unknown none 0)
     check (mgr._doneWith[0]? == some .error) "interactive failure aggregation changed"
@@ -156,7 +156,7 @@ run_cmd do
     let mgr ← (mkManager #[auto, interactive] fallback).recordDischargerResult interactive.id (.proven none none 0)
     check (mgr._doneWith[0]? == some .proven) "interactive proof did not finish"
     check (mgr.nodes[0]!.successful == some 1) "interactive proof was not selected"
-    check ((← readyIds mgr).isEmpty) "automatic work ran after interactive proof"
+    check ((readyIds mgr).isEmpty) "automatic work ran after interactive proof"
     check (mgr.dormantVCs.contains 1) "interactive proof woke alternative"
     auto.resultPromise.resolve (.unknown none 0)
     let mgr ← mgr.recordDischargerResult auto.id (.unknown none 0)

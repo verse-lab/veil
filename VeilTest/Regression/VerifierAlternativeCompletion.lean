@@ -30,8 +30,8 @@ private def manager (ds : Array (Discharger Unit)) : VCManager Nat Unit :=
 private def alternative (mgr : VCManager Nat Unit) (d : Discharger Unit) : VCManager Nat Unit :=
   (mgr.addAlternativeVC { (default : VCData Nat) with metadata := 1 } 0 #[d]).1
 
-private def readyIds (mgr : VCManager Nat Unit) : BaseIO (List Nat) := do
-  return (← mgr.readyTasks).map (·.1.uid)
+private def readyIds (mgr : VCManager Nat Unit) : List Nat :=
+  mgr.readyTasks.map (·.1.uid)
 
 -- Each accepted terminal automatic failure immediately enables a late fallback,
 -- even though the original command enabled only the primary's metadata.
@@ -56,14 +56,14 @@ run_cmd do
       let mgr ← (manager #[primary]).recordDischargerResult primary.id result
       let mgr := alternative mgr fallback
       check (!mgr.dormantVCs.contains 1 && mgr.enabledVCs.contains 1) "late failure left fallback dormant/disabled"
-      check ((← readyIds mgr) == [1]) "late fallback not admitted"
+      check ((readyIds mgr) == [1]) "late fallback not admitted"
       check (mgr.isDoneFiltered (· == 0) && !mgr.isDoneFiltered (· == 1) && !mgr.isDone)
         "late fallback completion/filter mismatch"
       let running ← fallback.run
       let _ ← IO.wait entered.result?
       let vc := { mgr.nodes[1]! with dischargers := #[running] }
       let mgr := { mgr with nodes := mgr.nodes.insert 1 vc }
-      check ((← readyIds mgr).isEmpty) "running fallback admitted twice"
+      check ((readyIds mgr).isEmpty) "running fallback admitted twice"
       let _ ← running.run
       check ((← calls.get) == 1) "fallback executed twice"
       gate.resolve ()
@@ -90,9 +90,9 @@ run_cmd do
     let pending := alternative pending fallback
     check (pending.dormantVCs.contains 1 && !pending.enabledVCs.contains 1 && !pending.isDone)
       "partial acceptance activated late fallback"
-    check ((← readyIds pending).isEmpty) "pending primary exposed fallback"
+    check ((readyIds pending).isEmpty) "pending primary exposed fallback"
     let finished ← pending.recordDischargerResult b.id (.error #[] 0)
-    check ((← readyIds finished) == [1]) "ordinary failure wakeup regressed"
+    check ((readyIds finished) == [1]) "ordinary failure wakeup regressed"
   finally release #[a, b, fallback]
 
 -- A late proof-success alternative stays dormant. Explicit failed interactive
@@ -108,7 +108,7 @@ run_cmd do
         let mgr := alternative mgr fallback
         check (mgr.dormantVCs.contains 1 && !mgr.enabledVCs.contains 1)
           "proof or explicit interactive failure activated fallback"
-        check ((← readyIds mgr).isEmpty && mgr.isDone) "dormant fallback changed completion"
+        check ((readyIds mgr).isEmpty && mgr.isDone) "dormant fallback changed completion"
       finally release #[primary, fallback]
   let auto ← worker 0 0
   let proof ← worker 0 1 true
@@ -131,16 +131,6 @@ run_cmd do
     let mgr ← mgr.recordDischargerResult proof.id (.proven none none 0)
     check (mgr.dormantVCs.contains 1 && mgr._doneWith.contains 1) "missing overlap fixture"
     check (!mgr.isDone && !mgr.isDoneFiltered (fun _ => true)) "overlap certified unfinished primary"
-    let mgr ← mgr.recordDischargerResult primary.id (.proven none none 0)
-    check (mgr.isDone && mgr.isDoneFiltered (fun _ => true)) "overlap refused fully covered manager"
-  finally release #[primary, proof]
-
-run_cmd do
-  let primary ← worker 0 0
-  let proof ← worker 1 0 true
-  try
-    let mgr := alternative (manager #[primary]) proof
-    let mgr ← mgr.recordDischargerResult proof.id (.proven none none 0)
     let mgr ← mgr.recordDischargerResult primary.id (.proven none none 0)
     check (mgr.isDone && mgr.isDoneFiltered (fun _ => true)) "overlap refused fully covered manager"
   finally release #[primary, proof]

@@ -7,6 +7,11 @@ public meta import Std.Sync.Mutex
 public meta import Veil.Util.Multiprocessing
 public meta import Veil.Util.Meta
 
+/- Each source owns a manager; the dispatcher shares physical capacity across
+owners. A worker publishes its result promise, the manager later accepts its
+channel notification, and its task can finish later still. Only task exit frees
+physical capacity. Interactive proofs are projected from the caller's checkpoint. -/
+
 public meta section
 
 namespace Veil.Verifier
@@ -60,11 +65,11 @@ def readVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m] :
 
 /-- One lock protects the physical pool and active-owner registry. Its lock is
 always taken before an owner's manager mutex. Frontend mutations only take the
-owner mutex, and enqueue afterwards. No idle owner is retained here. -/
+owner mutex, then apply their request. No idle owner is retained here. -/
 structure DispatcherState where
   nextId : Nat := 0
   owners : HashMap ManagerId VCManagerEnvironment := {}
-  tasks : Array SnapshotTreeTask := #[]
+  physicalTasks : Array SnapshotTreeTask := #[]
 deriving Inhabited
 
 initialize dispatcher : Std.Mutex DispatcherState ← Std.Mutex.new {}
@@ -74,22 +79,21 @@ private def newManagerLocked (ref : IO.Ref DispatcherState) : BaseIO (VCManager 
   ref.set { st with nextId := st.nextId + 1 }
   VCManager.new vcManagerCh (currentManagerId := st.nextId)
 
-/-- Explicit reset owns worker cancellation; observers do not. -/
-def cancelAbandonedWork (mgr : VCManager VCMetadata SmtResult) : BaseIO Unit :=
-  mgr.cancelAllDischargers
-
+/-- Start available work. Return whether this owner still needs notification
+routing for ready work or unaccepted results; its physical tasks are retained
+separately even when the owner retires. -/
 private def fillOwnerLocked (pool : IO.Ref DispatcherState) (owner : VCManagerEnvironment)
     : BaseIO Bool := owner.manager.atomically fun ref => do
   let mut mgr ← ref.get
   if ← owner.cancelTk.isSet then
-    cancelAbandonedWork mgr
+    mgr.cancelAllDischargers
     return false
   let numCores ← getNumCores
-  let ready := (← mgr.readyTasks).take (numCores - (← pool.get).tasks.size)
+  let ready := mgr.readyTasks.take (numCores - (← pool.get).physicalTasks.size)
   for (vc, discharger) in ready do
     let discharger' ← discharger.run
     if let some task := discharger'.task then
-      pool.modify fun st => { st with tasks := st.tasks.push task }
+      pool.modify fun st => { st with physicalTasks := st.physicalTasks.push task }
       BaseIO.chainTask task (fun _ => discard <| vcManagerCh.send .fill)
     let vc' := { vc with dischargers := vc.dischargers.set! discharger.id.dischargerId discharger' }
     mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc' }
@@ -97,7 +101,7 @@ private def fillOwnerLocked (pool : IO.Ref DispatcherState) (owner : VCManagerEn
   -- Results can precede physical completion. Keep the owner until both its
   -- ready work and outstanding publications have drained; the physical pool
   -- separately retains unfinished tasks even after this owner retires.
-  if !(← mgr.readyTasks).isEmpty then return true
+  if !mgr.readyTasks.isEmpty then return true
   for (_, vc) in mgr.nodes do
     for d in vc.effectiveDischargers do
       if d.task.isSome && !mgr._dischargerResults.contains (vc.uid, d.id.dischargerId) then
@@ -108,8 +112,8 @@ private def handleNotificationLocked (pool : IO.Ref DispatcherState)
   (notification : ManagerNotification VCMetadata SmtResult)
     (registrations : InteractiveRegistrations := #[]) : BaseIO Unit := do
   let st ← pool.get
-  let tasks ← st.tasks.filterM fun task => return !(← IO.hasFinished task)
-  pool.set { st with tasks }
+  let physicalTasks ← st.physicalTasks.filterM fun task => return !(← IO.hasFinished task)
+  pool.set { st with physicalTasks }
   let id? := match notification with
     | .dischargerResult id _ => some id.managerId
     | .reset id | .startAll id | .startFiltered id _ => some id
@@ -126,7 +130,7 @@ private def handleNotificationLocked (pool : IO.Ref DispatcherState)
         | .startFiltered _ filter =>
           ref.set (mgr.enableMatchingFromView (← mgr.withInteractiveResults registrations) filter)
         | .reset _ =>
-          cancelAbandonedWork mgr
+          mgr.cancelAllDischargers
           ref.set (← newManagerLocked pool)
         | .fill => pure ()
   let owners := (← pool.get).owners
@@ -138,7 +142,6 @@ private def handleNotificationLocked (pool : IO.Ref DispatcherState)
 
 private def handleNotification (notification : ManagerNotification VCMetadata SmtResult) : BaseIO Unit := do
   dispatcher.atomically fun pool => handleNotificationLocked pool notification
-  frontendNotification.notifyAll
 
 private def startDispatcher : BaseIO Unit :=
   vcServerStarted.atomically fun ref => do
@@ -150,7 +153,7 @@ private def startDispatcher : BaseIO Unit :=
 /-- Apply frontend requests synchronously under the pool lock. Registration and
 handling are one transaction: retiring an idle owner cannot discard a queued
 start. Worker publications still use the shared asynchronous channel. -/
-def enqueue (owner : VCManagerEnvironment)
+def applyFrontendRequest (owner : VCManagerEnvironment)
     (notification : ManagerNotification VCMetadata SmtResult)
     (registrations : InteractiveRegistrations := #[]) : BaseIO Unit := do
   dispatcher.atomically fun pool => do
@@ -162,27 +165,26 @@ def enqueue (owner : VCManagerEnvironment)
     if requestedId != id then return
     pool.modify fun st => { st with owners := st.owners.insert id owner }
     handleNotificationLocked pool notification registrations
-  frontendNotification.notifyAll
 
-def sendNotification (notification : ManagerNotification VCMetadata SmtResult) : CommandElabM Unit := do
+def applyCurrentRequest (notification : ManagerNotification VCMetadata SmtResult) : CommandElabM Unit := do
   let owner ← getVCManagerOwner
   let id ← owner.manager.atomically fun ref => return (← ref.get)._managerId
   let registrations := (interactiveRegistrationsExt.getState (← getEnv))[id]?.getD #[]
-  enqueue owner notification registrations
+  applyFrontendRequest owner notification registrations
 
 def reset (managerId : ManagerId) : CommandElabM Unit := do
   let currentId ← (← getVCManagerOwner).manager.atomically fun ref => return (← ref.get)._managerId
-  sendNotification (.reset managerId)
+  applyCurrentRequest (.reset managerId)
   if currentId == managerId then
     modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.erase managerId)
 
 def startAll : CommandElabM Unit := do
   let managerId := (← readVCManager)._managerId
-  sendNotification (.startAll managerId)
+  applyCurrentRequest (.startAll managerId)
 
 private def requestFiltered (filter : VCMetadata → Bool) : CommandElabM ManagerId := do
   let managerId := (← readVCManager)._managerId
-  sendNotification (.startFiltered managerId filter)
+  applyCurrentRequest (.startFiltered managerId filter)
   return managerId
 
 def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := do
@@ -220,11 +222,10 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
       dispatcher.atomically fun pool => do
         owner.manager.atomically fun ref => do
           let mgr ← ref.get
-          cancelAbandonedWork mgr
+          mgr.cancelAllDischargers
           ref.set (← newManagerLocked pool)
           pool.modify fun st => { st with owners := st.owners.erase mgr._managerId }
         handleNotificationLocked pool .fill
-      frontendNotification.notifyAll
   -- CancelToken callbacks run before its isSet flag is published. Finish
   -- setting cancellation before scheduling cleanup, so a late mutation cannot
   -- observe an uncanceled owner after cleanup has already cleared it.
@@ -283,7 +284,7 @@ private def awaitFilteredWithLogging (managerId : ManagerId) (filter : VCMetadat
   while true do
     liftCoreM Core.checkInterrupted
     if ← owner.cancelTk.isSet then
-      enqueue owner .fill
+      applyFrontendRequest owner .fill
       throwError "verification interrupted: specification owner was canceled"
     -- Surface manager-loop errors where the user is looking; the loop itself
     -- cannot log to the editor (it is not registered with `logSnapshotTask`).

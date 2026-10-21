@@ -37,8 +37,8 @@ private def assertState (mgr : VCManager Unit Nat) (entries solved : Nat)
   check (mgr.isDoneFiltered (fun _ => true) == status.isSome) "filtered completion disagrees with status"
   check (mgr.isDone == status.isSome) "completion disagrees with status"
 
--- Wrong VC, position, name and generation are rejected by both public entry
--- points, even when a forged interactive position would otherwise cancel work.
+-- Wrong VC, position, name and generation are rejected, even when a forged
+-- interactive position would otherwise cancel work.
 run_cmd do
   let auto ← worker 0 0
   let proof ← worker 0 1 true
@@ -48,12 +48,10 @@ run_cmd do
     let invalid := #[{ proof.id with vcId := 99 }, { proof.id with dischargerId := 99 },
       { proof.id with name := `forged }, { proof.id with managerId := 6 }]
     for id in invalid do
-      for useMark in #[false, true] do
-        let next ← if useMark then mgr.markDischarger id (.proven none none 0)
-          else mgr.recordDischargerResult id (.proven none none 0)
-        assertState next 0 0 none none
-        check (!(← auto.cancelTk.isSet)) "invalid notification canceled automatic task"
-        check (next.enabledVCs.size == mgr.enabledVCs.size) "invalid notification changed admission"
+      let next ← mgr.recordDischargerResult id (.proven none none 0)
+      assertState next 0 0 none none
+      check (!(← auto.cancelTk.isSet)) "invalid notification canceled automatic task"
+      check (next.enabledVCs.size == mgr.enabledVCs.size) "invalid notification changed admission"
     -- Even a self-consistent stored ID cannot name another generation.
     let stale ← worker 0 0 false 6
     try
@@ -75,20 +73,18 @@ run_cmd do
       assertState mgr 1 (if first.isSuccessful then 1 else 0) success status
       for duplicate in #[first, .unknown (some 88) 9, .error #[] 8,
           .proven (some (mkConst ``False.elim)) (some 99) 10] do
-        for useMark in #[false, true] do
-          let next ← if useMark then mgr.markDischarger a.id duplicate
-            else mgr.recordDischargerResult a.id duplicate
-          assertState next 1 (if first.isSuccessful then 1 else 0) success status
-          let some stored := next._dischargerResults[(0, 0)]? | throwError "missing accepted result"
-          check (stored.kindString == first.kindString && stored.time == first.time) "duplicate overwrote accepted outcome"
-          match stored, first with
-          | .proven w data _, .proven originalW originalData _ =>
-            check (w == originalW && data == originalData) "duplicate overwrote proof/data"
-          | .unknown data _, .unknown originalData _ => check (data == originalData) "duplicate overwrote data"
-          | _, _ => pure ()
-          let ready ← next.readyTasks
-          check (ready.map (fun (_, d) => d.id.dischargerId) == if first.isSuccessful then [] else [1])
-            "duplicate changed next automatic attempt"
+        let next ← mgr.recordDischargerResult a.id duplicate
+        assertState next 1 (if first.isSuccessful then 1 else 0) success status
+        let some stored := next._dischargerResults[(0, 0)]? | throwError "missing accepted result"
+        check (stored.kindString == first.kindString && stored.time == first.time) "duplicate overwrote accepted outcome"
+        match stored, first with
+        | .proven w data _, .proven originalW originalData _ =>
+          check (w == originalW && data == originalData) "duplicate overwrote proof/data"
+        | .unknown data _, .unknown originalData _ => check (data == originalData) "duplicate overwrote data"
+        | _, _ => pure ()
+        let ready := next.readyTasks
+        check (ready.map (fun (_, d) => d.id.dischargerId) == if first.isSuccessful then [] else [1])
+          "duplicate changed next automatic attempt"
     finally release #[a, b]
 
 -- Automatic notifications hidden under interactive precedence are true no-ops.
@@ -100,7 +96,7 @@ run_cmd do
       let mgr ← (manager #[auto, proof]).recordDischargerResult auto.id result
       assertState mgr 0 0 none none
       check (!(← auto.cancelTk.isSet)) "ignored automatic result set cancellation token"
-      check ((← mgr.readyTasks).isEmpty) "ignored automatic result scheduled work"
+      check (mgr.readyTasks.isEmpty) "ignored automatic result scheduled work"
     let mgr ← (manager #[auto, proof]).recordDischargerResult proof.id (.proven (some (mkConst ``True.intro)) none 1)
     assertState mgr 1 1 (some 1) (some .proven)
     check (← auto.cancelTk.isSet) "accepted interactive result did not cancel automatic work"
@@ -115,7 +111,7 @@ run_cmd do
   try
     let mgr ← (manager #[proof]).recordDischargerResult proof.id (.proven (some (mkConst ``True.intro)) none 1)
     assertState mgr 1 1 (some 0) (some .proven)
-    let mgr ← mgr.markDischarger proof.id (.error #[] 2)
+    let mgr ← mgr.recordDischargerResult proof.id (.error #[] 2)
     assertState mgr 1 0 none (some .error)
     check (mgr.provenWitness? 0 |>.isNone) "failed replacement retained stale witness"
     let mgr ← mgr.recordDischargerResult proof.id (.proven (some (mkConst ``True.intro)) none 3)

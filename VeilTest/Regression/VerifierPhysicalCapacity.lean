@@ -3,7 +3,8 @@ module
 meta import Veil.Core.Tools.Verifier.Server
 
 /- Real server admissions with gated SnapshotTree tasks. Timing is used only
-as a bounded failure guard; assertions follow processed notification barriers.
+as a bounded failure guard; assertions follow synchronous requests or observed
+state changes. A channel sentinel fences the stale-result notification.
 Run in an isolated Lean process because this forces the process core count. -/
 
 open Lean Elab Command Veil Veil.Verifier
@@ -23,21 +24,6 @@ private def await (label : String) (condition : BaseIO Bool) : IO Unit := do
 private def data (name : Name) : CommandElabM (VCData VCMetadata) := do
   return { name, params := #[], statement := ← `(True)
            metadata := .induction { (default : InductionVCMetadata) with property := name } }
-
-/-- An empty VC enabled by a unique startFiltered notification is a FIFO
-barrier: seeing it enabled under the manager mutex means prior handlers and
-the barrier handler's own admission pass have finished. -/
-private def barrier : CommandElabM Unit := do
-  let owner ← getVCManagerOwner
-  let manager := owner.manager.atomically (m := BaseIO) fun ref => ref.get
-  let id ← withVCManager fun ref => do
-    let mgr ← ref.get
-    let name := Name.mkSimple s!"barrier{mgr._nextVcId}"
-    let (mgr, id) := mgr.addVC (← data name) {}
-    ref.set mgr
-    return (id, name)
-  startFiltered (fun metadata => metadata.propertyName? == some id.2)
-  await "notification barrier" do return (← manager).enabledVCs.contains id.1
 
 private structure Worker where
   discharger : Discharger SmtResult
@@ -94,7 +80,6 @@ private def register (workers : Array Worker) : CommandElabM Unit :=
 private def fresh : CommandElabM Unit := do
   numCoresCache.set (some 1)
   runManager
-  barrier
 
 private def earlyPublication : CommandElabM Unit := do
   fresh
@@ -110,7 +95,7 @@ private def earlyPublication : CommandElabM Unit := do
     a.publish.resolve ()
     await "A result accepted" do
       return (← manager)._dischargerResults.contains (a.discharger.id.vcId, 0)
-    barrier
+    applyCurrentRequest .fill
     check (((← manager).nodes[a.discharger.id.vcId]!.dischargers[1]?.bind (·.task)).isNone)
       "early publication released a physical slot"
     assertPending b "early publication"
@@ -121,7 +106,7 @@ private def earlyPublication : CommandElabM Unit := do
     check (← IO.hasFinished (← a.tasks.get)[0]!) "B ran before A's task finished"
   finally
     cleanup #[a, b]
-  barrier
+  applyCurrentRequest .fill
   liftIO <| IO.println "physical capacity: early publication and completion-only refill PASS"
 
 private def resets (publishBeforeReset : Bool) : CommandElabM Unit := do
@@ -151,16 +136,30 @@ private def resets (publishBeforeReset : Bool) : CommandElabM Unit := do
       retained.modify (·.push replacement)
       register #[replacement]
       startAll
-      sendNotification .fill
-      sendNotification .fill
-      barrier
+      applyCurrentRequest .fill
+      applyCurrentRequest .fill
       assertPending replacement s!"reset {iteration}"
       check (!(← replacement.discharger.cancelTk.isSet)) "reset canceled replacement work"
       previous := replacement
     if !publishBeforeReset then
       a.publish.resolve ()
       await "stale A notification sent" (IO.hasFinished a.published.result?)
-      barrier
+      -- The current replacement is ready but blocked by A's physical task,
+      -- so its owner stays registered throughout this queued fence. Idle
+      -- owners could retire and discard a queued startFiltered request.
+      let (generation, sentinelId, sentinelName) ← withVCManager fun ref => do
+        let mgr ← ref.get
+        let name := Name.mkSimple s!"staleResultFence{mgr._nextVcId}"
+        let (mgr, id) := mgr.addVC (← data name) {}
+        ref.set mgr
+        return (mgr._managerId, id, name)
+      -- published resolves after the send. The single FIFO receiver must
+      -- finish that handler before enabling this fresh sentinel; reading
+      -- enabledVCs under the owner mutex observes its committed mutation.
+      discard <| vcManagerCh.send (.startFiltered generation
+        (fun metadata => metadata.propertyName? == some sentinelName))
+      await "stale A notification processed" do
+        return (← manager).enabledVCs.contains sentinelId
       check ((← manager)._dischargerResults.isEmpty) "stale result was accepted"
       assertPending previous "stale result"
     a.finish.resolve ()
@@ -172,7 +171,7 @@ private def resets (publishBeforeReset : Bool) : CommandElabM Unit := do
       assertPending abandoned "abandoned queued worker"
   finally
     cleanup (← retained.get)
-  barrier
+  applyCurrentRequest .fill
   liftIO <| IO.println s!"physical capacity: repeated resets, cancellation, prior/stale result ({publishBeforeReset}) PASS"
 
 private def twoSlots : CommandElabM Unit := do
@@ -192,12 +191,11 @@ private def twoSlots : CommandElabM Unit := do
     await "second of two slots" (started b)
     register #[c]
     startAll
-    barrier
     assertPending c "two full slots"
     a.publish.resolve ()
     await "first result accepted" do
       return (← manager)._dischargerResults.contains (a.discharger.id.vcId, 0)
-    barrier
+    applyCurrentRequest .fill
     assertPending c "published result with two full slots"
     a.finish.resolve ()
     await "one physical slot refilled" (started c)
@@ -205,7 +203,7 @@ private def twoSlots : CommandElabM Unit := do
     check (!(← IO.hasFinished (← b.tasks.get)[0]!)) "second gate did not retain its worker"
   finally
     cleanup #[a, b, c]
-  barrier
+  applyCurrentRequest .fill
   liftIO <| IO.println "physical capacity: two slots and one-at-a-time refill PASS"
 
 run_cmd earlyPublication
