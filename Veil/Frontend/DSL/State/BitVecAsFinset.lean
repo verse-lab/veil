@@ -1,7 +1,7 @@
 module
 
 public import Veil.Frontend.DSL.State.Types
-public import Veil.Util.ContainerDisplay
+public import Veil.Util.ValueDisplay
 
 @[expose] public section
 
@@ -165,10 +165,10 @@ theorem card_le_card {s t : BitVecAsFinset α} (h : ∀ a, a ∈ s → a ∈ t) 
   exact this hs
 
 instance [Repr α] : Repr (BitVecAsFinset α) where
-  reprPrec s _ := Veil.ContainerDisplay.setFormat s.members.toList
+  reprPrec s _ := Veil.ValueDisplay.setFormat s.members.toList
 
 instance [Lean.ToJson α] : Lean.ToJson (BitVecAsFinset α) where
-  toJson s := Veil.ContainerDisplay.setJson s.members
+  toJson s := Veil.ValueDisplay.setJson s.members
 
 instance : Enumeration (BitVecAsFinset α) where
   allValues := (Enumeration.allValues (α := BitVec inst.card)).map BitVecAsFinset.mk

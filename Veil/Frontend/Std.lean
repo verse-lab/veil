@@ -710,10 +710,10 @@ def TMapMultiset.entries [Ord α] [TransOrd α] (m : TMapMultiset α) : Array (�
   m.val.foldl (fun out a n => out.push (a, n.succ)) (Array.emptyWithCapacity m.val.size)
 
 instance [Ord α] [TransOrd α] [Repr α] : Repr (TMapMultiset α) where
-  reprPrec m _ := ContainerDisplay.multisetFormat m.entries.toList
+  reprPrec m _ := ValueDisplay.multisetFormat m.entries.toList
 
 instance [Ord α] [TransOrd α] [Lean.ToJson α] : Lean.ToJson (TMapMultiset α) where
-  toJson m := ContainerDisplay.multisetJson m.entries
+  toJson m := ValueDisplay.multisetJson m.entries
 
 open Std.ExtDTreeMap
 

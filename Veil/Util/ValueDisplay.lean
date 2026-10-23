@@ -4,11 +4,12 @@ public import Lean.Data.Json.FromToJson.Basic
 
 @[expose] public section
 
-/-! # Display of the concrete containers
+/-! # Display of values
 
-Shared by the containers' `Repr` and `ToJson` instances, and by the text output of traces and
-counterexamples. The containers pass their logical contents (members, entries, multiplicities)
-rather than their storage.
+How Veil displays the values of states, theories and transitions, in the text output of traces and
+counterexamples and in the widget: the `Repr` and `ToJson` helpers of the concrete containers, the
+tags of sets, maps and multisets in JSON, and the rendering of JSON as text. The containers pass
+their logical contents (members, entries, multiplicities) rather than their storage.
 
 A displayed value goes through two types here, in different roles:
 - `Lean.Json` is the data. A container's `ToJson` produces it, the compiled checker prints it and
@@ -17,9 +18,20 @@ A displayed value goes through two types here, in different roles:
 - `Std.Format` is layout: a document of text, `line` breaks, `nest`ing and `group`s, which
   `Std.Format.pretty` lays out at a width, breaking the lines of a group only when the group does
   not fit. `Repr` produces one, and the text output builds one from the JSON just before printing
-  it (`renderJson`). It is never serialized: the widget lays out the JSON in its own way. -/
+  it (`renderJson`). It is never serialized: the widget lays out the JSON in its own way.
 
-namespace Veil.ContainerDisplay
+The text output distinguishes values to render from text to display:
+- A *value* is data rendered according to its representation (`renderJson`): containers and
+  objects are rendered recursively, while numbers, booleans and strings are atomic values.
+- *Text* is supplied for direct display (`renderText`): result tags (`found_violation`),
+  violation kinds, property names, error messages, the seed, type names and already formatted
+  picks. Type names are text here because they arrive as printed type expressions.
+
+A string used as a value is still data, even though it has no nested structure. Values and text
+currently both show strings verbatim; keeping their roles separate lets the rendering of values
+change without touching text. -/
+
+namespace Veil.ValueDisplay
 
 /-! ## `Repr`: logical contents as Lean text
 
@@ -90,9 +102,10 @@ def collection? (j : Lean.Json) : Option (String × Array Lean.Json) := do
 
 /-! ## Text output
 
-`renderJson` turns the JSON of a value into a `Std.Format`, which decides where lines may break and
-how continuation lines are indented; `formatJson`, `formatField` and `callFormat` lay it out at
-`textWidth`. The layout is only decided here, at printing time, since the JSON carries no layout. -/
+For `TraceDisplay` and `VerificationResults`. `renderJson`, `renderText`, `callFormat` and
+`actionFormat` build a `Std.Format`; `formatJson`, `formatText`, `formatField`, `formatFields` and
+`formatAction` lay out one value or one line at `textWidth`, given what precedes it on its line;
+the callers only assemble these lines into messages. -/
 
 /-- The width of the text output of traces and counterexamples. -/
 def textWidth : Nat := 100
@@ -124,12 +137,11 @@ where
   seq (l : String) (parts : List Std.Format) (r : String) : Std.Format :=
     Std.Format.bracketFill l (Std.Format.joinSep parts ("," ++ Std.Format.line)) r
 
-def formatJson (j : Lean.Json) : String :=
-  (renderJson j).pretty textWidth
-
-/-- `key = value` at `indent`, with the value's continuation lines aligned after `key = `. -/
-def formatField (indent key : String) (j : Lean.Json) : String :=
-  (labeled (Std.Format.text (indent ++ key)) " = " (renderJson j)).pretty textWidth
+/-- Text rather than a value: a string shows as it is, and anything else as a value. Result tags,
+property names, error messages, picks and type names are text. -/
+def renderText (j : Lean.Json) : Std.Format := match j with
+  | .str s => s
+  | _ => renderJson j
 
 /-- `name(k=v, …)`, as action labels are shown; long arguments continue aligned after `name(`. -/
 def callFormat (name : String) (args : List (String × Lean.Json)) : Std.Format :=
@@ -138,4 +150,36 @@ def callFormat (name : String) (args : List (String × Lean.Json)) : Std.Format 
     (Std.Format.joinSep (args.map fun (k, v) => labeled (Std.Format.text k) "=" (renderJson v))
       ("," ++ Std.Format.line))) ++ ")"
 
-end Veil.ContainerDisplay
+/-- A transition label: an action name, or `{name: {param: value, …}}` as `name(param=value, …)`. -/
+def actionFormat (j : Lean.Json) : Std.Format := match j with
+  | .str s => s
+  | .obj kvs => match kvs.toList.find? (·.2 != .null) with
+    | some (name, .obj ps) => callFormat name ps.toList
+    | some (name, _) => name
+    | none => toString j
+  | _ => toString j
+
+/-- A value, laid out at `textWidth`. -/
+def formatJson (j : Lean.Json) : String := (renderJson j).pretty textWidth
+
+/-- Text, laid out at `textWidth`: a string as it is. -/
+def formatText (j : Lean.Json) : String := (renderText j).pretty textWidth
+
+/-- `key = value` at `indent`, with the value's continuation lines aligned after `key = `. -/
+def formatField (indent key : String) (j : Lean.Json) : String :=
+  (labeled (Std.Format.text (indent ++ key)) " = " (renderJson j)).pretty textWidth
+
+/-- The fields of a JSON object, one `key = value` line each at `indent`, in key order. With
+`asText`, the values are text (e.g. type names) rather than values. -/
+def formatFields (j : Lean.Json) (indent : String) (asText := false) : String := match j with
+  | .obj kvs => "\n".intercalate (if asText
+    then kvs.toList.map fun (k, v) => s!"{indent}{k} = {formatText v}"
+    else kvs.toList.map fun (k, v) => formatField indent k v)
+  | _ => formatJson j
+
+/-- `lead`, a transition label and `trail` on one line; long parameters continue aligned after the
+action's `(`. -/
+def formatAction (lead : String) (j : Lean.Json) (trail : String := "") : String :=
+  (Std.Format.text lead ++ Std.Format.nest lead.length (actionFormat j) ++ trail).pretty textWidth
+
+end Veil.ValueDisplay

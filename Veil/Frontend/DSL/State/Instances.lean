@@ -4,7 +4,7 @@ public import Std
 public import Veil.Frontend.DSL.State.Concrete
 public import Veil.Frontend.DSL.State.Data
 public import Veil.Util.List
-public import Veil.Util.ContainerDisplay
+public import Veil.Util.ValueDisplay
 public import Std.Data.ExtTreeMap.Lemmas
 
 @[expose] public section
@@ -282,24 +282,24 @@ def BitVecAsFinmap.entries [inst : FinEncodable α] [FinEncodable β] [Inhabited
     (k, FinmapLike.get m k)
 
 instance [FinEncodable α] [Repr α] [Repr β] : Repr (ArrayAsFinmap α β) where
-  reprPrec m _ := ContainerDisplay.mapFormat m.entries.toList
+  reprPrec m _ := ValueDisplay.mapFormat m.entries.toList
 
 instance [FinEncodable α] [ToJson α] [ToJson β] : ToJson (ArrayAsFinmap α β) where
-  toJson m := ContainerDisplay.mapJson m.entries
+  toJson m := ValueDisplay.mapJson m.entries
 
 instance [FinEncodable α] [Repr α] : Repr (ArrayAsFinset α) where
-  reprPrec s _ := ContainerDisplay.setFormat s.members.toList
+  reprPrec s _ := ValueDisplay.setFormat s.members.toList
 
 instance [FinEncodable α] [ToJson α] : ToJson (ArrayAsFinset α) where
-  toJson s := ContainerDisplay.setJson s.members
+  toJson s := ValueDisplay.setJson s.members
 
 instance [FinEncodable α] [FinEncodable β] [Inhabited β] [Repr α] [Repr β] :
     Repr (BitVecAsFinmap α β) where
-  reprPrec m _ := ContainerDisplay.mapFormat m.entries.toList
+  reprPrec m _ := ValueDisplay.mapFormat m.entries.toList
 
 instance [FinEncodable α] [FinEncodable β] [Inhabited β] [ToJson α] [ToJson β] :
     ToJson (BitVecAsFinmap α β) where
-  toJson m := ContainerDisplay.mapJson m.entries
+  toJson m := ValueDisplay.mapJson m.entries
 
 /-- ToJson for curried finite functions: uncurry and use the product instance. -/
 instance (priority := high) finFunctionToJsonCurry (α₁ : Type u) (α₂ : Type v) (β : Type w)
@@ -312,31 +312,31 @@ is uncurried by `finFunctionToJsonCurry`, so its keys are tuples. -/
 instance (priority := low) finFunctionToJson (α : Type u) (β : Type v)
     [ToJson α] [Enumeration α] [ToJson β] : ToJson (α → β) where
   toJson := fun f =>
-    ContainerDisplay.mapJson ((Enumeration.allValues (α := α)).toArray.map fun a => (a, f a))
+    ValueDisplay.mapJson ((Enumeration.allValues (α := α)).toArray.map fun a => (a, f a))
 
 /-- ToJson for boolean predicates: the set of the elements where the predicate is true. -/
 instance (priority := high) essentiallyFinSetToJson (α : Type u)
     [ToJson α] [Enumeration α] : ToJson (α → Bool) where
-  toJson := fun f => ContainerDisplay.setJson <|
+  toJson := fun f => ValueDisplay.setJson <|
     (Enumeration.allValues (α := α)).foldl (fun out a => if f a then out.push a else out) #[]
 
 instance jsonOfTreeSet [Ord α] [ToJson α] : ToJson (Std.TreeSet α) where
-  toJson s := ContainerDisplay.setJson s.toArray
+  toJson s := ValueDisplay.setJson s.toArray
 
 instance jsonOfTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Std.TreeMap α β) where
-  toJson m := ContainerDisplay.mapJson m.toArray
+  toJson m := ValueDisplay.mapJson m.toArray
 
 instance jsonOfExtTreeSet [Ord α] [ToJson α] [Std.TransOrd α] : ToJson (Std.ExtTreeSet α) where
-  toJson s := ContainerDisplay.setJson s.toArray
+  toJson s := ValueDisplay.setJson s.toArray
 
 instance jsonOfExtTreeMap [Ord α] [ToJson α] [ToJson β] [Std.TransOrd α] : ToJson (Std.ExtTreeMap α β) where
-  toJson m := ContainerDisplay.mapJson m.toArray
+  toJson m := ValueDisplay.mapJson m.toArray
 
 instance jsonOfHashSet [BEq α] [Hashable α] [ToJson α] : ToJson (Std.HashSet α) where
-  toJson s := ContainerDisplay.setJson s.toArray
+  toJson s := ValueDisplay.setJson s.toArray
 
 instance jsonOfHashMap [BEq α] [Hashable α] [ToJson α] [ToJson β] : ToJson (Std.HashMap α β) where
-  toJson m := ContainerDisplay.mapJson m.toArray
+  toJson m := ValueDisplay.mapJson m.toArray
 
 
 end Veil

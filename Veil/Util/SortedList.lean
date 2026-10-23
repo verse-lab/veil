@@ -953,7 +953,7 @@ instance [Repr α] : Repr (OrdList α) where
   reprPrec s p := reprPrec s.val p
 
 instance [Lean.ToJson α] : Lean.ToJson (OrdList α) where
-  toJson s := Veil.ContainerDisplay.setJson s.val.toArray
+  toJson s := Veil.ValueDisplay.setJson s.val.toArray
 
 /-! ### Enumeration -/
 

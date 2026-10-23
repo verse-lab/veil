@@ -33,7 +33,7 @@ def q01 : Quorum (Fin 3) := ⟨BitVecAsFinset.ofList [0, 1], by decide⟩
 -- Tagged JSON retains the set kind; the trace formatter prints set braces.
 /-- info: {0, 1} -/
 #guard_msgs in
-#eval IO.println (ContainerDisplay.formatJson (Lean.toJson q01))
+#eval IO.println (ValueDisplay.formatJson (Lean.toJson q01))
 
 veil module QuorumRepr
 

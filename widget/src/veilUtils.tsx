@@ -22,7 +22,7 @@ interface LogicalContainer {
   items: unknown[];
 }
 
-/** Sets, maps and multisets arrive tagged by `Veil.ContainerDisplay`. `$veil` is reserved for these
+/** Sets, maps and multisets arrive tagged by `Veil.ValueDisplay`. `$veil` is reserved for these
  *  tags; an unknown or malformed envelope stays an ordinary object. */
 export function logicalContainer(v: unknown): LogicalContainer | undefined {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return undefined;

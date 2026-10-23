@@ -5,7 +5,7 @@ public meta import Veil
 
 open Lean Veil
 
-/-! The text of a trace: values wrap at `ContainerDisplay.textWidth` and continue aligned, also in a
+/-! The text of a trace: values wrap at `ValueDisplay.textWidth` and continue aligned, also in a
 long transition label, and the type names of the instantiation are text. -/
 /--
 info: Instantiation:
@@ -21,15 +21,47 @@ State 1 (via decide(b=1,
 #guard_msgs in
 #eval do
   let fields := Json.mkObj [
-    ("big", ContainerDisplay.setJson (Array.range 45)),
+    ("big", ValueDisplay.setJson (Array.range 45)),
     ("msg", json% {response: {ses: 2, dat: 7}}),
     ("seq", toJson [1, 2, 3])]
-  let label := json% {decide: {q: $(ContainerDisplay.setJson (Array.range 40)), b: 1}}
+  let label := json% {decide: {q: $(ValueDisplay.setJson (Array.range 40)), b: 1}}
   let j := Json.mkObj [
     ("instantiation", Json.mkObj [("node", Json.str "Fin 3")]),
     ("states", Json.arr #[Json.mkObj [("index", toJson (1 : Nat)), ("transition", label),
       ("fields", fields)]])]
   IO.println (Veil.TraceDisplay.formatTrace j (ind := ""))
+
+/-! Results that the commands below do not produce, and transition labels or state fields of an
+unexpected shape. -/
+/--
+info: 💥 Error: the checker crashed
+Unknown: weird
+⚠️ Cancelled
+⚠️ Cancelled
+Seed: 2
+❌ Violation: deadlock
+  State 1 (via mk):
+    x = 1
+  State 1 (via {"a": null}):
+null
+  State 1 (via 5):
+-/
+#guard_msgs in
+#eval show IO Unit from do
+  let state (t fields : Json) : Json :=
+    Json.mkObj [("index", toJson (1 : Nat)), ("transition", t), ("fields", fields)]
+  let tr := Json.mkObj [("states", Json.arr #[
+    state (json% {mk: [1, 2]}) (json% {x: 1}),
+    state (json% {a: null}) Json.null,
+    state (toJson (5 : Nat)) (Json.mkObj [])])]
+  for (kind, j) in [
+      (Veil.TraceDisplay.ResultKind.modelCheck, json% {result: "weird", error: "the checker crashed"}),
+      (.modelCheck, json% {result: "weird"}),
+      (.modelCheck, json% {result: "cancelled"}),
+      (.simulate, json% {result: "cancelled", seed: 2}),
+      (.modelCheck, Json.mkObj [("result", "found_violation"),
+        ("violation", json% {kind: "deadlock"}), ("trace", tr)])] do
+    IO.println (← (Veil.TraceDisplay.formatResult kind j).toString)
 
 /-! An infinite domain keeps the stored entries, as a tagged map, instead of enumerating the
 function. -/
@@ -170,3 +202,38 @@ Seed: 1
   (numTraces := 1) (maxSteps := 1) (seed := 1)
 
 end TraceSerialization
+
+/-! A satisfying trace shows how the sorts were instantiated; the type names are text. -/
+veil module SatTraceInstantiation
+
+type node
+relation visited : node → Bool
+
+after_init {
+  visited N := false
+}
+
+action visit (n : node) {
+  visited n := true
+}
+
+invariant true
+
+#gen_spec
+
+/--
+info: ✅ Satisfying trace found
+  Instantiation:
+    node = Fin 1
+  State 0 (via init):
+    visited = {}
+  State 1 (via visit(n=0)):
+    visited = {0}
+-/
+#guard_msgs in
+sat trace {
+  visit
+  assert (∃ n, visited n)
+}
+
+end SatTraceInstantiation

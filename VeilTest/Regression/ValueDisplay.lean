@@ -8,7 +8,7 @@ open Lean Veil
 /-! The concrete containers are structures over their storage. They keep the storage's equality,
 hash and ordering, and display their logical contents (entries, members, multiplicities, FIFO
 order) rather than the storage. In JSON, sets, maps and multisets are tagged
-(`Veil.ContainerDisplay`), and the text of traces and counterexamples renders the tags in set
+(`Veil.ValueDisplay`), and the text of traces and counterexamples renders the tags in set
 notation. -/
 namespace ContainerDisplayRegression
 
@@ -93,7 +93,7 @@ run_cmd do
   unless reprStr (OrdList.ofList [2, 0]) == "[0, 2]" && reprStr (OrdArray.ofList [2, 0]) == "[0, 2]" do
     throwError "sorted set Repr changed"
   let subsets := Json.arr <| #[[], [0], [1], [0, 1]].map fun (xs : List Nat) =>
-    ContainerDisplay.setJson xs.toArray
+    ValueDisplay.setJson xs.toArray
   unless toJson (Enumeration.allValues (α := OrdList (Fin 2))) == subsets &&
       toJson (Enumeration.allValues (α := OrdArray (Fin 2))) == subsets do
     throwError "sorted set enumeration changed"
@@ -169,18 +169,18 @@ info: {0, 2}
 #eval do
   for j in [toJson (BitVecAsFinset.ofList ([0, 2] : List (Fin 3))),
       toJson (FinmapLike.insert (0, 0) 7 (default : ArrayAsFinmap (Fin 1 × Fin 1) Nat)),
-      ContainerDisplay.multisetJson #[((1 : Nat), 1), (2, 2)],
+      ValueDisplay.multisetJson #[((1 : Nat), 1), (2, 2)],
       toJson ([BitVecAsFinset.ofList [], BitVecAsFinset.ofList [0, 1]] : List (BitVecAsFinset (Fin 2))),
-      ContainerDisplay.mapJson #[(OrdList.ofList [(0 : Nat), 1], OrdList.ofList [(2 : Nat), 3])],
-      ContainerDisplay.setJson (#[] : Array Nat), toJson ([] : List Nat),
+      ValueDisplay.mapJson #[(OrdList.ofList [(0 : Nat), 1], OrdList.ofList [(2 : Nat), 3])],
+      ValueDisplay.setJson (#[] : Array Nat), toJson ([] : List Nat),
       json% {b: 1, a: [2, "x y"]},
       json% {"$veil": "unknown", elements: []},
       json% {"$veil": "set", elements: [], extra: true},
       json% {"$veil": "map", entries: [{key: 0}]},
       json% {"$veil": "multiset", entries: [{element: 0, count: -1}]}] do
-    IO.println (ContainerDisplay.formatJson j)
+    IO.println (ValueDisplay.formatJson j)
 
-/-! Long values fill lines up to `ContainerDisplay.textWidth` and continue aligned: after `key = `,
+/-! Long values fill lines up to `ValueDisplay.textWidth` and continue aligned: after `key = `,
 after an opening bracket, after `k ↦ `, and after the `(` of an action label. -/
 /--
 info: big = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
@@ -195,11 +195,11 @@ decide(b=1,
 -/
 #guard_msgs in
 #eval do
-  IO.println (ContainerDisplay.formatField "" "big" (ContainerDisplay.setJson (Array.range 45)))
-  IO.println (ContainerDisplay.formatField "" "wide" (ContainerDisplay.mapJson
-    ((Array.range 2).map fun i => (i, ContainerDisplay.setJson (Array.range (36 + i))))))
-  IO.println ((ContainerDisplay.callFormat "decide" [("b", toJson (1 : Nat)),
-    ("q", ContainerDisplay.setJson (Array.range 40))]).pretty ContainerDisplay.textWidth)
+  IO.println (ValueDisplay.formatField "" "big" (ValueDisplay.setJson (Array.range 45)))
+  IO.println (ValueDisplay.formatField "" "wide" (ValueDisplay.mapJson
+    ((Array.range 2).map fun i => (i, ValueDisplay.setJson (Array.range (36 + i))))))
+  IO.println ((ValueDisplay.callFormat "decide" [("b", toJson (1 : Nat)),
+    ("q", ValueDisplay.setJson (Array.range 40))]).pretty ValueDisplay.textWidth)
 
 -- The generator rejects ambiguous storage rather than silently dropping data.
 structure TwoPayloads where
