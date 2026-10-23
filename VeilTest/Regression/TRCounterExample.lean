@@ -28,16 +28,16 @@ error: Initialization must establish the invariant:
         Theory:
 
         Pre-state:
-          r = [0]
+          r = {0}
         Action: initializer
       Counterexample (TR):
         Theory:
 
         Pre-state:
-          r = [0]
+          r = {0}
         Action: initializer
         Post-state:
-          r = [0]
+          r = {0}
 The following set of actions must preserve the invariant and successfully terminate:
   act
     doesNotThrow ... ✅
@@ -46,16 +46,16 @@ The following set of actions must preserve the invariant and successfully termin
         Theory:
 
         Pre-state:
-          r = [0, 1]
+          r = {0, 1}
         Action: act
       Counterexample (TR):
         Theory:
 
         Pre-state:
-          r = [0, 1]
+          r = {0, 1}
         Action: act
         Post-state:
-          r = [0]
+          r = {0}
 -/
 #guard_msgs in
 #check_invariants

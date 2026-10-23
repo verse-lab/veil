@@ -41,3 +41,7 @@ jobs:
     - name: Build examples
       run: lake build Examples
       timeout-minutes: 15
+    - name: Test widget rendering
+      run: |
+        npm ci --prefix widget
+        node widget/tests/veilUtils.test.cjs

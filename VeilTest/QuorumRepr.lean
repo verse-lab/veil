@@ -30,10 +30,10 @@ def q01 : Quorum (Fin 3) := ⟨BitVecAsFinset.ofList [0, 1], by decide⟩
 #guard_msgs in
 #eval (Enumeration.allValues (α := ByzNSet (Fin 3)))
 
--- The JSON form (used by model-checker traces) is the same string.
-/-- info: "{0, 1}" -/
+-- Tagged JSON retains the set kind; the trace formatter prints set braces.
+/-- info: {0, 1} -/
 #guard_msgs in
-#eval IO.println (Lean.toJson q01).compress
+#eval IO.println (ContainerDisplay.formatJson (Lean.toJson q01))
 
 veil module QuorumRepr
 
@@ -72,18 +72,37 @@ invariant [never_decided] ¬ decided
 error: ❌ Violation: safety_failure (violates: never_decided)
   State 0 (via init):
     decided = false
-    voted = []
+    voted = {}
   State 1 (via vote(a=0)):
     decided = false
-    voted = [0]
+    voted = {0}
   State 2 (via vote(a=1)):
     decided = false
-    voted = [0, 1]
+    voted = {0, 1}
   State 3 (via decide(q={0, 1})):
     decided = true
-    voted = [0, 1]
+    voted = {0, 1}
 -/
 #guard_msgs in
 #model_check interpreted { acceptor := Fin 3, quorum := Quorum (Fin 3) } {} (sequential := true)
+
+-- Compiled action labels must retain the same tagged quorum parameter.
+/--
+error: ❌ Violation: safety_failure (violates: never_decided)
+  State 0 (via init):
+    decided = false
+    voted = {}
+  State 1 (via vote(a=0)):
+    decided = false
+    voted = {0}
+  State 2 (via vote(a=1)):
+    decided = false
+    voted = {0, 1}
+  State 3 (via decide(q={0, 1})):
+    decided = true
+    voted = {0, 1}
+-/
+#guard_msgs in
+#model_check compiled { acceptor := Fin 3, quorum := Quorum (Fin 3) } {} (sequential := true)
 
 end QuorumRepr

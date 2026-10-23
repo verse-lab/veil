@@ -107,17 +107,17 @@ error: Initialization must establish the invariant:
           enum EnumA = {nop}
           enum EnumB = {a, b}
         Pre-state:
-          req = [[nop, a]]
+          req = {nop ↦ a}
         Action: initializer
       Counterexample (TR):
         Theory:
           enum EnumA = {nop}
           enum EnumB = {a, b}
         Pre-state:
-          req = [[nop, a]]
+          req = {nop ↦ a}
         Action: initializer
         Post-state:
-          req = [[nop, a]]
+          req = {nop ↦ a}
 The following set of actions must preserve the invariant and successfully terminate:
   foo
     doesNotThrow ... ✅
@@ -127,17 +127,17 @@ The following set of actions must preserve the invariant and successfully termin
           enum EnumA = {nop}
           enum EnumB = {a, b}
         Pre-state:
-          req = [[nop, b]]
+          req = {nop ↦ b}
         Action: foo
       Counterexample (TR):
         Theory:
           enum EnumA = {nop}
           enum EnumB = {a, b}
         Pre-state:
-          req = [[nop, b]]
+          req = {nop ↦ b}
         Action: foo
         Post-state:
-          req = [[nop, a]]
+          req = {nop ↦ a}
 -/
 #guard_msgs in
 #check_invariants

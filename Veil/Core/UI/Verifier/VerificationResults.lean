@@ -5,6 +5,7 @@ public meta import Lean.Elab.Command
 public meta import Lean.PrettyPrinter
 
 public meta import Veil.Base
+public meta import Veil.Util.ContainerDisplay
 public meta import ProofWidgets.Component.Basic
 public meta import ProofWidgets.Component.HtmlDisplay
 public meta import Veil.Core.UI.Widget.RefreshComponent
@@ -172,20 +173,13 @@ private def formatUndischargedTheoremMessage
     let conditionWord := if count == 1 then "condition" else "conditions"
     some m!"{count} verification {conditionWord} could not be discharged automatically\n"
 
-/-- Format a JSON value as a string, with support for nested structures. -/
-private partial def formatJsonValue (json : Json) : String :=
-  match json with
-  | .str s => s
-  | .num n => toString n
-  | .bool b => toString b
-  | .null => "null"
-  | .arr a => s!"[{", ".intercalate (a.map formatJsonValue).toList}]"
-  | .obj kvs => s!"\{{", ".intercalate (kvs.toArray.map fun (k, v) => s!"{k}: {formatJsonValue v}").toList}}"
+/-- A value, as execution traces show it (`ContainerDisplay.renderJson`). -/
+private def formatJsonValue (json : Json) : String := ContainerDisplay.formatJson json
 
 /-- Format a JSON object as indented key-value lines. -/
 private def formatJsonObject (json : Json) (indent : String := "  ") : String :=
   match json with
-  | .obj kvs => "\n".intercalate (kvs.toArray.map fun (k, v) => s!"{indent}{k} = {formatJsonValue v}").toList
+  | .obj kvs => "\n".intercalate (kvs.toList.map fun (k, v) => ContainerDisplay.formatField indent k v)
   | _ => formatJsonValue json
 
 private def enumTheoryEntry? (key : String) : Option (String × String) :=
@@ -201,7 +195,7 @@ private def formatTheoryObject (json : Json) (indent : String := "  ") : String 
     let entries := kvs.toArray
     let enumEntries := (entries.filterMap fun (k, _) => enumTheoryEntry? k).toList
     let regularLines := (entries.filter fun (k, _) => (enumTheoryEntry? k).isNone).toList.map
-      fun (k, v) => s!"{indent}{k} = {formatJsonValue v}"
+      fun (k, v) => ContainerDisplay.formatField indent k v
     let enumLines := (enumEntries.map Prod.fst).eraseDups.map fun enumName =>
       let ctors := (enumEntries.filterMap fun (name, ctor) =>
         if name == enumName then some ctor else none).eraseDups
@@ -222,17 +216,18 @@ private def extractTheoryEntries (json : Json) : Json := Id.run do
     | _ => #[]
   Json.mkObj (theoryEntries ++ extraTheoryEntries).toList
 
-/-- Format a label JSON (action with parameters). -/
-private def formatLabelJson (json : Json) : String :=
-  match json with
-  | .str s => s
-  | .obj kvs =>
-    match kvs.toArray.find? fun (_, v) => v != .null with
-    | some (actionName, .obj paramKvs) =>
-      s!"{actionName}({", ".intercalate (paramKvs.toArray.map fun (k, v) => s!"{k}={formatJsonValue v}").toList})"
-    | some (actionName, _) => actionName
-    | none => toString json
-  | _ => toString json
+/-- `lead` followed by a label JSON (an action with parameters); long parameters continue aligned
+after the action's `(`. -/
+private def formatLabelJson (json : Json) (lead : String := "") : String :=
+  let label : Std.Format := match json with
+    | .str s => s
+    | .obj kvs =>
+      match kvs.toList.find? fun (_, v) => v != .null with
+      | some (actionName, .obj paramKvs) => ContainerDisplay.callFormat actionName paramKvs.toList
+      | some (actionName, _) => actionName
+      | none => toString json
+    | _ => toString json
+  (Std.Format.text lead ++ Std.Format.nest lead.length label).pretty ContainerDisplay.textWidth
 
 /-- Extract counterexample JSON from a VCResult if it has one. -/
 private def extractCounterexampleJson (vc : VCResult VCMetadata SmtResult) : Option Json := Id.run do
@@ -252,7 +247,7 @@ private def formatCounterexampleJson (json : Json) (style : String) : MessageDat
   let mut msg := m!"      Counterexample ({style}):\n"
   msg := msg ++ m!"        Theory:\n{formatTheoryObject theory "          "}\n"
   msg := msg ++ m!"        Pre-state:\n{formatJsonObject preState "          "}\n"
-  msg := msg ++ m!"        Action: {formatLabelJson label}\n"
+  msg := msg ++ m!"{formatLabelJson label "        Action: "}\n"
   unless postState == .null do
     msg := msg ++ m!"        Post-state:\n{formatJsonObject postState "          "}\n"
   return msg
@@ -295,7 +290,9 @@ private def addDiagnosticEntry (entries : Array DiagnosticEntry) (source message
     entries.push { message, sources := #[source] }
 
 private def dischargerErrorMessages : DischargerResult SmtResult → Array String
-  | .error exs _ => exs.map (fun (_, json) => formatJsonValue json)
+  | .error exs _ => exs.map (fun (_, json) => match json with
+      | .str message => message
+      | _ => formatJsonValue json)
   | .proven _ _ _ | .disproven _ _ | .unknown _ _ => #[]
 
 private def dischargerUnknownReasons : DischargerResult SmtResult → Array String

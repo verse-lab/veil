@@ -7,7 +7,9 @@ open Lean Veil
 
 /-! The concrete containers are structures over their storage. They keep the storage's equality,
 hash and ordering, and display their logical contents (entries, members, multiplicities, FIFO
-order) rather than the storage. -/
+order) rather than the storage. In JSON, sets, maps and multisets are tagged
+(`Veil.ContainerDisplay`), and the text of traces and counterexamples renders the tags in set
+notation. -/
 namespace ContainerDisplayRegression
 
 -- Wrapping must preserve the storage's equality, hash, and ordering.
@@ -42,25 +44,30 @@ example : Std.LawfulEqOrd (TMapMultiset (Fin 3)) := inferInstance
 example : DecidableEq (ArrayAsFinmap (Fin 3) Nat) := inferInstance
 example : FinEncodable (BitVecAsFinmap (Fin 3) (Fin 3)) := inferInstance
 
+-- A subtype displays as its value, e.g. a quorum as its set.
+example [ToJson α] {P : α → Prop} (s : Subtype P) : toJson s = toJson s.val := rfl
+
 /-! Array and bit-vector field representations display as the functions and sets they represent. -/
 run_cmd do
   let m : ArrayAsFinmap (Fin 3) (Option Nat) := FinmapLike.insert 1 (some 7) default
-  unless toJson m == json% [[0, null], [1, 7], [2, null]] &&
+  unless toJson m == json% {"$veil": "map", entries: [{key: 0, value: null}, {key: 1, value: 7},
+        {key: 2, value: null}]} &&
       reprStr m == "{0 ↦ none, 1 ↦ some 7, 2 ↦ none}" do
     throwError "array map must show its entries, keyed by the domain"
   let s : ArrayAsFinset (Fin 3) := FinmapLike.insert 2 true default
-  unless toJson s == json% [2] && reprStr s == "{2}" do
+  unless toJson s == json% {"$veil": "set", elements: [2]} && reprStr s == "{2}" do
     throwError "array set must show its members, not its Boolean storage"
-  unless toJson (default : ArrayAsFinmap (Fin 0) Nat) == json% [] &&
-      toJson (default : ArrayAsFinset (Fin 0)) == json% [] do
+  unless toJson (default : ArrayAsFinmap (Fin 0) Nat) == json% {"$veil": "map", entries: []} &&
+      toJson (default : ArrayAsFinset (Fin 0)) == json% {"$veil": "set", elements: []} do
     throwError "empty domains must give empty containers"
-  -- Tuple keys follow the finite-function convention, so both representations look the same.
+  -- Tuple keys stay whole, and both representations of a function look the same.
   let tuples : ArrayAsFinmap (Fin 1 × Fin 1) Nat := FinmapLike.insert (0, 0) 7 default
-  unless toJson tuples == json% [[0, 0, 7]] &&
+  unless toJson tuples == json% {"$veil": "map", entries: [{key: [0, 0], value: 7}]} &&
       toJson tuples == toJson (fun (_ : Fin 1 × Fin 1) => (7 : Nat)) do
     throwError "an array map must display as the function it represents"
   let b : BitVecAsFinmap (Fin 3) (Fin 3) := FinmapLike.insert 1 2 default
-  unless toJson b == json% [[0, 0], [1, 2], [2, 0]] && reprStr b == "{0 ↦ 0, 1 ↦ 2, 2 ↦ 0}" do
+  unless toJson b == json% {"$veil": "map", entries: [{key: 0, value: 0}, {key: 1, value: 2},
+        {key: 2, value: 0}]} && reprStr b == "{0 ↦ 0, 1 ↦ 2, 2 ↦ 0}" do
     throwError "bit map must show its decoded entries, not its bits"
   -- All raw bit patterns remain encodable, including unused codomain patterns.
   let enc := FinEncodable.equiv (α := BitVecAsFinmap (Fin 3) (Fin 3))
@@ -75,39 +82,59 @@ run_cmd do
           unless FinmapLike.get updated k' == (if k == k' then v else FinmapLike.get m k') do
             throwError "bit map update changed another key"
 
-/-! Sorted sets serialize their elements with the elements' own `ToJson`. -/
+/-! Sets and maps of every backing are tagged; elements use their own `ToJson`. -/
 run_cmd do
-  unless toJson (OrdList.ofList [2, 0]) == json% [0, 2] &&
-      toJson (OrdArray.ofList [2, 0]) == json% [0, 2] do
-    throwError "sorted sets must serialize numbers as numbers"
-  unless toJson (OrdList.ofList ["b", "a"]) == json% ["a", "b"] &&
-      toJson (OrdArray.ofList ["b", "a"]) == json% ["a", "b"] do
+  unless toJson (OrdList.ofList [2, 0]) == json% {"$veil": "set", elements: [0, 2]} &&
+      toJson (OrdArray.ofList [2, 0]) == json% {"$veil": "set", elements: [0, 2]} do
+    throwError "sorted sets must be tagged sets of their members"
+  unless toJson (OrdList.ofList ["b", "a"]) == json% {"$veil": "set", elements: ["a", "b"]} &&
+      toJson (OrdArray.ofList ["b", "a"]) == json% {"$veil": "set", elements: ["a", "b"]} do
     throwError "sorted sets must serialize strings as strings, not as their `Repr`"
   unless reprStr (OrdList.ofList [2, 0]) == "[0, 2]" && reprStr (OrdArray.ofList [2, 0]) == "[0, 2]" do
     throwError "sorted set Repr changed"
-  let subsets : List (List Nat) := [[], [0], [1], [0, 1]]
-  unless toJson (Enumeration.allValues (α := OrdList (Fin 2))) == toJson subsets &&
-      toJson (Enumeration.allValues (α := OrdArray (Fin 2))) == toJson subsets do
+  let subsets := Json.arr <| #[[], [0], [1], [0, 1]].map fun (xs : List Nat) =>
+    ContainerDisplay.setJson xs.toArray
+  unless toJson (Enumeration.allValues (α := OrdList (Fin 2))) == subsets &&
+      toJson (Enumeration.allValues (α := OrdArray (Fin 2))) == subsets do
     throwError "sorted set enumeration changed"
+  let q : Quorum (Fin 3) := ⟨BitVecAsFinset.ofList [0, 2], by decide⟩
+  unless toJson (BitVecAsFinset.ofList ([0, 2] : List (Fin 3))) ==
+      json% {"$veil": "set", elements: [0, 2]} && toJson q == toJson q.val do
+    throwError "bit sets, and the quorums built on them, must be tagged sets"
+  let setExpected := json% {"$veil": "set", elements: [0]}
+  unless toJson (fun (_ : Fin 1) => true) == setExpected &&
+      toJson ((Std.TreeSet.empty : Std.TreeSet Nat).insert 0) == setExpected &&
+      toJson ((Std.ExtTreeSet.empty : Std.ExtTreeSet Nat).insert 0) == setExpected &&
+      toJson ((Std.HashSet.emptyWithCapacity : Std.HashSet Nat).insert 0) == setExpected do
+    throwError "predicates and tree and hash sets must be tagged sets"
+  let mapExpected := json% {"$veil": "map", entries: [{key: 0, value: 7}]}
+  unless toJson (fun (_ : Fin 1) => (7 : Nat)) == mapExpected &&
+      toJson ((Std.TreeMap.empty : Std.TreeMap Nat Nat).insert 0 7) == mapExpected &&
+      toJson ((Std.ExtTreeMap.empty : Std.ExtTreeMap Nat Nat).insert 0 7) == mapExpected &&
+      toJson ((Std.HashMap.emptyWithCapacity : Std.HashMap Nat Nat).insert 0 7) == mapExpected do
+    throwError "functions and tree and hash maps must be tagged maps"
 
 /-! A multiset shows each distinct element with its actual multiplicity; the storage keeps the
 multiplicity minus one. -/
 run_cmd do
   let bag : TMapMultiset Nat := TMultiset.insert 2 (TMultiset.insert 2 (TMultiset.insert 1 TMultiset.empty))
-  unless toJson bag == json% [[1, 1], [2, 2]] && reprStr bag == "{1 × 1, 2 × 2}" do
+  unless toJson bag == json% {"$veil": "multiset", entries: [{element: 1, count: 1},
+        {element: 2, count: 2}]} && reprStr bag == "{1 × 1, 2 × 2}" do
     throwError "multiset display must show actual multiplicities"
   unless decide (2 ∈ bag) && !decide (3 ∈ bag) do
     throwError "multiset membership changed"
   let bag := TMultiset.remove 2 bag
   unless TMultiset.count 2 bag == 1 && TMultiset.size bag == 2 &&
-      toJson bag == json% [[1, 1], [2, 1]] do
+      toJson bag == json% {"$veil": "multiset", entries: [{element: 1, count: 1},
+        {element: 2, count: 1}]} do
     throwError "multiset removal changed its semantics"
   let empty : TMapMultiset Nat := TMultiset.empty
-  unless toJson empty == json% [] && reprStr empty == "{}" do
+  unless toJson empty == json% {"$veil": "multiset", entries: []} && reprStr empty == "{}" do
     throwError "empty multiset must display as empty"
   let pairs : TMapMultiset (Nat × Nat) :=
     TMultiset.insert (1, 2) (TMultiset.insert (1, 2) TMultiset.empty)
-  unless toJson pairs == json% [[[1, 2], 2]] && reprStr pairs == "{(1, 2) × 2}" do
+  unless toJson pairs == json% {"$veil": "multiset", entries: [{element: [1, 2], count: 2}]} &&
+      reprStr pairs == "{(1, 2) × 2}" do
     throwError "tuple multiset elements must stay whole"
 
 /-! A queue shows its FIFO contents, independently of how they are split between front and back. -/
@@ -121,6 +148,58 @@ run_cmd do
     throwError "queue display must be independent of its front/back layout"
   unless toJson (fQueue.empty : fQueue Nat) == Json.arr #[] do
     throwError "empty queue must display as an empty sequence"
+
+/-! The text of traces renders the tags in set notation, nested anywhere; other JSON reads as `[…]`
+and `{k: v}` in key order, with strings verbatim. Unknown or malformed tags are ordinary objects. -/
+/--
+info: {0, 2}
+{[0, 0] ↦ 7}
+{1 × 1, 2 × 2}
+[{}, {0, 1}]
+{{0, 1} ↦ {2, 3}}
+{}
+[]
+{a: [2, x y], b: 1}
+{$veil: unknown, elements: []}
+{$veil: set, elements: [], extra: true}
+{$veil: map, entries: [{key: 0}]}
+{$veil: multiset, entries: [{count: -1, element: 0}]}
+-/
+#guard_msgs in
+#eval do
+  for j in [toJson (BitVecAsFinset.ofList ([0, 2] : List (Fin 3))),
+      toJson (FinmapLike.insert (0, 0) 7 (default : ArrayAsFinmap (Fin 1 × Fin 1) Nat)),
+      ContainerDisplay.multisetJson #[((1 : Nat), 1), (2, 2)],
+      toJson ([BitVecAsFinset.ofList [], BitVecAsFinset.ofList [0, 1]] : List (BitVecAsFinset (Fin 2))),
+      ContainerDisplay.mapJson #[(OrdList.ofList [(0 : Nat), 1], OrdList.ofList [(2 : Nat), 3])],
+      ContainerDisplay.setJson (#[] : Array Nat), toJson ([] : List Nat),
+      json% {b: 1, a: [2, "x y"]},
+      json% {"$veil": "unknown", elements: []},
+      json% {"$veil": "set", elements: [], extra: true},
+      json% {"$veil": "map", entries: [{key: 0}]},
+      json% {"$veil": "multiset", entries: [{element: 0, count: -1}]}] do
+    IO.println (ContainerDisplay.formatJson j)
+
+/-! Long values fill lines up to `ContainerDisplay.textWidth` and continue aligned: after `key = `,
+after an opening bracket, after `k ↦ `, and after the `(` of an action label. -/
+/--
+info: big = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+       26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44}
+wide = {0 ↦ {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+             24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35},
+        1 ↦ {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+             24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36}}
+decide(b=1,
+       q={0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+          25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39})
+-/
+#guard_msgs in
+#eval do
+  IO.println (ContainerDisplay.formatField "" "big" (ContainerDisplay.setJson (Array.range 45)))
+  IO.println (ContainerDisplay.formatField "" "wide" (ContainerDisplay.mapJson
+    ((Array.range 2).map fun i => (i, ContainerDisplay.setJson (Array.range (36 + i))))))
+  IO.println ((ContainerDisplay.callFormat "decide" [("b", toJson (1 : Nat)),
+    ("q", ContainerDisplay.setJson (Array.range 40))]).pretty ContainerDisplay.textWidth)
 
 -- The generator rejects ambiguous storage rather than silently dropping data.
 structure TwoPayloads where
@@ -147,8 +226,9 @@ run_cmd do
     values := FinmapLike.insert 1 (some 7) (default : ArrayAsFinmap (Fin 2) (Option Nat))
     selected := FinmapLike.insert 1 true (default : ArrayAsFinset (Fin 2)) }
   let json := toJson s
-  unless json.getObjValD "values" == json% [[0, null], [1, 7]] &&
-      json.getObjValD "selected" == json% [1] do
+  unless json.getObjValD "values" == json% {"$veil": "map", entries: [{key: 0, value: null},
+        {key: 1, value: 7}]} &&
+      json.getObjValD "selected" == json% {"$veil": "set", elements: [1]} do
     throwError "state JSON must use the field representations' instances: {json}"
 
 end DirectContainerJson

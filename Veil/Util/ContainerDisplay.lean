@@ -4,12 +4,26 @@ public import Lean.Data.Json.FromToJson.Basic
 
 @[expose] public section
 
-/-! Display helpers shared by the concrete containers, which pass their logical contents (members,
-entries, multiplicities) rather than their storage. The `Repr` helpers take lists, as
-`Std.Format.joinSep` does; the JSON helpers take arrays, as `Lean.Json.arr` does, and map over them
-in place. -/
+/-! # Display of the concrete containers
+
+Shared by the containers' `Repr` and `ToJson` instances, and by the text output of traces and
+counterexamples. The containers pass their logical contents (members, entries, multiplicities)
+rather than their storage.
+
+A displayed value goes through two types here, in different roles:
+- `Lean.Json` is the data. A container's `ToJson` produces it, the compiled checker prints it and
+  the elaborator reads it back, and the widget receives it; the text output and the widget both
+  render from it.
+- `Std.Format` is layout: a document of text, `line` breaks, `nest`ing and `group`s, which
+  `Std.Format.pretty` lays out at a width, breaking the lines of a group only when the group does
+  not fit. `Repr` produces one, and the text output builds one from the JSON just before printing
+  it (`renderJson`). It is never serialized: the widget lays out the JSON in its own way. -/
 
 namespace Veil.ContainerDisplay
+
+/-! ## `Repr`: logical contents as Lean text
+
+These take lists, as `Std.Format.joinSep` does. -/
 
 /-- Render logical set members, independently of the storage representation. -/
 def setFormat [Repr α] (members : List α) : Std.Format :=
@@ -25,22 +39,103 @@ def multisetFormat [Repr α] (entries : List (α × Nat)) : Std.Format :=
   Std.Format.bracket "{" (Std.Format.joinSep
     (entries.map fun (a, n) => repr a ++ " × " ++ repr n) ("," ++ Std.Format.line)) "}"
 
-/-- Set members as a JSON array. -/
+/-! ## JSON: tagged containers
+
+Sets, maps and multisets are tagged objects, so that the text output and the widget can show them
+as such rather than as sequences:
+- `{"$veil": "set", "elements": [x, …]}`
+- `{"$veil": "map", "entries": [{"key": k, "value": v}, …]}`
+- `{"$veil": "multiset", "entries": [{"element": x, "count": n}, …]}`
+
+`$veil` is reserved for these tags. `collection?` below recognizes them, and so does
+`logicalContainer` in `widget/src/veilUtils.tsx`; the two must agree.
+
+These take arrays, as `Lean.Json.arr` does, and map over them in place. -/
+
 def setJson [Lean.ToJson α] (members : Array α) : Lean.Json :=
-  Lean.Json.arr <| members.map Lean.toJson
+  Lean.Json.mkObj [("$veil", .str "set"), ("elements", .arr (members.map Lean.toJson))]
 
-/-- Finite-map entries in Veil's finite-function JSON convention: one array per entry, holding the
-key followed by the value. A key that is itself an array, e.g. a tuple, is flattened, so a function
-`(a, b) ↦ c` gives `[a, b, c]` rather than `[[a, b], c]`. -/
+/-- Keys stay whole JSON values: a tuple or a container is one key. -/
 def mapJson [Lean.ToJson α] [Lean.ToJson β] (entries : Array (α × β)) : Lean.Json :=
-  Lean.Json.arr <| entries.map fun (k, v) =>
-    match Lean.toJson k with
-    | .arr keys => .arr (keys.push (Lean.toJson v))
-    | key => .arr #[key, Lean.toJson v]
+  Lean.Json.mkObj [("$veil", .str "map"), ("entries", .arr <| entries.map fun (k, v) =>
+    Lean.Json.mkObj [("key", Lean.toJson k), ("value", Lean.toJson v)])]
 
-/-- Multiset entries as `[element, multiplicity]` pairs. Unlike `mapJson`, an element that is itself
-an array (a tuple, a list) stays whole: it is one value, not the arguments of a function. -/
 def multisetJson [Lean.ToJson α] (entries : Array (α × Nat)) : Lean.Json :=
-  Lean.Json.arr <| entries.map fun (a, n) => .arr #[Lean.toJson a, Lean.toJson n]
+  Lean.Json.mkObj [("$veil", .str "multiset"), ("entries", .arr <| entries.map fun (a, n) =>
+    Lean.Json.mkObj [("element", Lean.toJson a), ("count", Lean.toJson n)])]
+
+/-! ## Reading the tags back -/
+
+/-- The kind and the elements or entries of a tagged container. Only complete envelopes count:
+an unknown or malformed tag stays an ordinary object. -/
+def collection? (j : Lean.Json) : Option (String × Array Lean.Json) := do
+  let .obj fields := j | none
+  guard (fields.size == 2)
+  let .str kind ← (j.getObjVal? "$veil").toOption | none
+  let payload ← match kind with
+    | "set" => (j.getObjVal? "elements").toOption
+    | "map" | "multiset" => (j.getObjVal? "entries").toOption
+    | _ => none
+  let .arr entries := payload | none
+  if kind == "map" then
+    guard <| entries.all fun e => match e with
+      | .obj fs => fs.size == 2 && (e.getObjVal? "key").isOk && (e.getObjVal? "value").isOk
+      | _ => false
+  if kind == "multiset" then
+    guard <| entries.all fun e => match e with
+      | .obj fs => fs.size == 2 && (e.getObjVal? "element").isOk &&
+          ((e.getObjVal? "count").bind Lean.Json.getNat?).isOk
+      | _ => false
+  return (kind, entries)
+
+/-! ## Text output
+
+`renderJson` turns the JSON of a value into a `Std.Format`, which decides where lines may break and
+how continuation lines are indented; `formatJson`, `formatField` and `callFormat` lay it out at
+`textWidth`. The layout is only decided here, at printing time, since the JSON carries no layout. -/
+
+/-- The width of the text output of traces and counterexamples. -/
+def textWidth : Nat := 100
+
+/-- `label` and `sep` followed by `value`, whose continuation lines align after `sep`. The label is
+measured as laid out on one line, as it is unless it is very long itself. -/
+def labeled (label : Std.Format) (sep : String) (value : Std.Format) : Std.Format :=
+  let lead := label ++ sep
+  lead ++ Std.Format.nest (lead.pretty 100000).length value
+
+/-- A JSON value as traces and counterexamples show it: tagged containers in set notation (`{a, b}`,
+`{k ↦ v}`, `{a × n}`), arrays in brackets, objects as `{k: v}` in key order, strings verbatim.
+Elements fill each line, and continue aligned after the opening bracket. -/
+partial def renderJson (j : Lean.Json) : Std.Format :=
+  match collection? j with
+  | some (kind, entries) =>
+    let entry (e : Lean.Json) : Std.Format :=
+      if kind == "map" then labeled (renderJson (e.getObjValD "key")) " ↦ " (renderJson (e.getObjValD "value"))
+      else if kind == "multiset" then
+        renderJson (e.getObjValD "element") ++ " × " ++ renderJson (e.getObjValD "count")
+      else renderJson e
+    seq "{" (entries.toList.map entry) "}"
+  | none => match j with
+    | .arr elems => seq "[" (elems.toList.map renderJson) "]"
+    | .obj kvs => seq "{" (kvs.toList.map fun (k, v) => labeled (Std.Format.text k) ": " (renderJson v)) "}"
+    | .str s => s
+    | _ => j.compress
+where
+  seq (l : String) (parts : List Std.Format) (r : String) : Std.Format :=
+    Std.Format.bracketFill l (Std.Format.joinSep parts ("," ++ Std.Format.line)) r
+
+def formatJson (j : Lean.Json) : String :=
+  (renderJson j).pretty textWidth
+
+/-- `key = value` at `indent`, with the value's continuation lines aligned after `key = `. -/
+def formatField (indent key : String) (j : Lean.Json) : String :=
+  (labeled (Std.Format.text (indent ++ key)) " = " (renderJson j)).pretty textWidth
+
+/-- `name(k=v, …)`, as action labels are shown; long arguments continue aligned after `name(`. -/
+def callFormat (name : String) (args : List (String × Lean.Json)) : Std.Format :=
+  if args.isEmpty then name else
+  labeled (Std.Format.text name) "(" (Std.Format.fill
+    (Std.Format.joinSep (args.map fun (k, v) => labeled (Std.Format.text k) "=" (renderJson v))
+      ("," ++ Std.Format.line))) ++ ")"
 
 end Veil.ContainerDisplay
