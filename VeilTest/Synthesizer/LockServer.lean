@@ -4,7 +4,8 @@ public import Veil
 public import Veil.Core.Tools.Synthesizer
 
 /-! A lock server whose mutual exclusion needs one strengthening clause: the
-command finds it. -/
+command finds it and certifies it as `LockServer.ic3_safe`, a theorem on the
+standard axioms. -/
 
 veil module LockServer
 
@@ -46,6 +47,10 @@ safety [mutex] holds C ∧ holds D → C = D
 
 /-- invariant [ic3_0] ∀ (x0 : client), ¬ holds x0 ∨ ¬ lock_free -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants
+#synthesize_invariants certify
+
+/-- info: 'LockServer.ic3_safe' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms LockServer.ic3_safe
 
 end LockServer
