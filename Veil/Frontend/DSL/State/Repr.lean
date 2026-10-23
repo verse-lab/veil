@@ -3,6 +3,7 @@ module
 public import Veil.Frontend.DSL.Action.Semantics.Definitions
 public meta import Veil.Util.Meta
 public import Veil.Frontend.DSL.State.Types
+public import Veil.Util.ValueDisplay
 
 public section
 
@@ -26,21 +27,15 @@ instance (priority := high) finFunctionReprCurry (α₁ : Type u) (α₂ : Type 
   Repr (α₁ → α₂ → β) where
   reprPrec := fun f n => inst.reprPrec (fun (x, y) => f x y) n
 
+/-- Repr for finite functions: the map of all input/output pairs, as in `finFunctionToJson`. A
+function of several arguments is uncurried by `finFunctionReprCurry`, so its keys are tuples. -/
 instance (priority := low) finFunctionRepr (α : Type u) (β : Type v) [Repr α] [Enumeration α] [Repr β] :
   Repr (α → β) where
-  reprPrec := fun f n =>
-    let l : List α := Enumeration.allValues
-    let args := l.map (reprPrec · n)
-    let res := l.map ((fun x => reprPrec x n) ∘ f)
-    args.zip res |>.foldl
-      (fun acc (a, b) => acc.append (a ++ " => " ++ b ++ Std.Format.line))
-      ("finite_fun : ".toFormat)
+  reprPrec f _ := ValueDisplay.mapFormat ((Enumeration.allValues (α := α)).map fun a => (a, f a))
 
+/-- Repr for boolean predicates: the set of the elements where the predicate is true, as in
+`essentiallyFinSetToJson`. -/
 instance (priority := high) essentiallyFinSetRepr (α : Type u) [Repr α] [Enumeration α] : Repr (α → Bool) where
-  reprPrec := fun f => List.repr (Enumeration.allValues (α := α) |>.filter f)
-
-def reprFiniteFunc {α β} [Enumeration α] [Repr α] [Repr β] (f : α → β) : String :=
-  (Enumeration.allValues (α := α)).map (fun a => s!"{reprStr a}{reprStr (f a)}")
-  |> String.intercalate ""
+  reprPrec f _ := ValueDisplay.setFormat ((Enumeration.allValues (α := α)).filter f)
 
 end Veil

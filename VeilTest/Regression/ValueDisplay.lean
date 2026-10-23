@@ -10,7 +10,7 @@ hash and ordering, and display their logical contents (entries, members, multipl
 order) rather than the storage. In JSON, sets, maps and multisets are tagged
 (`Veil.ValueDisplay`), and the text of traces and counterexamples renders the tags in set
 notation. -/
-namespace ContainerDisplayRegression
+namespace ValueDisplayRegression
 
 -- Wrapping must preserve the storage's equality, hash, and ordering.
 example [FinEncodable α] [Hashable β] (m : ArrayAsFinmap α β) : hash m = hash m.val := rfl
@@ -63,7 +63,8 @@ run_cmd do
   -- Tuple keys stay whole, and both representations of a function look the same.
   let tuples : ArrayAsFinmap (Fin 1 × Fin 1) Nat := FinmapLike.insert (0, 0) 7 default
   unless toJson tuples == json% {"$veil": "map", entries: [{key: [0, 0], value: 7}]} &&
-      toJson tuples == toJson (fun (_ : Fin 1 × Fin 1) => (7 : Nat)) do
+      toJson tuples == toJson (fun (_ : Fin 1 × Fin 1) => (7 : Nat)) &&
+      reprStr tuples == reprStr (fun (_ : Fin 1 × Fin 1) => (7 : Nat)) do
     throwError "an array map must display as the function it represents"
   let b : BitVecAsFinmap (Fin 3) (Fin 3) := FinmapLike.insert 1 2 default
   unless toJson b == json% {"$veil": "map", entries: [{key: 0, value: 0}, {key: 1, value: 2},
@@ -113,6 +114,17 @@ run_cmd do
       toJson ((Std.ExtTreeMap.empty : Std.ExtTreeMap Nat Nat).insert 0 7) == mapExpected &&
       toJson ((Std.HashMap.emptyWithCapacity : Std.HashMap Nat Nat).insert 0 7) == mapExpected do
     throwError "functions and tree and hash maps must be tagged maps"
+
+/-! In `Repr` too, functions over finite domains are maps and predicates are sets; a function of
+several arguments is keyed by tuples. -/
+run_cmd do
+  unless reprStr (fun (a : Fin 3) => a.val * 2) == "{0 ↦ 0, 1 ↦ 2, 2 ↦ 4}" &&
+      reprStr (fun (a : Fin 3) => a == 1) == "{1}" &&
+      reprStr (fun (_ : Fin 2) => false) == "{}" &&
+      reprStr (fun (a b : Fin 2) => a.val + b.val) ==
+        "{(0, 0) ↦ 0, (0, 1) ↦ 1, (1, 0) ↦ 1, (1, 1) ↦ 2}" &&
+      reprStr (fun (a b : Fin 2) => a == b) == "{(0, 0), (1, 1)}" do
+    throwError "finite functions must show as maps, and predicates as sets"
 
 /-! A multiset shows each distinct element with its actual multiplicity; the storage keeps the
 multiplicity minus one. -/
@@ -210,7 +222,7 @@ structure TwoPayloads where
 #guard_msgs in
 veil_derive_wrapper_instances TwoPayloads
 
-end ContainerDisplayRegression
+end ValueDisplayRegression
 
 /-! The state's `ToJson` uses the field representations' instances. -/
 veil module DirectContainerJson
