@@ -29,9 +29,11 @@ states means that no universal inductive invariant proves `P` [Karbyshev et al.,
   `#check_invariants` does.
 * A query whose answer the search cannot do without is asked again with twice
   `veil.smt.timeout` when the solver gives up (`SearchM.askCore`).
-* The no-universal-invariant verdict rests on this code and on Proposition 5.6 of the paper,
-  extended to function symbols and enum sorts: a universal sentence passes to substructures closed
-  under the functions, and an enum carrier is fixed. With integer state in the vocabulary no such verdict is given (`Outcome.absenceWithheld`).
+* The invariant and counterexample verdicts are re-established by the certificates; a bug here can
+  make a certificate fail but not a theorem false. The no-universal-invariant verdict rests on this
+  code and on Proposition 5.6 of the paper, extended to function symbols and enum sorts: a
+  universal sentence passes to substructures closed under the functions, and an enum carrier is
+  fixed. With integer state in the vocabulary no such verdict is given (`Outcome.absenceWithheld`).
 
 ## References
 

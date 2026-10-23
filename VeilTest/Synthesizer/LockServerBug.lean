@@ -4,7 +4,8 @@ public import Veil
 public import Veil.Core.Tools.Synthesizer
 
 /-! The lock server with a bug: `grant` does not check that the lock is free.
-The command finds an execution in which two clients hold the lock. -/
+The command finds an execution in which two clients hold the lock and
+certifies it as `LockServerBug.ic3_unsafe`. -/
 
 veil module LockServerBug
 
@@ -45,6 +46,10 @@ safety [mutex] holds C ∧ holds D → C = D
 
 /-- info: Violated: the safety property. Execution of 4 step(s) -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := unsafe)
+#synthesize_invariants (expect := unsafe) certify
+
+/-- info: 'LockServerBug.ic3_unsafe' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms LockServerBug.ic3_unsafe
 
 end LockServerBug

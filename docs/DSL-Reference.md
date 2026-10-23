@@ -407,11 +407,13 @@ inductive, or for an execution that violates them:
 ```lean
 public import Veil.Core.Tools.Synthesizer
 
-#synthesize_invariants
+#synthesize_invariants certify
 ```
 
 It prints the strengthening as `invariant` lines to paste into the module,
-or a counterexample. The command needs its own import. See the
+or a counterexample. With `certify`, the result is a kernel-checked theorem:
+`Mod.ic3_safe` that every reachable state satisfies the properties, or
+`Mod.ic3_unsafe` that one does not. The command needs its own import. See the
 [Invariant Synthesizer Guide](Synthesizer-Guide.md) for its options, the
 algorithm and its limitations.
 

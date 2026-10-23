@@ -2,6 +2,8 @@ module
 
 public meta import Veil
 public meta import Veil.Core.Tools.Synthesizer.Controller
+public meta import Veil.Core.Tools.Synthesizer.Certificate
+public meta import Veil.Core.Tools.Synthesizer.Counterexample
 
 /-!
 # `#synthesize_invariants`
@@ -9,9 +11,9 @@ public meta import Veil.Core.Tools.Synthesizer.Controller
 This file defines the command, which runs UPDR on the current module's `safety` properties and
 reports the outcome: strengthening clauses to paste into the module, a concrete counterexample, an
 abstract counterexample showing that no universal inductive invariant exists, or why the search
-stopped.
+stopped. With `certify`, an invariant or a counterexample becomes a kernel-checked theorem.
 
-    #synthesize_invariants (fuel := 500) (log := "run.jsonl") (invariants := true) verbose
+    #synthesize_invariants (fuel := 500) (log := "run.jsonl") (invariants := true) verbose certify
 
 Options may appear in any order, each at most once.
 -/
@@ -23,7 +25,7 @@ open Lean Elab Command Term Meta Veil
 
 register_option veil.synthesizer.timings : Bool := {
   defValue := false
-  descr := "report the wall time of IC3 synthesis"
+  descr := "report separate wall times for IC3 synthesis and kernel certification"
 }
 
 syntax synthFuel := &"fuel" " := " num
@@ -38,7 +40,7 @@ syntax synthOpt := "(" (synthFuel <|> synthLog <|> synthExpect <|> synthInvarian
 /-- Search for universal invariants that make the module's `safety` properties inductive, with
 UPDR. -/
 syntax (name := synthesizeInvariants)
-  "#synthesize_invariants" (synthOpt <|> &"verbose")* : command
+  "#synthesize_invariants" (synthOpt <|> &"verbose" <|> &"certify")* : command
 
 /-- The outcome a test expects (`(expect := …)`). -/
 inductive Expectation where
@@ -86,6 +88,7 @@ def Outcome.toJson : Outcome → Json
 structure Options where
   cfg : Config := {}
   expectation : Option Expectation := none
+  certify : Bool := false
 
 /-- The word of a bare flag, which parses as an atom or a node around one. -/
 def flag? : Syntax → Option String
@@ -97,6 +100,7 @@ def Options.set (opts : Options) (arg : Syntax) : CommandElabM (String × Option
   let inner := if arg.isOfKind ``synthOpt then arg[1] else arg
   match flag? inner with
   | some "verbose" => return ("verbose", { opts with cfg.verbose := true })
+  | some "certify" => return ("certify", { opts with certify := true })
   | some _ => throwErrorAt arg "unknown option"
   | none => pure ()
   match inner with
@@ -155,6 +159,15 @@ def chainDescription : String :=
 def renderChain (diagrams : Array FinStructure) : String :=
   "".intercalate (diagrams.toList.zipIdx.map fun (σ, i) ↦ s!"  structure {i + 1}:\n{σ.render}\n")
 
+/-- What the axioms of a certificate say. -/
+def certificateStatus (cert : CertificateResult) : String :=
+  if cert.kernelChecked then "kernel-checked, standard axioms only"
+  else
+    let note := if cert.offenders.contains ``sorryAx then "; sorryAx means a solver step could \
+      not be replayed as a Lean proof (lean-smt could not reconstruct it, or the kernel rejected \
+      its reconstruction)" else ""
+    s!"depends on {cert.offenders} beyond the standard axioms{note}"
+
 /-- The report of the solver calls of a run. -/
 def statsMessage (stats : RunStats) (status : TrNorm.Status) : String :=
   let ph := stats.phases
@@ -175,11 +188,11 @@ def invariantMessage (frame : Nat) (clauses : Array Admitted) (anyTrusted trusti
     String :=
   let trustNote :=
     if !anyTrusted then " (lean-smt reconstructed every solver answer of the search as a proof \
-      term; the search does not kernel-check those terms)"
+      term; the search does not kernel-check those terms, `certify` does)"
     else if trusting then " (the search took the solver's answers on faith under \
-      `veil.synthesizer.trust true`)"
+      `veil.synthesizer.trust true`; a certificate reconstructs its own proofs)"
     else " (the search took some solver answers on faith because lean-smt could not replay their \
-      proofs)"
+      proofs; a certificate reconstructs its own proofs and reports what it cannot)"
   if clauses.isEmpty then
     s!"Inductive invariant found at frame {frame}: the property is inductive on its own{trustNote}"
   else
@@ -290,7 +303,7 @@ def reportPhaseTime (phase : String) (started : Nat) : CommandElabM Unit := do
 def elabSynthesizeInvariants : CommandElab := fun stx ↦ do
   let mod ← getCurrentModule (errMsg := "#synthesize_invariants must be used inside a Veil module")
   mod.throwIfSpecNotFinalized
-  let { cfg, expectation } ← parseOptions stx[1].getArgs
+  let { cfg, expectation, certify := doCertify } ← parseOptions stx[1].getArgs
   -- Refuse an unsupported module, a module without a property and a bad fault hook before running.
   let sig ← liftTermElabM (Signature.ofModule mod)
   let property ← liftCoreM (checkedProperty mod cfg)
@@ -304,12 +317,13 @@ def elabSynthesizeInvariants : CommandElab := fun stx ↦ do
   -- The transition system does not assume trusted invariants.
   let trustedNote :=
     if mod.trustedInvariants.isEmpty then "" else " (trusted invariants were not assumed)"
+  if doCertify then throwIfCertified mod [`ic3_prop, `ic3_safe, `ic3_unsafe, `ic3_init_0]
   liftCoreM (TrNorm.throwIfForeign mod)
   let trNormBefore := (← liftCoreM (TrNorm.available mod)).isSome
   let unassigned := Signature.unassignedByInit mod
   unless unassigned.isEmpty do
     logWarning s!"IC3: after_init does not assign \
-      {", ".intercalate (unassigned.map toString).toList}; the search's initial states keep \
+      {", ".intercalate (unassigned.map toString).toList}; the certificate's initial states keep \
       the default value of these components, and #check_invariants may reject a clause that \
       relies on it (see \"Semantics\" in docs/Synthesizer-Guide.md)"
   let started ← IO.monoMsNow
@@ -330,15 +344,28 @@ def elabSynthesizeInvariants : CommandElab := fun stx ↦ do
   let expected := expectation.any (·.matches outcome)
   if let some e := expectation then
     unless expected do logError s!"expected {e.describe}, got {outcome.describe}"
+  let certifyTimed (x : CommandElabM CertificateResult) : CommandElabM CertificateResult := do
+    let started ← IO.monoMsNow
+    let cert ← x
+    reportPhaseTime "certification" started
+    return cert
   match outcome with
   | .foundInvariant frame clauses anyTrusted =>
     logInfo (invariantMessage frame clauses anyTrusted (veil.synthesizer.trust.get (← getOptions)))
+    if doCertify then
+      let cert ← certifyTimed <| certify mod property (clauses.map (·.clause))
+      logInfo s!"Certified: theorem {cert.theoremName} (strengthening {cert.strengtheningName}); \
+        axioms: {cert.axioms}; {certificateStatus cert}"
   | .«unsafe» path =>
     logReport expected .error (← violationMessage property (propertyName ++ trustedNote) path)
+    if doCertify then
+      let cert ← certifyTimed <| certifyUnsafe mod property path
+      logInfo s!"Certified: theorem {cert.theoremName} refutes {propertyName} at the model's sort \
+        sizes and typeclass instances; axioms: {cert.axioms}; {certificateStatus cert}"
   | .unsafeUndecoded steps reason =>
     logError s!"Violated: {propertyName}{trustedNote}. The solver found an execution of {steps} \
       step(s) that breaks it, but its model could not be decoded ({reason.take 300}), so the \
-      execution is not shown."
+      execution is not shown{if doCertify then "; no certificate is built" else ""}."
   | .noUniversalInvariant diagrams check =>
     logReport expected .warning (absenceMessage sig (propertyName ++ trustedNote) diagrams check)
   | .absenceWithheld diagrams check frameSizes =>

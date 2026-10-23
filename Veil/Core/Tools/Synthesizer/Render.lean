@@ -6,8 +6,8 @@ public meta import Veil.Core.Tools.Synthesizer.Structure
 /-!
 # Rendering clauses and structures
 
-This file writes clauses as Veil terms, for the solver queries, and as text, for the messages a
-user pastes into a module. It also writes finite structures as text.
+This file writes clauses as Veil terms, for the solver queries and the certificates, and as text,
+for the messages a user pastes into a module. It also writes finite structures as text.
 
 ## Main definitions
 

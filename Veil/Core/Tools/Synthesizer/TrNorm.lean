@@ -10,7 +10,7 @@ Veil's preprocessing of a query unfolds each action's semantics into a propositi
 of the two states, the same in every query. This file does that once per module: it adds the
 definition `Mod.ic3_trNorm`, whose body is that proposition for each action, and the theorem
 `Mod.ic3_tr_eq_norm` that it equals Veil's `tr`, checked by the kernel. Queries are then written
-with `ic3_trNorm`.
+with `ic3_trNorm`, and certificates rewrite along the equation.
 
 ## Main definitions
 
