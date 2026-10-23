@@ -99,7 +99,7 @@ run_cmd do
       check (mgr.readyTasks.isEmpty) "ignored automatic result scheduled work"
     let mgr ← (manager #[auto, proof]).recordDischargerResult proof.id (.proven (some (mkConst ``True.intro)) none 1)
     assertState mgr 1 1 (some 1) (some .proven)
-    check (← auto.cancelTk.isSet) "accepted interactive result did not cancel automatic work"
+    check (!(← auto.cancelTk.isSet)) "accepted interactive result canceled shared automatic work"
     let mgr ← mgr.recordDischargerResult auto.id (.error #[] 2)
     assertState mgr 1 1 (some 1) (some .proven)
   finally release #[auto, proof]

@@ -41,11 +41,16 @@ def getVCManagerOwner [Monad m] [MonadEnv m] [MonadError m] : m VCManagerEnviron
     | throwError "verification manager has not been prepared"
   return owner
 
+/-- An owner closes when the command that prepared it is re-elaborated, or when
+both of its lifetime holders (child snapshot and info-tree leaf) are dropped. -/
+def ownerCanceledMessage : String :=
+  "verification interrupted: specification owner was canceled (its preparing command was re-elaborated, or its snapshot and info tree were dropped)"
+
 def withVCManager (f : IO.Ref (VCManager VCMetadata SmtResult) → CommandElabM α) : CommandElabM α := do
   let owner ← getVCManagerOwner
   owner.manager.atomically fun ref => do
     if ← owner.cancelTk.isSet then
-      throwError "verification interrupted: specification owner was canceled"
+      throwError ownerCanceledMessage
     f ref
 
 /-- Capture the caller's proof checkpoint once, while allowing shared automatic
@@ -62,6 +67,10 @@ def captureVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m]
 def readVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m] :
     m (VCManager VCMetadata SmtResult) := do
   liftM (← captureVCManager)
+
+/-- The caller's current generation, without projecting interactive proofs. -/
+private def currentManagerId : CommandElabM ManagerId := do
+  (← getVCManagerOwner).manager.atomically fun ref => return (← ref.get)._managerId
 
 /-- One lock protects the physical pool and active-owner registry. Its lock is
 always taken before an owner's manager mutex. Frontend mutations only take the
@@ -173,17 +182,17 @@ def applyCurrentRequest (notification : ManagerNotification VCMetadata SmtResult
   applyFrontendRequest owner notification registrations
 
 def reset (managerId : ManagerId) : CommandElabM Unit := do
-  let currentId ← (← getVCManagerOwner).manager.atomically fun ref => return (← ref.get)._managerId
+  let currentId ← currentManagerId
   applyCurrentRequest (.reset managerId)
   if currentId == managerId then
     modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.erase managerId)
 
 def startAll : CommandElabM Unit := do
-  let managerId := (← readVCManager)._managerId
+  let managerId ← currentManagerId
   applyCurrentRequest (.startAll managerId)
 
 private def requestFiltered (filter : VCMetadata → Bool) : CommandElabM ManagerId := do
-  let managerId := (← readVCManager)._managerId
+  let managerId ← currentManagerId
   applyCurrentRequest (.startFiltered managerId filter)
   return managerId
 
@@ -285,7 +294,7 @@ private def awaitFilteredWithLogging (managerId : ManagerId) (filter : VCMetadat
     liftCoreM Core.checkInterrupted
     if ← owner.cancelTk.isSet then
       applyFrontendRequest owner .fill
-      throwError "verification interrupted: specification owner was canceled"
+      throwError ownerCanceledMessage
     -- Surface manager-loop errors where the user is looking; the loop itself
     -- cannot log to the editor (it is not registered with `logSnapshotTask`).
     for err in ← (← getVCManagerOwner).errors.modifyGet fun errs => (errs, #[]) do

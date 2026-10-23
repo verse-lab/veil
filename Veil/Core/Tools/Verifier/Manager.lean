@@ -452,25 +452,15 @@ def Discharger.run (discharger : Discharger ResultT) : BaseIO (Discharger Result
     let task ← discharger.mkTask
     return { discharger with task := some task }
 
-def Discharger.status (discharger : Discharger ResultT) : BaseIO (DischargeStatus ResultT) := do
-  let resultTask := discharger.resultPromise.result?
-  match ← IO.hasFinished resultTask with
-  | true =>
-    match resultTask.get with
-    | some res => return .finished res
-    | none =>
-      -- The promise was dropped without being resolved: the discharger died
-      -- without publishing. Report it as a finished error.
-      return .finished (.error #[] 0)
-  | false =>
-    match discharger.task with
-    | none => return .notStarted
-    | some _ => return .running
-
-def Discharger.isSuccessful (discharger : Discharger ResultT) : BaseIO Bool := do
-  match (← discharger.status) with
-  | .finished (.proven _ _ _) => return true
-  | _ => return false
+/-- Status of a discharger as accepted by this manager. A result that has been
+published but not yet accepted still reports `.running`, so rendering agrees
+with scheduling and completion. -/
+def VCManager.dischargerStatus (mgr : VCManager VCMetaT ResultT)
+    (vc : VerificationCondition VCMetaT ResultT) (discharger : Discharger ResultT)
+    : DischargeStatus ResultT :=
+  match mgr._dischargerResults[(vc.uid, discharger.id.dischargerId)]? with
+  | some res => .finished res
+  | none => if discharger.task.isSome then .running else .notStarted
 
 /-- Interactive theorem dischargers take precedence over automatic dischargers:
 when a VC has at least one explicit `@[veil]` theorem, only those interactive
@@ -483,12 +473,6 @@ def VerificationCondition.effectiveDischargers
 def VerificationCondition.hasInteractiveDischarger
     (vc : VerificationCondition VCMetaT ResultT) : Bool :=
   vc.dischargers.any (·.isInteractive)
-
-def VerificationCondition.cancelNonInteractiveDischargers
-    (vc : VerificationCondition VCMetaT ResultT) : BaseIO Unit := do
-  for discharger in vc.dischargers do
-    unless discharger.isInteractive do
-      discharger.cancelTk.set
 
 /-- Get the start time if the promise has been resolved (i.e., the discharger has started). -/
 def Discharger.startTime (discharger : Discharger ResultT) : BaseIO (Option Nat) := do
@@ -631,10 +615,11 @@ private def VCManager.exhaustedVCStatus (mgr : VCManager VCMetaT ResultT)
 
 /-- Accept an exact current discharger result and update all derived bookkeeping.
 Automatic results are accepted once; interactive results may replace their own
-entry as a proof is edited. Rejected notifications have no side effects. -/
+entry as a proof is edited. Rejected notifications have no side effects, and
+accepting never cancels running work: interactive proofs only shadow automatic
+attempts in the caller's view. -/
 def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
-    (id : DischargerIdentifier) (res : DischargerResult ResultT)
-    (cancelAutomatic : Bool := true) : BaseIO (VCManager VCMetaT ResultT) := do
+    (id : DischargerIdentifier) (res : DischargerResult ResultT) : BaseIO (VCManager VCMetaT ResultT) := do
   if id.managerId != mgr._managerId then return mgr
   let some vc := mgr.nodes[id.vcId]? | return mgr
   if vc.uid != id.vcId then return mgr
@@ -646,8 +631,6 @@ def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
   let alreadyRecorded := mgr._dischargerResults.contains key
   if alreadyRecorded && !incomingIsInteractive then return mgr
 
-  if incomingIsInteractive && cancelAutomatic then
-    vc.cancelNonInteractiveDischargers
   let wasSuccessful := vc.successful.isSome
   let mut mgr := { mgr with
     _dischargerResults := mgr._dischargerResults.insert key res
@@ -700,7 +683,7 @@ def VCManager.withInteractiveResults (mgr : VCManager VCMetaT ResultT)
     let discharger := { discharger with id.dischargerId := vc.dischargers.size }
     let vc := { vc with dischargers := vc.dischargers.push discharger }
     mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc }
-    mgr ← mgr.recordDischargerResult discharger.id result (cancelAutomatic := false)
+    mgr ← mgr.recordDischargerResult discharger.id result
     -- A shared automatic failure may have activated these alternatives for an
     -- older checkpoint. This proof view must keep them dormant regardless.
     if discharger.isInteractive then
