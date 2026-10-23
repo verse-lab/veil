@@ -399,6 +399,22 @@ Lean tactics. The inserted theorem is tagged `@[veil]`, which makes
 
 To check a single action, use `#check_action <name>`.
 
+#### Synthesizing Invariants
+
+Searches for the `invariant` clauses that make the `safety` properties
+inductive, or for an execution that violates them:
+
+```lean
+public import Veil.Core.Tools.Synthesizer
+
+#synthesize_invariants
+```
+
+It prints the strengthening as `invariant` lines to paste into the module,
+or a counterexample. The command needs its own import. See the
+[Invariant Synthesizer Guide](Synthesizer-Guide.md) for its options, the
+algorithm and its limitations.
+
 #### Explicit-State Model Checking
 
 Exhaustive enumeration of the reachable states of a finite instance, checking
