@@ -1,6 +1,7 @@
 module
 
 public import Veil.Frontend.DSL.State.Types
+public import Veil.Util.ContainerDisplay
 
 @[expose] public section
 
@@ -115,9 +116,10 @@ theorem mem_iff_getLsbD {a : α} {s : BitVecAsFinset α} :
 /-- Number of elements. -/
 def card (s : BitVecAsFinset α) : Nat := s.bits.popCount
 
-/-- The elements, in encoding order. -/
-def toList (s : BitVecAsFinset α) : List α :=
-  (List.finRange inst.card).filterMap fun i => if s.bits[i] then some (inst.equiv.symm i) else none
+/-- The members in encoding order, built in one pass. -/
+def members (s : BitVecAsFinset α) : Array α :=
+  Fin.foldl inst.card (init := #[]) fun out i =>
+    if s.bits.getLsbInline i then out.push (inst.equiv.symm i) else out
 
 def empty : BitVecAsFinset α := ⟨0⟩
 /-- The full set containing all elements of `α`. -/
@@ -163,11 +165,10 @@ theorem card_le_card {s t : BitVecAsFinset α} (h : ∀ a, a ∈ s → a ∈ t) 
   exact this hs
 
 instance [Repr α] : Repr (BitVecAsFinset α) where
-  reprPrec s _ :=
-    Std.Format.bracket "{" (Std.Format.joinSep (s.toList.map repr) ("," ++ Std.Format.line)) "}"
+  reprPrec s _ := Veil.ContainerDisplay.setFormat s.members.toList
 
-instance [Repr α] : Lean.ToJson (BitVecAsFinset α) where
-  toJson s := Lean.Json.str (toString (repr s))
+instance [Lean.ToJson α] : Lean.ToJson (BitVecAsFinset α) where
+  toJson s := Veil.ContainerDisplay.setJson s.members
 
 instance : Enumeration (BitVecAsFinset α) where
   allValues := (Enumeration.allValues (α := BitVec inst.card)).map BitVecAsFinset.mk

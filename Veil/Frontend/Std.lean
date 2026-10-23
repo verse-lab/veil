@@ -707,7 +707,7 @@ instance [Ord α] : Inhabited (TMapMultiset α) := ⟨⟨Std.ExtTreeMap.empty⟩
 
 /-- Logical multiplicities; storage keeps each nonzero count minus one. -/
 def TMapMultiset.entries [Ord α] [TransOrd α] (m : TMapMultiset α) : Array (α × Nat) :=
-  m.val.foldl (fun out a n => out.push (a, n.succ)) #[]
+  m.val.foldl (fun out a n => out.push (a, n.succ)) (Array.emptyWithCapacity m.val.size)
 
 instance [Ord α] [TransOrd α] [Repr α] : Repr (TMapMultiset α) where
   reprPrec m _ := ContainerDisplay.multisetFormat m.entries.toList
