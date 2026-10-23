@@ -4,6 +4,7 @@ public import Std
 public import Veil.Frontend.DSL.State.Concrete
 public import Veil.Frontend.DSL.State.Data
 public import Veil.Util.List
+public import Veil.Util.ContainerDisplay
 public import Std.Data.ExtTreeMap.Lemmas
 
 @[expose] public section
@@ -273,6 +274,42 @@ instance (priority := low) reprOfUnrepresentable : Repr α where
 instance (priority := low) jsonOfRepr [Repr α] : ToJson α where
   toJson := fun a => Json.str (toString (repr a))
 
+/-! The concrete field representations below display their logical contents (the entries of the
+map, the members of the set), as the finite functions they represent do, not their storage. -/
+
+def ArrayAsFinmap.entries [inst : FinEncodable α] (m : ArrayAsFinmap α β) : Array (α × β) :=
+  Array.ofFn fun i => (inst.equiv.symm i, m.val[i.val]'(m.property ▸ i.isLt))
+
+def ArrayAsFinset.members [inst : FinEncodable α] (s : ArrayAsFinset α) : Array α :=
+  Fin.foldl inst.card (init := #[]) fun out i =>
+    if s.val[i.val]'(s.property ▸ i.isLt) then out.push (inst.equiv.symm i) else out
+
+def BitVecAsFinmap.entries [inst : FinEncodable α] [FinEncodable β] [Inhabited β]
+    (m : BitVecAsFinmap α β) : Array (α × β) :=
+  Array.ofFn fun i =>
+    let k := inst.equiv.symm i
+    (k, FinmapLike.get m k)
+
+instance [FinEncodable α] [Repr α] [Repr β] : Repr (ArrayAsFinmap α β) where
+  reprPrec m _ := ContainerDisplay.mapFormat m.entries.toList
+
+instance [FinEncodable α] [ToJson α] [ToJson β] : ToJson (ArrayAsFinmap α β) where
+  toJson m := ContainerDisplay.mapJson m.entries
+
+instance [FinEncodable α] [Repr α] : Repr (ArrayAsFinset α) where
+  reprPrec s _ := ContainerDisplay.setFormat s.members.toList
+
+instance [FinEncodable α] [ToJson α] : ToJson (ArrayAsFinset α) where
+  toJson s := ContainerDisplay.setJson s.members
+
+instance [FinEncodable α] [FinEncodable β] [Inhabited β] [Repr α] [Repr β] :
+    Repr (BitVecAsFinmap α β) where
+  reprPrec m _ := ContainerDisplay.mapFormat m.entries.toList
+
+instance [FinEncodable α] [FinEncodable β] [Inhabited β] [ToJson α] [ToJson β] :
+    ToJson (BitVecAsFinmap α β) where
+  toJson m := ContainerDisplay.mapJson m.entries
+
 /-- ToJson for curried finite functions: uncurry and use the product instance. -/
 instance (priority := high) finFunctionToJsonCurry (α₁ : Type u) (α₂ : Type v) (β : Type w)
     [ToJson α₁] [Enumeration α₁] [ToJson α₂] [Enumeration α₂] [ToJson β]
@@ -284,13 +321,7 @@ instance (priority := high) finFunctionToJsonCurry (α₁ : Type u) (α₂ : Typ
 instance (priority := low) finFunctionToJson (α : Type u) (β : Type v)
     [ToJson α] [Enumeration α] [ToJson β] : ToJson (α → β) where
   toJson := fun f =>
-    let l : List α := Enumeration.allValues
-    Json.arr <| l.toArray.map (fun a =>
-      let keyJson := toJson a
-      let valJson := toJson (f a)
-      match keyJson with
-      | Json.arr elems => Json.arr (elems.push valJson)
-      | _ => Json.arr #[keyJson, valJson])
+    ContainerDisplay.mapJson ((Enumeration.allValues (α := α)).toArray.map fun a => (a, f a))
 
 /-- ToJson for boolean predicates: show only the elements where the predicate is true. -/
 instance (priority := high) essentiallyFinSetToJson (α : Type u)

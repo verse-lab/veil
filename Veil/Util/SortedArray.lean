@@ -339,8 +339,11 @@ end Array
 /-! ## Type definition -/
 
 /-- A strictly sorted array, used as a set representation. -/
-abbrev OrdArray (α : Type u) [Ord α] : Type u :=
-  { a : Array α // a.toList.Pairwise (OrdList.cmpLt (α := α)) }
+@[ext] structure OrdArray (α : Type u) [Ord α] : Type u where
+  val : Array α
+  property : val.toList.Pairwise (OrdList.cmpLt (α := α))
+
+veil_derive_wrapper_instances OrdArray
 
 namespace OrdArray
 
@@ -1084,21 +1087,8 @@ instance : Inhabited (OrdArray α) where
 instance [Repr α] : Repr (OrdArray α) where
   reprPrec s p := reprPrec s.val.toList p
 
-instance [Repr α] : Lean.ToJson (OrdArray α) := Veil.jsonOfRepr
-
-/-! ### Ordering instances -/
-
-instance [Std.ReflOrd α] : Std.ReflOrd (OrdArray α) where
-  compare_self := Std.ReflOrd.compare_self (α := Array α)
-
-instance [Std.LawfulEqOrd α] : Std.LawfulEqOrd (OrdArray α) where
-  eq_of_compare h := Subtype.ext (Std.LawfulEqOrd.eq_of_compare (α := Array α) h)
-
-instance [Std.OrientedOrd α] : Std.OrientedOrd (OrdArray α) where
-  eq_swap := Std.OrientedOrd.eq_swap (α := Array α)
-
-instance [Std.TransOrd α] : Std.TransOrd (OrdArray α) where
-  isLE_trans h1 h2 := Std.TransOrd.isLE_trans (α := Array α) h1 h2
+instance [Lean.ToJson α] : Lean.ToJson (OrdArray α) where
+  toJson s := Veil.ContainerDisplay.setJson s.val
 
 /-! ### Enumeration -/
 
@@ -1107,9 +1097,8 @@ instance instEnumerationOrdArray [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   allValues :=
     (OrdList.ofList (Veil.Enumeration.allValues (α := α))).sublists |>.map OrdArray.ofOrdList
   complete := by
-    intro ⟨a, ha⟩ ; simp [ofOrdList]
-    exists a.toList ; simp ; exists ha ; simp [OrdList.sublists]
-    apply OrdList.mem_contains_then_is_sublist <;> try grind
-    intros _ ; simp [OrdList.ofList, ofList.inner_spec, Veil.Enumeration.complete]
+    intro a
+    exact List.mem_map.mpr ⟨a.toOrdList, Veil.Enumeration.complete _, by
+      cases a; simp [ofOrdList, toOrdList]⟩
 
 end Instances

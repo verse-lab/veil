@@ -59,15 +59,25 @@ class LawfulFinmapLike /- (α : outParam (Type u)) (β : outParam (Type v)) -/ (
   insert_get : ∀ (a a' : α) (b : β) (mp : γ),
     inst.get (inst.insert a b mp) a' = if a = a' then b else inst.get mp a'
 
-abbrev ArrayAsFinmap (α : Type u) [inst : FinEncodable α] (β : Type v) := { mp : Array β // inst.card = mp.size }
+@[ext] structure ArrayAsFinmap (α : Type u) [inst : FinEncodable α] (β : Type v) where
+  val : Array β
+  property : inst.card = val.size
 
-abbrev ArrayAsFinset (α : Type u) [inst : FinEncodable α] := ArrayAsFinmap α Bool
+@[ext] structure ArrayAsFinset (α : Type u) [inst : FinEncodable α] where
+  val : Array Bool
+  property : inst.card = val.size
+
+veil_derive_wrapper_instances ArrayAsFinmap
+veil_derive_wrapper_instances ArrayAsFinset
 
 instance [inst : FinEncodable α] [Inhabited β] : Inhabited (ArrayAsFinmap α β) :=
   ⟨⟨Array.replicate inst.card default, Eq.symm Array.size_replicate⟩⟩
 
+instance [inst : FinEncodable α] : Inhabited (ArrayAsFinset α) :=
+  ⟨⟨Array.replicate inst.card false, Eq.symm Array.size_replicate⟩⟩
+
 instance [inst : FinEncodable α] : Membership α (ArrayAsFinset α) where
-  mem b a := b.val[inst.equiv a]
+  mem b a := b.val[(inst.equiv a).val]'(b.property ▸ (inst.equiv a).isLt)
 
 end FinmapLike
 
@@ -275,8 +285,29 @@ instance {cmp : α → α → Ordering} [Std.LawfulEqCmp cmp] [Std.TransCmp cmp]
     dsimp only [FinmapLike.get, FinmapLike.insert]
     split_ifs <;> simp_all
 
-abbrev BitVecAsFinmap (α β) [FinEncodable α] [FinEncodable β] :=
-  BitVec ((FinEncodable.card α) * (Nat.bitLength (FinEncodable.card β)))
+-- FIXME: This should carry a proof that every value (mapped from a key)
+-- should be less than `FinEncodable.card β`; for now just leave it like this
+@[ext] structure BitVecAsFinmap (α : Type u) (β : Type v) [FinEncodable α] [FinEncodable β] where
+  bits : BitVec ((FinEncodable.card α) * (Nat.bitLength (FinEncodable.card β)))
+
+veil_derive_wrapper_instances BitVecAsFinmap
+
+instance [FinEncodable α] [FinEncodable β] : Inhabited (BitVecAsFinmap α β) := ⟨⟨0⟩⟩
+
+instance [FinEncodable α] [FinEncodable β] : Enumeration (BitVecAsFinmap α β) where
+  -- Fuse wrapping with the underlying `Fin` → `BitVec map`; avoid a second traversal.
+  allValues := (List.finRange (2 ^ (FinEncodable.card α * Nat.bitLength (FinEncodable.card β)))).map
+    (fun i => ⟨BitVec.ofFin i⟩)
+  complete s := by
+    simp only [List.mem_map, List.mem_finRange, true_and]
+    exact ⟨s.bits.toFin, by cases s; rfl⟩
+
+instance [FinEncodable α] [FinEncodable β] : FinEncodable (BitVecAsFinmap α β) :=
+  FinEncodable.ofEquiv {
+    toFun := BitVecAsFinmap.bits
+    invFun := BitVecAsFinmap.mk
+    left_inv := fun _ => rfl
+    right_inv := fun _ => rfl }
 
 instance [FinEncodable α] [FinEncodable β] [Inhabited β] : FinmapLike α β (BitVecAsFinmap α β) where
   get mp a :=
@@ -284,20 +315,28 @@ instance [FinEncodable α] [FinEncodable β] [Inhabited β] : FinmapLike α β (
     let ida := FinEncodable.equiv a
     -- bit range: `[ida * (bitLength β), (ida + 1) * (bitLength β))`
     let bl := Nat.bitLength (FinEncodable.card β)
-    let res := mp.extractLsb' (ida * bl) bl
+    let res := mp.bits.extractLsb' (ida * bl) bl
     FinEncodable.equiv.invFun <| Fin.minCast (FinEncodable.card β) FinEncodable.card_ne_0_if_Inhabited res.toFin
   insert a b mp :=
     let ida := FinEncodable.equiv a
     let bl := Nat.bitLength (FinEncodable.card β)
     let offset := ida * bl
-    let oldval := mp.extractLsb' offset bl
+    let oldval := mp.bits.extractLsb' offset bl
     let idb := FinEncodable.equiv b
     let newval := BitVec.ofFin <| idb.castLE Nat.bitLength_range
-    mp ^^^ ((newval ^^^ oldval |>.zeroExtend _) <<< offset)
+    ⟨mp.bits ^^^ ((newval ^^^ oldval |>.zeroExtend _) <<< offset)⟩
 
 instance [inst : FinEncodable α] : FinmapLike α β (ArrayAsFinmap α β) where
-  get mp a := mp.val[inst.equiv a]
-  insert a b mp := ⟨mp.val.set (inst.equiv a) b,
+  get mp a := mp.val[(inst.equiv a).val]'(mp.property ▸ (inst.equiv a).isLt)
+  insert a b mp := ⟨mp.val.set (inst.equiv a) b (mp.property ▸ (inst.equiv a).isLt),
+    (Eq.symm (Array.size_set (xs := mp.val) (i := inst.equiv a) (v := b) (mp.property ▸ (inst.equiv a |>.isLt)))) ▸ mp.property⟩
+
+-- NOTE: This has the same content as above, but since now `ArrayAsFinset` and
+-- `ArrayAsFinmap` are two different structures, this might be necessary?
+-- Same for the `LawfulFinmapLike (ArrayAsFinset α)` below
+instance [inst : FinEncodable α] : FinmapLike α Bool (ArrayAsFinset α) where
+  get mp a := mp.val[(inst.equiv a).val]'(mp.property ▸ (inst.equiv a).isLt)
+  insert a b mp := ⟨mp.val.set (inst.equiv a) b (mp.property ▸ (inst.equiv a).isLt),
     (Eq.symm (Array.size_set (xs := mp.val) (i := inst.equiv a) (v := b) (mp.property ▸ (inst.equiv a |>.isLt)))) ▸ mp.property⟩
 
 instance [BEq α] [Hashable α] [Inhabited β] : FinmapLike α β (Std.HashMap α β) where
@@ -359,6 +398,11 @@ instance [FinEncodable α] [FinEncodable β] [Inhabited β] [DecidableEq α] : L
       · simp
 
 instance [DecidableEq α] [inst : FinEncodable α] : LawfulFinmapLike (ArrayAsFinmap α β) where
+  insert_get a a' b mp := by
+    dsimp [FinmapLike.get, FinmapLike.insert]
+    simp [Array.getElem_set, Fin.val_inj]
+
+instance [DecidableEq α] [inst : FinEncodable α] : LawfulFinmapLike (ArrayAsFinset α) where
   insert_get a a' b mp := by
     dsimp [FinmapLike.get, FinmapLike.insert]
     simp [Array.getElem_set, Fin.val_inj]

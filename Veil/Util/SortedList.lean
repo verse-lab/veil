@@ -14,8 +14,11 @@ public import Veil.Frontend.DSL.State.Instances
 abbrev OrdList.cmpLt [Ord α] (a b : α) : Prop := compare a b = Ordering.lt
 
 /-- A strictly sorted list, used as a set representation. -/
-abbrev OrdList (α : Type u) [Ord α] : Type u :=
-  { l : List α // l.Pairwise (OrdList.cmpLt (α := α)) }
+@[ext] structure OrdList (α : Type u) [Ord α] : Type u where
+  val : List α
+  property : val.Pairwise (OrdList.cmpLt (α := α))
+
+veil_derive_wrapper_instances OrdList
 
 namespace OrdList
 
@@ -882,10 +885,13 @@ theorem filter_sortedContains_inter [TransOrd α] [LawfulEqOrd α] (a : α) (l�
 private theorem sublists_all_sorted [TransOrd α] [LawfulEqOrd α] (l : List α) (hs : l.Pairwise (cmpLt (α := α))) :
   ∀ sl ∈ l.sublists, sl.Pairwise (cmpLt (α := α)) := by intro sl hin ; simp at hin ; apply hs.sublist hin
 
+-- NOTE: Ideally, we should use something like `attachWith` that has `O(1)` runtime
+-- here; but `OrdList` is not directly a `Subtype` so that does not work.
+-- Hopefully in the future there is a better solution for these kinds of
+-- "essentially subtypes".
 @[inline]
 def sublists [TransOrd α] [LawfulEqOrd α] (l : OrdList α) : List (OrdList α) :=
-  l.val.sublists.attachWith (fun sl => sl.Pairwise (cmpLt (α := α)))
-    (by exact sublists_all_sorted l.val l.property)
+  l.val.sublists.pmap OrdList.mk (by exact sublists_all_sorted l.val l.property)
 
 -- TODO check these instances later?
 
@@ -946,22 +952,8 @@ instance : Inhabited (OrdList α) where
 instance [Repr α] : Repr (OrdList α) where
   reprPrec s p := reprPrec s.val p
 
-instance [Repr α] : Lean.ToJson (OrdList α) where
-  toJson s := Lean.ToJson.toJson s.val
-
-/-! ### Ordering instances -/
-
-instance [Std.ReflOrd α] : Std.ReflOrd (OrdList α) where
-  compare_self := Std.ReflOrd.compare_self (α := List α)
-
-instance [Std.LawfulEqOrd α] : Std.LawfulEqOrd (OrdList α) where
-  eq_of_compare h := Subtype.ext (Std.LawfulEqOrd.eq_of_compare (α := List α) h)
-
-instance [Std.OrientedOrd α] : Std.OrientedOrd (OrdList α) where
-  eq_swap := Std.OrientedOrd.eq_swap (α := List α)
-
-instance [Std.TransOrd α] : Std.TransOrd (OrdList α) where
-  isLE_trans h1 h2 := Std.TransOrd.isLE_trans (α := List α) h1 h2
+instance [Lean.ToJson α] : Lean.ToJson (OrdList α) where
+  toJson s := Veil.ContainerDisplay.setJson s.val.toArray
 
 /-! ### Enumeration -/
 
@@ -971,7 +963,7 @@ instance instEnumerationOrdList [TransOrd α] [LawfulEqOrd α] [DecidableEq α] 
     OrdList.ofList (Veil.Enumeration.allValues (α := α)) |>.sublists
   complete := by
     intro ⟨l, hl⟩
-    simp [OrdList.ofList, OrdList.sublists, List.mem_attachWith]
+    simp [OrdList.ofList, OrdList.sublists, List.mem_pmap]
     have h_sorted : (ofList.inner (Veil.Enumeration.allValues (α := α))).Pairwise (cmpLt (α := α)) :=
       (ofList.inner_spec _).left
     apply mem_contains_then_is_sublist <;> try assumption

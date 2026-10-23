@@ -86,7 +86,8 @@ namespace Veil
 @[ext]
 structure BitVecAsFinset (α : Type u) [FinEncodable α] where
   bits : BitVec (FinEncodable.card α)
-deriving DecidableEq, Hashable
+
+veil_derive_wrapper_instances BitVecAsFinset
 
 namespace BitVecAsFinset
 
@@ -167,29 +168,6 @@ instance [Repr α] : Repr (BitVecAsFinset α) where
 
 instance [Repr α] : Lean.ToJson (BitVecAsFinset α) where
   toJson s := Lean.Json.str (toString (repr s))
-
-instance : Ord (BitVecAsFinset α) where
-  compare s t := compare s.bits t.bits
-
-instance : Std.ReflOrd (BitVecAsFinset α) where
-  compare_self := by
-    have tmp : Std.ReflOrd (BitVec inst.card) := inferInstance
-    intros ; dsimp [compare] ; apply tmp.compare_self
-
-instance : Std.LawfulEqOrd (BitVecAsFinset α) where
-  eq_of_compare := by
-    have tmp : Std.LawfulEqOrd (BitVec inst.card) := inferInstance
-    intros ; dsimp [compare] at * ; ext1 ; apply tmp.eq_of_compare ; assumption
-
-instance : Std.OrientedOrd (BitVecAsFinset α) where
-  eq_swap := by
-    have tmp : Std.OrientedOrd (BitVec inst.card) := inferInstance
-    intros ; dsimp [compare] at * ; apply tmp.eq_swap
-
-instance : Std.TransOrd (BitVecAsFinset α) where
-  isLE_trans := by
-    have tmp : Std.TransOrd (BitVec inst.card) := inferInstance
-    intros ; dsimp [compare] at * ; apply tmp.isLE_trans <;> assumption
 
 instance : Enumeration (BitVecAsFinset α) where
   allValues := (Enumeration.allValues (α := BitVec inst.card)).map BitVecAsFinset.mk
