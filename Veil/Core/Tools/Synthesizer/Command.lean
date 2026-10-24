@@ -4,6 +4,7 @@ public meta import Veil
 public meta import Veil.Core.Tools.Synthesizer.Controller
 public meta import Veil.Core.Tools.Synthesizer.Certificate
 public meta import Veil.Core.Tools.Synthesizer.Counterexample
+public meta import Veil.Core.UI.Widget.SynthesizerProgress
 
 /-!
 # `#synthesize_invariants`
@@ -26,6 +27,11 @@ open Lean Elab Command Term Meta Veil
 register_option veil.synthesizer.timings : Bool := {
   defValue := false
   descr := "report separate wall times for IC3 synthesis and kernel certification"
+}
+
+register_option veil.synthesizer.widget : Bool := {
+  defValue := true
+  descr := "show live invariant synthesis progress in the Lean infoview"
 }
 
 syntax synthFuel := &"fuel" " := " num
@@ -299,11 +305,17 @@ def reportPhaseTime (phase : String) (started : Nat) : CommandElabM Unit := do
   if veil.synthesizer.timings.get (← getOptions) then
     logInfo s!"IC3 timing {phase}: {(← IO.monoMsNow) - started} ms"
 
-@[command_elab synthesizeInvariants]
-def elabSynthesizeInvariants : CommandElab := fun stx ↦ do
-  let mod ← getCurrentModule (errMsg := "#synthesize_invariants must be used inside a Veil module")
-  mod.throwIfSpecNotFinalized
-  let { cfg, expectation, certify := doCertify } ← parseOptions stx[1].getArgs
+private def finishProgress (ref? : Option Progress.Ref) (status : Progress.Status)
+    (result : String) : CommandElabM Unit := do
+  if let some cancel := (← read).cancelTk? then
+    if ← cancel.isSet then
+      Progress.finish ref? .cancelled "Elaboration was cancelled"
+      return
+  Progress.finish ref? status result
+
+private def runSynthesizeInvariants (mod : Veil.Module) (opts : Options) : CommandElabM Unit := do
+  let { cfg, expectation, certify := doCertify } := opts
+  let progress? := cfg.progress?
   -- Refuse an unsupported module, a module without a property and a bad fault hook before running.
   let sig ← liftTermElabM (Signature.ofModule mod)
   let property ← liftCoreM (checkedProperty mod cfg)
@@ -327,6 +339,7 @@ def elabSynthesizeInvariants : CommandElab := fun stx ↦ do
       the default value of these components, and #check_invariants may reject a clause that \
       relies on it (see \"Semantics\" in docs/Synthesizer-Guide.md)"
   let started ← IO.monoMsNow
+  Progress.update progress? fun p => { p with phase := "Searching" }
   let { outcome, stats, .. } ← liftTermElabM <| synthesize mod cfg sig
   reportPhaseTime "synthesis" started
   let status ← liftCoreM (TrNorm.status mod trNormBefore)
@@ -353,26 +366,63 @@ def elabSynthesizeInvariants : CommandElab := fun stx ↦ do
   | .foundInvariant frame clauses anyTrusted =>
     logInfo (invariantMessage frame clauses anyTrusted (veil.synthesizer.trust.get (← getOptions)))
     if doCertify then
-      let cert ← certifyTimed <| certify mod property (clauses.map (·.clause))
+      let cert ← certifyTimed <| certify mod property (clauses.map (·.clause)) progress?
       logInfo s!"Certified: theorem {cert.theoremName} (strengthening {cert.strengtheningName}); \
         axioms: {cert.axioms}; {certificateStatus cert}"
+      finishProgress progress? .finished s!"{cert.theoremName}: {certificateStatus cert}"
+    else
+      finishProgress progress? .finished
+        s!"Inductive invariant found at frame {frame} with {clauses.size} strengthening clause(s); not certified"
   | .«unsafe» path =>
     logReport expected .error (← violationMessage property (propertyName ++ trustedNote) path)
     if doCertify then
-      let cert ← certifyTimed <| certifyUnsafe mod property path
+      let cert ← certifyTimed <| certifyUnsafe mod property path progress?
       logInfo s!"Certified: theorem {cert.theoremName} refutes {propertyName} at the model's sort \
         sizes and typeclass instances; axioms: {cert.axioms}; {certificateStatus cert}"
+      finishProgress progress? .finished s!"{cert.theoremName}: {certificateStatus cert}"
+    else
+      finishProgress progress? .finished "Counterexample found; not certified"
   | .unsafeUndecoded steps reason =>
     logError s!"Violated: {propertyName}{trustedNote}. The solver found an execution of {steps} \
       step(s) that breaks it, but its model could not be decoded ({reason.take 300}), so the \
       execution is not shown{if doCertify then "; no certificate is built" else ""}."
+    finishProgress progress? .stopped s!"Violation found, but its model could not be decoded: {reason}"
   | .noUniversalInvariant diagrams check =>
     logReport expected .warning (absenceMessage sig (propertyName ++ trustedNote) diagrams check)
+    finishProgress progress? .finished "No universal invariant reported; this outcome is not certified"
   | .absenceWithheld diagrams check frameSizes =>
     logReport expected .warning (withheldMessage diagrams check frameSizes)
-  | .unknown reason frameSizes => logReport expected .warning (stoppedMessage reason frameSizes)
+    finishProgress progress? .stopped absenceWithheldReason
+  | .unknown reason frameSizes =>
+    logReport expected .warning (stoppedMessage reason frameSizes)
+    finishProgress progress? .stopped reason
   | .internalError message frameSizes =>
     logError s!"IC3 internal error: {message}. {frameSummary frameSizes}. This is a bug in the \
       controller or in the model decoder, not a solver limit."
+    finishProgress progress? .failed message
+
+/-- Only the display runs in the background. Synthesis and certification still update the
+original elaboration state, so the next command can use their declarations immediately. -/
+@[command_elab synthesizeInvariants, incremental]
+def elabSynthesizeInvariants : CommandElab := fun stx ↦ do
+  let mod ← getCurrentModule (errMsg := "#synthesize_invariants must be used inside a Veil module")
+  mod.throwIfSpecNotFinalized
+  let opts ← parseOptions stx[1].getArgs
+  let progress? ← if Elab.inServer.get (← getOptions) && veil.synthesizer.widget.get (← getOptions) then
+      let ref ← Progress.create mod.name opts.cfg.fuel
+      Progress.display stx ref
+      pure (some ref)
+    else pure none
+  try
+    -- The early widget snapshot has been published. Nested certificate commands must not
+    -- reuse its snapshot bundle; they continue synchronously in our command state.
+    withoutCommandIncrementality true <|
+      runSynthesizeInvariants mod { opts with cfg.progress? := progress? }
+  catch e =>
+    finishProgress progress? .failed (← e.toMessageData.toString)
+    throw e
+  finally
+    -- Also runs on interrupt exceptions, which ordinary command catches deliberately skip.
+    finishProgress progress? .cancelled "Elaboration was interrupted"
 
 end Veil.Synthesizer

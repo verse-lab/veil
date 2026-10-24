@@ -267,6 +267,7 @@ def synthesize (mod : Veil.Module) (cfg : Config) (sig : Signature) : TermElabM 
       return .internalError ((← e.toMessageData.toString).take 400).toString
         ((← ref.get).frames.map (·.size))
   let s ← ref.get
+  Progress.update cfg.progress? fun p => { p with frameSizes := s.frames.map (·.size) }
   let phases := (← queryPhases.get).sub phases₀
   return { outcome, stats := { s.stats with phases }, log := s.log }
 

@@ -1,5 +1,7 @@
 module
 
+public meta import Veil.Core.Tools.Synthesizer.Progress
+
 public meta import Veil
 public meta import Veil.Core.Tools.Synthesizer.Solver
 public import Veil.Core.Tools.Synthesizer.Soundness
@@ -255,12 +257,14 @@ def consecutionProof (mod : Veil.Module) (ctx : QueryCtx) (consNames : Array Nam
   `(match $lbl:ident, $htr:ident with $alts:matchAlt*)
 
 /-- Build and check the safety certificate for the clauses of a fixpoint frame. -/
-def certify (mod : Veil.Module) (property : Array Term) (clauses : Array Clause) :
+def certify (mod : Veil.Module) (property : Array Term) (clauses : Array Clause)
+    (progress? : Option Progress.Ref := none) :
     CommandElabM CertificateResult := do
   throwIfCertified mod [`ic3_init_0, `ic3_prop, `ic3_safe]
   let ctx ← liftTermElabM (QueryCtx.ofModule mod)
   let conj := property ++ (← liftTermElabM (clauses.mapM (·.toTerm)))
   let n := conj.size
+  Progress.beginCertificate progress? (2 * n)
   let trNorm? ← liftUnbounded (TrNorm.ensure ctx)
   -- The obligations, from fresh solver answers.
   let obligationName (kind : String) (i : Nat) : Name := mod.name ++ .mkSimple s!"ic3_{kind}_{i}"
@@ -269,17 +273,22 @@ def certify (mod : Veil.Module) (property : Array Term) (clauses : Array Clause)
   let mut consPlain := #[]
   for i in [:n] do
     let q := conj[i]!
+    Progress.activity progress? s!"Proving initiation of conjunct {i + 1} / {n}"
     let (init, _) ← proveObligation mod (obligationName "init" i)
       (fun _ ↦ ctx.statement none { init := true, goal := .violates q }) false 0
       s!"initiation of conjunct {i}"
+    Progress.completeObligation progress?
+    Progress.activity progress? s!"Proving consecution of conjunct {i + 1} / {n}"
     let (cons, plainTr) ← proveObligation mod (obligationName "cons" i)
       (fun plainTr ↦ ctx.statement (if plainTr then none else trNorm?)
         { frame := conj, separate := true, steps := 1, goal := .violates q })
       trNorm?.isSome 1 s!"consecution of conjunct {i}"
+    Progress.completeObligation progress?
     initNames := initNames.push init
     consNames := consNames.push cons
     consPlain := consPlain.push plainTr
   let (invName, propName) := (mkIdent `ic3_inv, mkIdent `ic3_prop)
+  Progress.activity progress? "Checking the final safety theorem"
   definePredicate ctx invName conj
   definePredicate ctx propName property
   -- The proof of `ic3_safe`, over fresh binders that no name of the module can capture.
