@@ -236,7 +236,7 @@ run_cmd do
 -- Worker progress omits the parent's compilation state. Model-check metrics
 -- also omit action labels and history; simulation metrics have no BFS history.
 #eval do
-  for details in [ProgressDetails.modelCheck { allActionLabels := ["Label.toggle"] }, .simulation {}] do
+  for details in [ProgressDetails.modelCheck { allActionLabels := ["toggle"] }, .simulation {}] do
     let (id, token) ← allocProgressInstance details
     updateCompilationStatus id .succeeded
     let workerDetails := match details with
@@ -257,7 +257,7 @@ run_cmd do
     expect "worker metrics must retain their command kind and parent metadata" <|
       match progress.details with
       | .modelCheck m => m.diameter == 2 && m.statesFound == 7 && m.distinctStates == 5 &&
-          m.queue == 3 && m.allActionLabels == ["Label.toggle"] &&
+          m.queue == 3 && m.allActionLabels == ["toggle"] &&
           m.history.map (fun (p : ProgressHistoryPoint) => p.timestamp) == #[10, 20]
       | .simulation m => m.tracesRun == 4 && m.numTraces == 9
 

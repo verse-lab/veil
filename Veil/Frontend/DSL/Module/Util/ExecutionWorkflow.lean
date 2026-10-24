@@ -63,10 +63,12 @@ def getModelCheckingMode (modeStx : Syntax) : ModelCheckingMode :=
     | `(modelCheckMode| compiled) => .compiled
     | _ => .default
 
-/-- Get all action label names for never-enabled action warnings. -/
-private def getActionLabelNames (mod : Module) : CommandElabM (List String) := do
-  let labelTypeName ← resolveGlobalConstNoOverload labelType
-  return mod.actions.map (fun a => s!"{labelTypeName}.{a.name}") |>.toList
+/-- The names of the module's actions, for never-enabled action warnings: the constructors of its
+labels, as the labels' `Display` names them (`ValueDisplay.ctorJson`). -/
+private def actionLabelNames (mod : Module) : List String :=
+  mod.actions.toList.map fun a => match a.name.eraseMacroScopes with
+    | .str _ s => s
+    | n => toString n
 
 /-- Stable identity for a single compiled command invocation within a file. -/
 private def getCompiledCommandId (cmdName : String) (stx : Syntax) : CommandElabM String := do
@@ -244,7 +246,7 @@ private def allocExecutionContext (mod : Module) (stx : Syntax)
     match resultKind with
     | .simulate => pure <| .simulation {}
     | _ =>
-      let actionLabels ← getActionLabelNames mod
+      let actionLabels := actionLabelNames mod
       pure <|.modelCheck { allActionLabels := actionLabels }
   let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance details
   let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
