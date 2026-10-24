@@ -108,35 +108,76 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
   let startTimePromise ← IO.Promise.new
   let resultPromise ← IO.Promise.new
   -- Use wrapAsyncAsSnapshot for proper snapshot tree integration with the language server
-  let mk ← Command.wrapAsyncAsSnapshot (fun vcStatement : VCStatement => do
-    -- Resolve the start time promise when the discharger actually begins
-    let startTime ← IO.monoMsNow
-    startTimePromise.resolve startTime
-    let res ← (do
-      try
-        -- Wrap in profiler trace for discharger timing
-        withTraceNode (`veil.perf.discharger ++ dischargerId.name)
-            (fun _ => return s!"{traceLabel} {dischargerId.name}") do
-          liftTermElabM $ do
-            let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
-            let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
-              withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
+  let savedState ← get
+  let mk ← try
+    -- Automatic workers need the specification environment, but never own its
+    -- mutable runtime. Exclude handles from the worker's current environment.
+    -- Declaration realization contexts may still retain older environments;
+    -- the origin snapshot's lifetime cleanup releases abandoned task closures.
+    -- wrapAsync captures state before its execution-time resets. Strip earlier
+    -- diagnostics, info trees and snapshots as well: they can hold environments
+    -- or observer closures pointing back to this runtime.
+    modify fun st => { st with
+      env := Veil.Verifier.clearVerifierRuntime st.env
+      messages := {}
+      infoState := { enabled := st.infoState.enabled }
+      traceState := {}
+      snapshotTasks := #[] }
+    -- `wrapAsync` installs the worker's token, but `wrapAsyncAsSnapshot` also
+    -- retains the outer context for diagnostics. Strip the parent's snapshot
+    -- and token so queued workers cannot retain a caller's cancellation handle.
+    withReader (fun ctx : Command.Context => { ctx with snap? := none, cancelTk? := none }) do
+      Command.wrapAsyncAsSnapshot (fun vcStatement : VCStatement => do
+        -- Resolve the start time promise when the discharger actually begins
+        let startTime ← IO.monoMsNow
+        startTimePromise.resolve startTime
+        let res ← (do
+          try
+            -- Wrap in profiler trace for discharger timing
+            withTraceNode (`veil.perf.discharger ++ dischargerId.name)
+                (fun _ => return s!"{traceLabel} {dischargerId.name}") do
+              liftTermElabM $ do
+                let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
+                let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
+                  withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
+                let endTime ← IO.monoMsNow
+                mkResult smtCh (.inl witness) (endTime - startTime)
+          catch ex =>
+            --`mkResult` can throw, but a result must be published on every path.
             let endTime ← IO.monoMsNow
-            mkResult smtCh (.inl witness) (endTime - startTime)
-      catch ex =>
-        --`mkResult` can throw, but a result must be published on every path.
-        let endTime ← IO.monoMsNow
-        try
-          liftTermElabM $ mkResult smtCh (.inr ex) (endTime - startTime)
-        catch ex2 =>
-          return .error #[← safeExceptionEntry ex, ← safeExceptionEntry ex2]
-            (endTime - startTime)
-    )
-    publishDischargerResult resultPromise ch dischargerId res
-  ) cancelTk
+            try
+              liftTermElabM $ mkResult smtCh (.inr ex) (endTime - startTime)
+            catch ex2 =>
+              return .error #[← safeExceptionEntry ex, ← safeExceptionEntry ex2]
+                (endTime - startTime)
+        )
+        publishDischargerResult resultPromise ch dischargerId res
+      ) cancelTk
+  finally
+    -- Keep wrapAsync's fresh name-generator advances while restoring all
+    -- caller diagnostics/UI state and its original manager-bearing environment.
+    modify fun st => { st with
+      env := savedState.env
+      messages := savedState.messages
+      infoState := savedState.infoState
+      traceState := savedState.traceState
+      snapshotTasks := savedState.snapshotTasks }
+  let run : BaseIO Language.SnapshotTree := do
+    let startTime ← IO.monoMsNow
+    let snapshot ← mk vcStatement
+    -- The snapshot wrapper turns interrupts into an empty snapshot, possibly
+    -- skipping publication. Finish here in BaseIO, after the cancellable body
+    -- has exited on this same worker. Preserve any result it already published.
+    unless ← resultPromise.isResolved do
+      let ex := Exception.error term
+        m!"Discharger {dischargerId.name} interrupted before producing a result"
+      let endTime ← IO.monoMsNow
+      publishDischargerResult resultPromise ch dischargerId
+        (.error #[← safeExceptionEntry ex] (endTime - startTime))
+    return snapshot
   -- Dedicated thread: the task blocks in in-process solver FFI for its whole
   -- duration, which would starve the bounded elaboration thread pool
-  let mkTask := (mk vcStatement).asTask (prio := .dedicated)
+  let mkTask := run.asTask (prio := .dedicated)
   return {
     id := dischargerId,
     term := term,

@@ -165,7 +165,7 @@ instance [ToJson VCMetaT] [ToJson ResultT] : ToJson (VerificationResults VCMetaT
 def mkDischargerResultData [Monad m] [MonadError m] [MonadLiftT BaseIO m] (mgr : VCManager VCMetaT ResultT) (vc : VerificationCondition VCMetaT ResultT) (dischargerId : DischargerId) : m (DischargerResultData ResultT) := do
   let .some discharger := vc.dischargers[dischargerId]?
     | throwError s!"mkDischargerResultData: discharger {dischargerId} not found in VC {vc.uid}"
-  let status ← discharger.status
+  let status := mgr.dischargerStatus vc discharger
   let result := mgr._dischargerResults[(vc.uid, dischargerId)]?
   let time := result.map (·.time)
   let startTime ← discharger.startTime
