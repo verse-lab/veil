@@ -19,6 +19,7 @@ structure Snapshot where
   phase : String := "Preparing"
   activity : String := "Reading the module vocabulary"
   lastEvent : String := ""
+  recentEvents : Array String := #[]
   result : String := ""
   startedAt : Nat
   finishedAt : Option Nat := none
@@ -28,6 +29,7 @@ structure Snapshot where
   queryMs : Nat := 0
   fuel : Nat
   frameSizes : Array Nat := #[]
+  frameClauses : Array (Array String) := #[]
   candidates : Nat := 0
   admitted : Nat := 0
   obligationsDone : Nat := 0
@@ -45,6 +47,16 @@ def update (ref? : Option Ref) (f : Snapshot → Snapshot) : BaseIO Unit :=
 
 def activity (ref? : Option Ref) (text : String) : BaseIO Unit :=
   update ref? fun s => { s with activity := text }
+
+/-- Keep the expandable activity view bounded even for a long search. -/
+def recordEvent (ref? : Option Ref) (text : String) : BaseIO Unit :=
+  update ref? fun s =>
+    let events := s.recentEvents.push text
+    { s with lastEvent := text, recentEvents := events.extract (events.size - 50) events.size }
+
+/-- Publish counts and contents together so both views describe the same frames. -/
+def setFrames (ref : Ref) (frames : Array (Array String)) : BaseIO Unit :=
+  update (some ref) fun s => { s with frameSizes := frames.map (·.size), frameClauses := frames }
 
 def beginQuery (ref? : Option Ref) : BaseIO Unit := do
   let now ← IO.monoMsNow
