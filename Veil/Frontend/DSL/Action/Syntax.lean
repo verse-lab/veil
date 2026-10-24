@@ -40,6 +40,43 @@ partial def findOutsideQuotations? (stx : Syntax)
     stx.getArgs.findSome? fun child =>
       findOutsideQuotations? child match? (childrenAreQuoted stx inQuotation)
 
+open Lean.Parser.Term in
+/-- Rewrite the RHS of `let [mut] binder ← rhs` or `binder ← rhs`, passing
+the binder or assignment target to `rewrite?`. Preserve type annotations,
+fallback branches and the `let` configuration. Leave the statement unchanged
+if its shape is unrecognized or `rewrite?` returns `none`. -/
+def rewriteArrowRhs [Monad m] [MonadQuotation m]
+    (stx : TSyntax `doElem)
+    (rewrite? : Term → TSyntax `doElem → m (Option (TSyntax `doElem))) :
+    m (TSyntax `doElem) := do
+  match stx with
+  | `(doLetArrow| let%$tk $[mut%$mutTk?]? $cfg:letConfig $decl) =>
+    match decl with
+    | `(doIdDecl| $x:ident $[: $ty?]? ← $rhs) =>
+      let some rhs ← rewrite? ⟨x.raw⟩ rhs | return stx
+      let decl ← `(doIdDecl| $x:ident $[: $ty?]? ← $rhs)
+      `(doElem| let%$tk $[mut%$mutTk?]? $cfg:letConfig $decl:doIdDecl)
+    | `(doPatDecl| $pat:term $[: $ty?]? ← $rhs $[| $otherwise? $(rest?)?]?) =>
+      let some rhs ← rewrite? pat rhs | return stx
+      let decl ← `(doPatDecl| $pat:term $[: $ty?]? ← $rhs $[| $otherwise? $(rest?)?]?)
+      `(doElem| let%$tk $[mut%$mutTk?]? $cfg:letConfig $decl:doPatDecl)
+    | _ => return stx
+  | `(doReassignArrow| $decl:doIdDecl) =>
+    match decl with
+    | `(doIdDecl| $x:ident $[: $ty?]? ← $rhs) =>
+      let some rhs ← rewrite? ⟨x.raw⟩ rhs | return stx
+      let decl ← `(doIdDecl| $x:ident $[: $ty?]? ← $rhs)
+      return ⟨(← `(doReassignArrow| $decl:doIdDecl)).raw⟩
+    | _ => return stx
+  | `(doReassignArrow| $decl:doPatDecl) =>
+    match decl with
+    | `(doPatDecl| $pat:term $[: $ty?]? ← $rhs $[| $otherwise? $(rest?)?]?) =>
+      let some rhs ← rewrite? pat rhs | return stx
+      let decl ← `(doPatDecl| $pat:term $[: $ty?]? ← $rhs $[| $otherwise? $(rest?)?]?)
+      return ⟨(← `(doReassignArrow| $decl:doPatDecl)).raw⟩
+    | _ => return stx
+  | _ => return stx
+
 end Action
 
 section VeilActionKeywords
@@ -182,12 +219,23 @@ macro_rules
     let ty ← type?.getDM `(_)
     `($(mkIdent `Veil.letEq) ($value : $ty) (fun ($pattern : $ty) => $body))
 
+/-- The name under which a pick is logged with each of its candidates (the `name` of
+`MonadNonDet.pick`): what the pick is bound to, as the user wrote it, an identifier, a pattern or
+an assignment target. `_`, and syntax that a macro made up, give no name. -/
+def pickName? (binder : Term) : Option String :=
+  if binder.raw.isOfKind ``Lean.Parser.Term.hole ||
+      (binder.raw.find? fun s => s.isIdent && s.getId.hasMacroScopes).isSome then
+    none
+  else
+    some (toString binder.raw.prettyPrint)
+
 macro_rules
   | `(assume $t) => `($(mkIdent `VeilM.assume) $t)
   | `(pick $(t)?) => do
     `($(mkIdent `MonadNonDet.pick) $(← t.getDM `(_)))
   | `(doElem| let $x:term $[: $ty:term]? :| $p) => do
-    let rhs ← `(doElem| $(mkIdent `VeilM.pickSuchThat):ident $(← ty.getDM `(_)) (fun $x => $p))
+    let rhs ← `(doElem| $(mkIdent `VeilM.pickSuchThat):ident $(← ty.getDM `(_)) (fun $x => $p)
+      (name := $(quote (pickName? x))))
     /- An identifier binder is bound directly. If spelled as a pattern, then Lean's
     `let`-arrow handler would bind a fresh `__x` and emit `let x := __x` as a
     separate statement, which Veil's `let` handler opens the state for again. -/
