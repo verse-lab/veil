@@ -6,8 +6,8 @@ public import Veil
 The executable actions record their picks in the log only when the `LogSwitch` is on: the model
 checker searches with it off, since nothing reads the log there, and recovers counterexample traces
 with it on. Off, every result's log is empty; on, it lists the candidates picked on the way to the
-result, in order, each formatted with `Repr` as `x = v`, where `x` is what the pick is bound to.
-The results themselves do not depend on the switch.
+result, in order, each shown by its `Display` and rendered as `x = v`, where `x` is what the pick
+is bound to. The results themselves do not depend on the switch.
 
 Covered: a plain pick, a constrained pick after it, a pick that a `require` filters, a pick in a
 procedure whose value an action uses, and a havoc in the initializer.
@@ -59,7 +59,7 @@ invariant true
 def initial : State FieldConcreteType := { chosen := false }
 
 /-- For each result of `act` from `initial`: its log, rendered, and the new value of `chosen`. -/
-def run (act : VeilMultiExecM Std.Format Int Theory (State FieldConcreteType) PUnit) :
+def run (act : VeilMultiExecM Choice Int Theory (State FieldConcreteType) PUnit) :
     List (List String × Option Bool) :=
   (act {} initial).map fun (log, r) => (log.map toString, match r with
     | .res (.ok _, s) => some s.chosen

@@ -87,12 +87,12 @@ end ProofWidgets
 
 namespace Veil.TraceDisplay
 open Lean
-open Veil.ValueDisplay (fields? formatJson formatText formatFields formatAction)
+open Veil.ValueDisplay (fields? formatJson formatText formatFields formatAction formatChoices)
 
 /-- A state as `State n (via label):`, the picks that led to it, and its fields. -/
 private def fmtState (s : Json) (ind : String) : String :=
   let choices := match s.getObjValD "choices" with
-    | .arr cs => if cs.isEmpty then "" else s!"\n{ind}  choices: {", ".intercalate (cs.map formatText).toList}"
+    | .arr cs => if cs.isEmpty then "" else s!"\n{formatChoices (ind ++ "  ") cs}"
     | _ => ""
   let lead := s!"{ind}State {formatJson (s.getObjValD "index")} (via "
   -- A long transition label continues aligned after `(via `.

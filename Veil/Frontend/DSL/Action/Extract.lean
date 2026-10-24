@@ -418,9 +418,16 @@ elab_rules : command
 private def bindersToInjectForExecution [AddMessageContext m] [MonadOptions m] [MonadTrace m] [MonadEnv m]
     (mod : Veil.Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) := do
   let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
+  /- NOTE: Assume `Display` of every sort, as `Repr` is, for the pick log (`Choice`). Extraction works on
+      the generic module, where a sort is still a parameter: without this binder, `Display` of a
+      sort would resolve to `displayOfRepr` here, and a picked value would show by its `Repr`, e.g.
+      `Std.ExtTreeSet.ofList [0, 1]` instead of `{0, 1}`. But `Repr` is still needed: a tuple, an
+      `Option` or a `@[veil_decl]` type of sorts shows by its `Repr`, which uses the `Repr` of the
+      sorts; without that binder, `reprOfUnrepresentable` would fill it in silently, e.g.
+      `(<unrepresentable>, some <unrepresentable>)`. -/
   let binders ← mod.assumeInstArgsWithConcreteRepConfig mod.mutableComponents repConfigs
     ConcreteRepConfig.domainLawfulFieldRepInstances ConcreteRepConfig.codomainLawfulFieldRepInstances
-    #[``Repr, ``Enumeration] #[``Inhabited, ``DecidableEq] false
+    #[``Repr, ``Display, ``Enumeration] #[``Inhabited, ``DecidableEq] false
   -- Whether picks are logged is up to the caller: the model checker searches with the log off,
   -- and recovers traces with it on
   return binders.push (← `(bracketedBinder| [$(mkCIdent ``LogSwitch)]))
@@ -431,7 +438,7 @@ def runGenExtractCommand (mod : Veil.Module) (cfg : ExecutableConfig := {}) : Co
     ($(mkIdent `borrowArgs):ident := $(mkIdent (if cfg.borrowArgs then ``true else ``false))))
   let execListCmd ← `(command |
     attribute [local dsimpFieldRepresentationGet, local dsimpFieldRepresentationSet] $instEnumerationForIteratedProd in
-    #extract! $cfgStx log_entry_being $(mkIdent ``Std.Format)
+    #extract! $cfgStx log_entry_being $(mkIdent ``Veil.Choice)
     injection_begin
       $[$binders]*
     injection_end)
@@ -462,24 +469,35 @@ instance (priority := high) {α : Type u} (a : α) : Veil.Enumeration {x : α //
   allValues := [⟨a, rfl⟩]
   complete := by rintro ⟨x, h⟩ ; simp [Veil.eqWithoutSubst] at h ; simp [h]
 
+set_option checkBinderAnnotations false in
+/-- Picks are logged as `Choice`s: each candidate as its `Display` shows it, under the name of what
+the pick is bound to. Under a `LogSwitch`, the `Display` is computed only when the switch is on. -/
+instance {p : α → Prop} [inst : c p] [Display α] : ExtCandidates c Choice p where
+  core := inst
+  rep a := { value := Display.display a }
+
+instance : NamedRep Choice where
+  withName n ch := { ch with name := some n }
+
 /- The rules below take the log instance as a parameter, as Loom's do, rather than fixing the one
    found here: extraction for the model checker uses the one under a `LogSwitch` (`Definitions.lean`),
-   and Loom's lifted instance applies only where there is no switch. -/
+   and Loom's lifted instance applies only where there is no switch. They also take the type of log
+   entries, which is `Choice` for Veil's actions (`runGenExtractCommand`). -/
 
 section
 
-variable {ρ σ} [inst4 : MonadPersistentLog Std.Format (VeilMultiExecM Std.Format ExId ρ σ)]
+variable {κ ρ σ : Type} [inst4 : MonadPersistentLog κ (VeilMultiExecM κ ExId ρ σ)]
 
-def ConstrainedExtractResult.pickSuchThat_VeilM (p : τ → Prop) [∀ x, Decidable (p x)] {name : Option String} [instec : ExtCandidates Candidates Std.Format p] :
-  ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
+def ConstrainedExtractResult.pickSuchThat_VeilM (p : τ → Prop) [∀ x, Decidable (p x)] {name : Option String} [instec : ExtCandidates Candidates κ p] [NamedRep κ] :
+  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ ExId ρ σ)
   (findOfCandidates _) (VeilM.pickSuchThat τ p name) := ConstrainedExtractResult.pickList _ _ _ _ p (instec := instec)
 
 def ConstrainedExtractResult.assume_VeilM {m} (p : Prop) [decp : Decidable p] :
-  ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
+  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ ExId ρ σ)
   (findOfCandidates _) (@VeilM.assume m ρ σ p decp) := ConstrainedExtractResult.assume _ _ _ _ p (decp := decp)
 
 def ConstrainedExtractResult.require_VeilM {m ex} (p : Prop) [decp : Decidable p] :
-  ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
+  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ ExId ρ σ)
   (findOfCandidates _) (@VeilM.require m ρ σ p decp ex) :=
   match m with
   | .external => ConstrainedExtractResult.assume_VeilM p (decp := decp)
@@ -620,7 +638,7 @@ them before the generic `bind`, which matches the same goals. -/
 
 section PicksAndTrailingPure
 
-variable {ρ σ τ β : Type} {mode : Mode} [inst4 : MonadPersistentLog Std.Format (VeilMultiExecM Std.Format ExId ρ σ)]
+variable {κ ρ σ τ β : Type} {mode : Mode} [inst4 : MonadPersistentLog κ (VeilMultiExecM κ ExId ρ σ)]
 
 open MultiExtractor
 
@@ -628,10 +646,10 @@ open MultiExtractor
 tree does not see through (see `pickSuchThat_VeilM`). -/
 def ConstrainedExtractResult.pickSuchThat_bind_VeilM (p : τ → Prop) [∀ x, Decidable (p x)]
     {name : Option String}
-    [instec : ExtCandidates Candidates Std.Format p] {f : τ → VeilM mode ρ σ β}
-    (hf : ∀ x, ConstrainedExtractResult Std.Format (VeilExecM mode ρ σ)
-      (VeilMultiExecM Std.Format ExId ρ σ) (findOfCandidates _) (f x)) :
-    ConstrainedExtractResult Std.Format (VeilExecM mode ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
+    [instec : ExtCandidates Candidates κ p] [NamedRep κ] {f : τ → VeilM mode ρ σ β}
+    (hf : ∀ x, ConstrainedExtractResult κ (VeilExecM mode ρ σ)
+      (VeilMultiExecM κ ExId ρ σ) (findOfCandidates _) (f x)) :
+    ConstrainedExtractResult κ (VeilExecM mode ρ σ) (VeilMultiExecM κ ExId ρ σ)
       (findOfCandidates _) (VeilM.pickSuchThat τ p name >>= f) :=
   ConstrainedExtractResult.pickList_bind _ _ _ _ p (instec := instec) hf
 
