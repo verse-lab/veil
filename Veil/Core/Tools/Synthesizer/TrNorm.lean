@@ -76,15 +76,16 @@ def Record.holdsIn (r : Record) (env : Environment) : Bool :=
     d.type == r.defType && d.value == r.defValue && t.type == r.eqType && t.value == r.eqValue
   | _, _ => false
 
-/-- The normalized transition relations this process built. -/
-initialize built : IO.Ref (Array Record) ← IO.mkRef #[]
+/-- Provenance follows the environment, so concurrent searches and abandoned editor snapshots
+cannot replace each other's normalization records. -/
+initialize built : EnvExtension (NameMap Record) ← registerEnvExtension (pure {})
 
-/-- The modules whose normalization failed in this process; they are not tried again. -/
-initialize failed : IO.Ref (Array Name) ← IO.mkRef #[]
+/-- Normalization failures are retried in a fresh environment. -/
+initialize failed : EnvExtension NameSet ← registerEnvExtension (pure {})
 
 /-- The record of `mod`, if this process built its normalized transition relation. -/
-def record? (mod : Veil.Module) : IO (Option Record) := do
-  return (← built.get).find? (·.mod == mod.name)
+def record? (mod : Veil.Module) : CoreM (Option Record) := do
+  return (built.getState (← getEnv)).find? mod.name
 
 /-- The normalized transition relation of `mod`, when the option is on and the environment holds
 the declarations this process built. -/
@@ -184,7 +185,7 @@ is off or the normalization failed, which restores the environment and warns onc
 def ensure (ctx : QueryCtx) : TermElabM (Option Name) := do
   unless veil.synthesizer.normalizeTr.get (← getOptions) do return none
   if let some name ← available ctx.mod then return some name
-  if (← failed.get).contains ctx.mod.name then return none
+  if (failed.getState (← getEnv)).contains ctx.mod.name then return none
   throwIfForeign ctx.mod
   let faultAt ← faultPoint
   let t0 ← IO.monoMsNow
@@ -194,11 +195,11 @@ def ensure (ctx : QueryCtx) : TermElabM (Option Name) := do
       if faultAt == some "before" then
         throwError "injected failure, veil.synthesizer.debug.failNormalize before"
       let r ← build ctx faultAt
-      built.modify fun rs ↦ (rs.filter (·.mod != ctx.mod.name)).push r
+      modifyEnv fun env => built.modifyState env (·.insert ctx.mod.name r)
       pure (some (defName ctx.mod)))
     fun e ↦ do
       setEnv envBefore
-      failed.modify (·.push ctx.mod.name)
+      modifyEnv fun env => failed.modifyState env (·.insert ctx.mod.name)
       logWarning m!"IC3: the transition relation of {ctx.mod.name} could not be normalized \
         ({e.toMessageData}); its queries are written with Veil's `tr` and pay its preprocessing \
         on every call"
@@ -231,7 +232,7 @@ def Status.key : Status → String
 /-- The status of `mod` after a run; `builtBefore` says whether it was available before. -/
 def status (mod : Veil.Module) (builtBefore : Bool) : CoreM Status := do
   unless veil.synthesizer.normalizeTr.get (← getOptions) do return .off
-  if (← failed.get).contains mod.name then return .failed
+  if (failed.getState (← getEnv)).contains mod.name then return .failed
   if (← record? mod).isSome then return if builtBefore then .reused else .normalized
   return .unused
 

@@ -181,7 +181,7 @@ def statement (trNorm? : Option Name) (q : Query) : TermElabM Term := do
 
 end QueryCtx
 
-/-- Wall-clock milliseconds the queries of this process spent in each phase. -/
+/-- Wall-clock milliseconds the queries of one run spent in each phase. -/
 structure QueryPhases where
   /-- Elaborating statements. -/
   elabMs : Nat := 0
@@ -203,11 +203,13 @@ def QueryPhases.sub (a b : QueryPhases) : QueryPhases where
   decodeMs := a.decodeMs - b.decodeMs
   normalizeMs := a.normalizeMs - b.normalizeMs
 
-initialize queryPhases : IO.Ref QueryPhases ← IO.mkRef {}
+/-- Each synthesis run installs its own counter, also surviving query-level error recovery. -/
+initialize queryPhases : EnvExtension (Option (IO.Ref QueryPhases)) ← registerEnvExtension (pure none)
 
 /-- Add the milliseconds since `t0` to the phase `f` updates. -/
-def notePhase (f : QueryPhases → Nat → QueryPhases) (t0 : Nat) : IO Unit := do
+def notePhase (f : QueryPhases → Nat → QueryPhases) (t0 : Nat) : CoreM Unit := do
   let dt := (← IO.monoMsNow) - t0
-  queryPhases.modify (f · dt)
+  if let some counter := queryPhases.getState (← getEnv) then
+    counter.modify (f · dt)
 
 end Veil.Synthesizer

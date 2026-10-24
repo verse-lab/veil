@@ -48,6 +48,8 @@ safety [mutex] holds C ∧ holds D → C = D
 #guard_msgs(info, substring := true) in
 #synthesize_invariants (expect := unsafe) certify
 
+#gen_theorems
+
 /-- info: 'LockServerBug.ic3_unsafe' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms LockServerBug.ic3_unsafe

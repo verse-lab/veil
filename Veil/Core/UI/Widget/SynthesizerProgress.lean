@@ -58,26 +58,14 @@ partial def refresh (ref : Ref) (cancel? : Option IO.CancelToken)
     IO.sleep 100
     refresh ref cancel? token
 
-/-- Publish the panel before the synchronous search starts. Merely saving widget info would
-only expose it after command elaboration finished. The same widget is retained in the final
-info tree; theorem generation continues on the original command state. -/
-def display (stx : Syntax) (ref : Ref) : CommandElabM Unit := do
+/-- The launching command returns immediately, so ordinary widget information is sufficient.
+The refresh task follows the computation's cancellation token, independently of panel visibility. -/
+def display (stx : Syntax) (ref : Ref) (cancel : IO.CancelToken) : CommandElabM Unit := do
   let (html, token) ← mkRefreshComponent (render (← ref.get) (← IO.monoMsNow))
   let wi ← liftCoreM <| Widget.WidgetInstance.ofHash (hash HtmlDisplayPanel.javascript)
     (return json% { html: $(← Server.rpcEncode html) })
   let info := Info.ofUserWidgetInfo { wi with stx }
   pushInfoLeaf info
-  let ctx ← read
-  if let some snap := ctx.snap? then
-    snap.old?.forM (·.val.cancelRec)
-    let s ← get
-    let scope := s.scopes.head!
-    let tree := InfoTree.context (.commandCtx {
-      env := s.env, cmdEnv? := some s.env, fileMap := ctx.fileMap, mctx := {},
-      currNamespace := scope.currNamespace, openDecls := scope.openDecls,
-      options := scope.opts, ngen := s.ngen }) (.node info {})
-    snap.new.resolve <| .ofTyped ({ diagnostics := .empty, infoTree? := some tree }
-      : Language.SnapshotLeaf)
-  discard <| BaseIO.asTask (prio := .dedicated) (refresh ref ctx.cancelTk? token)
+  discard <| BaseIO.asTask (prio := .dedicated) (refresh ref (some cancel) token)
 
 end Veil.Synthesizer.Progress
