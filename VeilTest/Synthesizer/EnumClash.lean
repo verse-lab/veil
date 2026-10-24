@@ -53,6 +53,8 @@ safety [never_fired] ¬ fired
 #guard_msgs(info, substring := true) in
 #synthesize_invariants (fuel := 200) (expect := invariant) certify
 
+#gen_theorems
+
 /-- info: 'EnumClash.ic3_safe' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms EnumClash.ic3_safe

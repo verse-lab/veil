@@ -260,15 +260,20 @@ def synthesize (mod : Veil.Module) (cfg : Config) (sig : Signature) : TermElabM 
       propertyTerm := ← repeatedAnd propertyConjuncts }
   -- The state lives in a reference, so that the frames survive an exception.
   let ref ← IO.mkRef ({ fuel := cfg.fuel } : St)
-  let phases₀ ← queryPhases.get
+  let phasesRef ← IO.mkRef ({} : QueryPhases)
+  let previousPhases := queryPhases.getState (← getEnv)
+  modifyEnv fun env => queryPhases.setState env (some phasesRef)
   -- Each query is bounded by its own budget and the run by fuel; the command's is lifted.
-  let outcome ← withTheReader Core.Context (fun c ↦ { c with maxHeartbeats := 0 }) <|
-    tryCatchRuntimeEx (SearchM.search.run ctx ref) fun e ↦ do
-      return .internalError ((← e.toMessageData.toString).take 400).toString
-        ((← ref.get).frames.map (·.size))
+  let outcome ← try
+    withTheReader Core.Context (fun c ↦ { c with maxHeartbeats := 0 }) <|
+      tryCatchRuntimeEx (SearchM.search.run ctx ref) fun e ↦ do
+        return .internalError ((← e.toMessageData.toString).take 400).toString
+          ((← ref.get).frames.map (·.size))
+    finally
+      modifyEnv fun env => queryPhases.setState env previousPhases
   let s ← ref.get
   Progress.update cfg.progress? fun p => { p with frameSizes := s.frames.map (·.size) }
-  let phases := (← queryPhases.get).sub phases₀
+  let phases ← phasesRef.get
   return { outcome, stats := { s.stats with phases }, log := s.log }
 
 end Veil.Synthesizer

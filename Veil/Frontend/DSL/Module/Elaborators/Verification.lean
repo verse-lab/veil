@@ -256,6 +256,16 @@ def elabCheckAction : CommandElab := fun stx => do
     runFilteredInvariantCheck stx mod (isInductionForAction actionName)
 
 
+/-- Optional tools can queue checked results for `#gen_theorems`. Keeping these actions in the
+environment ties them to the document snapshot that started the work, including across edits. -/
+private initialize pendingTheoremGenerators : EnvExtension (NameMap (Array (CommandElabM Unit))) ←
+  registerEnvExtension (pure {})
+
+def registerTheoremGenerator (moduleName : Name) (generate : CommandElabM Unit) :
+    CommandElabM Unit :=
+  modifyEnv fun env => pendingTheoremGenerators.modifyState env fun pending =>
+    pending.insert moduleName ((pending.find? moduleName).getD #[] |>.push generate)
+
 @[command_elab Veil.genTheorems]
 def elabGenTheorems : CommandElab := fun stx => do
   withTraceNode `veil.perf.elaborator.genTheorems (fun _ => return "#gen_theorems") do
@@ -263,5 +273,15 @@ def elabGenTheorems : CommandElab := fun stx => do
     let _ ← mod.ensureVerificationSpec stx
     let _ ← Verifier.waitFilteredSync (fun _ => true)
     Verifier.addProvenTheoremsInDependencyOrder (fun _ => true)
+    while true do
+      let pending := (pendingTheoremGenerators.getState (← getEnv)).find? mod.name |>.getD #[]
+      let some generate := pending[0]? | break
+      generate
+      -- A later failed import must not make us retry declarations already added successfully.
+      modifyEnv fun env => pendingTheoremGenerators.modifyState env fun generators =>
+        let current := (generators.find? mod.name).getD #[]
+        let remaining := current.extract 1 current.size
+        if remaining.isEmpty then generators.erase mod.name
+        else generators.insert mod.name remaining
 
 end Veil

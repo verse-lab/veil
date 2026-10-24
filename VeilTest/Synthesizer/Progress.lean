@@ -5,25 +5,8 @@ public import Veil.Core.Tools.Synthesizer
 
 open Lean Elab Command Veil.Synthesizer
 
-/-! The panel must be available before the command returns, while certificates must still be
-available to the following command. Progress belongs to one run and cannot resurrect after
-cancellation. Hiding the panel must not freeze the state used when it is reopened. -/
-
-run_cmd do
-  unless ← isIncrementalElab ``elabSynthesizeInvariants do
-    throwError "synthesis cannot publish an early snapshot"
-  let ref ← Progress.create `EarlySnapshot 10
-  try
-    let promise ← IO.Promise.new
-    withReader (fun ctx => { ctx with snap? := some { old? := none, new := promise } }) do
-      Progress.display (← getRef) ref
-    unless ← promise.isResolved do
-      throwError "the panel was not published before synthesis"
-    let some snap ← IO.wait promise.result? | throwError "missing early snapshot"
-    let some leaf := snap.toTyped? Language.SnapshotLeaf | throwError "unexpected snapshot"
-    unless leaf.infoTree?.isSome do throwError "the early snapshot has no widget information"
-  finally
-    Progress.finish (some ref) .finished "Snapshot test completed"
+/-! Progress belongs to one run and cannot resurrect after cancellation. Hiding the panel must
+not freeze the state used when it is reopened. -/
 
 run_cmd do
   let first ← Progress.create `First 10

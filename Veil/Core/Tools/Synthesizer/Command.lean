@@ -12,7 +12,8 @@ public meta import Veil.Core.UI.Widget.SynthesizerProgress
 This file defines the command, which runs UPDR on the current module's `safety` properties and
 reports the outcome: strengthening clauses to paste into the module, a concrete counterexample, an
 abstract counterexample showing that no universal inductive invariant exists, or why the search
-stopped. With `certify`, an invariant or a counterexample becomes a kernel-checked theorem.
+stopped. With `certify`, an invariant or a counterexample becomes a kernel-checked theorem;
+`#gen_theorems` waits for the result and adds its declarations to the module.
 
     #synthesize_invariants (fuel := 500) (log := "run.jsonl") (invariants := true) verbose certify
 
@@ -313,7 +314,8 @@ private def finishProgress (ref? : Option Progress.Ref) (status : Progress.Statu
       return
   Progress.finish ref? status result
 
-private def runSynthesizeInvariants (mod : Veil.Module) (opts : Options) : CommandElabM Unit := do
+private def runSynthesizeInvariants (mod : Veil.Module) (opts : Options) :
+    CommandElabM (Option CertificateResult) := do
   let { cfg, expectation, certify := doCertify } := opts
   let progress? := cfg.progress?
   -- Refuse an unsupported module, a module without a property and a bad fault hook before running.
@@ -368,8 +370,10 @@ private def runSynthesizeInvariants (mod : Veil.Module) (opts : Options) : Comma
     if doCertify then
       let cert ← certifyTimed <| certify mod property (clauses.map (·.clause)) progress?
       logInfo s!"Certified: theorem {cert.theoremName} (strengthening {cert.strengtheningName}); \
-        axioms: {cert.axioms}; {certificateStatus cert}"
-      finishProgress progress? .finished s!"{cert.theoremName}: {certificateStatus cert}"
+        axioms: {cert.axioms}; {certificateStatus cert}. Use #gen_theorems to add the declarations."
+      finishProgress progress? .finished
+        s!"{cert.theoremName}: {certificateStatus cert}. Import with #gen_theorems."
+      return some cert
     else
       finishProgress progress? .finished
         s!"Inductive invariant found at frame {frame} with {clauses.size} strengthening clause(s); not certified"
@@ -378,8 +382,11 @@ private def runSynthesizeInvariants (mod : Veil.Module) (opts : Options) : Comma
     if doCertify then
       let cert ← certifyTimed <| certifyUnsafe mod property path progress?
       logInfo s!"Certified: theorem {cert.theoremName} refutes {propertyName} at the model's sort \
-        sizes and typeclass instances; axioms: {cert.axioms}; {certificateStatus cert}"
-      finishProgress progress? .finished s!"{cert.theoremName}: {certificateStatus cert}"
+        sizes and typeclass instances; axioms: {cert.axioms}; {certificateStatus cert}. \
+        Use #gen_theorems to add the declarations."
+      finishProgress progress? .finished
+        s!"{cert.theoremName}: {certificateStatus cert}. Import with #gen_theorems."
+      return some cert
     else
       finishProgress progress? .finished "Counterexample found; not certified"
   | .unsafeUndecoded steps reason =>
@@ -400,29 +407,96 @@ private def runSynthesizeInvariants (mod : Veil.Module) (opts : Options) : Comma
     logError s!"IC3 internal error: {message}. {frameSummary frameSizes}. This is a bug in the \
       controller or in the model decoder, not a solver limit."
     finishProgress progress? .failed message
+  return none
 
-/-- Only the display runs in the background. Synthesis and certification still update the
-original elaboration state, so the next command can use their declarations immediately. -/
-@[command_elab synthesizeInvariants, incremental]
+private def runWithProgress (mod : Veil.Module) (opts : Options) :
+    CommandElabM (Option CertificateResult) := do
+  try
+    withoutCommandIncrementality true <| runSynthesizeInvariants mod opts
+  catch e =>
+    finishProgress opts.cfg.progress? .failed (← e.toMessageData.toString)
+    throw e
+  finally
+    finishProgress opts.cfg.progress? .cancelled "Elaboration was interrupted"
+
+/-- The worker's immutable environment changes, ready to import into a later command. -/
+private structure CertifiedRun where
+  moduleName : Name
+  before : Environment
+  after : Environment
+
+/-- Replay only the worker's additions, preserving declarations made after the search started.
+Check the kernel environment explicitly: `replayConsts` retains the old kernel environment on
+failure, even though its elaborator environment already contains the new constant information. -/
+private def CertifiedRun.addTheorems (run : CertifiedRun) : CommandElabM Unit := do
+  let dest ← getEnv
+  let before := run.before.toKernelEnv
+  let after := run.after.toKernelEnv
+  let added := after.constants.map₂.toList.filter fun (name, _) => (before.find? name).isNone
+  for (name, info) in added do
+    if dest.contains name then
+      throwError "cannot import synthesized certificate: {name} is already declared"
+    match info with
+    | .defnInfo _ | .thmInfo _ | .axiomInfo _ => pure ()
+    | _ => throwError "cannot import synthesized certificate: unsupported declaration {name}"
+  let candidate ← dest.replayConsts run.before run.after
+  let checked := candidate.toKernelEnv
+  for (name, info) in added do
+    let some actual := checked.find? name
+      | throwError "cannot import synthesized certificate: kernel replay failed at {name}"
+    unless actual.type == info.type && actual.value? == info.value? do
+      throwError "cannot import synthesized certificate: kernel replay changed {name}"
+  -- The normalization cache is snapshot-local and is not among the extensions Lean replays.
+  let candidate := if let some record := (TrNorm.built.getState run.after).find? run.moduleName then
+      TrNorm.built.modifyState candidate (·.insert run.moduleName record)
+    else candidate
+  setEnv candidate
+
+private def importCertificate (result : Task (Option (Except String (Option CertifiedRun)))) :
+    CommandElabM Unit := do
+  while !(← IO.hasFinished result) do
+    liftCoreM Core.checkInterrupted
+    IO.sleep 10
+  match ← IO.wait result with
+  | some (.ok (some run)) => run.addTheorems
+  | some (.ok none) => pure ()
+  | some (.error message) => throwError "cannot import synthesized certificate: {message}"
+  | none => throwError "invariant synthesis was cancelled before producing a certificate"
+
+/-- Register search work with Lean so cancellation and diagnostics follow the command, while
+the main elaborator returns immediately and exposes the panel to all infoview requests. -/
+private def startSynthesizeInvariants (stx : Syntax) (mod : Veil.Module) (opts : Options) :
+    CommandElabM Unit := do
+  let cancel ← IO.CancelToken.new
+  let result ← IO.Promise.new
+  let work ← Command.wrapAsyncAsSnapshot (fun () => do
+    try
+      let before ← getEnv
+      let cert? ← runWithProgress mod opts
+      let after ← getEnv
+      result.resolve (.ok (cert?.map fun _ => { moduleName := mod.name, before, after : CertifiedRun }))
+    catch e =>
+      result.resolve (.error (← e.toMessageData.toString))
+      throw e
+    finally
+      result.resolve (.error "invariant synthesis was cancelled")
+  ) cancel
+  let task ← BaseIO.asTask (work ()) (prio := .dedicated)
+  Command.logSnapshotTask { stx? := none, cancelTk? := some cancel, task }
+  if opts.certify then
+    registerTheoremGenerator mod.name (importCertificate result.result?)
+  opts.cfg.progress?.forM fun ref => Progress.display stx ref cancel
+
+@[command_elab synthesizeInvariants]
 def elabSynthesizeInvariants : CommandElab := fun stx ↦ do
   let mod ← getCurrentModule (errMsg := "#synthesize_invariants must be used inside a Veil module")
   mod.throwIfSpecNotFinalized
   let opts ← parseOptions stx[1].getArgs
   let progress? ← if Elab.inServer.get (← getOptions) && veil.synthesizer.widget.get (← getOptions) then
       let ref ← Progress.create mod.name opts.cfg.fuel
-      Progress.display stx ref
       pure (some ref)
     else pure none
-  try
-    -- The early widget snapshot has been published. Nested certificate commands must not
-    -- reuse its snapshot bundle; they continue synchronously in our command state.
-    withoutCommandIncrementality true <|
-      runSynthesizeInvariants mod { opts with cfg.progress? := progress? }
-  catch e =>
-    finishProgress progress? .failed (← e.toMessageData.toString)
-    throw e
-  finally
-    -- Also runs on interrupt exceptions, which ordinary command catches deliberately skip.
-    finishProgress progress? .cancelled "Elaboration was interrupted"
+  let opts := { opts with cfg.progress? := progress? }
+  startSynthesizeInvariants stx mod opts
 
 end Veil.Synthesizer
