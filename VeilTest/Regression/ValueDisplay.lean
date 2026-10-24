@@ -161,6 +161,50 @@ run_cmd do
         json% {"$veil": "ctor", "type": "Lbl", name: "tick", args: []} do
     throwError "a derived Display must be a constructor with its arguments in declaration order"
 
+/-- The `Repr` of a `@[veil_decl]` inductive type, which traces show as they show action labels:
+`name(x=v, …)` with bare constructor names, arguments without names by position, and no parentheses
+around a call. A structure keeps the derived `Repr`. -/
+@[veil_decl]
+inductive Pkt (node : Type) where
+  | ping
+  | data (src : node) (payload : Option Nat)
+  | pair : Nat → node → Pkt node
+
+@[veil_decl]
+structure Slot where
+  id : Nat
+  busy : Bool
+
+run_cmd do
+  unless reprStr (Pkt.ping : Pkt (Fin 2)) == "ping" &&
+      reprStr (Pkt.data (1 : Fin 2) (some 3)) == "data(src=1, payload=some 3)" &&
+      reprStr (some (Pkt.data (1 : Fin 2) none)) == "some data(src=1, payload=none)" &&
+      reprStr (Pkt.pair 7 (0 : Fin 2)) == "pair(7, 0)" &&
+      reprStr (Pkt.pair 7 (0 : Fin 2), (Pkt.ping : Pkt (Fin 2))) == "(pair(7, 0), ping)" &&
+      Display.display (Pkt.data (1 : Fin 2) (some 3)) ==
+        json% "data(src=1, payload=some 3)" &&
+      reprStr ({ id := 1, busy := true } : Slot) == "{ id := 1, busy := true }" do
+    throwError "a @[veil_decl] inductive type must show bare constructor names and named arguments"
+
+/-! `deriving ConstructorRepr` works without `@[veil_decl]` too; a recursive type gets the derived
+`Repr`. -/
+inductive Shape where
+  | dot
+  | box (w h : Nat)
+  deriving ConstructorRepr
+
+inductive Tree where
+  | leaf
+  | node (l r : Tree)
+  deriving ConstructorRepr
+
+run_cmd do
+  unless reprStr (Shape.box 1 2) == "box(w=1, h=2)" && reprStr Shape.dot == "dot" do
+    throwError "deriving ConstructorRepr must show bare constructor names and named arguments"
+  -- The derived `Repr` qualifies constructors fully.
+  unless ((reprStr (Tree.node .leaf .leaf)).splitOn "ValueDisplayRegression.Tree.node").length == 2 do
+    throwError "a recursive type must get the derived Repr"
+
 /-! A multiset shows each distinct element with its actual multiplicity; the storage keeps the
 multiplicity minus one. -/
 run_cmd do
@@ -267,8 +311,9 @@ decide(b=1,
   IO.println (ValueDisplay.formatField "" "big" (ValueDisplay.setJson toJson (Array.range 45)))
   IO.println (ValueDisplay.formatField "" "wide" (ValueDisplay.mapJson toJson id
     ((Array.range 2).map fun i => (i, ValueDisplay.setJson toJson (Array.range (36 + i))))))
-  IO.println ((ValueDisplay.callFormat "decide" [("b", toJson (1 : Nat)),
-    ("q", ValueDisplay.setJson toJson (Array.range 40))]).pretty ValueDisplay.textWidth)
+  IO.println ((ValueDisplay.callFormat "decide" [("b", ValueDisplay.renderJson (toJson (1 : Nat))),
+    ("q", ValueDisplay.renderJson (ValueDisplay.setJson toJson (Array.range 40)))]).pretty
+      ValueDisplay.textWidth)
 
 -- The generator rejects ambiguous storage rather than silently dropping data.
 structure TwoPayloads where

@@ -52,7 +52,8 @@ namespace Veil.ValueDisplay
 
 /-! ## `Repr`: logical contents as Lean text
 
-These take lists, as `Std.Format.joinSep` does. -/
+These take lists, as `Std.Format.joinSep` does. A constructor application is laid out by
+`callFormat` below, as an action label is. -/
 
 /-- Render logical set members, independently of the storage representation. -/
 def setFormat [Repr α] (members : List α) : Std.Format :=
@@ -196,7 +197,17 @@ def labeled (label : Std.Format) (sep : String) (value : Std.Format) : Std.Forma
   let lead := label ++ sep
   lead ++ Std.Format.nest (lead.pretty 100000).length value
 
-mutual
+/-- `name(k=v, …)`, as action labels and constructor applications (`deriving ConstructorRepr`) are
+shown: `v` alone for an argument without a name, and `name` alone without arguments. Arguments fill
+each line and continue aligned after `name(`. A call reads as one unit, so it needs no parentheses
+as an argument. -/
+def callFormat (name : String) (args : List (Option String × Std.Format)) : Std.Format :=
+  if args.isEmpty then name else
+  labeled (Std.Format.text name) "(" (Std.Format.fill
+    (Std.Format.joinSep (args.map fun
+      | (some k, v) => labeled (Std.Format.text k) "=" v
+      | (none, v) => v)
+      ("," ++ Std.Format.line))) ++ ")"
 
 /-- A JSON value as traces and counterexamples show it: tagged containers in set notation (`{a, b}`,
 `{k ↦ v}`, `{a × n}`), arrays in brackets, records as `{k: v}` in declaration order and other
@@ -205,7 +216,8 @@ and continue aligned after the opening bracket. -/
 partial def renderJson (j : Lean.Json) : Std.Format :=
   if let some fields := fields? j then
     seq "{" (fields.toList.map fun (k, v) => labeled (Std.Format.text k) ": " (renderJson v)) "}"
-  else if let some (_, name, args) := ctor? j then callFormat name args.toList
+  else if let some (_, name, args) := ctor? j then
+    callFormat name (args.toList.map fun (k, v) => (k, renderJson v))
   else match collection? j with
   | some (kind, entries) =>
     let entry (e : Lean.Json) : Std.Format :=
@@ -222,18 +234,6 @@ where
   seq (l : String) (parts : List Std.Format) (r : String) : Std.Format :=
     Std.Format.bracketFill l (Std.Format.joinSep parts ("," ++ Std.Format.line)) r
 
-/-- `name(k=v, …)`, as action labels are shown, with `v` alone for an argument without a name; long
-arguments continue aligned after `name(`. -/
-partial def callFormat (name : String) (args : List (Option String × Lean.Json)) : Std.Format :=
-  if args.isEmpty then name else
-  labeled (Std.Format.text name) "(" (Std.Format.fill
-    (Std.Format.joinSep (args.map fun
-      | (some k, v) => labeled (Std.Format.text k) "=" (renderJson v)
-      | (none, v) => renderJson v)
-      ("," ++ Std.Format.line))) ++ ")"
-
-end
-
 /-- Text rather than a value: a string shows as it is, and anything else as a value. Result tags,
 property names, error messages, picks and type names are text. -/
 def renderText (j : Lean.Json) : Std.Format := match j with
@@ -243,11 +243,12 @@ def renderText (j : Lean.Json) : Std.Format := match j with
 /-- A transition label: a constructor as `name(param=value, …)`, or an action name. An object
 `{name: {param: value, …}}` reads as a constructor with its parameters in key order. -/
 def actionFormat (j : Lean.Json) : Std.Format :=
-  if let some (_, name, args) := ctor? j then callFormat name args.toList else
+  if let some (_, name, args) := ctor? j then
+    callFormat name (args.toList.map fun (k, v) => (k, renderJson v)) else
   match j with
   | .str s => s
   | .obj kvs => match kvs.toList.find? (·.2 != .null) with
-    | some (name, .obj ps) => callFormat name (ps.toList.map fun (k, v) => (some k, v))
+    | some (name, .obj ps) => callFormat name (ps.toList.map fun (k, v) => (some k, renderJson v))
     | some (name, _) => name
     | none => toString j
   | _ => toString j
@@ -320,5 +321,11 @@ instance [Display α] : Display (Array α) where
 /-- A subtype displays as its value, e.g. a quorum as the set it is. -/
 instance [Display α] {P : α → Prop} : Display (Subtype P) where
   display x := Display.display x.val
+
+/-- `Repr`, under a name to derive: `deriving ConstructorRepr` declares the `Repr` of an inductive
+type that shows its values as action labels are shown, by the bare names of their constructors
+(`ValueDisplay.callFormat`), e.g. `response(dat=7, ses=2)`. A structure, or a recursive or indexed
+type, gets the derived `Repr` instead. `@[veil_decl]` types and enums derive it. -/
+abbrev ConstructorRepr (α : Type u) : Type u := Repr α
 
 end Veil

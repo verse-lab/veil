@@ -278,9 +278,48 @@ initialize
 
 end DerivingOrdRelatedInstances
 
-section DerivingDisplay
+section DerivingForConstructors
+
+/-! `Display` and `Repr` for a non-recursive inductive type without indices, with one match
+alternative per constructor. -/
+
+/-- Whether `mkCtorAlts` handles `declName`: a non-recursive inductive type without indices, other
+than a structure. -/
+def isPlainInductive (declName : Name) : CoreM Bool := do
+  let indVal ← getConstInfoInduct declName
+  return !indVal.isRec && indVal.numIndices == 0 && !isStructure (← getEnv) declName
 
 open Lean.Parser.Term in
+/-- One match alternative `| @C _ … _ a₁ … aₙ => rhs` per constructor `C` of `indVal`. `rhs` gets
+the short name of `C` and, for each argument, its name as written, if it has one, and its pattern
+variable. -/
+def mkCtorAlts (indVal : InductiveVal)
+    (rhs : StrLit → Array (Option StrLit × Ident) → TermElabM Term) :
+    TermElabM (Array (TSyntax ``matchAlt)) := do
+  let hole ← `(term| _)
+  indVal.ctors.toArray.mapM fun ctorName => do
+    let ctorInfo ← getConstInfoCtor ctorName
+    forallTelescopeReducing ctorInfo.type fun xs _ => do
+      -- A fresh pattern variable for each argument of the constructor (the binders after the
+      -- type's parameters), and the argument's name as written, if it has one.
+      let mut args : Array (Option StrLit × Ident) := #[]
+      for i in [:ctorInfo.numFields] do
+        let decl ← xs[indVal.numParams + i]!.fvarId!.getDecl
+        -- As in `ToJson`, use macro scopes as a heuristic for unnamed arguments. This is
+        -- only a convention: macros can introduce named binders with scopes, and generated
+        -- names need not have scopes, so this does not reliably distinguish the two.
+        let name := match decl.userName with
+          | .str _ s => if decl.userName.hasMacroScopes then none else some (Syntax.mkStrLit s)
+          | _ => none
+        args := args.push (name, mkIdent (← mkFreshUserName `a))
+      -- The type's parameters are inaccessible in the pattern: `_` for each.
+      let params := Array.replicate indVal.numParams hole
+      let .str _ s := ctorName.eraseMacroScopes
+        | throwError "unsupported constructor name: {ctorName}"
+      let rhs ← rhs (Syntax.mkStrLit s) args
+      let vars := args.map (·.2)
+      `(matchAltExpr| | @$(mkCIdent ctorName):ident $params* $vars* => $rhs)
+
 /-- `Display` for a non-recursive inductive type without indices, such as a module's `Label`: each
 value is a constructor (`ValueDisplay.ctorJson`) with its arguments in declaration order, each shown
 by its `Display`.
@@ -289,48 +328,25 @@ Each type parameter needs `Repr` besides `Display`: an argument whose type has n
 `Display`, such as `Option α`, falls back to its `Repr`, which needs `Repr α`. Without the binder,
 `reprOfUnrepresentable` would silently supply it. -/
 def mkDisplayInstCmdForInductive (declName : Name) : CommandElabM Bool := do
-  let indVal ← getConstInfoInduct declName
-  if indVal.isRec || indVal.numIndices != 0 || isStructure (← getEnv) declName then
+  unless ← liftCoreM (isPlainInductive declName) do
     throwError "deriving `Display` is supported for non-recursive inductive types without indices, \
       other than structures: {declName}"
+  let indVal ← getConstInfoInduct declName
   let cmd ← liftTermElabM do
-    let hole ← `(term| _)
     let header ← mkHeader ``Display 0 indVal
     let reprBinders ← mkInstImplicitBinders ``Repr indVal header.argNames
     let x ← mkIdent <$> mkFreshUserName `x
     let .str _ typeName := indVal.name.eraseMacroScopes
       | throwError "unsupported type name: {indVal.name}"
-    -- One alternative per constructor, e.g. for `| send (n m : node)` of `Label node`:
+    -- For `| send (n m : node)` of `Label node`:
     --   `| @Label.send _ a₁ a₂ =>`
     --   `    ctorJson "Label" "send" [(some "n", display a₁), (some "m", display a₂)]`
-    let alts : Array (TSyntax ``matchAlt) ← indVal.ctors.toArray.mapM fun ctorName => do
-      let ctorInfo ← getConstInfoCtor ctorName
-      forallTelescopeReducing ctorInfo.type fun xs _ => do
-        -- A fresh pattern variable for each argument of the constructor (the binders after the
-        -- type's parameters), and the argument's name as written, if it has one.
-        let mut args : Array Ident := #[]
-        let mut names : Array (Option StrLit) := #[]
-        for i in [:ctorInfo.numFields] do
-          let decl ← xs[indVal.numParams + i]!.fvarId!.getDecl
-          -- As in `ToJson`, use macro scopes as a heuristic for unnamed arguments. This is
-          -- only a convention: macros can introduce named binders with scopes, and generated
-          -- names need not have scopes, so this does not reliably distinguish the two.
-          names := names.push <| match decl.userName with
-            | .str _ s => if decl.userName.hasMacroScopes then none else some (Syntax.mkStrLit s)
-            | _ => none
-          args := args.push (mkIdent (← mkFreshUserName `a))
-        -- The type's parameters are inaccessible in the pattern: `_` for each.
-        let params := Array.replicate indVal.numParams hole
-        let .str _ s := ctorName.eraseMacroScopes
-          | throwError "unsupported constructor name: {ctorName}"
-        let ctorStr := Syntax.mkStrLit s
-        -- Each argument as `(some "x", display a)`, or `(none, display a)` without a name.
-        let entries ← (names.zip args).mapM fun
-          | (some n, a) => `(($(mkCIdent ``Option.some) $n, $(mkCIdent ``Display.display) $a))
-          | (none, a) => `(($(mkCIdent ``Option.none), $(mkCIdent ``Display.display) $a))
-        let rhs ← `($(mkCIdent ``ValueDisplay.ctorJson) $(Syntax.mkStrLit typeName) $ctorStr
-          [$entries,*])
-        `(matchAltExpr| | @$(mkCIdent ctorName):ident $params* $args* => $rhs)
+    let alts ← mkCtorAlts indVal fun ctorStr args => do
+      -- Each argument as `(some "x", display a)`, or `(none, display a)` without a name.
+      let entries ← args.mapM fun
+        | (some n, a) => `(($(mkCIdent ``Option.some) $n, $(mkCIdent ``Display.display) $a))
+        | (none, a) => `(($(mkCIdent ``Option.none), $(mkCIdent ``Display.display) $a))
+      `($(mkCIdent ``ValueDisplay.ctorJson) $(Syntax.mkStrLit typeName) $ctorStr [$entries,*])
     `(command|
       instance $header.binders:bracketedBinder* $(reprBinders.map TSyntax.mk):bracketedBinder* :
           $(mkCIdent ``Display) $header.targetType where
@@ -342,7 +358,55 @@ def mkDisplayHandler := onlyHandleOne mkDisplayInstCmdForInductive
 
 initialize registerDerivingHandler ``Display mkDisplayHandler
 
-end DerivingDisplay
+/-- `Repr` for a non-recursive inductive type without indices, other than a structure: each value as
+an action label is shown, `name(x=v, …)` with the bare name of its constructor
+(`ValueDisplay.callFormat`), e.g. `response(dat=7, ses=2)`, for deriving `ConstructorRepr`: the derived
+`Repr` qualifies constructors fully and drops the names of the arguments. Returns `false`, declaring
+nothing, for any other type. -/
+def mkCtorReprInstCmd (declName : Name) : CommandElabM Bool := do
+  unless ← liftCoreM (isPlainInductive declName) do return false
+  let indVal ← getConstInfoInduct declName
+  let cmds ← liftTermElabM do
+    let header ← mkHeader ``Repr 0 indVal
+    let x ← mkIdent <$> mkFreshUserName `x
+    let .str _ typeName := indVal.name.eraseMacroScopes
+      | throwError "unsupported type name: {indVal.name}"
+    let aux ← mkIdent <$> mkFreshUserName (Name.mkSimple s!"repr{typeName}")
+    -- For `| response (dat ses : Nat)` of `Msg client`:
+    --   `| @Msg.response _ a₁ a₂ =>`
+    --   `    callFormat "response" [(some "dat", repr a₁), (some "ses", repr a₂)]`
+    let alts ← mkCtorAlts indVal fun ctorStr args => do
+      -- Each argument as `(some "x", repr a)`, or `(none, repr a)` without a name.
+      let entries ← args.mapM fun
+        | (some n, a) => `(($(mkCIdent ``Option.some) $n, $(mkCIdent ``repr) $a))
+        | (none, a) => `(($(mkCIdent ``Option.none), $(mkCIdent ``repr) $a))
+      `($(mkCIdent ``ValueDisplay.callFormat) $ctorStr [$entries,*])
+    -- The formatting stays out of line, as in a derived `Repr`: a pick log formats values inside
+    -- an action, which then calls it rather than compiling it in. A call needs no parentheses, so
+    -- the precedence is not used.
+    let auxDef ← `(command|
+      @[noinline] def $aux:ident $header.binders:bracketedBinder* ($x : $header.targetType) :
+          Std.Format :=
+        match $x:ident with $alts:matchAlt*)
+    let inst ← `(command|
+      instance $header.binders:bracketedBinder* : $(mkCIdent ``Repr) $header.targetType :=
+        ⟨fun x _ => $aux x⟩)
+    return #[auxDef, inst]
+  cmds.forM elabVeilCommand
+  return true
+
+/-- Deriving `ConstructorRepr`: `mkCtorReprInstCmd`, or the derived `Repr` for a type that it does
+not handle. A handler of `Repr` itself would take over every `deriving Repr` after Veil is imported:
+Lean tries the handlers registered last first. -/
+def mkConstructorReprHandler : Array Name → CommandElabM Bool := onlyHandleOne fun declName => do
+  unless ← mkCtorReprInstCmd declName do
+    elabVeilCommand <|
+      ← `(command| deriving instance $(mkCIdent ``Repr):ident for $(mkCIdent declName):ident)
+  return true
+
+initialize registerDerivingHandler ``ConstructorRepr mkConstructorReprHandler
+
+end DerivingForConstructors
 
 section DerivingInstanceForStructure
 

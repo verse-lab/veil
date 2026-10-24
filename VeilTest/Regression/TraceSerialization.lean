@@ -136,14 +136,13 @@ error: ❌ Violation: safety_failure (violates: diagnostic)
   Theory:
     oneClient = 0
   State 0 (via init):
-    chan = {TraceSerialization.Node.cloud ↦ [],
-            TraceSerialization.Node.client 0 ↦ [TraceSerialization.Msg.response 7 2]}
-    inbox = {0 ↦ some (TraceSerialization.Msg.response 7 2)}
-    message = some (TraceSerialization.Msg.response 7 2)
-    pc = {TraceSerialization.Node.cloud ↦ "D", TraceSerialization.Node.client 0 ↦ "CW"}
+    chan = {cloud ↦ [], client(id=0) ↦ [response(dat=7, ses=2)]}
+    inbox = {0 ↦ some response(dat=7, ses=2)}
+    message = some response(dat=7, ses=2)
+    pc = {cloud ↦ "D", client(id=0) ↦ "CW"}
     history = {0 ↦ [0, 7]}
-    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
-    pending = {(TraceSerialization.Node.cloud, TraceSerialization.Node.client 0)}
+    count = {(cloud, 0) ↦ 7, (client(id=0), 0) ↦ 7}
+    pending = {(cloud, client(id=0))}
     bag = {2 × 2}
 -/
 #guard_msgs in
@@ -154,14 +153,13 @@ error: ❌ Violation: safety_failure (violates: diagnostic)
   Theory:
     oneClient = 0
   State 0 (via init):
-    chan = {TraceSerialization.Node.cloud ↦ [],
-            TraceSerialization.Node.client 0 ↦ [TraceSerialization.Msg.response 7 2]}
-    inbox = {0 ↦ some (TraceSerialization.Msg.response 7 2)}
-    message = some (TraceSerialization.Msg.response 7 2)
-    pc = {TraceSerialization.Node.cloud ↦ "D", TraceSerialization.Node.client 0 ↦ "CW"}
+    chan = {cloud ↦ [], client(id=0) ↦ [response(dat=7, ses=2)]}
+    inbox = {0 ↦ some response(dat=7, ses=2)}
+    message = some response(dat=7, ses=2)
+    pc = {cloud ↦ "D", client(id=0) ↦ "CW"}
     history = {0 ↦ [0, 7]}
-    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
-    pending = {(TraceSerialization.Node.cloud, TraceSerialization.Node.client 0)}
+    count = {(cloud, 0) ↦ 7, (client(id=0), 0) ↦ 7}
+    pending = {(cloud, client(id=0))}
     bag = {2 × 2}
 -/
 #guard_msgs in
@@ -172,14 +170,13 @@ error: ❌ Violation: safety_failure (violates: diagnostic)
   Theory:
     oneClient = 0
   State 0 (via init):
-    chan = {TraceSerialization.Node.cloud ↦ [],
-            TraceSerialization.Node.client 0 ↦ [TraceSerialization.Msg.response 7 2]}
-    inbox = {0 ↦ some (TraceSerialization.Msg.response 7 2)}
-    message = some (TraceSerialization.Msg.response 7 2)
-    pc = {TraceSerialization.Node.cloud ↦ "D", TraceSerialization.Node.client 0 ↦ "CW"}
+    chan = {cloud ↦ [], client(id=0) ↦ [response(dat=7, ses=2)]}
+    inbox = {0 ↦ some response(dat=7, ses=2)}
+    message = some response(dat=7, ses=2)
+    pc = {cloud ↦ "D", client(id=0) ↦ "CW"}
     history = {0 ↦ [0, 7]}
-    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
-    pending = {(TraceSerialization.Node.cloud, TraceSerialization.Node.client 0)}
+    count = {(cloud, 0) ↦ 7, (client(id=0), 0) ↦ 7}
+    pending = {(cloud, client(id=0))}
     bag = {2 × 2}
 Seed: 1
 -/
@@ -192,14 +189,13 @@ error: ❌ Violation: safety_failure (violates: diagnostic)
   Theory:
     oneClient = 0
   State 0 (via init):
-    chan = {TraceSerialization.Node.cloud ↦ [],
-            TraceSerialization.Node.client 0 ↦ [TraceSerialization.Msg.response 7 2]}
-    inbox = {0 ↦ some (TraceSerialization.Msg.response 7 2)}
-    message = some (TraceSerialization.Msg.response 7 2)
-    pc = {TraceSerialization.Node.cloud ↦ "D", TraceSerialization.Node.client 0 ↦ "CW"}
+    chan = {cloud ↦ [], client(id=0) ↦ [response(dat=7, ses=2)]}
+    inbox = {0 ↦ some response(dat=7, ses=2)}
+    message = some response(dat=7, ses=2)
+    pc = {cloud ↦ "D", client(id=0) ↦ "CW"}
     history = {0 ↦ [0, 7]}
-    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
-    pending = {(TraceSerialization.Node.cloud, TraceSerialization.Node.client 0)}
+    count = {(cloud, 0) ↦ 7, (client(id=0), 0) ↦ 7}
+    pending = {(cloud, client(id=0))}
     bag = {2 × 2}
 Seed: 1
 -/
