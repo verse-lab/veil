@@ -2,6 +2,7 @@ module
 
 public import Std
 public import Lean.Data.Json.FromToJson.Basic
+public import Veil.Util.ValueDisplay
 meta import Veil.Util.Tactics
 
 @[expose] public section
@@ -153,6 +154,9 @@ instance [Repr α] : Repr (fQueue α) where
 /-- Display the FIFO contents, independently of the queue's storage layout. -/
 instance [Lean.ToJson α] : Lean.ToJson (fQueue α) where
   toJson q := Lean.toJson q.toList
+
+instance [Veil.Display α] : Veil.Display (fQueue α) where
+  display q := Veil.Display.display q.toList
 
 @[grind]
 def isEmpty {α} (q : fQueue α) : Bool := q.sz = 0

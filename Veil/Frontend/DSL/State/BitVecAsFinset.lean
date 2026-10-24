@@ -168,7 +168,10 @@ instance [Repr α] : Repr (BitVecAsFinset α) where
   reprPrec s _ := Veil.ValueDisplay.setFormat s.members.toList
 
 instance [Lean.ToJson α] : Lean.ToJson (BitVecAsFinset α) where
-  toJson s := Veil.ValueDisplay.setJson s.members
+  toJson s := Veil.ValueDisplay.setJson Lean.toJson s.members
+
+instance [Veil.Display α] : Veil.Display (BitVecAsFinset α) where
+  display s := Veil.ValueDisplay.setJson Veil.Display.display s.members
 
 instance : Enumeration (BitVecAsFinset α) where
   allValues := (Enumeration.allValues (α := BitVec inst.card)).map BitVecAsFinset.mk

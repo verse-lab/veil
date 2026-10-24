@@ -91,10 +91,10 @@ run_cmd do
   unless toJson (OrdList.ofList ["b", "a"]) == json% {"$veil": "set", elements: ["a", "b"]} &&
       toJson (OrdArray.ofList ["b", "a"]) == json% {"$veil": "set", elements: ["a", "b"]} do
     throwError "sorted sets must serialize strings as strings, not as their `Repr`"
-  unless reprStr (OrdList.ofList [2, 0]) == "[0, 2]" && reprStr (OrdArray.ofList [2, 0]) == "[0, 2]" do
-    throwError "sorted set Repr changed"
+  unless reprStr (OrdList.ofList [2, 0]) == "{0, 2}" && reprStr (OrdArray.ofList [2, 0]) == "{0, 2}" do
+    throwError "sorted sets must show as sets in `Repr` too"
   let subsets := Json.arr <| #[[], [0], [1], [0, 1]].map fun (xs : List Nat) =>
-    ValueDisplay.setJson xs.toArray
+    ValueDisplay.setJson toJson xs.toArray
   unless toJson (Enumeration.allValues (α := OrdList (Fin 2))) == subsets &&
       toJson (Enumeration.allValues (α := OrdArray (Fin 2))) == subsets do
     throwError "sorted set enumeration changed"
@@ -125,6 +125,85 @@ run_cmd do
         "{(0, 0) ↦ 0, (0, 1) ↦ 1, (1, 0) ↦ 1, (1, 1) ↦ 2}" &&
       reprStr (fun (a b : Fin 2) => a == b) == "{(0, 0), (1, 1)}" do
     throwError "finite functions must show as maps, and predicates as sets"
+
+/-! `Display`, which traces and counterexamples show, keeps the structure of numbers, sequences and
+containers, and shows any other value by its `Repr`: `some a` differs from `a`, a tuple is not a
+list, and a string is quoted. -/
+run_cmd do
+  let disp {α} [Display α] (a : α) : Json := Display.display a
+  unless disp (7 : Nat) == json% 7 && disp true == json% true && disp (2 : Fin 3) == json% 2 &&
+      disp (some (7 : Nat)) == json% "some 7" && disp (none : Option Nat) == json% "none" &&
+      disp ((0, 1) : Fin 2 × Fin 2) == json% "(0, 1)" && disp "abc" == json% "\"abc\"" &&
+      disp () == json% "()" && disp [some (1 : Nat), none] == json% ["some 1", "none"] do
+    throwError "Display must keep numbers and sequences, and show other values by their Repr"
+  let m : ArrayAsFinmap (Fin 2) (Option Nat) := FinmapLike.insert 1 (some 7) default
+  unless disp m == json% {"$veil": "map", entries: [{key: 0, value: "none"},
+        {key: 1, value: "some 7"}]} &&
+      disp (fun (a b : Fin 2) => a == b) == json% {"$veil": "set", elements: ["(0, 0)", "(1, 1)"]} &&
+      disp (OrdList.ofList ["b", "a"]) == json% {"$veil": "set", elements: ["\"a\"", "\"b\""]} do
+    throwError "containers must show their elements by Display"
+  let .str long := disp (some (List.replicate 40 "abcdef")) | throwError "a Repr must show as a string"
+  if long.contains '\n' then
+    throwError "a Repr must show on one line, as the text output cannot re-wrap it"
+
+/-- A derived `Display` of an inductive type, as for a module's labels: a constructor with its
+arguments in declaration order. An argument without a structured `Display` falls back to `Repr`, so
+it needs `Repr` of the type parameter: `o` shows `some 1`, not `some <unrepresentable>`. -/
+inductive Lbl (node : Type) where
+  | send (o : Option node) (n : node)
+  | tick
+  deriving Repr, Display
+
+run_cmd do
+  unless Display.display (Lbl.send (some 1) (0 : Fin 2)) == json% {"$veil": "ctor", "type": "Lbl",
+        name: "send", args: [{name: "o", value: "some 1"}, {name: "n", value: 0}]} &&
+      Display.display (Lbl.tick : Lbl (Fin 2)) ==
+        json% {"$veil": "ctor", "type": "Lbl", name: "tick", args: []} do
+    throwError "a derived Display must be a constructor with its arguments in declaration order"
+
+/-- The `Repr` of a `@[veil_decl]` inductive type, which traces show as they show action labels:
+`name(x=v, …)` with bare constructor names, arguments without names by position, and no parentheses
+around a call. A structure keeps the derived `Repr`. -/
+@[veil_decl]
+inductive Pkt (node : Type) where
+  | ping
+  | data (src : node) (payload : Option Nat)
+  | pair : Nat → node → Pkt node
+
+@[veil_decl]
+structure Slot where
+  id : Nat
+  busy : Bool
+
+run_cmd do
+  unless reprStr (Pkt.ping : Pkt (Fin 2)) == "ping" &&
+      reprStr (Pkt.data (1 : Fin 2) (some 3)) == "data(src=1, payload=some 3)" &&
+      reprStr (some (Pkt.data (1 : Fin 2) none)) == "some data(src=1, payload=none)" &&
+      reprStr (Pkt.pair 7 (0 : Fin 2)) == "pair(7, 0)" &&
+      reprStr (Pkt.pair 7 (0 : Fin 2), (Pkt.ping : Pkt (Fin 2))) == "(pair(7, 0), ping)" &&
+      Display.display (Pkt.data (1 : Fin 2) (some 3)) ==
+        json% "data(src=1, payload=some 3)" &&
+      reprStr ({ id := 1, busy := true } : Slot) == "{ id := 1, busy := true }" do
+    throwError "a @[veil_decl] inductive type must show bare constructor names and named arguments"
+
+/-! `deriving ConstructorRepr` works without `@[veil_decl]` too; a recursive type gets the derived
+`Repr`. -/
+inductive Shape where
+  | dot
+  | box (w h : Nat)
+  deriving ConstructorRepr
+
+inductive Tree where
+  | leaf
+  | node (l r : Tree)
+  deriving ConstructorRepr
+
+run_cmd do
+  unless reprStr (Shape.box 1 2) == "box(w=1, h=2)" && reprStr Shape.dot == "dot" do
+    throwError "deriving ConstructorRepr must show bare constructor names and named arguments"
+  -- The derived `Repr` qualifies constructors fully.
+  unless ((reprStr (Tree.node .leaf .leaf)).splitOn "ValueDisplayRegression.Tree.node").length == 2 do
+    throwError "a recursive type must get the derived Repr"
 
 /-! A multiset shows each distinct element with its actual multiplicity; the storage keeps the
 multiplicity minus one. -/
@@ -181,16 +260,38 @@ info: {0, 2}
 #eval do
   for j in [toJson (BitVecAsFinset.ofList ([0, 2] : List (Fin 3))),
       toJson (FinmapLike.insert (0, 0) 7 (default : ArrayAsFinmap (Fin 1 × Fin 1) Nat)),
-      ValueDisplay.multisetJson #[((1 : Nat), 1), (2, 2)],
+      ValueDisplay.multisetJson toJson #[((1 : Nat), 1), (2, 2)],
       toJson ([BitVecAsFinset.ofList [], BitVecAsFinset.ofList [0, 1]] : List (BitVecAsFinset (Fin 2))),
-      ValueDisplay.mapJson #[(OrdList.ofList [(0 : Nat), 1], OrdList.ofList [(2 : Nat), 3])],
-      ValueDisplay.setJson (#[] : Array Nat), toJson ([] : List Nat),
+      ValueDisplay.mapJson toJson toJson #[(OrdList.ofList [(0 : Nat), 1], OrdList.ofList [(2 : Nat), 3])],
+      ValueDisplay.setJson toJson (#[] : Array Nat), toJson ([] : List Nat),
       json% {b: 1, a: [2, "x y"]},
       json% {"$veil": "unknown", elements: []},
       json% {"$veil": "set", elements: [], extra: true},
       json% {"$veil": "map", entries: [{key: 0}]},
       json% {"$veil": "multiset", entries: [{element: 0, count: -1}]}] do
     IO.println (ValueDisplay.formatJson j)
+
+/-! Records and constructors keep the declaration order of their fields and arguments in the text
+output; a nameless argument shows its value alone, and a malformed record is an ordinary object. -/
+/--
+info: zeta = 1
+alpha = {0}
+send(to=2, m=(0, 1))
+pair(0, {1})
+{zeta: 1, alpha: {0}}
+{$veil: record, fields: [{name: x}], type: State}
+-/
+#guard_msgs in
+#eval do
+  let state := ValueDisplay.recordJson "State"
+    [("zeta", toJson (1 : Nat)), ("alpha", ValueDisplay.setJson toJson #[(0 : Nat)])]
+  IO.println (ValueDisplay.formatFields state "")
+  IO.println (ValueDisplay.formatAction "" (ValueDisplay.ctorJson "Label" "send"
+    [(some "to", toJson (2 : Nat)), (some "m", .str "(0, 1)")]))
+  IO.println (ValueDisplay.formatJson (ValueDisplay.ctorJson "Msg" "pair"
+    [(none, toJson (0 : Nat)), (none, ValueDisplay.setJson toJson #[(1 : Nat)])]))
+  IO.println (ValueDisplay.formatJson state)
+  IO.println (ValueDisplay.formatJson (json% {"$veil": "record", "type": "State", fields: [{name: "x"}]}))
 
 /-! Long values fill lines up to `ValueDisplay.textWidth` and continue aligned: after `key = `,
 after an opening bracket, after `k ↦ `, and after the `(` of an action label. -/
@@ -207,11 +308,12 @@ decide(b=1,
 -/
 #guard_msgs in
 #eval do
-  IO.println (ValueDisplay.formatField "" "big" (ValueDisplay.setJson (Array.range 45)))
-  IO.println (ValueDisplay.formatField "" "wide" (ValueDisplay.mapJson
-    ((Array.range 2).map fun i => (i, ValueDisplay.setJson (Array.range (36 + i))))))
-  IO.println ((ValueDisplay.callFormat "decide" [("b", toJson (1 : Nat)),
-    ("q", ValueDisplay.setJson (Array.range 40))]).pretty ValueDisplay.textWidth)
+  IO.println (ValueDisplay.formatField "" "big" (ValueDisplay.setJson toJson (Array.range 45)))
+  IO.println (ValueDisplay.formatField "" "wide" (ValueDisplay.mapJson toJson id
+    ((Array.range 2).map fun i => (i, ValueDisplay.setJson toJson (Array.range (36 + i))))))
+  IO.println ((ValueDisplay.callFormat "decide" [("b", ValueDisplay.renderJson (toJson (1 : Nat))),
+    ("q", ValueDisplay.renderJson (ValueDisplay.setJson toJson (Array.range 40)))]).pretty
+      ValueDisplay.textWidth)
 
 -- The generator rejects ambiguous storage rather than silently dropping data.
 structure TwoPayloads where

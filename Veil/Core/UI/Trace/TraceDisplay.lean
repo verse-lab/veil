@@ -87,7 +87,7 @@ end ProofWidgets
 
 namespace Veil.TraceDisplay
 open Lean
-open Veil.ValueDisplay (formatJson formatText formatFields formatAction)
+open Veil.ValueDisplay (fields? formatJson formatText formatFields formatAction)
 
 /-- A state as `State n (via label):`, the picks that led to it, and its fields. -/
 private def fmtState (s : Json) (ind : String) : String :=
@@ -104,7 +104,7 @@ private def fmtState (s : Json) (ind : String) : String :=
 def formatTrace (j : Json) (ind : String := "  ") : String := Id.run do
   let mut r := ""
   for (k, v) in #[("Instantiation", j.getObjValD "instantiation"), ("Theory", j.getObjValD "theory")] do
-    if let .obj kvs := v then unless kvs.isEmpty do
+    if let some fields := fields? v then unless fields.isEmpty do
       r := r ++ s!"{ind}{k}:\n{formatFields v (ind ++ "  ") (asText := k == "Instantiation")}\n"
   match j.getObjValD "states" with
   | .arr states => r ++ (states.toList.map (fmtState · ind) |> "\n".intercalate)

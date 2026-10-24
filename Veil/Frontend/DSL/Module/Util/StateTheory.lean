@@ -188,7 +188,7 @@ private def Module.fieldsAbstractedStateDefinitionStx [Monad m] [MonadQuotation 
     let ty ← `($fieldConcreteType $(mkIdent <| stateLabelTypeName ++ sc.name):ident)
     `(Command.structSimpleBinder| $(mkIdent sc.name):ident : $ty)
   let defCmds ← structureDefinitionStx stateName (← mod.uninterpretedParamBindersForTheoryOrState true) (deriveInstances := false) fields
-  return defCmds ++ #[← mkInhabitedInstance, ← mkHashableInstance, ← mkBEqInstance, ← mkDecidableEqInstance] ++ (← mkToJsonInstances) ++ #[← `(command| veil_deriving $(mkIdent ``Repr) for $stateIdent), ← mkIsHigherOrderInstance]
+  return defCmds ++ #[← mkInhabitedInstance, ← mkHashableInstance, ← mkBEqInstance, ← mkDecidableEqInstance] ++ (← mkToJsonInstances) ++ #[← mkDisplayInstance, ← `(command| veil_deriving $(mkIdent ``Repr) for $stateIdent), ← mkIsHigherOrderInstance]
 where
   /-- Generate an `IsHigherOrder` instance for `State χ`. -/
   mkIsHigherOrderInstance : m (TSyntax `command) := do
@@ -216,6 +216,8 @@ where
     `(veil_deriving $(mkIdent ``DecidableEq) for $stateIdent with_priority low)
   mkToJsonInstances : m (Array Syntax) := do
     pure #[← `(veil_deriving $(mkIdent ``Lean.ToJson) for $stateIdent with_priority low)]
+  mkDisplayInstance : m Syntax := do
+    `(veil_deriving $(mkIdent ``Veil.Display) for $stateIdent with_priority low)
 
 /-- Generate a module-specific theorem exposing conditionals over abstract
 states as a field-wise structure literal.  Relation/function fields are
@@ -258,10 +260,12 @@ where
 private def Module.theoryDefinitionStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array Syntax) := do
   let defCmds ← structureDefinitionStx theoryName (← mod.uninterpretedParamBindersForTheoryOrState false) (deriveInstances := true)
     (← mod.immutableComponents.mapM fun sc => sc.getSimpleBinder)
-  return defCmds ++ #[← `(command| veil_deriving $(mkIdent ``Repr) for $theoryIdent), (← mkToJsonInstance)]
+  return defCmds ++ #[← `(command| veil_deriving $(mkIdent ``Repr) for $theoryIdent), (← mkToJsonInstance), (← mkDisplayInstance)]
 where
   mkToJsonInstance : m Command := do
     `(veil_deriving $(mkIdent ``Lean.ToJson) for $theoryIdent with_priority low)
+  mkDisplayInstance : m Command := do
+    `(veil_deriving $(mkIdent ``Veil.Display) for $theoryIdent with_priority low)
 
 /-! ## Public Structure Declaration APIs -/
 
