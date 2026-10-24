@@ -117,9 +117,10 @@ def ActionStatsMap.combine [BEq κ] [Hashable κ] (m1 m2 : ActionStatsMap κ) : 
 
 /-- Statistics for a single action (transition label), for display. -/
 structure ActionStatDisplay extends ActionStat where
-  /-- Action name (e.g., "Label.send_msg 1 2") -/
-  name : String
-  deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
+  /-- The transition label, as its `Display` shows it: for a module's labels, a constructor
+  (`ValueDisplay.ctorJson`), e.g. `send_msg(n=1, m=2)`. -/
+  label : Lean.Json
+  deriving Lean.ToJson, Lean.FromJson, Inhabited
 
 /-- Abstract action statistics map. `asm` tracks `statesGenerated` per action label. -/
 class ActionStatUpdate (κ : Type u) (asm : outParam (Type v)) where
@@ -134,7 +135,7 @@ class ActionStatUpdate (κ : Type u) (asm : outParam (Type v)) where
 
 /-- Array-based instance: O(1) increment and lookup.
     Selected when `FinEncodableInjOnly κ` is available. -/
-instance (priority := high) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Repr κ] :
+instance (priority := high) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Display κ] :
   ActionStatUpdate κ (Array ActionStat) where
   empty := Array.replicate instf.card default
   increment label distinct? arr := arr.modify (instf.encode label).val (ActionStat.update distinct?)
@@ -142,12 +143,12 @@ instance (priority := high) [instf : FinEncodableInjOnly κ] [inste : Enumeratio
   dump arr := inste.allValues.map fun label =>
     let idx := instf.encode label
     let stat := arr.getD idx.val default
-    { stat with name := repr label |>.pretty }
+    { stat with label := Display.display label }
 
 abbrev VectorForActionStatUpdate (α : Type u) (κ : Type v) [enc : FinEncodableInjOnly κ] := Vector α enc.card
 
 /-- Vector-based instance: O(1) increment and lookup. -/
-instance (priority := high + 100) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Repr κ] :
+instance (priority := high + 100) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Display κ] :
   ActionStatUpdate κ (VectorForActionStatUpdate ActionStat κ) where
   empty := Vector.replicate instf.card default
   increment label distinct? vec :=
@@ -157,16 +158,16 @@ instance (priority := high + 100) [instf : FinEncodableInjOnly κ] [inste : Enum
   dump vec := inste.allValues.map fun label =>
     let idx := instf.encode label
     let stat := vec[idx]
-    { stat with name := repr label |>.pretty }
+    { stat with label := Display.display label }
 
 /-- HashMap-based fallback instance for types without `FinEncodableInjOnly`. -/
-instance (priority := low) [BEq κ] [Hashable κ] [Repr κ] : ActionStatUpdate κ (ActionStatsMap κ) where
+instance (priority := low) [BEq κ] [Hashable κ] [Display κ] : ActionStatUpdate κ (ActionStatsMap κ) where
   empty := {}
   increment label distinct? m := m.update distinct? label
   merge m1 m2 := m1.combine m2
   -- lookup label m := m.getD label 0
   dump m := m.fold (init := []) fun acc label stat =>
-    { stat with name := repr label |>.pretty } :: acc
+    { stat with label := Display.display label } :: acc
 
 /-- A model checker search context is parametrised by the system that's being
 checked and the theory it's being checked under. -/

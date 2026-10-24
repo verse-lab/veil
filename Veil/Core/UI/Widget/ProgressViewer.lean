@@ -192,40 +192,44 @@ private def statRow (label value : String) : Html :=
     <td style={rightAlignStyle}>{.text value}</td>
   </tr>
 
-/-- Split action name into base name and arguments (everything after first space). -/
-private def splitActionName (name : String) : String × String :=
-  match name.splitOn " " with
-  | [] => (name, "")
-  | [base] => (base, "")
-  | base :: rest => (base, " ".intercalate rest)
+/-- The action of a label and its arguments, as a trace shows them: a constructor's name, and its
+arguments as `k=v, …` (`ValueDisplay.ctor?`). Any other label is an action of its own, without
+arguments. -/
+private def actionAndArgs (label : Json) : String × String :=
+  match ValueDisplay.ctor? label with
+  | some (_, name, args) =>
+    (name, ValueDisplay.oneLine (ValueDisplay.argsFormat
+      (args.toList.map fun (k, v) => (k, ValueDisplay.renderJson v))))
+  | none => (ValueDisplay.formatText label, "")
 
-/-- Grouped action statistics for display. -/
+/-- Grouped action statistics for display: the statistics of each label of an action, with the
+label's arguments. -/
 structure ActionGroup where
   baseName : String
   totalGenerated : Nat
   totalDistinct : Nat
-  variants : List ActionStatDisplay
+  variants : List (String × ActionStatDisplay)
   deriving Inhabited
 
-/-- Group action stats by their base name. -/
+/-- Group action stats by the action of their label (`actionAndArgs`). -/
 private def groupActionStats (stats : List ActionStatDisplay) : List ActionGroup :=
   let grouped := stats.foldl (init := (Std.HashMap.emptyWithCapacity : Std.HashMap String ActionGroup)) fun acc stat =>
-    let (base, _) := splitActionName stat.name
+    let (base, args) := actionAndArgs stat.label
     match acc[base]? with
     | some group => acc.insert base ⟨
         group.baseName,
         group.totalGenerated + stat.statesGenerated,
         group.totalDistinct + stat.distinctStates,
-        stat :: group.variants
+        (args, stat) :: group.variants
       ⟩
     | none => acc.insert base ⟨
         base,
         stat.statesGenerated,
         stat.distinctStates,
-        [stat]
+        [(args, stat)]
       ⟩
   grouped.toList.map (·.2)
-    |>.map (fun g => ⟨g.baseName, g.totalGenerated, g.totalDistinct, g.variants.reverse.mergeSort (·.name < ·.name)⟩)
+    |>.map (fun g => ⟨g.baseName, g.totalGenerated, g.totalDistinct, g.variants.reverse.mergeSort (·.1 < ·.1)⟩)
     |>.mergeSort (·.baseName < ·.baseName)
 
 /-- Base grid row style for action coverage. -/
@@ -239,9 +243,9 @@ private def gridRowStyle (highlight : Bool := false) : Json :=
 /-- Style for variant sub-items (right-aligned, muted). -/
 private def variantNumStyle : Json := json% {"textAlign": "right", "color": "#aaa", "fontSize": "10px"}
 
-/-- Render a single variant row (for expanded view). -/
-private def variantRow (stat : ActionStatDisplay) : Html :=
-  let (_, args) := splitActionName stat.name
+/-- Render a single variant row (for expanded view): a label's arguments and its statistics. -/
+private def variantRow (variant : String × ActionStatDisplay) : Html :=
+  let (args, stat) := variant
   let displayName := if args.isEmpty then "(no args)" else args
   .element "div" #[("style", gridRowStyle (stat.statesGenerated == 0))] #[
     .element "span" #[("style", json% {"paddingLeft": "16px", "color": "#aaa", "fontSize": "10px"})] #[.text displayName],

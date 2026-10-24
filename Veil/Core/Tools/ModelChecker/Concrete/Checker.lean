@@ -83,7 +83,6 @@ variable {ρ σ κ σₕ α : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   -- The search loops are defined by `partial_fixpoint`, which needs these; `IO` has them
   [∀ α, Lean.Order.CCPO (m α)] [Lean.Order.MonoBind m]
-  [Repr κ]
   [ActionStatUpdate κ asm]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
