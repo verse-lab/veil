@@ -7,6 +7,7 @@ import {
   CopyButton,
   fieldsObject,
   formatActionLabel,
+  formatChoice,
   formatValue,
   logicalContainer,
   logicalCtor,
@@ -30,7 +31,7 @@ interface ParsedState {
   tag?: string; // Optional tag associated with this state (e.g. transition/action label)
   fields: Record<string, unknown>;
   failing?: boolean; // True if an assertion failed while executing the transition to this state
-  choices?: string[]; // Preformatted `name = value` labels for the picks that led to this state
+  choices?: unknown[]; // The picks that led to this state, each a named value (`formatChoice`)
 }
 type Trace = ParsedState[];
 
@@ -67,7 +68,7 @@ interface TraceData {
     fields: unknown; // A record, as `theory`
     transition: unknown;
     failing?: boolean;
-    choices?: string[];
+    choices?: unknown[];
   }>;
   instantiation?: Record<string, unknown>;
   extraVals?: Record<string, unknown>;
@@ -382,7 +383,7 @@ const StateCard: React.FC<{
                 <ol className="choice-list">
                   {choices.map((c, i) => (
                     <li key={i}>
-                      <code className="choice-value">{c}</code>
+                      <code className="choice-value">{formatChoice(c)}</code>
                     </li>
                   ))}
                 </ol>

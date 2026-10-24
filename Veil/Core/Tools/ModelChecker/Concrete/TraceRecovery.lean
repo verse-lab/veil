@@ -528,24 +528,24 @@ found there has the fingerprint that the trace has. -/
 variable (src : PickSource σ κ)
 
 /-- The picks of the `idx`-th initial state in `src`, if it has fingerprint `x`. -/
-def picksOfInit (idx : Nat) (x : σₕ) : Option (List String) := do
+def picksOfInit (idx : Nat) (x : σₕ) : Option (List Choice) := do
   let (s, picks) ← src.initStates[idx]?
-  if fp.view s == x then some (picks.map toString) else none
+  if fp.view s == x then some picks else none
 
 /-- The picks of the `idx`-th success of `s` in `src`, if it leads to a state of fingerprint `x`. -/
-def picksOfSuccess (s : σ) (idx : Nat) (x : σₕ) : Option (List String) := do
+def picksOfSuccess (s : σ) (idx : Nat) (x : σₕ) : Option (List Choice) := do
   let (l, s') ← (src.tr s).successes[idx]?
-  if fp.view s' == x then some (l.picks.map toString) else none
+  if fp.view s' == x then some l.picks else none
 
 /-- The picks of the first assertion failure of `s` with exception `e` in `src`, if it leads to a
 state of fingerprint `x`. -/
-def picksOfFailure (s : σ) (e : Int) (x : σₕ) : Option (List String) := do
+def picksOfFailure (s : σ) (e : Int) (x : σₕ) : Option (List Choice) := do
   let f ← (src.tr s).failures.find? (·.error == e)
-  if fp.view f.state == x then some (f.label.picks.map toString) else none
+  if fp.view f.state == x then some f.label.picks else none
 
 /-- The picks of the steps of `t`, which follows `path`: each step is at the position that `path`
 records among the successes of its pre-state, and leads to the fingerprint that `path` records. -/
-def stepPicksOf (t : Trace ρ σ κ) (path : List (RetracedStep σₕ κ)) : Array (Option (List String)) :=
+def stepPicksOf (t : Trace ρ σ κ) (path : List (RetracedStep σₕ κ)) : Array (Option (List Choice)) :=
   let pres := t.initialState :: t.steps.toList.map (·.nextState)
   (pres.zip path).toArray.map fun (s, p) => picksOfSuccess src s p.idx p.fingerprint
 

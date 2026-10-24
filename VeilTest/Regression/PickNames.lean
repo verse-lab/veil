@@ -77,7 +77,7 @@ invariant true
 def initial : State FieldConcreteType := { chosen := false, r := default, q := default }
 
 /-- The logs of the results of `act` from `initial`, rendered. -/
-def logs (act : VeilMultiExecM Std.Format Int Theory (State FieldConcreteType) PUnit) :
+def logs (act : VeilMultiExecM Choice Int Theory (State FieldConcreteType) PUnit) :
     List (List String) :=
   (act {} initial).map fun (log, _) => log.map toString
 

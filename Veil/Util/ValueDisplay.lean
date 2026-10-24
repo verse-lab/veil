@@ -6,10 +6,11 @@ public import Lean.Data.Json.FromToJson.Basic
 
 /-! # Display of values
 
-How Veil displays the values of states, theories and transitions, in the text output of traces and
-counterexamples and in the widget: the `Display` class, the `Repr` and JSON helpers of the concrete
-containers, the tags of sets, maps and multisets in JSON, and the rendering of JSON as text. The
-containers pass their logical contents (members, entries, multiplicities) rather than their storage.
+How Veil displays the values of states, theories, transitions and picks, in the text output of
+traces and counterexamples and in the widget: the `Display` class, the `Repr` and JSON helpers of
+the concrete containers, the tags of sets, maps and multisets in JSON, and the rendering of JSON as
+text. The containers pass their logical contents (members, entries, multiplicities) rather than
+their storage.
 
 Three classes take part, in different roles:
 - `Display` gives the data shown for a value: the parts that the front ends use (the members of a
@@ -37,8 +38,8 @@ The text output distinguishes values to render from text to display:
   string is the `Repr` of a value whose `Display` is not structured (see `Display` below):
   `some 3`, `"abc"`, `(0, 1)`.
 - *Text* is supplied for direct display (`renderText`): result tags (`found_violation`),
-  violation kinds, property names, error messages, the seed, type names and already formatted
-  picks. Type names are text here because they arrive as printed type expressions.
+  violation kinds, property names, error messages, the seed and type names. Type names are text
+  here because they arrive as printed type expressions.
 
 Both show strings as they are, but keeping their roles separate lets the rendering of values change
 without touching text. -/
@@ -104,17 +105,21 @@ that their fields and arguments keep their declaration order, which a JSON objec
 - `{"$veil": "ctor", "type": "Label", "name": "send", "args": [{"name": "n", "value": v}, …]}`,
   where an argument without a name has only a `"value"`.
 
-`type` is the short name of the declaration. -/
+`type` is the short name of the declaration. The arguments of a constructor are *named values*, as
+are the picks of a trace (`Choice`). -/
 
 def recordJson (type : String) (fields : List (String × Lean.Json)) : Lean.Json :=
   Lean.Json.mkObj [("$veil", .str "record"), ("type", .str type), ("fields", .arr <|
     fields.toArray.map fun (n, v) => Lean.Json.mkObj [("name", .str n), ("value", v)])]
 
+/-- A value with an optional name: `{"name": n, "value": v}`, or `{"value": v}` without a name. -/
+def namedValueJson : Option String × Lean.Json → Lean.Json
+  | (some n, v) => Lean.Json.mkObj [("name", .str n), ("value", v)]
+  | (none, v) => Lean.Json.mkObj [("value", v)]
+
 def ctorJson (type name : String) (args : List (Option String × Lean.Json)) : Lean.Json :=
   Lean.Json.mkObj [("$veil", .str "ctor"), ("type", .str type), ("name", .str name),
-    ("args", .arr <| args.toArray.map fun
-      | (some n, v) => Lean.Json.mkObj [("name", .str n), ("value", v)]
-      | (none, v) => Lean.Json.mkObj [("value", v)])]
+    ("args", .arr <| args.toArray.map namedValueJson)]
 
 /-! ## Reading the tags back -/
 
@@ -154,6 +159,15 @@ def record? (j : Lean.Json) : Option (String × Array (String × Lean.Json)) := 
     return (n, ← (e.getObjVal? "value").toOption)
   return (type, fields)
 
+/-- The name, if there is one, and the value of a named value (`namedValueJson`). -/
+def namedValue? (j : Lean.Json) : Option (Option String × Lean.Json) := do
+  let .obj fs := j | none
+  let v ← (j.getObjVal? "value").toOption
+  if fs.size == 1 then return (none, v)
+  guard (fs.size == 2)
+  let .str n ← (j.getObjVal? "name").toOption | none
+  return (some n, v)
+
 /-- The type, the name and the arguments of a constructor, in declaration order. Only a complete
 envelope counts. -/
 def ctor? (j : Lean.Json) : Option (String × String × Array (Option String × Lean.Json)) := do
@@ -163,13 +177,7 @@ def ctor? (j : Lean.Json) : Option (String × String × Array (Option String × 
   let .str type ← (j.getObjVal? "type").toOption | none
   let .str name ← (j.getObjVal? "name").toOption | none
   let .arr entries ← (j.getObjVal? "args").toOption | none
-  let args ← entries.mapM fun e => do
-    let .obj efs := e | none
-    let v ← (e.getObjVal? "value").toOption
-    if efs.size == 1 then return (none, v)
-    guard (efs.size == 2)
-    let .str n ← (e.getObjVal? "name").toOption | none
-    return (some n, v)
+  let args ← entries.mapM namedValue?
   return (type, name, args)
 
 /-- The fields of a record in declaration order, or of any other object that is not a tagged value
@@ -183,10 +191,10 @@ def fields? (j : Lean.Json) : Option (Array (String × Lean.Json)) :=
 
 /-! ## Text output
 
-For `TraceDisplay` and `VerificationResults`. `renderJson`, `renderText`, `callFormat` and
-`actionFormat` build a `Std.Format`; `formatJson`, `formatText`, `formatField`, `formatFields` and
-`formatAction` lay out one value or one line at `textWidth`, given what precedes it on its line;
-the callers only assemble these lines into messages. -/
+For `TraceDisplay` and `VerificationResults`. `renderJson`, `renderText`, `callFormat`,
+`choiceFormat` and `actionFormat` build a `Std.Format`; `formatJson`, `formatText`, `formatField`,
+`formatFields`, `formatAction` and `formatChoices` lay out one value or one line at `textWidth`,
+given what precedes it on its line; the callers only assemble these lines into messages. -/
 
 /-- The width of the text output of traces and counterexamples. -/
 def textWidth : Nat := 100
@@ -208,6 +216,11 @@ def callFormat (name : String) (args : List (Option String × Std.Format)) : Std
       | (some k, v) => labeled (Std.Format.text k) "=" v
       | (none, v) => v)
       ("," ++ Std.Format.line))) ++ ")"
+
+/-- `name = v`, or `v` alone without a name: a pick as traces show it (`Choice`). -/
+def choiceFormat : Option String × Std.Format → Std.Format
+  | (some n, v) => labeled (Std.Format.text n) " = " v
+  | (none, v) => v
 
 /-- A JSON value as traces and counterexamples show it: tagged containers in set notation (`{a, b}`,
 `{k ↦ v}`, `{a × n}`), arrays in brackets, records as `{k: v}` in declaration order and other
@@ -235,7 +248,7 @@ where
     Std.Format.bracketFill l (Std.Format.joinSep parts ("," ++ Std.Format.line)) r
 
 /-- Text rather than a value: a string shows as it is, and anything else as a value. Result tags,
-property names, error messages, picks and type names are text. -/
+property names, error messages and type names are text. -/
 def renderText (j : Lean.Json) : Std.Format := match j with
   | .str s => s
   | _ => renderJson j
@@ -277,6 +290,16 @@ action's `(`. -/
 def formatAction (lead : String) (j : Lean.Json) (trail : String := "") : String :=
   (Std.Format.text lead ++ Std.Format.nest lead.length (actionFormat j) ++ trail).pretty textWidth
 
+-- CHECK Might share the same flow with some other function?
+/-- `choices: x = v, …` at `indent`: the picks that led to a state, each a named value, or text if
+it is not one. The picks fill each line, and continue aligned after `choices: `. -/
+def formatChoices (indent : String) (choices : Array Lean.Json) : String :=
+  (labeled (Std.Format.text (indent ++ "choices")) ": " (Std.Format.fill (Std.Format.joinSep
+    (choices.toList.map fun c => match namedValue? c with
+      | some (n, v) => choiceFormat (n, renderJson v)
+      | none => renderText c)
+    ("," ++ Std.Format.line)))).pretty textWidth
+
 end Veil.ValueDisplay
 
 namespace Veil
@@ -301,11 +324,16 @@ Every other type shows its `Repr` as a string (`displayOfRepr`). So, unlike with
 class Display (α : Type u) where
   display : α → Lean.Json
 
+/-- `f` laid out on one line. Use `@[noinline]` here so the model checker can skip formatting
+candidates when `LogSwitch` is off. -/
+@[noinline] def ValueDisplay.oneLine (f : Std.Format) : String :=
+  (Std.Format.group f).pretty 100000
+
 /-- Without a structured instance, a value shows its `Repr`, as a string on one line: the text
 output cannot re-wrap it, and a line break would misalign it with the text before it. The priority
 is below that of every structured instance, including the `low` ones of finite functions. -/
 instance (priority := 10) displayOfRepr [Repr α] : Display α where
-  display a := .str ((Std.Format.group (repr a)).pretty 100000)
+  display a := .str (ValueDisplay.oneLine (repr a))
 
 instance : Display Nat := ⟨Lean.toJson⟩
 instance : Display Int := ⟨Lean.toJson⟩
@@ -327,5 +355,23 @@ type that shows its values as action labels are shown, by the bare names of thei
 (`ValueDisplay.callFormat`), e.g. `response(dat=7, ses=2)`. A structure, or a recursive or indexed
 type, gets the derived `Repr` instead. `@[veil_decl]` types and enums derive it. -/
 abbrev ConstructorRepr (α : Type u) : Type u := Repr α
+
+/-! ## Picks -/
+
+/-- A pick in the log of an execution: the candidate, as its `Display` shows it, and the name of
+what the pick is bound to, if it has one. A trace shows the picks that led to each state as its
+`"choices"`, each a named value (`ValueDisplay.namedValueJson`). -/
+structure Choice where
+  name : Option String := none
+  value : Lean.Json
+deriving Inhabited
+
+instance : Lean.ToJson Choice := ⟨fun c => ValueDisplay.namedValueJson (c.name, c.value)⟩
+
+/-- `name = value`, as traces show a pick. -/
+instance : Repr Choice where
+  reprPrec c _ := ValueDisplay.choiceFormat (c.name, ValueDisplay.renderJson c.value)
+
+instance : ToString Choice := ⟨fun c => (repr c).pretty ValueDisplay.textWidth⟩
 
 end Veil
