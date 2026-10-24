@@ -123,9 +123,10 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
       infoState := { enabled := st.infoState.enabled }
       traceState := {}
       snapshotTasks := #[] }
-    -- `wrapAsync` installs the discharger's own token as `cancelTk?`; only the
-    -- parent snapshot must be hidden from the worker.
-    withReader (fun ctx : Command.Context => { ctx with snap? := none }) do
+    -- `wrapAsync` installs the worker's token, but `wrapAsyncAsSnapshot` also
+    -- retains the outer context for diagnostics. Strip the parent's snapshot
+    -- and token so queued workers cannot retain a caller's cancellation handle.
+    withReader (fun ctx : Command.Context => { ctx with snap? := none, cancelTk? := none }) do
       Command.wrapAsyncAsSnapshot (fun vcStatement : VCStatement => do
         -- Resolve the start time promise when the discharger actually begins
         let startTime ← IO.monoMsNow

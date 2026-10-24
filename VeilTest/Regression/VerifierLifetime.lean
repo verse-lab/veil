@@ -128,3 +128,60 @@ run_cmd do
     throwError "#guard_msgs discarded the live manager"
   withVCManager fun _ => pure ()
   IO.println "#guard_msgs preserves manager ownership for later commands: PASS"
+
+-- Return no handle to the supplied token: dropping this helper's scope must
+-- cancel the owner even while its source metadata and queued worker stay live.
+private def makeExplicitTokenDrop (tokenDropped closureDropped : IO.Ref Bool)
+    : CommandElabM (VCManagerEnvironment × IO.CancelToken × IO.Promise Nat) := do
+  let supplied ← IO.CancelToken.new
+  supplied.onSet (tokenDropped.set true)
+  withReader (fun ctx : Command.Context => { ctx with cancelTk? := some supplied }) do
+    runManager (some supplied)
+    let owner ← getVCManagerOwner
+    let sentinel ← IO.CancelToken.new
+    sentinel.onSet (closureDropped.set true)
+    let stmt : VCStatement := { name := `explicitTokenDrop, params := #[], statement := ← `(True) }
+    let id : DischargerIdentifier := {
+      managerId := (← readVCManager)._managerId, vcId := 0, dischargerId := 0, name := `explicitTokenDrop }
+    let d ← Discharger.fromTermWith (← `(True.intro)) stmt id vcManagerCh fun _ data time => do
+      discard <| sentinel.isSet
+      match data with
+      | .inl witness => return .proven (some witness) none time
+      | .inr ex => return .error #[← safeExceptionEntry ex] time
+    withVCManager fun ref => do
+      let (mgr, _) := (← ref.get).addVC { stmt with metadata := default } {} #[d]
+      ref.set mgr
+    startAll
+    unless !(← d.startTimePromise.isResolved) do throwError "token-drop worker started"
+    unless (← readVCManager).readyTasks.length == 1 do throwError "token-drop worker was not queued"
+    -- Return observation handles, not the worker closure that retains the token.
+    return (owner, d.cancelTk, d.startTimePromise)
+
+run_cmd do
+  let before := (← get).snapshotTasks.size
+  let previousCores ← numCoresCache.get
+  numCoresCache.set (some 0)
+  try
+    let tokenDropped ← IO.mkRef false
+    let closureDropped ← IO.mkRef false
+    let (owner, workerToken, started) ← makeExplicitTokenDrop tokenDropped closureDropped
+    -- Keep the source marker alive; cancellation must come from token drop.
+    let some marker := (← get).snapshotTasks.back!.cancelTk?
+      | throwError "missing explicit-token source marker"
+    await "supplied token finalizer" tokenDropped.get
+    await "supplied token cancels owner" owner.cancelTk.isSet
+    await "supplied token cancels worker" workerToken.isSet
+    await "supplied token releases queued closure" closureDropped.get
+    await "supplied token clears manager" <|
+      owner.manager.atomically fun ref => return (← ref.get).nodes.isEmpty
+    await "supplied token retires dispatcher owner" <|
+      dispatcher.atomically fun ref => return (← ref.get).owners.isEmpty
+    unless !(← marker.isSet) do throwError "source marker caused explicit-token cancellation"
+    unless !(← started.isResolved) do throwError "explicit-token worker unexpectedly started"
+  finally
+    -- Also release the fixture on an assertion failure, including on regressed code.
+    let tasks := (← get).snapshotTasks
+    for task in tasks.extract before tasks.size do
+      if let some marker := task.cancelTk? then marker.set
+    numCoresCache.set previousCores
+  IO.println "dropping a supplied token cancels and releases queued work with live source metadata: PASS"
