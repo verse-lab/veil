@@ -253,19 +253,32 @@ private def variantRow (variant : String × ActionStatDisplay) : Html :=
     .element "span" #[("style", variantNumStyle)] #[.text (toString stat.distinctStates)]
   ]
 
+/-- The space in front of an action's name, for the toggle of an action that expands, and left
+empty otherwise, so that the names stay aligned. -/
+private def toggleStyle : Json :=
+  json% {"display": "inline-block", "width": "12px", "textAlign": "center", "fontSize": "8px",
+    "color": "var(--vscode-descriptionForeground)"}
+
+/-- An action that expands shows `▶` in front of its name, turned down while its variants are shown.
+Its `details` element keeps whether it is open, so the toggle follows it in CSS. -/
+private def actionGroupCss : String :=
+  ".veil-action-group > summary { cursor: pointer; }
+.veil-action-group[open] > summary .veil-action-toggle { transform: rotate(90deg); }"
+
 /-- Render an action group as Html. For multi-variant groups, uses details/summary. -/
 private def actionGroupHtml (group : ActionGroup) : Html := Id.run do
   let rowStyle := gridRowStyle (group.totalGenerated == 0)
   if group.variants.length == 1 then
     return <div style={rowStyle}>
-      <span>{.text group.baseName}</span>
+      <span>{.element "span" #[("style", toggleStyle)] #[]}{.text group.baseName}</span>
       <span style={rightAlignStyle}>{.text (toString group.totalGenerated)}</span>
       <span style={rightAlignStyle}>{.text (toString group.totalDistinct)}</span>
     </div>
   else
-    return <details>
+    return <details className="veil-action-group">
       <summary style={rowStyle}>
-        <span style={json% {"cursor": "pointer"}}>{.text group.baseName}</span>
+        <span>{.element "span" #[("className", .str "veil-action-toggle"), ("style", toggleStyle)]
+          #[.text "▶"]}{.text group.baseName}</span>
         <span style={rightAlignStyle}>{.text (toString group.totalGenerated)}</span>
         <span style={rightAlignStyle}>{.text (toString group.totalDistinct)}</span>
       </summary>
@@ -305,6 +318,7 @@ private def actionCoverageHtml (actionStats : List ActionStatDisplay) (allAction
       Action Coverage ({.text (s!"{groups.length} actions")}{.element "span" #[("style", json% {"color": "#cc6600"})] #[.text warningText]})
     </summary>
     <div style={json% {"marginTop": "4px", "fontSize": "11px"}}>
+      {.element "style" #[] #[.text actionGroupCss]}
       <div style={headerStyle}>
         <span style={json% {"fontWeight": "bold"}}>Action</span>
         <span style={rightBoldStyle}>Generated</span>
