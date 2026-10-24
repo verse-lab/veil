@@ -302,7 +302,7 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
 
 /-! ## JSON Serialization -/
 
-/-- Convert a VeilTrace to JSON matching the Trace.toJson format:
+/-- Convert a VeilTrace to JSON matching the `Trace.toJsonWithPicks` format:
     ```json
     {
       "theory": {...},
@@ -316,14 +316,14 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
 -/
 unsafe def VeilTrace.toJson (vt : VeilTrace) : MetaM Json := do
   -- Build theory JSON
-  let theoryJson ← evalExprToJson vt.theoryType vt.theoryExpr
+  let theoryJson ← evalExprToDisplay vt.theoryType vt.theoryExpr
 
   -- Build states array
   let mut statesArr : Array Json := #[]
 
   -- First state (initial, after_init)
   if h : 0 < vt.stateExprs.size then
-    let stateJson ← evalExprToJson vt.stateType vt.stateExprs[0]
+    let stateJson ← evalExprToDisplay vt.stateType vt.stateExprs[0]
     statesArr := statesArr.push <| Json.mkObj [
       ("index", Json.num 0),
       ("fields", stateJson),
@@ -333,10 +333,10 @@ unsafe def VeilTrace.toJson (vt : VeilTrace) : MetaM Json := do
   -- Subsequent states with their transition labels
   for i in [1:vt.stateExprs.size] do
     if hi : i < vt.stateExprs.size then
-      let stateJson ← evalExprToJson vt.stateType vt.stateExprs[i]
+      let stateJson ← evalExprToDisplay vt.stateType vt.stateExprs[i]
       let labelIdx := i - 1
       let labelJson ← if hl : labelIdx < vt.labelExprs.size then
-        evalExprToJson vt.labelType vt.labelExprs[labelIdx]
+        evalExprToDisplay vt.labelType vt.labelExprs[labelIdx]
       else
         pure (Json.str "unknown")
       statesArr := statesArr.push <| Json.mkObj [
@@ -366,7 +366,7 @@ unsafe def VeilTrace.toJson (vt : VeilTrace) : MetaM Json := do
       let concreteType := ((← Meta.inferType nameExpr).replaceFVars sortFVars sortTypes).replace
         fun e => if e.isProp then some (mkConst ``Bool) else none
       let adapted ← adaptSmtExprType valueExpr concreteType vt.enumAdapts
-      return (nameStr, ← evalExprToJson (← Meta.inferType adapted) adapted)
+      return (nameStr, ← evalExprToDisplay (← Meta.inferType adapted) adapted)
 
   return Json.mkObj [
     ("instantiation", instJson),

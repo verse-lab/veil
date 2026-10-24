@@ -81,20 +81,20 @@ structure VeilCTI where
 /-- Convert a `VeilCTI` to a JSON object containing the structured counterexample.
 
   This function works dynamically without requiring explicit type parameters.
-  It synthesizes `ToJson` instances at runtime using the type expressions
+  It synthesizes `Display` instances at runtime using the type expressions
   stored in the `VeilModel`. -/
 
 unsafe def VeilCTI.toJson (vm : VeilCTI) : MetaM Json := do
   -- Build instantiation JSON from sortInstInfo (since Type fields are erased at runtime)
   let instJson := Json.mkObj <| vm.sortInstInfo.toList.map fun (name, typeStr) =>
     (name.toString, Json.str typeStr)
-  let theoryJson ← evalExprToJson vm.theoryType vm.theoryExpr
-  let preStateJson ← evalExprToJson vm.stateType vm.preStateExpr
+  let theoryJson ← evalExprToDisplay vm.theoryType vm.theoryExpr
+  let preStateJson ← evalExprToDisplay vm.stateType vm.preStateExpr
   let postStateJson ← match vm.postStateExpr with
-    | some e => evalExprToJson vm.stateType e
+    | some e => evalExprToDisplay vm.stateType e
     | none => pure Json.null
   let labelJson ← match vm.labelExpr, vm.labelType with
-    | some labelExpr, some labelType => evalExprToJson labelType labelExpr
+    | some labelExpr, some labelType => evalExprToDisplay labelType labelExpr
     | _, _ => pure (Json.str "initializer")
 
   -- Build extraSorts JSON: map from sort name to cardinality type (similar to instJson)
@@ -114,7 +114,7 @@ unsafe def VeilCTI.toJson (vm : VeilCTI) : MetaM Json := do
       let concreteType := ((← Meta.inferType nameExpr).replaceFVars sortFVars sortTypes).replace
         fun e => if e.isProp then some (mkConst ``Bool) else none
       let adapted ← adaptSmtExprType valueExpr concreteType vm.enumAdapts
-      return (nameStr, ← evalExprToJson (← Meta.inferType adapted) adapted)
+      return (nameStr, ← evalExprToDisplay (← Meta.inferType adapted) adapted)
 
   return Json.mkObj [
     ("instantiation", instJson),

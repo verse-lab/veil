@@ -100,7 +100,8 @@ inductive ModelCheckingResult (ρ σ κ σₕ : Type) where
   | cancelled
 deriving Inhabited, Repr
 
-instance [ToJson ρ] [ToJson σ] [ToJson κ] [ToJson σₕ] : ToJson (ModelCheckingResult ρ σ κ σₕ) where
+/-- The result as traces show it: the theory, states and labels of the trace by their `Display`. -/
+instance [Display ρ] [Display σ] [Display κ] [ToJson σₕ] : ToJson (ModelCheckingResult ρ σ κ σₕ) where
   toJson
     | .foundViolation fp violation trace picks => Json.mkObj
         [ ("result", "found_violation"),

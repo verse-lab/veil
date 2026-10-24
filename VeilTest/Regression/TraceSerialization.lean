@@ -21,10 +21,10 @@ State 1 (via decide(b=1,
 #guard_msgs in
 #eval do
   let fields := Json.mkObj [
-    ("big", ValueDisplay.setJson (Array.range 45)),
+    ("big", ValueDisplay.setJson toJson (Array.range 45)),
     ("msg", json% {response: {ses: 2, dat: 7}}),
     ("seq", toJson [1, 2, 3])]
-  let label := json% {decide: {q: $(ValueDisplay.setJson (Array.range 40)), b: 1}}
+  let label := json% {decide: {q: $(ValueDisplay.setJson toJson (Array.range 40)), b: 1}}
   let j := Json.mkObj [
     ("instantiation", Json.mkObj [("node", Json.str "Fin 3")]),
     ("states", Json.arr #[Json.mkObj [("index", toJson (1 : Nat)), ("transition", label),
@@ -73,14 +73,16 @@ run_cmd do
   let field : FieldConcreteType State.Label.stored :=
     .concrete (Std.ExtTreeMap.empty.insert 7 11)
   let displayed := toJson field
-  unless displayed == json% {"$veil": "map", entries: [{key: 7, value: 11}]} do
+  unless displayed == json% {"$veil": "map", entries: [{key: 7, value: 11}]} &&
+      Display.display field == displayed do
     throwError "non-enumerable field lost its stored key/value: {displayed}"
 
 end NonEnumerableTraceField
 
 /-! The trace JSON that the model checker and `#simulate` generate, interpreted and compiled. The
-same message appears as an individual, a client map value and a queue item; node keys are tagged
-values, and a field of two arguments has tuple keys. -/
+same message appears as an individual, a client map value and a queue item; values without a
+structured `Display` show their `Repr`, so an `Option` stays `some`, a string is quoted, and a field
+of two arguments has tuple keys. -/
 veil module TraceSerialization
 
 type client
@@ -135,13 +137,14 @@ error: ❌ Violation: safety_failure (violates: diagnostic)
     oneClient = 0
   State 0 (via init):
     bag = {2 × 2}
-    chan = {cloud ↦ [], {client: {id: 0}} ↦ [{response: {dat: 7, ses: 2}}]}
-    count = {[cloud, 0] ↦ 7, [{client: {id: 0}}, 0] ↦ 7}
+    chan = {TraceSerialization.Node.cloud ↦ [],
+            TraceSerialization.Node.client 0 ↦ [TraceSerialization.Msg.response 7 2]}
+    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
     history = {0 ↦ [0, 7]}
-    inbox = {0 ↦ {response: {dat: 7, ses: 2}}}
-    message = {response: {dat: 7, ses: 2}}
-    pc = {cloud ↦ D, {client: {id: 0}} ↦ CW}
-    pending = {[cloud, {client: {id: 0}}]}
+    inbox = {0 ↦ some (TraceSerialization.Msg.response 7 2)}
+    message = some (TraceSerialization.Msg.response 7 2)
+    pc = {TraceSerialization.Node.cloud ↦ "D", TraceSerialization.Node.client 0 ↦ "CW"}
+    pending = {(TraceSerialization.Node.cloud, TraceSerialization.Node.client 0)}
 -/
 #guard_msgs in
 #model_check interpreted { client := Fin 1 } { oneClient := 0 }
@@ -152,13 +155,14 @@ error: ❌ Violation: safety_failure (violates: diagnostic)
     oneClient = 0
   State 0 (via init):
     bag = {2 × 2}
-    chan = {cloud ↦ [], {client: {id: 0}} ↦ [{response: {dat: 7, ses: 2}}]}
-    count = {[cloud, 0] ↦ 7, [{client: {id: 0}}, 0] ↦ 7}
+    chan = {TraceSerialization.Node.cloud ↦ [],
+            TraceSerialization.Node.client 0 ↦ [TraceSerialization.Msg.response 7 2]}
+    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
     history = {0 ↦ [0, 7]}
-    inbox = {0 ↦ {response: {dat: 7, ses: 2}}}
-    message = {response: {dat: 7, ses: 2}}
-    pc = {cloud ↦ D, {client: {id: 0}} ↦ CW}
-    pending = {[cloud, {client: {id: 0}}]}
+    inbox = {0 ↦ some (TraceSerialization.Msg.response 7 2)}
+    message = some (TraceSerialization.Msg.response 7 2)
+    pc = {TraceSerialization.Node.cloud ↦ "D", TraceSerialization.Node.client 0 ↦ "CW"}
+    pending = {(TraceSerialization.Node.cloud, TraceSerialization.Node.client 0)}
 -/
 #guard_msgs in
 #model_check compiled { client := Fin 1 } { oneClient := 0 }
@@ -169,13 +173,14 @@ error: ❌ Violation: safety_failure (violates: diagnostic)
     oneClient = 0
   State 0 (via init):
     bag = {2 × 2}
-    chan = {cloud ↦ [], {client: {id: 0}} ↦ [{response: {dat: 7, ses: 2}}]}
-    count = {[cloud, 0] ↦ 7, [{client: {id: 0}}, 0] ↦ 7}
+    chan = {TraceSerialization.Node.cloud ↦ [],
+            TraceSerialization.Node.client 0 ↦ [TraceSerialization.Msg.response 7 2]}
+    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
     history = {0 ↦ [0, 7]}
-    inbox = {0 ↦ {response: {dat: 7, ses: 2}}}
-    message = {response: {dat: 7, ses: 2}}
-    pc = {cloud ↦ D, {client: {id: 0}} ↦ CW}
-    pending = {[cloud, {client: {id: 0}}]}
+    inbox = {0 ↦ some (TraceSerialization.Msg.response 7 2)}
+    message = some (TraceSerialization.Msg.response 7 2)
+    pc = {TraceSerialization.Node.cloud ↦ "D", TraceSerialization.Node.client 0 ↦ "CW"}
+    pending = {(TraceSerialization.Node.cloud, TraceSerialization.Node.client 0)}
 Seed: 1
 -/
 #guard_msgs in
@@ -188,13 +193,14 @@ error: ❌ Violation: safety_failure (violates: diagnostic)
     oneClient = 0
   State 0 (via init):
     bag = {2 × 2}
-    chan = {cloud ↦ [], {client: {id: 0}} ↦ [{response: {dat: 7, ses: 2}}]}
-    count = {[cloud, 0] ↦ 7, [{client: {id: 0}}, 0] ↦ 7}
+    chan = {TraceSerialization.Node.cloud ↦ [],
+            TraceSerialization.Node.client 0 ↦ [TraceSerialization.Msg.response 7 2]}
+    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
     history = {0 ↦ [0, 7]}
-    inbox = {0 ↦ {response: {dat: 7, ses: 2}}}
-    message = {response: {dat: 7, ses: 2}}
-    pc = {cloud ↦ D, {client: {id: 0}} ↦ CW}
-    pending = {[cloud, {client: {id: 0}}]}
+    inbox = {0 ↦ some (TraceSerialization.Msg.response 7 2)}
+    message = some (TraceSerialization.Msg.response 7 2)
+    pc = {TraceSerialization.Node.cloud ↦ "D", TraceSerialization.Node.client 0 ↦ "CW"}
+    pending = {(TraceSerialization.Node.cloud, TraceSerialization.Node.client 0)}
 Seed: 1
 -/
 #guard_msgs in

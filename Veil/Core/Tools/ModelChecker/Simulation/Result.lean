@@ -17,7 +17,7 @@ count and a `TerminationReason`, and simulation has neither. Simulation reports 
 absence of a violation through `SimulateResult.terminationReason` and `tracesRun`
 instead -- see the table on `SimulateResult`.
 -/
-private def resultToJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
+private def resultToJson {ρ σ κ : Type} [Display ρ] [Display σ] [Display κ]
   (result : Option (SimulationResult ρ σ κ)) : Json :=
   match result with
   -- `Json.null` stands in for the state fingerprint, which simulation does not have.
@@ -45,13 +45,13 @@ private def metadataToJsonFields {ρ σ κ : Type} (r : SimulateResult ρ σ κ)
   ] ++ reasonField.toList ++ histogramField.toList
 
 /-- Flatten the result object while keeping simulation metadata at the top level. -/
-def SimulateResult.toDisplayJson {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ]
+def SimulateResult.toDisplayJson {ρ σ κ : Type} [Display ρ] [Display σ] [Display κ]
   (r : SimulateResult ρ σ κ) : Json :=
   match resultToJson r.result with
   | Json.obj kvs => Json.mkObj <| kvs.toList ++ metadataToJsonFields r
   | other => Json.mkObj <| ("result", other) :: metadataToJsonFields r
 
-instance instToJsonSimulateResult {ρ σ κ : Type} [ToJson ρ] [ToJson σ] [ToJson κ] : ToJson (SimulateResult ρ σ κ) where
+instance instToJsonSimulateResult {ρ σ κ : Type} [Display ρ] [Display σ] [Display κ] : ToJson (SimulateResult ρ σ κ) where
   toJson r := SimulateResult.toDisplayJson r
 
 end Veil.ModelChecker.Simulation

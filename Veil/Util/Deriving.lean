@@ -1,6 +1,7 @@
 module
 
 public import Lean
+public import Veil.Util.ValueDisplay
 public meta import Veil.Util.ProxyType
 public meta import Veil.Util.Meta
 
@@ -277,6 +278,75 @@ initialize
 
 end DerivingOrdRelatedInstances
 
+section DerivingDisplay
+
+open Lean.Parser.Term in
+/-- `Display` for a non-recursive inductive type without indices, such as a module's `Label`, in the
+shape of its derived `ToJson`: `"c"` for a constructor without arguments, `{"c": {"x": …}}` for one
+with named arguments, with each argument shown by its `Display`.
+
+Each type parameter needs `Repr` besides `Display`: an argument whose type has no structured
+`Display`, such as `Option α`, falls back to its `Repr`, which needs `Repr α`. Without the binder,
+`reprOfUnrepresentable` would silently supply it. -/
+def mkDisplayInstCmdForInductive (declName : Name) : CommandElabM Bool := do
+  let indVal ← getConstInfoInduct declName
+  if indVal.isRec || indVal.numIndices != 0 || isStructure (← getEnv) declName then
+    throwError "deriving `Display` is supported for non-recursive inductive types without indices, \
+      other than structures: {declName}"
+  let cmd ← liftTermElabM do
+    let hole ← `(term| _)
+    let header ← mkHeader ``Display 0 indVal
+    let reprBinders ← mkInstImplicitBinders ``Repr indVal header.argNames
+    let x ← mkIdent <$> mkFreshUserName `x
+    -- One alternative per constructor, e.g. for `| send (n m : node)` of `Label node`:
+    --   `| @Label.send _ a₁ a₂ => {"send": {"n": display a₁, "m": display a₂}}`
+    let alts : Array (TSyntax ``matchAlt) ← indVal.ctors.toArray.mapM fun ctorName => do
+      let ctorInfo ← getConstInfoCtor ctorName
+      forallTelescopeReducing ctorInfo.type fun xs _ => do
+        -- A fresh pattern variable for each argument of the constructor (the binders after the
+        -- type's parameters), and the argument's name as written, if it has one.
+        let mut args : Array Ident := #[]
+        let mut names : Array StrLit := #[]
+        for i in [:ctorInfo.numFields] do
+          let decl ← xs[indVal.numParams + i]!.fvarId!.getDecl
+          -- As in `ToJson`, use macro scopes as a heuristic for unnamed arguments. This is
+          -- only a convention: macros can introduce named binders with scopes, and generated
+          -- names need not have scopes, so this does not reliably distinguish the two.
+          unless decl.userName.hasMacroScopes do
+            if let .str _ s := decl.userName then
+              names := names.push (Syntax.mkStrLit s)
+          args := args.push (mkIdent (← mkFreshUserName `a))
+        -- The type's parameters are inaccessible in the pattern: `_` for each.
+        let params := Array.replicate indVal.numParams hole
+        let .str _ s := ctorName.eraseMacroScopes
+          | throwError "unsupported constructor name: {ctorName}"
+        let ctorStr := Syntax.mkStrLit s
+        let vals ← args.mapM fun a => `($(mkCIdent ``Display.display) $a)
+        -- The JSON of the constructor, shaped as the derived `ToJson` shapes it:
+        -- `"c"` without arguments, `{"c": {"x": …, …}}` if every argument has a name, otherwise
+        -- `{"c": …}` for one argument and `{"c": [… , …]}` for several.
+        let rhs ← if args.isEmpty then
+            `($(mkCIdent ``Lean.Json.str) $ctorStr)
+          else if names.size == args.size then
+            let fields ← (names.zip vals).mapM fun (n, v) => `(($n, $v))
+            `($(mkCIdent ``Lean.Json.mkObj) [($ctorStr, $(mkCIdent ``Lean.Json.mkObj) [$fields,*])])
+          else match vals with
+            | #[v] => `($(mkCIdent ``Lean.Json.mkObj) [($ctorStr, $v)])
+            | _ => `($(mkCIdent ``Lean.Json.mkObj) [($ctorStr, $(mkCIdent ``Lean.Json.arr) #[$vals,*])])
+        `(matchAltExpr| | @$(mkCIdent ctorName):ident $params* $args* => $rhs)
+    `(command|
+      instance $header.binders:bracketedBinder* $(reprBinders.map TSyntax.mk):bracketedBinder* :
+          $(mkCIdent ``Display) $header.targetType where
+        display $x:ident := match $x:ident with $alts:matchAlt*)
+  elabVeilCommand cmd
+  return true
+
+def mkDisplayHandler := onlyHandleOne mkDisplayInstCmdForInductive
+
+initialize registerDerivingHandler ``Display mkDisplayHandler
+
+end DerivingDisplay
+
 section DerivingInstanceForStructure
 
 /-!
@@ -421,19 +491,28 @@ def mkInhabitedInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun inf
     $(mkIdent ``Inhabited) $(header.targetType) where
     $(mkIdent `default):ident := ⟨$defaults,*⟩)
 
-def mkToJsonInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
+private def mkJsonObjectInstCmd (className methodName : Name) : CommandElabM Bool :=
+    mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
-  let (localInsts, binders') ← mkInstImplicitBindersForFields ``ToJson indVal header.argNames fieldNames
+  let (localInsts, binders') ← mkInstImplicitBindersForFields className indVal header.argNames fieldNames
   let (targetNames, targetTypeArgBinders) ← mkTargetTypeArgsBinders 1 header.targetType
   let #[s] := targetNames.map Lean.mkIdent | unreachable!
   let jsonPairs ← fieldNames.zipWithM (bs := localInsts) fun field inst => do
     let fieldStr := toString field
-    `(term| ($(Syntax.mkStrLit fieldStr), $(mkIdent inst).$(mkIdent `toJson) $s.$(mkIdent field)))
-  let toJsonBody ← `(term| $(mkIdent ``Lean.Json.mkObj) [$[$jsonPairs],*])
+    `(term| ($(Syntax.mkStrLit fieldStr), $(mkIdent inst).$(mkIdent methodName) $s.$(mkIdent field)))
+  let jsonBody ← `(term| $(mkIdent ``Lean.Json.mkObj) [$[$jsonPairs],*])
   `(command|
   scoped instance $[(priority := $priority?:prio)]? $[$target?:ident]? $header.binders:bracketedBinder* $(binders'.map TSyntax.mk):bracketedBinder* :
-    $(mkIdent ``ToJson) $(header.targetType) where
-    $(mkIdent `toJson):ident $(targetTypeArgBinders.map TSyntax.mk):bracketedBinder* := $toJsonBody)
+    $(mkIdent className) $(header.targetType) where
+    $(mkIdent methodName):ident $(targetTypeArgBinders.map TSyntax.mk):bracketedBinder* := $jsonBody)
+
+def mkToJsonInstCmd : CommandElabM Bool :=
+  mkJsonObjectInstCmd declName target? priority? ``ToJson `toJson
+
+/-- `Display` for a structure such as a module's state or theory: the object of its fields, as
+`mkToJsonInstCmd` builds it, with each field shown by its `Display`. -/
+def mkDisplayInstCmd : CommandElabM Bool :=
+  mkJsonObjectInstCmd declName target? priority? ``Display `display
 
 def mkReprInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info indVal header => do
   let fieldNames := info.fieldNames
@@ -465,6 +544,7 @@ elab_rules : command
   | ``Hashable    => mkHashableInstCmd declName target? priority?
   | ``Inhabited   => mkInhabitedInstCmd declName target? priority?
   | ``ToJson      => mkToJsonInstCmd declName target? priority?
+  | ``Display     => mkDisplayInstCmd declName target? priority?
   | ``Repr        => mkReprInstCmd declName target? priority?
   | _             => throwError "Unsupported class {className}"
 

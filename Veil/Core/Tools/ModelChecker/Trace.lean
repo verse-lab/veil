@@ -1,6 +1,7 @@
 module
 
 public import Veil.Core.Tools.ModelChecker.TransitionSystem
+public import Veil.Util.ValueDisplay
 public import Lean
 
 @[expose] public section
@@ -94,9 +95,9 @@ structure Trace (ρ : Type) (σ : Type) (l : Type) where
   failingStep : Option (Step σ l) := none
 deriving Repr, Inhabited
 
-/-- The JSON of `tr`, where each state has the picks that `picks` knows for it as `"choices"`. A
-state whose picks are unknown or empty has no `"choices"`. -/
-def Trace.toJsonWithPicks {ρ σ l : Type} [ToJson ρ] [ToJson σ] [ToJson l] (tr : Trace ρ σ l)
+/-- The JSON shown for `tr`, where each state has the picks that `picks` knows for it as
+`"choices"`. A state whose picks are unknown or empty has no `"choices"`. -/
+def Trace.toJsonWithPicks {ρ σ l : Type} [Display ρ] [Display σ] [Display l] (tr : Trace ρ σ l)
     (picks : TracePicks) : Json :=
   let withChoices (fields : List (String × Json)) (choices? : Option (List String)) : Json :=
     match choices? with
@@ -105,30 +106,27 @@ def Trace.toJsonWithPicks {ρ σ l : Type} [ToJson ρ] [ToJson σ] [ToJson l] (t
   let states : Array Json :=
     #[ withChoices
       [ ("index", toJson 0),
-        ("fields", toJson tr.initialState),
+        ("fields", Display.display tr.initialState),
         ("transition", "after_init") ] picks.initialState ] ++
     (tr.steps.mapIdx (fun i st =>
       let idx := i + 1
       withChoices
       [ ("index", toJson idx),
-        ("fields", toJson st.nextState),
-        ("transition", toJson st.transitionLabel)] picks.steps[i]?.join))
+        ("fields", Display.display st.nextState),
+        ("transition", Display.display st.transitionLabel)] picks.steps[i]?.join))
   -- Add failing step if present (for assertion failures)
   let statesWithFailure := match tr.failingStep with
     | some failStep =>
       let idx := states.size
       states.push (withChoices
         [ ("index", toJson idx),
-          ("fields", toJson failStep.nextState),
-          ("transition", toJson failStep.transitionLabel),
+          ("fields", Display.display failStep.nextState),
+          ("transition", Display.display failStep.transitionLabel),
           ("failing", toJson true) ] picks.failingStep)
     | none => states
   Json.mkObj
-    [ ("theory", toJson tr.theory),
+    [ ("theory", Display.display tr.theory),
       ("states", Json.arr statesWithFailure) ]
-
-instance jsonOfTrace {ρ σ l : Type} [ToJson ρ] [ToJson σ] [ToJson l] : ToJson (Trace ρ σ l) where
-  toJson tr := tr.toJsonWithPicks {}
 
 @[inline, grind]
 def Trace.lastState (trace : Trace ρ σ l) : σ := trace.steps.getLastStateD trace.initialState
