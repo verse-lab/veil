@@ -30,7 +30,7 @@ interface ParsedState {
   tag?: string; // Optional tag associated with this state (e.g. transition/action label)
   fields: Record<string, unknown>;
   failing?: boolean; // True if an assertion failed while executing the transition to this state
-  choices?: string[]; // The non-deterministic choices (picks) that led to this state, if known
+  choices?: string[]; // Preformatted `name = value` labels for the picks that led to this state
 }
 type Trace = ParsedState[];
 
@@ -327,15 +327,8 @@ const StateCard: React.FC<{
       ? `State at the assertion failure while executing ${st.tag || 'this action'}.`
       : `State reached by executing ${st.tag || 'this action'}.`;
   const choices = st.choices ?? [];
-  const choiceOrigin = st.index === 0
-    ? 'initialization (after_init)'
-    : st.tag ? `action ${st.tag}` : 'this transition';
-  const choicesDescription = [
-    `Values chosen by non-deterministic statements (pick, :|, or := *) during ${choiceOrigin}.`,
-    'Read left to right in execution order, including choices in called procedures. The sequence starts over for each step.',
-    ...(isFailing ? ['Only choices made before the assertion failed are shown.'] : []),
-  ].join('\n');
   const [localOpen, setLocalOpen] = React.useState(true);
+  const [choicesOpen, setChoicesOpen] = React.useState(true);
 
   // Sync local state when forceOpen changes - this ensures that when we
   // reset to individual control, each state keeps the forced value
@@ -368,28 +361,34 @@ const StateCard: React.FC<{
           <span className="action-chip">{st.tag || '(no action)'}</span>
         </HoverInfo>
         {isFailing && <span className="failing-badge">FAILED</span>}
-        {choices.length > 0 && (
-          <span className="choice-chips">
-            <HoverInfo description={choicesDescription} stopPropagation>
-              <span className="choice-label">choices:</span>
-            </HoverInfo>
-            {choices.map((c, i) => (
-              <HoverInfo
-                key={i}
-                description={`Choice ${i + 1} of ${choices.length}: ${c}\n${choicesDescription}`}
-                stopPropagation
-              >
-                <code className="choice-chip">{c}</code>
-              </HoverInfo>
-            ))}
-          </span>
-        )}
         <span className="state-id">(index: {st.index})</span>
         <div className="state-toggle">{open ? "▼" : "▶"}</div>
       </div>
 
       {open && (
         <div className="state-body">
+          {choices.length > 0 && (
+            <div className="state-choices">
+              <button
+                className="choice-header"
+                type="button"
+                aria-expanded={choicesOpen}
+                onClick={() => setChoicesOpen(o => !o)}
+              >
+                <span aria-hidden="true">{choicesOpen ? "▼" : "▶"}</span>
+                Choices ({choices.length})
+              </button>
+              {choicesOpen && (
+                <ol className="choice-list">
+                  {choices.map((c, i) => (
+                    <li key={i}>
+                      <code className="choice-value">{c}</code>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
           <div className="kv-table">
             {entries.map(([k, v]) => (
               <KVRow key={k} k={k} v={v} changeInfo={changes?.get(k)} showRemovals={showRemovals} onHideField={onHideField} />
@@ -688,6 +687,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       box-shadow: 0 1px 2px rgba(0,0,0,.08);
       overflow: hidden;
     }
+    .mc-trace.vertical .state-card { min-width: 0; }
     .state-card.is-highlighted {
       outline: 2px solid var(--vscode-editor-selectionHighlightBorder);
       box-shadow: 0 0 0 3px var(--vscode-editor-selectionBackground);
@@ -797,17 +797,17 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     }
     .kv-content { display: block; }
     .action-chip { cursor: default; }
-    .choice-chips {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      flex-wrap: wrap;
-      cursor: default;
+    .state-choices {
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--vscode-editor-background);
     }
     .mc-hover-trigger {
       display: inline-flex;
     }
-    .mc-hover-trigger:focus-visible {
+    .mc-hover-trigger:focus-visible, .choice-header:focus-visible {
       outline: 1px solid var(--vscode-focusBorder);
       outline-offset: 2px;
     }
@@ -831,21 +831,34 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       white-space: pre-line;
       overflow-wrap: anywhere;
     }
-    .choice-label {
+    .choice-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      padding: 0;
+      border: none;
+      background: transparent;
+      font-family: inherit;
       font-size: 11px;
-      font-weight: normal;
+      font-weight: 600;
       color: var(--vscode-descriptionForeground);
-      text-decoration: underline dotted;
-      text-underline-offset: 2px;
+      text-align: left;
+      cursor: pointer;
     }
-    .choice-chip {
-      display: inline-block;
-      font-size: 10px;
-      font-weight: normal;
-      background: var(--vscode-badge-background);
-      color: var(--vscode-badge-foreground);
-      border-radius: 3px;
-      padding: 1px 5px;
+    .choice-list {
+      margin: 4px 0 0;
+      padding-left: 22px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+    }
+    .choice-list li { padding: 2px 0; }
+    .choice-value {
+      display: block;
+      padding: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
     .result-header {
       display: flex;
