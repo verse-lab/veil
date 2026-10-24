@@ -32,9 +32,11 @@ execution. -/
 
 /-- We require the predicate to be `Decidable`, even though `assume`
 does not, in order to collect the appropriate instances needed for
-execution. -/
-@[expose] def VeilM.pickSuchThat (τ : Type) (p : τ → Prop) [∀ x, Decidable (p x)] : VeilM m ρ σ τ := do
-  MonadNonDet.pickSuchThat τ p
+execution. `name` is the variable the choice is bound to, for the log of
+executions (see `MonadNonDet`). -/
+@[expose] def VeilM.pickSuchThat (τ : Type) (p : τ → Prop) [∀ x, Decidable (p x)]
+    (name : Option String := none) : VeilM m ρ σ τ := do
+  MonadNonDet.pickSuchThat τ p name
 
 @[expose] def VeilM.require (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
   match m with
@@ -218,14 +220,14 @@ theorem VeilM.wp_read' (post : RProp ρ ρ σ) (r : ρ) (s : σ) :
     wp (read : VeilM m ρ σ ρ) post r s = post r r s := by
   rfl
 
-theorem VeilM.wp_pick (post : RProp τ ρ σ) (r : ρ) (s : σ) :
-    wp (pick τ : VeilM m ρ σ τ) post r s = ∀ t, post t r s := by
+theorem VeilM.wp_pick {name : Option String} (post : RProp τ ρ σ) (r : ρ) (s : σ) :
+    wp (MonadNonDet.pick τ name : VeilM m ρ σ τ) post r s = ∀ t, post t r s := by
   simp [MonadNonDet.wp_pick, loomLogicSimp]
 
 
-theorem VeilM.wp_pickSuchThat {p : τ → Prop} {_ : ∀ x, Decidable (p x)}
+theorem VeilM.wp_pickSuchThat {p : τ → Prop} {_ : ∀ x, Decidable (p x)} {name : Option String}
     (post : RProp τ ρ σ) (r : ρ) (s : σ) :
-    wp (VeilM.pickSuchThat τ p : VeilM m ρ σ τ) post r s =
+    wp (VeilM.pickSuchThat τ p name : VeilM m ρ σ τ) post r s =
       ∀ t, p t → post t r s := by
   simp [VeilM.pickSuchThat, MonadNonDet.wp_pickSuchThat, loomLogicSimp]
 

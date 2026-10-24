@@ -6,10 +6,11 @@ public import Veil
 The executable actions record their picks in the log only when the `LogSwitch` is on: the model
 checker searches with it off, since nothing reads the log there, and recovers counterexample traces
 with it on. Off, every result's log is empty; on, it lists the candidates picked on the way to the
-result, formatted with `Repr`, in order. The results themselves do not depend on the switch.
+result, in order, each formatted with `Repr` as `x = v`, where `x` is what the pick is bound to.
+The results themselves do not depend on the switch.
 
 Covered: a plain pick, a constrained pick after it, a pick that a `require` filters, a pick in a
-procedure whose value an action uses, and a pick in the initializer.
+procedure whose value an action uses, and a havoc in the initializer.
 -/
 
 veil module PickLogSwitch
@@ -78,12 +79,12 @@ def outcomes (on : Bool) : List (List (List String × Option Bool)) :=
   [([], some true)],
   [([], some true), ([], some false)]]
 
--- On: the candidates picked, in order; the same results
+-- On: the candidates picked, in order, under their names; the same results
 #guard outcomes true == [
-  [(["true"], some true), (["false"], some false)],
-  [(["true"], some true), (["false"], some false)],
-  [(["true", "false"], some false), (["false", "true"], some true)],
-  [(["true"], some true)],
-  [(["true"], some true), (["false"], some false)]]
+  [(["chosen = true"], some true), (["chosen = false"], some false)],
+  [(["b = true"], some true), (["b = false"], some false)],
+  [(["b = true", "c = false"], some false), (["b = false", "c = true"], some true)],
+  [(["b = true"], some true)],
+  [(["b = true"], some true), (["b = false"], some false)]]
 
 end PickLogSwitch

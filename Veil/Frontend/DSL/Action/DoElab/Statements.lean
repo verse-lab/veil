@@ -126,20 +126,9 @@ when `?T` was created. Other RHS forms retain their normal handlers.
 Nested actions `(← …)` that Lean lifts out of the statement run before its
 handler's state opening, so that opening already reflects their effects. -/
 private def rhsUnderStatementOpening (ctx : Context) (stx : DoElem) : DoElabM DoElem := do
-  -- NOTE: It would also be possible to write the following through
-  -- indices of `stx` and `decl` (e.g., let `decl` being `stx[3]`),
-  -- but using the concrete syntax matching should be more readable and maintainable.
-  let `(doLetArrow| let%$tk $[mut%$mutTk?]? $cfg:letConfig $decl) := stx | return stx
-  match decl with
-  | `(doIdDecl| $x:ident $[: $ty?]? ← $rhs) =>
-    let some rhs ← internalIfPlainTerm? ctx rhs | return stx
-    let decl ← `(doIdDecl| $x:ident $[: $ty?]? ← $rhs)
-    `(doElem| let%$tk $[mut%$mutTk?]? $cfg:letConfig $decl:doIdDecl)
-  | `(doPatDecl| $pat:term $[: $ty?]? ← $rhs $[| $otherwise? $(rest?)?]?) =>
-    let some rhs ← internalIfPlainTerm? ctx rhs | return stx
-    let decl ← `(doPatDecl| $pat:term $[: $ty?]? ← $rhs $[| $otherwise? $(rest?)?]?)
-    `(doElem| let%$tk $[mut%$mutTk?]? $cfg:letConfig $decl:doPatDecl)
-  | _ => return stx
+  unless stx.raw.isOfKind ``Lean.Parser.Term.doLetArrow do
+    return stx
+  rewriteArrowRhs stx fun _ rhs => internalIfPlainTerm? ctx rhs
 
 @[doElem_elab Lean.Parser.Term.doLetArrow]
 def elabVeilLetArrow : DoElab := fun stx dec => do

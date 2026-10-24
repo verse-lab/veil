@@ -470,9 +470,9 @@ section
 
 variable {ρ σ} [inst4 : MonadPersistentLog Std.Format (VeilMultiExecM Std.Format ExId ρ σ)]
 
-def ConstrainedExtractResult.pickSuchThat_VeilM (p : τ → Prop) [∀ x, Decidable (p x)] [instec : ExtCandidates Candidates Std.Format p] :
+def ConstrainedExtractResult.pickSuchThat_VeilM (p : τ → Prop) [∀ x, Decidable (p x)] {name : Option String} [instec : ExtCandidates Candidates Std.Format p] :
   ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
-  (findOfCandidates _) (VeilM.pickSuchThat τ p) := ConstrainedExtractResult.pickList _ _ _ _ p (instec := instec)
+  (findOfCandidates _) (VeilM.pickSuchThat τ p name) := ConstrainedExtractResult.pickList _ _ _ _ p (instec := instec)
 
 def ConstrainedExtractResult.assume_VeilM {m} (p : Prop) [decp : Decidable p] :
   ConstrainedExtractResult Std.Format (VeilExecM m ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
@@ -627,11 +627,12 @@ open MultiExtractor
 /-- `ConstrainedExtractResult.pickList_bind` for `VeilM.pickSuchThat`, which the discrimination
 tree does not see through (see `pickSuchThat_VeilM`). -/
 def ConstrainedExtractResult.pickSuchThat_bind_VeilM (p : τ → Prop) [∀ x, Decidable (p x)]
+    {name : Option String}
     [instec : ExtCandidates Candidates Std.Format p] {f : τ → VeilM mode ρ σ β}
     (hf : ∀ x, ConstrainedExtractResult Std.Format (VeilExecM mode ρ σ)
       (VeilMultiExecM Std.Format ExId ρ σ) (findOfCandidates _) (f x)) :
     ConstrainedExtractResult Std.Format (VeilExecM mode ρ σ) (VeilMultiExecM Std.Format ExId ρ σ)
-      (findOfCandidates _) (VeilM.pickSuchThat τ p >>= f) :=
+      (findOfCandidates _) (VeilM.pickSuchThat τ p name >>= f) :=
   ConstrainedExtractResult.pickList_bind _ _ _ _ p (instec := instec) hf
 
 end PicksAndTrailingPure

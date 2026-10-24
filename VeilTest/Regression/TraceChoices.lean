@@ -4,8 +4,10 @@ public import Veil
 
 /-!
 A counterexample trace shows, under the header of each state, the candidates picked on the way to
-it (`choices:`), in order; for the initial state, those of the initializer. A state reached without
-picks has no `choices:` line. The choices are looked up at the positions of the trace's transitions
+it (`choices:`), in order; for the initial state, those of the initializer. Each is shown as
+`x = v`, with `x` what the pick is bound to: the variable of `let x ← pick τ` or `let x :| p`, also
+inside a called procedure, or the target of a havoc `x := *`. A state reached without picks has no
+`choices:` line. The choices are looked up at the positions of the trace's transitions
 that the search log records, which the parallel and the sequential search write differently. The
 shortest counterexample below is unique, so both must find it, with the same choices.
 
@@ -103,7 +105,7 @@ safety ¬ (phase = 3 ∧ enabled ∧ ¬ approved ∧ score = 7)
 /--
 error: ❌ Violation: safety_failure (violates: safety_0)
   State 0 (via init):
-    choices: true
+    choices: flag = true
     enabled = true
     approved = true
     phase = 0
@@ -114,13 +116,13 @@ error: ❌ Violation: safety_failure (violates: safety_0)
     phase = 1
     score = 0
   State 2 (via step):
-    choices: 2, true, 2, false, 1
+    choices: base = 2, flag = true, bonus = 2, flag = false, extra = 1
     enabled = true
     approved = false
     phase = 2
     score = 5
   State 3 (via finish):
-    choices: true, 2
+    choices: flag = true, tag = 2
     enabled = true
     approved = false
     phase = 3
@@ -132,7 +134,7 @@ error: ❌ Violation: safety_failure (violates: safety_0)
 /--
 error: ❌ Violation: safety_failure (violates: safety_0)
   State 0 (via init):
-    choices: true
+    choices: flag = true
     enabled = true
     approved = true
     phase = 0
@@ -143,13 +145,13 @@ error: ❌ Violation: safety_failure (violates: safety_0)
     phase = 1
     score = 0
   State 2 (via step):
-    choices: 2, true, 2, false, 1
+    choices: base = 2, flag = true, bonus = 2, flag = false, extra = 1
     enabled = true
     approved = false
     phase = 2
     score = 5
   State 3 (via finish):
-    choices: true, 2
+    choices: flag = true, tag = 2
     enabled = true
     approved = false
     phase = 3
@@ -192,7 +194,7 @@ error: ❌ Violation: safety_failure (violates: safety_0)
   State 0 (via init):
     x = 0
   State 1 (via step):
-    choices: 2
+    choices: k = 2
     x = 2
 -/
 #guard_msgs in
@@ -266,17 +268,17 @@ invariant true
 /--
 error: ❌ Violation: assertion_failure
   State 0 (via init):
-    choices: true
+    choices: choice = true
     flag = true
     phase = 0
     selected = 0
   State 1 (via prepare):
-    choices: 2, true
+    choices: n = 2, choice = true
     flag = true
     phase = 1
     selected = 2
   State 2 (via check):
-    choices: true, 1
+    choices: choice = true, extra = 1
     flag = true
     phase = 1
     selected = 3
@@ -287,17 +289,17 @@ error: ❌ Violation: assertion_failure
 /--
 error: ❌ Violation: assertion_failure
   State 0 (via init):
-    choices: true
+    choices: choice = true
     flag = true
     phase = 0
     selected = 0
   State 1 (via prepare):
-    choices: 2, true
+    choices: n = 2, choice = true
     flag = true
     phase = 1
     selected = 2
   State 2 (via check):
-    choices: true, 1
+    choices: choice = true, extra = 1
     flag = true
     phase = 1
     selected = 3
@@ -388,7 +390,7 @@ error: ❌ Violation: assertion_failure
     phase = 1
     value = 0
   State 2 (via run):
-    choices: 2, 2, true, 1
+    choices: base = 2, n = 2, high = true, audit = 1
     phase = 1
     value = 5
 -/
@@ -404,7 +406,7 @@ error: ❌ Violation: assertion_failure
     phase = 1
     value = 0
   State 2 (via run):
-    choices: 2, 2, true, 1
+    choices: base = 2, n = 2, high = true, audit = 1
     phase = 1
     value = 5
 -/
@@ -487,7 +489,7 @@ termination phase = 3
 /--
 error: ❌ Violation: deadlock
   State 0 (via init):
-    choices: true
+    choices: ready = true
     code = 0
     phase = 0
     ready = true
@@ -496,7 +498,7 @@ error: ❌ Violation: deadlock
     phase = 1
     ready = true
   State 2 (via lock):
-    choices: 1, true, 2
+    choices: offset = 1, high = true, n = 2
     code = 3
     phase = 2
     ready = false
@@ -507,7 +509,7 @@ error: ❌ Violation: deadlock
 /--
 error: ❌ Violation: deadlock
   State 0 (via init):
-    choices: true
+    choices: ready = true
     code = 0
     phase = 0
     ready = true
@@ -516,7 +518,7 @@ error: ❌ Violation: deadlock
     phase = 1
     ready = true
   State 2 (via lock):
-    choices: 1, true, 2
+    choices: offset = 1, high = true, n = 2
     code = 3
     phase = 2
     ready = false
@@ -579,7 +581,7 @@ termination false = true
 /--
 error: ❌ Violation: deadlock
   State 0 (via init):
-    choices: true, 2
+    choices: flag = true, n = 2
     enabled = false
     ticket = 2
 -/
@@ -589,7 +591,7 @@ error: ❌ Violation: deadlock
 /--
 error: ❌ Violation: deadlock
   State 0 (via init):
-    choices: true, 2
+    choices: flag = true, n = 2
     enabled = false
     ticket = 2
 -/
