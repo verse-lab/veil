@@ -51,6 +51,11 @@ candidate/admission counts. During `certify`, it shows the current proof obligat
 and the number completed. The final display distinguishes an uncertified search
 result from a certificate and reports any additional axioms used by the certificate.
 
+Expand **Frames and recent activity** to see the current strengthening clauses in
+each frame and the latest 50 search events. It starts collapsed and stays open
+while updates arrive. Clause lists update as clauses are admitted, subsumed, or
+propagated into later frames; every frame also includes the checked property.
+
 The query budget is a work limit, not a percentage of completion: the search does
 not know how many queries will be needed. Query time includes elaboration,
 preprocessing, solving, and decoding; internal solver retries are included in the

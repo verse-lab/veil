@@ -164,14 +164,13 @@ namespace SearchM
 
 /-- Publish a snapshot of the frames without exposing mutable search state to the UI. -/
 def reportProgress : SearchM Unit := do
-  let sizes := (← get).frames.map (·.size)
-  Progress.update (← read).cfg.progress? fun p => { p with frameSizes := sizes }
+  let some ref := (← read).cfg.progress? | return
+  Progress.setFrames ref ((← get).frames.map fun frame => frame.map (toString ·.clause))
 
 /-- Record a progress line, shown as a message under `verbose`. -/
 def say (msg : String) : SearchM Unit := do
   modify fun s ↦ { s with log := s.log.push msg }
-  Progress.update (← read).cfg.progress? fun p => { p with lastEvent := msg }
-  reportProgress
+  Progress.recordEvent (← read).cfg.progress? msg
   if (← read).cfg.verbose then logInfo msg
 
 /-- Append an event to the log file, if there is one. A failed write is reported once. -/
@@ -213,9 +212,11 @@ def frameSubsumes (i : Nat) (c : Clause) : SearchM Bool :=
   return ((← get).frames[i - 1]?.getD #[]).any (·.clause.subsumes c)
 
 /-- Add `a` to `F₁ … F_j`, keeping each frame free of subsumed clauses. -/
-def addClause (j : Nat) (a : Admitted) : SearchM Unit := modify fun s ↦
-  { s with frames := (Array.range j).foldl (init := s.frames) fun fr i ↦
-      if i < fr.size then fr.modify i (Clause.insertSubsuming (·.clause) · a) else fr }
+def addClause (j : Nat) (a : Admitted) : SearchM Unit := do
+  modify fun s ↦
+    { s with frames := (Array.range j).foldl (init := s.frames) fun fr i ↦
+        if i < fr.size then fr.modify i (Clause.insertSubsuming (·.clause) · a) else fr }
+  reportProgress
 
 /-- Consume one solver call; `false` when none is left. -/
 def spend : SearchM Bool := do
@@ -230,7 +231,6 @@ def runCounted (stmt : Term) (steps coreLits : Nat) (wantModel : Bool) :
   unless ← spend do return (.unknown s!"fuel exhausted ({(← read).cfg.fuel} solver calls)", none)
   let t0 ← IO.monoMsNow
   let progress? := (← read).cfg.progress?
-  reportProgress
   Progress.beginQuery progress?
   try
     let r ← runStatement (← read).qctx.mod stmt steps coreLits wantModel
