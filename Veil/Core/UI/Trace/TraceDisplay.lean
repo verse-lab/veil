@@ -3,6 +3,7 @@ module
 public meta import Lean.Server.Rpc.Basic
 public meta import Lean.Elab.Command
 public meta import Veil.Core.Tools.ModelChecker.Interface
+public meta import Veil.Util.ValueDisplay
 
 public meta import ProofWidgets.Component.Basic
 public meta import ProofWidgets.Component.HtmlDisplay
@@ -86,67 +87,58 @@ end ProofWidgets
 
 namespace Veil.TraceDisplay
 open Lean
+open Veil.ValueDisplay (formatJson formatText formatFields formatAction)
 
-private partial def fmtJson (j : Json) : String := match j with
-  | .str s => s | .num n => toString n | .bool b => toString b | .null => "null"
-  | .arr a => s!"[{", ".intercalate (a.map fmtJson).toList}]"
-  | .obj kvs => s!"\{{", ".intercalate (kvs.toArray.map fun (k, v) => s!"{k}: {fmtJson v}").toList}}"
-
-private def fmtFields (j : Json) (ind : String) : String := match j with
-  | .obj kvs => "\n".intercalate (kvs.toArray.map fun (k, v) => s!"{ind}{k} = {fmtJson v}").toList
-  | _ => fmtJson j
-
-private def fmtAction (j : Json) : String := match j with
-  | .str s => s
-  | .obj kvs => match kvs.toArray.find? (·.2 != .null) with
-    | some (name, .obj ps) => s!"{name}({", ".intercalate (ps.toArray.map fun (k, v) => s!"{k}={fmtJson v}").toList})"
-    | some (name, _) => name | none => toString j
-  | _ => toString j
-
+/-- A state as `State n (via label):`, the picks that led to it, and its fields. -/
 private def fmtState (s : Json) (ind : String) : String :=
-  let trans := match s.getObjValD "transition" with | .str "after_init" => "init" | t => fmtAction t
   let choices := match s.getObjValD "choices" with
-    | .arr cs => if cs.isEmpty then "" else s!"\n{ind}  choices: {", ".intercalate (cs.map fmtJson).toList}"
+    | .arr cs => if cs.isEmpty then "" else s!"\n{ind}  choices: {", ".intercalate (cs.map formatText).toList}"
     | _ => ""
-  s!"{ind}State {fmtJson (s.getObjValD "index")} (via {trans}):{choices}\n{fmtFields (s.getObjValD "fields") (ind ++ "  ")}"
+  let lead := s!"{ind}State {formatJson (s.getObjValD "index")} (via "
+  -- A long transition label continues aligned after `(via `.
+  let header := match s.getObjValD "transition" with
+    | .str "after_init" => s!"{lead}init):"
+    | t => formatAction lead t "):"
+  s!"{header}{choices}\n{formatFields (s.getObjValD "fields") (ind ++ "  ")}"
 
 def formatTrace (j : Json) (ind : String := "  ") : String := Id.run do
   let mut r := ""
   for (k, v) in #[("Instantiation", j.getObjValD "instantiation"), ("Theory", j.getObjValD "theory")] do
-    if let .obj kvs := v then unless kvs.isEmpty do r := r ++ s!"{ind}{k}:\n{fmtFields v (ind ++ "  ")}\n"
+    if let .obj kvs := v then unless kvs.isEmpty do
+      r := r ++ s!"{ind}{k}:\n{formatFields v (ind ++ "  ") (asText := k == "Instantiation")}\n"
   match j.getObjValD "states" with
   | .arr states => r ++ (states.toList.map (fmtState · ind) |> "\n".intercalate)
   | _ => r ++ s!"{ind}(no states)"
 
 private def fmtSeedSuffix (j : Json) : String :=
   let seed := j.getObjValD "seed"
-  if seed == .null then "" else s!"\nSeed: {fmtJson seed}"
+  if seed == .null then "" else s!"\nSeed: {formatText seed}"
 
 private def isNoInitialStatesTermination (j : Json) : Bool :=
   match j.getObjValD "termination_reason" with
-  | .obj reason => fmtJson ((Json.obj reason).getObjValD "kind") == "no_initial_states"
+  | .obj reason => formatText ((Json.obj reason).getObjValD "kind") == "no_initial_states"
   | _ => false
 
 private def fmtViolation (j : Json) (suffix : String := "") : MessageData :=
   let v := j.getObjValD "violation"
   let violates := match v.getObjValD "violates" with
-    | .arr arr => if arr.isEmpty then "" else s!" (violates: {", ".intercalate (arr.map fmtJson).toList})"
+    | .arr arr => if arr.isEmpty then "" else s!" (violates: {", ".intercalate (arr.map formatText).toList})"
     | _ => ""
   let trace := j.getObjValD "trace"
   let traceMsg := if trace == .null then "" else s!"\n{formatTrace trace}"
-  m!"❌ Violation: {fmtJson (v.getObjValD "kind")}{violates}{traceMsg}{suffix}"
+  m!"❌ Violation: {formatText (v.getObjValD "kind")}{violates}{traceMsg}{suffix}"
 
 /-- Fallback for an unrecognised `result`, and for error payloads. Shared by all
 renderers, since an error is not specific to any one command. -/
 private def fmtUnexpected (result : String) (j : Json) : MessageData :=
-  if j.getObjValD "error" != .null then m!"💥 Error: {fmtJson (j.getObjValD "error")}"
+  if j.getObjValD "error" != .null then m!"💥 Error: {formatText (j.getObjValD "error")}"
   else m!"Unknown: {result}"
 
 private def formatModelCheckResult (j : Json) : MessageData :=
-  match fmtJson (j.getObjValD "result") with
+  match formatText (j.getObjValD "result") with
   | "found_violation" => fmtViolation j
   | "no_violation_found" =>
-      m!"✅ No violation (explored {fmtJson (j.getObjValD "explored_states")} states)"
+      m!"✅ No violation (explored {formatJson (j.getObjValD "explored_states")} states)"
   | "cancelled" => m!"⚠️ Cancelled"
   | r => fmtUnexpected r j
 
@@ -175,23 +167,23 @@ private def fmtDepthHistogram (j : Json) : String :=
 /-- See the table on `SimulateResult` for the cases `#simulate` can produce. -/
 private def formatSimulateResult (j : Json) : MessageData :=
   let suffix := fmtDepthHistogram j ++ fmtSeedSuffix j
-  match fmtJson (j.getObjValD "result") with
+  match formatText (j.getObjValD "result") with
   | "found_violation" => fmtViolation j suffix
   | "no_violation_found" =>
       if isNoInitialStatesTermination j then
         m!"✅ No initial states available after applying state constraints{suffix}"
       else
-        m!"✅ No violation in {fmtJson (j.getObjValD "traces_run")} traces{suffix}"
+        m!"✅ No violation in {formatJson (j.getObjValD "traces_run")} traces{suffix}"
   | "cancelled" => m!"⚠️ Cancelled{suffix}"
   | r => fmtUnexpected r j
 
 private def formatSymbolicTraceResult (j : Json) : MessageData :=
-  match fmtJson (j.getObjValD "result") with
+  match formatText (j.getObjValD "result") with
   | "found_violation" => fmtViolation j
   | "no_violation_found" =>
       let trace := j.getObjValD "trace"
       if trace != .null then m!"✅ Satisfying trace found\n{formatTrace trace}"
-      else m!"✅ No violation (explored {fmtJson (j.getObjValD "explored_states")} states)"
+      else m!"✅ No violation (explored {formatJson (j.getObjValD "explored_states")} states)"
   | "cancelled" => m!"⚠️ Cancelled"
   | r => fmtUnexpected r j
 

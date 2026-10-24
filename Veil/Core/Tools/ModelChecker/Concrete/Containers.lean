@@ -1,6 +1,7 @@
 module
 
 public import Std
+public import Lean.Data.Json.FromToJson.Basic
 meta import Veil.Util.Tactics
 
 @[expose] public section
@@ -12,7 +13,6 @@ structure fQueue (α : Type) where
   back : List α
   sz : Nat := 0
   h_sz : sz = front.length + back.length := by decide
-deriving Repr
 
 namespace fQueue
 
@@ -146,6 +146,13 @@ def dequeueD {α} [Inhabited α] (q : fQueue α) : α × fQueue α :=
 @[grind]
 def toList {α} (q : fQueue α) : List α :=
   q.front ++ q.back.reverse
+
+instance [Repr α] : Repr (fQueue α) where
+  reprPrec q p := reprPrec q.toList p
+
+/-- Display the FIFO contents, independently of the queue's storage layout. -/
+instance [Lean.ToJson α] : Lean.ToJson (fQueue α) where
+  toJson q := Lean.toJson q.toList
 
 @[grind]
 def isEmpty {α} (q : fQueue α) : Bool := q.sz = 0

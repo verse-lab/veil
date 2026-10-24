@@ -6,8 +6,9 @@ import {
   diffChanges,
   CopyButton,
   formatActionLabel,
+  formatValue,
+  logicalContainer,
   renderValue,
-  dequalify,
   sharedDiffCSS,
   sharedListCSS,
   generateFilterPanelCSS,
@@ -118,6 +119,10 @@ function isCollapsibleValue(v: unknown): boolean {
 }
 
 function previewValue(v: unknown): string {
+  if (logicalContainer(v)) {
+    const text = formatValue(v);
+    return text.length > 80 ? text.slice(0, 80) + "…" : text;
+  }
   if (Array.isArray(v)) {
     if (v.length > 0 && Array.isArray(v[0])) {
       return `Array(${v.length}) of tuples`;
@@ -126,14 +131,13 @@ function previewValue(v: unknown): string {
   }
   if (typeof v === "object" && v !== null) {
     try {
-      return JSON.stringify(v).slice(0, 80) + "…";
+      return formatValue(v).slice(0, 80) + "…";
     } catch {
       return "[object]";
     }
   }
   if (typeof v === "string") {
-    const dq = dequalify(v);
-    const s = dq.replace(/\s+/g, " ");
+    const s = v.replace(/\s+/g, " ");
     return s.length > 80 ? s.slice(0, 80) + "…" : s;
   }
   return String(v);

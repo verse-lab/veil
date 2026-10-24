@@ -574,7 +574,8 @@ instance instTSetOrdList [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α
     sortedDiffNoDup_contains a s1.val s2.val s1.property s2.property
   toList_contains_iff := fun a s => sortedContains_iff a s.val s.property
   subsets_iff := by
-    simp ; intro l1 hl1 l2 hl2 ; simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, sublists]
+    intro ⟨l1, hl1⟩ ⟨l2, hl2⟩
+    simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, sublists, List.mem_pmap]
     constructor
     · grind
     · apply OrdList.mem_contains_then_is_sublist <;> assumption
@@ -649,11 +650,14 @@ instance instTSetOrdArray [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq �
     exact sortedDiffNoDup_contains a s1.val.toList s2.val.toList s1.property s2.property
   toList_contains_iff := fun a s => sortedContains_iff a s.val.toList s.property
   subsets_iff := by
-    simp ; intro l1 hl1 l2 hl2 ; simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, subarrays, sublists, toOrdList, ofOrdList]
+    intro ⟨l1, hl1⟩ ⟨l2, hl2⟩
+    simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, subarrays, sublists, toOrdList, ofOrdList, List.mem_pmap]
     constructor
     · grind
-    · intro h ; exists l1.toList ; simp ; apply OrdList.mem_contains_then_is_sublist <;> try assumption
-      simp ; assumption
+    · intro h
+      refine ⟨⟨l1.toList, hl1⟩, ⟨l1.toList, ?_, rfl⟩, by simp⟩
+      apply OrdList.mem_contains_then_is_sublist l1.toList l2.toList hl1 hl2
+      simpa using h
 
 class TMultiset (α : outParam (Type u)) (κ : Type v) where
   empty : κ
@@ -694,36 +698,45 @@ instance [TMultiset α κ] (k : κ) : Veil.Enumeration ({ a : α // a ∈ k }) :
 
 /-- When implementing `Multiset`, a key is mapped to its multiplicity
 *minus 1*. -/
-abbrev TMapMultiset (α : Type) [Ord α] := Std.ExtTreeMap α Nat
+@[ext] structure TMapMultiset (α : Type) [Ord α] where
+  val : Std.ExtTreeMap α Nat
 
-instance [Ord α] : Inhabited (TMapMultiset α) := ⟨Std.ExtTreeMap.empty⟩
+veil_derive_wrapper_instances TMapMultiset
 
-instance [Ord α] [TransOrd α] : Ord (TMapMultiset α) where
-  compare m₁ m₂ := compare m₁.toList m₂.toList
+instance [Ord α] : Inhabited (TMapMultiset α) := ⟨⟨Std.ExtTreeMap.empty⟩⟩
 
+/-- Logical multiplicities; storage keeps each nonzero count minus one. -/
+def TMapMultiset.entries [Ord α] [TransOrd α] (m : TMapMultiset α) : Array (α × Nat) :=
+  m.val.foldl (fun out a n => out.push (a, n.succ)) (Array.emptyWithCapacity m.val.size)
+
+instance [Ord α] [TransOrd α] [Repr α] : Repr (TMapMultiset α) where
+  reprPrec m _ := ValueDisplay.multisetFormat m.entries.toList
+
+instance [Ord α] [TransOrd α] [Lean.ToJson α] : Lean.ToJson (TMapMultiset α) where
+  toJson m := ValueDisplay.multisetJson m.entries
 
 open Std.ExtDTreeMap
 
 instance instTMultiSetWithExtTreeMap [Ord α] [TransOrd α]
   [LawfulEqOrd α] : TMultiset α (TMapMultiset α) where
-  empty := Std.ExtTreeMap.empty
+  empty := ⟨Std.ExtTreeMap.empty⟩
   insert elem s :=
-    s.alter elem fun
+    ⟨s.val.alter elem fun
       | some n => some n.succ
-      | none   => some 0
+      | none   => some 0⟩
 
   remove elem s :=
-    s.alter elem fun
+    ⟨s.val.alter elem fun
       | some n => if h : n > 0 then some n.pred else none
-      | none   => none
+      | none   => none⟩
 
-  count elem s := match s.get? elem with
+  count elem s := match s.val.get? elem with
     | some n => n.succ
     | none => 0
 
-  contains elem s := s.contains elem
-  size s := s.foldl (fun acc _ count => acc + count.succ) 0
-  toList s := s.foldl (fun acc elem count => acc ++ List.replicate count.succ elem) []
+  contains elem s := s.val.contains elem
+  size s := s.val.foldl (fun acc _ count => acc + count.succ) 0
+  toList s := s.val.foldl (fun acc elem count => acc ++ List.replicate count.succ elem) []
   empty_size := by simp [Std.ExtTreeMap.empty]; rfl
   empty_count elem := by grind
   empty_contains elem := by grind
@@ -732,11 +745,14 @@ instance instTMultiSetWithExtTreeMap [Ord α] [TransOrd α]
     simp [Std.ExtTreeMap.contains_iff_mem, Std.ExtTreeMap.foldl_eq_foldl_toList,
       Std.ExtTreeMap.getElem?_eq_some_iff]
     constructor
-    · intro h; exact ⟨_, ⟨elem, s[elem], ⟨h, rfl⟩, rfl⟩, by simp⟩
+    · intro h; exact ⟨_, ⟨elem, s.val[elem], ⟨h, rfl⟩, rfl⟩, by simp⟩
     · rintro ⟨_, ⟨a, b, ⟨h, _⟩, rfl⟩, hm⟩; simpa using (by simpa using hm : elem = a) ▸ h
 
 instance instTMultisetForFin (n : Nat) : TMultiset (Fin n) (TMapMultiset (Fin n)) :=
   instTMultiSetWithExtTreeMap
+
+@[macro_inline] instance [Ord α] [TransOrd α] [LawfulEqOrd α] (a : α) (s : TMapMultiset α) :
+    Decidable (a ∈ s) := instDecidableEqBool _ _
 
 
 class TMap (α : Type) (β : Type) (κ : Type) where

@@ -470,6 +470,72 @@ elab_rules : command
 
 end ForStructure
 
+/-! # Deriving Wrapper Instances for Single-Payload Structures -/
+
+syntax "veil_derive_wrapper_instances " ident : command
+
+elab_rules : command
+| `(veil_derive_wrapper_instances $decl:ident) => do
+  let ok ← ForStructure.mkInstCmdTemplate decl.getId fun info indVal header => do
+    let fields ← forallBoundedTelescope indVal.type indVal.numParams fun params _ => do
+      let ty := mkAppN (mkConst indVal.name (indVal.levelParams.map mkLevelParam)) params
+      withLocalDeclD `s ty fun s =>
+        info.fieldNames.filterM fun field => do
+          return !(← isProp (← inferType (← mkProjection s field)))
+    let #[field] := fields
+      | throwError "Expected a structure with exactly one non-proof field"
+    let args : Array Term := header.argNames.map (fun n => ⟨(mkIdent n).raw⟩)
+    let storage ← `(body_type_of_struct_field% (@$(mkCIdent (indVal.name ++ field)) $args*))
+    let f := mkIdent field
+    let t := header.targetType
+    let bs := header.binders
+    -- Use storage constraints: builtin deriving also constrains phantom parameters,
+    -- and deriving `BEq` for dependent proof fields requires `LawfulBEq`.
+    -- Reuse some Lean's deriving tactics for the equality laws below.
+    -- Use ordinary instances so callers do not need to open the wrapper namespace.
+    let cmds := #[
+      ← `(command| instance $bs:bracketedBinder* [BEq $storage] : BEq $t where
+        beq a b := a.$f == b.$f),
+      ← `(command| instance $bs:bracketedBinder* [Hashable $storage] : Hashable $t where
+        hash a := hash a.$f),
+      ← `(command| instance $bs:bracketedBinder* [DecidableEq $storage] : DecidableEq $t :=
+        fun a b => decidable_of_iff (a.$f = b.$f) (by
+          constructor
+          · intro h; cases a; cases b; cases h; rfl
+          · intro h; cases h; rfl)),
+      ← `(command| instance $bs:bracketedBinder* [BEq $storage] [ReflBEq $storage] : ReflBEq $t where
+        rfl := by
+          dsimp only [BEq.beq]
+          deriving_ReflEq_tactic),
+      ← `(command| instance $bs:bracketedBinder* [BEq $storage] [EquivBEq $storage] : EquivBEq $t where
+        rfl {a} := beq_self_eq_true a.$f
+        symm {a b} h := BEq.symm (α := $storage) h
+        trans {a b c} h₁ h₂ := BEq.trans (α := $storage) h₁ h₂),
+      ← `(command| instance $bs:bracketedBinder* [BEq $storage] [LawfulBEq $storage] : LawfulBEq $t :=
+        LawfulBEq.mk (by
+          dsimp only [BEq.beq]
+          deriving_LawfulEq_tactic)),
+      ← `(command| instance $bs:bracketedBinder* [BEq $storage] [Hashable $storage]
+          [LawfulHashable $storage] : LawfulHashable $t where
+        hash_eq a b := LawfulHashable.hash_eq a.$f b.$f),
+      ← `(command| instance $bs:bracketedBinder* [Ord $storage] : Ord $t where
+        compare a b := compare a.$f b.$f),
+      ← `(command| instance $bs:bracketedBinder* [Ord $storage] [Std.ReflOrd $storage] : Std.ReflOrd $t where
+        compare_self {a} := Std.ReflOrd.compare_self (a := a.$f)),
+      ← `(command| instance $bs:bracketedBinder* [Ord $storage] [Std.OrientedOrd $storage] : Std.OrientedOrd $t where
+        eq_swap {a b} := Std.OrientedOrd.eq_swap (a := a.$f) (b := b.$f)),
+      ← `(command| instance $bs:bracketedBinder* [Ord $storage] [Std.TransOrd $storage] : Std.TransOrd $t where
+        isLE_trans {a b c} := Std.TransOrd.isLE_trans (a := a.$f) (b := b.$f) (c := c.$f)),
+      ← `(command| instance $bs:bracketedBinder* [Ord $storage] [Std.LawfulEqOrd $storage] : Std.LawfulEqOrd $t where
+        eq_of_compare {a b} h := by
+          have h : a.$f = b.$f := Std.LawfulEqOrd.eq_of_compare h
+          cases a; cases b; cases h; rfl)
+    ]
+    -- `mkNullNode` bundles multiple commands into a single syntax node;
+    -- command elaboration processes its children in order.
+    return ⟨mkNullNode (cmds.map (·.raw))⟩
+  unless ok do throwError "Expected a structure"
+
 end DerivingInstanceForStructure
 
 end Veil.Deriving

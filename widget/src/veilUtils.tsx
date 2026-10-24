@@ -3,24 +3,89 @@ import * as React from 'react';
 
 // ========== Types ==========
 
-/** Merged element for array diff display */
+/** Merged element for sequence or logical-container diff display */
 export interface MergedElement {
   element: unknown;
   status: 'unchanged' | 'added' | 'removed';
 }
 
-/** Value change info: either the whole value changed, or specific array indices changed */
+/** Value change info: either the whole value changed, or individual elements/entries changed */
 export type ChangeInfo =
   | { type: 'full' }  // Entire value changed (non-array or structural change)
-  | { type: 'array'; mergedView: MergedElement[] }  // Array with merged view showing elements in original order
+  | { type: 'array'; mergedView: MergedElement[] }  // Sequence elements or logical-container entries
   | { type: 'none' };  // No change
+
+// ========== Logical Containers ==========
+
+interface LogicalContainer {
+  kind: 'set' | 'map' | 'multiset';
+  items: unknown[];
+}
+
+/** Sets, maps and multisets arrive tagged by `Veil.ValueDisplay`. `$veil` is reserved for these
+ *  tags; an unknown or malformed envelope stays an ordinary object. */
+export function logicalContainer(v: unknown): LogicalContainer | undefined {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return undefined;
+  const obj = v as Record<string, unknown>;
+  if (Object.keys(obj).length !== 2) return undefined;
+  if (obj.$veil === 'set' && Array.isArray(obj.elements)) {
+    return { kind: 'set', items: obj.elements };
+  }
+  const kind = obj.$veil;
+  if ((kind !== 'map' && kind !== 'multiset') || !Array.isArray(obj.entries)) return undefined;
+  const valid = obj.entries.every(e => {
+    if (typeof e !== 'object' || e === null || Array.isArray(e)) return false;
+    const entry = e as Record<string, unknown>;
+    if (Object.keys(entry).length !== 2) return false;
+    if (kind === 'map') return Object.hasOwn(entry, 'key') && Object.hasOwn(entry, 'value');
+    return Object.hasOwn(entry, 'element') && typeof entry.count === 'number' &&
+      Number.isInteger(entry.count) && entry.count >= 0;
+  });
+  return valid ? { kind, items: obj.entries } : undefined;
+}
+
+function formatContainerEntry(kind: LogicalContainer['kind'], item: unknown): string {
+  if (kind === 'set') return formatValue(item);
+  const entry = item as Record<string, unknown>;
+  return kind === 'map'
+    ? `${formatValue(entry.key)} ↦ ${formatValue(entry.value)}`
+    : `${formatValue(entry.element)} × ${formatValue(entry.count)}`;
+}
+
+/** The text of a value, as Veil's text output shows it: logical containers in set notation, arrays
+ *  in brackets, objects as `{k: v}`, strings verbatim. */
+export function formatValue(v: unknown): string {
+  const container = logicalContainer(v);
+  if (container) {
+    return `{${container.items.map(e => formatContainerEntry(container.kind, e)).join(', ')}}`;
+  }
+  if (Array.isArray(v)) return `[${v.map(formatValue).join(', ')}]`;
+  if (typeof v === 'object' && v !== null) {
+    return `{${Object.entries(v).map(([k, x]) => `${k}: ${formatValue(x)}`).join(', ')}}`;
+  }
+  if (typeof v === 'string') return v;
+  return JSON.stringify(v) ?? String(v);
+}
 
 // ========== Diff Helpers ==========
 
-/** Deep equality comparison for values */
+/** Deep equality comparison for values; logical containers compare regardless of entry order */
 export function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a == null || b == null) return a === b;
+
+  const ac = logicalContainer(a);
+  const bc = logicalContainer(b);
+  if (ac || bc) {
+    if (!ac || !bc || ac.kind !== bc.kind || ac.items.length !== bc.items.length) return false;
+    const matched = new Set<number>();
+    return ac.items.every(item => {
+      const i = bc.items.findIndex((other, idx) => !matched.has(idx) && deepEqual(item, other));
+      if (i < 0) return false;
+      matched.add(i);
+      return true;
+    });
+  }
 
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) return false;
@@ -128,6 +193,33 @@ export function computeMergedView(prev: unknown[], curr: unknown[]): MergedEleme
   return result;
 }
 
+/** Match the entries of two unordered containers by member, key or element; a changed map value or
+ *  multiplicity keeps both the old and the new entry. */
+function computeContainerMergedView(prev: LogicalContainer, curr: LogicalContainer): MergedElement[] {
+  const result: MergedElement[] = [];
+  const matched = new Set<number>();
+  const key = (e: unknown): unknown => curr.kind === 'set' ? e :
+    (e as Record<string, unknown>)[curr.kind === 'map' ? 'key' : 'element'];
+  for (const element of curr.items) {
+    const i = prev.items.findIndex((e, idx) => !matched.has(idx) && deepEqual(key(e), key(element)));
+    if (i < 0) {
+      result.push({ element, status: 'added' });
+    } else {
+      matched.add(i);
+      if (deepEqual(prev.items[i], element)) {
+        result.push({ element, status: 'unchanged' });
+      } else {
+        result.push({ element: prev.items[i], status: 'removed' });
+        result.push({ element, status: 'added' });
+      }
+    }
+  }
+  prev.items.forEach((element, i) => {
+    if (!matched.has(i)) result.push({ element, status: 'removed' });
+  });
+  return result;
+}
+
 /** Compute change information for each field between prev and curr state */
 export function diffChanges(
   prev: Record<string, unknown> | undefined | null,
@@ -153,7 +245,11 @@ export function diffChanges(
       continue;
     }
 
-    if (Array.isArray(prevVal) && Array.isArray(currVal)) {
+    const prevContainer = logicalContainer(prevVal);
+    const currContainer = logicalContainer(currVal);
+    if (prevContainer && currContainer && prevContainer.kind === currContainer.kind) {
+      changes.set(k, { type: 'array', mergedView: computeContainerMergedView(prevContainer, currContainer) });
+    } else if (Array.isArray(prevVal) && Array.isArray(currVal)) {
       // Compute merged view with elements in original order
       const mergedView = computeMergedView(prevVal, currVal);
       // Only mark as changed if there are actual additions or removals
@@ -212,26 +308,7 @@ export const CopyButton: React.FC<{ text: string; className?: string }> = ({ tex
   );
 };
 
-// ========== String Helpers ==========
-
-/** Remove namespace prefixes like A.B.C, keeping only the last segment */
-export function dequalify(s: string): string {
-  const parts = s.trim().split(/\s+/);
-
-  const cleaned = parts
-    .map((tok) => {
-      let t = tok.replace(/^[()\[\]{}:,]+|[()\[\]{}:,]+$/g, "");
-      if (/^-?\d+(?:\.\d+)?$/.test(t)) return t;
-      if (t.includes(".")) {
-        const segs = t.split(".");
-        t = segs[segs.length - 1] || t;
-      }
-      return t;
-    })
-    .filter((t) => t.length > 0);
-
-  return cleaned.join(" ");
-}
+// ========== Label Helpers ==========
 
 /** Format an action/label object like {"recv": {"sender": 2}} into "recv(sender = 2)" */
 export function formatActionLabel(label: unknown): string {
@@ -254,11 +331,6 @@ export function formatActionLabel(label: unknown): string {
         const argObj = args as Record<string, unknown>;
         const argKeys = Object.keys(argObj);
         if (argKeys.length > 0) {
-          const formatValue = (v: unknown): string => {
-            if (typeof v === "string") return v;
-            if (typeof v === "number" || typeof v === "boolean") return String(v);
-            return JSON.stringify(v);
-          };
           const argStr = argKeys
             .map((k) => `${k} = ${formatValue(argObj[k])}`)
             .join(", ");
@@ -270,24 +342,14 @@ export function formatActionLabel(label: unknown): string {
     }
   }
 
-  return JSON.stringify(label);
+  return formatValue(label);
 }
 
 // ========== Value Rendering ==========
 
-/** Render any value inline (arrays as [a, b, ...]) */
+/** Render any value inline, as `formatValue` writes it */
 export function renderValueInline(x: unknown): React.ReactNode {
-  if (Array.isArray(x)) {
-    const elements = x.map((el, i) => <span key={i}>{renderValueInline(el)}</span>);
-    return <code>[{joinNodes(elements)}]</code>;
-  }
-  if (typeof x === 'object' && x !== null) {
-    return <code>{JSON.stringify(x)}</code>;
-  }
-  if (typeof x === 'string') {
-    return <code>{dequalify(x)}</code>;
-  }
-  return <code>{String(x)}</code>;
+  return <code>{formatValue(x)}</code>;
 }
 
 /** Render inline array using merged view for proper ordering */
@@ -339,8 +401,39 @@ export function renderRowFromInnerArray(e: unknown, status?: 'unchanged' | 'adde
   return renderValue(e);
 }
 
+/** A logical container whose text fits in this many characters is shown inline; a longer one gets
+ *  one entry per row. */
+const INLINE_CONTAINER_LIMIT = 80;
+
+function statusClass(status: MergedElement['status']): string | undefined {
+  return status === 'added' ? 'changed-element' : status === 'removed' ? 'removed-element' : undefined;
+}
+
 /** Render a value with optional diff highlighting via mergedView */
 export function renderValue(v: unknown, mergedView?: MergedElement[]): React.ReactNode {
+  const container = logicalContainer(v);
+  if (container) {
+    // Each entry is formatted once: the layout depends on the current value only, and a diff
+    // formats only the removed entries, which the current value does not have.
+    const texts = new Map<unknown, string>();
+    container.items.forEach(e => texts.set(e, formatContainerEntry(container.kind, e)));
+    const textOf = (e: unknown) => texts.get(e) ?? formatContainerEntry(container.kind, e);
+    const items = mergedView ?? container.items.map(element => ({ element, status: 'unchanged' as const }));
+    if (`{${[...texts.values()].join(', ')}}`.length <= INLINE_CONTAINER_LIMIT) {
+      const parts = items.map((item, i) => (
+        <span key={i} className={statusClass(item.status)}>{textOf(item.element)}</span>
+      ));
+      return <code>{'{'}{joinNodes(parts)}{'}'}</code>;
+    }
+    return (
+      <ul className="list">
+        {items.map((item, i) => (
+          <li key={i}><code className={statusClass(item.status)}>{textOf(item.element)}</code></li>
+        ))}
+      </ul>
+    );
+  }
+
   if (Array.isArray(v)) {
     if (v.length === 0 && (!mergedView || mergedView.length === 0)) {
       return <code>[]</code>;
@@ -376,15 +469,7 @@ export function renderValue(v: unknown, mergedView?: MergedElement[]): React.Rea
     return renderInlineArray(v);
   }
 
-  if (typeof v === 'object' && v !== null) {
-    return <code>{JSON.stringify(v)}</code>;
-  }
-
-  if (typeof v === 'string') {
-    return <code>{dequalify(v)}</code>;
-  }
-
-  return <code>{String(v)}</code>;
+  return renderValueInline(v);
 }
 
 // ========== Shared CSS ==========

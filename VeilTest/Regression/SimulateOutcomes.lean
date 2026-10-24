@@ -105,9 +105,9 @@ invariant true
 /--
 error: ❌ Violation: assertion_failure
   State 0 (via init):
-    pending = []
+    pending = {}
   State 1 (via send(n=0, next=0)):
-    pending = []
+    pending = {}
 Seed: 1
 -/
 #guard_msgs in

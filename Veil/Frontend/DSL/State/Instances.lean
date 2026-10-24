@@ -4,13 +4,12 @@ public import Std
 public import Veil.Frontend.DSL.State.Concrete
 public import Veil.Frontend.DSL.State.Data
 public import Veil.Util.List
+public import Veil.Util.ValueDisplay
 public import Std.Data.ExtTreeMap.Lemmas
 
 @[expose] public section
 namespace Veil
 open Lean Std
-
--- FIXME: Some instances here are already defined in `Std.Data.TreeSet.Basic`
 
 /-!
 `BEq` instances
@@ -18,6 +17,7 @@ open Lean Std
 We need `BEq` instance, as we sometimes hope to store them in `HashSet` or `HashMap`,
 e.g., debugging, when we hope to store the complete information of a state `σᵣ`.
 -/
+-- Unlike Std's instances, these compare stored keys using `BEq` rather than `Ord`.
 instance [Ord α] [BEq α]: BEq (Std.TreeSet α) where
   beq s1 s2 := s1.toArray == s2.toArray
 
@@ -34,7 +34,7 @@ instance : BEq (CanonicalFieldWrapper FieldDomain FieldCodomain) where
 We always need `Hashable` instance. When we run the model checker,
 we always store the hashable value of state representation `σᵣ` in `HashSet`.
 -/
-instance instHashableOfTreeSet [Hashable α] [BEq α] [Ord α]: Hashable (Std.TreeSet α) where
+instance instHashableOfTreeSet [Hashable α] [Ord α]: Hashable (Std.TreeSet α) where
   hash s := s.foldl (fun r a => mixHash r (hash a)) 7
 
 instance instHashableOfTreeMap [Ord α] [Hashable α] [Hashable β] : Hashable (Std.TreeMap α β) where
@@ -51,17 +51,10 @@ instance : Hashable (CanonicalFieldWrapper FieldDomain FieldCodomain) where
   hash _ := 13
 
 instance instHashableForFiniteFunction {α : Type u} {β : Type v}
-  [Veil.Enumeration α] [Hashable α] [Hashable β] : Hashable (α → β) where
+  [Veil.Enumeration α] [Hashable β] : Hashable (α → β) where
   hash f :=
     let l := Veil.Enumeration.allValues (α := α)
     l.foldl (fun r a => mixHash r (hash (f a))) 7
-
-instance [Hashable β] : Hashable (Veil.CanonicalField [] β) where
-  hash b := hash <| @id β b
-
-@[inline]
-instance [Veil.Enumeration α] [Hashable α] [Hashable <| Veil.CanonicalField αs β] : Hashable (Veil.CanonicalField (α :: αs) β) :=
-  instHashableForFiniteFunction
 
 deriving instance Hashable for Sum
 
@@ -91,7 +84,7 @@ instance instOrdExtTreeMap [Ord α] [Ord β] [Std.TransOrd α]
 `DecidableEq` instances
 -/
 
-instance instDecidableMemList [Ord α] [DecidableEq α] (a : α) (l : List α) : Decidable (List.Mem a l) := List.instDecidableMemOfLawfulBEq a l
+instance instDecidableMemList [DecidableEq α] (a : α) (l : List α) : Decidable (List.Mem a l) := List.instDecidableMemOfLawfulBEq a l
 
 instance instDecidableEqExtTreeSet [Ord α] [DecidableEq α] [Std.TransOrd α]
   : DecidableEq (Std.ExtTreeSet α) := fun t₁ t₂ =>
@@ -100,9 +93,6 @@ instance instDecidableEqExtTreeSet [Ord α] [DecidableEq α] [Std.TransOrd α]
 instance instDecidableEqExtTreeMap [Ord α] [DecidableEq α] [DecidableEq β]
   [Std.TransOrd α] : DecidableEq (Std.ExtTreeMap α β) := fun m1 m2 =>
   decidable_of_iff (m1.toList = m2.toList) Std.ExtTreeMap.toList_inj
-
-instance {α} {β : α → Type v} [inst : Enumeration α] [(a : α) → DecidableEq (β a)] : DecidableEq ((a : α) → β a) :=
-  fun f g => decidable_of_iff (∀ a ∈ inst.allValues, f a = g a) (by simp [funext_iff] ; grind)
 
 /-!
 `Std.TransOrd` and `Std.LawfulEqOrd` instances
@@ -195,11 +185,11 @@ instance instEnumerationForExtTreeSet [Ord α] [Veil.Enumeration α] [DecidableE
       rw [Std.ExtTreeSet.mem_ofList]
       grind
 
-instance instEnumerationForExtTreeMap [Ord α] [Ord β]
+instance instEnumerationForExtTreeMap [Ord α]
   [DecidableEq α] [DecidableEq β]
   [Veil.Enumeration α] [Veil.Enumeration β]
-  [Std.TransOrd α] [Std.TransOrd β]
-  [Std.LawfulEqOrd α] [Std.LawfulEqOrd β]
+  [Std.TransOrd α]
+  [Std.LawfulEqOrd α]
   : Veil.Enumeration (Std.ExtTreeMap α β) where
   allValues :=
     let pairs := Veil.List.dedup (Veil.Enumeration.allValues (α := α × β))
@@ -247,9 +237,6 @@ instance instEnumerationForExtTreeMap [Ord α] [Ord β]
 `Inhabited` instances
 -/
 
-instance instInhabitedForExtTreeSet [Inhabited α] [Ord α]: Inhabited (Std.ExtTreeSet α) :=
-  ⟨Std.ExtTreeSet.empty⟩
-
 instance [Inhabited β] : Inhabited (Veil.CanonicalField α β) where
   default := Veil.IteratedArrow.curry fun _ => default
 
@@ -273,41 +260,83 @@ instance (priority := low) reprOfUnrepresentable : Repr α where
 instance (priority := low) jsonOfRepr [Repr α] : ToJson α where
   toJson := fun a => Json.str (toString (repr a))
 
+-- NOTE: Mathlib has this but Veil's dependencies do not
+/-- A subtype displays as its value, e.g. a quorum as the set it is. -/
+instance [ToJson α] {P : α → Prop} : ToJson (Subtype P) where
+  toJson x := toJson x.val
+
+/-! The concrete field representations below display their logical contents (the entries of the
+map, the members of the set), as the finite functions they represent do, not their storage. -/
+
+def ArrayAsFinmap.entries [inst : FinEncodable α] (m : ArrayAsFinmap α β) : Array (α × β) :=
+  Array.ofFn fun i => (inst.equiv.symm i, m.val[i.val]'(m.property ▸ i.isLt))
+
+def ArrayAsFinset.members [inst : FinEncodable α] (s : ArrayAsFinset α) : Array α :=
+  Fin.foldl inst.card (init := #[]) fun out i =>
+    if s.val[i.val]'(s.property ▸ i.isLt) then out.push (inst.equiv.symm i) else out
+
+def BitVecAsFinmap.entries [inst : FinEncodable α] [FinEncodable β] [Inhabited β]
+    (m : BitVecAsFinmap α β) : Array (α × β) :=
+  Array.ofFn fun i =>
+    let k := inst.equiv.symm i
+    (k, FinmapLike.get m k)
+
+instance [FinEncodable α] [Repr α] [Repr β] : Repr (ArrayAsFinmap α β) where
+  reprPrec m _ := ValueDisplay.mapFormat m.entries.toList
+
+instance [FinEncodable α] [ToJson α] [ToJson β] : ToJson (ArrayAsFinmap α β) where
+  toJson m := ValueDisplay.mapJson m.entries
+
+instance [FinEncodable α] [Repr α] : Repr (ArrayAsFinset α) where
+  reprPrec s _ := ValueDisplay.setFormat s.members.toList
+
+instance [FinEncodable α] [ToJson α] : ToJson (ArrayAsFinset α) where
+  toJson s := ValueDisplay.setJson s.members
+
+instance [FinEncodable α] [FinEncodable β] [Inhabited β] [Repr α] [Repr β] :
+    Repr (BitVecAsFinmap α β) where
+  reprPrec m _ := ValueDisplay.mapFormat m.entries.toList
+
+instance [FinEncodable α] [FinEncodable β] [Inhabited β] [ToJson α] [ToJson β] :
+    ToJson (BitVecAsFinmap α β) where
+  toJson m := ValueDisplay.mapJson m.entries
+
 /-- ToJson for curried finite functions: uncurry and use the product instance. -/
 instance (priority := high) finFunctionToJsonCurry (α₁ : Type u) (α₂ : Type v) (β : Type w)
     [ToJson α₁] [Enumeration α₁] [ToJson α₂] [Enumeration α₂] [ToJson β]
     [inst : ToJson (α₁ × α₂ → β)] : ToJson (α₁ → α₂ → β) where
   toJson := fun f => inst.toJson (fun (x, y) => f x y)
 
-/-- ToJson for finite functions: enumerate all input/output pairs as flat tuples.
-    For a function `(a, b) -> c`, produces `[[a, b, c], ...]` rather than `[[[a, b], c], ...]`. -/
+/-- ToJson for finite functions: the map of all input/output pairs. A function of several arguments
+is uncurried by `finFunctionToJsonCurry`, so its keys are tuples. -/
 instance (priority := low) finFunctionToJson (α : Type u) (β : Type v)
     [ToJson α] [Enumeration α] [ToJson β] : ToJson (α → β) where
   toJson := fun f =>
-    let l : List α := Enumeration.allValues
-    Json.arr <| l.toArray.map (fun a =>
-      let keyJson := toJson a
-      let valJson := toJson (f a)
-      match keyJson with
-      | Json.arr elems => Json.arr (elems.push valJson)
-      | _ => Json.arr #[keyJson, valJson])
+    ValueDisplay.mapJson ((Enumeration.allValues (α := α)).toArray.map fun a => (a, f a))
 
-/-- ToJson for boolean predicates: show only the elements where the predicate is true. -/
+/-- ToJson for boolean predicates: the set of the elements where the predicate is true. -/
 instance (priority := high) essentiallyFinSetToJson (α : Type u)
     [ToJson α] [Enumeration α] : ToJson (α → Bool) where
-  toJson := fun f => toJson (Enumeration.allValues (α := α) |>.filter f)
+  toJson := fun f => ValueDisplay.setJson <|
+    (Enumeration.allValues (α := α)).foldl (fun out a => if f a then out.push a else out) #[]
 
 instance jsonOfTreeSet [Ord α] [ToJson α] : ToJson (Std.TreeSet α) where
-  toJson s := Json.arr <| s.toArray.map toJson
+  toJson s := ValueDisplay.setJson s.toArray
 
 instance jsonOfTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Std.TreeMap α β) where
-  toJson m := Json.arr <| m.toArray.map (fun (k, v) => Json.arr #[toJson k, toJson v])
+  toJson m := ValueDisplay.mapJson m.toArray
 
 instance jsonOfExtTreeSet [Ord α] [ToJson α] [Std.TransOrd α] : ToJson (Std.ExtTreeSet α) where
-  toJson s := Json.arr <| s.toList.toArray.map toJson
+  toJson s := ValueDisplay.setJson s.toArray
 
 instance jsonOfExtTreeMap [Ord α] [ToJson α] [ToJson β] [Std.TransOrd α] : ToJson (Std.ExtTreeMap α β) where
-  toJson m := Json.arr <| m.toList.toArray.map (fun (k, v) => Json.arr #[toJson k, toJson v])
+  toJson m := ValueDisplay.mapJson m.toArray
+
+instance jsonOfHashSet [BEq α] [Hashable α] [ToJson α] : ToJson (Std.HashSet α) where
+  toJson s := ValueDisplay.setJson s.toArray
+
+instance jsonOfHashMap [BEq α] [Hashable α] [ToJson α] [ToJson β] : ToJson (Std.HashMap α β) where
+  toJson m := ValueDisplay.mapJson m.toArray
 
 
 end Veil
