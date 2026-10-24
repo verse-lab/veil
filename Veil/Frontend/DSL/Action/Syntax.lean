@@ -76,7 +76,7 @@ type `ty`, which is optional. If no type is provided, it is inferred.
 
 We recommend giving type annotations when possible, e.g. `pick Nat`,
 as type inference failures might lead to confusing error messages. -/
-syntax (name := pickExpression) kw_pick (lineEq term) ? : term
+syntax (name := pickExpression) withPosition(kw_pick (lineEq term)?) : term
 
 /-- Binds a variable to a value that satisfies a predicate. -/
 scoped syntax (name := letPick) "let" term (":" term)? ":|" term : doElem
