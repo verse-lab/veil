@@ -25,10 +25,10 @@ private def clauseList (clauses : Array String) : Html :=
         </code>
       </li>
 
-private def searchDetails (s : Snapshot) : Html :=
+private def frameDetails (s : Snapshot) : Html :=
   -- Do not control `open`: React retains the user's expanded state across refreshes.
-  <details key="search-details" style={json% {"marginTop": "0.75em"}}>
-    <summary style={json% {"cursor": "pointer"}}>{.text "Frames and recent activity"}</summary>
+  <details key="frames" style={json% {"marginTop": "0.75em"}}>
+    <summary style={json% {"cursor": "pointer"}}>{.text "Frames"}</summary>
     <div style={json% {"maxHeight": "32em", "overflowY": "auto", "paddingRight": "0.5em"}}>
       <p>{.text "F0 represents the initial states. Every frame below also includes the checked property; the lists show its strengthening clauses."}</p>
       {if s.frameClauses.isEmpty then <p>{.text "No frames opened yet."}</p>
@@ -37,7 +37,13 @@ private def searchDetails (s : Snapshot) : Html :=
            <strong>{.text s!"F{i + 1} · {clauses.size} clause(s)"}</strong>
            {clauseList clauses}
          </div>}
-      <strong>{.text "Recent activity"}</strong>
+    </div>
+  </details>
+
+private def activityDetails (s : Snapshot) : Html :=
+  <details key="recent-activity" style={json% {"marginTop": "0.75em"}}>
+    <summary style={json% {"cursor": "pointer"}}>{.text "Recent activity"}</summary>
+    <div style={json% {"maxHeight": "32em", "overflowY": "auto", "paddingRight": "0.5em"}}>
       <p>{.text "Latest first, up to 50 events."}</p>
       {if s.recentEvents.isEmpty then <p>{.text "No search events yet."}</p>
        else .element "ul" #[("style", json% {"paddingLeft": "1.5em"})] <|
@@ -74,7 +80,8 @@ def render (s : Snapshot) (now : Nat) : Html := Id.run do
     <table>{.element "tbody" #[] rows}</table>
     {if s.lastEvent.isEmpty then .text "" else <p>{.text s.lastEvent}</p>}
     {if s.result.isEmpty then .text "" else <p>{.text s.result}</p>}
-    {searchDetails s}
+    {frameDetails s}
+    {activityDetails s}
   </div>
 
 /-- Drive one run's display until elaboration finishes or is cancelled. -/
