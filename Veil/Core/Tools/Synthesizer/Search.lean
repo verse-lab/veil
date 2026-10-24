@@ -3,6 +3,7 @@ module
 public meta import Veil
 public meta import Veil.Core.Tools.Synthesizer.Model
 public meta import Veil.Core.Tools.Synthesizer.Solver
+public meta import Veil.Core.Tools.Synthesizer.Progress
 
 /-!
 # The search monad
@@ -64,6 +65,8 @@ structure Config where
   verbose : Bool := false
   /-- Append one JSON object per event to this file. -/
   logFile : Option System.FilePath := none
+  /-- Observational progress for this run, independent of the event log. -/
+  progress? : Option Progress.Ref := none
 
 /-- The counts of a run. -/
 structure RunStats where
@@ -159,13 +162,23 @@ def appendEvent (path : System.FilePath) (j : Json) : IO Unit := do
 
 namespace SearchM
 
+/-- Publish a snapshot of the frames without exposing mutable search state to the UI. -/
+def reportProgress : SearchM Unit := do
+  let sizes := (← get).frames.map (·.size)
+  Progress.update (← read).cfg.progress? fun p => { p with frameSizes := sizes }
+
 /-- Record a progress line, shown as a message under `verbose`. -/
 def say (msg : String) : SearchM Unit := do
   modify fun s ↦ { s with log := s.log.push msg }
+  Progress.update (← read).cfg.progress? fun p => { p with lastEvent := msg }
+  reportProgress
   if (← read).cfg.verbose then logInfo msg
 
 /-- Append an event to the log file, if there is one. A failed write is reported once. -/
 def event (kind : String) (fields : List (String × Json)) : SearchM Unit := do
+  Progress.update (← read).cfg.progress? fun p => { p with
+    candidates := p.candidates + if kind == "candidate" then 1 else 0
+    admitted := p.admitted + if kind == "admitted" then 1 else 0 }
   let some path := (← read).cfg.logFile | return
   try appendEvent path (Json.mkObj (("event", kind) :: fields))
   catch e =>
@@ -216,18 +229,27 @@ def runCounted (stmt : Term) (steps coreLits : Nat) (wantModel : Bool) :
     SearchM (QueryResult × Option (Array Nat)) := do
   unless ← spend do return (.unknown s!"fuel exhausted ({(← read).cfg.fuel} solver calls)", none)
   let t0 ← IO.monoMsNow
-  let r ← runStatement (← read).qctx.mod stmt steps coreLits wantModel
-  let dt := (← IO.monoMsNow) - t0
-  modify fun s ↦ { s with
-    stats.solverCalls := s.stats.solverCalls + 1, stats.solverMs := s.stats.solverMs + dt
-    anyTrusted := s.anyTrusted || r.1.isTrusted }
-  return r
+  let progress? := (← read).cfg.progress?
+  reportProgress
+  Progress.beginQuery progress?
+  try
+    let r ← runStatement (← read).qctx.mod stmt steps coreLits wantModel
+    let dt := (← IO.monoMsNow) - t0
+    modify fun s ↦ { s with
+      stats.solverCalls := s.stats.solverCalls + 1, stats.solverMs := s.stats.solverMs + dt
+      anyTrusted := s.anyTrusted || r.1.isTrusted }
+    return r
+  finally
+    Progress.endQuery progress?
 
 /-- Ask query `q`, with the unsat core of its `coreLits` trailing diagram literals. With `retry`,
 an answer the solver gave up on is asked once more with twice `veil.smt.timeout`. -/
 def askCore (q : Query) (coreLits : Nat := 0) (wantModel : Bool := true) (retry : Bool := false) :
     SearchM (QueryResult × Option (Array Nat)) := do
   let qctx := (← read).qctx
+  Progress.activity (← read).cfg.progress? <|
+    if q.steps == 0 then "Checking a state query"
+    else s!"Checking a query over {q.steps} transition(s)"
   let stmt ← qctx.statement (← if q.steps > 0 then qctx.normalizedTr? else pure none) q
   let r ← runCounted stmt q.steps coreLits wantModel
   unless retry && r.1.solverGaveUp do return r
