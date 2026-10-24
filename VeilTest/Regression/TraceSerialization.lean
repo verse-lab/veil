@@ -136,15 +136,15 @@ error: ❌ Violation: safety_failure (violates: diagnostic)
   Theory:
     oneClient = 0
   State 0 (via init):
-    bag = {2 × 2}
     chan = {TraceSerialization.Node.cloud ↦ [],
             TraceSerialization.Node.client 0 ↦ [TraceSerialization.Msg.response 7 2]}
-    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
-    history = {0 ↦ [0, 7]}
     inbox = {0 ↦ some (TraceSerialization.Msg.response 7 2)}
     message = some (TraceSerialization.Msg.response 7 2)
     pc = {TraceSerialization.Node.cloud ↦ "D", TraceSerialization.Node.client 0 ↦ "CW"}
+    history = {0 ↦ [0, 7]}
+    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
     pending = {(TraceSerialization.Node.cloud, TraceSerialization.Node.client 0)}
+    bag = {2 × 2}
 -/
 #guard_msgs in
 #model_check interpreted { client := Fin 1 } { oneClient := 0 }
@@ -154,15 +154,15 @@ error: ❌ Violation: safety_failure (violates: diagnostic)
   Theory:
     oneClient = 0
   State 0 (via init):
-    bag = {2 × 2}
     chan = {TraceSerialization.Node.cloud ↦ [],
             TraceSerialization.Node.client 0 ↦ [TraceSerialization.Msg.response 7 2]}
-    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
-    history = {0 ↦ [0, 7]}
     inbox = {0 ↦ some (TraceSerialization.Msg.response 7 2)}
     message = some (TraceSerialization.Msg.response 7 2)
     pc = {TraceSerialization.Node.cloud ↦ "D", TraceSerialization.Node.client 0 ↦ "CW"}
+    history = {0 ↦ [0, 7]}
+    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
     pending = {(TraceSerialization.Node.cloud, TraceSerialization.Node.client 0)}
+    bag = {2 × 2}
 -/
 #guard_msgs in
 #model_check compiled { client := Fin 1 } { oneClient := 0 }
@@ -172,15 +172,15 @@ error: ❌ Violation: safety_failure (violates: diagnostic)
   Theory:
     oneClient = 0
   State 0 (via init):
-    bag = {2 × 2}
     chan = {TraceSerialization.Node.cloud ↦ [],
             TraceSerialization.Node.client 0 ↦ [TraceSerialization.Msg.response 7 2]}
-    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
-    history = {0 ↦ [0, 7]}
     inbox = {0 ↦ some (TraceSerialization.Msg.response 7 2)}
     message = some (TraceSerialization.Msg.response 7 2)
     pc = {TraceSerialization.Node.cloud ↦ "D", TraceSerialization.Node.client 0 ↦ "CW"}
+    history = {0 ↦ [0, 7]}
+    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
     pending = {(TraceSerialization.Node.cloud, TraceSerialization.Node.client 0)}
+    bag = {2 × 2}
 Seed: 1
 -/
 #guard_msgs in
@@ -192,15 +192,15 @@ error: ❌ Violation: safety_failure (violates: diagnostic)
   Theory:
     oneClient = 0
   State 0 (via init):
-    bag = {2 × 2}
     chan = {TraceSerialization.Node.cloud ↦ [],
             TraceSerialization.Node.client 0 ↦ [TraceSerialization.Msg.response 7 2]}
-    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
-    history = {0 ↦ [0, 7]}
     inbox = {0 ↦ some (TraceSerialization.Msg.response 7 2)}
     message = some (TraceSerialization.Msg.response 7 2)
     pc = {TraceSerialization.Node.cloud ↦ "D", TraceSerialization.Node.client 0 ↦ "CW"}
+    history = {0 ↦ [0, 7]}
+    count = {(TraceSerialization.Node.cloud, 0) ↦ 7, (TraceSerialization.Node.client 0, 0) ↦ 7}
     pending = {(TraceSerialization.Node.cloud, TraceSerialization.Node.client 0)}
+    bag = {2 × 2}
 Seed: 1
 -/
 #guard_msgs in
@@ -243,3 +243,68 @@ sat trace {
 }
 
 end SatTraceInstantiation
+
+/-! Fields and action arguments keep their declaration order, here the reverse of alphabetical
+order, in a trace of the model checker and in a counterexample to induction. -/
+veil module DeclarationOrder
+
+type node
+individual zeta : Bool
+individual alpha : Bool
+
+after_init {
+  zeta := false
+  alpha := false
+}
+
+action step (z a : node) {
+  require z = a
+  zeta := true
+}
+
+invariant [never] ¬ zeta
+
+#gen_spec
+
+/--
+error: ❌ Violation: safety_failure (violates: never)
+  State 0 (via init):
+    zeta = false
+    alpha = false
+  State 1 (via step(z=0, a=0)):
+    zeta = true
+    alpha = false
+-/
+#guard_msgs in
+#model_check interpreted { node := Fin 1 } {}
+
+/--
+error: Initialization must establish the invariant:
+  doesNotThrow ... ✅
+  never ... ✅
+The following set of actions must preserve the invariant and successfully terminate:
+  step
+    doesNotThrow ... ✅
+    never ... ❌
+      Counterexample (WP):
+        Theory:
+
+        Pre-state:
+          zeta = false
+          alpha = false
+        Action: step(z=0, a=0)
+      Counterexample (TR):
+        Theory:
+
+        Pre-state:
+          zeta = false
+          alpha = true
+        Action: step(z=0, a=0)
+        Post-state:
+          zeta = true
+          alpha = true
+-/
+#guard_msgs in
+#check_invariants
+
+end DeclarationOrder

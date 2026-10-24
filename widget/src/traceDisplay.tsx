@@ -5,8 +5,12 @@ import {
   ChangeInfo,
   diffChanges,
   CopyButton,
+  fieldsObject,
   formatActionLabel,
+  formatValue,
   logicalContainer,
+  logicalCtor,
+  logicalRecord,
   renderValue,
   sharedDiffCSS,
   sharedListCSS,
@@ -57,10 +61,10 @@ interface TerminationReason {
 }
 
 interface TraceData {
-  theory: Record<string, unknown>;
+  theory: unknown; // A record; `fieldsObject` reads its fields in declaration order
   states: Array<{
     index: number;
-    fields: Record<string, unknown>;
+    fields: unknown; // A record, as `theory`
     transition: unknown;
     failing?: boolean;
     choices?: string[];
@@ -110,13 +114,15 @@ interface ModelCheckerViewProps {
 
 /* ===================== Render ===================== */
 
+/** Only structured values fold: tagged containers, records and constructors with arguments, and
+ *  sequences (arrays). A leaf (a number, a boolean, the `Repr` of a value as a string) does not. */
 function isCollapsibleValue(v: unknown): boolean {
-  if (Array.isArray(v)) return true;
-  if (typeof v === "object" && v !== null) return true;
-  if (typeof v === "string" && (v.includes("\n") || v.length > 60)) return true;
-  return false;
+  return logicalContainer(v) !== undefined || logicalRecord(v) !== undefined ||
+    (logicalCtor(v)?.args.length ?? 0) > 0 || Array.isArray(v);
 }
 
+/** What a folded value shows, from its tag alone: the kind of a container or a sequence and its
+ *  size, or the declared name of a record or constructor. */
 function previewValue(v: unknown): string {
   const container = logicalContainer(v);
   if (container) {
@@ -126,21 +132,15 @@ function previewValue(v: unknown): string {
       case 'multiset': return `Multiset(${container.items.length} distinct)`;
     }
   }
-  if (Array.isArray(v)) {
-    if (v.length > 0 && Array.isArray(v[0])) {
-      return `Array(${v.length}) of tuples`;
-    }
-    return `Array(${v.length})`;
+  if (Array.isArray(v)) return `Sequence(${v.length})`;
+  const record = logicalRecord(v);
+  if (record) {
+    const count = record.fields.length;
+    return `${record.type}(${count} ${count === 1 ? 'field' : 'fields'})`;
   }
-  if (typeof v === "object" && v !== null) {
-    const count = Object.keys(v).length;
-    return `Object(${count} ${count === 1 ? 'field' : 'fields'})`;
-  }
-  if (typeof v === "string") {
-    const s = v.replace(/\s+/g, " ");
-    return s.length > 80 ? s.slice(0, 80) + "…" : s;
-  }
-  return String(v);
+  const ctor = logicalCtor(v);
+  if (ctor) return `${ctor.type}.${ctor.name}${ctor.args.length > 0 ? '(…)' : ''}`;
+  return formatValue(v);
 }
 
 const KVRow: React.FC<{
@@ -569,7 +569,7 @@ function traceDataToStates(traceData: TraceData): ParsedState[] {
   return traceData.states.map((st) => ({
     index: st.index,
     tag: formatActionLabel(st.transition),
-    fields: st.fields,
+    fields: fieldsObject(st.fields),
     failing: st.failing,
     choices: st.choices,
   }));
@@ -595,7 +595,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     if (!traceData?.states) return [];
     const names = new Set<string>();
     for (const state of traceData.states) {
-      for (const key of Object.keys(state.fields)) {
+      for (const key of Object.keys(fieldsObject(state.fields))) {
         names.add(key);
       }
     }
@@ -960,7 +960,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     if (!traceData?.theory) {
       return { combinedTheory: {}, remainingExtraVals: {} };
     }
-    return mergeTheoryWithExtras(traceData.theory, traceData.extraVals);
+    return mergeTheoryWithExtras(fieldsObject(traceData.theory), traceData.extraVals);
   }, [traceData]);
 
   const instantiation = traceData?.instantiation;

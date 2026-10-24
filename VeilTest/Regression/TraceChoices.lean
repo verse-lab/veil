@@ -104,25 +104,25 @@ safety ¬ (phase = 3 ∧ enabled ∧ ¬ approved ∧ score = 7)
 error: ❌ Violation: safety_failure (violates: safety_0)
   State 0 (via init):
     choices: true
-    approved = true
     enabled = true
+    approved = true
     phase = 0
     score = 0
   State 1 (via arm):
-    approved = true
     enabled = true
+    approved = true
     phase = 1
     score = 0
   State 2 (via step):
     choices: 2, true, 2, false, 1
-    approved = false
     enabled = true
+    approved = false
     phase = 2
     score = 5
   State 3 (via finish):
     choices: true, 2
-    approved = false
     enabled = true
+    approved = false
     phase = 3
     score = 7
 -/
@@ -133,25 +133,25 @@ error: ❌ Violation: safety_failure (violates: safety_0)
 error: ❌ Violation: safety_failure (violates: safety_0)
   State 0 (via init):
     choices: true
-    approved = true
     enabled = true
+    approved = true
     phase = 0
     score = 0
   State 1 (via arm):
-    approved = true
     enabled = true
+    approved = true
     phase = 1
     score = 0
   State 2 (via step):
     choices: 2, true, 2, false, 1
-    approved = false
     enabled = true
+    approved = false
     phase = 2
     score = 5
   State 3 (via finish):
     choices: true, 2
-    approved = false
     enabled = true
+    approved = false
     phase = 3
     score = 7
 -/

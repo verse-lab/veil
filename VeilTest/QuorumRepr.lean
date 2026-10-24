@@ -71,17 +71,17 @@ invariant [never_decided] ¬ decided
 /--
 error: ❌ Violation: safety_failure (violates: never_decided)
   State 0 (via init):
-    decided = false
     voted = {}
+    decided = false
   State 1 (via vote(a=0)):
-    decided = false
     voted = {0}
-  State 2 (via vote(a=1)):
     decided = false
+  State 2 (via vote(a=1)):
     voted = {0, 1}
+    decided = false
   State 3 (via decide(q={0, 1})):
-    decided = true
     voted = {0, 1}
+    decided = true
 -/
 #guard_msgs in
 #model_check interpreted { acceptor := Fin 3, quorum := Quorum (Fin 3) } {} (sequential := true)
@@ -90,17 +90,17 @@ error: ❌ Violation: safety_failure (violates: never_decided)
 /--
 error: ❌ Violation: safety_failure (violates: never_decided)
   State 0 (via init):
-    decided = false
     voted = {}
+    decided = false
   State 1 (via vote(a=0)):
-    decided = false
     voted = {0}
-  State 2 (via vote(a=1)):
     decided = false
+  State 2 (via vote(a=1)):
     voted = {0, 1}
+    decided = false
   State 3 (via decide(q={0, 1})):
-    decided = true
     voted = {0, 1}
+    decided = true
 -/
 #guard_msgs in
 #model_check compiled { acceptor := Fin 3, quorum := Quorum (Fin 3) } {} (sequential := true)

@@ -43,6 +43,11 @@ The text output distinguishes values to render from text to display:
 Both show strings as they are, but keeping their roles separate lets the rendering of values change
 without touching text. -/
 
+-- NOTE: The following code mostly depends on an implicit contract about the JSON structure
+-- of containers, including sets/maps/records etc. Somehow, there should be a way to
+-- automatically synthesize the encoders and decoders from the contract, so that we don't
+-- have to write `recordJson`/`record?`-like pairs manually.
+
 namespace Veil.ValueDisplay
 
 /-! ## `Repr`: logical contents as Lean text
@@ -90,6 +95,26 @@ def multisetJson (enc : α → Lean.Json) (entries : Array (α × Nat)) : Lean.J
   Lean.Json.mkObj [("$veil", .str "multiset"), ("entries", .arr <| entries.map fun (a, n) =>
     Lean.Json.mkObj [("element", enc a), ("count", Lean.toJson n)])]
 
+/-! ## JSON: records and constructors
+
+The states and theories of a module are records, and its transition labels are constructors, so
+that their fields and arguments keep their declaration order, which a JSON object would sort:
+- `{"$veil": "record", "type": "State", "fields": [{"name": "x", "value": v}, …]}`
+- `{"$veil": "ctor", "type": "Label", "name": "send", "args": [{"name": "n", "value": v}, …]}`,
+  where an argument without a name has only a `"value"`.
+
+`type` is the short name of the declaration. -/
+
+def recordJson (type : String) (fields : List (String × Lean.Json)) : Lean.Json :=
+  Lean.Json.mkObj [("$veil", .str "record"), ("type", .str type), ("fields", .arr <|
+    fields.toArray.map fun (n, v) => Lean.Json.mkObj [("name", .str n), ("value", v)])]
+
+def ctorJson (type name : String) (args : List (Option String × Lean.Json)) : Lean.Json :=
+  Lean.Json.mkObj [("$veil", .str "ctor"), ("type", .str type), ("name", .str name),
+    ("args", .arr <| args.toArray.map fun
+      | (some n, v) => Lean.Json.mkObj [("name", .str n), ("value", v)]
+      | (none, v) => Lean.Json.mkObj [("value", v)])]
+
 /-! ## Reading the tags back -/
 
 /-- The kind and the elements or entries of a tagged container. Only complete envelopes count:
@@ -114,6 +139,47 @@ def collection? (j : Lean.Json) : Option (String × Array Lean.Json) := do
       | _ => false
   return (kind, entries)
 
+/-- The type and the fields of a record, in declaration order. Only a complete envelope counts. -/
+def record? (j : Lean.Json) : Option (String × Array (String × Lean.Json)) := do
+  let .obj fs := j | none
+  guard (fs.size == 3)
+  let .str "record" ← (j.getObjVal? "$veil").toOption | none
+  let .str type ← (j.getObjVal? "type").toOption | none
+  let .arr entries ← (j.getObjVal? "fields").toOption | none
+  let fields ← entries.mapM fun e => do
+    let .obj efs := e | none
+    guard (efs.size == 2)
+    let .str n ← (e.getObjVal? "name").toOption | none
+    return (n, ← (e.getObjVal? "value").toOption)
+  return (type, fields)
+
+/-- The type, the name and the arguments of a constructor, in declaration order. Only a complete
+envelope counts. -/
+def ctor? (j : Lean.Json) : Option (String × String × Array (Option String × Lean.Json)) := do
+  let .obj fs := j | none
+  guard (fs.size == 4)
+  let .str "ctor" ← (j.getObjVal? "$veil").toOption | none
+  let .str type ← (j.getObjVal? "type").toOption | none
+  let .str name ← (j.getObjVal? "name").toOption | none
+  let .arr entries ← (j.getObjVal? "args").toOption | none
+  let args ← entries.mapM fun e => do
+    let .obj efs := e | none
+    let v ← (e.getObjVal? "value").toOption
+    if efs.size == 1 then return (none, v)
+    guard (efs.size == 2)
+    let .str n ← (e.getObjVal? "name").toOption | none
+    return (some n, v)
+  return (type, name, args)
+
+/-- The fields of a record in declaration order, or of any other object that is not a tagged value
+in key order. -/
+def fields? (j : Lean.Json) : Option (Array (String × Lean.Json)) :=
+  if let some (_, fields) := record? j then some fields
+  else if (collection? j).isSome || (ctor? j).isSome then none
+  else match j with
+    | .obj kvs => some kvs.toArray
+    | _ => none
+
 /-! ## Text output
 
 For `TraceDisplay` and `VerificationResults`. `renderJson`, `renderText`, `callFormat` and
@@ -130,11 +196,17 @@ def labeled (label : Std.Format) (sep : String) (value : Std.Format) : Std.Forma
   let lead := label ++ sep
   lead ++ Std.Format.nest (lead.pretty 100000).length value
 
+mutual
+
 /-- A JSON value as traces and counterexamples show it: tagged containers in set notation (`{a, b}`,
-`{k ↦ v}`, `{a × n}`), arrays in brackets, objects as `{k: v}` in key order, strings verbatim.
-Elements fill each line, and continue aligned after the opening bracket. -/
+`{k ↦ v}`, `{a × n}`), arrays in brackets, records as `{k: v}` in declaration order and other
+objects in key order, constructors as `name(k=v, …)`, strings verbatim. Elements fill each line,
+and continue aligned after the opening bracket. -/
 partial def renderJson (j : Lean.Json) : Std.Format :=
-  match collection? j with
+  if let some fields := fields? j then
+    seq "{" (fields.toList.map fun (k, v) => labeled (Std.Format.text k) ": " (renderJson v)) "}"
+  else if let some (_, name, args) := ctor? j then callFormat name args.toList
+  else match collection? j with
   | some (kind, entries) =>
     let entry (e : Lean.Json) : Std.Format :=
       if kind == "map" then labeled (renderJson (e.getObjValD "key")) " ↦ " (renderJson (e.getObjValD "value"))
@@ -144,12 +216,23 @@ partial def renderJson (j : Lean.Json) : Std.Format :=
     seq "{" (entries.toList.map entry) "}"
   | none => match j with
     | .arr elems => seq "[" (elems.toList.map renderJson) "]"
-    | .obj kvs => seq "{" (kvs.toList.map fun (k, v) => labeled (Std.Format.text k) ": " (renderJson v)) "}"
     | .str s => s
     | _ => j.compress
 where
   seq (l : String) (parts : List Std.Format) (r : String) : Std.Format :=
     Std.Format.bracketFill l (Std.Format.joinSep parts ("," ++ Std.Format.line)) r
+
+/-- `name(k=v, …)`, as action labels are shown, with `v` alone for an argument without a name; long
+arguments continue aligned after `name(`. -/
+partial def callFormat (name : String) (args : List (Option String × Lean.Json)) : Std.Format :=
+  if args.isEmpty then name else
+  labeled (Std.Format.text name) "(" (Std.Format.fill
+    (Std.Format.joinSep (args.map fun
+      | (some k, v) => labeled (Std.Format.text k) "=" (renderJson v)
+      | (none, v) => renderJson v)
+      ("," ++ Std.Format.line))) ++ ")"
+
+end
 
 /-- Text rather than a value: a string shows as it is, and anything else as a value. Result tags,
 property names, error messages, picks and type names are text. -/
@@ -157,18 +240,14 @@ def renderText (j : Lean.Json) : Std.Format := match j with
   | .str s => s
   | _ => renderJson j
 
-/-- `name(k=v, …)`, as action labels are shown; long arguments continue aligned after `name(`. -/
-def callFormat (name : String) (args : List (String × Lean.Json)) : Std.Format :=
-  if args.isEmpty then name else
-  labeled (Std.Format.text name) "(" (Std.Format.fill
-    (Std.Format.joinSep (args.map fun (k, v) => labeled (Std.Format.text k) "=" (renderJson v))
-      ("," ++ Std.Format.line))) ++ ")"
-
-/-- A transition label: an action name, or `{name: {param: value, …}}` as `name(param=value, …)`. -/
-def actionFormat (j : Lean.Json) : Std.Format := match j with
+/-- A transition label: a constructor as `name(param=value, …)`, or an action name. An object
+`{name: {param: value, …}}` reads as a constructor with its parameters in key order. -/
+def actionFormat (j : Lean.Json) : Std.Format :=
+  if let some (_, name, args) := ctor? j then callFormat name args.toList else
+  match j with
   | .str s => s
   | .obj kvs => match kvs.toList.find? (·.2 != .null) with
-    | some (name, .obj ps) => callFormat name ps.toList
+    | some (name, .obj ps) => callFormat name (ps.toList.map fun (k, v) => (some k, v))
     | some (name, _) => name
     | none => toString j
   | _ => toString j
@@ -183,13 +262,14 @@ def formatText (j : Lean.Json) : String := (renderText j).pretty textWidth
 def formatField (indent key : String) (j : Lean.Json) : String :=
   (labeled (Std.Format.text (indent ++ key)) " = " (renderJson j)).pretty textWidth
 
-/-- The fields of a JSON object, one `key = value` line each at `indent`, in key order. With
-`asText`, the values are text (e.g. type names) rather than values. -/
-def formatFields (j : Lean.Json) (indent : String) (asText := false) : String := match j with
-  | .obj kvs => "\n".intercalate (if asText
-    then kvs.toList.map fun (k, v) => s!"{indent}{k} = {formatText v}"
-    else kvs.toList.map fun (k, v) => formatField indent k v)
-  | _ => formatJson j
+/-- The fields of a record or another object (`fields?`), one `key = value` line each at `indent`.
+With `asText`, the values are text (e.g. type names) rather than values. -/
+def formatFields (j : Lean.Json) (indent : String) (asText := false) : String :=
+  match fields? j with
+  | some fields => "\n".intercalate (if asText
+    then fields.toList.map fun (k, v) => s!"{indent}{k} = {formatText v}"
+    else fields.toList.map fun (k, v) => formatField indent k v)
+  | none => formatJson j
 
 /-- `lead`, a transition label and `trail` on one line; long parameters continue aligned after the
 action's `(`. -/
@@ -210,8 +290,8 @@ A *structured* instance builds the JSON from the parts of a value and shows each
 - the instances below: numbers and booleans as such, `List` and `Array` as JSON arrays, and a
   subtype as its value;
 - the containers, as the tagged sets, maps and multisets above, each next to its `ToJson` instance;
-- the state, theory and labels of a module, as JSON objects of their fields or arguments, generated
-  by `veil_deriving Display` and `deriving Display`.
+- the state, theory and labels of a module, as the records and constructors above, with their fields
+  and arguments in declaration order, generated by `veil_deriving Display` and `deriving Display`.
 
 Every other type shows its `Repr` as a string (`displayOfRepr`). So, unlike with core `ToJson`,
 `some a` and `a` look different, a tuple does not look like a list, and a string is quoted. -/

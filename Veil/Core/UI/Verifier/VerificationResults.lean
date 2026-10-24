@@ -42,7 +42,7 @@ end ProofWidgets
 namespace Veil.Verifier
 
 open Lean Elab Command ProofWidgets RefreshComponent
-open Veil.ValueDisplay (formatJson formatText formatField formatFields formatAction)
+open Veil.ValueDisplay (fields? formatJson formatText formatField formatFields formatAction)
 
 inductive StreamingStatus where
   | running
@@ -181,32 +181,27 @@ private def enumTheoryEntry? (key : String) : Option (String × String) :=
   | _ => none
 
 /-- Format theory entries, grouping enum adapter assignments into compact enum declarations. -/
-private def formatTheoryObject (json : Json) (indent : String := "  ") : String :=
-  match json with
-  | .obj kvs =>
-    let entries := kvs.toArray
-    let enumEntries := (entries.filterMap fun (k, _) => enumTheoryEntry? k).toList
-    let regularLines := (entries.filter fun (k, _) => (enumTheoryEntry? k).isNone).toList.map
-      fun (k, v) => formatField indent k v
-    let enumLines := (enumEntries.map Prod.fst).eraseDups.map fun enumName =>
-      let ctors := (enumEntries.filterMap fun (name, ctor) =>
-        if name == enumName then some ctor else none).eraseDups
-      indent ++ "enum " ++ enumName ++ " = {" ++ ", ".intercalate ctors ++ "}"
-    "\n".intercalate (enumLines ++ regularLines)
-  | _ => formatJson json
+private def formatTheoryEntries (entries : Array (String × Json)) (indent : String := "  ") :
+    String :=
+  let enumEntries := (entries.filterMap fun (k, _) => enumTheoryEntry? k).toList
+  let regularLines := (entries.filter fun (k, _) => (enumTheoryEntry? k).isNone).toList.map
+    fun (k, v) => formatField indent k v
+  let enumLines := (enumEntries.map Prod.fst).eraseDups.map fun enumName =>
+    let ctors := (enumEntries.filterMap fun (name, ctor) =>
+      if name == enumName then some ctor else none).eraseDups
+    indent ++ "enum " ++ enumName ++ " = {" ++ ", ".intercalate ctors ++ "}"
+  "\n".intercalate (enumLines ++ regularLines)
 
-/-- Extract theory entries, including theory-related `extraVals` such as
+/-- The theory's fields in declaration order, followed by theory-related `extraVals` such as
 `tot.le` that the widget folds into the theory panel. -/
-private def extractTheoryEntries (json : Json) : Json := Id.run do
-  let theoryEntries := match json.getObjValD "theory" with
-    | .obj kvs => kvs.toArray
-    | _ => #[]
+private def extractTheoryEntries (json : Json) : Array (String × Json) :=
+  let theoryEntries := (fields? (json.getObjValD "theory")).getD #[]
   let extraTheoryEntries := match json.getObjValD "extraVals" with
     -- Fold any entries with dot names into the theory output, since
     -- that's how the widget treats them. These are typically instances.
     | .obj kvs => kvs.toArray.filter fun (k, _) => k.contains "."
     | _ => #[]
-  Json.mkObj (theoryEntries ++ extraTheoryEntries).toList
+  theoryEntries ++ extraTheoryEntries
 
 /-- Extract counterexample JSON from a VCResult if it has one. -/
 private def extractCounterexampleJson (vc : VCResult VCMetadata SmtResult) : Option Json := Id.run do
@@ -224,7 +219,7 @@ private def formatCounterexampleJson (json : Json) (style : String) : MessageDat
   let postState := json.getObjValD "postState"
   let label := json.getObjValD "label"
   let mut msg := m!"      Counterexample ({style}):\n"
-  msg := msg ++ m!"        Theory:\n{formatTheoryObject theory "          "}\n"
+  msg := msg ++ m!"        Theory:\n{formatTheoryEntries theory "          "}\n"
   msg := msg ++ m!"        Pre-state:\n{formatFields preState "          "}\n"
   msg := msg ++ m!"{formatAction "        Action: " label}\n"
   unless postState == .null do
