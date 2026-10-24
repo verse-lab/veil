@@ -6,7 +6,6 @@ import {
   diffChanges,
   CopyButton,
   formatActionLabel,
-  formatValue,
   logicalContainer,
   renderValue,
   sharedDiffCSS,
@@ -119,9 +118,13 @@ function isCollapsibleValue(v: unknown): boolean {
 }
 
 function previewValue(v: unknown): string {
-  if (logicalContainer(v)) {
-    const text = formatValue(v);
-    return text.length > 80 ? text.slice(0, 80) + "…" : text;
+  const container = logicalContainer(v);
+  if (container) {
+    switch (container.kind) {
+      case 'set': return `Set(${container.items.length})`;
+      case 'map': return `Map(${container.items.length})`;
+      case 'multiset': return `Multiset(${container.items.length} distinct)`;
+    }
   }
   if (Array.isArray(v)) {
     if (v.length > 0 && Array.isArray(v[0])) {
@@ -130,11 +133,8 @@ function previewValue(v: unknown): string {
     return `Array(${v.length})`;
   }
   if (typeof v === "object" && v !== null) {
-    try {
-      return formatValue(v).slice(0, 80) + "…";
-    } catch {
-      return "[object]";
-    }
+    const count = Object.keys(v).length;
+    return `Object(${count} ${count === 1 ? 'field' : 'fields'})`;
   }
   if (typeof v === "string") {
     const s = v.replace(/\s+/g, " ");

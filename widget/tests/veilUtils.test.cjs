@@ -88,10 +88,31 @@ for (const [value, expected] of [
   assert.equal(formatValue(value), expected);
   assert.equal(visibleText(renderValue(value)), expected);
   assert.equal(visibleText(renderValueInline(value)), expected);
-  if (logicalContainer(value)) assert.equal(previewValue(value), expected);
 }
 assert.equal(formatActionLabel({ send: { q: set(0, 1), m: map([2, multiset([3, 4])]) } }),
   'send(q = {0, 1}, m = {2 ↦ {3 × 4}})');
+
+// Collapsing a structured value hides its contents, even when the expanded text is short.
+// Multisets count distinct entries, not the sum of their multiplicities.
+for (const [value, expected] of [
+  [set(), 'Set(0)'],
+  [set(0, 1), 'Set(2)'],
+  [map(), 'Map(0)'],
+  [map([0, 'start'], [1, 'start']), 'Map(2)'],
+  [map([0, []], [1, [{ pc: 'cs', waker: 0 }]]), 'Map(2)'],
+  [map(['long', 'x'.repeat(100)]), 'Map(1)'],
+  [multiset(), 'Multiset(0 distinct)'],
+  [multiset([1, 3], [2, 5]), 'Multiset(2 distinct)'],
+  [{}, 'Object(0 fields)'],
+  [{ request: { targets: set(0, 1) } }, 'Object(1 field)'],
+  [{ pc: 'cs', waker: 0 }, 'Object(2 fields)'],
+  [[], 'Array(0)'],
+  [[0, 1], 'Array(2)'],
+  [[[0, 1]], 'Array(1) of tuples'],
+]) {
+  assert.equal(previewValue(value), expected);
+  assert.notEqual(previewValue(value), formatValue(value));
+}
 
 // Unknown or malformed envelopes stay ordinary objects.
 for (const [value, expected] of [
@@ -103,6 +124,7 @@ for (const [value, expected] of [
 ]) {
   assert.equal(logicalContainer(value), undefined);
   assert.equal(visibleText(renderValue(value)), expected);
+  assert.equal(previewValue(value), `Object(${Object.keys(value).length} fields)`);
 }
 
 // A container longer than 80 characters gets one entry per row; a short one stays inline.
