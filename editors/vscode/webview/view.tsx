@@ -278,7 +278,7 @@ function Result({ result }: { result: unknown }) {
 export function NoRun() {
   return <p className="muted">
     No model check has run yet. Run one with the “Run model checker” lens above
-    a <code>#model_check_build</code> command.
+    a <code>#model_check</code> command.
   </p>;
 }
 

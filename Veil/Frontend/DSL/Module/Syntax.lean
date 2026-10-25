@@ -327,6 +327,10 @@ scoped syntax (name := checkAction) "#check_action" ident : command
 type instantiation and theory. The optional `maxDepth` parameter limits how
 deep the breadth-first search will go before terminating.
 
+An identifier right after `#model_check` names a module instead:
+`#model_check X inst` builds the model checker of module `X`. To give the
+instantiation by a definition, write it in parentheses: `#model_check (inst) th`.
+
 ## Execution Modes
 
 **Default behavior** (`#model_check`):
@@ -402,17 +406,18 @@ syntax assumptionsHoldBy := "assumptions_hold_by " tacticSeq
 scoped syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
 
 /-- Build the model checker that `#model_check compiled` would run for module `X` with the given
-instantiation, theory and options, *without running it*. Use it outside module `X`, typically in a
-file importing the one that declares it: there `X` needs `#gen_executable` (or a `#model_check`,
-which generates the executable definitions too).
+instantiation, theory and options, *without running it*. `#model_check` takes this form whenever an
+identifier follows it. Typically use a file importing the one that declares `X`: there `X` needs
+`#gen_executable` (or a `#model_check`, which generates the executable definitions too).
 
 ```lean
-#model_check_build Paxos { acceptor := Fin 3, value := Fin 2, MsgSet := OrdList _ } {} (maxDepth := 10)
+#model_check Paxos { acceptor := Fin 3, value := Fin 2, MsgSet := OrdList _ } {} (maxDepth := 10)
 ```
 
 The instantiation and the theory are elaborated as by `#model_check` inside the module, and its
-holes are filled likewise. The options are those of `#model_check`, except `sequential` and
-`parallelCfg`, also within `config`: the binary takes the parallel configuration as arguments.
+holes are filled likewise. The theory can be left out, for `{}`, even when options follow. The
+options are those of `#model_check`, except `sequential` and `parallelCfg`, also within `config`:
+the binary takes the parallel configuration as arguments.
 
 The build is the one of `#model_check compiled`, in the background: it uses the same build folders
 in `.lake/model_checker_builds`, which are reused and cleaned up as for `#model_check`
@@ -420,7 +425,15 @@ in `.lake/model_checker_builds`, which are reused and cleaned up as for `#model_
 and reported as `Model checker built: <path>`. The copy is only a mirror of the binary that the
 cleanup of build folders leaves alone, so that it can be run later; it is never used for building.
 The `veil.modelChecker.maxStoredCheckers` most recent copies are kept. -/
-syntax (name := modelCheckBuild) "#model_check_build " ident ppSpace term:max (ppSpace term:max)? Parser.Tactic.optConfig : command
+/-
+NOTE: Both forms of `#model_check` parse an identifier followed by a term, e.g. `#model_check X inst`.
+The `high` priority makes this one take them, so that an identifier right after `#model_check`
+always names a module: the form of a command only depends on its text, and the VS Code extension
+tells the forms apart the same way. It still finds the commands and their ranges from the text; a
+more robust integration would get them from Lean's elaboration. `atomic` lets options follow a
+left-out theory instead of being parsed as one.
+-/
+syntax (name := modelCheckBuild) (priority := high) "#model_check " ident ppSpace term:max (ppSpace atomic(term:max))? Parser.Tactic.optConfig : command
 
 /-- Execute a concrete Veil action/procedure term using the same nondeterministic
 extraction machinery as `#model_check`, and print every possible return value

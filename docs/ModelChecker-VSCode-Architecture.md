@@ -15,7 +15,7 @@ processes and guarded by locks, so that one program cannot break a binary that
 another one is building or running. Having VS Code hold these locks while it
 runs a binary would be hard, so Lean instead copies each finished binary out of
 its build folder, and the extension runs the copy. A Lean option sets how many
-copies are kept; the docstring of `#model_check_build` has the other details.
+copies are kept; the docstring of `#model_check` has the other details.
 
 ## Only the Extension
 

@@ -282,7 +282,7 @@ private def Module.toExecutableModule (mod : Module)
     actionSources := actions
     propertySources := properties }
 
-/-- Record what checking `mod` takes, for `#model_check_build`. The instantiation template is
+/-- Record what checking `mod` takes, for `#model_check`. The instantiation template is
 recorded if it is closed, i.e. unless solving a constraint in it needs the concrete sorts. -/
 private def Module.recordExecutableModule (mod : Module) : CommandElabM Unit := do
   -- Restoring the state discards the messages of a template that failed to elaborate
@@ -769,15 +769,22 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
     ExecutionWorkflow.run { name := cmdName, actionLabels := executable.actionLabels.toList } kind mod stx
       mode callExpr parallelCfg
 
+/-- The hint for an identifier right after `#model_check` that names no module: inside a module, it
+may be meant as the instantiation, where it needs to be in parentheses. -/
+private def instantiationHint (id : Name) : CommandElabM MessageData := do
+  if (← localEnv.get).currentModule.isNone then return m!""
+  return m!" To use {id} as the instantiation of the current module, write it in parentheses: `({id})`."
+
 /-- Shared elaboration of the build commands, which build the binary of an execution command for
 module `modId`, typically from another file, without running it. -/
 private def elabBuildCommand {α : Type} (cmdName : String) (traceClass : Name) (stx : Syntax)
     (modId : Ident) (instTerm : Term) (theoryTerm? : Option Term) (elabConfig : CommandElabM α)
     (mkCall : ExecutionCallCommandContext α → CommandElabM Term) : CommandElabM Unit := do
   withTraceNode traceClass (fun _ => return s!"#{cmdName}") do
-    let some em ← getExecutableModule? modId.getId
-      | throwErrorAt modId "Module {modId.getId} has no executable definitions here: add \
-          `#gen_executable` to the `veil module {modId.getId}` block that declares it."
+    let some em ← getExecutableModule? modId.getId | do
+      let hint ← instantiationHint modId.getId
+      throwErrorAt modId "Module {modId.getId} has no executable definitions here: add \
+        `#gen_executable` to the `veil module {modId.getId}` block that declares it.{hint}"
     let callExpr ← mkCall {
       executable := em
       config := ← elabConfig
@@ -792,7 +799,7 @@ private def elabBuildCommand {α : Type} (cmdName : String) (traceClass : Name) 
 
 @[command_elab Veil.modelCheckBuild]
 def elabModelCheckBuild : CommandElab := fun stx => do
-  let `(#model_check_build $modId:ident $instTerm $[$theoryTerm?]? $cfg:optConfig) := stx
+  let `(#model_check $modId:ident $instTerm $[$theoryTerm?]? $cfg:optConfig) := stx
     | throwUnsupportedSyntax
   let elabConfig := do
     -- As for `#model_check`, the parallel configuration is an argument of the binary
@@ -816,8 +823,18 @@ def elabModelCheckBuild : CommandElab := fun stx => do
       commandCfg.seenSet ecctx.instantiation ecctx.theory
 
 @[command_elab Veil.modelCheck]
-def elabModelCheck : CommandElab :=
-  elabExecutionCommand "model_check" `veil.perf.elaborator.modelCheck .modelCheck
+def elabModelCheck : CommandElab := fun stx => do
+  -- `modelCheckBuild` takes the commands where an identifier follows the keyword, except those it
+  -- cannot parse: without an instantiation, or with `assumptions_hold_by`
+  if stx[1].isNone && stx[2].isIdent then
+    let mod := stx[2].getId
+    let hint ← instantiationHint mod
+    if stx[3].isNone then
+      throwErrorAt stx[2] "`#model_check {mod}` builds the model checker of module {mod}, which \
+        needs its instantiation, as in `#model_check {mod} \{ … }`.{hint}"
+    throwErrorAt stx[5] "Building the model checker of module {mod} does not take \
+      `assumptions_hold_by`.{hint}"
+  let k := elabExecutionCommand "model_check" `veil.perf.elaborator.modelCheck .modelCheck
     (fun stx => elabModelCheckCommandConfig stx[4]) 5 fun ecctx => do
     let commandCfg := ecctx.config
     let config := commandCfg.toModelCheckerConfig
@@ -828,6 +845,7 @@ def elabModelCheck : CommandElab :=
       | false, none => pure (some { numSubTasks := ← getNumCores, thresholdToParallel := defaultThresholdToParallel })
     let callExpr ← mkModelCheckerCall ecctx.executable config commandCfg.fingerprintType commandCfg.seenSet ecctx.instantiation ecctx.theory
     return (callExpr, parallelCfg)
+  k stx
 
 /-- Resolve simulation bounds from command syntax and options, and choose a seed. -/
 private def elabSimulateCommandConfig (cfgStx : Syntax)

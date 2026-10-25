@@ -32,7 +32,7 @@ export interface ModuleSources {
 export interface RunSnapshot {
   /** The module that is checked */
   module: string;
-  /** Where the `#model_check_build` command is, e.g. `PaxosMC.lean:12` */
+  /** Where the `#model_check` command is, e.g. `PaxosMC.lean:12` */
   source: string;
   binary: string;
   args: string[];

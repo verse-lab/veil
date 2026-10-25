@@ -1,7 +1,7 @@
 {
   "name": "veil",
   "displayName": "Veil",
-  "description": "Run the model checkers that #model_check_build builds, and show their progress and results.",
+  "description": "Run the model checkers that #model_check builds, and show their progress and results.",
   "icon": "icon.png",
   "version": "0.0.1",
   "publisher": "verse-lab",

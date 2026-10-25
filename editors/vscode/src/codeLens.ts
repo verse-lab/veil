@@ -55,7 +55,7 @@ function when(epochMs: number): string {
 }
 
 /** The lenses above each `veil module` and its `#gen_executable`, to check it, and above each
- * `#model_check_build` command: what Lean is doing with it, how to run it, and its last result. */
+ * `#model_check` command: what Lean is doing with it, how to run it, and its last result. */
 export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeCodeLenses = this.changed.event;

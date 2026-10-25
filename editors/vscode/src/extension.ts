@@ -38,7 +38,7 @@ function timestamp(epochMs: number): string {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 
-/** The `#model_check_build` command to run: the one that a lens gives, else the one at the cursor,
+/** The `#model_check` command to run: the one that a lens gives, else the one at the cursor,
  * else the only one in the editor, else one that the user picks. */
 async function pickCommand(uri?: string, line?: number):
     Promise<(BuildCommand & { document: vscode.TextDocument }) | undefined> {
@@ -50,7 +50,7 @@ async function pickCommand(uri?: string, line?: number):
   } else {
     const editor = vscode.window.activeTextEditor;
     if (!editor || editor.document.languageId !== 'lean4') {
-      void vscode.window.showInformationMessage('Open a Lean file with a `#model_check_build` command.');
+      void vscode.window.showInformationMessage('Open a Lean file with a `#model_check` command.');
       return undefined;
     }
     document = editor.document;
@@ -61,7 +61,7 @@ async function pickCommand(uri?: string, line?: number):
   const command = commands.find(isWanted) ?? (commands.length === 1 ? commands[0] : undefined);
   if (command) return { document, ...command };
   if (commands.length === 0) {
-    void vscode.window.showInformationMessage('This file has no `#model_check_build` command.');
+    void vscode.window.showInformationMessage('This file has no `#model_check` command.');
     return undefined;
   }
   const item = await vscode.window.showQuickPick(
@@ -185,7 +185,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (!document) return;
     const command = buildCommandsOf(document).find(c => c.site.command === source.command);
     if (command) runCommand(document, command, args);
-    else void vscode.window.showWarningMessage('This `#model_check_build` command is no longer in its file.');
+    else void vscode.window.showWarningMessage('This `#model_check` command is no longer in its file.');
   };
 
   const runAgain = async (): Promise<void> => {

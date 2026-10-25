@@ -187,7 +187,7 @@ register_option veil.modelChecker.maxStoredBuilds : Nat := {
 
 register_option veil.modelChecker.maxStoredCheckers : Nat := {
   defValue := 8
-  descr := "Maximum number of model checker binaries built by `#model_check_build` stored in \
+  descr := "Maximum number of model checker binaries built by `#model_check` stored in \
   `.lake/model_checkers`; 0 means no limit. Each build deletes the least recently built ones \
   beyond this limit. Deleting a binary does not stop a process running it."
 }

@@ -1,6 +1,6 @@
 # Veil for VS Code
 
-Runs the model checkers that `#model_check_build` builds, and shows their progress
+Runs the model checkers that `#model_check` builds, and shows their progress
 and results. See [ModelChecker-VSCode-Architecture.md](../../docs/ModelChecker-VSCode-Architecture.md)
 for what the extension does and what Lean does.
 
@@ -20,7 +20,7 @@ module
 public import Veil
 public import MyProject.Paxos
 
-#model_check_build Paxos { acceptor := Fin 3, value := Fin 2, MsgSet := OrdList _ } {}
+#model_check Paxos { acceptor := Fin 3, value := Fin 2, MsgSet := OrdList _ } {}
 ```
 
 **Check model**, above each `veil module` and its `#gen_executable`, runs a config
