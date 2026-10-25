@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Download the TLA+ models that configurations in Benchmarks/TLA check but the repository does not include.
 
-German.tla and MultiPaxosUs.tla come from repositories without a license, so the repository only
-records where they are. Each file is downloaded at a pinned commit from GitHub, or from Software
-Heritage if GitHub fails, and is written only if its SHA-256 is the expected one. A file that is
-already there with the expected content is left alone; one with other content is reported, and
-never overwritten. Git ignores the downloaded files.
+German.tla, MultiPaxosUs.tla and FarmerGooseFox.tla come from repositories without a license, so
+the repository only records where they are. Each file is downloaded at a pinned commit from GitHub
+or GitLab, or from Software Heritage if that fails, and is written only if its SHA-256 is the
+expected one. A file that is already there with the expected content is left alone; one with other
+content is reported, and never overwritten. Git ignores the downloaded files.
 
   python3 Benchmarks/TLA/scripts/fetch_upstream.py              # next to the configurations
   python3 Benchmarks/TLA/scripts/fetch_upstream.py --dest DIR   # elsewhere
@@ -37,6 +37,10 @@ FILES = [
      "https://raw.githubusercontent.com/tlaplus/tlapm/5f5037fdd061be5df4a1bd1291cb22d3f43b8f31/library/TLAPS.tla",
      "9afe54984062748a0568966434cc0945d682f8cd89fdbc38f73b5579751b0c55",
      "d99c4bb1be3d09f9cd17504e0af2fa53dea16d07"),
+    ("FarmerGooseFox.tla",
+     "https://gitlab.com/hhan31/rivercrossing-tla/-/raw/6afafa30b6a03e96023c407f93ee75a17c67f5f5/FarmerGooseFox.tla",
+     "39d2abfa5bd04cd4a06faa6add2a5c9e5cbcbb4ffabc8cdb2ec337dc8921206c",
+     "d016e439a99532f6181e9e48a25837ae52fefabb"),
 ]
 SOFTWARE_HERITAGE = "https://archive.softwareheritage.org/api/1/content/sha1_git:{}/raw/"
 

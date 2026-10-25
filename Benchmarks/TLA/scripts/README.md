@@ -18,12 +18,12 @@ python3 Benchmarks/TLA/scripts/check_sources.py --file Benchmarks/TLA/AWS/AWS.tl
 The check compares text only: it runs neither SANY nor TLC, says nothing about
 the Veil translations, and reports layout-only edits that TLC ignores as `CHANGED`.
 
-`German.cfg` and `MultiPaxosUs.cfg` check models that are not in the repository,
-because their upstream repositories have no license. To run TLC on them, first
-run `python3 Benchmarks/TLA/scripts/fetch_upstream.py`: it downloads the models
-next to the configurations and verifies their pinned SHA-256. Git ignores the
-downloaded files; `check_all_sources.py` checks them against the same hashes
-instead of counting them as benchmark files.
+`German.cfg`, `MultiPaxosUs.cfg` and `RiverCrossing.cfg` check models that are
+not in the repository, because their upstream repositories have no license. To
+run TLC on them, first run `python3 Benchmarks/TLA/scripts/fetch_upstream.py`:
+it downloads the models next to the configurations and verifies their pinned
+SHA-256. Git ignores the downloaded files; `check_all_sources.py` checks them
+against the same hashes instead of counting them as benchmark files.
 
 # TLC runs
 

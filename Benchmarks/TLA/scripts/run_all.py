@@ -62,8 +62,7 @@ def main():
     args, rest = parser.parse_known_args()
     fetch = subprocess.run([sys.executable, str(HERE / "fetch_upstream.py")])
     if fetch.returncode:
-        print("fetch_upstream.py could not provide the models of German and MultiPaxos; see above.",
-              file=sys.stderr)
+        print("fetch_upstream.py could not provide the models it downloads; see above.", file=sys.stderr)
         return fetch.returncode
     command = [sys.executable, str(HERE / "run_tlc.py"), "--workers", *map(str, args.workers)]
     for name, spec, cfg in PAIRS:
