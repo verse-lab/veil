@@ -13,12 +13,16 @@ public import Veil.Frontend.DSL.State.Instances
 
 abbrev OrdList.cmpLt [Ord α] (a b : α) : Prop := compare a b = Ordering.lt
 
+-- NOTE: This is made as a definition, not an `abbrev`, so that
+-- instance resolution does not see through it: the instances that show it are its own, not those of
+-- the subtype or the list (`veil_derive_wrapper_instances`).
 /-- A strictly sorted list, used as a set representation. -/
-@[ext] structure OrdList (α : Type u) [Ord α] : Type u where
-  val : List α
-  property : val.Pairwise (OrdList.cmpLt (α := α))
+def OrdList (α : Type u) [Ord α] : Type u :=
+  { l : List α // l.Pairwise (OrdList.cmpLt (α := α)) }
 
 veil_derive_wrapper_instances OrdList
+
+@[ext] theorem OrdList.ext [Ord α] {a b : OrdList α} (h : a.val = b.val) : a = b := Subtype.ext h
 
 namespace OrdList
 
@@ -885,13 +889,15 @@ theorem filter_sortedContains_inter [TransOrd α] [LawfulEqOrd α] (a : α) (l�
 private theorem sublists_all_sorted [TransOrd α] [LawfulEqOrd α] (l : List α) (hs : l.Pairwise (cmpLt (α := α))) :
   ∀ sl ∈ l.sublists, sl.Pairwise (cmpLt (α := α)) := by intro sl hin ; simp at hin ; apply hs.sublist hin
 
--- NOTE: Ideally, we should use something like `attachWith` that has `O(1)` runtime
--- here; but `OrdList` is not directly a `Subtype` so that does not work.
--- Hopefully in the future there is a better solution for these kinds of
--- "essentially subtypes".
+-- `attachWith` is a cast at runtime, O(1).
 @[inline]
 def sublists [TransOrd α] [LawfulEqOrd α] (l : OrdList α) : List (OrdList α) :=
-  l.val.sublists.pmap OrdList.mk (by exact sublists_all_sorted l.val l.property)
+  l.val.sublists.attachWith (fun sl => sl.Pairwise (cmpLt (α := α)))
+    (by exact sublists_all_sorted l.val l.property)
+
+-- `simp` does not unfold `OrdList` to apply `List.mem_attachWith`; this states it for `OrdList`.
+@[simp] theorem mem_sublists [TransOrd α] [LawfulEqOrd α] {l s : OrdList α} :
+    s ∈ l.sublists ↔ s.val ∈ l.val.sublists := List.mem_attachWith _ _
 
 -- TODO check these instances later?
 
@@ -966,7 +972,7 @@ instance instEnumerationOrdList [TransOrd α] [LawfulEqOrd α] [DecidableEq α] 
     OrdList.ofList (Veil.Enumeration.allValues (α := α)) |>.sublists
   complete := by
     intro ⟨l, hl⟩
-    simp [OrdList.ofList, OrdList.sublists, List.mem_pmap]
+    simp [OrdList.ofList, mem_sublists]
     have h_sorted : (ofList.inner (Veil.Enumeration.allValues (α := α))).Pairwise (cmpLt (α := α)) :=
       (ofList.inner_spec _).left
     apply mem_contains_then_is_sublist <;> try assumption

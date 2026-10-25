@@ -59,16 +59,20 @@ class LawfulFinmapLike /- (α : outParam (Type u)) (β : outParam (Type v)) -/ (
   insert_get : ∀ (a a' : α) (b : β) (mp : γ),
     inst.get (inst.insert a b mp) a' = if a = a' then b else inst.get mp a'
 
-@[ext] structure ArrayAsFinmap (α : Type u) [inst : FinEncodable α] (β : Type v) where
-  val : Array β
-  property : inst.card = val.size
+def ArrayAsFinmap (α : Type u) [inst : FinEncodable α] (β : Type v) : Type v :=
+  { arr : Array β // inst.card = arr.size }
 
-@[ext] structure ArrayAsFinset (α : Type u) [inst : FinEncodable α] where
-  val : Array Bool
-  property : inst.card = val.size
+def ArrayAsFinset (α : Type u) [inst : FinEncodable α] : Type :=
+  { arr : Array Bool // inst.card = arr.size }
 
 veil_derive_wrapper_instances ArrayAsFinmap
 veil_derive_wrapper_instances ArrayAsFinset
+
+@[ext] theorem ArrayAsFinmap.ext [FinEncodable α] {a b : ArrayAsFinmap α β} (h : a.val = b.val) :
+    a = b := Subtype.ext h
+
+@[ext] theorem ArrayAsFinset.ext [FinEncodable α] {a b : ArrayAsFinset α} (h : a.val = b.val) :
+    a = b := Subtype.ext h
 
 instance [inst : FinEncodable α] [Inhabited β] : Inhabited (ArrayAsFinmap α β) :=
   ⟨⟨Array.replicate inst.card default, Eq.symm Array.size_replicate⟩⟩
