@@ -758,7 +758,9 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
     -- Optionally prove assumptions statically; both algorithms also evaluate them at runtime.
     if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
       checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
+    let extractStartMs ← IO.monoMsNow
     mod.ensureExecutableModelCheckerDefinitions
+    let extractMs := (← IO.monoMsNow) - extractStartMs
     let executable ← mod.toExecutableModule
     let (callExpr, parallelCfg) ← mkCall {
       executable
@@ -767,7 +769,7 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
       «theory» := theoryTerm
     }
     ExecutionWorkflow.run { name := cmdName, actionLabels := executable.actionLabels.toList } kind mod stx
-      mode callExpr parallelCfg
+      mode callExpr parallelCfg extractMs
 
 /-- Shared elaboration of the build commands, which build the binary of an execution command for
 module `modId`, typically from another file, without running it. -/

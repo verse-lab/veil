@@ -250,5 +250,12 @@ assumption [quorum_intersection] ∀ (q1 q2 : quorum), ∃ a, a ∈ q1 ∧ a ∈
   `fingerprintType`, or `seenSet`. Compare settings on the same instance and
   machine, separate compilation time from search time, and check that the
   explored-state count does not change.
+- To time the compiled checker outside the elaborator, set
+  `veil.modelChecker.buildOnly`: `#model_check` then builds its binary and,
+  instead of running it, reports where it is (a copy in `.lake/model_checkers`,
+  as for `#model_check X …`) and the time of each build phase.
+  `scripts/bench-model-check.py` does this for a set of specifications and
+  times the binaries at several thread counts;
+  `scripts/bench-model-check-report.py` tabulates the results.
 - If exhaustive search is out of reach, `#simulate` runs random walks instead
   (see [DSL-Reference.md](DSL-Reference.md)).

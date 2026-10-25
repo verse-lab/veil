@@ -351,12 +351,27 @@ private def runBinaryAndLogResult (ctx : ExecutionContext) (buildFolder : System
   ModelChecker.Compilation.markRegistryFinished sourceFile command commandId buildFolder
   finishWithResult ctx json
 
-/-- Compile the model. Return `none` on interruption; throw on compilation failure. -/
+/-- Phases of a compiled build, in milliseconds. -/
+structure BuildTiming where
+  /-- Compiling the entry point and emitting its C (`generateCCode`). -/
+  emitCMs : Nat
+  /-- Compiling the C and linking the binary (the `veilModelCheckBuild` script), timed inside the
+  build lock, so that waiting for another build does not count. -/
+  ccLinkMs : Nat
+  /-- Size of the emitted C, in bytes. -/
+  cBytes : Nat
+  deriving Inhabited, Repr
+
+/-- Compile the model. Return `none` on interruption; throw on compilation failure. The phases of
+a completed build are stored in `timing?`, when given. -/
 private def compileModel (sourceFile : String) (callExpr : Term)
     (commandId : String) (instanceId : Nat) (cancelToken : IO.CancelToken)
-    (command : ModelChecker.Compilation.CompiledCommandSpec) : CommandElabM (Option System.FilePath) := do
+    (command : ModelChecker.Compilation.CompiledCommandSpec)
+    (timing? : Option (IO.Ref BuildTiming) := none) : CommandElabM (Option System.FilePath) := do
   if ← cancelToken.isSet then return none
+  let emitStartMs ← IO.monoMsNow
   let cCode ← generateCCode command callExpr
+  let emitCMs := (← IO.monoMsNow) - emitStartMs
   if ← cancelToken.isSet then return none
   let imports ← liftCoreM <| ModelChecker.Compilation.executionImports (← getEnv)
   let buildFolder ← ModelChecker.Compilation.generateBuildFolderName sourceFile command cCode imports
@@ -367,7 +382,8 @@ private def compileModel (sourceFile : String) (callExpr : Term)
       (isCurrent := ModelChecker.Compilation.stillCurrentCont sourceFile command commandId instanceId (pure ())) do
     ModelChecker.Compilation.useBuildFolder instanceId buildFolder
     ModelChecker.Compilation.writeBuildInputs buildFolder cCode imports
-    ModelChecker.Compilation.runProcessWithStatusCallback
+    let buildStartMs ← IO.monoMsNow
+    let result ← ModelChecker.Compilation.runProcessWithStatusCallback
       sourceFile
       command
       commandId
@@ -375,12 +391,15 @@ private def compileModel (sourceFile : String) (callExpr : Term)
       instanceId cancelToken
       (fun elapsedMs => ModelChecker.Concrete.updateCompilationElapsed instanceId elapsedMs)
       (fun line isError elapsedMs => ModelChecker.Concrete.updateCompilationLog instanceId elapsedMs line isError)
-  let some result := result? | return none
+    return (result, (← IO.monoMsNow) - buildStartMs)
+  let some (result, ccLinkMs) := result? | return none
   if result.interrupted then
     return none
   if result.exitCode != 0 then
     throwError "{mkCompilationErrorMsg result}"
   ModelChecker.Concrete.updateCompilationStatus instanceId .succeeded
+  if let some timing := timing? then
+    timing.set { emitCMs, ccLinkMs, cBytes := cCode.utf8ByteSize }
   return some buildFolder
 
 /-- Handle interpreted mode: evaluate and display results directly. -/
@@ -403,20 +422,23 @@ private def runInterpreted
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := mkTask }
   ModelChecker.displayStreamingProgress stx ctx.instanceId
 
-/-- Compile `callExpr` in the background, then pass the build folder to `withBinary`, with the source
-file and the identity of the command in it. The build folder stays in use until `withBinary`
-returns. Compilation failures are logged at `stx`; `onError` handles the other exceptions. -/
+/-- Compile `callExpr`, then pass the build folder to `withBinary`, with the source file and the
+identity of the command in it. The build folder stays in use until `withBinary` returns. Compilation
+failures are logged at `stx`; `onError` handles the other exceptions. The build runs in the
+background, unless `sync`. The phases of a completed build are stored in `timing?`, when given. -/
 private def compileThen (command : ModelChecker.Compilation.CompiledCommandSpec) (stx : Syntax)
     (callExpr : Term) (instanceId : Nat) (cancelToken : IO.CancelToken)
     (withBinary : (buildFolder : System.FilePath) → (sourceFile commandId : String) → CommandElabM Unit)
-    (onError : Exception → CommandElabM Unit) : CommandElabM Unit := do
+    (onError : Exception → CommandElabM Unit)
+    (sync : Bool := false)
+    (timing? : Option (IO.Ref BuildTiming) := none) : CommandElabM Unit := do
   let sourceFile ← getFileName
   let commandId ← getCompiledCommandId s!"#{command.name}" stx
 
-  let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
+  let compile : CommandElabM Unit := do
     try
       let some buildFolder ← withCompilationDiagnostics stx instanceId false <|
-        compileModel sourceFile callExpr commandId instanceId cancelToken command | return
+        compileModel sourceFile callExpr commandId instanceId cancelToken command timing? | return
       if ← checkCancelled cancelToken instanceId then return
       withBinary buildFolder sourceFile commandId
     catch e : Exception =>
@@ -424,10 +446,12 @@ private def compileThen (command : ModelChecker.Compilation.CompiledCommandSpec)
     finally
       endRunIfCancelled cancelToken instanceId
       releaseBuild instanceId
-  ) cancelToken
-
-  let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
-  Command.logSnapshotTask { stx? := none, cancelTk? := cancelToken, task := compilationTask }
+  if sync then
+    compile
+  else
+    let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => compile) cancelToken
+    let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
+    Command.logSnapshotTask { stx? := none, cancelTk? := cancelToken, task := compilationTask }
 
 /-- Handle compiled-only mode: compile and run binary without interpreted fallback. -/
 private def runCompiled (command : ModelChecker.Compilation.CompiledCommandSpec)
@@ -538,20 +562,7 @@ private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSp
 
   ModelChecker.displayStreamingProgress stx ctx.instanceId
 
-/-- Shared execution workflow for safety checking and simulation.
-`callExpr` takes parallel configuration, progress ID, cancellation token, and a result
-continuation, in that order. Its result must have a `ToJson` instance. -/
-def run (command : ModelChecker.Compilation.CompiledCommandSpec)
-    (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax)
-    (mode : ModelCheckingMode) (callExpr : Term)
-    (parallelCfg : Option ModelChecker.ParallelConfig := none) : CommandElabM Unit := do
-  let mode := if (← liftIO isVeilOnlineEnv) then .interpreted else mode
-  match mode with
-  | .interpreted => runInterpreted kind mod stx callExpr parallelCfg
-  | .compiled => runCompiled command kind mod stx callExpr parallelCfg
-  | .default => runWithHandoff command kind mod stx callExpr parallelCfg
-
-/-- Directory of the binaries that `buildOnly` builds. They are copied there out of their build
+/-- Directory of the binaries that `buildChecker` builds. They are copied there out of their build
 folders, which another check may prune before the binaries run. -/
 private def getCheckerBaseDir : IO System.FilePath := do
   return (← IO.currentDir) / ".lake" / "model_checkers"
@@ -586,16 +597,22 @@ private def pruneCheckerBinaries (dir : System.FilePath) (keep : Nat) : IO Unit 
     -- A process running the binary keeps it
     try IO.FS.removeFile binary catch _ => pure ()
 
-/-- Compile `callExpr` into a model checker binary in the background, as `runCompiled` does, but
-without running it, and report where the binary is. The binary is copied out of its build folder,
-which another check may prune before the binary runs. -/
-def buildOnly (command : ModelChecker.Compilation.CompiledCommandSpec) (stx : Syntax) (callExpr : Term) :
+/-- Compile `callExpr` into a model checker binary, as compiled mode does, but without running it.
+The binary is copied to `.lake/model_checkers`, out of its build folder, which another check may
+prune before the binary runs; `report` gets the copy, the build folder and the phases of the build.
+The build runs in the background, unless `sync`. Failures are logged at `stx`. -/
+private def buildChecker (command : ModelChecker.Compilation.CompiledCommandSpec) (stx : Syntax)
+    (callExpr : Term) (sync : Bool)
+    (report : (binary buildFolder : System.FilePath) → BuildTiming → CommandElabM Unit) :
     CommandElabM Unit := do
   -- The progress instance only follows the compilation, as nothing displays it
   let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (.modelCheck {})
   let keep := veil.modelChecker.maxStoredCheckers.get (← getOptions)
-  compileThen command stx callExpr instanceId cancelToken
+  let timing ← IO.mkRef (default : BuildTiming)
+  compileThen command stx callExpr instanceId cancelToken (sync := sync) (timing? := some timing)
     (fun buildFolder sourceFile commandId => do
+      let some _ ← verifyBinaryExists buildFolder instanceId
+        | logErrorAt stx m!"Binary not found in {buildFolder}"
       -- Copy under the build lock, so that no other build relinks the binary meanwhile
       let some binary ← ModelChecker.Compilation.withBuildLock
           (← ModelChecker.Compilation.getBuildBaseDir) cancelToken do
@@ -606,10 +623,60 @@ def buildOnly (command : ModelChecker.Compilation.CompiledCommandSpec) (stx : Sy
         | return
       ModelChecker.Compilation.markRegistryFinished sourceFile command commandId buildFolder
       ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [("binary", toJson binary.toString)])
-      logInfoAt stx m!"Model checker built: {binary}")
+      report binary buildFolder (← timing.get))
     (fun e => do
       let message ← e.toMessageData.toString
       ModelChecker.Concrete.finishProgress instanceId (errorJson message)
       logErrorAt stx message)
+
+/-- `veil.modelChecker.buildOnly`,
+**meant only for benchmarks that scripts such as `scripts/bench-model-check.py` run from the command line**:
+what matters only in the editor is left aside, e.g. that the build holds up the commands after it,
+and that editing the file may not stop it.
+
+Build the binary as `#model_check X …` does for a module `X`, then report it and the phases of
+its build instead of running it. The build runs synchronously, so that it does not overlap the
+elaboration of the commands after it, which would skew its phases and the elaboration time that
+`scripts/bench-model-check.py` derives from them. The report is logged with
+the command, as one info message whose last line is `VEIL_BUILD_ONLY` followed by
+`{"binary": …, "build_folder": …, "extract_ms": …, "emit_c_ms": …, "cc_link_ms": …, "c_bytes": …}`,
+where `binary` is the copy in `.lake/model_checkers`, named after `build_folder`. `extractMs` is the
+time the command spent generating the module's executable definitions before reaching the workflow
+(0 when an earlier command had generated them). -/
+private def runBuildOnly (command : ModelChecker.Compilation.CompiledCommandSpec) (stx : Syntax)
+    (callExpr : Term) (extractMs : Nat) : CommandElabM Unit :=
+  buildChecker command stx callExpr (sync := true) fun binary buildFolder timing => do
+    let report := Json.mkObj [
+      ("binary", toJson binary.toString), ("build_folder", toJson buildFolder.toString),
+      ("extract_ms", toJson extractMs), ("emit_c_ms", toJson timing.emitCMs),
+      ("cc_link_ms", toJson timing.ccLinkMs), ("c_bytes", toJson timing.cBytes)]
+    logInfoAt stx m!"Built the compiled checker without running it (veil.modelChecker.buildOnly):\n\
+      VEIL_BUILD_ONLY {report.compress}"
+
+/-- Shared execution workflow for safety checking and simulation.
+`callExpr` takes parallel configuration, progress ID, cancellation token, and a result
+continuation, in that order. Its result must have a `ToJson` instance. `extractMs`, the time the
+command spent generating the module's executable definitions, is reported by
+`veil.modelChecker.buildOnly`. -/
+def run (command : ModelChecker.Compilation.CompiledCommandSpec)
+    (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax)
+    (mode : ModelCheckingMode) (callExpr : Term)
+    (parallelCfg : Option ModelChecker.ParallelConfig := none)
+    (extractMs : Nat := 0) : CommandElabM Unit := do
+  if veil.modelChecker.buildOnly.get (← getOptions) then
+    return ← runBuildOnly command stx callExpr extractMs
+  let mode := if (← liftIO isVeilOnlineEnv) then .interpreted else mode
+  match mode with
+  | .interpreted => runInterpreted kind mod stx callExpr parallelCfg
+  | .compiled => runCompiled command kind mod stx callExpr parallelCfg
+  | .default => runWithHandoff command kind mod stx callExpr parallelCfg
+
+/-- `#model_check X …` for a module `X`: build the binary of `callExpr` in the background, without
+running it, and report its copy in `.lake/model_checkers`. -/
+def buildOnly (command : ModelChecker.Compilation.CompiledCommandSpec) (stx : Syntax) (callExpr : Term) :
+    CommandElabM Unit :=
+  buildChecker command stx callExpr (sync := false) fun binary _ _ =>
+    -- The VS Code extension takes the rest of this message for the path (`BUILT_PREFIX`)
+    logInfoAt stx m!"Model checker built: {binary}"
 
 end Veil.ExecutionWorkflow
