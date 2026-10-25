@@ -2,9 +2,16 @@ module
 
 public import Veil
 
+/-
+Veil translation/adaptation of TLA+ material from tlaplus/Examples.
+Copyright (c) 2016: The TLA+ project and other contributors.
+Upstream MIT license: Benchmarks/TLA/TLAPlusExamples/LICENSE
+Original specification: Igor Konnov, Thanh Hai Tran, Josef Widder, 2016.
+-/
+
 open Std
 /-
-src : https://github.com/tlaplus/Examples/blob/master/specifications/bcastByz/bcastByz.tla
+src : https://github.com/tlaplus/Examples/blob/a997ee6813b7c20951311e3658a8579270d9f306/specifications/bcastByz/bcastByz.tla
 This file specifies the Byzantine broadcast protocol in Veil, which is a
 TLA+ encoding of a parameterized model of the broadcast distributed algorithm
 with Byzantine faults.
@@ -63,6 +70,8 @@ function pc (p : process) : PCState  -- control state of each process
 -- relation sent (p : process)
 individual sent : procSet
 function rcvd (receiver : process) : procSet
+
+set_option veil.deferVCGeneration true
 
 veil_set_field_representation function Veil.ArrayAsFinmap
 
@@ -201,19 +210,22 @@ invariant [card_faulty] pset.count Faulty ≤ T
 
 #gen_spec
 
+-- TEST ONLY
 #model_check
 { process := (Fin 4),
   procSet := OrdList (Fin 4) }
 { N := 4,
   T := 1,
   F := 1 }
+-- TEST ONLY
 
--- This takes more time
--- #model_check compiled
--- { process := (Fin 5),
---   procSet := OrdList (Fin 5) }
--- { N := 5,
---   T := 1,
---   F := 1 }
+/- EVAL
+#model_check compiled
+{ process := (Fin 5),
+  procSet := OrdList (Fin 5) }
+{ N := 5,
+  T := 1,
+  F := 1 } (seenSet := HAMTMapShard)
+-/
 
 end BcastByz

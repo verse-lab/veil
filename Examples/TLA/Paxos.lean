@@ -2,7 +2,12 @@ module
 
 public import Veil
 
--- source:https://github.com/DistAlgo/proofs/blob/master/basic-paxos/PaxosLam.tla
+-- Adapted into Veil from the TLAPS Paxos specification (BSD-2-Clause).
+-- Copyright (c) 2008 INRIA and Microsoft Corporation
+-- Copyright (c) 2023 Linux Foundation
+-- License: Benchmarks/TLA/Paxos/LICENSE
+-- Source: https://github.com/tlaplus/tlapm/blob/5f5037fdd061be5df4a1bd1291cb22d3f43b8f31/examples/paxos/Paxos.tla
+-- Local changes: finite ballots and executable state/message representations.
 -- ------------------------------- MODULE Paxos -------------------------------
 -- (***************************************************************************)
 -- (* This is a TLA+ specification of the Paxos Consensus algorithm,          *)
@@ -82,6 +87,8 @@ individual msgs : MsgSet
 function maxVBal (a : acceptor) : BallotTy maxBallot
 function maxBal (a : acceptor) : BallotTy maxBallot
 function maxVal (a : acceptor) : Option value
+
+set_option veil.deferVCGeneration true
 
 #gen_state
 
@@ -210,6 +217,14 @@ action Phase2a (b : BallotTy maxBallot) {
       | .phase2a bal _ => decide $ bal = b
       | _ => false) = true
 
+  -- {m \in msgs : (m.type = "1b") /\ (m.bal = b)}, computed once here rather than once per pick below.
+  -- `veil_let`, not `let`, here and for `S`: Veil may substitute a `let`'s definition into where it
+  -- is used, which computes the filter again there (see `S`).
+  veil_let msgs1b := msgSet.filter msgs fun m =>
+    match m with
+    | .phase1b _ bal .. => bal == b
+    | _ => false
+
   let v ← pick value
   let Q ← pick quorum
 
@@ -218,9 +233,12 @@ action Phase2a (b : BallotTy maxBallot) {
     acceptors. As we only care about condition `m.acc = a`.
     This reduces the non-deterministic choices to 2^|acceptors|.  -/
   let selectedAcceptors ← pick AcceptorSet
-  let S := msgSet.filter msgs fun m =>
+  -- `veil_let`: the `Decidable` instance of `quorumCovered Q S` cannot be synthesized here (its
+  -- `∀ a : acceptor` ranges over an abstract type), so Veil builds it from the condition later. With
+  -- `let S`, that condition would contain this filter, and the instance would run it once per `a`.
+  veil_let S := msgSet.filter msgs1b fun m =>
     match m with
-    | .phase1b acc bal .. => bal == b && acSet.contains acc selectedAcceptors
+    | .phase1b acc .. => acSet.contains acc selectedAcceptors
     | _ => false
   -- NOTE: The `Decidable` instance for the second `require` can be synthesized here, while the first one cannot,
   -- so we put them separately to avoid certain hussle
@@ -300,14 +318,16 @@ invariant [Consistency] ∀ v1 v2, Chosen v1 ∧ Chosen v2 → v1 = v2
 #gen_spec
 #gen_executable
 
--- #model_check compiled
--- {
---   acceptor := Fin 3,
---   value := Fin 2,
---   quorum := MinQuorum (Fin 3),
---   maxBallot := 3,
---   MsgSet := OrdList (PaxosMsg (Fin 3) (Fin 2) 3),
---   AcceptorSet := OrdList (Fin 3)
--- }
+/- EVAL
+#model_check compiled
+{
+  value := Fin 3,
+  acceptor := Fin 3,
+  quorum := MinQuorum (Fin 3),
+  maxBallot := 3,
+  MsgSet := OrdList _,
+  AcceptorSet := OrdList _
+} {} (seenSet := HAMTMapShard)
+-/
 
 end Paxos

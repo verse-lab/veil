@@ -1,0 +1,17 @@
+OrderedTicketSemaphore
+Copyright 2026 MongoDB, Inc.
+
+The upstream OrderedTicketSemaphore.tla is licensed under the Creative Commons
+Attribution 3.0 United States License (CC BY 3.0 US), as stated in its header.
+License: https://creativecommons.org/licenses/by/3.0/us/
+Legal code: https://creativecommons.org/licenses/by/3.0/us/legalcode
+Source: https://github.com/mongodb/mongo/blob/43180330a36009ecd18a08325fd4fa2a043810a9/src/mongo/tla_plus/Concurrency/OrderedTicketSemaphore/OrderedTicketSemaphore.tla
+
+The local TLA+ main module is unchanged except for added provenance comments.
+Examples/TLA/OrderedTicketSemaphore.lean is an adapted safety translation;
+its header describes the translation and the omitted temporal properties.
+
+This notice concerns the explicitly licensed main model and its adaptation.
+It does not assign that license to MongoDB's separate MC wrapper or configuration;
+those files are not bundled here. MCOrderedTicketSemaphore.tla and the local
+configuration provide this project's finite benchmark harness.

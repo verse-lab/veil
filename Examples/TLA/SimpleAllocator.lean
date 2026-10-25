@@ -2,6 +2,12 @@ module
 
 public import Veil
 
+/-
+Veil translation/adaptation of TLA+ material from tlaplus/Examples.
+Copyright (c) 2016: The TLA+ project and other contributors.
+Upstream MIT license: Benchmarks/TLA/TLAPlusExamples/LICENSE
+-/
+
 -- https://github.com/tlaplus/Examples/blob/c2641e69204ed241cdf548d9645ac82df55bfcd8/specifications/allocator/SimpleAllocator.tla
 
 veil module SimpleAllocator
@@ -16,6 +22,10 @@ instantiate cSet : TSet client ClientsSet
 
 function unsatisfy : client → ResourceSet
 function alloc : client → ResourceSet
+
+set_option veil.deferVCGeneration true
+
+veil_set_field_representation function Veil.ArrayAsFinmap
 
 #gen_state
 
@@ -83,10 +93,21 @@ action Return (c : client) (S : ResourceSet) {
 invariant [resource_mutex] ∀ c1 c2 : client, c1 ≠ c2 → (resSet.isEmpty <| resSet.intersection (alloc c1) (alloc c2))
 #gen_spec
 
+-- TEST ONLY
 #model_check interpreted
 { client := Fin 2,
   resource := Fin 2,
   ClientsSet := OrdList _,
   ResourceSet := OrdList _ }
+-- TEST ONLY
+
+/- EVAL
+#model_check compiled
+{ client := Fin 6,
+  resource := Fin 3,
+  ClientsSet := OrdList _,
+  ResourceSet := OrdList _ }
+{} (seenSet := HAMTMapShard)
+-/
 
 end SimpleAllocator

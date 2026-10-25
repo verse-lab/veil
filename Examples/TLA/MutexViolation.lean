@@ -55,6 +55,8 @@ function stack : process → List (Cell states process)
 
 function waker : process → process
 
+set_option veil.deferVCGeneration true
+
 veil_set_field_representation relation Veil.ArrayAsFinset
 veil_set_field_representation function Veil.ArrayAsFinmap
 
@@ -107,7 +109,7 @@ action _pre_check_lock (self : process) {
 action _prepare_wait_util (self : process) {
   require self ≠ NONE
   require pc self = prepare_wait_util
-  locked := false -- BUG: releases lock it doesn't own
+  -- locked := false -- BUG: releases lock it doesn't own
   pc self := wait_until
 }
 
@@ -319,6 +321,9 @@ termination [AllDone] ∀s ≠ NONE, pc s = Done
 
 -- set_option veil.violationIsError false in
 /- `Fin n` means `n-1` valid threads.-/
--- #model_check compiled { process := Fin 4 } { NONE := 0 }
+
+/- EVAL
+#model_check compiled { process := Fin 6 } { NONE := 0 } (seenSet := HAMTMapShard)
+-/
 
 end MutexViolation

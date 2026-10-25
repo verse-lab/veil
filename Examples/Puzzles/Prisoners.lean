@@ -2,6 +2,12 @@ module
 
 public import Veil
 
+/-
+Veil translation/adaptation of TLA+ material from tlaplus/Examples.
+Copyright (c) 2016: The TLA+ project and other contributors.
+Upstream MIT license: Benchmarks/TLA/TLAPlusExamples/LICENSE
+-/
+
 /- https://github.com/tlaplus/Examples/blob/c2641e69204ed241cdf548d9645ac82df55bfcd8/specifications/Prisoners/Prisoners.tla -/
 -- ------------------------------ MODULE Prisoners -----------------------------
 veil module Prisoners

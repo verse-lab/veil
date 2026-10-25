@@ -2,6 +2,12 @@ module
 
 public import Veil
 
+/-
+Veil translation/adaptation of TLA+ material from tlaplus/Examples.
+Copyright (c) 2016: The TLA+ project and other contributors.
+Upstream MIT license: Benchmarks/TLA/TLAPlusExamples/LICENSE
+-/
+
 veil module Peterson
 
 -- -----------------------------------------------------------------------------

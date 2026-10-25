@@ -1,5 +1,5 @@
 ------------------------------ MODULE Traffic ------------------------------
-\* source: https://github.com/Apress/practical-tla-plus/blob/master/Chapter%206/traffic.tla
+\* source: https://github.com/Apress/practical-tla-plus/blob/9a6733ce5cced4c3a0dad06c24fb65721461851d/Chapter%206/traffic.tla
 Color == {"red", "green"}
 
 NextColor(c) == CASE c = "red" -> "green"

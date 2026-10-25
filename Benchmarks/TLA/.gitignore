@@ -1,0 +1,7 @@
+# Models downloaded by scripts/fetch_upstream.py (German and MultiPaxosUs have no license)
+/German.tla
+/MultiPaxosUs.tla
+/TLAPS.tla
+
+# TLC jars downloaded by scripts/run_tlc.py
+/scripts/jars/
