@@ -2,6 +2,13 @@ module
 
 public import Veil
 
+/-
+Veil translation/adaptation of TLA+ material from tlaplus/Examples.
+Source: https://github.com/tlaplus/Examples/blob/a997ee6813b7c20951311e3658a8579270d9f306/specifications/DieHard/DieHard.tla
+Copyright (c) 2016: The TLA+ project and other contributors.
+Upstream MIT license: Benchmarks/TLA/TLAPlusExamples/LICENSE
+-/
+
 
 veil module DieHard
 

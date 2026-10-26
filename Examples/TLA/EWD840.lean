@@ -2,6 +2,12 @@ module
 
 public import Veil
 
+/-
+Veil translation/adaptation of TLA+ material from tlaplus/Examples.
+Copyright (c) 2016: The TLA+ project and other contributors.
+Upstream MIT license: Benchmarks/TLA/TLAPlusExamples/LICENSE
+-/
+
 -- https://github.com/tlaplus/Examples/blob/c2641e69204ed241cdf548d9645ac82df55bfcd8/specifications/ewd840/EWD840.tla
 
 veil module EWD840
@@ -13,6 +19,8 @@ relation active: (Fin n.succ) → Bool
 function colormap: (Fin n.succ) → Color
 individual tpos: (Fin n.succ)
 individual tcolor : Color
+
+set_option veil.deferVCGeneration true
 
 veil_set_field_representation relation Veil.ArrayAsFinset
 veil_set_field_representation function Veil.ArrayAsFinmap
@@ -109,7 +117,14 @@ invariant [Inv] P0 ∨ P1 ∨ P2
 
 #gen_spec
 
+-- TEST ONLY
 #model_check compiled
 { n := 3 }
+-- TEST ONLY
+
+/- EVAL
+#model_check compiled
+{ n := 10 } {} (seenSet := HAMTMapShard)
+-/
 
 end EWD840

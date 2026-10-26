@@ -3,8 +3,15 @@ module
 public import Veil
 public import Veil.Util.Permutations
 
+/-
+Veil translation/adaptation of TLA+ material from tlaplus/Examples.
+Copyright (c) 2016: The TLA+ project and other contributors.
+Upstream MIT license: Benchmarks/TLA/TLAPlusExamples/LICENSE
+The ClientCentric adaptation below has a separate BSD-2-Clause license.
+-/
+
 -- source: KVsnap.tla, checked with MCKVsnap.cfg
--- https://github.com/tlaplus/Examples/blob/master/specifications/KeyValueStore/KVsnap.tla
+-- https://github.com/tlaplus/Examples/blob/6a7b26a31c1a6aeec789b455e9bbfa3b3ad2728f/specifications/KeyValueStore/KVsnap.tla
 -- (**************************************************************************)
 -- (* Pluscal algorithm for a simple key-value store with snapshot isolation  *)
 -- (* This version has atomic updates of store and missed sets of txns       *)
@@ -39,6 +46,11 @@ instantiate txEnum : Veil.Enumeration txId
 enum pcLabel = { START, READ, UPDATE, COMMIT, Done }
 
 /-! ## ClientCentric (only what `Serializability` needs)
+
+Adapted from:
+https://github.com/tlaplus/Examples/blob/6a7b26a31c1a6aeec789b455e9bbfa3b3ad2728f/specifications/KeyValueStore/ClientCentric.tla
+Copyright (c) 2020, ING Bank / CWI. All rights reserved.
+BSD-2-Clause license: Benchmarks/TLA/TLAPlusExamples/KVSnap/ClientCentric-LICENSE
 
 `CC == INSTANCE ClientCentric WITH Keys <- Key, Values <- TxId \union {NoVal}`. A database
 state is a function `κ → ν`; states are compared pointwise over the list of all keys. -/

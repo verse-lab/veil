@@ -2,6 +2,13 @@ module
 
 public import Veil
 
+/-
+Upstream license: MIT; see Benchmarks/TLA/AWS/LICENSE.
+Copyright (c) 2024 Murat Demirbas
+Source: https://github.com/muratdem/TLA-seminar/blob/bf29c5d449be99c25c102e578a4f3eb819b7725e/AwsDNSrace/AwsDNSRace.tla
+Modified locally: translated and adapted to Veil.
+-/
+
 /- https://muratbuffalo.blogspot.com/2025/11/tla-modeling-of-aws-outage-dns-race.html?m=1 -/
 
 veil module AWSDnsRace

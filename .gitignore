@@ -15,3 +15,8 @@ widget/node_modules/
 # Profiler output
 *.json
 profiles/
+
+__pycache__/
+
+# Output of Benchmarks/TLA/scripts/run_tlc.py
+benchmark-results/

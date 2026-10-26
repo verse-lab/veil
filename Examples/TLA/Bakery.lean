@@ -2,6 +2,13 @@ module
 
 public import Veil
 
+/-
+Veil translation/adaptation of TLA+ material from tlaplus/Examples.
+Source: https://github.com/tlaplus/Examples/blob/a997ee6813b7c20951311e3658a8579270d9f306/specifications/Bakery-Boulangerie/Bakery.tla
+Copyright (c) 2016: The TLA+ project and other contributors.
+Upstream MIT license: Benchmarks/TLA/TLAPlusExamples/LICENSE
+-/
+
 veil module Bakery
 
 param maxProc : Nat
@@ -22,6 +29,8 @@ function unchecked    : ProcTy maxProc → ProcessSet
 function max          : ProcTy maxProc → TicketNum maxNum
 function nxt          : ProcTy maxProc → ProcTy maxProc
 function pc           : ProcTy maxProc → pc_state
+
+set_option veil.deferVCGeneration true
 
 veil_set_field_representation relation Veil.ArrayAsFinset
 veil_set_field_representation function Veil.ArrayAsFinmap
@@ -195,10 +204,12 @@ set_option maxHeartbeats 2500000
 #gen_spec
 #gen_executable
 
--- #model_check compiled
--- { maxProc := 2,
---   maxNum := 3,
---   ProcessSet := OrdList (ProcTy 2) }
--- {  }
+/- EVAL
+#model_check compiled
+{ maxProc := 2,
+  maxNum := 3,
+  ProcessSet := OrdList (ProcTy 2) }
+{  } (seenSet := HAMTMapShard)
+-/
 
 end Bakery

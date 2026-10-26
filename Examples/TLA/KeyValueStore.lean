@@ -2,6 +2,12 @@ module
 
 public import Veil
 
+/-
+Veil translation/adaptation of TLA+ material from tlaplus/Examples.
+Copyright (c) 2016: The TLA+ project and other contributors.
+Upstream MIT license: Benchmarks/TLA/TLAPlusExamples/LICENSE
+-/
+
 -- source: KeyValueStore.tla — Key-Value Store with Snapshot Isolation
 -- https://github.com/tlaplus/Examples/blob/c2641e69204ed241cdf548d9645ac82df55bfcd8/specifications/KeyValueStore/KeyValueStore.tla
 -- Rewrite of KeyValueStore.lean:
@@ -33,6 +39,8 @@ individual tx          : TxIdSet
 function snapshotStore : txId → key → Option value
 function written       : txId → KeySet
 function missed        : txId → KeySet
+
+set_option veil.deferVCGeneration true
 
 #gen_state
 
@@ -160,12 +168,24 @@ invariant [Txlifecycle] snapshot_isolation ∧ transaction_cleanup
 
 #gen_spec
 
+-- TEST ONLY
 #model_check compiled
 { key := Fin 2,
   value := Fin 2,
   txId := Fin 3,
-  KeySet := OrdList (Fin 2),
-  TxIdSet := OrdList (Fin 3) } {}
+  KeySet := OrdList _,
+  TxIdSet := OrdList _ } {}
   (maxDepth := 2) (sequential := true)
+-- TEST ONLY
+
+/- EVAL
+#model_check compiled
+{ key := Fin 2,
+  value := Fin 3,
+  txId := Fin 3,
+  KeySet := OrdList _,
+  TxIdSet := OrdList _ }
+{} (seenSet := HAMTMapShard)
+-/
 
 end KeyValueStoreRe

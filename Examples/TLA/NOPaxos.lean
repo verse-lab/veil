@@ -2,12 +2,20 @@ module
 
 public import Veil
 
+/-!
+Adapted into Veil from the NOPaxos specification by Ellis Michael.
+Upstream license: MIT; see Benchmarks/TLA/NOPaxos/LICENSE.
+Copyright (c) 2017 Ellis Michael
+Source: https://github.com/UWSysLab/NOPaxosTLA/blob/9f4549a8ce402bc32fc63b5562e83b31571e1e1f/NOPaxos.tla
+Local changes include executable state/message representations and a finite message bound.
+The upstream protocol is the source of the two checked safety properties; the
+intermediate Ivy invariant additions are not included in this translation.
+-/
+
 -- NOTE: `Max (Fin n)` used to come from Mathlib, which Veil no longer depends on
 public instance : Max (Fin n) := maxOfLe
 
 veil module NOPaxos
-
-set_option veil.deferVCGeneration true
 
 abbrev LogTy (value : Type) := Array value
 
@@ -151,6 +159,8 @@ immutable individual ReplicaOrder  : Array replica
 
 -- ASSUME IsFiniteSet(Replicas)
 instantiate replicaEnumerable : Veil.Enumeration replica
+
+set_option veil.deferVCGeneration true
 
 -- veil_set_field_representation function Veil.ArrayAsFinmap
 
@@ -955,19 +965,21 @@ set_option maxHeartbeats 1600000
 #gen_spec
 #gen_executable
 
--- #model_check compiled
--- {
---   replica := Fin 3
---   replicaSet := OrdList (Fin 3)
---   value := Fin 6
---   maxSeq := 0
---   MsgSet := OrdList (NOPaxosMsg (Fin 3) (Fin 6) 0)
--- }
--- {
---   NoOp := 0
---   MsgCountLimit := 16
---   ReplicaOrder := #[0, 1, 2]
--- }
+/- EVAL
+#model_check compiled
+{
+  replica := Fin 3
+  replicaSet := OrdList _
+  value := Fin 6
+  maxSeq := 0
+  MsgSet := OrdList _
+}
+{
+  NoOp := 0
+  MsgCountLimit := 18
+  ReplicaOrder := #[0, 1, 2]
+} (seenSet := HAMTMapShard)
+-/
 
 -- ================================================================================
 end NOPaxos

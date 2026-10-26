@@ -2,19 +2,19 @@ module
 
 public import Veil
 
+-- source: https://github.com/egolf-cs/scythe-fmcad2024/blob/acb63604327eaca12e0fae80195124411047f56f/run_tool/sketches/German.tla
+
 veil module GermanCacheCoherence
 
 enum CacheState = { cI, cS, cE }
 enum MsgCmd = { empty, reqS, reqE, inv, invAck, gntS, gntE }
 
--- CACHE == [State: CACHE_STATE, Data: DATA]
 @[veil_decl]
 structure CacheEntry (CacheState d : Type) where
   state : CacheState
   dat   : d
 deriving instance Veil.Enumeration for CacheEntry
 
--- MSG == [Cmd: MSG_CMD, Data: DATA]
 @[veil_decl]
 structure MsgEntry (MsgCmd d : Type) where
   cmd : MsgCmd
@@ -49,17 +49,12 @@ individual curPtr : node          -- node that issued current request
 individual memData : data         -- memory data
 individual auxData : data         -- auxiliary: tracks latest written value
 
+set_option veil.deferVCGeneration true
+
 veil_set_field_representation relation Veil.ArrayAsFinset
 veil_set_field_representation function Veil.ArrayAsFinmap
 
 #gen_state
-
--- TLA+:
--- Cache = [i ∈ NODE |-> [State |-> "I", Data |-> 1]]
--- Chan1..3 = [i ∈ NODE |-> [Cmd |-> "Empty", Data |-> 1]]
--- InvSet/ShrSet = [i ∈ NODE |-> FALSE]
--- ExGntd = FALSE, CurCmd = "Empty", CurPtr ∈ NODE
--- MemData = 1, AuxData = 1
 
 after_init {
   cache I := ⟨cI, initData⟩
@@ -76,7 +71,6 @@ after_init {
 }
 
 -- SendReqS(i): Node i requests shared access.
--- TLA+: Chan1' = [Chan1 EXCEPT ![i].Cmd = "ReqS"]
 action SendReqS (i : node) {
   require (chan1 i).cmd = empty
   require (cache i).state = cI
@@ -97,7 +91,6 @@ action RecvReqS (i : node) {
   curCmd := reqS
   curPtr := i
   chan1 i := { chan1 i with cmd := empty }
-  -- InvSet' = [j ∈ NODE |-> ShrSet[j]]
   invSet := shrSet
 }
 
@@ -108,7 +101,6 @@ action RecvReqE (i : node) {
   curCmd := reqE
   curPtr := i
   chan1 i := { chan1 i with cmd := empty }
-  -- InvSet' = [j ∈ NODE |-> ShrSet[j]]
   invSet := shrSet
 }
 
@@ -122,8 +114,6 @@ action SendInv (i : node) {
 }
 
 -- SendInvAck(i): Node i acknowledges invalidation.
--- TLA+: Chan3' = [Chan3 EXCEPT ![i] = [Cmd |-> "InvAck",
---          Data |-> IF Cache[i].State = "E" THEN Cache[i].Data ELSE Chan3[i].Data]]
 action SendInvAck (i : node) {
   require (chan2 i).cmd = inv
   require (chan3 i).cmd = empty
@@ -135,7 +125,6 @@ action SendInvAck (i : node) {
 }
 
 -- RecvInvAck(i): Directory receives invalidation ack from node i.
--- TLA+: IF ExGntd THEN ExGntd'=FALSE /\ MemData'=Chan3[i].Data ELSE UNCHANGED
 action RecvInvAck (i : node) {
   require (chan3 i).cmd = invAck
   require curCmd ≠ empty
@@ -147,7 +136,6 @@ action RecvInvAck (i : node) {
 }
 
 -- SendGntS(i): Directory grants shared access to requesting node i.
--- TLA+: Chan2' = [Chan2 EXCEPT ![i] = [Cmd |-> "GntS", Data |-> MemData]]
 action SendGntS (i : node) {
   require curCmd = reqS
   require curPtr = i
@@ -159,7 +147,6 @@ action SendGntS (i : node) {
 }
 
 -- SendGntE(i): Directory grants exclusive access to requesting node i.
--- TLA+: ∀ j ∈ NODE : ShrSet[j] = FALSE
 action SendGntE (i : node) {
   require curCmd = reqE
   require curPtr = i
@@ -173,7 +160,6 @@ action SendGntE (i : node) {
 }
 
 -- RecvGntS(i): Node i receives shared grant.
--- TLA+: Cache' = [Cache EXCEPT ![i] = [State |-> "S", Data |-> Chan2[i].Data]]
 action RecvGntS (i : node) {
   require (chan2 i).cmd = gntS
   cache i := ⟨cS, (chan2 i).dat⟩
@@ -204,9 +190,12 @@ invariant [DataProp]
   (∀ i : node, (cache i).state ≠ cI → (cache i).dat = auxData)
 
 #gen_spec
+#gen_executable
 
+/- EVAL
 #model_check compiled
-{ node := Fin 2, data := Fin 2 }
-{ initData := 0 }
+{ node := Fin 3, data := Fin 3 }
+{ initData := 0 } (seenSet := HAMTMapShard)
+-/
 
 end GermanCacheCoherence

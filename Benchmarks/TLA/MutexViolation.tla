@@ -1,4 +1,8 @@
 ------------------------------- MODULE MutexViolation -------------------------------
+\* Case-study reference: Ruize Tang et al., "Converos: Practical Model Checking
+\* for Verifying Rust OS Kernel Concurrency", USENIX ATC 2025.
+\* Section 6.1, Case Study 1 (Mutex), Figure 14.
+\* https://www.usenix.org/system/files/atc25-tang.pdf
 
 EXTENDS Integers, FiniteSets, Sequences, TLC
 
