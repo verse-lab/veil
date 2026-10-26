@@ -6,7 +6,7 @@ public meta import Veil.Frontend.DSL.Module.Syntax
 public meta import Veil.Frontend.DSL.Module.Util.Instantiation
 
 /-! What the VS Code extension of Veil asks Lean for with code actions: the template of a config file,
-which builds the model checker of a module with `#model_check` in another file, and where the
+which builds the model checker of a module with `#mc_config` in another file, and where the
 declarations of the module of such a command are. -/
 
 public meta section
@@ -22,7 +22,7 @@ structure ConfigTemplateField where
   deriving ToJson
 
 /-- What a config file for a module needs: the import of the module, and the fields without a
-default of the instantiation and of the theory that `#model_check` takes -/
+default of the instantiation and of the theory that `#mc_config` takes -/
 structure ConfigTemplate where
   «module» : String
   /-- The name that imports the file of the module, unless no file can import it -/
@@ -95,7 +95,7 @@ structure ModuleSources where
   deriving ToJson
 
 /-- The kind of the code action that gives where the declarations of the module of a
-`#model_check` command are. As with `configTemplateKind`, only a request for it gets it, and it
+`#mc_config` command are. As with `configTemplateKind`, only a request for it gets it, and it
 is a `refactor` kind for VS Code to ask Lean. -/
 def moduleSourcesKind : String := "refactor.veil.modelCheckSources"
 

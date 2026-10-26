@@ -1,13 +1,13 @@
-// The `#model_check` commands of a Lean file, and their status from the messages that Lean
+// The `#mc_config` commands of a Lean file, and their status from the messages that Lean
 // reports for the file. This module does not use VS Code, so that the tests can run it.
 
-/** The message that `#model_check` reports at the command once its binary is ready. */
+/** The message that `#mc_config` reports at the command once its binary is ready. */
 export const BUILT_PREFIX = 'Model checker built: ';
 
-const KEYWORD = '#model_check';
+const KEYWORD = '#mc_config';
 
 export interface BuildCommandSite {
-  /** The 0-based position of `#model_check` */
+  /** The 0-based position of `#mc_config` */
   line: number;
   character: number;
   /** The last line of the command: the line before the next command, or before the next line that
@@ -89,18 +89,17 @@ function wordAt(text: string, offset: number, word: string): boolean {
   return text.startsWith(word, offset) && /^\s?$/.test(text[offset + word.length] ?? '');
 }
 
-/** The `#model_check` commands in `text` that build a model checker, leaving out those in comments
- * and strings. As for Lean, these are the ones where an identifier follows the keyword, which names
- * the module, wherever they are. A command must start its line. */
+/** The `#mc_config` commands in `text`, leaving out those in comments and strings. A command must
+ * start its line. */
 export function findBuildCommands(text: string): BuildCommandSite[] {
   const { starts, lineOffsets } = scanLines(text);
   const lastLine = lineOffsets.length - 1;
   // The lines that start with code at column 0
   const topLevelLines = starts.filter(start => start.character === 0).map(start => start.line);
   const sites = starts.filter(start => wordAt(text, start.offset, KEYWORD)).map(start => {
-    const name = /^\s+([\p{L}_«][^\s{}()[\]]*)/u.exec(text.slice(start.offset + KEYWORD.length, start.offset + KEYWORD.length + 1000));
+    const name = /^\s+([^\s{}()[\]]+)/.exec(text.slice(start.offset + KEYWORD.length, start.offset + KEYWORD.length + 1000));
     return { line: start.line, character: start.character, offset: start.offset, module: name ? name[1] : '' };
-  }).filter(site => !['', '_', 'interpreted', 'compiled'].includes(site.module));
+  });
   return sites.map(({ offset, ...site }, i) => {
     const nextTopLevel = topLevelLines.find(l => l > site.line) ?? lastLine + 1;
     const nextSite = sites[i + 1]?.line ?? lastLine + 1;

@@ -1,4 +1,4 @@
-// The last run of each `#model_check` command, kept on disk so that it outlives the window,
+// The last run of each `#mc_config` command, kept on disk so that it outlives the window,
 // and the files that runs are exported to. This module does not use VS Code, so that the tests can
 // run it.
 import { createHash } from 'crypto';

@@ -30,52 +30,36 @@ const test = (name: string, run: Test['run']) => tests.push({ name, run });
 test('finds commands and where they end', () => {
   const text = [
     'module',
-    '#model_check Foo { n := Fin 2 }',
+    '#mc_config Foo { n := Fin 2 }',
     '  { limit := 2 }',
     '',
-    '  #model_check Bar.Baz {}',
+    '  #mc_config Bar.Baz {}',
     'def x := 1',
   ].join('\n');
   assert.deepStrictEqual(findBuildCommands(text), [
-    { line: 1, character: 0, endLine: 3, module: 'Foo', command: '#model_check Foo { n := Fin 2 } { limit := 2 }' },
-    { line: 4, character: 2, endLine: 4, module: 'Bar.Baz', command: '#model_check Bar.Baz {}' },
+    { line: 1, character: 0, endLine: 3, module: 'Foo', command: '#mc_config Foo { n := Fin 2 } { limit := 2 }' },
+    { line: 4, character: 2, endLine: 4, module: 'Bar.Baz', command: '#mc_config Bar.Baz {}' },
   ]);
 });
 
 test('leaves out commands in comments and strings', () => {
   const text = [
-    '-- #model_check InLineComment {}',
-    '/- #model_check InBlockComment {}',
-    '#model_check StillInBlockComment {}',
+    '-- #mc_config InLineComment {}',
+    '/- #mc_config InBlockComment {}',
+    '#mc_config StillInBlockComment {}',
     '/- nested -/',
     '-/',
     '/-- A docstring',
-    '#model_check InDocstring {}',
+    '#mc_config InDocstring {}',
     '-/',
     'def s := "',
-    '#model_check InString {}"',
-    '#model_check Real {}',
-    'x #model_check NotAtLineStart {}',
-    '#model_checker NotTheKeyword {}',
+    '#mc_config InString {}"',
+    '#mc_config Real {}',
+    'x #mc_config NotAtLineStart {}',
+    '#mc_configs NotTheKeyword {}',
+    '#model_check NotABuild {}',
   ].join('\n');
   assert.deepStrictEqual(findBuildCommands(text).map(site => site.module), ['Real']);
-});
-
-test('takes the model checks where an identifier follows the keyword as build commands', () => {
-  const text = [
-    '#model_check Before {}',
-    '#model_check {} {}',
-    '#model_check (inst) theory',
-    '#model_check _ {}',
-    '#model_check interpreted inst theory',
-    '#model_check compiled {}',
-    // Also inside a module, as for Lean
-    'veil module Inside',
-    '#model_check {} {}',
-    '#model_check inst theory',
-    'end Inside',
-  ].join('\n');
-  assert.deepStrictEqual(findBuildCommands(text).map(site => site.module), ['Before', 'inst']);
 });
 
 test('finds modules and the commands of them that a config file needs', () => {
@@ -110,10 +94,10 @@ test('writes the config file of a template, with placeholders for its values', (
   const parts = configCommand(template);
   assert.deepStrictEqual(parts.filter(part => 'placeholder' in part), [{ placeholder: 'Fin 2' }, { placeholder: '_' }, { placeholder: '_' }]);
   assert.strictEqual(snippetText(parts),
-    '#model_check CheckedElsewhere\n  { node := Fin 2, NodeSet := _ }\n  { limit := _ }\n');
+    '#mc_config CheckedElsewhere\n  { node := Fin 2, NodeSet := _ }\n  { limit := _ }\n');
   // A module without sorts has an empty instantiation, and the theory is left out when it is empty
   assert.strictEqual(snippetText(configCommand({ ...template, instantiation: [], theory: [] })),
-    '#model_check CheckedElsewhere\n  {}\n');
+    '#mc_config CheckedElsewhere\n  {}\n');
 });
 
 test('puts a new config file next to its module, and finds the configs of a module', () => {
@@ -126,7 +110,7 @@ test('puts a new config file next to its module, and finds the configs of a modu
 
 // ---- Build status ----
 
-const site = { line: 1, character: 0, endLine: 3, module: 'Foo', command: '#model_check Foo {}' };
+const site = { line: 1, character: 0, endLine: 3, module: 'Foo', command: '#mc_config Foo {}' };
 const message = (line: number, severity: Severity, text: string): ReportedMessage => ({ line, severity, message: text });
 
 test('a command is built once Lean reports its binary', () => {
@@ -289,7 +273,7 @@ test('the panel shows why a run failed or that it was stopped', () => {
 });
 
 test('the panel says when no check has run', () => {
-  assertShows(renderToStaticMarkup(React.createElement(NoRun)), ['#model_check']);
+  assertShows(renderToStaticMarkup(React.createElement(NoRun)), ['#mc_config']);
 });
 
 test('the panel tells a saved run, or one from a file, from a run of this window', () => {
@@ -370,7 +354,7 @@ test('describes how runs ended', () => {
 const finished = (endedAt: number) => snapshot({
   status: 'finished', endedAt, result: { result: 'no_violation_found', explored_states: 4 },
 });
-const sourceOf = (file: string, command = '#model_check Paxos {}'): RunSource => ({ file, command });
+const sourceOf = (file: string, command = '#mc_config Paxos {}'): RunSource => ({ file, command });
 
 function withStoreDir(run: (dir: string) => Promise<void>): () => Promise<void> {
   return async () => {
@@ -392,7 +376,7 @@ test('saves the last run of each command, for the next window', withStoreDir(asy
   await later.load();
   assert.deepStrictEqual(later.summary(sourceOf('file:///a.lean')),
     { source: sourceOf('file:///a.lean'), binary: '/tmp/checker', outcome: 'stopped', text: 'Stopped', endedAt: 2000 });
-  assert.strictEqual(later.summary(sourceOf('file:///a.lean', '#model_check Paxos { n := 3 }')), undefined);
+  assert.strictEqual(later.summary(sourceOf('file:///a.lean', '#mc_config Paxos { n := 3 }')), undefined);
   assert.deepStrictEqual(later.newest()?.source, sourceOf('file:///b.lean'));
   assert.strictEqual((await later.read(sourceOf('file:///b.lean')))?.run.endedAt, 3000);
 }));
@@ -411,7 +395,7 @@ test('applies changed saved-result limits on the next save', withStoreDir(async 
   let limit = 2;
   const store = new ResultStore(dir, () => limit);
   const a = sourceOf('file:///a.lean');
-  const b = sourceOf('file:///a.lean', '#model_check Paxos { n := 3 }');
+  const b = sourceOf('file:///a.lean', '#mc_config Paxos { n := 3 }');
   const c = sourceOf('file:///b.lean');
   await store.save(a, finished(1000));
   await store.save(b, finished(2000));
@@ -703,7 +687,7 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
       const lines = fs.readFileSync(file, 'utf8').split('\n');
       // The module, and a config command for it, which builds as the first one of the fixture does
       const moduleEnd = findVeilModules(lines.join('\n'))[0].endLine!;
-      const command = '#model_check RunnerFixture { node := Fin 2, NodeSet := _ } { limit := 2 }';
+      const command = '#mc_config RunnerFixture { node := Fin 2, NodeSet := _ } { limit := 2 }';
       const text = [...lines.slice(0, moduleEnd + 1), '', command].join('\n');
       server.notify('textDocument/didOpen', { textDocument: { uri, languageId: 'lean4', version: 1, text } });
       await within(server.request('textDocument/waitForDiagnostics', { uri, version: 1 }), 600_000, 'Processing the config');
@@ -730,25 +714,25 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
   test('unfinished configs report their input holes without compiling a broken main', () => {
     const cases = [
       {
-        command: '#model_check CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } { limit := _ }',
+        command: '#mc_config CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } { limit := _ }',
         hole: 'limit := _',
         messages: ["don't know how to synthesize placeholder"],
         goal: '⊢ Nat',
       },
       {
-        command: '#model_check CheckedElsewhere { node := _, NodeSet := _, Buffer := _ } { limit := 2 }',
+        command: '#mc_config CheckedElsewhere { node := _, NodeSet := _, Buffer := _ } { limit := 2 }',
         hole: 'node := _',
         messages: ["don't know how to synthesize placeholder", 'typeclass instance problem is stuck'],
         goal: '⊢ Type',
       },
       {
-        command: '#model_check CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } _',
+        command: '#mc_config CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } _',
         hole: '} _',
         messages: ["don't know how to synthesize placeholder"],
         goal: '⊢ Theory',
       },
       {
-        command: '#model_check CheckedElsewhere _ { limit := true }',
+        command: '#mc_config CheckedElsewhere _ { limit := true }',
         hole: 'CheckedElsewhere _',
         messages: ["don't know how to synthesize placeholder", 'Type mismatch'],
         goal: '⊢ Instantiation',

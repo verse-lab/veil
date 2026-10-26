@@ -5,7 +5,7 @@ public import VeilTest.Regression.ModelCheckBuildHelper
 meta import Lean
 
 /-!
-Multiple external `#model_check` commands in one file can target different Veil modules,
+Multiple `#mc_config` commands in one file can target different Veil modules,
 instantiations, theories, and checker options. Each command builds without running the search.
 -/
 
@@ -30,25 +30,25 @@ end ModelCheckBuildMultipleToggle
 -- The imported module with a configuration that violates its bound.
 /-- info: Model checker built: -/
 #guard_msgs (substring := true) in
-#model_check CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
   { limit := 1 } (maxDepth := 10)
 
 -- The same module, instantiation, and theory, with a different checker option.
 /-- info: Model checker built: -/
 #guard_msgs (substring := true) in
-#model_check CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
   { limit := 1 } (maxDepth := 1)
 
 -- The same module with a larger instantiation and a theory that permits all eight states.
 /-- info: Model checker built: -/
 #guard_msgs (substring := true) in
-#model_check CheckedElsewhere { node := Fin 3, NodeSet := OrdList _, Buffer := Array _ }
+#mc_config CheckedElsewhere { node := Fin 3, NodeSet := OrdList _, Buffer := Array _ }
   { limit := 3 } (maxDepth := 10)
 
 -- A different module, declared in this file rather than imported.
 /-- info: Model checker built: -/
 #guard_msgs (substring := true) in
-#model_check ModelCheckBuildMultipleToggle {} {} (maxDepth := 10)
+#mc_config ModelCheckBuildMultipleToggle {} {} (maxDepth := 10)
 
 -- Use this process's completed builds, so binaries left by an earlier run cannot satisfy the test.
 -- All four copied binaries must coexist and run with their own module and configuration.

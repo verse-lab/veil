@@ -4,7 +4,7 @@ public import Veil
 public import VeilTest.Regression.ModelCheckBuildHelper
 meta import Lean
 
-/-! `#model_check` builds a model checker for a module of another file. -/
+/-! `#mc_config` builds a model checker for a module of another file. -/
 
 -- The holes are filled from the `instantiate` constraints that `#gen_executable` recorded. As
 -- inside the module, the scoped instances of its enums are needed.
@@ -27,7 +27,7 @@ run_cmd do
 
 /-- info: Model checker built: -/
 #guard_msgs (substring := true) in
-#model_check CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
   { limit := 1 }
 
 -- The binary is copied out of its build folder, and runs from there. Its counterexample shows the
@@ -71,27 +71,35 @@ example : CheckedElsewhere.Instantiation :=
 error: `sequential` is not part of the model checker: pass the parallel configuration to the binary as arguments.
 -/
 #guard_msgs in
-#model_check CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
   { limit := 2 } (sequential := true)
+
+-- Options can also follow a left-out theory, instead of being parsed as one
+/--
+error: `sequential` is not part of the model checker: pass the parallel configuration to the binary as arguments.
+-/
+#guard_msgs in
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
+  (sequential := true)
 
 /--
 error: `config` sets the parallel configuration, which is not part of the model checker: pass it to the binary as arguments.
 -/
 #guard_msgs in
-#model_check CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
   { limit := 2 } (config := { sequential := true })
 
 -- A full configuration without them is fine
 /-- info: Model checker built: -/
 #guard_msgs (substring := true) in
-#model_check CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
   { limit := 2 } (config := { maxDepth := 3 })
 
 /--
 error: Module NotExecutable has no executable definitions here: add `#gen_executable` to the `veil module NotExecutable` block that declares it.
 -/
 #guard_msgs in
-#model_check NotExecutable {} {}
+#mc_config NotExecutable {} {}
 
 -- The template of a config file for `CheckedElsewhere`, which the VS Code extension asks for. The enum
 -- sort keeps its default, and the other fields are holes. A file in no library has no import.
@@ -108,31 +116,31 @@ null
 
 /-- error: don't know how to synthesize placeholder -/
 #guard_msgs (substring := true) in
-#model_check CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } { limit := _ }
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } { limit := _ }
 
 /-- Fields missing: `limit` -/
 #guard_msgs (substring := true) in
-#model_check CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ }
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ }
 
 /-- Fields missing: `limit` -/
 #guard_msgs (substring := true) in
-#model_check CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } {}
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } {}
 
 /-- error: don't know how to synthesize placeholder -/
 #guard_msgs (substring := true) in
-#model_check CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } _
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } _
 
 /-- error: don't know how to synthesize placeholder -/
 #guard_msgs (substring := true) in
-#model_check CheckedElsewhere _ { limit := 2 }
+#mc_config CheckedElsewhere _ { limit := 2 }
 
 /-- error: don't know how to synthesize placeholder -/
 #guard_msgs (substring := true) in
-#model_check CheckedElsewhere { node := _, NodeSet := _, Buffer := _ } { limit := 2 }
+#mc_config CheckedElsewhere { node := _, NodeSet := _, Buffer := _ } { limit := 2 }
 
 /-- error: failed to synthesize instance of type class -/
 #guard_msgs (substring := true) in
-#model_check CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := List _ } { limit := 2 }
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := List _ } { limit := 2 }
 
 /--
 error: Type mismatch
@@ -143,15 +151,15 @@ but is expected to have type
   Nat
 -/
 #guard_msgs in
-#model_check CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } { limit := true }
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } { limit := true }
 
 /-- error: `unknown` is not a field of structure `CheckedElsewhere.Theory` -/
 #guard_msgs in
-#model_check CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } { unknown := 2 }
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := _, Buffer := _ } { unknown := 2 }
 
 /-- info: Model checker built: -/
 #guard_msgs (substring := true) in
-#model_check CheckedElsewhere { node := _, NodeSet := OrdList (Fin 2), Buffer := _ } { limit := 2 }
+#mc_config CheckedElsewhere { node := _, NodeSet := OrdList (Fin 2), Buffer := _ } { limit := 2 }
 
 -- Where the actions and the properties of `CheckedElsewhere` are, which the VS Code extension links
 -- the results to
@@ -178,65 +186,3 @@ info: {"actions":[{"character":0,"line":36,"name":"after_init","uri":"file:///re
 #eval IO.println (Veil.ExecutionWorkflow.infoviewSources
   #[{ name := "after_init", file := "/repo/M.lean", line := 36, character := 0 }]
   #[{ name := "bounded", file := "Examples/M.lean", line := 47, character := 2 }] "/repo").compress
-
--- An identifier right after `#model_check` names the module to build a model checker for, inside a
--- module too. A definition that gives the instantiation goes in parentheses.
-veil module ModelCheckDispatch
-
-individual flag : Bool
-
-after_init { flag := false }
-
-action toggle { flag := !flag }
-
-invariant true
-
-#gen_spec
-
-def inst : Instantiation := {}
-def th : Theory := {}
-
-/-- info: ✅ No violation (explored 2 states) -/
-#guard_msgs in
-#model_check (inst) th (sequential := true)
-
-/--
-error: Module inst has no executable definitions here: add `#gen_executable` to the `veil module inst` block that declares it. To use inst as the instantiation of the current module, write it in parentheses: `(inst)`.
--/
-#guard_msgs in
-#model_check inst th
-
-/--
-error: `#model_check inst` builds the model checker of module inst, which needs its instantiation, as in `#model_check inst { … }`. To use inst as the instantiation of the current module, write it in parentheses: `(inst)`.
--/
-#guard_msgs in
-#model_check inst
-
-end ModelCheckDispatch
-
-def dispatchInst : ModelCheckDispatch.Instantiation := {}
-def dispatchTheory : ModelCheckDispatch.Theory := {}
-
--- Options can follow a left-out theory
-/--
-error: `sequential` is not part of the model checker: pass the parallel configuration to the binary as arguments.
--/
-#guard_msgs in
-#model_check ModelCheckDispatch dispatchInst (sequential := true)
-
--- With `Veil` open, the form that checks the current module also parses those with two arguments
-open Veil
-
-/-- info: Model checker built: -/
-#guard_msgs (substring := true) in
-#model_check ModelCheckDispatch dispatchInst dispatchTheory
-
-/-- info: Model checker built: -/
-#guard_msgs (substring := true) in
-#model_check ModelCheckDispatch dispatchInst
-
-/--
-error: Building the model checker of module ModelCheckDispatch does not take `assumptions_hold_by`.
--/
-#guard_msgs in
-#model_check ModelCheckDispatch dispatchInst assumptions_hold_by decide

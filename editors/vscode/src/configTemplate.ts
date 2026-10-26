@@ -26,9 +26,9 @@ export function configHeader(template: ConfigTemplate): string {
   return `module\n\npublic import Veil\npublic import ${template.import}\n\n`;
 }
 
-/** The `#model_check` command of a config file for `template`, with a placeholder for each value */
+/** The `#mc_config` command of a config file for `template`, with a placeholder for each value */
 export function configCommand(template: ConfigTemplate): SnippetPart[] {
-  const parts: SnippetPart[] = [{ text: `#model_check ${template.module}` }];
+  const parts: SnippetPart[] = [{ text: `#mc_config ${template.module}` }];
   const structure = (fields: ConfigTemplateField[]) => {
     if (fields.length === 0) {
       parts.push({ text: '\n  {}' });
@@ -39,7 +39,7 @@ export function configCommand(template: ConfigTemplate): SnippetPart[] {
     parts.push({ text: ' }' });
   };
   structure(template.instantiation);
-  // `#model_check` takes an empty theory when it is left out
+  // `#mc_config` takes an empty theory when it is left out
   if (template.theory.length > 0) structure(template.theory);
   parts.push({ text: '\n' });
   return parts;
@@ -56,7 +56,7 @@ export function configFileFor(moduleFile: string): string {
   return path.join(path.dirname(moduleFile), `${path.basename(moduleFile, '.lean')}MC.lean`);
 }
 
-/** Whether `#model_check written` is of the module that `veil module declared` declares. The
+/** Whether `#mc_config written` is of the module that `veil module declared` declares. The
  * command may name it with fewer namespaces than its declaration, or more. */
 export function isOfModule(written: string, declared: string): boolean {
   const last = (name: string) => name.split('.').pop();

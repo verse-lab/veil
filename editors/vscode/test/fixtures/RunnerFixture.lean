@@ -48,10 +48,10 @@ invariant [bounded] nodeSet.count finished ≤ limit
 end RunnerFixture
 
 -- Explores the 4 subsets of `Fin 2`
-#model_check RunnerFixture { node := Fin 2, NodeSet := OrdList _ } { limit := 2 }
+#mc_config RunnerFixture { node := Fin 2, NodeSet := OrdList _ } { limit := 2 }
 
 -- Explores the 2^24 subsets of `Fin 24`: long enough to stop it while it runs
-#model_check RunnerFixture { node := Fin 24, NodeSet := OrdList _ } { limit := 24 }
+#mc_config RunnerFixture { node := Fin 24, NodeSet := OrdList _ } { limit := 24 }
 
 -- Violates `bounded` once both nodes have finished
-#model_check RunnerFixture { node := Fin 2, NodeSet := OrdList _ } { limit := 1 }
+#mc_config RunnerFixture { node := Fin 2, NodeSet := OrdList _ } { limit := 1 }

@@ -34,20 +34,18 @@ attribute to take part.
 use `#gen_executable`.
 
 To build a module's model checker without running it, typically in another
-file, name the module before the instantiation:
+file, use `#mc_config` and name the module before the instantiation:
 
 ```lean
-#model_check Paxos { node := Fin 3 } { leader := 0 }
+#mc_config Paxos { node := Fin 3 } { leader := 0 }
 ```
 
-An identifier right after `#model_check` always names a module, so write an
-instantiation given by a definition in parentheses: `#model_check (inst) th`.
-The module must already have executable definitions from `#gen_executable` or a
-`#model_check` that checks it, possibly in an imported file. The VS Code
-extension runs the resulting binary; see its [README](../editors/vscode/README.md).
+The module must already have executable definitions from `#gen_executable` or
+`#model_check`, possibly in an imported file. The VS Code extension runs the
+resulting binary; see its [README](../editors/vscode/README.md).
 
 Two things differ from checking a module. 
-- When the module has no theory, options can directly follow the instantiation, without `{}` for the theory: `#model_check Ring { node := Fin 3 } (maxDepth := 10)`. 
+- When the module has no theory, options can directly follow the instantiation, without `{}` for the theory: `#mc_config Ring { node := Fin 3 } (maxDepth := 10)`. 
 - `sequential` and `parallelCfg` are not accepted, since whether the search runs in parallel is chosen each time the binary runs: the VS Code extension passes it to the binary as arguments, from its settings.
 
 ### Execution Modes

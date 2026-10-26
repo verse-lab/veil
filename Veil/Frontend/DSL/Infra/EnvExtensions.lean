@@ -66,7 +66,7 @@ structure DeclSource where
 deriving Inhabited, Lean.ToJson
 
 /-- What checking a module takes, without the module itself. `#gen_executable` records it, so
-that `#model_check` can build its model checker in the files importing the one declaring it. -/
+that `#mc_config` can build its model checker in the files importing the one declaring it. -/
 structure ExecutableModule where
   name : Name
   /-- The fields of `Instantiation` that set the sorts and parameters, in the order that the

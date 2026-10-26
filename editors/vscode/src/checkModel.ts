@@ -53,7 +53,7 @@ async function addGenExecutable(document: vscode.TextDocument, site: VeilModuleS
   await vscode.workspace.applyEdit(edit);
 }
 
-/** The `#model_check` commands of module `name` in the workspace, with the open files as they
+/** The `#mc_config` commands of module `name` in the workspace, with the open files as they
  * are in their editors */
 async function findConfigs(name: string): Promise<{ uri: vscode.Uri; site: BuildCommandSite }[]> {
   const uris = await vscode.workspace.findFiles('**/*.lean', '{**/.lake/**,**/node_modules/**}');
@@ -61,7 +61,7 @@ async function findConfigs(name: string): Promise<{ uri: vscode.Uri; site: Build
   for (const uri of uris) {
     const open = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
     const text = open ? open.getText() : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
-    if (!text.includes('#model_check')) continue;
+    if (!text.includes('#mc_config')) continue;
     for (const site of findBuildCommands(text)) if (isOfModule(site.module, name)) configs.push({ uri, site });
   }
   return configs;

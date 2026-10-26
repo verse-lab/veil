@@ -6,7 +6,7 @@ import { ResultStore, RunSource } from './resultStore';
 import { CheckerRun, parallelArgs } from './runner';
 import { ModuleSources, RunSnapshot, recordHistory } from './snapshot';
 
-/** A `#model_check` command whose binary is ready. */
+/** A `#mc_config` command whose binary is ready. */
 export interface RunTarget {
   uri: vscode.Uri;
   line: number;
