@@ -191,10 +191,11 @@ def fields? (j : Lean.Json) : Option (Array (String × Lean.Json)) :=
 
 /-! ## Text output
 
-For `TraceDisplay` and `VerificationResults`. `renderJson`, `renderText`, `callFormat`,
-`choiceFormat` and `actionFormat` build a `Std.Format`; `formatJson`, `formatText`, `formatField`,
-`formatFields`, `formatAction` and `formatChoices` lay out one value or one line at `textWidth`,
-given what precedes it on its line; the callers only assemble these lines into messages. -/
+For `TraceDisplay`, `VerificationResults` and the progress panel (`ProgressViewer`). `renderJson`,
+`renderText`, `argsFormat`, `callFormat`, `choiceFormat` and `actionFormat` build a `Std.Format`;
+`formatJson`, `formatText`, `formatField`, `formatFields`, `formatAction` and `formatChoices` lay
+out one value or one line at `textWidth`, given what precedes it on its line; the callers only
+assemble these lines into messages. -/
 
 /-- The width of the text output of traces and counterexamples. -/
 def textWidth : Nat := 100
@@ -205,17 +206,21 @@ def labeled (label : Std.Format) (sep : String) (value : Std.Format) : Std.Forma
   let lead := label ++ sep
   lead ++ Std.Format.nest (lead.pretty 100000).length value
 
+/-- The arguments of a call, `k=v, …`: `v` alone for an argument without a name. They fill each
+line. -/
+def argsFormat (args : List (Option String × Std.Format)) : Std.Format :=
+  Std.Format.fill (Std.Format.joinSep (args.map fun
+    | (some k, v) => labeled (Std.Format.text k) "=" v
+    | (none, v) => v)
+    ("," ++ Std.Format.line))
+
 /-- `name(k=v, …)`, as action labels and constructor applications (`deriving ConstructorRepr`) are
 shown: `v` alone for an argument without a name, and `name` alone without arguments. Arguments fill
 each line and continue aligned after `name(`. A call reads as one unit, so it needs no parentheses
 as an argument. -/
 def callFormat (name : String) (args : List (Option String × Std.Format)) : Std.Format :=
   if args.isEmpty then name else
-  labeled (Std.Format.text name) "(" (Std.Format.fill
-    (Std.Format.joinSep (args.map fun
-      | (some k, v) => labeled (Std.Format.text k) "=" v
-      | (none, v) => v)
-      ("," ++ Std.Format.line))) ++ ")"
+  labeled (Std.Format.text name) "(" (argsFormat args) ++ ")"
 
 /-- `name = v`, or `v` alone without a name: a pick as traces show it (`Choice`). -/
 def choiceFormat : Option String × Std.Format → Std.Format

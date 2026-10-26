@@ -90,12 +90,12 @@ structure ModelCheckProgress where
   allActionLabels : List String := []
   /-- Time-series history for charting progress over time -/
   history : Array ProgressHistoryPoint := #[]
-  deriving ToJson, FromJson, Inhabited, Repr
+  deriving ToJson, FromJson, Inhabited
 
 inductive ProgressDetails where
   | modelCheck (metrics : ModelCheckProgress)
   | simulation (metrics : SimulationProgress)
-  deriving ToJson, FromJson, Inhabited, Repr
+  deriving ToJson, FromJson, Inhabited
 
 /-- Progress of a running `#model_check` or `#simulate`. -/
 structure Progress where
@@ -108,7 +108,7 @@ structure Progress where
   compilationStatus : CompilationStatus := .none
   /-- The metrics specific to the command being run. -/
   details : ProgressDetails
-  deriving ToJson, FromJson, Inhabited, Repr
+  deriving ToJson, FromJson, Inhabited
 
 /-- Refs for tracking progress of a single model checker instance. -/
 structure ProgressRefs where
@@ -340,7 +340,7 @@ def resetProgressForHandoff (instanceId : Nat) : IO (Option IO.CancelToken) := d
 section Utilities
 
 variable {σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [inst : ActionStatUpdate κ asm]
-  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m] [Repr κ]
+  [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   (progressInstanceId : Nat)
 
 @[inline]
