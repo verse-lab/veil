@@ -90,45 +90,9 @@ export async function createConfig(template: ConfigTemplate, moduleUri: vscode.U
   await editor.insertSnippet(toSnippet(configCommand(template)), editor.document.lineAt(editor.document.lineCount - 1).range.end);
 }
 
-/** The command of `document` whose text is `command`, once Lean has built its model checker or failed
- * to, unless the user stops waiting */
-function waitForBuild(document: vscode.TextDocument, command: string): Thenable<BuildCommand | undefined> {
-  return vscode.window.withProgress({
-    location: vscode.ProgressLocation.Notification,
-    title: 'Waiting for Lean to build the model checker',
-    cancellable: true,
-  }, (_, token) => new Promise<BuildCommand | undefined>(resolve => {
-    const subscriptions: vscode.Disposable[] = [];
-    let waiting = true;
-    const done = (built: BuildCommand | undefined) => {
-      if (!waiting) return;
-      waiting = false;
-      for (const subscription of subscriptions) subscription.dispose();
-      resolve(built);
-    };
-    const check = () => {
-      const found = buildCommandsOf(document).find(c => c.site.command === command);
-      if (!found || found.status.kind !== 'pending') {
-        done(found);
-        return;
-      }
-      // An error before the command, e.g. that the imports are out of date, keeps Lean from building it
-      const blocking = vscode.languages.getDiagnostics(document.uri)
-        .find(d => d.severity === vscode.DiagnosticSeverity.Error && d.range.start.line < found.site.line);
-      if (blocking) done({ ...found, status: { kind: 'failed', message: blocking.message } });
-    };
-    subscriptions.push(
-      vscode.languages.onDidChangeDiagnostics(event => {
-        if (event.uris.some(uri => uri.toString() === document.uri.toString())) check();
-      }),
-      token.onCancellationRequested(() => done(undefined)));
-    check();
-  }));
-}
-
 /** "Check Model": run the model checker of a config file of a module, once Lean has built it, or else
  * create a config file for the module. `run` runs the command of a config file. */
-export async function checkModel(run: (document: vscode.TextDocument, command: BuildCommand) => void,
+export async function checkModel(run: (document: vscode.TextDocument, command: BuildCommand) => Promise<void>,
     modelConfigs: ModelConfigs, uri?: string, line?: number): Promise<void> {
   const picked = await pickModule(uri, line);
   if (!picked) return;
@@ -164,6 +128,6 @@ export async function checkModel(run: (document: vscode.TextDocument, command: B
   const position = new vscode.Position(config.site.line, 0);
   await vscode.window.showTextDocument(configDocument,
     { selection: new vscode.Range(position, position), preview: false });
-  const built = await waitForBuild(configDocument, config.site.command);
-  if (built) run(configDocument, built);
+  const command = buildCommandsOf(configDocument).find(c => c.site.command === config.site.command);
+  if (command) await run(configDocument, command);
 }

@@ -42,6 +42,28 @@ Templates for new config files follow the same rule: Lean provides the content,
 because only Lean knows what a module needs, and the extension only places it
 in the editor.
 
+## When the Model Changes
+
+When Lean opens a config, it loads the compiled versions of the modules that
+the config imports, such as the model. Lean keeps using these versions until
+the config is restarted. So the config does not see a change to the model,
+even once the model is saved.
+
+Before each run, including **Check again**, the extension saves the Lean files
+with unsaved changes. It then invokes **Restart File** on the config if another
+Lean file has changed since Lean loaded these versions, or if Lean reports them
+as out of date. It also does so after a failed build, or when the binary is gone.
+Lean then rebuilds only what changed. Otherwise, the extension runs the binary
+that Lean has built, once Lean has finished building it.
+
+After a restart, the extension waits until Lean drops the old result and
+reports a new one. A Lean file saved meanwhile stops the run, since the rebuild
+may not include it.
+
+Once a direct import of a config is saved, such as the model, Lean reports that
+the imports of the config are out of date. The **Last result** lens and the
+panel then mark the result as outdated.
+
 ## Installing the Extension
 
 The extension is installed for each workspace separately, from the copy of Veil

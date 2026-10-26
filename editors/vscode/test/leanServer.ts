@@ -12,6 +12,7 @@ export class LeanServer {
   private buffer = Buffer.alloc(0);
   private nextId = 1;
   private readonly pending = new Map<number, Pending>();
+  private readonly listeners = new Set<(method: string, params: unknown) => void>();
 
   /** Start `lake serve` in the workspace `cwd` */
   constructor(cwd: string) {
@@ -39,8 +40,22 @@ export class LeanServer {
         this.pending.delete(message.id);
         if (message.error) pending?.reject(new Error(`${message.error.message} (${message.error.code})`));
         else pending?.resolve(message.result);
+      } else if (message.method !== undefined) {
+        for (const listener of [...this.listeners]) listener(message.method, message.params);
       }
     }
+  }
+
+  /** The params of the next notification of `method` that `matches` */
+  notification<T>(method: string, matches: (params: T) => boolean): Promise<T> {
+    return new Promise(resolve => {
+      const listener = (received: string, params: unknown) => {
+        if (received !== method || !matches(params as T)) return;
+        this.listeners.delete(listener);
+        resolve(params as T);
+      };
+      this.listeners.add(listener);
+    });
   }
 
   private send(message: object): void {

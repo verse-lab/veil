@@ -8,8 +8,12 @@ import * as os from 'os';
 import * as path from 'path';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { BUILT_PREFIX, ReportedMessage, Severity, buildStatus, findBuildCommands, findVeilModules } from '../src/buildCommands';
+import {
+  BUILT_PREFIX, BuildAfterRestart, ReportedMessage, Severity, buildStatus, findBuildCommands, findVeilModules, headerEndLine,
+  importsOutOfDate,
+} from '../src/buildCommands';
 import { ConfigTemplate, configCommand, configFileFor, configHeader, isOfModule, snippetText } from '../src/configTemplate';
+import { ImportChanges } from '../src/importChanges';
 import { Progress, StartReport, describeResult, modelCheckMetrics, parseProgressLine, parseStartLine } from '../src/protocol';
 import { FORMAT_VERSION, ResultStore, RunSource, freshness, parseRunFile } from '../src/resultStore';
 import { CheckerRun, parallelArgs, parseRunOptions } from '../src/runner';
@@ -128,6 +132,88 @@ test('the messages of other commands do not count', () => {
   assert.deepStrictEqual(
     buildStatus(site, [message(0, 'error', 'elsewhere'), message(4, 'information', `${BUILT_PREFIX}/tmp/other`)]),
     { kind: 'pending' });
+});
+
+test('an error in the header of a file means that none of its commands was built', () => {
+  const text = [
+    'module',
+    '-- A comment',
+    '/- The imports -/',
+    'public import Veil',
+    'import Foo.Bar',
+    '',
+    '/-- A docstring starts a command -/', // 6
+    'def x := 1',
+    '#mc_config Foo {}',
+  ].join('\n');
+  const headerEnd = headerEndLine(text);
+  assert.strictEqual(headerEnd, 6);
+  const [config] = findBuildCommands(text);
+  // Lean processes no command after an error in the header
+  assert.deepStrictEqual(buildStatus(config, [message(0, 'error', 'unknown module prefix')], headerEnd),
+    { kind: 'failed', message: 'unknown module prefix' });
+  // but goes on after an error in another command
+  assert.deepStrictEqual(buildStatus(config, [message(7, 'error', 'unknown identifier')], headerEnd), { kind: 'pending' });
+});
+
+test('tells when Lean reports that the imports of a file are out of date', () => {
+  // Once an import is saved, and when Lean opens a file with imports to rebuild
+  assert.ok(importsOutOfDate([message(0, 'information',
+    'Imports are out of date and should be rebuilt; use the "Restart File" command in your editor.')]));
+  assert.ok(importsOutOfDate([message(0, 'error',
+    'Imports are out of date and must be rebuilt; use the "Restart File" command in your editor.')]));
+  assert.ok(!importsOutOfDate([message(0, 'error', 'unknown module prefix')]));
+});
+
+test('a restart ignores old success until Lean drops it, including when the binary is unchanged', () => {
+  const rebuilt = new BuildAfterRestart();
+  const built = { kind: 'built', binary: '/tmp/checker' } as const;
+  assert.deepStrictEqual(rebuilt.observe(built), { kind: 'pending' });
+  assert.deepStrictEqual(rebuilt.observe(built), { kind: 'pending' });
+  assert.deepStrictEqual(rebuilt.observe({ kind: 'pending' }), { kind: 'pending' });
+  assert.deepStrictEqual(rebuilt.observe(built), built);
+});
+
+test('a restart ignores old errors, and reports the errors of the rebuild', () => {
+  const rebuilt = new BuildAfterRestart();
+  // Lean reports the old messages again, e.g. once an import is saved
+  assert.deepStrictEqual(rebuilt.observe({ kind: 'failed', message: 'Imports are out of date and must be rebuilt' }),
+    { kind: 'pending' });
+  assert.deepStrictEqual(rebuilt.observe({ kind: 'built', binary: '/tmp/old' }), { kind: 'pending' });
+  assert.deepStrictEqual(rebuilt.observe({ kind: 'pending' }), { kind: 'pending' });
+  const failed = { kind: 'failed', message: 'dependency build failed' } as const;
+  assert.deepStrictEqual(rebuilt.observe(failed), failed);
+});
+
+test('tells whether the imports of a file may have changed since Lean read them', () => {
+  const changes = new ImportChanges();
+  assert.ok(changes.mayHaveChanged('config'), 'nothing is known of a file that Lean has not opened');
+  changes.changed('model');
+  changes.read('config');
+  assert.ok(!changes.mayHaveChanged('config'), 'Lean reads the imports as they are');
+  changes.changed('config');
+  assert.ok(!changes.mayHaveChanged('config'), 'a file is not one of its imports');
+  changes.changed('model');
+  assert.ok(changes.mayHaveChanged('config'));
+  changes.read('config');
+  assert.ok(!changes.mayHaveChanged('config'), 'a restart reads the imports again');
+  changes.closed('config');
+  assert.ok(changes.mayHaveChanged('config'));
+});
+
+test('a config edit requires refresh even when its imports and command text are unchanged', () => {
+  const changes = new ImportChanges();
+  changes.read('config', changes.now(), 1);
+  assert.ok(!changes.hasBeenEdited('config', 1), 'an unchanged config can reuse its binary');
+  // A definition used by #mc_config changes, while Lean still reports the old success.
+  changes.changed('config');
+  assert.ok(!changes.mayHaveChanged('config'), 'the config is not one of its own imports');
+  assert.ok(changes.hasBeenEdited('config', 2), 'the old success cannot justify the edited config');
+  changes.read('config', changes.now(), 2);
+  assert.ok(!changes.hasBeenEdited('config', 2), 'the refreshed version can be reused');
+  assert.ok(changes.hasBeenEdited('config', 3), 'an edit during the refresh remains unacknowledged');
+  changes.closed('config');
+  assert.ok(changes.hasBeenEdited('config', 2), 'closing a file forgets its loaded version');
 });
 
 // ---- Output of binaries ----
@@ -286,7 +372,9 @@ test('the panel tells a saved run, or one from a file, from a run of this window
   assertShows(saved, ['Saved result', 'Export...']);
   assert.ok(!saved.includes('Full output'), 'the output channel has the run of this window only');
   assert.ok(!saved.includes('outdated'));
-  assertShows(view({ origin: 'saved', outdated: true }), ['Saved result · outdated: the model checker has changed']);
+  assertShows(view({ origin: 'saved', outdated: true }), ['Saved result · outdated: the model or the config has changed']);
+  assert.ok(!live.includes('utdated'));
+  assertShows(view({ outdated: true }), ['Outdated: the model or the config has changed']);
   assertShows(view({ origin: 'file', fileName: 'paxos.json', canRunAgain: false }),
     ['Opened from paxos.json', '<button class="primary" disabled="">Check again</button>']);
   // A running check can be neither run again nor exported
@@ -451,6 +539,10 @@ test('tells whether a saved run is of the binary that Lean builds now', () => {
   assert.strictEqual(freshness(saved, { kind: 'failed', message: 'error' }), 'unknown');
   assert.strictEqual(freshness('', built(saved)), 'unknown');
   assert.strictEqual(freshness(undefined as unknown as string, built(saved)), 'unknown');
+  // Lean builds from the old imports until the file is restarted
+  assert.strictEqual(freshness(saved, built(saved), true), 'outdated');
+  assert.strictEqual(freshness(saved, { kind: 'pending' }, true), 'outdated');
+  assert.strictEqual(freshness('', built(saved), true), 'unknown');
 });
 
 test('opens exported runs, and the results that binaries print', () => {
@@ -519,7 +611,7 @@ function within<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
 }
 
 if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
-  test('the workspace installer bundles its icon and the documentation linked from its README', withStoreDir(async dir => {
+  test('the workspace installer bundles its icon, current README, and architecture documentation', withStoreDir(async dir => {
     const build = spawnSync(process.execPath, ['esbuild.mjs', '--production'],
       { cwd: path.join(repoRoot, 'editors', 'vscode'), encoding: 'utf8' });
     assert.strictEqual(build.status, 0, build.stderr);
@@ -544,10 +636,11 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
     assert.deepStrictEqual(fs.readFileSync(path.join(installDir, manifest.icon)),
       fs.readFileSync(path.join(repoRoot, 'editors', 'vscode', manifest.icon)));
     const readme = fs.readFileSync(path.join(installDir, 'README.md'), 'utf8');
+    const sourceReadme = fs.readFileSync(path.join(repoRoot, 'editors', 'vscode', 'README.md'), 'utf8');
     const document = 'ModelChecker-VSCode-Architecture.md';
-    for (const link of ['](#model-checker-in-vs-code-architecture)', '](#installing-the-extension)']) {
-      assert.ok(readme.includes(link), `the installed README has no documentation anchor ${link}`);
-    }
+    const expectedReadme = sourceReadme.split(`../../docs/${document}#`).join('#')
+      .split(`../../docs/${document}`).join('#model-checker-in-vs-code-architecture');
+    assert.ok(readme.startsWith(expectedReadme + '\n'), 'the installer must preserve the README with local documentation links');
     assert.ok(!readme.includes('../../docs/'));
     assert.ok(readme.endsWith(fs.readFileSync(path.join(repoRoot, 'docs', document), 'utf8')));
   }));
@@ -706,6 +799,37 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
           expected('finishAfter', 'action finishAfter'), expected('reset', 'action reset')],
         properties: [expected('bounded', 'invariant [bounded]')],
       });
+    } finally {
+      await server.close();
+    }
+  });
+
+  test('Lean reports that the imports of a file are out of date once one of them is saved', async () => {
+    const server = new LeanServer(repoRoot);
+    try {
+      await within(server.request('initialize',
+        { processId: process.pid, rootUri: pathToFileURL(repoRoot).href, capabilities: {} }), 60_000, 'Starting Lean');
+      server.notify('initialized', {});
+      const regression = path.join(repoRoot, 'VeilTest', 'Regression');
+      const imported = pathToFileURL(path.join(regression, 'ModelCheckBuildHelper.lean')).href;
+      const uri = pathToFileURL(path.join(regression, 'ModelCheckBuild.lean')).href;
+      // Only the header, so that no model checker is built
+      const text = 'module\n\npublic import VeilTest.Regression.ModelCheckBuildHelper\n';
+      server.notify('textDocument/didOpen', { textDocument: { uri, languageId: 'lean4', version: 1, text } });
+      await within(server.request('textDocument/waitForDiagnostics', { uri, version: 1 }), 600_000, 'Processing the file');
+      const published = server.notification<{
+        uri: string;
+        diagnostics: { range: { start: { line: number } }; severity: number; message: string }[];
+      }>('textDocument/publishDiagnostics', params => params.uri === uri && params.diagnostics.length > 0);
+      // The file tells Lean its imports in the background, so saving one may come before Lean knows
+      const save = () => server.notify('textDocument/didSave', { textDocument: { uri: imported } });
+      save();
+      const saving = setInterval(save, 1000);
+      const { diagnostics } = await within(published, 60_000, 'Reporting the saved import')
+        .finally(() => clearInterval(saving));
+      const severities: Severity[] = ['error', 'warning', 'information', 'hint'];
+      const messages = diagnostics.map(d => ({ line: d.range.start.line, severity: severities[d.severity - 1], message: d.message }));
+      assert.ok(importsOutOfDate(messages), JSON.stringify(messages));
     } finally {
       await server.close();
     }

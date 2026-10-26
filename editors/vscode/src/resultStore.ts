@@ -132,15 +132,19 @@ export class ResultStore {
 /** Whether a saved run is of the binary that Lean builds for its command now, unknown until Lean
  * has built one. The name of a binary has a hash of the code that it was built from, so another name
  * means that the model checker has changed, e.g. because the model did. Only the name counts, so that
- * runs exported on another machine compare too.
+ * runs exported on another machine compare too. A saved run is also outdated once Lean reports that
+ * the imports of its file have changed since Lean read them, e.g. because the model was saved: Lean
+ * builds from the old imports until the file is restarted.
  *
  * The hash covers the C code emitted for the command and the names of its imports, not the compiled
  * imports: a change to code that the model checker only links against goes unnoticed. */
 export type Freshness = 'current' | 'outdated' | 'unknown';
 
-export function freshness(savedBinary: string, status: BuildStatus): Freshness {
+export function freshness(savedBinary: string, status: BuildStatus, importsOutOfDate = false): Freshness {
   // No binary, e.g. for a result that a binary printed on the command line
-  if (status.kind !== 'built' || !savedBinary) return 'unknown';
+  if (!savedBinary) return 'unknown';
+  if (importsOutOfDate) return 'outdated';
+  if (status.kind !== 'built') return 'unknown';
   return path.basename(status.binary) === path.basename(savedBinary) ? 'current' : 'outdated';
 }
 

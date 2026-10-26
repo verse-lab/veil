@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import {
   BuildCommandSite, BuildStatus, ReportedMessage, Severity, buildStatus, findBuildCommands, findVeilModules,
+  headerEndLine, importsOutOfDate,
 } from './buildCommands';
 import { ResultStore, freshness } from './resultStore';
 import { RunManager } from './runManager';
@@ -39,11 +40,19 @@ export function reportedMessages(uri: vscode.Uri): ReportedMessage[] {
 export interface BuildCommand {
   site: BuildCommandSite;
   status: BuildStatus;
+  /** Whether Lean reports that the imports of the file, e.g. the model, have changed since it read
+   * them, so that it builds from the old ones until the file is restarted */
+  importsOutOfDate: boolean;
 }
 
 export function buildCommandsOf(document: vscode.TextDocument): BuildCommand[] {
+  const text = document.getText();
+  const sites = findBuildCommands(text);
+  if (sites.length === 0) return [];
   const messages = reportedMessages(document.uri);
-  return findBuildCommands(document.getText()).map(site => ({ site, status: buildStatus(site, messages) }));
+  const headerEnd = headerEndLine(text);
+  const outOfDate = importsOutOfDate(messages);
+  return sites.map(site => ({ site, status: buildStatus(site, messages, headerEnd), importsOutOfDate: outOfDate }));
 }
 
 /** E.g. `14:02`, or `Oct 18, 14:02` for another day */
@@ -86,8 +95,8 @@ export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Dispo
         : configs.length === 0
           ? ['$(new-file) Create model checking config', `Create and open a config for ${site.name}, with values to fill in`]
           : configs.length === 1
-            ? ['$(play) Run model checker', `Open the config for ${site.name} and run its model checker once Lean has built it`]
-            : ['$(play) Select config and run...', `Select a config for ${site.name}, open it, and run its model checker`];
+            ? ['$(play) Run model checker', `Save Lean changes, rebuild what they affect, and run the model checker of the config for ${site.name}`]
+            : ['$(play) Select config and run...', `Select a config for ${site.name}, save Lean changes, rebuild what they affect, and run its model checker`];
       const lines = [site.line];
       if (site.genExecutableLine !== undefined) lines.push(site.genExecutableLine);
       return lines.map(line => {
@@ -98,7 +107,7 @@ export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Dispo
         });
       });
     }))).flat();
-    return [...modules, ...buildCommandsOf(document).flatMap(({ site, status }) => {
+    return [...modules, ...buildCommandsOf(document).flatMap(({ site, status, importsOutOfDate: outOfDate }) => {
       const range = new vscode.Range(site.line, site.character, site.line, site.character);
       // A lens without a command shows as plain text
       const lens = (title: string, command = '', args: unknown[] = [], tooltip?: string) =>
@@ -110,15 +119,23 @@ export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Dispo
         ];
       }
       const at = [document.uri.toString(), site.line];
-      const lenses = status.kind === 'built' ? [
-        lens('$(play) Run model checker', 'veil.modelCheck.run', at),
-        lens('$(settings-gear) Run with options...', 'veil.modelCheck.runWithOptions', at),
-      ] : status.kind === 'pending' ? [lens('$(sync~spin) Waiting for Lean to build the model checker')]
-        : [lens('$(error) The model checker could not be built', 'workbench.actions.view.problems')];
+      const tooltip = 'Save Lean changes, rebuild what they affect, and run the model checker';
+      // A run restarts the file if Lean has to read its imports again, and else waits for the build
+      const run = outOfDate || status.kind === 'failed'
+        ? lens('$(play) Rebuild and run model checker', 'veil.modelCheck.run', at, tooltip)
+        : status.kind === 'pending'
+          ? lens('$(sync~spin) Run once built', 'veil.modelCheck.run', at,
+            'Lean is building the model checker. Run it once it is built.')
+          : lens('$(play) Run model checker', 'veil.modelCheck.run', at, tooltip);
+      const lenses = [run, lens('$(settings-gear) Run with options...', 'veil.modelCheck.runWithOptions', at)];
+      // Out-of-date imports are what a rebuild fixes, rather than an error to show
+      if (status.kind === 'failed' && !outOfDate) {
+        lenses.push(lens('$(error) The model checker could not be built', 'workbench.actions.view.problems'));
+      }
       const saved = this.store.summary({ file: document.uri.toString(), command: site.command });
-      if (saved && freshness(saved.binary, status) === 'outdated') {
+      if (saved && freshness(saved.binary, status, outOfDate) === 'outdated') {
         lenses.push(lens(`$(history) Last result (outdated) · ${when(saved.endedAt)}`, 'veil.modelCheck.showSavedRun',
-          [saved.source], `${saved.text}. The model checker has changed since, e.g. because the model did.`));
+          [saved.source], `${saved.text}. The model or the config has changed since this run.`));
       } else if (saved) {
         lenses.push(lens(`${outcomeIcons[saved.outcome]} Last result · ${when(saved.endedAt)}`,
           'veil.modelCheck.showSavedRun', [saved.source], saved.text));

@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto';
 import * as vscode from 'vscode';
-import { Freshness, SavedRun } from './resultStore';
-import { RunManager } from './runManager';
+import { Freshness, RunSource, SavedRun } from './resultStore';
+import { RunManager, sourceOf } from './runManager';
 import { DeclSource, ExtensionMessage, PanelMessage, PanelState } from './snapshot';
 
 /** How often the panel is updated while a binary reports progress, as in TLC's extension */
@@ -31,17 +31,19 @@ export class ModelCheckPanel implements vscode.Disposable {
   private updateTimer: NodeJS.Timeout | undefined;
   private readonly subscriptions: vscode.Disposable[];
 
-  /** `freshnessOf` tells whether a saved run is of the binary that Lean builds now */
+  /** `freshnessOf` tells whether a run of `binary` for the command of `source` is of the binary that
+   * Lean builds now */
   constructor(private readonly extensionUri: vscode.Uri, private readonly runs: RunManager,
-      private readonly actions: PanelActions, private readonly freshnessOf: (saved: SavedRun) => Freshness) {
+      private readonly actions: PanelActions,
+      private readonly freshnessOf: (source: RunSource | undefined, binary: string) => Freshness) {
     this.subscriptions = [
       runs.onDidChangeStatus(() => this.update()),
       runs.onDidProgress(() => {
         if (this.content.origin === 'live') this.scheduleUpdate();
       }),
-      // Lean may build another binary for the command of a saved run
+      // Lean may build another binary for the command of the run, or report that its imports changed
       vscode.languages.onDidChangeDiagnostics(() => {
-        if (this.content.origin !== 'live') this.scheduleUpdate();
+        if (this.panel && (this.content.origin !== 'live' || !this.runs.isRunning)) this.scheduleUpdate();
       }),
     ];
   }
@@ -86,12 +88,16 @@ export class ModelCheckPanel implements vscode.Disposable {
     const idle = !this.runs.isRunning;
     if (content.origin === 'live') {
       const run = this.runs.snapshot;
-      return run ? { run, origin: 'live', canRunAgain: idle && this.runs.lastTarget !== undefined } : null;
+      const target = this.runs.lastTarget;
+      if (!run) return null;
+      // Only a run that has ended can be outdated
+      const outdated = idle && target !== undefined && this.freshnessOf(sourceOf(target), run.binary) === 'outdated';
+      return { run, origin: 'live', canRunAgain: idle && target !== undefined, outdated };
     }
     return {
       run: content.saved.run, origin: content.origin, fileName: content.fileName,
       canRunAgain: idle && content.saved.source !== undefined,
-      outdated: this.freshnessOf(content.saved) === 'outdated',
+      outdated: this.freshnessOf(content.saved.source, content.saved.run.binary) === 'outdated',
     };
   }
 
