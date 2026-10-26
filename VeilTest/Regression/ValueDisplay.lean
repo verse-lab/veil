@@ -315,6 +315,34 @@ decide(b=1,
     ("q", ValueDisplay.renderJson (ValueDisplay.setJson toJson (Array.range 40)))]).pretty
       ValueDisplay.textWidth)
 
+/-! The picks of a state are named values, as the arguments of a constructor are, and show as
+`x = v` after `choices: `; a pick without a name shows its value alone, and an entry that is not a
+named value shows as text. Long picks fill lines and continue aligned after `choices: `. -/
+/--
+info: {"name":"base","value":2}
+{"value":"(true, false)"}
+base = 2
+  choices: base = 2, (true, false), r = {0, 1}, b = true
+choices: s0 = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19},
+         s1 = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19}
+-/
+#guard_msgs in
+#eval do
+  let base : Choice := { name := some "base", value := toJson (2 : Nat) }
+  let pair : Choice := { value := Display.display (true, false) }
+  let r : Choice := { name := some "r", value := ValueDisplay.setJson toJson #[(0 : Nat), 1] }
+  IO.println (toJson base).compress
+  IO.println (toJson pair).compress
+  IO.println (toString base)
+  IO.println (ValueDisplay.formatChoices "  "
+    #[toJson base, toJson pair, toJson r, .str "b = true"])
+  IO.println (ValueDisplay.formatChoices "" ((Array.range 2).map fun i => toJson
+    ({ name := some s!"s{i}", value := ValueDisplay.setJson toJson (Array.range 20) } : Choice)))
+
+#guard ValueDisplay.namedValue? (json% {name: "x", value: [1]}) == some (some "x", json% [1])
+#guard ValueDisplay.namedValue? (json% {value: 1}) == some (none, json% 1)
+#guard ValueDisplay.namedValue? (json% {name: 0, value: 1}) == none
+
 -- The generator rejects ambiguous storage rather than silently dropping data.
 structure TwoPayloads where
   first : Nat

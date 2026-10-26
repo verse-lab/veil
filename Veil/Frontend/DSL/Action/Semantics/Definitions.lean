@@ -66,17 +66,17 @@ end Types
 /-! ## The log of picks
 
 Each result of a `VeilMultiExecM` computation comes with a log. Only picks write to it: for each
-candidate, extraction logs the candidate, formatted with `Repr`, before running the rest of the
-computation on it (`ExtractConstraint.pickCont`), so the log of a result records the choices that
-led to it. -/
+candidate, extraction logs the candidate, as its `Display` shows it (`Choice`), before running the
+rest of the computation on it (`ExtractConstraint.pickCont`), so the log of a result records the
+choices that led to it. -/
 
 section PickLog
 
 /-- Whether `VeilMultiExecM` records picks in its log (the `MonadPersistentLog` instance below).
 
 The model checker's search and `#simulate` never read the log, yet would pay for it on every state:
-formatting each candidate that has results, and prepending the entry to those results. They run
-with the log off; recovering a counterexample trace runs with it on.
+converting each candidate that has results to JSON, and prepending the entry to those results. They
+run with the log off; recovering a counterexample trace runs with it on.
 
 `@[nospecialize]`: both are reachable from the model checker's `main`. Specializing on this instance
 would compile every action once per value; this way there is one copy, which takes the switch as a
@@ -85,7 +85,7 @@ runtime argument. -/
   enabled : Bool
 
 /-- The log of `VeilMultiExecM` under a `LogSwitch`. When the switch is off, nothing is logged, so
-the candidate is not formatted, and the `bind` that follows skips prepending the log
+the candidate is not converted, and the `bind` that follows skips prepending the log
 (`LogMonoid.isEmpty`). Without a `LogSwitch`, Loom's instance lifted from `PeDivM` applies, which
 always logs; with the switch on, this one is definitionally equal to it. -/
 @[always_inline]

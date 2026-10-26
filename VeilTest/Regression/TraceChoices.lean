@@ -599,3 +599,45 @@ error: ❌ Violation: deadlock
 #model_check interpreted {} {} (sequential := true)
 
 end TraceChoicesDeadlockInitial
+
+/-!
+A pick of a sort shows by the `Display` of the type that the sort is instantiated with, as the
+fields of a state do. Here `nodeSet` is a `Std.ExtTreeSet`, so the picked set shows as `{0, 1}`,
+not as its `Repr`, `Std.ExtTreeSet.ofList [0, 1]`.
+-/
+
+veil module TraceChoicesSortDisplay
+
+type node
+type nodeSet
+instantiate nset : TSet node nodeSet
+
+individual chosen : nodeSet
+
+#gen_state
+
+after_init {
+  chosen := nset.empty
+}
+
+action choose {
+  let s ← pick nodeSet
+  chosen := s
+}
+
+safety nset.count chosen < 2
+
+#gen_spec
+
+/--
+error: ❌ Violation: safety_failure (violates: safety_0)
+  State 0 (via init):
+    chosen = {}
+  State 1 (via choose):
+    choices: s = {0, 1}
+    chosen = {0, 1}
+-/
+#guard_msgs in
+#model_check interpreted { node := Fin 2, nodeSet := Std.ExtTreeSet (Fin 2) } {}
+
+end TraceChoicesSortDisplay

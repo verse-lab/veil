@@ -18,7 +18,7 @@ deriving Repr, Inhabited
 /-- A transition label with the picks that led to the transition, as `PickSource` gives them. -/
 structure LabelWithPicks (l : Type) where
   label : l
-  picks : List Std.Format
+  picks : List Choice
 
 /-- Where the picks of a counterexample trace come from: a system's initial states and transitions,
 for a fixed theory, computed with the picks logged and in the same positions as the system's. It is
@@ -26,7 +26,7 @@ not a transition system: nothing is proved about it, and recovery checks the sta
 against the fingerprints of the trace before taking their picks. -/
 structure PickSource (σ l : Type) where
   /-- The initial states, each with the picks that led to it. -/
-  initStates : List (σ × List Std.Format)
+  initStates : List (σ × List Choice)
   /-- The transitions out of a state, each labelled with the picks that led to it. -/
   tr : σ → Transitions (LabelWithPicks l) Int σ
 
@@ -34,11 +34,11 @@ structure PickSource (σ l : Type) where
 recovered best effort and kept beside the trace, since they are not part of what makes it valid. -/
 structure TracePicks where
   /-- The picks that led to the initial state. -/
-  initialState : Option (List String) := none
+  initialState : Option (List Choice) := none
   /-- The picks of each step, in order; empty when they are not recovered at all. -/
-  steps : Array (Option (List String)) := #[]
+  steps : Array (Option (List Choice)) := #[]
   /-- The picks of the failing step. -/
-  failingStep : Option (List String) := none
+  failingStep : Option (List Choice) := none
 deriving Repr, Inhabited
 
 /-- This supports cheap appends. -/
@@ -96,10 +96,11 @@ structure Trace (ρ : Type) (σ : Type) (l : Type) where
 deriving Repr, Inhabited
 
 /-- The JSON shown for `tr`, where each state has the picks that `picks` knows for it as
-`"choices"`. A state whose picks are unknown or empty has no `"choices"`. -/
+`"choices"`, an array of named values. A state whose picks are unknown or empty has no
+`"choices"`. -/
 def Trace.toJsonWithPicks {ρ σ l : Type} [Display ρ] [Display σ] [Display l] (tr : Trace ρ σ l)
     (picks : TracePicks) : Json :=
-  let withChoices (fields : List (String × Json)) (choices? : Option (List String)) : Json :=
+  let withChoices (fields : List (String × Json)) (choices? : Option (List Choice)) : Json :=
     match choices? with
     | some choices@(_ :: _) => Json.mkObj (fields ++ [("choices", toJson choices)])
     | _ => Json.mkObj fields

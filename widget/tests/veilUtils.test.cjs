@@ -26,8 +26,8 @@ function loadTsx(file, extraSource = '', requireOverride) {
 }
 
 const utils = loadTsx('veilUtils.tsx');
-const { renderValue, renderValueInline, diffChanges, formatActionLabel, formatValue, deepEqual,
-  logicalContainer, logicalRecord, logicalCtor, fieldsObject } = utils;
+const { renderValue, renderValueInline, diffChanges, formatActionLabel, formatChoice, formatValue,
+  deepEqual, logicalContainer, logicalRecord, logicalCtor, fieldsObject } = utils;
 // The trace row and the collapsed preview are internal to traceDisplay.tsx: export them for the
 // test only, and stub the RPC-backed HtmlDisplay.
 const { previewValue, KVRow } = loadTsx('traceDisplay.tsx', '\nexport { previewValue, KVRow };',
@@ -152,6 +152,14 @@ assert.equal(formatActionLabel(send), 'send(to = 2, m = (0, 1))');
 assert.equal(formatActionLabel(ctor('Label', '_tick')), 'tick');
 assert.equal(formatValue(ctor('Msg', 'pair', [undefined, 0], [undefined, set(1)])), 'pair(0, {1})');
 assert.equal(rowText(ctor('Label', 'tick')), 'f↦tick');
+
+// The picks of a state are named values, as the arguments of a constructor are: a pick without a
+// name shows its value alone. Anything else shows as a value.
+assert.equal(formatChoice({ name: 'r', value: set(true, false) }), 'r = {true, false}');
+assert.equal(formatChoice({ name: '(a, _)', value: '(true, false)' }), '(a, _) = (true, false)');
+assert.equal(formatChoice({ value: 2 }), '2');
+assert.equal(formatChoice({ name: 0, value: 1 }), '{name: 0, value: 1}');
+assert.equal(formatChoice('b = true'), 'b = true');
 
 // Malformed records and constructors stay ordinary objects.
 for (const value of [

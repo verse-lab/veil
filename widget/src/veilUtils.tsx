@@ -85,6 +85,17 @@ export function logicalRecord(v: unknown): LogicalRecord | undefined {
   return { type: obj.type, fields };
 }
 
+/** A value with an optional name, `{name, value}` or `{value}`: an argument of a constructor or a
+ *  pick of a trace, as `namedValue?` reads it. */
+function namedValue(v: unknown): [string | undefined, unknown] | undefined {
+  const entry = plainObject(v);
+  if (!entry || !Object.hasOwn(entry, 'value')) return undefined;
+  const size = Object.keys(entry).length;
+  if (size === 1) return [undefined, entry.value];
+  if (size === 2 && typeof entry.name === 'string') return [entry.name, entry.value];
+  return undefined;
+}
+
 /** Transition labels arrive as constructors, whose arguments keep their declaration order; an
  *  argument without a name has only a value. Only a complete envelope counts, as in `ctor?`. */
 export function logicalCtor(v: unknown): LogicalCtor | undefined {
@@ -93,12 +104,9 @@ export function logicalCtor(v: unknown): LogicalCtor | undefined {
     typeof obj.name !== 'string' || !Array.isArray(obj.args)) return undefined;
   const args: [string | undefined, unknown][] = [];
   for (const e of obj.args) {
-    const entry = plainObject(e);
-    if (!entry || !Object.hasOwn(entry, 'value')) return undefined;
-    const size = Object.keys(entry).length;
-    if (size === 1) args.push([undefined, entry.value]);
-    else if (size === 2 && typeof entry.name === 'string') args.push([entry.name, entry.value]);
-    else return undefined;
+    const arg = namedValue(e);
+    if (!arg) return undefined;
+    args.push(arg);
   }
   return { type: obj.type, name: obj.name, args };
 }
@@ -111,10 +119,15 @@ export function fieldsObject(v: unknown): Record<string, unknown> {
   return plainObject(v) ?? {};
 }
 
+/** `k = v`, or `v` alone without a name. */
+function formatNamedValue([k, x]: [string | undefined, unknown]): string {
+  return k === undefined ? formatValue(x) : `${k} = ${formatValue(x)}`;
+}
+
 /** `name(k = v, …)`, with `v` alone for an argument without a name. */
 function formatCall(name: string, args: [string | undefined, unknown][]): string {
   if (args.length === 0) return name;
-  return `${name}(${args.map(([k, x]) => k === undefined ? formatValue(x) : `${k} = ${formatValue(x)}`).join(', ')})`;
+  return `${name}(${args.map(formatNamedValue).join(', ')})`;
 }
 
 /** The text of a value, as Veil's text output shows it: logical containers in set notation, arrays
@@ -135,6 +148,13 @@ export function formatValue(v: unknown): string {
   }
   if (typeof v === 'string') return v;
   return JSON.stringify(v) ?? String(v);
+}
+
+/** A pick that led to a state, as the text output shows it: `name = value`, or the value alone
+ *  without a name. Anything that is not a named value, as `formatValue` writes it. */
+export function formatChoice(c: unknown): string {
+  const choice = namedValue(c);
+  return choice ? formatNamedValue(choice) : formatValue(c);
 }
 
 // ========== Diff Helpers ==========

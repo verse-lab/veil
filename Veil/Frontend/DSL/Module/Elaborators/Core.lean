@@ -517,14 +517,14 @@ def mkVeilExecActionResultTerm [Monad m] [MonadQuotation m]
   let fieldConcrete ← `($fieldConcreteDispatcher $instSortArgs*)
   let stateTy ← `(@$stateIdent $fieldConcrete)
   let actionTy ← `($(mkIdent ``VeilM) _ $theoryTy $stateTy _)
-  let execTy ← `($(mkIdent ``VeilMultiExecM) $(mkIdent ``Std.Format) $(mkIdent ``Int) $theoryTy $stateTy _)
+  let execTy ← `($(mkIdent ``VeilMultiExecM) $(mkIdent ``Veil.Choice) $(mkIdent ``Int) $theoryTy $stateTy _)
   `(term|
     let $inst : $instantiationType := __veil_instantiation% $instTerm
     let $th : $theoryTy := $theoryTerm
     let $st : $stateTy := $stateTerm
     let $act : $actionTy := $actionTerm
     let $exec : $execTy :=
-      ($(mkIdent ``MultiExtractor.NonDetT.extractList) $(mkIdent ``Std.Format) _ _ $act
+      ($(mkIdent ``MultiExtractor.NonDetT.extractList) $(mkIdent ``Veil.Choice) _ _ $act
         (h := by veil_extract_list_tactic) : $execTy)
     $(mkIdent ``Veil.Extract.extractAllResults) $exec $th $st)
 
