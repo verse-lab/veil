@@ -713,7 +713,10 @@ instance [Ord α] [TransOrd α] [Repr α] : Repr (TMapMultiset α) where
   reprPrec m _ := ValueDisplay.multisetFormat m.entries.toList
 
 instance [Ord α] [TransOrd α] [Lean.ToJson α] : Lean.ToJson (TMapMultiset α) where
-  toJson m := ValueDisplay.multisetJson m.entries
+  toJson m := ValueDisplay.multisetJson Lean.toJson m.entries
+
+instance [Ord α] [TransOrd α] [Display α] : Display (TMapMultiset α) where
+  display m := ValueDisplay.multisetJson Display.display m.entries
 
 open Std.ExtDTreeMap
 

@@ -947,13 +947,16 @@ variable {α : Type u} [Ord α]
 instance : Inhabited (OrdList α) where
   default := ⟨[], List.Pairwise.nil⟩
 
-/-! ### Repr and ToJson -/
+/-! ### Repr, ToJson and Display -/
 
 instance [Repr α] : Repr (OrdList α) where
-  reprPrec s p := reprPrec s.val p
+  reprPrec s _ := Veil.ValueDisplay.setFormat s.val
 
 instance [Lean.ToJson α] : Lean.ToJson (OrdList α) where
-  toJson s := Veil.ValueDisplay.setJson s.val.toArray
+  toJson s := Veil.ValueDisplay.setJson Lean.toJson s.val.toArray
+
+instance [Veil.Display α] : Veil.Display (OrdList α) where
+  display s := Veil.ValueDisplay.setJson Veil.Display.display s.val.toArray
 
 /-! ### Enumeration -/
 

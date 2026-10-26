@@ -115,6 +115,12 @@ instance [Lean.ToJson (CanonicalFieldWrapper FieldDomain FieldCodomain)] [Lean.T
     | HybridFieldType.canonical cf => Lean.ToJson.toJson cf
     | HybridFieldType.concrete fc => Lean.ToJson.toJson fc
 
+instance [Veil.Display (CanonicalFieldWrapper FieldDomain FieldCodomain)] [Veil.Display α] :
+  Veil.Display (HybridFieldType α FieldDomain FieldCodomain) where
+  display
+    | HybridFieldType.canonical cf => Veil.Display.display cf
+    | HybridFieldType.concrete fc => Veil.Display.display fc
+
 instance [Repr (CanonicalFieldWrapper FieldDomain FieldCodomain)] [Repr α] :
   Repr (HybridFieldType α FieldDomain FieldCodomain) where
   reprPrec

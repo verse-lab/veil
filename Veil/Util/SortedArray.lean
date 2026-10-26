@@ -1085,10 +1085,13 @@ instance : Inhabited (OrdArray α) where
   default := ⟨#[], by simp⟩
 
 instance [Repr α] : Repr (OrdArray α) where
-  reprPrec s p := reprPrec s.val.toList p
+  reprPrec s _ := Veil.ValueDisplay.setFormat s.val.toList
 
 instance [Lean.ToJson α] : Lean.ToJson (OrdArray α) where
-  toJson s := Veil.ValueDisplay.setJson s.val
+  toJson s := Veil.ValueDisplay.setJson Lean.toJson s.val
+
+instance [Veil.Display α] : Veil.Display (OrdArray α) where
+  display s := Veil.ValueDisplay.setJson Veil.Display.display s.val
 
 /-! ### Enumeration -/
 

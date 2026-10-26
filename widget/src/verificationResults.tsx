@@ -5,6 +5,7 @@ import {
   ChangeInfo,
   diffChanges,
   CopyButton,
+  fieldsObject,
   formatActionLabel,
   renderValue,
   sharedDiffCSS,
@@ -39,10 +40,10 @@ interface VCMetadata {
 }
 
 interface StructuredJson {
-  theory: Record<string, unknown>;
-  preState: Record<string, unknown>;
-  postState: Record<string, unknown> | null;
-  label: Record<string, unknown>;
+  theory: unknown; // A record; `fieldsObject` reads its fields in declaration order
+  preState: unknown; // A record, as `theory`
+  postState: unknown | null; // A record, as `theory`
+  label: unknown; // A constructor, or a plain string for an initializer
   instantiation: Record<string, unknown>;
   extraVals?: Record<string, unknown>;
   extraSorts?: Record<string, unknown>;
@@ -253,7 +254,11 @@ const StructuredCexView: React.FC<{
   isInitializer?: boolean;
   headerRightContent?: React.ReactNode;
 }> = ({ data, property, isInitializer = false, headerRightContent }) => {
-  const { theory, preState, postState, label, instantiation, extraVals } = data;
+  const { label, instantiation, extraVals } = data;
+  const theory = React.useMemo(() => fieldsObject(data.theory), [data.theory]);
+  const preState = React.useMemo(() => fieldsObject(data.preState), [data.preState]);
+  const postState = React.useMemo(
+    () => data.postState == null ? null : fieldsObject(data.postState), [data.postState]);
 
   // State for toolbar features
   const [showRemovals, setShowRemovals] = React.useState(false);

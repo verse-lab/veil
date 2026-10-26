@@ -16,7 +16,7 @@ private def veilDeclAttrName : Name := `veil_decl
 
 private def defaultDerivingClasses : List Name := [
   ``Inhabited, ``Nonempty, ``DecidableEq, ``Lean.ToJson,
-  ``Hashable, ``Ord, ``Repr,
+  ``Hashable, ``Ord, ``ConstructorRepr,
   ``Std.TransOrd, ``Std.LawfulEqOrd,
 ]
 

@@ -40,15 +40,8 @@ def mkEnumConcreteType {m} [Monad m] [MonadQuotation m] (id : Ident) (elems : Ar
   let baseClasses := #[``DecidableEq].map Lean.mkIdent
   let derivings := if !ctors.isEmpty then baseClasses ++ (#[ ``Inhabited, ``Nonempty].map Lean.mkIdent) else baseClasses
   let indType ← `(inductive $name where $[$ctors]* deriving $[$derivings:ident],*)
-  let reprInst ← do
-    let x := mkVeilImplementationDetailIdent `x
-    let fallback ← `(term| "<unrepresentable>")
-    let reprBody ← elems.foldrM (init := fallback) fun (el : Ident) (acc : Term) => do
-      let concEl := Lean.mkIdent (name.getId ++ el.getId)
-      `(term| if $x:ident = $concEl:ident then $(Syntax.mkStrLit el.getId.getString!) else $acc)
-    `(command|
-      instance : $(Lean.mkIdent ``Repr) $name where
-        $(Lean.mkIdent `reprPrec):ident $x:ident _ := $reprBody)
+  -- The bare name of each element, as `@[veil_decl]` types show their constructors.
+  let reprInst ← `(command| deriving instance $(Lean.mkIdent ``ConstructorRepr):ident for $name)
   let toJsonInst ← `(command|
     instance : $(Lean.mkIdent ``Lean.ToJson) $name where
       $(Lean.mkIdent `toJson):ident x := $(Lean.mkIdent ``Lean.Json.str) ($(Lean.mkIdent ``reprStr) x))

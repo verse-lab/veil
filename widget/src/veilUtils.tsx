@@ -52,13 +52,83 @@ function formatContainerEntry(kind: LogicalContainer['kind'], item: unknown): st
     : `${formatValue(entry.element)} × ${formatValue(entry.count)}`;
 }
 
+// ========== Records and Constructors ==========
+
+interface LogicalRecord {
+  type: string;
+  fields: [string, unknown][];
+}
+
+interface LogicalCtor {
+  type: string;
+  name: string;
+  args: [string | undefined, unknown][];
+}
+
+function plainObject(v: unknown): Record<string, unknown> | undefined {
+  return typeof v === 'object' && v !== null && !Array.isArray(v) ? v as Record<string, unknown> : undefined;
+}
+
+/** States and theories arrive as records, tagged by `Veil.ValueDisplay` so that their fields keep
+ *  their declaration order. Only a complete envelope counts, as in `record?` there. */
+export function logicalRecord(v: unknown): LogicalRecord | undefined {
+  const obj = plainObject(v);
+  if (!obj || Object.keys(obj).length !== 3 || obj.$veil !== 'record' ||
+    typeof obj.type !== 'string' || !Array.isArray(obj.fields)) return undefined;
+  const fields: [string, unknown][] = [];
+  for (const e of obj.fields) {
+    const entry = plainObject(e);
+    if (!entry || Object.keys(entry).length !== 2 || typeof entry.name !== 'string' ||
+      !Object.hasOwn(entry, 'value')) return undefined;
+    fields.push([entry.name, entry.value]);
+  }
+  return { type: obj.type, fields };
+}
+
+/** Transition labels arrive as constructors, whose arguments keep their declaration order; an
+ *  argument without a name has only a value. Only a complete envelope counts, as in `ctor?`. */
+export function logicalCtor(v: unknown): LogicalCtor | undefined {
+  const obj = plainObject(v);
+  if (!obj || Object.keys(obj).length !== 4 || obj.$veil !== 'ctor' || typeof obj.type !== 'string' ||
+    typeof obj.name !== 'string' || !Array.isArray(obj.args)) return undefined;
+  const args: [string | undefined, unknown][] = [];
+  for (const e of obj.args) {
+    const entry = plainObject(e);
+    if (!entry || !Object.hasOwn(entry, 'value')) return undefined;
+    const size = Object.keys(entry).length;
+    if (size === 1) args.push([undefined, entry.value]);
+    else if (size === 2 && typeof entry.name === 'string') args.push([entry.name, entry.value]);
+    else return undefined;
+  }
+  return { type: obj.type, name: obj.name, args };
+}
+
+/** The fields of a state or theory, in declaration order for a record. A JavaScript object keeps
+ *  the insertion order of its keys, which are never integer-like here (field names). */
+export function fieldsObject(v: unknown): Record<string, unknown> {
+  const record = logicalRecord(v);
+  if (record) return Object.fromEntries(record.fields);
+  return plainObject(v) ?? {};
+}
+
+/** `name(k = v, …)`, with `v` alone for an argument without a name. */
+function formatCall(name: string, args: [string | undefined, unknown][]): string {
+  if (args.length === 0) return name;
+  return `${name}(${args.map(([k, x]) => k === undefined ? formatValue(x) : `${k} = ${formatValue(x)}`).join(', ')})`;
+}
+
 /** The text of a value, as Veil's text output shows it: logical containers in set notation, arrays
- *  in brackets, objects as `{k: v}`, strings verbatim. */
+ *  in brackets, records and other objects as `{k: v}`, constructors as `name(k = v)`, strings
+ *  verbatim. */
 export function formatValue(v: unknown): string {
   const container = logicalContainer(v);
   if (container) {
     return `{${container.items.map(e => formatContainerEntry(container.kind, e)).join(', ')}}`;
   }
+  const record = logicalRecord(v);
+  if (record) return `{${record.fields.map(([k, x]) => `${k}: ${formatValue(x)}`).join(', ')}}`;
+  const ctor = logicalCtor(v);
+  if (ctor) return formatCall(ctor.name, ctor.args);
   if (Array.isArray(v)) return `[${v.map(formatValue).join(', ')}]`;
   if (typeof v === 'object' && v !== null) {
     return `{${Object.entries(v).map(([k, x]) => `${k}: ${formatValue(x)}`).join(', ')}}`;
@@ -310,10 +380,17 @@ export const CopyButton: React.FC<{ text: string; className?: string }> = ({ tex
 
 // ========== Label Helpers ==========
 
-/** Format an action/label object like {"recv": {"sender": 2}} into "recv(sender = 2)" */
+/** Format a transition label, a constructor such as `recv` with a `sender` argument, into
+ *  "recv(sender = 2)". An object like {"recv": {"sender": 2}} reads the same way, with its
+ *  arguments in key order. */
 export function formatActionLabel(label: unknown): string {
   if (typeof label === "string") {
     return label;
+  }
+
+  const ctor = logicalCtor(label);
+  if (ctor) {
+    return formatCall(ctor.name.startsWith("_") ? ctor.name.slice(1) : ctor.name, ctor.args);
   }
 
   if (typeof label === "object" && label !== null) {
@@ -352,123 +429,47 @@ export function renderValueInline(x: unknown): React.ReactNode {
   return <code>{formatValue(x)}</code>;
 }
 
-/** Render inline array using merged view for proper ordering */
-export function renderInlineArrayMerged(mergedView: MergedElement[]): React.ReactNode {
-  const parts: React.ReactNode[] = [];
-
-  mergedView.forEach((item, i) => {
-    const element = renderValueInline(item.element);
-    const className = item.status === 'added' ? 'changed-element' : item.status === 'removed' ? 'removed-element' : undefined;
-    parts.push(className ? <span key={i} className={className}>{element}</span> : <span key={i}>{element}</span>);
-    if (i < mergedView.length - 1) parts.push(<span key={`comma-${i}`}>, </span>);
-  });
-  return <code>[{parts}]</code>;
-}
-
-/** Render inline array (when no diff info available) */
-export function renderInlineArray(arr: unknown[]): React.ReactNode {
-  const parts: React.ReactNode[] = [];
-  arr.forEach((e, i) => {
-    parts.push(<span key={i}>{renderValueInline(e)}</span>);
-    if (i < arr.length - 1) parts.push(<span key={`comma-${i}`}>, </span>);
-  });
-  return <code>[{parts}]</code>;
-}
-
-/**
- * Render a row from an inner array:
- * - If it's a flat tuple (all elements are primitives), render as (a, b, c)
- * - Otherwise, render the inner array inline as [a, b, ...]
- */
-export function renderRowFromInnerArray(e: unknown, status?: 'unchanged' | 'added' | 'removed'): React.ReactNode {
-  const className = status === 'added' ? 'changed-element' : status === 'removed' ? 'removed-element' : undefined;
-
-  if (Array.isArray(e)) {
-    const isFlatTuple = e.every(el => !Array.isArray(el));
-    if (isFlatTuple) {
-      const parts: React.ReactNode[] = [];
-      e.forEach((el, i) => {
-        parts.push(renderValueInline(el));
-        if (i < e.length - 1) parts.push(', ');
-      });
-      const code = <code>({parts})</code>;
-      return className ? <span className={className}>{code}</span> : code;
-    } else {
-      const content = renderValueInline(e);
-      return className ? <span className={className}>{content}</span> : content;
-    }
-  }
-  return renderValue(e);
-}
-
-/** A logical container whose text fits in this many characters is shown inline; a longer one gets
- *  one entry per row. */
+/** A logical container or a sequence whose text fits in this many characters is shown inline; a
+ *  longer one gets one entry per row. */
 const INLINE_CONTAINER_LIMIT = 80;
 
 function statusClass(status: MergedElement['status']): string | undefined {
   return status === 'added' ? 'changed-element' : status === 'removed' ? 'removed-element' : undefined;
 }
 
-/** Render a value with optional diff highlighting via mergedView */
+/** The entries of a container or the elements of a sequence between `open` and `close`, with the
+ *  statuses of `mergedView` if there is a diff. Each entry is formatted once: the layout depends on
+ *  the current value only, and a diff formats only the removed entries, which the current value
+ *  does not have. */
+function renderEntries(open: string, close: string, items: unknown[], format: (e: unknown) => string,
+    mergedView?: MergedElement[]): React.ReactNode {
+  const texts = new Map<unknown, string>();
+  items.forEach(e => texts.set(e, format(e)));
+  const textOf = (e: unknown) => texts.get(e) ?? format(e);
+  const shown = mergedView ?? items.map(element => ({ element, status: 'unchanged' as const }));
+  if (`${open}${[...texts.values()].join(', ')}${close}`.length <= INLINE_CONTAINER_LIMIT) {
+    const parts = shown.map((item, i) => (
+      <span key={i} className={statusClass(item.status)}>{textOf(item.element)}</span>
+    ));
+    return <code>{open}{joinNodes(parts)}{close}</code>;
+  }
+  return (
+    <ul className="list">
+      {shown.map((item, i) => (
+        <li key={i}><code className={statusClass(item.status)}>{textOf(item.element)}</code></li>
+      ))}
+    </ul>
+  );
+}
+
+/** Render a value with optional diff highlighting via mergedView: containers and sequences entry by
+ *  entry, anything else as `formatValue` writes it. */
 export function renderValue(v: unknown, mergedView?: MergedElement[]): React.ReactNode {
   const container = logicalContainer(v);
   if (container) {
-    // Each entry is formatted once: the layout depends on the current value only, and a diff
-    // formats only the removed entries, which the current value does not have.
-    const texts = new Map<unknown, string>();
-    container.items.forEach(e => texts.set(e, formatContainerEntry(container.kind, e)));
-    const textOf = (e: unknown) => texts.get(e) ?? formatContainerEntry(container.kind, e);
-    const items = mergedView ?? container.items.map(element => ({ element, status: 'unchanged' as const }));
-    if (`{${[...texts.values()].join(', ')}}`.length <= INLINE_CONTAINER_LIMIT) {
-      const parts = items.map((item, i) => (
-        <span key={i} className={statusClass(item.status)}>{textOf(item.element)}</span>
-      ));
-      return <code>{'{'}{joinNodes(parts)}{'}'}</code>;
-    }
-    return (
-      <ul className="list">
-        {items.map((item, i) => (
-          <li key={i}><code className={statusClass(item.status)}>{textOf(item.element)}</code></li>
-        ))}
-      </ul>
-    );
+    return renderEntries('{', '}', container.items, e => formatContainerEntry(container.kind, e), mergedView);
   }
-
-  if (Array.isArray(v)) {
-    if (v.length === 0 && (!mergedView || mergedView.length === 0)) {
-      return <code>[]</code>;
-    }
-
-    if (mergedView && mergedView.length > 0) {
-      const hasInnerArray = mergedView.some(m => Array.isArray(m.element));
-
-      if (hasInnerArray) {
-        return (
-          <ul className="list">
-            {mergedView.map((item, i) => (
-              <li key={i}>{renderRowFromInnerArray(item.element, item.status)}</li>
-            ))}
-          </ul>
-        );
-      }
-
-      return renderInlineArrayMerged(mergedView);
-    }
-
-    const hasInnerArray = v.some(Array.isArray);
-    if (hasInnerArray) {
-      return (
-        <ul className="list">
-          {v.map((e, i) => (
-            <li key={i}>{renderRowFromInnerArray(e)}</li>
-          ))}
-        </ul>
-      );
-    }
-
-    return renderInlineArray(v);
-  }
-
+  if (Array.isArray(v)) return renderEntries('[', ']', v, formatValue, mergedView);
   return renderValueInline(v);
 }
 
