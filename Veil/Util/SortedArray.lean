@@ -339,11 +339,12 @@ end Array
 /-! ## Type definition -/
 
 /-- A strictly sorted array, used as a set representation. -/
-@[ext] structure OrdArray (α : Type u) [Ord α] : Type u where
-  val : Array α
-  property : val.toList.Pairwise (OrdList.cmpLt (α := α))
+def OrdArray (α : Type u) [Ord α] : Type u :=
+  { arr : Array α // arr.toList.Pairwise (OrdList.cmpLt (α := α)) }
 
 veil_derive_wrapper_instances OrdArray
+
+@[ext] theorem OrdArray.ext [Ord α] {a b : OrdArray α} (h : a.val = b.val) : a = b := Subtype.ext h
 
 namespace OrdArray
 

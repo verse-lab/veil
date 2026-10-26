@@ -575,7 +575,7 @@ instance instTSetOrdList [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α
   toList_contains_iff := fun a s => sortedContains_iff a s.val s.property
   subsets_iff := by
     intro ⟨l1, hl1⟩ ⟨l2, hl2⟩
-    simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, sublists, List.mem_pmap]
+    simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, OrdList.mem_sublists]
     constructor
     · grind
     · apply OrdList.mem_contains_then_is_sublist <;> assumption
@@ -651,11 +651,11 @@ instance instTSetOrdArray [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq �
   toList_contains_iff := fun a s => sortedContains_iff a s.val.toList s.property
   subsets_iff := by
     intro ⟨l1, hl1⟩ ⟨l2, hl2⟩
-    simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, subarrays, sublists, toOrdList, ofOrdList, List.mem_pmap]
+    simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, subarrays, toOrdList, ofOrdList, OrdList.mem_sublists]
     constructor
     · grind
     · intro h
-      refine ⟨⟨l1.toList, hl1⟩, ⟨l1.toList, ?_, rfl⟩, by simp⟩
+      refine ⟨⟨l1.toList, hl1⟩, ?_, by simp⟩
       apply OrdList.mem_contains_then_is_sublist l1.toList l2.toList hl1 hl2
       simpa using h
 

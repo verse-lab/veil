@@ -618,22 +618,57 @@ elab_rules : command
 
 end ForStructure
 
-/-! # Deriving Wrapper Instances for Single-Payload Structures -/
+/-! # Deriving Wrapper Instances for Single-Payload Structures and Subtypes
+
+A wrapper is a type with one payload, its storage, whose instances below come from the storage's:
+either a structure with exactly one non-proof field, or a definition whose body is a subtype of
+the storage, `def T := { v : S // p v }`. Both are distinct from their storage for instance
+resolution, so that the instances that show them (`Repr`, `Display`) are their own; a subtype
+also converts to and from its storage without a copy, e.g. by `List.attachWith`. -/
+
+/-- `β`, for a type that unfolds to the subtype `{ v : β // p v }`. -/
+elab "subtype_base_type% " t:term : term => do
+  let type ← whnf (← elabType t)
+  let_expr Subtype β _ := type
+    | throwError "Expected a subtype, got {type}"
+  return β
+
+open TSyntax.Compat in
+/-- The header of the instances of a definition `declName` whose body is a subtype, with one
+implicit binder per parameter of the definition, as `mkHeaderWithoutInstImplicitBinders` has for a
+structure. -/
+private def mkHeaderForSubtypeDef (declName : Name) : TermElabM Header := do
+  let info ← getConstInfoDefn declName
+  let argNames ← info.type.getForallBinderNames.toArray.mapM (mkFreshUserName ·.eraseMacroScopes)
+  let args : Array Term := argNames.map fun n => ⟨(mkIdent n).raw⟩
+  let targetType ← `(@$(mkCIdent declName) $args*)
+  return { binders := ← mkImplicitBinders argNames, argNames, targetNames := #[], targetType }
 
 syntax "veil_derive_wrapper_instances " ident : command
 
 elab_rules : command
 | `(veil_derive_wrapper_instances $decl:ident) => do
-  let ok ← ForStructure.mkInstCmdTemplate decl.getId fun info indVal header => do
-    let fields ← forallBoundedTelescope indVal.type indVal.numParams fun params _ => do
-      let ty := mkAppN (mkConst indVal.name (indVal.levelParams.map mkLevelParam)) params
-      withLocalDeclD `s ty fun s =>
-        info.fieldNames.filterM fun field => do
-          return !(← isProp (← inferType (← mkProjection s field)))
-    let #[field] := fields
-      | throwError "Expected a structure with exactly one non-proof field"
-    let args : Array Term := header.argNames.map (fun n => ⟨(mkIdent n).raw⟩)
-    let storage ← `(body_type_of_struct_field% (@$(mkCIdent (indVal.name ++ field)) $args*))
+  let declName ← resolveGlobalConstNoOverload decl
+  -- The header, the payload field, and the storage type
+  let (header, field, storage) ← liftTermElabM do
+    if let some info := getStructureInfo? (← getEnv) declName then
+      let indVal ← getConstInfoInduct declName
+      let header ← mkHeaderWithoutInstImplicitBinders indVal
+      let fields ← forallBoundedTelescope indVal.type indVal.numParams fun params _ => do
+        let ty := mkAppN (mkConst indVal.name (indVal.levelParams.map mkLevelParam)) params
+        withLocalDeclD `s ty fun s =>
+          info.fieldNames.filterM fun field => do
+            return !(← isProp (← inferType (← mkProjection s field)))
+      let #[field] := fields
+        | throwError "Expected a structure with exactly one non-proof field"
+      let args : Array Term := header.argNames.map (fun n => ⟨(mkIdent n).raw⟩)
+      return (header, field, ← `(body_type_of_struct_field% (@$(mkCIdent (indVal.name ++ field)) $args*)))
+    else if (← getConstInfo declName).isDefinition then
+      let header ← mkHeaderForSubtypeDef declName
+      return (header, `val, ← `(subtype_base_type% $(header.targetType)))
+    else
+      throwError "Expected a structure or a definition of a subtype"
+  let cmd : Command ← liftTermElabM do
     let f := mkIdent field
     let t := header.targetType
     let bs := header.binders
@@ -682,7 +717,7 @@ elab_rules : command
     -- `mkNullNode` bundles multiple commands into a single syntax node;
     -- command elaboration processes its children in order.
     return ⟨mkNullNode (cmds.map (·.raw))⟩
-  unless ok do throwError "Expected a structure"
+  elabVeilCommand cmd
 
 end DerivingInstanceForStructure
 

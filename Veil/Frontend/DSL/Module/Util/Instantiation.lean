@@ -60,7 +60,9 @@ def Module.elabInstantiation (mod : Module) (stx : Term) : TermElabM Expr := do
     | .sort _ | .userParameter =>
       -- Reduce the projection: an unreduced `inst.node` mentions the whole literal, holes
       -- included, so unifying a hole with it would fail the occurs check.
-      var.mvarId!.assign (← whnf (← mkProjection inst p.name))
+      -- Only reducibly: the type it gives stays as written, e.g. `OrdList ?α`, rather than the subtype that the
+      -- definition unfolds to, which has none of the instances declared for `OrdList`.
+      var.mvarId!.assign (← whnfR (← mkProjection inst p.name))
     | .moduleTypeclass .userDefined => obligations := obligations.push (p, var.mvarId!)
     | _ => pure ()
   -- The auto-generated sort assumptions are only needed where a user constraint mentions them.
