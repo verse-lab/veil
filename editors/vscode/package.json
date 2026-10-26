@@ -1,0 +1,161 @@
+{
+  "name": "veil",
+  "displayName": "Veil",
+  "description": "Run the model checkers that #mc_config builds, and show their progress and results.",
+  "icon": "icon.png",
+  "version": "0.0.1",
+  "publisher": "verse-lab",
+  "license": "Apache-2.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/verse-lab/veil"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionDependencies": [
+    "leanprover.lean4"
+  ],
+  "activationEvents": [
+    "onLanguage:lean4"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "veil.modelCheck.checkModel",
+        "title": "Check Model",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.run",
+        "title": "Run Model Checker",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.runWithOptions",
+        "title": "Run Model Checker with Options...",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.runAgain",
+        "title": "Run Last Model Check Again",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.stop",
+        "title": "Stop Model Checking",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.showPanel",
+        "title": "Show Model Checking Panel",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.exportResult",
+        "title": "Export Model Checking Result...",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.openResult",
+        "title": "Open Model Checking Result...",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.showSavedRun",
+        "title": "Show Saved Model Checking Result",
+        "category": "Veil"
+      },
+      {
+        "command": "veil.modelCheck.createConfig",
+        "title": "Create Model Checking Config",
+        "category": "Veil"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "veil.modelCheck.checkModel",
+          "when": "editorLangId == lean4"
+        },
+        {
+          "command": "veil.modelCheck.run",
+          "when": "editorLangId == lean4"
+        },
+        {
+          "command": "veil.modelCheck.runWithOptions",
+          "when": "editorLangId == lean4"
+        },
+        {
+          "command": "veil.modelCheck.runAgain",
+          "when": "veil.modelCheck.canRunAgain"
+        },
+        {
+          "command": "veil.modelCheck.stop",
+          "when": "veil.modelCheck.isRunning"
+        },
+        {
+          "command": "veil.modelCheck.showSavedRun",
+          "when": "false"
+        },
+        {
+          "command": "veil.modelCheck.createConfig",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Veil",
+      "properties": {
+        "veil.modelChecker.workers": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "markdownDescription": "Number of parallel workers of a model check. `0` uses all CPU cores, and `1` runs the sequential checker."
+        },
+        "veil.modelChecker.thresholdToParallel": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 0,
+          "markdownDescription": "Frontier size from which a parallel model check explores states in parallel."
+        },
+        "veil.modelChecker.numSubSteps": {
+          "type": "integer",
+          "default": 1,
+          "minimum": 1,
+          "markdownDescription": "Number of steps that each parallel worker takes before the frontier is merged."
+        },
+        "veil.modelChecker.maxSavedResults": {
+          "type": "integer",
+          "default": 50,
+          "minimum": 1,
+          "markdownDescription": "Maximum number of model checking results saved per workspace, keeping only the latest result of each command. The oldest results are removed when another result is saved. Changes take effect on the next save."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "build-production": "node esbuild.mjs --production",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node esbuild.mjs --tests && node out/test/runTests.js"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^16.18.126",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/vscode": "~1.80.0",
+    "esbuild": "~0.19.12",
+    "typescript": "~5.4.5"
+  }
+}

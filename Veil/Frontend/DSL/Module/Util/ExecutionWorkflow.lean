@@ -37,6 +37,9 @@ private structure ExecutionContext where
   parallelCfg : Option ModelChecker.ParallelConfig
   /-- Which command owns this context; selects the infoview renderer. -/
   resultKind : TraceDisplay.ResultKind
+  /-- Where the actions and the properties of the module are, which the result gives the infoview,
+  if known -/
+  sources : Json := .null
 
 /-- Report compilation failures without stopping an interpreted run during handoff.
 Interruptions produce no diagnostic: a killed build returns `none`, and an interrupt raised
@@ -46,13 +49,17 @@ private def withCompilationDiagnostics (stx : Syntax) (instanceId : Nat) (handof
   try
     compile
   catch e : Exception =>
-    let message ← e.toMessageData.toString
+    -- `elabTermForExecution` uses `throwAbortTerm` once an error has been logged.
+    -- Mark the build as failed, but keep the original diagnostic instead of reporting the abort.
+    let aborted := isAbortException e
+    let message ← if aborted then pure "Execution configuration elaboration failed." else e.toMessageData.toString
+    let ref := if e.getRef.getPos?.isSome then e.getRef else stx
     ModelChecker.Concrete.updateCompilationStatus instanceId (.failed message)
     if handoff then
-      logWarningAt stx message
+      unless aborted do logWarningAt ref message
     else
       ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [("error", toJson message)])
-      logErrorAt stx message
+      unless aborted do logErrorAt ref message
     return none
 
 /-- Extract the model checking mode from the optional mode syntax. -/
@@ -65,16 +72,75 @@ def getModelCheckingMode (modeStx : Syntax) : ModelCheckingMode :=
 
 /-- The names of the module's actions, for never-enabled action warnings: the constructors of its
 labels, as the labels' `Display` names them (`ValueDisplay.ctorJson`). -/
-private def actionLabelNames (mod : Module) : List String :=
+def actionLabelNames (mod : Module) : List String :=
   mod.actions.toList.map fun a => match a.name.eraseMacroScopes with
     | .str _ s => s
     | n => toString n
+
+/-- Where the actions and the properties of `mod` are in this file, by the names that model checking
+results give them. -/
+def getDeclSources (mod : Module) : CommandElabM (Array DeclSource × Array DeclSource) := do
+  let actions ← mod.procedures.filterMapM fun p => match p.info with
+    -- Traces name the initial step `after_init`
+    | .initializer => source "after_init" p.userSyntax
+    | .action name _ => source name.toString p.userSyntax
+    | .procedure _ => pure none
+  let assertions ← mod.assertions.filterMapM fun a => source a.name.toString a.userSyntax
+  return (actions, assertions)
+where
+  source (name : String) (stx : Syntax) : CommandElabM (Option DeclSource) := do
+    let some pos := stx.getPos? | return none
+    let position := (← getFileMap).utf8PosToLspPos pos
+    return some { name, file := ← getFileName, line := position.line, character := position.character }
+
+/-- The sources of the actions and the properties of a module, as the trace display of the infoview
+links to them (see `widget/src/traceDisplayInfoview.tsx`): with the URIs of their files, a relative
+file being in `workspace`. -/
+def infoviewSources (actions properties : Array DeclSource) (workspace : System.FilePath) : Json :=
+  let entry (source : DeclSource) :=
+    let file : System.FilePath := source.file
+    json% { name: $(source.name), uri: $(System.Uri.pathToUri (if file.isAbsolute then file else workspace / file)),
+            line: $(source.line), character: $(source.character) }
+  json% { actions: $(actions.map entry), properties: $(properties.map entry) }
 
 /-- Stable identity for a single compiled command invocation within a file. -/
 private def getCompiledCommandId (cmdName : String) (stx : Syntax) : CommandElabM String := do
   let some startPos := stx.getPos? | throwError s!"Unexpected error: {cmdName} has no position"
   let some endPos := stx.getTailPos? | throwError s!"Unexpected error: {cmdName} has no end position"
   pure s!"{startPos.1}-{endPos.1}"
+
+/-- Elaborate the complete computation for this workflow's compiled or interpreted entry point.
+Both callers pass expressions directly to the compiler/evaluator rather than elaborating a Lean
+definition or `#eval`. Run normal elaboration and synthesis, abort on logged errors, and reject
+remaining metavariables before that handoff. On failure, supplement the original error with a
+user-hole diagnostic when possible, without replacing it. -/
+private def elabTermForExecution (term : Term) : TermElabM Expr := do
+  try
+    let expr ← Term.elabTerm term none
+    if ← MonadLog.hasErrors then throwAbortTerm
+    Term.synthesizeSyntheticMVarsNoPostponing
+    if ← MonadLog.hasErrors then throwAbortTerm
+    let expr ← instantiateMVars expr
+    if expr.hasMVar then
+      if ← Term.logUnassignedUsingErrorInfos (← Meta.getMVars expr) then throwAbortTerm
+      throwErrorAt term "The execution configuration contains unresolved metavariables. Fill in the remaining placeholders."
+    return expr
+  catch exception =>
+    -- Preserve Lean's internal control-flow exceptions, including aborts.
+    if exception matches .internal .. then throw exception
+    -- An ordinary exception can stop elaboration before any diagnostic is logged. If so,
+    -- add one hint at an unresolved user-written hole, not a generated placeholder.
+    unless ← MonadLog.hasErrors do
+      -- Error infos are prepended; reverse them to inspect holes in registration order.
+      for info in (← get).mvarErrorInfos.reverse do
+        if (info.kind matches .hole) && (info.ref.getHeadInfo matches .original ..) then
+          -- Follow assignments too: a filled hole may still depend on unresolved metavariables.
+          unless (← Meta.getMVars (mkMVar info.mvarId)).isEmpty do
+            -- Print the goal in the hole's local context.
+            info.mvarId.withContext <| info.logError none
+            break
+    -- A remaining hole does not prove it caused the failure; retain the original error as well.
+    throw exception
 
 /-- Compile a temporary entry point in the current snapshot, then emit its C module
 with runtime initialization. -/
@@ -97,12 +163,11 @@ private def generateCCode (command : ModelChecker.Compilation.CompiledCommandSpe
   -- in `withCompilationDiagnostics`. It would also leave messages and info trees behind,
   -- which `withoutModifyingEnv` does not roll back.
   liftTermElabM <| Term.withoutErrToSorry <| withOptions (·.setBool `compiler.postponeCompile false) do
-    let entry ← `(ModelChecker.Compilation.runMain
+    let entry ← `(ModelChecker.Compilation.runMain $(quote command.actionLabels)
       (fun pcfg progressInstanceId cancelToken finish =>
         $callExpr pcfg progressInstanceId cancelToken (fun result => finish (Lean.toJson result))))
-    let expr ← Term.elabTerm entry none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    discard <| addVeilDefinition `main (← instantiateMVars expr) (addNamespace := false)
+    let expr ← elabTermForExecution entry
+    discard <| addVeilDefinition `main expr (addNamespace := false)
   liftCoreM <| ModelChecker.Compilation.emitCWithRuntimeInitializers `main
 
 /-- Create an error JSON object. -/
@@ -150,7 +215,7 @@ private def mkCompilationErrorMsg (result : ModelChecker.Compilation.ProcessResu
 
 /-- Check if the compiled binary exists. Returns `some binPath` if found. -/
 private def verifyBinaryExists (buildFolder : System.FilePath) (instanceId : Nat) : IO (Option System.FilePath) := do
-  let binPath := (buildFolder / "ModelCheckerMain").addExtension System.FilePath.exeExtension
+  let binPath := ModelChecker.Compilation.buildFolderBinary buildFolder
   if ← binPath.pathExists then return some binPath
   ModelChecker.Concrete.finishProgress instanceId (errorJson s!"Binary not found at {binPath}")
   return none
@@ -192,7 +257,10 @@ private def runBinaryForJson (binPath : System.FilePath) (args : Array String)
                   allActionLabels := oldMetrics.allActionLabels
                   history := oldMetrics.history.push historyPoint } }
             | _ => p
-      | .error _ => stderrAccum.modify (· ++ line)
+      | .error _ =>
+        -- The start report is for IDEs, and the progress instance has the labels already
+        unless (Json.parse line).toOption.any (·.getObjVal? "start" |>.isOk) do
+          stderrAccum.modify (· ++ line)
   let stdoutTask ← IO.asTask (prio := .dedicated) child.stdout.readToEnd
   let waitTask ← IO.asTask (prio := .dedicated) child.wait
   -- Monitor for cancellation
@@ -225,9 +293,8 @@ private def elaborateInterpretedComputation (instanceId : Nat) (callExpr : Term)
     Lean.toJson <$> $callExpr ($(quote parallelCfg)) ($(quote instanceId)) refs.cancelToken pure)
   trace[veil.desugar] "{resultExpr}"
   liftTermElabM <| Term.withoutErrToSorry do
-    let expr ← Term.elabTerm resultExpr none
-    Term.synthesizeSyntheticMVarsNoPostponing
-    ModelChecker.Compilation.evalJsonComputation (← instantiateMVars expr)
+    let expr ← elabTermForExecution resultExpr
+    ModelChecker.Compilation.evalJsonComputation expr
 
 /-- Log model checking result. -/
 private def logModelCheckResult (kind : TraceDisplay.ResultKind) (stx : Syntax)
@@ -250,7 +317,9 @@ private def allocExecutionContext (mod : Module) (stx : Syntax)
       pure <|.modelCheck { allActionLabels := actionLabels }
   let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance details
   let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
-  return { stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind }
+  let (actions, properties) ← getDeclSources mod
+  let sources := infoviewSources actions properties (← IO.currentDir)
+  return { stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind, sources }
 
 /-- Handle errors in model checking computations. -/
 private def handleModelCheckError (ctx : ExecutionContext) (e : Exception) : CommandElabM Unit := do
@@ -267,6 +336,8 @@ private def finishWithResult (ctx : ExecutionContext) (json : Json) : CommandEla
   -- publishing a verdict; `checkCancelled` still permits a verdict during handoff.
   if ← checkCancelled ctx.cancelToken ctx.instanceId then return
   let json := enrichJsonWithAssertions json ctx.assertionSources
+  -- For the trace display of the infoview to link the actions and the properties to their sources
+  let json := if json matches .obj _ && !ctx.sources.isNull then json.setObjVal! "sources" ctx.sources else json
   logModelCheckResult ctx.resultKind ctx.stx json
   ModelChecker.Concrete.finishProgress ctx.instanceId json
 
@@ -332,30 +403,41 @@ private def runInterpreted
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := mkTask }
   ModelChecker.displayStreamingProgress stx ctx.instanceId
 
-/-- Handle compiled-only mode: compile and run binary without interpreted fallback. -/
-private def runCompiled (command : ModelChecker.Compilation.CompiledCommandSpec)
-    (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax) (callExpr : Term)
-    (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
-  let ctx ← allocExecutionContext mod stx parallelCfg kind
+/-- Compile `callExpr` in the background, then pass the build folder to `withBinary`, with the source
+file and the identity of the command in it. The build folder stays in use until `withBinary`
+returns. Compilation failures are logged at `stx`; `onError` handles the other exceptions. -/
+private def compileThen (command : ModelChecker.Compilation.CompiledCommandSpec) (stx : Syntax)
+    (callExpr : Term) (instanceId : Nat) (cancelToken : IO.CancelToken)
+    (withBinary : (buildFolder : System.FilePath) → (sourceFile commandId : String) → CommandElabM Unit)
+    (onError : Exception → CommandElabM Unit) : CommandElabM Unit := do
   let sourceFile ← getFileName
   let commandId ← getCompiledCommandId s!"#{command.name}" stx
 
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
-      let some buildFolder ← withCompilationDiagnostics stx ctx.instanceId false <|
-        compileModel sourceFile callExpr commandId ctx.instanceId ctx.cancelToken
-        command | return
-      if ← checkCancelled ctx.cancelToken ctx.instanceId then return
-      runBinaryAndLogResult ctx buildFolder sourceFile command commandId
+      let some buildFolder ← withCompilationDiagnostics stx instanceId false <|
+        compileModel sourceFile callExpr commandId instanceId cancelToken command | return
+      if ← checkCancelled cancelToken instanceId then return
+      withBinary buildFolder sourceFile commandId
     catch e : Exception =>
-      handleModelCheckError ctx e
+      onError e
     finally
-      endRunIfCancelled ctx.cancelToken ctx.instanceId
-      releaseBuild ctx.instanceId
-  ) ctx.cancelToken
+      endRunIfCancelled cancelToken instanceId
+      releaseBuild instanceId
+  ) cancelToken
 
   let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
-  Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := compilationTask }
+  Command.logSnapshotTask { stx? := none, cancelTk? := cancelToken, task := compilationTask }
+
+/-- Handle compiled-only mode: compile and run binary without interpreted fallback. -/
+private def runCompiled (command : ModelChecker.Compilation.CompiledCommandSpec)
+    (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax) (callExpr : Term)
+    (parallelCfg : Option ModelChecker.ParallelConfig) : CommandElabM Unit := do
+  let ctx ← allocExecutionContext mod stx parallelCfg kind
+  compileThen command stx callExpr ctx.instanceId ctx.cancelToken
+    (fun buildFolder sourceFile commandId =>
+      runBinaryAndLogResult ctx buildFolder sourceFile command commandId)
+    (handleModelCheckError ctx)
   ModelChecker.displayStreamingProgress stx ctx.instanceId
 
 /-- Handle default mode: run interpreted + background compile with handoff. -/
@@ -468,5 +550,66 @@ def run (command : ModelChecker.Compilation.CompiledCommandSpec)
   | .interpreted => runInterpreted kind mod stx callExpr parallelCfg
   | .compiled => runCompiled command kind mod stx callExpr parallelCfg
   | .default => runWithHandoff command kind mod stx callExpr parallelCfg
+
+/-- Directory of the binaries that `buildOnly` builds. They are copied there out of their build
+folders, which another check may prune before the binaries run. -/
+private def getCheckerBaseDir : IO System.FilePath := do
+  return (← IO.currentDir) / ".lake" / "model_checkers"
+
+/-- Copy the binary built in `buildFolder` to `dir`, named after the folder. The copy replaces an
+earlier one at once, so a process running the earlier one keeps it. Call it while holding
+`withBuildLock` and the folder's use lock. -/
+private def copyCheckerBinary (buildFolder dir : System.FilePath) : IO System.FilePath := do
+  let name := buildFolder.fileName.getD "ModelCheckerMain"
+  let dest := ModelChecker.Compilation.buildFolderBinary dir name
+  -- Hidden, so that `pruneCheckerBinaries` leaves an unfinished copy alone
+  let tmp := dir / s!".{name}.tmp"
+  IO.FS.createDirAll dir
+  IO.FS.writeBinFile tmp (← IO.FS.readBinFile (ModelChecker.Compilation.buildFolderBinary buildFolder))
+  IO.setAccessRights tmp {
+    user := { read := true, write := true, execution := true }
+    group := { read := true, execution := true }
+    other := { read := true, execution := true } }
+  IO.FS.rename tmp dest
+  return dest
+
+/-- Delete the binaries in `dir` beyond the `keep` most recently copied ones; 0 means no limit. -/
+private def pruneCheckerBinaries (dir : System.FilePath) (keep : Nat) : IO Unit := do
+  if keep == 0 then return
+  let mut binaries : Array (System.FilePath × IO.FS.SystemTime) := #[]
+  for entry in ← dir.readDir do
+    unless entry.fileName.startsWith "." do
+      let copied ← try (·.modified) <$> entry.path.metadata catch _ => pure default
+      binaries := binaries.push (entry.path, copied)
+  let newestFirst := binaries.qsort fun a b => compare a.2 b.2 == .gt
+  for (binary, _) in newestFirst.extract keep do
+    -- A process running the binary keeps it
+    try IO.FS.removeFile binary catch _ => pure ()
+
+/-- Compile `callExpr` into a model checker binary in the background, as `runCompiled` does, but
+without running it, and report where the binary is. The binary is copied out of its build folder,
+which another check may prune before the binary runs. -/
+def buildOnly (command : ModelChecker.Compilation.CompiledCommandSpec) (stx : Syntax) (callExpr : Term) :
+    CommandElabM Unit := do
+  -- The progress instance only follows the compilation, as nothing displays it
+  let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance (.modelCheck {})
+  let keep := veil.modelChecker.maxStoredCheckers.get (← getOptions)
+  compileThen command stx callExpr instanceId cancelToken
+    (fun buildFolder sourceFile commandId => do
+      -- Copy under the build lock, so that no other build relinks the binary meanwhile
+      let some binary ← ModelChecker.Compilation.withBuildLock
+          (← ModelChecker.Compilation.getBuildBaseDir) cancelToken do
+          let dir ← getCheckerBaseDir
+          let binary ← copyCheckerBinary buildFolder dir
+          pruneCheckerBinaries dir keep
+          return binary
+        | return
+      ModelChecker.Compilation.markRegistryFinished sourceFile command commandId buildFolder
+      ModelChecker.Concrete.finishProgress instanceId (Json.mkObj [("binary", toJson binary.toString)])
+      logInfoAt stx m!"Model checker built: {binary}")
+    (fun e => do
+      let message ← e.toMessageData.toString
+      ModelChecker.Concrete.finishProgress instanceId (errorJson message)
+      logErrorAt stx message)
 
 end Veil.ExecutionWorkflow

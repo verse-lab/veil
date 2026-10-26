@@ -400,6 +400,36 @@ export const CopyButton: React.FC<{ text: string; className?: string }> = ({ tex
 
 // ========== Label Helpers ==========
 
+/** The source name of a transition's action, preserving any leading underscores. */
+export function actionName(label: unknown): string | undefined {
+  if (typeof label === "string") return label;
+  const ctor = logicalCtor(label);
+  if (ctor) return ctor.name;
+  if (typeof label !== "object" || label === null) return undefined;
+  const keys = Object.keys(label);
+  return keys.length === 1 ? keys[0] : undefined;
+}
+
+/** Opens the source of an action or property by the name that results give it, when the host has
+ * its location. */
+export type OpenSource = (kind: "action" | "property", name: string) => (() => void) | undefined;
+
+export const OpenSourceContext = React.createContext<OpenSource | undefined>(undefined);
+
+/** `children`, as a link to the source of an action or of a property when the host can open it */
+export const SourceLink: React.FC<React.PropsWithChildren<{ kind: "action" | "property"; name?: string }>> =
+    ({ kind, name, children }) => {
+  const openSource = React.useContext(OpenSourceContext);
+  const open = name === undefined ? undefined : openSource?.(kind, name);
+  if (!open) return <>{children}</>;
+  return (
+    // Neither the header that it is in nor a `summary` toggles
+    <a className="source-link" title="Go to the source" onClick={(e) => { e.preventDefault(); e.stopPropagation(); open(); }}>
+      {children}
+    </a>
+  );
+};
+
 /** Format a transition label, a constructor such as `recv` with a `sender` argument, into
  *  "recv(sender = 2)". An object like {"recv": {"sender": 2}} reads the same way, with its
  *  arguments in key order. */

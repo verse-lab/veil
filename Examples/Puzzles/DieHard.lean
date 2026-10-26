@@ -61,9 +61,7 @@ termination big > 0
 
 #time #gen_spec
 
--- #time #check_invariants
+#gen_executable
 
-set_option veil.violationIsError false in
-#model_check { }
 
 end DieHard

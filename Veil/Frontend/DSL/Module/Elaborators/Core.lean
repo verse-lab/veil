@@ -266,6 +266,34 @@ def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
       logWarning m!"unable to generate transition weakening lemma: {ex.toMessageData}"
   pure mod
 
+private def Module.toExecutableModule (mod : Module)
+    (instantiationTemplate : Option (Expr × Array InstantiationBinder) := none) :
+    CommandElabM ExecutableModule := do
+  let (actions, properties) ← ExecutionWorkflow.getDeclSources mod
+  return {
+    name := mod.name
+    instantiationFields := (← mod.uninterpretedParamIdents).map (·.getId)
+    instantiationTemplate
+    assumptions := mod.assumptions.map (·.name)
+    invariants := mod.invariants.map (·.name)
+    terminations := mod.terminations.map (·.name)
+    stateConstraints := mod.stateConstraints.map (·.name)
+    actionLabels := (ExecutionWorkflow.actionLabelNames mod).toArray
+    actionSources := actions
+    propertySources := properties }
+
+/-- Record what checking `mod` takes, for `#mc_config`. The instantiation template is
+recorded if it is closed, i.e. unless solving a constraint in it needs the concrete sorts. -/
+private def Module.recordExecutableModule (mod : Module) : CommandElabM Unit := do
+  -- Restoring the state discards the messages of a template that failed to elaborate
+  let template ← liftTermElabM <| withoutModifyingState do
+    try
+      let (template, binders) ← Term.withoutErrToSorry mod.instantiationTemplate
+      let template ← instantiateMVars template
+      return if template.hasMVar then none else some (template, binders.map (·.1))
+    catch _ => return none
+  modifyEnv (executableModuleExt.addEntry · (← mod.toExecutableModule template))
+
 /-- Generate the executable definitions with `cfg`, unless the module has them already (whatever
 options they were generated with). -/
 private def Module.ensureExecutableModelCheckerDefinitions (mod : Module) (cfg : Extract.ExecutableConfig := {}) :
@@ -281,6 +309,7 @@ private def Module.ensureExecutableModelCheckerDefinitions (mod : Module) (cfg :
   stepOrAbort <| Extract.runGenExtractCommand mod cfg
   for cmd in ← Extract.Module.assembleEnumerableTransitionSystem mod do
     stepOrAbort <| elabVeilCommand cmd
+  mod.recordExecutableModule
 
 @[command_elab Veil.genExecutable]
 def elabGenExecutable : CommandElab := fun stx => do
@@ -564,42 +593,43 @@ private def getTheoryTerm (cmdName : String) (theoryTermOpt : Option Term)
         {cmdName} {instTerm} {theoryExample}"
     `({})
 
-/-- Prepend `name` with `mod.name`. Useful when expressions are printed out for debugging. -/
-private def mkIdentWithModName (mod : Module) (name : Name) : Ident :=
-  Lean.mkIdent (mod.name ++ name)
+/-- Prepend `name` with the module's name, so that the result also resolves outside the module.
+Useful when expressions are printed out for debugging as well. -/
+private def mkIdentWithModName (em : ExecutableModule) (name : Name) : Ident :=
+  Lean.mkIdent (em.name ++ name)
 
 /-- The module's `enumerableTransitionSystem`, which does not log picks (`LogSwitch`): searches and
 simulations do not read them. -/
-private def mkTransitionSystemTerm (mod : Module) (instSortArgs : Array Term) (th : Ident) :
+private def mkTransitionSystemTerm (em : ExecutableModule) (instSortArgs : Array Term) (th : Ident) :
     CommandElabM Term :=
   `(letI : $(mkIdent ``LogSwitch) := ⟨false⟩
-    $(mkIdentWithModName mod `enumerableTransitionSystem) $instSortArgs* $th)
+    $(mkIdentWithModName em `enumerableTransitionSystem) $instSortArgs* $th)
 
 /-- The module's `pickSource`, which logs picks (`LogSwitch`): recovering a counterexample trace
 takes the picks of its states from it. -/
-private def mkPickSourceTerm (mod : Module) (instSortArgs : Array Term) (th : Ident) :
+private def mkPickSourceTerm (em : ExecutableModule) (instSortArgs : Array Term) (th : Ident) :
     CommandElabM Term :=
   `(letI : $(mkIdent ``LogSwitch) := ⟨true⟩
-    $(mkIdentWithModName mod `pickSource) $instSortArgs* $th)
+    $(mkIdentWithModName em `pickSource) $instSortArgs* $th)
 
 /-- Build search parameters for model checking / simulation. -/
-private def mkSearchParameters (mod : Module) (config : ModelCheckerConfig) : CommandElabM Term := do
-  let mkAssumption (sa : StateAssertion) : CommandElabM Term :=
+private def mkSearchParameters (em : ExecutableModule) (config : ModelCheckerConfig) : CommandElabM Term := do
+  let mkAssumption (name : Name) : CommandElabM Term :=
     `($(mkIdent ``Veil.ModelChecker.TheoryProperty.mk)
-        ($(mkIdent `name) := $(quote sa.name))
-        ($(mkIdent `property) := fun $(mkIdent `th) => $(mkIdentWithModName mod sa.name) $(mkIdent `th)))
-  -- Build SafetyProperty.mk syntax for a StateAssertion
-  let mkProp (sa : StateAssertion) : CommandElabM Term :=
+        ($(mkIdent `name) := $(quote name))
+        ($(mkIdent `property) := fun $(mkIdent `th) => $(mkIdentWithModName em name) $(mkIdent `th)))
+  -- Build SafetyProperty.mk syntax for a state assertion
+  let mkProp (name : Name) : CommandElabM Term :=
     `($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
-        ($(mkIdent `name) := $(quote sa.name))
-        ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName mod sa.name) $(mkIdent `th) $(mkIdent `st)))
-  let assumptionList ← `([$((← mod.assumptions.mapM mkAssumption)),*])
-  let safetyList ← `([$((← mod.invariants.mapM mkProp)),*])
+        ($(mkIdent `name) := $(quote name))
+        ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName em name) $(mkIdent `th) $(mkIdent `st)))
+  let assumptionList ← `([$((← em.assumptions.mapM mkAssumption)),*])
+  let safetyList ← `([$((← em.invariants.mapM mkProp)),*])
   -- FIXME: Only recognizing the first termination property might confuse users
-  let terminatingProp ← match mod.terminations[0]? with
+  let terminatingProp ← match em.terminations[0]? with
     | some t => mkProp t
     | none => `($(mkIdent `default))
-  let constraintList ← `([$((← mod.stateConstraints.mapM mkProp)),*])
+  let constraintList ← `([$((← em.stateConstraints.mapM mkProp)),*])
   let earlyTermConds ← do
     let base ← `([$(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.foundViolatingState),
                   $(mkIdent ``Veil.ModelChecker.EarlyTerminationCondition.assertionFailed),
@@ -642,16 +672,17 @@ private structure ExecutionCallContext where
   searchParams : Term
   sysWithoutLog : Term
 
-/-- Bind the concrete instantiation and theory around a command-specific call.
+/-- Bind the concrete instantiation and theory around a command-specific call. `instantiation`
+elaborates to the module's `Instantiation`.
 Simplify field reads in the `Decidable` instances synthesized by the call. -/
-private def mkExecutionCall (mod : Module) (config : ModelCheckerConfig)
-    (instTerm theoryTerm : Term)
+private def mkExecutionCall (em : ExecutableModule) (config : ModelCheckerConfig)
+    (instantiation theoryTerm : Term)
     (mkCall : ExecutionCallContext → CommandElabM Term) : CommandElabM Term := do
   let inst := mkVeilImplementationDetailIdent `inst
   let th := mkVeilImplementationDetailIdent `th
-  let instSortArgs ← (← mod.uninterpretedParamIdents).mapM fun paramIdent => `($inst.$(paramIdent))
-  let sp ← mkSearchParameters mod config
-  let sysWithoutLog ← mkTransitionSystemTerm mod instSortArgs th
+  let instSortArgs ← em.instantiationFields.mapM fun field => `($inst.$(mkIdent field))
+  let sp ← mkSearchParameters em config
+  let sysWithoutLog ← mkTransitionSystemTerm em instSortArgs th
   let call ← mkCall {
     instSortArgs := instSortArgs
     theoryArg := th
@@ -660,16 +691,16 @@ private def mkExecutionCall (mod : Module) (config : ModelCheckerConfig)
   }
   -- `veil_dsimp_field_reads%` simplifies the field reads in the `Decidable` instances synthesized here
   `(veil_dsimp_field_reads% (
-      let $inst : $instantiationType := __veil_instantiation% $instTerm
-      let $th : $theoryIdent $instSortArgs* := $theoryTerm
+      let $inst : $(mkIdentWithModName em instantiationTypeName) := $instantiation
+      let $th : $(mkIdentWithModName em theoryName) $instSortArgs* := $theoryTerm
       $call))
 
 /-- Build the core model checker call syntax (without parallel config). -/
-private def mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig) (fingerprintType seenSet : Term)
-    (instTerm theoryTerm : Term) : CommandElabM Term :=
-  mkExecutionCall mod config instTerm theoryTerm fun ectx => do
+private def mkModelCheckerCall (em : ExecutableModule) (config : ModelCheckerConfig) (fingerprintType seenSet : Term)
+    (instantiation theoryTerm : Term) : CommandElabM Term :=
+  mkExecutionCall em config instantiation theoryTerm fun ectx => do
   -- A counterexample's trace takes the picks of its states from the module's pick source.
-  let pickSource ← mkPickSourceTerm mod ectx.instSortArgs ectx.theoryArg
+  let pickSource ← mkPickSourceTerm em ectx.instSortArgs ectx.theoryArg
   -- Model checker call with type annotation to help inference
   -- Note: findReachableThen takes parallelCfg, progressInstanceId, cancelToken, and the
   -- continuation for the result as the last four args
@@ -683,11 +714,11 @@ private def mkModelCheckerCall (mod : Module) (config : ModelCheckerConfig) (fin
        $(ectx.searchParams) : _ → _ → _ → _ → IO _))
 
 /-- Build the simulator call for the shared execution workflow, including display JSON conversion. -/
-private def mkSimulateCall (mod : Module) (instTerm theoryTerm : Term)
+private def mkSimulateCall (em : ExecutableModule) (instantiation theoryTerm : Term)
     (cfg : ModelChecker.Simulation.SimulateConfig) : CommandElabM Term := do
   let cfgTerm ← `($(mkIdent ``Veil.ModelChecker.Simulation.SimulateConfig.mk)
       $(quote cfg.numTraces) $(quote cfg.maxSteps) $(quote cfg.seed))
-  let runtimeCallExpr ← mkExecutionCall mod {} instTerm theoryTerm fun ectx =>
+  let runtimeCallExpr ← mkExecutionCall em {} instantiation theoryTerm fun ectx =>
     `(($(mkIdent ``Veil.ModelChecker.Simulation.simulateWithProgress)
         $(ectx.sysWithoutLog) $(ectx.searchParams) $(ectx.theoryArg) $cfgTerm : _ → _ → IO _))
   let resultIdent := mkVeilImplementationDetailIdent `simulateRuntimeResult
@@ -697,8 +728,9 @@ private def mkSimulateCall (mod : Module) (instTerm theoryTerm : Term)
     finish ($(mkIdent ``Veil.ModelChecker.Simulation.SimulateResult.toDisplayJson) $resultIdent))
 
 private structure ExecutionCallCommandContext (Config : Type) where
-  mod : Module
+  executable : ExecutableModule
   config : Config
+  /-- Elaborates to the instantiation of the module -/
   instantiation : Term
   «theory» : Term
 
@@ -727,13 +759,61 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
     if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
       checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
     mod.ensureExecutableModelCheckerDefinitions
+    let executable ← mod.toExecutableModule
     let (callExpr, parallelCfg) ← mkCall {
-      mod := mod
+      executable
       config := cfg
-      instantiation := instTerm
+      instantiation := ← `(__veil_instantiation% $instTerm)
       «theory» := theoryTerm
     }
-    ExecutionWorkflow.run { name := cmdName } kind mod stx mode callExpr parallelCfg
+    ExecutionWorkflow.run { name := cmdName, actionLabels := executable.actionLabels.toList } kind mod stx
+      mode callExpr parallelCfg
+
+/-- Shared elaboration of the build commands, which build the binary of an execution command for
+module `modId`, typically from another file, without running it. -/
+private def elabBuildCommand {α : Type} (cmdName : String) (traceClass : Name) (stx : Syntax)
+    (modId : Ident) (instTerm : Term) (theoryTerm? : Option Term) (elabConfig : CommandElabM α)
+    (mkCall : ExecutionCallCommandContext α → CommandElabM Term) : CommandElabM Unit := do
+  withTraceNode traceClass (fun _ => return s!"#{cmdName}") do
+    let some em ← getExecutableModule? modId.getId
+      | throwErrorAt modId "Module {modId.getId} has no executable definitions here: add \
+          `#gen_executable` to the `veil module {modId.getId}` block that declares it."
+    let callExpr ← mkCall {
+      executable := em
+      config := ← elabConfig
+      instantiation := ← `(__veil_instantiation_of% $modId $instTerm)
+      «theory» := ← theoryTerm?.getDM `({}) }
+    -- Elaborate the call as the execution commands do inside the module: with `Veil` open
+    -- (since `veil module` does it), and the scoped instances of the module active, e.g. those of
+    -- its enums and the `ToJson` of its state. They are also needed by the code that `buildOnly`
+    -- puts around the call, e.g. to convert its result to JSON.
+    withOpenNamespaces [`Veil, em.name] do
+      ExecutionWorkflow.buildOnly { name := cmdName, actionLabels := em.actionLabels.toList } stx callExpr
+
+@[command_elab Veil.modelCheckBuild]
+def elabModelCheckBuild : CommandElab := fun stx => do
+  let `(#mc_config $modId:ident $instTerm $[$theoryTerm?]? $cfg:optConfig) := stx
+    | throwUnsupportedSyntax
+  let elabConfig := do
+    -- As for `#model_check`, the parallel configuration is an argument of the binary
+    let items := Lean.Elab.Tactic.mkConfigItemViews (Lean.Parser.Tactic.getConfigItems cfg)
+    for item in items do
+      let option := item.option.getId.eraseMacroScopes
+      if option matches `sequential | `parallelCfg then
+        throwErrorAt item.option "`{option}` is not part of the model checker: pass the parallel \
+          configuration to the binary as arguments."
+    let commandCfg ← elabModelCheckCommandConfig cfg
+    -- A full configuration can set them too
+    if commandCfg.sequential || commandCfg.parallelCfg.isSome then
+      let ref := items.find? (·.option.getId.eraseMacroScopes == `config) |>.map (·.option.raw) |>.getD cfg.raw
+      throwErrorAt ref "`config` sets the parallel configuration, which is not part of the model \
+        checker: pass it to the binary as arguments."
+    return commandCfg
+  elabBuildCommand "model_check_build" `veil.perf.elaborator.modelCheckBuild stx modId instTerm
+    theoryTerm? elabConfig fun ecctx => do
+    let commandCfg := ecctx.config
+    mkModelCheckerCall ecctx.executable commandCfg.toModelCheckerConfig commandCfg.fingerprintType
+      commandCfg.seenSet ecctx.instantiation ecctx.theory
 
 @[command_elab Veil.modelCheck]
 def elabModelCheck : CommandElab :=
@@ -746,7 +826,7 @@ def elabModelCheck : CommandElab :=
       | true, _ => pure none
       | false, some cfg => pure (some cfg)
       | false, none => pure (some { numSubTasks := ← getNumCores, thresholdToParallel := defaultThresholdToParallel })
-    let callExpr ← mkModelCheckerCall ecctx.mod config commandCfg.fingerprintType commandCfg.seenSet ecctx.instantiation ecctx.theory
+    let callExpr ← mkModelCheckerCall ecctx.executable config commandCfg.fingerprintType commandCfg.seenSet ecctx.instantiation ecctx.theory
     return (callExpr, parallelCfg)
 
 /-- Resolve simulation bounds from command syntax and options, and choose a seed. -/
@@ -766,6 +846,6 @@ private def elabSimulateCommandConfig (cfgStx : Syntax)
 def elabSimulate : CommandElab :=
   elabExecutionCommand "simulate" `veil.perf.elaborator.simulate .simulate
     (fun stx => elabSimulateCommandConfig stx[4]) 5 fun ecctx => do
-    return (← mkSimulateCall ecctx.mod ecctx.instantiation ecctx.theory ecctx.config, none)
+    return (← mkSimulateCall ecctx.executable ecctx.instantiation ecctx.theory ecctx.config, none)
 
 end Veil

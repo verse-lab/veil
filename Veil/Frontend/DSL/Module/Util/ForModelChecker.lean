@@ -71,6 +71,9 @@ inductive Status
 structure CompiledCommandSpec where
   /-- Short identifier of the command, used in registry keys and build folder names. -/
   name : String
+  /-- The labels of the actions of the module, which the executable reports when it starts, so
+  that the actions that were never enabled can be told (see `StartReport`). -/
+  actionLabels : List String := []
 
 /-- Registry key for one compiled command invocation. -/
 structure CompilationKey where
@@ -207,6 +210,11 @@ def writeBuildInputs (buildFolder : System.FilePath) (cCode : String) (imports :
   IO.FS.createDirAll buildFolder
   IO.FS.writeFile (buildFolder / "ModelCheckerMain.c") cCode
   IO.FS.writeFile (buildFolder / "imports.json") (toJson imports).compress
+
+/-- The binary built in `buildFolder`: `veilModelCheckBuild` (in the lakefile) links it there as
+the executable `ModelCheckerMain` (`LeanExe.fileName`). -/
+def buildFolderBinary (buildFolder : System.FilePath) (name : String := "ModelCheckerMain") : System.FilePath :=
+  (buildFolder / name).addExtension System.FilePath.exeExtension
 
 /-- Build folders that checks in this process are using, by progress instance, each with the
 shared lock held on the folder's `use.lock`. -/

@@ -202,6 +202,16 @@ private def actionAndArgs (label : Json) : String × String :=
       (args.toList.map fun (k, v) => (k, ValueDisplay.renderJson v))))
   | none => (ValueDisplay.formatText label, "")
 
+/-- Natural order for displayed arguments: compare digit runs as natural numbers.
+Other characters keep their lexical order; this does not interpret Lean terms. -/
+private def compareActionArgs (lhs rhs : String) : Ordering :=
+  let parts (s : String) :=
+    (s.toList.splitBy (fun a b => a.isDigit && b.isDigit)).map String.ofList
+  List.compareLex (fun a b =>
+    match a.toNat?, b.toNat? with
+    | some n, some m => compare n m
+    | _, _ => compare a b) (parts lhs) (parts rhs)
+
 /-- Grouped action statistics for display: the statistics of each label of an action, with the
 label's arguments. -/
 structure ActionGroup where
@@ -229,7 +239,9 @@ private def groupActionStats (stats : List ActionStatDisplay) : List ActionGroup
         [(args, stat)]
       ⟩
   grouped.toList.map (·.2)
-    |>.map (fun g => ⟨g.baseName, g.totalGenerated, g.totalDistinct, g.variants.reverse.mergeSort (·.1 < ·.1)⟩)
+    |>.map (fun g => ⟨g.baseName, g.totalGenerated, g.totalDistinct,
+      g.variants.reverse.mergeSort fun a b =>
+        (compareActionArgs a.1 b.1).isLE⟩)
     |>.mergeSort (·.baseName < ·.baseName)
 
 /-- Base grid row style for action coverage. -/
