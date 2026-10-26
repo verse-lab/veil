@@ -192,4 +192,15 @@ register_option veil.modelChecker.maxStoredCheckers : Nat := {
   beyond this limit. Deleting a binary does not stop a process running it."
 }
 
+register_option veil.modelChecker.buildOnly : Bool := {
+  defValue := false
+  descr := "Build the binary of `#model_check` and `#simulate` inside a module without running it, \
+  whatever mode the command names, and report it and the time of each phase of the build as an \
+  info message whose last line is `VEIL_BUILD_ONLY` followed by a JSON object. As for \
+  `#mc_config`, the binary is copied to `.lake/model_checkers` \
+  (see `veil.modelChecker.maxStoredCheckers`), but the build runs synchronously. For scripts that \
+  time the compiled checker outside the elaborator, such as `scripts/bench-model-check.py`; not \
+  meant for the editor, where the synchronous build holds up the commands after it."
+}
+
 end Veil
