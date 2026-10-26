@@ -10,8 +10,20 @@ scripts/bench-model-check-report.py prints summaries and writes CSVs; it can be 
 at any time. Timings separate build phases from search; elaboration time includes Lean
 startup, imports and other commands in the file.
 
-Use --resume to continue a run, --bin-dir to keep binaries, and --clean-binaries
-to remove retained build artifacts after confirmation. See --help for all options.
+A checker that needs most of the machine's memory slows down when other programs' memory is in
+the way: the kernel compresses or swaps out part of the checker's memory, and accessing it then
+costs system time. Each run records how much memory was free when it started and, on macOS, its
+peak footprint, which counts that memory too, unlike the maximum resident set size; the report
+lists the runs whose footprint exceeds their RSS by 1 GB or more. By default nothing is done
+about other programs' memory. On request, before each run: --free-memory GB holds that much
+incompressible data for a moment, which pushes the file cache and idle programs' pages out of
+memory (no root needed); --cooldown then pauses; and --min-free waits, for at most 5 minutes,
+until enough memory is free.
+
+Use --resume to continue a run (with its thread counts and repetitions, unless --threads or
+--repeat give others), --rerun to run some of its specs, or their runs at some thread counts,
+again, --bin-dir to keep binaries, and --clean-binaries to remove retained build artifacts
+after confirmation. See --help for all options.
 
 Examples:
   python3 scripts/bench-model-check.py Examples/TLA --threads 1,4,8 --repeat 3 --name tla
@@ -20,6 +32,7 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import ctypes
 import fcntl
 import hashlib
 import json
@@ -27,6 +40,7 @@ import os
 import pathlib
 import platform
 import re
+import select
 import shutil
 import signal
 import subprocess
@@ -48,6 +62,27 @@ LEAN_OPTIONS = ["-Dveil.modelChecker.buildOnly=true", "-Dveil.modelChecker.maxSt
                 "-Dveil.modelChecker.maxStoredCheckers=0"]
 # Written into --bin-dir; --clean-binaries only empties directories that carry it.
 BIN_DIR_MARKER = ".bench-model-check-bin-dir"
+# --free-memory holds at most this percentage of the machine's memory, and skips the later runs of a
+# spec whose runs so far all peaked below FREE_MEMORY_MIN_MB.
+FREE_MEMORY_MAX_PERCENT = 67
+FREE_MEMORY_MIN_MB = 4096
+# --min-free waits at most this many seconds, then runs anyway.
+MIN_FREE_MAX_WAIT = 300
+# Run as `python -c HOLD_MEMORY <bytes>` for --free-memory: random data, so that the compressor
+# cannot shrink it, then every page written twice more, so that its pages stay active and the
+# kernel makes room by evicting the file cache and other programs' pages instead. The memory goes
+# back to the system when the process exits.
+HOLD_MEMORY = """
+import os, sys
+n = int(sys.argv[1])
+block = os.urandom(1 << 20)
+buf = bytearray(n)
+for i in range(0, n, len(block)):
+    buf[i:i + len(block)] = block[:n - i]
+for _ in range(2):
+    for i in range(0, n, 4096):
+        buf[i] ^= 1
+"""
 
 
 # --------------------------------------------------------------------------- processes
@@ -60,13 +95,46 @@ def kill_group(pid: int):
         pass
 
 
+class RusageInfoV4(ctypes.Structure):
+    """`struct rusage_info_v4` of macOS's <sys/resource.h>: a UUID, then 35 counters, of which
+    `ri_lifetime_max_phys_footprint` is the 29th."""
+    _fields_ = [("uuid", ctypes.c_uint8 * 16), ("counters", ctypes.c_uint64 * 35)]
+
+
+def wait_for_exit(pid: int):
+    """Block until the child `pid` exits, without reaping it (macOS, kqueue), so that its usage can
+    still be read. Returns at once if it has exited already."""
+    kq = select.kqueue()
+    try:
+        kq.control([select.kevent(pid, select.KQ_FILTER_PROC, select.KQ_EV_ADD | select.KQ_EV_ONESHOT,
+                                  select.KQ_NOTE_EXIT)], 1, None)
+    finally:
+        kq.close()
+
+
+def peak_footprint_mb(pid: int):
+    """The peak physical footprint in MB of the exited, not yet reaped child `pid` (macOS): unlike
+    the maximum resident set size, it counts the memory that the kernel compressed or swapped out.
+    None if it cannot be read."""
+    try:
+        proc_pid_rusage = ctypes.CDLL(None).proc_pid_rusage
+    except (OSError, AttributeError):
+        return None
+    proc_pid_rusage.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.POINTER(RusageInfoV4)]
+    info = RusageInfoV4()
+    if proc_pid_rusage(pid, 4, ctypes.byref(info)) != 0:   # RUSAGE_INFO_V4
+        return None
+    return info.counters[28] / MB
+
+
 def run_process(cmd, *, cwd, stdout_path, stderr_path=None, timeout=None):
     """Run `cmd` in its own process group, with stdin open (a checker binary exits as soon as its
     stdin reaches EOF), and wait for it with `wait4`, so that the measurements cover the process
     together with the children it waited for (for `lake lean`: `lean`, the C compiler, the linker).
     stderr goes to `stderr_path`, or to `stdout_path` when none is given. On timeout the whole
     group is killed. Returns a dict with the exit code, the wall, user and system seconds, the
-    maximum resident set size in MB and whether the run timed out."""
+    maximum resident set size in MB, the peak footprint in MB of the process itself (macOS; not of
+    its children) and whether the run timed out."""
     t0 = time.perf_counter()
     with open(stdout_path, "wb") as fo:
         fe = open(stderr_path, "wb") if stderr_path else None
@@ -85,7 +153,11 @@ def run_process(cmd, *, cwd, stdout_path, stderr_path=None, timeout=None):
         timer = threading.Timer(timeout, expire) if timeout else None
         if timer:
             timer.start()
+        footprint = None
         try:
+            if sys.platform == "darwin":
+                wait_for_exit(proc.pid)
+                footprint = peak_footprint_mb(proc.pid)
             _, status, usage = os.wait4(proc.pid, 0)
         except BaseException:
             kill_group(proc.pid)
@@ -105,7 +177,8 @@ def run_process(cmd, *, cwd, stdout_path, stderr_path=None, timeout=None):
     maxrss_mb = usage.ru_maxrss / MB if sys.platform == "darwin" else usage.ru_maxrss / 1024
     return {"exit_code": code, "timeout": expired.is_set(), "wall_seconds": round(wall, 3),
             "user_seconds": round(usage.ru_utime, 3), "system_seconds": round(usage.ru_stime, 3),
-            "cpu_seconds": round(usage.ru_utime + usage.ru_stime, 3), "max_rss_mb": round(maxrss_mb, 1)}
+            "cpu_seconds": round(usage.ru_utime + usage.ru_stime, 3), "max_rss_mb": round(maxrss_mb, 1),
+            "peak_footprint_mb": round(footprint, 1) if footprint is not None else None}
 
 
 def command_output(cmd, cwd=None) -> str:
@@ -135,18 +208,18 @@ def save_json(path: pathlib.Path, data):
     tmp.replace(path)
 
 
-def parse_threads(text: str):
+def parse_threads(text: str, option: str = "--threads"):
     threads = []
     for part in text.split(","):
         part = part.strip()
         if not part:
             continue
         if not part.isdigit() or int(part) < 1:
-            sys.exit(f"--threads: expected positive integers separated by commas, got {text!r}")
+            sys.exit(f"{option}: expected positive integers separated by commas, got {text!r}")
         if int(part) not in threads:
             threads.append(int(part))
     if not threads:
-        sys.exit("--threads: no thread count given")
+        sys.exit(f"{option}: no thread count given")
     return threads
 
 
@@ -449,6 +522,68 @@ def warmup_build(root: pathlib.Path, out: pathlib.Path, specs, timeout):
               f" (see {out / 'build' / '_warmup.log'})", flush=True)
 
 
+# --------------------------------------------------------------------------- memory
+
+def free_memory_percent():
+    """Free memory in percent of the machine's: `memory_pressure`'s free percentage on macOS,
+    MemAvailable on Linux; None if unknown."""
+    if platform.system() == "Darwin":
+        match = re.search(r"free percentage:\s*(\d+)%", command_output(["memory_pressure", "-Q"]))
+        return int(match.group(1)) if match else None
+    meminfo = pathlib.Path("/proc/meminfo")
+    if meminfo.exists():
+        text = meminfo.read_text()
+        total = re.search(r"MemTotal:\s+(\d+) kB", text)
+        available = re.search(r"MemAvailable:\s+(\d+) kB", text)
+        if total and available:
+            return round(100 * int(available.group(1)) / int(total.group(1)))
+    return None
+
+
+def needs_free_memory(runs) -> bool:
+    """Whether --free-memory applies before the next run of a spec that has these runs: unless
+    they all peaked below FREE_MEMORY_MIN_MB, as a small spec's first run shows."""
+    return not runs or max(r.get("max_rss_mb") or 0 for r in runs) >= FREE_MEMORY_MIN_MB
+
+
+def free_memory(gb: float) -> bool:
+    """Hold `gb` GB of incompressible data for a moment (HOLD_MEMORY, in a process of its own),
+    which pushes the file cache and idle programs' pages out of memory. Returns whether it did."""
+    t0 = time.perf_counter()
+    code = subprocess.run([sys.executable, "-c", HOLD_MEMORY, str(int(gb * 2**30))]).returncode
+    if code:
+        print(f"  warning: holding {gb:g} GB failed (exit code {code})", flush=True)
+    else:
+        print(f"  held {gb:g} GB for {time.perf_counter() - t0:.1f}s to free memory", flush=True)
+    return code == 0
+
+
+def wait_for_memory(min_free: int) -> float:
+    """Wait until at least `min_free` percent of the memory is free (free_memory_percent), checking
+    every 5 seconds for at most MIN_FREE_MAX_WAIT seconds. Returns the seconds waited."""
+    t0 = time.perf_counter()
+    free = free_memory_percent()
+    while free is not None and free < min_free:
+        left = MIN_FREE_MAX_WAIT - (time.perf_counter() - t0)
+        if left <= 0:
+            break
+        time.sleep(min(5, left))
+        free = free_memory_percent()
+    waited = time.perf_counter() - t0
+    if free is not None and free < min_free:
+        print(f"  {free}% of memory free after waiting {waited:.0f}s for {min_free}%; running anyway", flush=True)
+    elif waited >= 1:
+        print(f"  waited {waited:.0f}s for {min_free}% of memory to be free", flush=True)
+    return waited
+
+
+def page_in(binary: pathlib.Path):
+    """Launch `binary` with stdin closed: the checker exits at once, so this costs no search, but
+    its pages are read in, and on macOS the first launch of a new binary is checked, before it is
+    timed."""
+    subprocess.run([str(binary)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 # --------------------------------------------------------------------------- run
 
 def tail_text(path: pathlib.Path, max_bytes: int = 4 * MB) -> str:
@@ -512,6 +647,21 @@ def summarize_result(final) -> dict:
             violation += f" ({', '.join(map(str, v['violates']))})"
     return {"result": final.get("result"), "termination": termination, "violation": violation,
             "explored_states": final.get("explored_states")}
+
+
+def prepare_run(binary: pathlib.Path, runs, free_memory_gb: float, cooldown: float, min_free: int) -> dict:
+    """What precedes a run of `binary`, given the spec's runs so far: holding `free_memory_gb`
+    (--free-memory) where needs_free_memory says so, pausing `cooldown` seconds, waiting for
+    `min_free` percent of free memory (--min-free), and page_in. Returns the fields that the run
+    records about it."""
+    held = free_memory_gb if free_memory_gb and needs_free_memory(runs) else 0
+    if held and not free_memory(held):
+        held = 0
+    time.sleep(cooldown)
+    waited = wait_for_memory(min_free) if min_free else 0
+    page_in(binary)
+    return {"memory_held_gb": held, "memory_wait_seconds": round(waited, 1),
+            "memory_free_percent": free_memory_percent()}
 
 
 def run_binary(binary: pathlib.Path, argv, run_dir: pathlib.Path, threads: int, rep: int, timeout) -> dict:
@@ -579,12 +729,63 @@ def carried_runs(entry: dict, old, session_head, head) -> list:
     return old["runs"]
 
 
+def parse_rerun(items, threads_list, names):
+    """--rerun's SPEC and SPEC:T1,T2 as {spec: thread counts}, SPEC alone standing for all of
+    `threads_list`, and the specs given alone, which are built again. `names` are the selected
+    specs."""
+    rerun, rebuild = {}, set()
+    for item in items or []:
+        name, sep, text = item.partition(":")
+        if name not in names:
+            sys.exit(f"--rerun: {item}: {name!r} is not one of the selected specs")
+        threads = parse_threads(text, "--rerun") if sep else threads_list
+        missing = [t for t in threads if t not in threads_list]
+        if missing:
+            sys.exit(f"--rerun: {item}: thread counts {missing} are not among --threads {threads_list}")
+        if not sep:
+            rebuild.add(name)
+        rerun[name] = rerun.get(name, set()) | set(threads)
+    return rerun, rebuild
+
+
+def set_aside_runs(out: pathlib.Path, specs: dict, rerun: dict, repeat: int):
+    """For --rerun: move the recorded runs that it makes again (at its thread counts, repetitions 1
+    to `repeat`) from the runs of each spec, and of the other checks of its file (`name@2`, ...),
+    to their replaced_runs, and their logs to runs/<check>/replaced-<time>/, so that the session
+    runs them again."""
+    date, stamp = time.strftime("%Y-%m-%d %H:%M:%S"), time.strftime("%Y%m%d-%H%M%S")
+    for name, threads in rerun.items():
+        for check, entry in specs.items():
+            if check != name and not re.fullmatch(re.escape(name) + r"@\d+", check):
+                continue
+            keep, replaced = [], []
+            for r in entry.get("runs", []):
+                (replaced if r["threads"] in threads and r["rep"] <= repeat else keep).append(r)
+            folder = out / "runs" / check / f"replaced-{stamp}"
+            for r in replaced:
+                r["replaced_on"] = date
+                for key in ("stdout", "stderr"):
+                    log = out / r[key] if r.get(key) else None
+                    if log and log.is_file():
+                        folder.mkdir(parents=True, exist_ok=True)
+                        log.replace(folder / log.name)
+                        r[key] = (folder / log.name).relative_to(out).as_posix()
+                    else:
+                        r[key] = None
+            entry["runs"] = keep
+            entry["replaced_runs"] = entry.get("replaced_runs", []) + replaced
+            entry["complete"] = False
+            print(f"--rerun {check}: setting aside its {len(replaced)} recorded run(s) at t={sorted(threads)}"
+                  + (f" (logs moved to {folder.relative_to(out)})" if replaced else ""), flush=True)
+
+
 def describe_run(r: dict) -> str:
     status = "TIMEOUT " if r["timeout"] else ("" if r["success"] else "FAILED ")
     counts = (f"{r['distinct_states']} distinct, {r['states_generated']} generated, diameter {r['diameter']}"
               if r.get("distinct_states") is not None else "no progress counts")
-    text = (f"{status}wall {r['wall_seconds']:.2f}s, CPU {r['cpu_seconds']:.2f}s, RSS {r['max_rss_mb']:.0f} MB, "
-            f"{counts}, {r['result'] or '-'}")
+    footprint = f", footprint {r['peak_footprint_mb']:.0f} MB" if r.get("peak_footprint_mb") is not None else ""
+    text = (f"{status}wall {r['wall_seconds']:.2f}s, CPU {r['cpu_seconds']:.2f}s, RSS {r['max_rss_mb']:.0f} MB"
+            f"{footprint}, {counts}, {r['result'] or '-'}")
     if r["error_message"]:
         text += f": {r['error_message'][:200]}"
     return text
@@ -599,11 +800,24 @@ def parse_args():
     ap.add_argument("--out", default=None,
                     help="output directory (default: benchmark-results/<name>, or benchmark-results/<date> without --name)")
     ap.add_argument("--only", nargs="+", metavar="SPEC", help="only these specs (file names without .lean)")
-    ap.add_argument("--threads", default="1", help="comma-separated thread counts (default 1)")
+    ap.add_argument("--threads", default=None,
+                    help="comma-separated thread counts (default 1, or the session's with --resume)")
     ap.add_argument("--threshold", type=int, default=20,
                     help="thresholdToParallel of the parallel search, for more than one thread (default 20)")
     ap.add_argument("--sub-steps", type=int, default=1, help="numSubSteps of the parallel search (default 1)")
-    ap.add_argument("-r", "--repeat", type=int, default=1, help="runs per spec and thread count (default 1)")
+    ap.add_argument("-r", "--repeat", type=int, default=None,
+                    help="runs per spec and thread count (default 1, or the session's with --resume)")
+    ap.add_argument("--free-memory", type=float, default=0, metavar="GB",
+                    help="before a run, hold this much incompressible data for a moment, which pushes the file cache "
+                         f"and idle programs' pages out of memory; at most {FREE_MEMORY_MAX_PERCENT}%% of the "
+                         "machine's memory, and not before the later runs of a spec that peaked below "
+                         f"{FREE_MEMORY_MIN_MB // 1024} GB (default 0, none)")
+    ap.add_argument("--cooldown", type=float, default=0, metavar="SECONDS",
+                    help="pause before a run, after --free-memory (default 0)")
+    ap.add_argument("--min-free", type=int, default=0, metavar="PERCENT",
+                    help="before a run, after --cooldown, wait until at least this much of the memory is free "
+                         "(memory_pressure's free percentage on macOS, MemAvailable on Linux), for at most "
+                         f"{MIN_FREE_MAX_WAIT} seconds, then run anyway (default 0, no wait)")
     ap.add_argument("--bin-dir", help="copy every binary here, under the spec's name, and time that copy")
     ap.add_argument("--keep-build-folders", action="store_true",
                     help="keep the build folders in .lake/model_checker_builds, and Veil's copies of their "
@@ -617,6 +831,10 @@ def parse_args():
                     help="continue an interrupted session in --out, doing only the runs it misses (including those "
                          "that a larger --repeat or new --threads add); a spec that is rebuilt keeps its earlier "
                          "runs if its program did not change (same spec, emitted C, imports and Veil commit)")
+    ap.add_argument("--rerun", nargs="+", metavar="SPEC[:THREADS]",
+                    help="run these again in the session in --out (implies --resume): SPEC, all its runs, after "
+                         "building it again; SPEC:T1,T2, its runs at those thread counts. The runs they replace are "
+                         "kept in results.json as replaced_runs, with their logs in runs/<spec>/replaced-<time>/")
     ap.add_argument("--dry-run", action="store_true", help="list the selected specs and exit")
     ap.add_argument("--clean-binaries", action="store_true",
                     help="delete the kept binaries (in --bin-dir, the build folders in .lake/model_checker_builds "
@@ -626,11 +844,16 @@ def parse_args():
     args = ap.parse_args()
     if not args.paths and not args.clean_binaries:
         ap.error("paths are required (directories or .lean files)")
-    if args.repeat < 1:
+    if args.repeat is not None and args.repeat < 1:
         ap.error("--repeat must be at least 1")
     if args.threshold < 0 or args.sub_steps < 1:
         ap.error("--threshold must be non-negative and --sub-steps at least 1")
-    args.threads = parse_threads(args.threads)
+    if args.free_memory < 0 or args.cooldown < 0:
+        ap.error("--free-memory and --cooldown must be non-negative")
+    if not 0 <= args.min_free <= 100:
+        ap.error("--min-free must be a percentage, from 0 to 100")
+    if args.threads is not None:
+        args.threads = parse_threads(args.threads)
     return args
 
 
@@ -647,14 +870,26 @@ def main():
     if args.dry_run:
         for name, rel in specs:
             print(f"{name:30s} {rel.as_posix()}")
-        print(f"{len(specs)} specs; threads {args.threads}, threshold {args.threshold}, {args.repeat} run(s) each")
+        print(f"{len(specs)} specs; threads {args.threads or [1]}, threshold {args.threshold}, "
+              f"{args.repeat or 1} run(s) each")
         return
     out = pathlib.Path(args.out or f"benchmark-results/{args.name or time.strftime('%Y%m%d-%H%M%S')}").resolve()
     name = args.name or out.name
     results_path = out / "results.json"
+    if args.rerun:
+        if not results_path.exists():
+            sys.exit(f"--rerun: there is no session in {out} to run again (no results.json)")
+        args.resume = True
     if results_path.exists() and not args.resume:
         sys.exit(f"{results_path} exists; use --resume to continue that session, or another --out")
     results = json.loads(results_path.read_text()) if results_path.exists() else {"specs": {}}
+    # Unless given, a resumed session keeps its thread counts and repetitions
+    session = results.get("meta") if args.resume else None
+    if args.threads is None:
+        args.threads = list(session.get("threads") or [1]) if session else [1]
+    if args.repeat is None:
+        args.repeat = (session.get("repeat") or 1) if session else 1
+    rerun, rebuild = parse_rerun(args.rerun, args.threads, {spec for spec, _ in specs})
     for d in ("build", "runs"):
         (out / d).mkdir(parents=True, exist_ok=True)
     bin_dir = pathlib.Path(args.bin_dir).resolve() if args.bin_dir else None
@@ -662,11 +897,19 @@ def main():
         bin_dir.mkdir(parents=True, exist_ok=True)
         (bin_dir / BIN_DIR_MARKER).write_text("Binaries copied by scripts/bench-model-check.py; "
                                               "`--clean-binaries --bin-dir <this directory>` deletes them.\n")
+    host = host_info()
+    if args.free_memory and host["memory_bytes"]:
+        most = round(FREE_MEMORY_MAX_PERCENT / 100 * host["memory_bytes"] / 2**30, 1)
+        if args.free_memory > most:
+            print(f"note: --free-memory {args.free_memory:g} is more than {FREE_MEMORY_MAX_PERCENT}% of this "
+                  f"machine's memory; holding {most:g} GB", flush=True)
+            args.free_memory = most
     meta = {"name": name, "command": sys.argv, "date": time.strftime("%Y-%m-%d %H:%M:%S"), "out": str(out),
             "threads": args.threads, "threshold": args.threshold, "sub_steps": args.sub_steps,
             "repeat": args.repeat, "run_timeout": args.run_timeout, "build_timeout": args.build_timeout,
-            "bin_dir": str(bin_dir) if bin_dir else None, "lean_options": LEAN_OPTIONS,
-            "veil": checkout_info(root), **host_info()}
+            "bin_dir": str(bin_dir) if bin_dir else None, "free_memory_gb": args.free_memory,
+            "cooldown_seconds": args.cooldown, "min_free_percent": args.min_free,
+            "lean_options": LEAN_OPTIONS, "veil": checkout_info(root), **host}
     if meta["veil"]["status"]:
         print(f"note: the checkout has uncommitted changes:\n{meta['veil']['status']}", flush=True)
     if args.resume and results.get("meta"):
@@ -686,11 +929,22 @@ def main():
         if previous.get("veil", {}).get("head") != meta["veil"]["head"]:
             print(f"warning: the checkout is at {meta['veil']['head'][:8]}, the session was started at "
                   f"{(previous.get('veil', {}).get('head') or '?')[:8]}", flush=True)
-        previous.setdefault("resumed", []).append({"command": sys.argv, "date": meta["date"]})
+        previous.setdefault("resumed", []).append(
+            {"command": sys.argv, "date": meta["date"],
+             **{key: meta[key] for key in ("free_memory_gb", "cooldown_seconds", "min_free_percent")}})
     else:
         results["meta"] = meta
     save_json(results_path, results)
     print(f"run {results['meta'].get('name')}: output in {out}", flush=True)
+    if args.resume:
+        print(f"resuming with threads {args.threads}, {args.repeat} run(s) per spec and thread count", flush=True)
+    if rerun:
+        set_aside_runs(out, results["specs"], rerun, args.repeat)
+        save_json(results_path, results)
+    free = free_memory_percent()
+    if args.min_free and free is not None and free < args.min_free:
+        print(f"note: {free}% of memory is free, less than --min-free {args.min_free}: close memory-hungry "
+              f"programs, or runs may wait up to {MIN_FREE_MAX_WAIT}s each", flush=True)
 
     def done(name):
         entry = results["specs"].get(name)
@@ -705,18 +959,23 @@ def main():
 
     session_head = results["meta"].get("veil", {}).get("head")
     for i, (name, rel) in enumerate(todo, 1):
-        reused = reusable_build(root, rel, results["specs"].get(name), results["specs"]) if args.resume else None
+        reused = (reusable_build(root, rel, results["specs"].get(name), results["specs"])
+                  if args.resume and name not in rebuild else None)
         earlier = {}
         if reused:
             entries = [reused]
             print(f"[{i}/{len(todo)}] {name} ({rel.as_posix()}): built in the earlier session, "
                   f"{len(reused['runs'])} run(s) recorded; continuing with its binary", flush=True)
         else:
-            print(f"[{i}/{len(todo)}] {name} ({rel.as_posix()}): building ...", flush=True)
+            print(f"[{i}/{len(todo)}] {name} ({rel.as_posix()}): building"
+                  + (" again (--rerun)" if name in rebuild else "") + " ...", flush=True)
             entries = build_spec(root, out, name, rel, args.build_timeout or None)
             if args.resume:
                 earlier = {e["name"]: results["specs"].get(e["name"]) for e in entries}
             for entry in entries:
+                # The runs that --rerun replaced stay with the spec
+                if (earlier.get(entry["name"]) or {}).get("replaced_runs"):
+                    entry["replaced_runs"] = earlier[entry["name"]]["replaced_runs"]
                 results["specs"][entry["name"]] = entry
             save_json(results_path, results)
         for entry in entries:
@@ -745,9 +1004,6 @@ def main():
                     print(f"  the same program as in the earlier session: keeping its {len(entry['runs'])} recorded run(s)",
                           flush=True)
                 save_json(results_path, results)
-            # The first launch of a new binary pays for paging it in (and, on macOS, its first-run
-            # checks); with stdin closed the checker exits at once, so this costs no search.
-            subprocess.run([str(binary)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             run_dir = out / "runs" / entry["name"]
             run_dir.mkdir(parents=True, exist_ok=True)
             recorded = {(r["threads"], r["rep"]) for r in entry["runs"]}
@@ -760,8 +1016,12 @@ def main():
                 for rep in range(1, args.repeat + 1):
                     if (threads, rep) in recorded:
                         continue
-                    print(f"  t={threads} run {rep}/{args.repeat}: {' '.join([binary.name, *argv])} ...", flush=True)
+                    memory = prepare_run(binary, entry["runs"], args.free_memory, args.cooldown, args.min_free)
+                    free = memory["memory_free_percent"]
+                    print(f"  t={threads} run {rep}/{args.repeat}: {' '.join([binary.name, *argv])}"
+                          + (f" ({free}% of memory free)" if free is not None else "") + " ...", flush=True)
                     r = run_binary(binary, argv, run_dir, threads, rep, args.run_timeout or None)
+                    r.update(memory)
                     entry["runs"].append(r)
                     save_json(results_path, results)
                     print(f"    {describe_run(r)}", flush=True)
