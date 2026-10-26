@@ -5,6 +5,7 @@ import {
 import { ResultStore, freshness } from './resultStore';
 import { RunManager } from './runManager';
 import { RunOutcomeKind } from './snapshot';
+import { ModelConfigs } from './modelConfigs';
 
 const severities: Record<vscode.DiagnosticSeverity, Severity> = {
   [vscode.DiagnosticSeverity.Error]: 'error',
@@ -61,12 +62,14 @@ export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Dispo
   readonly onDidChangeCodeLenses = this.changed.event;
   private readonly subscriptions: vscode.Disposable[];
 
-  constructor(private readonly runs: RunManager, private readonly store: ResultStore) {
+  constructor(private readonly runs: RunManager, private readonly store: ResultStore,
+      private readonly configs: ModelConfigs) {
     this.subscriptions = [
       vscode.languages.onDidChangeDiagnostics(event => {
         if (event.uris.some(uri => uri.path.endsWith('.lean'))) this.changed.fire();
       }),
       runs.onDidChangeStatus(() => this.changed.fire()),
+      configs.onDidChange(() => this.changed.fire()),
     ];
   }
 
@@ -75,18 +78,26 @@ export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Dispo
     this.changed.fire();
   }
 
-  provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
-    const modules = findVeilModules(document.getText()).flatMap(site => {
+  async provideCodeLenses(document: vscode.TextDocument): Promise<vscode.CodeLens[]> {
+    const modules = (await Promise.all(findVeilModules(document.getText()).map(async site => {
+      const configs = site.genExecutableLine === undefined ? [] : await this.configs.ofModule(site.name);
+      const [title, tooltip] = site.genExecutableLine === undefined
+        ? ['$(add) Add #gen_executable', `Add #gen_executable to ${site.name} so a config can build its model checker`]
+        : configs.length === 0
+          ? ['$(new-file) Create model checking config', `Create and open a config for ${site.name}, with values to fill in`]
+          : configs.length === 1
+            ? ['$(play) Run model checker', `Open the config for ${site.name} and run its model checker once Lean has built it`]
+            : ['$(play) Select config and run...', `Select a config for ${site.name}, open it, and run its model checker`];
       const lines = [site.line];
       if (site.genExecutableLine !== undefined) lines.push(site.genExecutableLine);
       return lines.map(line => {
         const character = line === site.line ? site.character : 0;
         return new vscode.CodeLens(new vscode.Range(line, character, line, character), {
-          title: '$(play) Check model', command: 'veil.modelCheck.checkModel',
-          arguments: [document.uri.toString(), site.line], tooltip: `Run a config file of ${site.name}, or create one`,
+          title, command: 'veil.modelCheck.checkModel',
+          arguments: [document.uri.toString(), site.line], tooltip,
         });
       });
-    });
+    }))).flat();
     return [...modules, ...buildCommandsOf(document).flatMap(({ site, status }) => {
       const range = new vscode.Range(site.line, site.character, site.line, site.character);
       // A lens without a command shows as plain text

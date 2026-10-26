@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { findBuildCommands } from './buildCommands';
 import { checkModel, createConfig } from './checkModel';
+import { ModelConfigs } from './modelConfigs';
 import { BuildCommand, BuildCommandLenses, buildCommandsOf, outcomeIcons } from './codeLens';
 import { ConfigTemplate } from './configTemplate';
 import { askLean } from './leanQueries';
@@ -130,6 +131,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.Uri.joinPath(context.storageUri ?? context.globalStorageUri, 'results').fsPath,
     () => vscode.workspace.getConfiguration('veil.modelChecker').get('maxSavedResults', 50));
   const runs = new RunManager(output, store);
+  const modelConfigs = new ModelConfigs();
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
   statusBar.command = 'veil.modelCheck.showPanel';
 
@@ -266,7 +268,7 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     openLocation: location => void openLocation(location),
   }, freshnessOf);
-  const lenses = new BuildCommandLenses(runs, store);
+  const lenses = new BuildCommandLenses(runs, store, modelConfigs);
 
   const updateStatus = (): void => {
     void vscode.commands.executeCommand('setContext', 'veil.modelCheck.isRunning', runs.isRunning);
@@ -284,12 +286,12 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   context.subscriptions.push(
-    output, runs, panel, lenses, statusBar,
+    output, runs, panel, lenses, modelConfigs, statusBar,
     vscode.languages.registerCodeLensProvider({ language: 'lean4' }, lenses),
     vscode.commands.registerCommand('veil.modelCheck.run', run),
     vscode.commands.registerCommand('veil.modelCheck.runWithOptions', runWithOptions),
     vscode.commands.registerCommand('veil.modelCheck.checkModel',
-      (uri?: string, line?: number) => checkModel((document, command) => runCommand(document, command), uri, line)),
+      (uri?: string, line?: number) => checkModel(runCommand, modelConfigs, uri, line)),
     // The command of the code action of Lean that gives the template
     vscode.commands.registerCommand('veil.modelCheck.createConfig',
       (template: ConfigTemplate, uri: string) => createConfig(template, vscode.Uri.parse(uri))),

@@ -23,11 +23,14 @@ public import MyProject.Paxos
 #mc_config Paxos { acceptor := Fin 3, value := Fin 2, MsgSet := OrdList _ } {}
 ```
 
-**Check model**, above each `veil module` and its `#gen_executable`, runs a config
-file of the module once Lean has built it, or else creates `<File>MC.lean` next to the
-module, with the values to fill in. Lean gives the template, whose values are holes
-(`_`): Lean fills in those that the module's constraints determine, such as `MsgSet`
-above, and reports the others for you to fill in.
+The lens above each `veil module` and its `#gen_executable` names the next action:
+**Add #gen_executable** inserts the missing command; **Create model checking config**
+creates and opens `<File>MC.lean` next to the module, with values to fill in. Once a
+config exists, **Run model checker** opens it and runs once Lean has built it. With
+several configs, **Select config and run...** lets you choose which one to run.
+Lean gives the template, whose values are holes (`_`): Lean fills in those that the
+module's constraints determine, such as `MsgSet` above, and reports the others for
+you to fill in.
 
 Once Lean has built the binary, a **Run model checker** lens appears above the
 command. The run shows in the **Veil Model Checking** panel and in the status bar,

@@ -2,10 +2,11 @@
 // a config file from the template that Lean gives.
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { BuildCommandSite, VeilModuleSite, findBuildCommands, findVeilModules } from './buildCommands';
+import { VeilModuleSite, findVeilModules } from './buildCommands';
 import { BuildCommand, buildCommandsOf } from './codeLens';
-import { ConfigTemplate, SnippetPart, configCommand, configFileFor, configHeader, isOfModule } from './configTemplate';
+import { ConfigTemplate, SnippetPart, configCommand, configFileFor, configHeader } from './configTemplate';
 import { askLean } from './leanQueries';
+import { ModelConfigs } from './modelConfigs';
 
 /** The kind of the code action that gives the template, as `configTemplateKind` in Lean */
 const CONFIG_TEMPLATE_KIND = 'refactor.veil.modelCheckConfig';
@@ -51,20 +52,6 @@ async function addGenExecutable(document: vscode.TextDocument, site: VeilModuleS
     edit.insert(document.uri, new vscode.Position(site.endLine ?? document.lineCount, 0), '#gen_executable\n\n');
   }
   await vscode.workspace.applyEdit(edit);
-}
-
-/** The `#mc_config` commands of module `name` in the workspace, with the open files as they
- * are in their editors */
-async function findConfigs(name: string): Promise<{ uri: vscode.Uri; site: BuildCommandSite }[]> {
-  const uris = await vscode.workspace.findFiles('**/*.lean', '{**/.lake/**,**/node_modules/**}');
-  const configs = [];
-  for (const uri of uris) {
-    const open = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString());
-    const text = open ? open.getText() : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
-    if (!text.includes('#mc_config')) continue;
-    for (const site of findBuildCommands(text)) if (isOfModule(site.module, name)) configs.push({ uri, site });
-  }
-  return configs;
 }
 
 /** The template of a config file for the module of `document`, from the code action that Lean gives
@@ -142,17 +129,21 @@ function waitForBuild(document: vscode.TextDocument, command: string): Thenable<
 /** "Check Model": run the model checker of a config file of a module, once Lean has built it, or else
  * create a config file for the module. `run` runs the command of a config file. */
 export async function checkModel(run: (document: vscode.TextDocument, command: BuildCommand) => void,
-    uri?: string, line?: number): Promise<void> {
+    modelConfigs: ModelConfigs, uri?: string, line?: number): Promise<void> {
   const picked = await pickModule(uri, line);
   if (!picked) return;
   const { document, site } = picked;
   if (site.genExecutableLine === undefined) {
-    const add = await vscode.window.showWarningMessage(`Module ${site.name} has no \`#gen_executable\`, which a ` +
-      'config file needs to build its model checker.', 'Add #gen_executable');
-    if (add) await addGenExecutable(document, site);
+    // The lens already names the edit; the generic command-palette entry still needs to ask.
+    if (uri === undefined || line === undefined) {
+      const add = await vscode.window.showWarningMessage(`Module ${site.name} has no \`#gen_executable\`, which a ` +
+        'config file needs to build its model checker.', 'Add #gen_executable');
+      if (!add) return;
+    }
+    await addGenExecutable(document, site);
     return;
   }
-  const configs = await findConfigs(site.name);
+  const configs = await modelConfigs.ofModule(site.name);
   if (configs.length === 0) {
     const genExecutableLine = site.genExecutableLine;
     const template = await vscode.window.withProgress(
