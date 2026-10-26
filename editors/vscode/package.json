@@ -1,6 +1,6 @@
 {
-  "name": "veil",
-  "displayName": "Veil",
+  "name": "veil-verifier",
+  "displayName": "Veil Verifier",
   "description": "Run the model checkers that #mc_config builds, and show their progress and results.",
   "icon": "icon.png",
   "version": "0.0.1",
