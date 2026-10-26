@@ -54,7 +54,7 @@ invariant true
 def initial : State FieldConcreteType := { chosen := false }
 
 /-- The value of `chosen` in each successful result; failures are recorded as `none`. -/
-def outcomes (act : VeilMultiExecM Std.Format Int Theory (State FieldConcreteType) PUnit) :
+def outcomes (act : VeilMultiExecM Choice Int Theory (State FieldConcreteType) PUnit) :
     List (Option Bool) :=
   (act {} initial).map fun (_, result) => match result with
     | .res (.ok _, s) => some s.chosen
