@@ -80,8 +80,30 @@ action FarmerAlone {
 invariant [Safe] safety_constraint
 invariant [unsolved] ¬ (goat_pos = far ∧ wolf_pos = far ∧ cabbage_pos = far ∧ farmer_pos = far)
 
+termination false
+
 #time #gen_spec
 
+-- TLC checks the same puzzle with `Benchmarks/TLA/RiverCrossing.cfg`, on `RiverCrossing.tla`,
+-- which extends `FarmerGooseFox.tla` (`Benchmarks/TLA/scripts/fetch_upstream.py` downloads it).
+-- There the wolf, the goat and the cabbage are the fox, the goose and the beans, and the banks
+-- `near` and `far` are `Here` and `There`.
+-- The check below finds a violation of `unsolved`, whose trace solves the puzzle. TLC reports
+-- `Unsolved` as violated in the same way.
+-- `set_option veil.violationIsError false in` reports that violation without failing the build.
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s. It is
+-- empty here: `position` is an `enum`, which needs no instantiation. The cfg sets no constants
+-- either.
+-- The theory (second argument) is left out, since this module has no `immutable` fields.
+-- The other settings of the cfg:
+-- * `INVARIANT Unsolved`: the `invariant [unsolved]` above.
+-- * `INVARIANT TypeOK`: Lean's types ensure it.
+-- * The TLA+ `Next` requires `Safe'`. Here each action assumes `safety_constraint` after its
+--   move instead, and the extra `invariant [Safe]` checks it.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
+--   above, Veil also reports every state without successors as a deadlock.
+-- Options:
+-- * `interpreted` runs the search only in Lean's interpreter, without compiling a checker.
 set_option veil.violationIsError false in
 #model_check interpreted {  }
 

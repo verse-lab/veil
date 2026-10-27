@@ -47,6 +47,11 @@ invariant [drop_smaller] pending S D ∧ btw S N D → le N S
 set_option veil.smt.trust false
 #time #gen_spec
 
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `node := Fin 4`: the nodes are `0..3`. Lean finds the `TotalOrder` and `Between` instances
+--   for `Fin 4`: the nodes are ordered as numbers, and the ring is `0 → 1 → 2 → 3 → 0`.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{ }`.
 #model_check { node := Fin 4 } { }
 
 sat trace {

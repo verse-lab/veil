@@ -4,9 +4,12 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { VeilModuleSite, findVeilModules } from './buildCommands';
 import { BuildCommand, buildCommandsOf } from './codeLens';
-import { ConfigTemplate, SnippetPart, configCommand, configFileFor, configHeader, isOfModule } from './configTemplate';
+import {
+  ConfigTemplate, SnippetPart, appendSeparator, configCommand, configFileFor, configHeader, importsModule, isOfModule,
+} from './configTemplate';
 import { askLeanCommands, hasExecutableDefinitions } from './leanQueries';
 import { ModelConfigs } from './modelConfigs';
+import { ModelCheckArguments, findModelChecks } from './modelCheckCommands';
 
 /** The kind of the code action that gives the template, as `configTemplateKind` in Lean */
 const CONFIG_TEMPLATE_KIND = 'refactor.veil.modelCheckConfig';
@@ -43,7 +46,8 @@ async function pickModule(uri?: string, line?: number):
   return item && { document, site: item.site };
 }
 
-/** Add `#gen_executable` to a module: after its `#gen_spec`, which it needs, or else before its `end` */
+/** Add `#gen_executable` to a module: after its `#gen_spec`, which it needs, or else before its `end`.
+ * Save the file, since config files import the saved file. */
 async function addGenExecutable(document: vscode.TextDocument, site: VeilModuleSite): Promise<void> {
   const edit = new vscode.WorkspaceEdit();
   if (site.genSpecLine !== undefined) {
@@ -52,6 +56,7 @@ async function addGenExecutable(document: vscode.TextDocument, site: VeilModuleS
     edit.insert(document.uri, new vscode.Position(site.endLine ?? document.lineCount, 0), '#gen_executable\n\n');
   }
   await vscode.workspace.applyEdit(edit);
+  await document.save();
 }
 
 /** The template of a config file, after the module's executable definitions have been generated */
@@ -69,25 +74,67 @@ function toSnippet(parts: SnippetPart[]): vscode.SnippetString {
   return snippet;
 }
 
-/** Create a config file for the module of `moduleUri` from `template`, and let the user fill in its
- * values, from one placeholder to the next */
-export async function createConfig(template: ConfigTemplate, moduleUri: vscode.Uri): Promise<void> {
+/** The text of `uri`: of its open document, with its unsaved changes, or else of its file, if any */
+async function textOf(uri: vscode.Uri): Promise<string | undefined> {
+  const open = vscode.workspace.textDocuments.find(document => document.uri.toString() === uri.toString());
+  if (open) return open.getText();
+  return vscode.workspace.fs.readFile(uri).then(data => Buffer.from(data).toString('utf8'), () => undefined);
+}
+
+/** Create a config for `moduleUri`, with the source arguments or template placeholders: at the end of
+ * `<File>MC.lean` when that file imports the module, or else in a new file. */
+export async function createConfig(template: ConfigTemplate, moduleUri: vscode.Uri, source?: ModelCheckArguments): Promise<void> {
   if (!template.import) {
     void vscode.window.showWarningMessage(`The file of module ${template.module} is in no library of the ` +
       'lakefile, so that no config file can import it.');
     return;
   }
   let file = vscode.Uri.file(configFileFor(moduleUri.fsPath));
-  const exists = await vscode.workspace.fs.stat(file).then(() => true, () => false);
-  if (exists) {
-    const chosen = await vscode.window.showSaveDialog(
-      { defaultUri: file, filters: { Lean: ['lean'] }, saveLabel: 'Create', title: 'Create a config file' });
-    if (!chosen) return;
-    file = chosen;
+  const existing = await textOf(file);
+  if (existing === undefined || !importsModule(existing, template.import)) {
+    if (existing !== undefined) {
+      // Suggest a free name, so that the dialog replaces a file only if the user picks one
+      const exists = (index: number) =>
+        vscode.workspace.fs.stat(vscode.Uri.file(configFileFor(moduleUri.fsPath, index))).then(() => true, () => false);
+      let index = 2;
+      while (await exists(index)) index++;
+      const chosen = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(configFileFor(moduleUri.fsPath, index)),
+        filters: { Lean: ['lean'] }, saveLabel: 'Create', title: 'Create a config file' });
+      if (!chosen) return;
+      file = chosen;
+    }
+    await vscode.workspace.fs.writeFile(file, Buffer.from(configHeader(template)));
   }
-  await vscode.workspace.fs.writeFile(file, Buffer.from(configHeader(template)));
   const editor = await vscode.window.showTextDocument(file, { preview: false });
-  await editor.insertSnippet(toSnippet(configCommand(template)), editor.document.lineAt(editor.document.lineCount - 1).range.end);
+  const end = () => editor.document.lineAt(editor.document.lineCount - 1).range.end;
+  // The command starts a line after an empty one, so that the snippet indents none of its lines
+  const separator = appendSeparator(editor.document.getText());
+  if (separator) await editor.edit(edit => edit.insert(end(), separator), { undoStopBefore: true, undoStopAfter: false });
+  await editor.insertSnippet(toSnippet(configCommand(template, source)), end(),
+    { undoStopBefore: !separator, undoStopAfter: true });
+  // An existing file may be longer than the editor shows
+  editor.revealRange(editor.selection, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+}
+
+/** Create a config from the selected in-module check, even when it is commented out. */
+export async function createConfigFromCheck(uri: string, line: number, character: number): Promise<void> {
+  const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(uri));
+  const source = findModelChecks(document.getText()).find(check => check.line === line && check.character === character);
+  if (!source) {
+    void vscode.window.showWarningMessage('The `#model_check` of this lens has changed. Use its lens again.');
+    return;
+  }
+  let site = findVeilModules(document.getText()).find(module => module.line === source.moduleLine)!;
+  if (!await hasExecutableDefinitions(document, site)) {
+    await addGenExecutable(document, site);
+    site = findVeilModules(document.getText()).find(module => module.line === source.moduleLine)!;
+  }
+  const template = await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: `Asking Lean for a config template for ${site.name}` },
+    () => requestTemplate(document, site.genExecutableLine ?? site.endLine ?? document.lineCount - 1, site.name));
+  if (template) await createConfig(template, document.uri, source);
+  else void vscode.window.showWarningMessage(`Lean has no config template for ${site.name}: check that Lean ` +
+    'processes its executable definitions without errors.');
 }
 
 /** "Check Model": run the model checker of a config file of a module, once Lean has built it, or else

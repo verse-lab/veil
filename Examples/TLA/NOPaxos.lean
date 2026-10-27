@@ -965,6 +965,37 @@ set_option maxHeartbeats 1600000
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model `Benchmarks/TLA/NOPaxos/NOPaxos.cfg`,
+-- which TLC runs on `MCNOPaxos.tla`. It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `replica := Fin 3`: the replicas are `0`, `1`, `2` (cfg: `Replicas <- ReplicasConst`, where
+--   `ReplicasConst == {"n1", "n2", "n3"}`).
+-- * `replicaSet := OrdList _`, `MsgSet := OrdList _`: `OrdList` has the `TSet` instances that
+--   the `instantiate` lines above require.
+-- * `value := Fin 6`: the five client values and the no-op (cfg: `Values = { a, b, c, d, e }`
+--   and `NoOp = NoOp`). The theory below makes `0` the no-op.
+-- * `maxSeq := 0`: a single sequencer, numbered `0` (cfg: `NumSequencers = 1`, so
+--   `Sequencers == 1..1`).
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `NoOp := 0`: the value `0` is the no-op (cfg: `NoOp = NoOp`, a model value outside
+--   `Values`).
+-- * `MsgCountLimit := 18`: every action requires that at most 18 messages have been sent
+--   (cfg: `NEXT ConstrainedNext`, where `ConstrainedNext == MsgCountLimit /\ Next` and
+--   `MsgCountLimit == Cardinality(messages) <= 18`).
+-- * `ReplicaOrder := #[0, 1, 2]`: the order in which the replicas lead views
+--   (cfg: `ReplicaOrder <- ReplicaOrderConst`, where `ReplicaOrderConst == <<"n1", "n2", "n3">>`).
+--
+-- The other settings of the cfg:
+-- * `StNormal = StNormal`, ..., `MSyncCommit = MSyncCommit`: model values for the replica
+--   statuses and the message types. Here they are the constructors of `ReplicaStatus` and `Msg`.
+-- * `INVARIANTS Linearizability SyncSafety`: `#model_check` checks every `invariant` of the
+--   module, here `linearizability` and `sync_safety`.
+-- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
+--   deadlocks either.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled
 {

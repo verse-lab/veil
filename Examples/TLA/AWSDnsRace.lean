@@ -99,7 +99,28 @@ invariant [uniqueDelete] plan_deleted C F ∧ plan_deleted C T → F = T
 
 #time #gen_spec
 
+-- TLC checks this spec with `Benchmarks/TLA/AWS/AWS.cfg`. The check below uses the cfg's instance.
+-- It finds the DNS race, as a violation of `NeverDeleteActive`.
+-- `set_option veil.violationIsError false in` reports that violation without failing the build.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s. It is
+-- empty here: the enactors are the `enum ENACTORS = {e1, e2}` above
+-- (cfg: `ENACTORS = {e1, e2}`), and an `enum` needs no instantiation.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `max_plan := 5`: the planner generates at most 5 plans (cfg: `MAX_PLAN = 5`).
+-- * `plan_age_threshold := 2`: a cleanup deletes the plans at least 2 generations older than
+--   the enactor's plan (cfg: `PLAN_AGE_THRESHOLD = 2`).
+--
+-- The other settings of the cfg:
+-- * `INVARIANT NeverDeleteActive`: `#model_check` checks every `invariant` of the module, here
+--   `NeverDeleteActive` and `uniqueDelete`. `uniqueDelete` has no counterpart in the cfg: it
+--   checks that the relation `plan_deleted` is a function, as the TLA+ variable is.
+-- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
+--   deadlocks either.
+-- Options:
+-- * The check names no mode, so its search starts in Lean's interpreter and moves to a compiled
+--   checker once that is built.
 set_option veil.violationIsError false in
-#model_check {}{ max_plan := 3, plan_age_threshold := 2 }
+#model_check {}{ max_plan := 5, plan_age_threshold := 2 }
 
 end AWSDnsRace

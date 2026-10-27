@@ -8,6 +8,7 @@ import { RunManager } from './runManager';
 import { RunOutcomeKind } from './snapshot';
 import { ModelConfigs } from './modelConfigs';
 import { hasExecutableDefinitions } from './leanQueries';
+import { findModelChecks } from './modelCheckCommands';
 
 const severities: Record<vscode.DiagnosticSeverity, Severity> = {
   [vscode.DiagnosticSeverity.Error]: 'error',
@@ -66,7 +67,7 @@ function when(epochMs: number): string {
 }
 
 /** The lenses above each `veil module` and its `#gen_executable` (or `#gen_spec` when the executable
- * is missing), to check it, and above each `#mc_config`: its build, run, and last result. */
+ * is missing), above `#model_check` to reuse its arguments, and above each `#mc_config` to run it. */
 export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeCodeLenses = this.changed.event;
@@ -93,7 +94,7 @@ export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Dispo
       const executable = await hasExecutableDefinitions(document, site);
       const configs = executable ? await this.configs.ofModule(site.name) : [];
       const [title, tooltip] = !executable
-        ? ['$(add) Add #gen_executable', `Add #gen_executable to ${site.name} so a config can build its model checker`]
+        ? ['$(add) Add #gen_executable', `Add #gen_executable to ${site.name} and save the file, so a config can build its model checker`]
         : configs.length === 0
           ? ['$(new-file) Create model checking config', `Create and open a config for ${site.name}, with values to fill in`]
           : configs.length === 1
@@ -107,7 +108,14 @@ export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Dispo
         });
       });
     }))).flat();
-    return [...modules, ...buildCommandsOf(document).flatMap(({ site, status, importsOutOfDate: outOfDate }) => {
+    const checks = findModelChecks(document.getText()).map(site =>
+      new vscode.CodeLens(new vscode.Range(site.line, site.character, site.line, site.character), {
+        title: '$(new-file) Create config from this instantiation',
+        command: 'veil.modelCheck.createConfigFromCheck', arguments: [document.uri.toString(), site.line, site.character],
+        tooltip: 'Create a config using this #model_check instantiation, theory, and supported options; ' +
+          'if the module needs it, add #gen_executable and save the file',
+      }));
+    return [...modules, ...checks, ...buildCommandsOf(document).flatMap(({ site, status, importsOutOfDate: outOfDate }) => {
       const range = new vscode.Range(site.line, site.character, site.line, site.character);
       // A lens without a command shows as plain text
       const lens = (title: string, command = '', args: unknown[] = [], tooltip?: string) =>

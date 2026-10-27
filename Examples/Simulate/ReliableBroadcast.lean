@@ -63,6 +63,13 @@ safety [agreement]
 
 #gen_spec
 
+-- The commented-out `#model_check` and the `#simulate` below take the same arguments.
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `node := Fin 10`: the nodes are `0..9`.
+-- * `value := Fin 2`: the values are `0`, `1`.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `originator := (0 : Fin 10)`: node `0` broadcasts the initial messages.
+
 -- model_check must enumerate many broadcast, echo, vote, and delivery schedules.
 -- set_option veil.violationIsError false in
 -- #model_check { node := Fin 10, value := Fin 2 } { originator := (0 : Fin 10) }

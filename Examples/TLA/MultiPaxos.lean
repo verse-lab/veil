@@ -246,9 +246,42 @@ ghost relation Chosen (v : value) (s : slot) :=
 invariant [consistency]
   ∀ (v1 v2 : value) (s : slot), (Chosen v1 s ∧ Chosen v2 s) → (v1 = v2)
 
+termination false
+
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model `Benchmarks/TLA/MultiPaxosUs.cfg`, which
+-- TLC runs on `MCMultiPaxosUs.tla`. It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `slot := Fin 3`: the slots are `0`, `1`, `2` (cfg: `MaxSlot = 2` and `Slots <- MCSlots`,
+--   where `MCSlots == 0..MaxSlot`).
+-- * `value := Fin 2`: the values are `0`, `1` (cfg: `Values = {v1, v2}`).
+-- * `acceptor := Fin 3`: the acceptors are `0`, `1`, `2` (cfg: `Acceptors = {a1, a2, a3}`).
+-- * `proposer := Fin 2`: the proposers are `0`, `1` (cfg: `Proposers = {p1, p2}`).
+-- * `quorum := MinQuorum (Fin 3)`: the quorums are the sets of two acceptors
+--   (cfg: `Quorums = {{a1, a2}, {a1, a3}, {a2, a3}}`).
+--   Before searching, `#model_check` checks them against the `assumption [quorum_intersection]`
+--   above, which is the spec's `ASSUME QuorumAssumption`.
+-- * `maxBallot := 2`: the ballots are `0..2` (cfg: `MaxBallot = 2` and `Ballots <- MCBallots`,
+--   where `MCBallots == 0..MaxBallot`).
+-- * `VotedSet`, `DecreeSet`, `MsgSet` and `AcceptorSet := OrdList _`: `OrdList` has the `TSet`
+--   instances that the `instantiate` lines above require.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{}`.
+--
+-- The other settings of the cfg:
+-- * `NewProposals <- MCNewProposals`: fixes how TLC resolves the `CHOOSE` in `NewProposals`.
+--   The ghost function `NewProposals` above fixes its own rule: it proposes the default value
+--   for the first free slot.
+-- * `INVARIANTS Consistency`: `#model_check` checks every `invariant` of the module, here
+--   `consistency`.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
+--   above, Veil also reports every state without successors as a deadlock.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled
 {

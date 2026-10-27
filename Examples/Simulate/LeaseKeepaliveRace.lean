@@ -75,6 +75,13 @@ safety [renewal_keeps_keys_live]
 
 #gen_spec
 
+-- The commented-out `#model_check` and the `#simulate` below take the same arguments.
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `client := Fin 8`: the clients are `0..7`.
+-- * `key := Fin 8`: the keys are `0..7`.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{}`.
+
 -- model_check must branch over clients, keys, revoke order, and late keepalives.
 -- set_option veil.violationIsError false in
 -- #model_check { client := Fin 8, key := Fin 8 } {}

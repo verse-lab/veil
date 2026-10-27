@@ -413,7 +413,8 @@ which generates the executable definitions too).
 The instantiation and the theory are elaborated as by `#model_check` inside the module, and its
 holes are filled likewise. The theory can be left out, for `{}`, even when options follow. The
 options are those of `#model_check`, except `sequential` and `parallelCfg`, also within `config`:
-the binary takes the parallel configuration as arguments.
+the binary takes the parallel configuration as arguments. Like the instantiation and the theory,
+the values of the options can use the names of the module's namespace.
 
 The build is the one of `#model_check compiled`, in the background: it uses the same build folders
 in `.lake/model_checker_builds`, which are reused and cleaned up as for `#model_check`

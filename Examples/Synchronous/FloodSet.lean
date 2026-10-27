@@ -229,6 +229,12 @@ invariant [crashed_same_when_count_eq_round]
 --------------------------------------------------------------------------------
 
 -- Small instance, one crash
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `node := Fin 3`: the nodes are `0`, `1`, `2`.
+-- * `value := Fin 2`: the values are `0`, `1`, ordered as numbers by the `TotalOrder` instance
+--   that Lean finds for `val_ord`.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `t := 1`: at most 1 node crashes.
 -- #model_check { node := Fin 3, value := Fin 2 } { t := 1 }
 
 --------------------------------------------------------------------------------

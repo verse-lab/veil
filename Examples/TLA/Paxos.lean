@@ -315,9 +315,44 @@ ghost relation Chosen (v : value) :=
 -- Consistency == \A v1, v2 \in Values : Chosen(v1) /\ Chosen(v2) => (v1 = v2)
 invariant [Consistency] ∀ v1 v2, Chosen v1 ∧ Chosen v2 → v1 = v2
 
+-- TypeOK == /\ msgs \in SUBSET Messages
+--           /\ maxVBal \in [Acceptors -> Ballots \cup {-1}]
+--           /\ maxBal \in  [Acceptors -> Ballots \cup {-1}]
+--           /\ maxVal \in  [Acceptors -> Values \cup {None}]
+--           /\ \A a \in Acceptors : maxBal[a] >= maxVBal[a]
+-- Lean's types ensure all but the last conjunct.
+invariant [TypeOK] ∀ a, maxVBal a ≤ maxBal a
+
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model `Benchmarks/TLA/Paxos/Paxos.cfg`.
+-- It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `value := Fin 3`: the values are `0`, `1`, `2` (cfg: `Values = {v1, v2, v3}`).
+-- * `acceptor := Fin 3`: the acceptors are `0`, `1`, `2` (cfg: `Acceptors = {a1, a2, a3}`).
+-- * `quorum := MinQuorum (Fin 3)`: the quorums are the sets of two acceptors
+--   (cfg: `Quorums = {{a1, a2}, {a1, a3}, {a2, a3}}`).
+--   Before searching, `#model_check` checks them against the `assumption [quorum_intersection]`
+--   above, which is the spec's `ASSUME QuorumAssumption`.
+-- * `maxBallot := 3`: the ballots are `0..3` (cfg: `MaxBallot = 3`).
+-- * `MsgSet := OrdList _`, `AcceptorSet := OrdList _`: `OrdList` has the `TSet` instances that
+--   the `instantiate` lines above require.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{}`.
+--
+-- The other settings of the cfg:
+-- * `None = None`: a model value outside `Values`. Here `maxVal` has type `Option value`
+--   instead, where `none` stands for `None`.
+-- * `INVARIANT TypeOK`, `INVARIANT Consistency`: `#model_check` checks every `invariant` of the
+--   module, here `TypeOK` and `Consistency`. The `TypeOK` here checks the spec's last conjunct,
+--   `\A a \in Acceptors : maxBal[a] >= maxVBal[a]`; Lean's types ensure the rest.
+-- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
+--   deadlocks either.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled
 {

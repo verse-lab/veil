@@ -322,6 +322,27 @@ termination [AllDone] ∀s ≠ NONE, pc s = Done
 -- set_option veil.violationIsError false in
 /- `Fin n` means `n-1` valid threads.-/
 
+-- The check below uses the instance of the TLC model `Benchmarks/TLA/MutexViolation.cfg`.
+-- It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `process := Fin 6`: the values `0..5`. The theory below makes `0` the `NONE`, and `1..5` are
+--   the processes, numbered as in TLA+ (cfg: `NumProcs = 5`, with `Procs == 1..NumProcs`).
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `NONE := 0`: the value `0` stands for no process (cfg: `NONE = 0`).
+--
+-- The other settings of the cfg:
+-- * `INVARIANT MutualExclusion`: `#model_check` checks every `invariant` of the module, here
+--   `mutual_exclusion`.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With the
+--   `termination [AllDone]` clause above, Veil reports a state without successors as a deadlock
+--   unless every process is `Done`. TLC makes the same exception, since the spec's
+--   `Terminating` lets such a state stutter.
+-- * Both specs leave out the buggy `locked := false` in `prepare_wait_util`. Restore it in both
+--   to expose the mutual exclusion violation.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled { process := Fin 6 } { NONE := 0 } (seenSet := HAMTMapShard)
 -/

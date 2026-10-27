@@ -249,6 +249,37 @@ invariant [SnapshotIsolation] ∀ k : key, key_si k = true
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model `Benchmarks/TLA/Percolator/Percolator.cfg`.
+-- It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `key := Fin 4`: the keys are `0..3`, for TLA+'s `1..4` (cfg: `KEY <- Key`, where
+--   `Key == 1..4`).
+-- * `client := Fin 3`: the clients are `0`, `1`, `2` (cfg: `CLIENT <- Client`, where
+--   `Client == {c1, c2, c3}`, and `c1 = c1`, `c2 = c2`, `c3 = c3` make them model values).
+-- * `KeySet := OrdList (Fin 4)`, `TimestampSet := OrdList Nat` and
+--   `LockSet := OrdList (Lock (Fin 4))`: `OrdList` has the `TSet` instances that the
+--   `instantiate` lines above require.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `AllKeys := TSet.ofList (List.finRange 4)`: the set of all keys, for where the spec uses
+--   `KEY` as a value. The `assumption [all_keys_complete]` above checks that it contains every
+--   key.
+-- * `CLIENT_PRIMARY_KEY := Fin.castSucc`: client `i` has primary key `i`
+--   (cfg: `CLIENT_PRIMARY_KEY <- ClientPrimaryKey`, where
+--   `ClientPrimaryKey == c1 :> 1 @@ c2 :> 2 @@ c3 :> 3`).
+--
+-- Before searching, `#model_check` also checks the `assumption [nonempty_keys]` above, which is
+-- the spec's `ASSUME KEY # {}`.
+--
+-- The other settings of the cfg:
+-- * `INVARIANT TypeInvariant WriteConsistency ... SnapshotIsolation`: `#model_check` checks every
+--   `invariant` of the module, which here has the same names except `TypeInvariant`. Lean's
+--   types ensure `TypeInvariant`.
+-- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
+--   deadlocks either.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled
   { key := Fin 4, client := Fin 3, KeySet := OrdList (Fin 4),
@@ -262,6 +293,5 @@ invariant [SnapshotIsolation] ∀ k : key, key_si k = true
 --   { key := Fin 1, client := Fin 1, KeySet := OrdList (Fin 1),
 --     TimestampSet := OrdList Nat, LockSet := OrdList (Lock (Fin 1)) }
 --   { AllKeys := TSet.ofList (List.finRange 1), CLIENT_PRIMARY_KEY := id }
---   (fingerprintType := UInt64)
 
 end Percolator

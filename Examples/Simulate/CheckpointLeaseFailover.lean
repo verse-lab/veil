@@ -81,6 +81,16 @@ safety [checkpointed_expiry_respected]
 
 #gen_spec
 
+-- The commented-out `#model_check` and the `#simulate` below take the same arguments.
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `node := Fin 12`: the nodes are `0..11`.
+-- * `epoch := Fin 8`: the epochs are `0..7`, ordered as numbers by the `TotalOrder` instance
+--   that Lean finds for `epochOrd`.
+-- * `lease := Fin 8`: the leases are `0..7`.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `initial_leader := (0 : Fin 12)`: node `0` leads in the initial state.
+-- * `initial_epoch := (0 : Fin 8)`: epoch `0` is current in the initial state.
+
 -- model_check must branch over failovers, recovery choices, and many lease/epoch combinations.
 -- set_option veil.violationIsError false in
 -- #model_check { node := Fin 12, epoch := Fin 8, lease := Fin 8 }

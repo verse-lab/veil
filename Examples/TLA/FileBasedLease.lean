@@ -189,6 +189,28 @@ termination false
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model
+-- `Benchmarks/TLA/FileBasedLease/FileBasedLease.cfg`. It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `process := Fin 5`: the client processes are `0..4` (cfg: `PROCESSES = {P1, P2, P3, P4, P5}`).
+-- * `ProcessSet := OrdList _`, `FileSet := OrdList _`: `OrdList` has the `TSet` instances that
+--   the `instantiate` lines above require.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{}`.
+--
+-- The other settings of the cfg:
+-- * `MARK_EXPIRED_ID = MARK_EXPIRED_ID`: a model value for the process that marks files as
+--   expired. Here `pc` takes an `Option process`, where `none` stands for `MARK_EXPIRED_ID`.
+-- * `NEXT Next_With_Killing_And_Idling`: the actions above include its `Kill` and `Idle` steps.
+-- * `INVARIANT No_Two_Files_With_Same_Id Only_One_Alive_Critical`: `#model_check` checks every
+--   `invariant` of the module, which here has the same two names.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
+--   above, Veil also reports every state without successors as a deadlock.
+--
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled
   { process := Fin 5, ProcessSet := OrdList _,
@@ -199,6 +221,6 @@ termination false
 -- Boundary: two clients still exercise stale-file reclamation and negative idx.
 -- #model_check
 --   { process := Fin 2, ProcessSet := OrdList (Fin 2),
---     FileSet := OrdList (File (Fin 2)) } {} (fingerprintType := UInt64)
+--     FileSet := OrdList (File (Fin 2)) } {}
 
 end FileBasedLease

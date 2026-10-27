@@ -45,7 +45,7 @@ instantiate txEnum : Veil.Enumeration txId
 -- PlusCal labels
 enum pcLabel = { START, READ, UPDATE, COMMIT, Done }
 
-/-! ## ClientCentric (only what `Serializability` needs)
+/-! ## ClientCentric (only what `SnapshotIsolation` and `Serializability` need)
 
 Adapted from:
 https://github.com/tlaplus/Examples/blob/6a7b26a31c1a6aeec789b455e9bbfa3b3ad2728f/specifications/KeyValueStore/ClientCentric.tla
@@ -107,7 +107,7 @@ def executions {κ ν : Type} [DecidableEq κ] (initialState : κ → ν) (trans
 -- parentState(execution, transaction) ==
 --   LET ind == CHOOSE i \in 1..Len(execution): execution[i].transaction = transaction
 --   IN execution[ind].parentState
--- `none` when `transaction` is not in `execution` (never the case for `CT_SER` below).
+-- `none` when `transaction` is not in `execution` (never the case for `CT_SER` and `CT_SI` below).
 def parentState {κ ν : Type} [DecidableEq κ] [DecidableEq ν] (execution : List (ExecutionElem κ ν))
     (transaction : List (Operation κ ν)) : Option (κ → ν) :=
   (execution.find? (·.transaction == transaction)).map (·.parentState)
@@ -167,6 +167,34 @@ def Serializability {κ ν : Type} [DecidableEq κ] [DecidableEq ν] (keys : Lis
     (transactions : List (List (Operation κ ν))) : Bool :=
   (executions initialState transactions).any fun execution =>
     transactions.all fun transaction => CT_SER keys transaction execution
+
+-- WriteSet(transaction) ==
+--   LET writes == { operation \in SeqToSet(transaction) : operation.op = "write" }
+--   IN { operation.key : operation \in writes }
+-- NoConf(execution, transaction, state) ==
+--   LET Sp == parentState(execution, transaction)
+--       delta == { key \in DOMAIN Sp : Sp[key] /= state[key] }
+--   IN delta \intersect WriteSet(transaction) = {}
+-- The intersection is empty iff `Sp` and `state` agree on every key that `transaction` writes,
+-- which is checked directly.
+def noConf {κ ν : Type} [DecidableEq κ] [DecidableEq ν] (execution : List (ExecutionElem κ ν))
+    (transaction : List (Operation κ ν)) (state : κ → ν) : Bool :=
+  match parentState execution transaction with
+  | none => false
+  | some sp => transaction.all fun o => o.op != .write || sp o.key == state o.key
+
+-- CT_SI(transaction, execution) == \E state \in SeqToSet(executionStates(execution)):
+--   Complete(execution, transaction, state) /\ NoConf(execution, transaction, state)
+def CT_SI {κ ν : Type} [DecidableEq κ] [DecidableEq ν] (keys : List κ) (transaction : List (Operation κ ν))
+    (execution : List (ExecutionElem κ ν)) : Bool :=
+  execution.any fun e =>
+    complete keys execution transaction e.parentState && noConf execution transaction e.parentState
+
+-- SnapshotIsolation(initialState, transactions) == satisfyIsolationLevel(initialState, transactions, CT_SI)
+def SnapshotIsolation {κ ν : Type} [DecidableEq κ] [DecidableEq ν] (keys : List κ) (initialState : κ → ν)
+    (transactions : List (List (Operation κ ν))) : Bool :=
+  (executions initialState transactions).any fun execution =>
+    transactions.all fun transaction => CT_SI keys transaction execution
 
 end CC
 
@@ -280,6 +308,13 @@ action Commit (self : txId) {
 termination [AllDone] ∀ t, pc t = Done
 
 -- InitialState == [k \in Key |-> NoVal]
+-- SnapshotIsolation == CC!SnapshotIsolation(InitialState, Range(ops))
+ghost relation snapshotIsolation :=
+  CC.SnapshotIsolation keyEnum.allValues (fun _ => (none : Option txId))
+    ((txEnum.allValues.map ops).eraseDups) = true
+
+safety [SnapshotIsolation] snapshotIsolation
+
 -- Serialization == CC!Serializability(InitialState, Range(ops))
 -- \* Serializability would not be satisfied due to write-skew
 ghost relation serialization :=
@@ -290,12 +325,38 @@ safety [Serialization] serialization
 
 #gen_spec
 
--- MCKVsnap.cfg: Key = {k1, k2, k3}, TxId = {t1, t2, t3}; no SYMMETRY.
--- `Serialization` is expected to fail (write skew).
+-- TLC checks this spec with `Benchmarks/TLA/TLAPlusExamples/KVSnap/MCKVsnap.cfg`, on
+-- `MCKVsnap.tla`. The check below uses the cfg's instance.
+-- `Serialization` is expected to fail (write skew), so the search stops at that violation.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `key := Fin 2`: the keys are `0`, `1` (cfg: `Key = {k1, k2}`).
+-- * `txId := Fin 3`: the transaction IDs are `0`, `1`, `2` (cfg: `TxId = {t1, t2, t3}`).
+-- * `keySet := OrdList (Fin 2)`: `OrdList` has the `TSet` instance that the `instantiate` line
+--   above requires.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{}`.
+--
+-- The other settings of the cfg:
+-- * `NoVal = NoVal`: a model value outside `TxId`. Here the store holds `Option txId` instead,
+--   where `none` stands for `NoVal`.
+-- * `INVARIANTS TypeOK SnapshotIsolation Serialization BaitInv`: `#model_check` checks every
+--   `invariant` and `safety` clause of the module, here `SnapshotIsolation` and
+--   `Serialization`. Lean's types ensure `TypeOK`. `BaitInv` is not translated: it is a
+--   debugging aid that reads TLC's search depth with `TLCGet("level")`.
+-- * `PROPERTIES Termination`: a temporal property, which Veil does not check.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With the `termination [AllDone]`
+--   clause above, Veil reports a state without successors as a deadlock unless every transaction
+--   is `Done`. TLC makes the same exception, since `Terminating` lets such a state stutter.
+-- * The cfg's `SYMMETRY TxIdSymmetric` is commented out, so neither checker reduces the state
+--   space by symmetry.
+-- `set_option veil.violationIsError false in` reports the violation without failing the build.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
 set_option veil.violationIsError false in
 #model_check compiled
-{ key := Fin 3,
-  txId := Fin 2,
-  keySet := OrdList (Fin 3) } {}
+{ key := Fin 2,
+  txId := Fin 3,
+  keySet := OrdList (Fin 2) } {}
 
 end KVsnapNew

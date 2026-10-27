@@ -189,9 +189,30 @@ invariant [DataProp]
   (exGntd = false → memData = auxData) ∧
   (∀ i : node, (cache i).state ≠ cI → (cache i).dat = auxData)
 
+termination false
+
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model `Benchmarks/TLA/German.cfg`.
+-- It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `node := Fin 3`: the nodes are `0`, `1`, `2` (cfg: `NODE = {n1,n2,n3}`).
+-- * `data := Fin 3`: the data values are `0`, `1`, `2`, for TLA+'s `1`, `2`, `3`
+--   (cfg: `DATA = {1,2,3}`).
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `initData := 0`: the initial data value, TLA+'s `1`. The cfg has no counterpart, since the
+--   TLA+ `Init` writes the constant `1`.
+--
+-- The other settings of the cfg:
+-- * `INVARIANTS CtrlProp DataProp`: `#model_check` checks every `invariant` of the module, here
+--   `ctrlProp` and `DataProp`.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
+--   above, Veil also reports every state without successors as a deadlock.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled
 { node := Fin 3, data := Fin 3 }

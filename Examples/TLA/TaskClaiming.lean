@@ -174,6 +174,33 @@ state_constraint [LockVersionBound] lockVersion ≤ maxLockVersion
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model
+-- `Benchmarks/TLA/TaskClaiming/TaskClaiming.cfg`. It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `worker := Fin 3`: the workers are `0`, `1`, `2` (cfg: `Workers = {w1, w2, w3}`).
+-- * `task := Fin 3`: the tasks are `0`, `1`, `2` (cfg: `Tasks = {t1, t2, t3}`).
+-- * `maxFailures := 3`: a task goes to the dead-letter queue (DLQ) after 3 failures
+--   (cfg: `MaxFailures = 3`).
+-- * `maxLockVersion := 10`: the state constraint bounds `lockVersion` by 10
+--   (cfg: `MaxLockVersion = 10`).
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{}`.
+--
+-- Before searching, `#model_check` checks `maxFailures` against the `assumption` above, which is
+-- the spec's `ASSUME MaxFailures >= 1`.
+--
+-- The other settings of the cfg:
+-- * `CONSTRAINT LockVersionBound`: the `state_constraint [LockVersionBound]` above. Unlike TLC,
+--   Veil does not check the invariants in the states that the constraint drops.
+-- * `INVARIANTS TypeOK MutualExclusion ... NoOrphanExecution`: `#model_check` checks every
+--   `invariant` of the module, which here has the same six names. The `TypeOK` here keeps the
+--   numeric bounds of the spec's `TypeOK`; Lean's types ensure the rest.
+-- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
+--   deadlocks either.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled
   { worker := Fin 3, task := Fin 3, maxFailures := 3, maxLockVersion := 10 } {}
@@ -182,6 +209,5 @@ state_constraint [LockVersionBound] lockVersion ≤ maxLockVersion
 
 -- Boundary: first failure sends a task to DLQ; retain both workers and tasks.
 -- #model_check { worker := Fin 2, task := Fin 2, maxFailures := 1, maxLockVersion := 3 } {}
---   (fingerprintType := UInt64)
 
 end TaskClaiming

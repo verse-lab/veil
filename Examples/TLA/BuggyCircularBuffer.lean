@@ -57,8 +57,31 @@ action Get {
 
 safety count ≤ BUFFER_SIZE
 
+termination false
+
 #time #gen_spec
 
+-- TLC checks this spec with `Benchmarks/TLA/BuggyCircularBuffer.cfg`.
+-- The check below finds the bug: `Put` has no guard, so `count` exceeds `BUFFER_SIZE` and
+-- violates the unnamed `safety` clause above (reported as `safety_0`).
+-- `set_option veil.violationIsError false in` reports that violation without failing the build.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s. There
+-- are none, hence `{ }`.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{ }`.
+-- The module fixes the cfg's constants itself:
+-- * `BUFFER_SIZE = 2`: the `abbrev BUFFER_SIZE := 2` above.
+-- * `BUFFER_ELEMS = {0, 1}`: the `abbrev BUFFER_ELEMS := (List.range 2 : List Nat)` above.
+--
+-- The other settings of the cfg:
+-- * `INVARIANT SafeInv`: `#model_check` checks every `invariant` and `safety` clause of the
+--   module. Here the only one is `SafeInv`, `count ≤ BUFFER_SIZE`.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
+--   above, Veil also reports every state without successors as a deadlock.
+-- Options:
+-- * The check names no mode, so its search starts in Lean's interpreter and moves to a compiled
+--   checker once that is built.
 set_option veil.violationIsError false in
 #model_check { } { }
 

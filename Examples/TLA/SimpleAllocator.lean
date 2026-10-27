@@ -91,8 +91,32 @@ action Return (c : client) (S : ResourceSet) {
 -- ResourceMutex ==
 --   \A c1,c2 \in Clients : c1 # c2 => alloc[c1] \cap alloc[c2] = {}
 invariant [resource_mutex] ∀ c1 c2 : client, c1 ≠ c2 → (resSet.isEmpty <| resSet.intersection (alloc c1) (alloc c2))
+
+termination false
+
 #gen_spec
 
+-- TLC checks this spec with `Benchmarks/TLA/TLAPlusExamples/SimpleAllocator.cfg`.
+-- The second check below, commented out, uses the cfg's instance; uncomment it to run it.
+-- The first check, which runs when this file is built, uses 2 clients and 2 resources.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `client := Fin 6`: the clients are `0..5` (cfg: `Clients = {c1,c2,c3,c4,c5,c6}`).
+-- * `resource := Fin 3`: the resources are `0`, `1`, `2` (cfg: `Resources = {r1,r2,r3}`).
+-- * `ClientsSet := OrdList _`, `ResourceSet := OrdList _`: `OrdList` has the `TSet` instances
+--   that the `instantiate` lines above require.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- so the first check omits it.
+--
+-- The other settings of the cfg:
+-- * `INVARIANTS ResourceMutex`: `#model_check` checks every `invariant` of the module, here
+--   `resource_mutex`.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
+--   above, Veil also reports every state without successors as a deadlock.
+-- Options:
+-- * `interpreted` runs the search only in Lean's interpreter, without compiling a checker.
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 -- TEST ONLY
 #model_check interpreted
 { client := Fin 2,

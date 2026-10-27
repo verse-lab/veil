@@ -145,6 +145,38 @@ safety [room_occupied_valid]
 invariant [key_num] ∀ R, (roomKey R).num < 10
 #gen_spec
 
+-- TLC checks this spec with `Benchmarks/TLA/Room.cfg`.
+-- The second check below, commented out, uses the cfg's instance; uncomment it to run it.
+-- The first check, which runs when this file is built, has a depth bound (`maxDepth := 2`).
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `Room := Room_IndT`, `Guest := Guest_IndT`: the rooms and the guests are the constructors of
+--   the `enum`s `Room` and `Guest` above (cfg: `Room = {"Elm", "Cendana"}`,
+--   `Guest = {"Olivier", "Bruno", "Aquinas"}`). Each `enum` is a type parameter whose default is
+--   its generated `_IndT` type, so these items could be left out.
+-- * `Position := Position_IndT`, `Occupied := Occupied_IndT`: the same for the `enum`s that
+--   replace the strings `"noroom"`, `"room"`, `"nobody"` and `"body"`. The cfg has no
+--   counterpart.
+-- * `GuestSet := Std.ExtTreeSet Guest_IndT`, `KeySet := Std.ExtTreeSet (Key Room_IndT)`:
+--   `Std.ExtTreeSet` has the `TSet` instances that the `instantiate` lines above require.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{ }`.
+--
+-- The other settings of the cfg:
+-- * `INVARIANT NoBadEntry`: `#model_check` checks every `invariant` and `safety` clause of the
+--   module. `registered_at_most_one`, `guest_in_room_valid` and `room_occupied_valid` are the
+--   three conjuncts of `NoBadEntry`. `key_num` has no counterpart in the cfg.
+-- * `INVARIANT TypeOK`: Lean's types ensure it.
+-- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
+--   deadlocks either.
+-- Options:
+-- * The first check names no mode, so its search starts in Lean's interpreter and moves to a
+--   compiled checker once that is built.
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(maxDepth := 2)` explores only the states at most 2 steps from an initial state.
+-- * `(sequential := true)` searches with a single thread.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
+-- TEST ONLY
 #model_check
 {
   -- seq_t := Fin 11,
@@ -157,5 +189,19 @@ invariant [key_num] ∀ R, (roomKey R).num < 10
 }
 { }
   (maxDepth := 2) (sequential := true)
+-- TEST ONLY
+
+/- EVAL
+#model_check compiled
+{
+  Room := Room_IndT,
+  Guest := Guest_IndT,
+  Position := Position_IndT,
+  Occupied := Occupied_IndT,
+  GuestSet := Std.ExtTreeSet Guest_IndT,
+  KeySet := Std.ExtTreeSet (Key Room_IndT)
+}
+{ } (seenSet := HAMTMapShard)
+-/
 
 end RoomMC

@@ -77,6 +77,10 @@ veil_set_field_representation function Veil.ArrayAsFinmap
 
 #gen_state
 
+-- ASSUME NTF == N \in Nat /\ T \in Nat /\ F \in Nat /\ (N > 3 * T) /\ (T >= F) /\ (F >= 0)
+-- The conjuncts about `Nat` hold by the types of `N`, `T` and `F`.
+assumption [NTF] N > 3 * T ∧ T ≥ F
+
 -- Ghost definitions for readability
 ghost relation isCorrect (p : process) := pset.contains p Corr
 ghost relation isFaulty (p : process) := pset.contains p Faulty
@@ -208,8 +212,38 @@ invariant [Corr_cup_faulty_eq_proc] pset.union Corr Faulty == (pset.ofList proce
 invariant [card_corr] pset.count Corr ≥ N - T
 invariant [card_faulty] pset.count Faulty ≤ T
 
+termination false
+
 #gen_spec
 
+-- TLC checks this spec with `Benchmarks/TLA/TLAPlusExamples/bcastByz.cfg`.
+-- The second check below, commented out, uses the cfg's instance; uncomment it to run it.
+-- The first check, which runs when this file is built, uses 4 processes.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `process := Fin 5`: the processes are `0..4` (cfg: `N = 5`, with `Proc == 1 .. N`).
+--   Here the processes are a type of their own, so `process` must agree with `N` below.
+-- * `procSet := OrdList (Fin 5)`: `OrdList` has the `TSet` instance that the `instantiate` line
+--   above requires.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `N := 5`: the number of processes (cfg: `N = 5`).
+-- * `T := 1`: the upper bound on the number of faulty processes (cfg: `T = 1`).
+-- * `F := 1`: the actual number of faulty processes (cfg: `F = 1`).
+--
+-- Before searching, `#model_check` checks these values against the `assumption [NTF]` above,
+-- which is the spec's `ASSUME NTF`.
+--
+-- The other settings of the cfg:
+-- * `INVARIANTS FCConstraints`: `#model_check` checks every `invariant` of the module. Here
+--   `Corr_cup_faulty_eq_proc`, `card_corr` and `card_faulty` are the conjuncts of `FCConstraints`.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
+--   above, Veil also reports every state without successors as a deadlock. Every state has a
+--   successor in both specs: `UNCHANGED vars` in TLA+ and the action `Stutter` here.
+-- Options:
+-- * The first check names no mode, so its search starts in Lean's interpreter and moves to a
+--   compiled checker once that is built.
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 -- TEST ONLY
 #model_check
 { process := (Fin 4),

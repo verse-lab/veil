@@ -775,21 +775,25 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
 module `modId`, typically from another file, without running it. -/
 private def elabBuildCommand {α : Type} (cmdName : String) (traceClass : Name) (stx : Syntax)
     (modId : Ident) (instTerm : Term) (theoryTerm? : Option Term) (elabConfig : CommandElabM α)
-    (mkCall : ExecutionCallCommandContext α → CommandElabM Term) : CommandElabM Unit := do
+    (mkCall : ExecutionCallCommandContext α → CommandElabM Term) : CommandElabM Unit := withScope id do
+  -- `withScope id` starts with the current scope unchanged and restores it on success or error,
+  -- so applying the defaults of `veil module` here does not affect subsequent commands.
+  overrideLeanDefaults
   withTraceNode traceClass (fun _ => return s!"#{cmdName}") do
     let some em ← getExecutableModule? modId.getId
       | throwErrorAt modId "Module {modId.getId} has no executable definitions here: add \
           `#gen_executable` to the `veil module {modId.getId}` block that declares it."
-    let callExpr ← mkCall {
-      executable := em
-      config := ← elabConfig
-      instantiation := ← `(__veil_instantiation_of% $modId $instTerm)
-      «theory» := ← theoryTerm?.getDM `({}) }
-    -- Elaborate the call as the execution commands do inside the module: with `Veil` open
-    -- (since `veil module` does it), and the scoped instances of the module active, e.g. those of
+    -- Elaborate the options and the call as the execution commands do inside the module: with `Veil`
+    -- open (since `veil module` does it), and the scoped instances of the module active, e.g. those of
     -- its enums and the `ToJson` of its state. They are also needed by the code that `buildOnly`
-    -- puts around the call, e.g. to convert its result to JSON.
+    -- puts around the call, e.g. to convert its result to JSON. So an option's value resolves the
+    -- names of the module's namespace, as the instantiation and the theory do.
     withOpenNamespaces [`Veil, em.name] do
+      let callExpr ← mkCall {
+        executable := em
+        config := ← elabConfig
+        instantiation := ← `(__veil_instantiation_of% $modId $instTerm)
+        «theory» := ← theoryTerm?.getDM `({}) }
       ExecutionWorkflow.buildOnly { name := cmdName, actionLabels := em.actionLabels.toList } stx callExpr
 
 @[command_elab Veil.modelCheckBuild]

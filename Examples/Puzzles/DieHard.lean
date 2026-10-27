@@ -64,11 +64,29 @@ action BigToSmall {
 
 invariant [typeOK] small≤ 3 ∧ big ≤ 5
 invariant [not_solved] big ≠ 4
-termination big > 0
 
-#time #gen_spec
+termination false
 
-#gen_executable
+#gen_spec
+
+-- TLC checks this spec with `Benchmarks/TLA/TLAPlusExamples/DieHard.cfg`.
+-- The check below finds a violation of `not_solved`, whose trace solves the puzzle. TLC reports
+-- `NotSolved` as violated with the same six steps.
+-- `set_option veil.violationIsError false in` reports that violation without failing the build.
+
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s. There are
+-- none, hence `{}`. The cfg sets no constants either.
+-- The theory (second argument) is left out, since this module has no `immutable` fields.
+
+-- The other settings of the cfg:
+-- * `INVARIANTS TypeOK NotSolved`: `#model_check` checks every `invariant` of the module, here
+--   `typeOK` and `not_solved`.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
+--   above, Veil also reports every state without successors as a deadlock.
+-- Options:
+-- * `interpreted` runs the search only in Lean's interpreter, without compiling a checker.
+set_option veil.violationIsError false in
+#model_check interpreted {}
 
 
 end DieHard
