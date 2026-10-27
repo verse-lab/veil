@@ -5,6 +5,8 @@ from VS Code. Track progress, inspect counterexamples, and save or export result
 Lean builds the model checkers through `#mc_config`; the extension runs the
 generated executables and displays their progress and results.
 
+![Veil Verifier demo](https://raw.githubusercontent.com/verse-lab/veil/main/editors/vscode/demo.gif)
+
 ## Install
 
 In the Extensions view, search for `@id:verse-lab.veil-verifier` and choose **Install**,
