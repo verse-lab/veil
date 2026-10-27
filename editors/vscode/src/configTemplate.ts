@@ -2,6 +2,7 @@
 // (see `Veil/Frontend/DSL/Module/ConfigTemplate.lean`). This module does not use VS Code, so that the
 // tests can run it.
 import * as path from 'path';
+import { ModelCheckArguments } from './modelCheckCommands';
 
 export interface ConfigTemplateField {
   name: string;
@@ -26,8 +27,11 @@ export function configHeader(template: ConfigTemplate): string {
   return `module\n\npublic import Veil\npublic import ${template.import}\n\n`;
 }
 
-/** The `#mc_config` command of a config file for `template`, with a placeholder for each value */
-export function configCommand(template: ConfigTemplate): SnippetPart[] {
+/** The `#mc_config` command, from source arguments when given, else with template placeholders. */
+export function configCommand(template: ConfigTemplate, source?: ModelCheckArguments): SnippetPart[] {
+  if (source) return [{ text: `#mc_config ${template.module}\n` +
+    [source.instantiation, ...(source.theory === undefined ? [] : [source.theory]), ...(source.options ?? [])]
+      .map(term => term.split('\n').map(line => line === '' ? '' : `  ${line}`).join('\n')).join('\n') + '\n' }];
   const parts: SnippetPart[] = [{ text: `#mc_config ${template.module}` }];
   const structure = (fields: ConfigTemplateField[]) => {
     if (fields.length === 0) {
@@ -51,9 +55,23 @@ export function snippetText(parts: SnippetPart[]): string {
 }
 
 /** Where a new config file for the module of `moduleFile` goes: next to it, as TLC's model files go,
- * e.g. `PaxosMC.lean` for `Paxos.lean` */
-export function configFileFor(moduleFile: string): string {
-  return path.join(path.dirname(moduleFile), `${path.basename(moduleFile, '.lean')}MC.lean`);
+ * e.g. `PaxosMC.lean` for `Paxos.lean`, or `PaxosMC2.lean` for `index` 2 */
+export function configFileFor(moduleFile: string, index = 1): string {
+  return path.join(path.dirname(moduleFile), `${path.basename(moduleFile, '.lean')}MC${index > 1 ? index : ''}.lean`);
+}
+
+/** Whether the text of a config file imports `name`, so that configs of the modules of that file can
+ * be added to it */
+export function importsModule(text: string, name: string): boolean {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^[\\t ]*(?:(?:public|meta)\\s+)*import\\s+(?:all\\s+)?${escaped}(?=[\\t ]*(?:--|\\r?$))`, 'm').test(text);
+}
+
+/** The line breaks to add to `text` so that a command added at its end follows an empty line */
+export function appendSeparator(text: string): string {
+  if (text === '') return '';
+  const lineBreaks = /(?:\r?\n)*$/.exec(text)![0].split('\n').length - 1;
+  return '\n'.repeat(Math.max(0, 2 - lineBreaks));
 }
 
 /** Whether `#mc_config written` is of the module that `veil module declared` declares. The

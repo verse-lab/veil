@@ -50,9 +50,11 @@ The lens above each `veil module` names the next action. The same lens also appe
 above the module's `#gen_executable`. Without `#gen_executable`, it appears above the
 module's `#gen_spec` instead, while the module has no executable definitions.
 
-- **Add #gen_executable** inserts `#gen_executable` after the module's `#gen_spec`.
-- **Create model checking config** creates and opens `<File>MC.lean` next to the
-  module, with values to fill in.
+- **Add #gen_executable** inserts `#gen_executable` after the module's `#gen_spec`
+  and saves the file, since config files import the saved file.
+- **Create model checking config** adds a config with values to fill in to
+  `<File>MC.lean` next to the module, and opens it. The file is created if it does
+  not exist. If it exists but does not import the module, you choose another file.
 - **Run model checker** opens the module's config and runs its model checker once
   Lean has built it.
 - **Select config and run...** lets you choose which config to run, when the module
@@ -65,7 +67,24 @@ Lean gives the template of a new config, whose values are holes (`_`): Lean fill
 those that the module's constraints determine, such as `MsgSet` above, and reports
 the others for you to fill in.
 
-The lens above the command runs its model checker. It reads **Run model checker**
+To reuse an existing `#model_check`, click **Create config from this instantiation**
+above it. This also works for checks in `--` or `/- ... -/` comments. In comments,
+only bracketed terms such as `{ node := Fin 3 }` are read as the instantiation and
+the theory, so that the prose of the comment is not copied.
+
+The new config copies the check's instantiation, theory, and supported options,
+including `seenSet`, `fingerprintType`, and `maxDepth`. The options `sequential` and
+`parallelCfg` are not copied. Inside `(config := ...)`, the copy resets these two
+fields and keeps the other settings. Set parallelism when running the checker
+instead. Execution modes and `assumptions_hold_by` are not copied either.
+
+The config goes to `<File>MC.lean`, as with **Create model checking config**. If the
+model has no executable definitions, the lens first adds `#gen_executable` to it and
+saves the file. Expressions may need changes in the config file when they use private
+declarations, local notation, or a namespace that the model's file opens, such as
+`TreeSet` after `open Std`.
+
+The lens above `#mc_config` runs its model checker. It reads **Run model checker**
 once Lean has built the binary, and **Run once built** while Lean is building it.
 It reads **Rebuild and run model checker** when the build failed, or when a file
 that the config imports, such as the model, was saved since Lean built it. A run

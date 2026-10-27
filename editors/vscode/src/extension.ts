@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { findBuildCommands } from './buildCommands';
-import { checkModel, createConfig } from './checkModel';
+import { checkModel, createConfig, createConfigFromCheck } from './checkModel';
 import { ModelConfigs } from './modelConfigs';
 import { BuildCommand, BuildCommandLenses, buildCommandsOf, outcomeIcons } from './codeLens';
 import { ConfigTemplate } from './configTemplate';
@@ -309,6 +309,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // The command of the code action of Lean that gives the template
     vscode.commands.registerCommand('veil.modelCheck.createConfig',
       (template: ConfigTemplate, uri: string) => createConfig(template, vscode.Uri.parse(uri))),
+    vscode.commands.registerCommand('veil.modelCheck.createConfigFromCheck', createConfigFromCheck),
     vscode.commands.registerCommand('veil.modelCheck.runAgain', runAgain),
     vscode.commands.registerCommand('veil.modelCheck.stop', () => runs.stop()),
     // The status bar shows the run of this window

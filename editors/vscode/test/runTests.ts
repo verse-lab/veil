@@ -12,8 +12,11 @@ import {
   BUILT_PREFIX, BuildAfterRestart, ReportedMessage, Severity, buildStatus, findBuildCommands, findVeilModules, headerEndLine,
   importsOutOfDate, moduleLensLines,
 } from '../src/buildCommands';
-import { ConfigTemplate, configCommand, configFileFor, configHeader, isOfModule, snippetText } from '../src/configTemplate';
+import {
+  ConfigTemplate, appendSeparator, configCommand, configFileFor, configHeader, importsModule, isOfModule, snippetText,
+} from '../src/configTemplate';
 import { ImportChanges } from '../src/importChanges';
+import { findModelChecks } from '../src/modelCheckCommands';
 import { Progress, StartReport, describeResult, modelCheckMetrics, parseProgressLine, parseStartLine } from '../src/protocol';
 import { FORMAT_VERSION, ResultStore, RunSource, freshness, parseRunFile } from '../src/resultStore';
 import { CheckerRun, parallelArgs, parseRunOptions } from '../src/runner';
@@ -106,6 +109,181 @@ test('puts the second lens of a module above its #gen_executable, or above its #
 
 // ---- Config templates ----
 
+test('finds each in-module check, including line comments and nested block comments', () => {
+  const text = [
+    'veil module Checks',
+    '#gen_spec',
+    '#model_check compiled',
+    '  { node := Fin 2, NodeSet := OrdList _ }',
+    '  { limit := (fun n => n + 1) 1 } (seenSet := HAMTMapShard)',
+    '-- #model_check interpreted { node := Fin 3 }',
+    '--   { limit := 3 } (sequential := true)',
+    '/- EVAL',
+    '  #model_check { node := Fin 4 } { limit := 4 }',
+    '  /- #model_check { node := Fin 5 } -/',
+    '-/',
+    '-- -- #model_check{ node := Fin 6 }{}',
+    'end Checks',
+    '#model_check { node := Fin 7 }',
+    'veil module Other',
+    '-- #model_check {}',
+    'end Other',
+  ].join('\n');
+  assert.deepStrictEqual(findModelChecks(text), [
+    { line: 2, character: 0, moduleLine: 0, instantiation: '{ node := Fin 2, NodeSet := OrdList _ }', theory: '{ limit := (fun n => n + 1) 1 }', options: ['(seenSet := HAMTMapShard)'] },
+    { line: 5, character: 3, moduleLine: 0, instantiation: '{ node := Fin 3 }', theory: '{ limit := 3 }' },
+    { line: 8, character: 2, moduleLine: 0, instantiation: '{ node := Fin 4 }', theory: '{ limit := 4 }' },
+    { line: 9, character: 5, moduleLine: 0, instantiation: '{ node := Fin 5 }' },
+    { line: 11, character: 6, moduleLine: 0, instantiation: '{ node := Fin 6 }', theory: '{}' },
+    { line: 15, character: 3, moduleLine: 14, instantiation: '{}' },
+  ]);
+});
+
+test('keeps nested expressions and distinguishes options from theory and incomplete terms', () => {
+  const text = [
+    'veil module Checks',
+    'def text := "',
+    '#model_check {} {}',
+    '"',
+    'def raw := r#"',
+    '#model_check {} {}',
+    '"#',
+    '#model_checks {} {}',
+    'someText #model_check {} {}',
+    '#model_check { node := Fin 2, value := ("}", \'}\', r#"}"#),',
+    '  more := { xs := [1, 2], proof := by decide } /- ignore } -/ }',
+    '  (makeTheory ⟨1, by decide⟩)',
+    '#model_check myInstantiation (maxDepth := 10)',
+    '-- #model_check ({ node := Fin 3 })',
+    '--   ({ limit := 3 }) assumptions_hold_by decide',
+    '#model_check { unfinished := Fin 2',
+    '#model_check {} { unfinished := 2',
+    '#model_check by exact {}',
+    '#model_check namedInstantiation.{0} {}',
+    'end Checks',
+  ].join('\n');
+  const checks = findModelChecks(text);
+  assert.deepStrictEqual(checks.map(check => check.line), [9, 12, 13]);
+  assert.ok(checks[0].instantiation.includes('value := ("}", \'}\', r#"}"#)'));
+  assert.strictEqual(checks[0].theory, '(makeTheory ⟨1, by decide⟩)');
+  assert.strictEqual(checks[1].instantiation, 'myInstantiation');
+  assert.strictEqual(checks[1].theory, undefined);
+  assert.deepStrictEqual(checks[1].options, ['(maxDepth := 10)']);
+  assert.strictEqual(checks[2].instantiation, '({ node := Fin 3 })');
+  assert.strictEqual(checks[2].theory, '({ limit := 3 })');
+});
+
+test('preserves checker options and their order while removing only runtime settings', () => {
+  const text = [
+    'veil module Checks',
+    '#model_check {} {} (seenSet := HAMTMapShard) (fingerprintType := UInt64)',
+    '  +sequential (parallelCfg := some { numSubTasks := 2 }) (maxDepth := 5)',
+    '-- #model_check {}',
+    '--   (sequential := false) (fingerprintType := (UInt64)) -sequential',
+    '--   (seenSet := (fun fp => HAMTMapShard fp))',
+    '/- #model_check {} {}',
+    '  (config := { maxDepth := 7, sequential := true, parallelCfg := some {} })',
+    '  (maxDepth := 3) (fingerprintType := UInt64)',
+    '-/',
+    '#model_check {} {} (config := namedConfig)',
+    'end Checks',
+  ].join('\n');
+  const checks = findModelChecks(text);
+  assert.strictEqual(checks.length, 4);
+  assert.deepStrictEqual(checks[0].options,
+    ['(seenSet := HAMTMapShard)', '(fingerprintType := UInt64)', '(maxDepth := 5)']);
+  assert.strictEqual(checks[1].theory, undefined);
+  assert.deepStrictEqual(checks[1].options,
+    ['(fingerprintType := (UInt64))', '(seenSet := (fun fp => HAMTMapShard fp))']);
+  assert.deepStrictEqual(checks[2].options, [
+    '(config := { (({ maxDepth := 7, sequential := true, parallelCfg := some {} }) : Veil.ModelCheckerConfig) with sequential := false, parallelCfg := none })',
+    '(maxDepth := 3)', '(fingerprintType := UInt64)',
+  ]);
+  assert.deepStrictEqual(checks[3].options, [
+    '(config := { ((namedConfig) : Veil.ModelCheckerConfig) with sequential := false, parallelCfg := none })',
+  ]);
+});
+
+test('keeps the columns of the lines of each term relative to each other', () => {
+  const text = [
+    'veil module Checks',
+    // Fields separated by newlines must stay aligned, also when their term starts within its line
+    '#model_check interpreted { block := Nat',
+    '                           blockSet := Std.ExtTreeSet Nat } { natToBlock := id }',
+    '-- #model_check',
+    '--   { nodeset := ByzNSet (Fin 4)',
+    '--     round := Fin 3 }',
+    // The copy moves the first line of the value of `config` right, so its other lines too
+    '#model_check {} {} (config := { maxDepth := 3',
+    '                                sequential := true })',
+    // A later line left of where its term starts stays there, relative to the first line
+    '#model_check {} (mkTheory',
+    '  1)',
+    'end Checks',
+  ].join('\n');
+  const checks = findModelChecks(text);
+  assert.deepStrictEqual(checks.map(check => check.instantiation), [
+    '{ block := Nat\n  blockSet := Std.ExtTreeSet Nat }', '{ nodeset := ByzNSet (Fin 4)\n  round := Fin 3 }', '{}', '{}',
+  ]);
+  assert.deepStrictEqual(checks[2].options, [
+    '(config := { (({ maxDepth := 3\n                 sequential := true }) : Veil.ModelCheckerConfig) with sequential := false, parallelCfg := none })',
+  ]);
+  assert.strictEqual(checks[3].theory, `${' '.repeat(14)}(mkTheory\n1)`);
+  assert.strictEqual(snippetText(configCommand(template, checks[0])),
+    '#mc_config CheckedElsewhere\n  { block := Nat\n    blockSet := Std.ExtTreeSet Nat }\n  { natToBlock := id }\n');
+});
+
+test('reads the words of comments as prose, and a name below a check at its column as the next command', () => {
+  const text = [
+    'veil module Checks',
+    '-- #model_check { node := Fin 3 }',
+    '-- this one takes about 5 minutes',
+    '/-',
+    '#model_check { node := Fin 4 }',
+    'Takes about 5 minutes.',
+    '-/',
+    '-- #model_check takes too long',
+    '-- #model_check { node := Fin 5 } myTheory',
+    '#model_check { node := Fin 6 }',
+    '',
+    'sat trace {',
+    '  any action',
+    '}',
+    '#model_check myInstantiation',
+    '  myTheory',
+    '#model_check { node := Fin 7 } myTheory (maxDepth := 2)',
+    'end Checks',
+  ].join('\n');
+  assert.deepStrictEqual(findModelChecks(text), [
+    { line: 1, character: 3, moduleLine: 0, instantiation: '{ node := Fin 3 }' },
+    { line: 4, character: 0, moduleLine: 0, instantiation: '{ node := Fin 4 }' },
+    { line: 8, character: 3, moduleLine: 0, instantiation: '{ node := Fin 5 }' },
+    { line: 9, character: 0, moduleLine: 0, instantiation: '{ node := Fin 6 }' },
+    { line: 14, character: 0, moduleLine: 0, instantiation: 'myInstantiation', theory: 'myTheory' },
+    { line: 16, character: 0, moduleLine: 0, instantiation: '{ node := Fin 7 }', theory: 'myTheory', options: ['(maxDepth := 2)'] },
+  ]);
+});
+
+test('reads an array literal on a later line as part of its term, and a quote of a comment as prose', () => {
+  const text = [
+    'veil module Checks',
+    '#model_check { node := Fin 3 }',
+    '  { xs :=',
+    '      #[1, 2] }',
+    '-- the 3" case:',
+    '-- #model_check { node := Fin 3 } { s := "a" }',
+    '/- 5" screens',
+    '#model_check { node := Fin 4 }',
+    '-/',
+    'end Checks',
+  ].join('\n');
+  assert.deepStrictEqual(findModelChecks(text), [
+    { line: 1, character: 0, moduleLine: 0, instantiation: '{ node := Fin 3 }', theory: '{ xs :=\n    #[1, 2] }' },
+    { line: 5, character: 3, moduleLine: 0, instantiation: '{ node := Fin 3 }', theory: '{ s := "a" }' },
+    { line: 7, character: 0, moduleLine: 0, instantiation: '{ node := Fin 4 }' },
+  ]);
+});
+
 const template: ConfigTemplate = {
   module: 'CheckedElsewhere',
   import: 'VeilTest.Regression.ModelCheckBuildHelper',
@@ -124,12 +302,36 @@ test('writes the config file of a template, with placeholders for its values', (
     '#mc_config CheckedElsewhere\n  {}\n');
 });
 
+test('writes a config from the selected check without replacing its expressions with holes', () => {
+  const text = 'veil module CheckedElsewhere\n-- #model_check { node := Fin 3 } { limit := 2 } (seenSet := HAMTMapShard) (fingerprintType := UInt64)\nend CheckedElsewhere';
+  const [source] = findModelChecks(text);
+  const parts = configCommand(template, source);
+  assert.deepStrictEqual(parts, [{ text: '#mc_config CheckedElsewhere\n  { node := Fin 3 }\n  { limit := 2 }\n  (seenSet := HAMTMapShard)\n  (fingerprintType := UInt64)\n' }]);
+  assert.strictEqual(snippetText(configCommand(template, { instantiation: '{}' })), '#mc_config CheckedElsewhere\n  {}\n');
+  assert.strictEqual(snippetText(configCommand(template, {
+    instantiation: '{ node := Fin 2,\n  NodeSet := _ }', theory: '{ limit := by\n    exact 2 }',
+  })), '#mc_config CheckedElsewhere\n  { node := Fin 2,\n    NodeSet := _ }\n  { limit := by\n      exact 2 }\n');
+});
+
 test('puts a new config file next to its module, and finds the configs of a module', () => {
   assert.strictEqual(configFileFor('/repo/Examples/Paxos.lean'), '/repo/Examples/PaxosMC.lean');
+  assert.strictEqual(configFileFor('/repo/Examples/Paxos.lean', 2), '/repo/Examples/PaxosMC2.lean');
   assert.ok(isOfModule('Paxos', 'Paxos'));
   assert.ok(isOfModule('Paxos', 'Examples.Paxos'));
   assert.ok(isOfModule('Examples.Paxos', 'Paxos'));
   assert.ok(!isOfModule('Raft', 'Paxos'));
+});
+
+test('adds a config to an existing config file only when it imports the module, after an empty line', () => {
+  const header = configHeader(template);
+  assert.ok(importsModule(header, 'VeilTest.Regression.ModelCheckBuildHelper'));
+  assert.ok(importsModule('module\r\n\r\nimport Veil\r\nimport A.B -- the model\r\n', 'A.B'));
+  assert.ok(!importsModule(header, 'VeilTest.Regression'));
+  assert.ok(!importsModule('module\n\n-- public import A.B\n', 'A.B'));
+  assert.strictEqual(appendSeparator(header), '');
+  assert.strictEqual(appendSeparator('#mc_config A {}\n'), '\n');
+  assert.strictEqual(appendSeparator('#mc_config A {}\r\n'), '\n');
+  assert.strictEqual(appendSeparator('#mc_config A {}'), '\n\n');
 });
 
 // ---- Build status ----
@@ -631,6 +833,55 @@ function within<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
 }
 
 if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
+  test('Lean builds configs copied from active and commented checks with their selected values', async () => {
+    const model = [
+      'veil module CheckedElsewhere',
+      '#model_check compiled { node := Fin 2, NodeSet := _, Buffer := _ } { limit := 2 }',
+      '  (seenSet := HAMTMapShard) (fingerprintType := UInt64)',
+      '-- #model_check { node := Phase_IndT, NodeSet := _, Buffer := _ }',
+      '--   { limit := 2 } (sequential := true) (fingerprintType := UInt64)',
+      '--   (seenSet := HAMTMapShard)',
+      '/- EVAL',
+      '#model_check interpreted',
+      '{ node := Fin 2,',
+      '  NodeSet := _, Buffer := _ }',
+      '{ limit := by',
+      '    exact 1 }',
+      '  (config := { maxDepth := 3, sequential := true, parallelCfg := some { numSubTasks := 7 } })',
+      '  (seenSet := HAMTMapShard) (fingerprintType := UInt64)',
+      '-/',
+      // This check needs three transitions to violate its invariant, beyond the depth bound.
+      '#model_check { node := Fin 3, NodeSet := _, Buffer := _ } { limit := 2 }',
+      '  (config := (let cfg : Veil.ModelCheckerConfig := { maxDepth := 1, sequential := true }; cfg))',
+      '  (seenSet := HAMTMapShard) (fingerprintType := UInt64)',
+      // Fields separated by newlines stay aligned, although their term starts within its line
+      '-- #model_check { node := Fin 2',
+      '--                NodeSet := _',
+      '--                Buffer := _ } { limit := 2 } (seenSet := HAMTMapShard) (fingerprintType := UInt64)',
+      'end CheckedElsewhere',
+    ].join('\n');
+    const checks = findModelChecks(model);
+    assert.strictEqual(checks.length, 5);
+    assert.ok(checks.every(check => check.options?.includes('(seenSet := HAMTMapShard)') &&
+      check.options.includes('(fingerprintType := UInt64)')));
+    const source = configHeader(template) + checks.map(check => snippetText(configCommand(template, check))).join('\n');
+    const lean = spawnSync('lake', ['env', 'lean', '--json', '--stdin'],
+      { cwd: repoRoot, input: source, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+    if (lean.error) throw lean.error;
+    assert.strictEqual(lean.status, 0, lean.stdout + lean.stderr);
+    const binaries = lean.stdout.split('\n').filter(line => line.startsWith('{'))
+      .map(line => JSON.parse(line) as { severity: string; data: string })
+      .filter(message => message.severity === 'information' && message.data.startsWith(BUILT_PREFIX))
+      .map(message => message.data.slice(BUILT_PREFIX.length).trim());
+    assert.strictEqual(binaries.length, checks.length, lean.stdout);
+    for (const [i, binary] of binaries.entries()) {
+      const outcome = await within(new CheckerRun({ binary, args: ['2', '1', '1'] }).outcome, 60_000, 'The copied check');
+      assert.strictEqual(outcome.kind, 'finished');
+      const result = (outcome as { result: { result: string } }).result;
+      assert.strictEqual(result.result, i === 2 ? 'found_violation' : 'no_violation_found');
+    }
+  });
+
   for (const [name, args] of [['sequential', []], ['parallel', ['2', '1', '1']]] as const) {
     test(`a ${name} binary reports its result`, async () => {
       let start: StartReport | undefined;

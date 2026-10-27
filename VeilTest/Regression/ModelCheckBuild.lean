@@ -95,6 +95,17 @@ error: `config` sets the parallel configuration, which is not part of the model 
 #mc_config CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
   { limit := 2 } (config := { maxDepth := 3 })
 
+-- As the instantiation and the theory do, the values of the options resolve the names of the
+-- module's namespace, so that a `#model_check` of the module can be copied as it is
+namespace CheckedElsewhere
+def depthBound : Nat := 3
+end CheckedElsewhere
+
+/-- info: Model checker built: -/
+#guard_msgs (substring := true) in
+#mc_config CheckedElsewhere { node := Fin 2, NodeSet := OrdList _, Buffer := Array _ }
+  { limit := 2 } (maxDepth := depthBound)
+
 /--
 error: Module NotExecutable has no executable definitions here: add `#gen_executable` to the `veil module NotExecutable` block that declares it.
 -/
