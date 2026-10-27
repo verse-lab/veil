@@ -17,6 +17,10 @@ open Lean Std
 We need `BEq` instance, as we sometimes hope to store them in `HashSet` or `HashMap`,
 e.g., debugging, when we hope to store the complete information of a state `σᵣ`.
 -/
+-- Keep executable comparisons on Lean's standard equality rather than Auto's meta-only instance.
+-- This also remains compatible with Int.instLawfulBEq.
+instance (priority := high) instBEqInt : BEq Int := instBEqOfDecidableEq
+
 -- Unlike Std's instances, these compare stored keys using `BEq` rather than `Ord`.
 instance [Ord α] [BEq α]: BEq (Std.TreeSet α) where
   beq s1 s2 := s1.toArray == s2.toArray
