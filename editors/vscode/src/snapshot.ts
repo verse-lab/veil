@@ -81,7 +81,8 @@ export interface PanelState {
   fileName?: string;
   /** Whether "Check again" can run the command of the run */
   canRunAgain: boolean;
-  /** Whether a saved run is of another binary than the one that Lean has built for its command now */
+  /** Whether a run that has ended is outdated: Lean has built another binary for its command since,
+   * or the imports of its file have changed (see `freshness`) */
   outdated?: boolean;
 }
 

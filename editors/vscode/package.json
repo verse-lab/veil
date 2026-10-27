@@ -1,9 +1,9 @@
 {
-  "name": "veil",
-  "displayName": "Veil",
+  "name": "veil-verifier",
+  "displayName": "Veil Verifier",
   "description": "Run the model checkers that #mc_config builds, and show their progress and results.",
   "icon": "icon.png",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "verse-lab",
   "license": "Apache-2.0",
   "private": true,
@@ -142,6 +142,9 @@
   "scripts": {
     "build": "node esbuild.mjs",
     "build-production": "node esbuild.mjs --production",
+    "vscode:prepublish": "npm run typecheck && npm run build-production",
+    "package:vsix": "vsce package --no-dependencies",
+    "publish:marketplace": "vsce publish --no-dependencies --no-git-tag-version",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "node esbuild.mjs --tests && node out/test/runTests.js"

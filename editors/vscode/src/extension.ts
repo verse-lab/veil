@@ -7,11 +7,13 @@ import { checkModel, createConfig } from './checkModel';
 import { ModelConfigs } from './modelConfigs';
 import { BuildCommand, BuildCommandLenses, buildCommandsOf, outcomeIcons } from './codeLens';
 import { ConfigTemplate } from './configTemplate';
+import { ImportChanges } from './importChanges';
 import { askLean } from './leanQueries';
 import { ModelCheckPanel, PanelContent } from './panel';
 import { FORMAT_VERSION, Freshness, ResultStore, RunSource, SavedRun, freshness, parseRunFile } from './resultStore';
 import { RunManager, RunTarget, sourceOf } from './runManager';
 import { parallelArgs, parseRunOptions } from './runner';
+import { rebuildModel, watchImportChanges } from './rebuildModel';
 import { DeclSource, ModuleSources, describeRun } from './snapshot';
 
 /** The kind of the code action that gives where the declarations of a module are, as `moduleSourcesKind` in Lean */
@@ -134,21 +136,25 @@ export function activate(context: vscode.ExtensionContext): void {
   const modelConfigs = new ModelConfigs();
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
   statusBar.command = 'veil.modelCheck.showPanel';
+  const importChanges = new ImportChanges();
+  let preparing = false;
 
-  const start = async (target: RunTarget): Promise<void> => {
+  const start = async (target: RunTarget, document: vscode.TextDocument, version: number): Promise<void> => {
     if (runs.isRunning) {
       void vscode.window.showWarningMessage('Another model check is running.', 'Show')
         .then(choice => choice && panel.showLive(false));
       return;
     }
     if (!fs.existsSync(target.binary)) {
-      void vscode.window.showWarningMessage(
-        'The binary of this model checker is gone, since Lean keeps only the newest ones. ' +
-        'Restart the file in Lean to build it again.', 'Restart File')
-        .then(choice => choice && vscode.commands.executeCommand('lean4.restartFile'));
+      void vscode.window.showWarningMessage('The binary of this model checker is gone, since Lean keeps only ' +
+        'the newest ones. Run the model checker again to rebuild it.');
       return;
     }
     const sources = await requestSources(target);
+    if (document.version !== version) {
+      void vscode.window.showWarningMessage('The config changed while preparing the model check. Run it again.');
+      return;
+    }
     // Another run may have started meanwhile
     if (runs.isRunning) return;
     runs.start({ ...target, sources });
@@ -156,44 +162,53 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   /** `args` are those of the binary, if the user chose them for this run */
-  const runCommand = (document: vscode.TextDocument, { site, status }: BuildCommand, args?: string[]): void => {
-    switch (status.kind) {
-      case 'pending':
-        void vscode.window.showInformationMessage('Lean has not finished building this model checker yet.');
-        return;
-      case 'failed':
+  const runCommand = async (document: vscode.TextDocument, command: BuildCommand, args?: string[]): Promise<void> => {
+    if (preparing || runs.isRunning) {
+      void vscode.window.showInformationMessage('Another model check is building or running.');
+      return;
+    }
+    preparing = true;
+    try {
+      const built = await rebuildModel(document, command.site.command, importChanges);
+      if (!built) return;
+      const { site, status, documentVersion } = built;
+      if (status.kind === 'failed') {
         void vscode.window.showErrorMessage(`The model checker could not be built: ${firstLine(status.message)}`,
           'Show Problems').then(choice => choice && vscode.commands.executeCommand('workbench.actions.view.problems'));
-        return;
-      case 'built':
-        void start({ uri: document.uri, line: site.line, module: site.module, command: site.command, binary: status.binary, args });
+      } else if (status.kind === 'built') {
+        await start({ uri: document.uri, line: site.line, module: site.module, command: site.command, binary: status.binary, args }, document, documentVersion);
+      }
+    } finally {
+      preparing = false;
     }
   };
 
   const run = async (uri?: string, line?: number): Promise<void> => {
     const command = await pickCommand(uri, line);
-    if (command) runCommand(command.document, command);
+    if (command) await runCommand(command.document, command);
   };
 
   const runWithOptions = async (uri?: string, line?: number): Promise<void> => {
     const command = await pickCommand(uri, line);
     const args = command && await pickRunOptions();
-    if (command && args) runCommand(command.document, command, args);
+    if (command && args) await runCommand(command.document, command, args);
   };
 
-  /** Run the command of a saved run with its original arguments, if it is still in its file */
-  const runSource = async (source: RunSource, args: string[]): Promise<void> => {
+  /** Run the command of a run with its arguments, if it is still in its file. Without `args`, the
+   * settings give them. */
+  const runSource = async (source: RunSource, args?: string[]): Promise<void> => {
     const document = await revealSource(source);
     if (!document) return;
     const command = buildCommandsOf(document).find(c => c.site.command === source.command);
-    if (command) runCommand(document, command, args);
+    if (command) await runCommand(document, command, args);
     else void vscode.window.showWarningMessage('This `#mc_config` command is no longer in its file.');
   };
 
   const runAgain = async (): Promise<void> => {
     // After a reload, the last run is the one saved last
     const newest = store.newest();
-    if (runs.lastTarget) void start(runs.lastTarget);
+    // The arguments that the user chose for the last run, if any: the others follow the settings
+    if (runs.lastTarget) await runSource(sourceOf(runs.lastTarget), runs.lastTarget.args);
     else if (newest) {
       const saved = await store.read(newest.source);
       if (saved) await runSource(newest.source, saved.run.args);
@@ -245,13 +260,12 @@ export function activate(context: vscode.ExtensionContext): void {
     else void vscode.window.showWarningMessage('This result is no longer saved.');
   };
 
-  /** Whether `saved` is of the binary that Lean builds for its command now, as far as the open files
-   * tell: Lean builds the commands of open files only */
-  const freshnessOf = (saved: SavedRun): Freshness => {
-    const source = saved.source;
+  /** Whether a run of `binary` for the command of `source` is of the binary that Lean builds for the
+   * command now, as far as the open files tell: Lean builds the commands of open files only */
+  const freshnessOf = (source: RunSource | undefined, binary: string): Freshness => {
     const document = source && vscode.workspace.textDocuments.find(d => d.uri.toString() === source.file);
     const command = document && buildCommandsOf(document).find(c => c.site.command === source.command);
-    return command ? freshness(saved.run.binary, command.status) : 'unknown';
+    return command ? freshness(binary, command.status, command.importsOutOfDate) : 'unknown';
   };
 
   const panel = new ModelCheckPanel(context.extensionUri, runs, {
@@ -286,7 +300,7 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   context.subscriptions.push(
-    output, runs, panel, lenses, modelConfigs, statusBar,
+    output, runs, panel, lenses, modelConfigs, statusBar, watchImportChanges(importChanges),
     vscode.languages.registerCodeLensProvider({ language: 'lean4' }, lenses),
     vscode.commands.registerCommand('veil.modelCheck.run', run),
     vscode.commands.registerCommand('veil.modelCheck.runWithOptions', runWithOptions),

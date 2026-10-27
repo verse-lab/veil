@@ -80,3 +80,23 @@ with the heap of `--heap` and a timeout of 36000 seconds by default (`--timeout`
 `STATES`, where TLC keeps its states, is in the run's directory under the output
 directory, and is deleted as soon as TLC exits, however the run ends: at most
 one run's states take disk space at any time.
+
+# Lines of code
+
+[`loc_ratio.py`](loc_ratio.py) counts the lines of code of a TLA+ spec and of
+its Veil translation and prints their ratio (Veil / TLA+). A line counts when
+anything other than whitespace and comments is on it; the script's docstring
+gives the details, such as what a PlusCal algorithm contributes (`--pluscal`).
+`--before WORD` counts the spec only before its first line that starts with
+`WORD`, and `--dump` lists every counted line.
+
+[`loc_ratio_all.py`](loc_ratio_all.py) does this for the 28 benchmarks it lists
+and prints a Markdown table, or the same counts as JSON with `--json`. It
+counts `MultiPaxosUs.tla` only before its first `LEMMA`, where its TLAPS proofs
+begin, and first downloads the models that `fetch_upstream.py` provides, when
+they are missing:
+
+```sh
+python3 Benchmarks/TLA/scripts/loc_ratio.py SPEC.tla MODEL.lean
+python3 Benchmarks/TLA/scripts/loc_ratio_all.py > loc.md
+```

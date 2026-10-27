@@ -57,13 +57,33 @@ The `refactor` prefix therefore keeps VS Code from filtering out the Lean provid
 the request, as it would for `source.veil.modelCheckConfig`. -/
 def configTemplateKind : String := "refactor.veil.modelCheckConfig"
 
-@[command_code_action Veil.genExecutable]
-def configTemplateCodeAction : CodeAction.CommandCodeAction := fun params snap ctx _ => do
+/-- The kind of the code action that gives the names of the modules whose executable definitions
+this file has generated before the requested position, with `veil.modelCheck.executableModules` as
+its command. It leaves out the modules of imported files. Besides `#gen_executable`, `#model_check`
+and `#simulate` also generate the definitions, so the extension asks at the `end` of a module, after
+all of its commands. As with `configTemplateKind`, only a request for it gets it, and it is a
+`refactor` kind for VS Code to ask Lean. -/
+def executableModulesKind : String := "refactor.veil.executableModules"
+
+@[code_action_provider]
+def executableModulesCodeAction : CodeActionProvider := fun params snap => do
+  unless params.context.only?.any (·.contains executableModulesKind) do return #[]
+  let names := (executableModuleExt.getEntries snap.env).toArray.map (·.name.toString)
+  return #[{ eager := {
+    title := "Modules with executable definitions"
+    kind? := executableModulesKind
+    command? := some {
+      title := ""
+      command := "veil.modelCheck.executableModules"
+      arguments? := #[toJson names] } } }]
+
+@[code_action_provider]
+def configTemplateCodeAction : CodeActionProvider := fun params snap => do
   unless params.context.only?.any (·.contains configTemplateKind) do return #[]
-  -- The module and what `#gen_executable` recorded about it
-  let env := snap.env
-  let some mod := (localEnv.getState env).currentModule | return #[]
-  let some em := (executableModuleExt.getState env)[mod.name]? | return #[]
+  -- At `end`, the current module is already closed. Give the templates of the executable modules
+  -- of this file, and let the extension select the one it asked for.
+  let modules := (executableModuleExt.getEntries snap.env).toArray
+  if modules.isEmpty then return #[]
   -- `env.mainModule` may be path-derived even when the file is outside Lake's libraries.
   -- Ask Lake for its import name instead, without building dependencies or downloading caches.
   -- `configTemplate` maps `_unknown` or anonymous names to no import, so the extension can warn
@@ -79,14 +99,15 @@ def configTemplateCodeAction : CodeAction.CommandCodeAction := fun params snap c
         throw <| RequestError.internalError s!"Cannot determine the module's Lake library: {setup.stderr}"
       let json ← IO.ofExcept (Json.parse setup.stdout)
       IO.ofExcept (json.getObjValAs? Name "name")
-  let template ← { ctx with env }.runMetaM {} (configTemplate em mainModule)
-  return #[{ eager := {
-    title := s!"Create a model checking config for {mod.name}"
-    kind? := configTemplateKind
-    command? := some {
-      title := "Create a model checking config"
-      command := "veil.modelCheck.createConfig"
-      arguments? := #[toJson template, toJson params.textDocument.uri] } } }]
+  modules.mapM fun em => do
+    let template ← RequestM.runTermElabM snap (configTemplate em mainModule)
+    return { eager := {
+      title := s!"Create a model checking config for {em.name}"
+      kind? := configTemplateKind
+      command? := some {
+        title := "Create a model checking config"
+        command := "veil.modelCheck.createConfig"
+        arguments? := #[toJson template, toJson params.textDocument.uri] } } }
 
 /-- Where the declarations of a module are, by the names that model checking results give them -/
 structure ModuleSources where

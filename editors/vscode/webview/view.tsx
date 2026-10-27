@@ -46,6 +46,9 @@ const verdictClass: Record<VerdictKind, string> = {
   unknown: 'warning',
 };
 
+/** Why a run is outdated, as `freshness` tells */
+const OUTDATED_BECAUSE = 'the model or the config has changed since this run';
+
 export interface RunViewProps {
   run: RunSnapshot;
   now: number;
@@ -95,8 +98,9 @@ function RunContent({ run, now, origin = 'live', fileName, canRunAgain = true, o
     </div>
     {origin !== 'live' && <div className={outdated ? 'origin outdated' : 'origin'}>
       {origin === 'file' ? `Opened from ${fileName}` : 'Saved result'}
-      {outdated && ' · outdated: the model checker has changed since this run, e.g. because the model did'}
+      {outdated && ` · outdated: ${OUTDATED_BECAUSE}`}
     </div>}
+    {origin === 'live' && outdated && <div className="origin outdated">Outdated: {OUTDATED_BECAUSE}</div>}
     <StatusLine run={run} />
     <div className="muted">
       Started {clock(run.startedAt)}{run.endedAt !== undefined && `, ended ${clock(run.endedAt)}`}

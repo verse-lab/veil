@@ -198,52 +198,6 @@ script veilModelCheckBuild args do
   return 0
 
 /--
-Install the VS Code extension of Veil (in `editors/vscode`) for one workspace.
-
-USAGE:
-  lake script run veilInstallVSCodeExtension [<workspace>]
-
-Builds the extension with npm and copies it to
-`<workspace>/.vscode/extensions/veil`. VS Code (1.89 or later) then
-recommends it for the workspace: once the window is reloaded, VS Code offers to install
-it, and the Extensions view lists it under Workspace Recommendations. `<workspace>`
-defaults to the directory of the root package. Run the script again after updating
-Veil, then reload the window. See `docs/ModelChecker-VSCode-Architecture.md`.
--/
-script veilInstallVSCodeExtension args do
-  let workspace : FilePath ← match args with
-    | [] => pure (← getRootPackage).dir
-    | [dir] => pure dir
-    | _ => throw <| IO.userError "usage: lake script run veilInstallVSCodeExtension [<workspace>]"
-  unless ← workspace.isDir do
-    throw <| IO.userError s!"'{workspace}' is not a directory"
-  let some veil ← findPackageByName? `veil
-    | throw <| IO.userError "cannot find the package 'veil' in this workspace"
-  let source := veil.dir / "editors" / "vscode"
-  for npmArgs in [#["clean-install"], #["run", "build-production"]] do
-    let code ← (← IO.Process.spawn (npmCommand source npmArgs)).wait
-    unless code == 0 do
-      throw <| IO.userError s!"'npm {" ".intercalate npmArgs.toList}' in '{source}' exited with code {code}"
-  let installDir := workspace / ".vscode" / "extensions" / "veil"
-  if ← installDir.pathExists then
-    IO.FS.removeDirAll installDir
-  IO.FS.createDirAll (installDir / "dist")
-  for file in ["package.json", "icon.png", "dist/extension.js", "dist/webview.js"] do
-    IO.FS.writeBinFile (installDir / file) (← IO.FS.readBinFile (source / file))
-  let document := "ModelChecker-VSCode-Architecture.md"
-  let readme ← IO.FS.readFile (source / "README.md")
-  let readme := readme.replace s!"../../docs/{document}#" "#"
-    |>.replace s!"../../docs/{document}" "#model-checker-in-vs-code-architecture"
-  IO.FS.writeFile (installDir / "README.md")
-    (readme ++ "\n" ++ (← IO.FS.readFile (veil.dir / "docs" / document)))
-  IO.println s!"Copied the extension to '{← IO.FS.realPath installDir}'.\n\
-    Next, reload the VS Code window (Developer: Reload Window). If the extension is not installed\n\
-    yet, VS Code then offers to install the recommended extensions of this workspace: choose\n\
-    Install. If it does not offer, install Veil from Workspace Recommendations\n\
-    in the Extensions view. This is needed once per workspace."
-  return 0
-
-/--
 Run performance tests with timeout enforcement.
 
 USAGE:

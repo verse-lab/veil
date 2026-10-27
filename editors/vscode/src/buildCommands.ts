@@ -89,6 +89,20 @@ function wordAt(text: string, offset: number, word: string): boolean {
   return text.startsWith(word, offset) && /^\s?$/.test(text[offset + word.length] ?? '');
 }
 
+/** The line of the first command of `text`, after its header: `module`, `prelude` and the imports.
+ * Lean reports the errors of the header before it. */
+export function headerEndLine(text: string): number {
+  const { starts, lineOffsets } = scanLines(text);
+  const command = starts.find(start => {
+    const rest = text.slice(start.offset, start.offset + 100);
+    const isHeader = /^(?:module|prelude|(?:(?:public|private)\s+)?(?:meta\s+)?import)\b/.test(rest);
+    // A docstring or a module doc is part of a command
+    const isComment = /^--|^\/-(?![-!])/.test(rest);
+    return !isHeader && !isComment;
+  });
+  return command?.line ?? lineOffsets.length;
+}
+
 /** The `#mc_config` commands in `text`, leaving out those in comments and strings. A command must
  * start its line. */
 export function findBuildCommands(text: string): BuildCommandSite[] {
@@ -143,6 +157,15 @@ export function findVeilModules(text: string): VeilModuleSite[] {
   return modules;
 }
 
+/** The lines of the lenses of module `site`: its `veil module`, and its `#gen_executable`. Without
+ * `#gen_executable`, the second lens is above `#gen_spec` while the module has no `executable`
+ * definitions, e.g. until Lean has processed its `#model_check`. */
+export function moduleLensLines(site: VeilModuleSite, executable: boolean): number[] {
+  if (site.genExecutableLine !== undefined) return [site.line, site.genExecutableLine];
+  if (!executable && site.genSpecLine !== undefined) return [site.line, site.genSpecLine];
+  return [site.line];
+}
+
 export type Severity = 'error' | 'warning' | 'information' | 'hint';
 
 /** A message that Lean reports for a file, as a diagnostic. */
@@ -158,13 +181,37 @@ export type BuildStatus =
   | { kind: 'failed'; message: string }
   | { kind: 'pending' };
 
+/** The status of a command after its file is restarted. Until the restarted file reports anything,
+ * Lean keeps showing the old result, success or failure, and the rebuilt binary may have the same
+ * path when no inputs changed. So a result counts only once Lean has dropped the old one. */
+export class BuildAfterRestart {
+  private dropped = false;
+
+  observe(status: BuildStatus): BuildStatus {
+    if (status.kind === 'pending') this.dropped = true;
+    return this.dropped ? status : { kind: 'pending' };
+  }
+}
+
 /** Whether Lean has built the model checker of `site`, from the messages it reports for the file.
- * An error in the command means that the build was not done. */
-export function buildStatus(site: BuildCommandSite, messages: ReportedMessage[]): BuildStatus {
+ * An error in the command means that the build was not done. So does an error in the header of the
+ * file, before `headerEnd`, after which Lean processes no command. */
+export function buildStatus(site: BuildCommandSite, messages: ReportedMessage[], headerEnd = 0): BuildStatus {
   const inSite = messages.filter(m => m.line >= site.line && m.line <= site.endLine);
-  const error = inSite.find(m => m.severity === 'error');
+  const error = [...messages.filter(m => m.line < headerEnd), ...inSite].find(m => m.severity === 'error');
   if (error) return { kind: 'failed', message: error.message };
   const built = inSite.filter(m => m.severity === 'information' && m.message.startsWith(BUILT_PREFIX)).pop();
   if (built) return { kind: 'built', binary: built.message.slice(BUILT_PREFIX.length).trim() };
   return { kind: 'pending' };
+}
+
+/** How Lean's message starts when the imports of a file have changed since Lean read them: as
+ * information once an import is saved, and as an error when Lean opens the file with imports to
+ * rebuild. Lean reads the new imports only when the file is restarted. */
+const IMPORTS_OUT_OF_DATE_PREFIX = 'Imports are out of date';
+
+/** Whether Lean reports that the imports of a file have changed since it read them, from the
+ * messages it reports for the file */
+export function importsOutOfDate(messages: ReportedMessage[]): boolean {
+  return messages.some(m => m.message.startsWith(IMPORTS_OUT_OF_DATE_PREFIX));
 }
