@@ -44,14 +44,24 @@ public import MyProject.Paxos
 
 Replace the import, module name, and parameters with those of your specification.
 
-The lens above each `veil module` and its `#gen_executable` names the next action:
-**Add #gen_executable** inserts the missing command; **Create model checking config**
-creates and opens `<File>MC.lean` next to the module, with values to fill in. Once a
-config exists, **Run model checker** opens it and runs once Lean has built it. With
-several configs, **Select config and run...** lets you choose which one to run.
-Lean gives the template, whose values are holes (`_`): Lean fills in those that the
-module's constraints determine, such as `MsgSet` above, and reports the others for
-you to fill in.
+The lens above each `veil module` names the next action. The same lens also appears
+above the module's `#gen_executable`. Without `#gen_executable`, it appears above the
+module's `#gen_spec` instead, while the module has no executable definitions.
+
+- **Add #gen_executable** inserts `#gen_executable` after the module's `#gen_spec`.
+- **Create model checking config** creates and opens `<File>MC.lean` next to the
+  module, with values to fill in.
+- **Run model checker** opens the module's config and runs its model checker once
+  Lean has built it.
+- **Select config and run...** lets you choose which config to run, when the module
+  has several.
+
+`#model_check` and `#simulate` generate executable definitions too. Once Lean has
+processed one of them, the lens no longer shows **Add #gen_executable**.
+
+Lean gives the template of a new config, whose values are holes (`_`): Lean fills in
+those that the module's constraints determine, such as `MsgSet` above, and reports
+the others for you to fill in.
 
 The lens above the command runs its model checker. It reads **Run model checker**
 once Lean has built the binary, and **Run once built** while Lean is building it.

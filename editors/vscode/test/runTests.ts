@@ -10,7 +10,7 @@ import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   BUILT_PREFIX, BuildAfterRestart, ReportedMessage, Severity, buildStatus, findBuildCommands, findVeilModules, headerEndLine,
-  importsOutOfDate,
+  importsOutOfDate, moduleLensLines,
 } from '../src/buildCommands';
 import { ConfigTemplate, configCommand, configFileFor, configHeader, isOfModule, snippetText } from '../src/configTemplate';
 import { ImportChanges } from '../src/importChanges';
@@ -82,6 +82,26 @@ test('finds modules and the commands of them that a config file needs', () => {
     { line: 0, character: 0, name: 'Paxos', genSpecLine: 3, genExecutableLine: 4, endLine: 5 },
     { line: 7, character: 0, name: 'Ring' },
   ]);
+});
+
+test('puts the second lens of a module above its #gen_executable, or above its #gen_spec until it has executable definitions', () => {
+  const text = [
+    'veil module Generated',  // 0
+    '#gen_spec',
+    '#gen_executable',        // 2
+    'end Generated',
+    'veil module NotYet',     // 4
+    '#gen_spec',              // 5
+    'end NotYet',
+    'veil module NoSpec',     // 7
+    'end NoSpec',
+  ].join('\n');
+  const [generated, notYet, noSpec] = findVeilModules(text);
+  assert.deepStrictEqual(moduleLensLines(generated, true), [0, 2]);
+  assert.deepStrictEqual(moduleLensLines(notYet, false), [4, 5]);
+  // E.g. once Lean has processed its `#model_check`
+  assert.deepStrictEqual(moduleLensLines(notYet, true), [4]);
+  assert.deepStrictEqual(moduleLensLines(noSpec, false), [7]);
 });
 
 // ---- Config templates ----
@@ -630,8 +650,8 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
     assert.strictEqual(installed.status, 0, installed.stdout + installed.stderr);
     const installDir = path.join(workspace, '.vscode', 'extensions', 'veil');
     const manifest = JSON.parse(fs.readFileSync(path.join(installDir, 'package.json'), 'utf8'));
-    assert.strictEqual(manifest.name, 'veil');
-    assert.strictEqual(manifest.displayName, 'Veil');
+    assert.strictEqual(manifest.name, 'veil-verifier');
+    assert.strictEqual(manifest.displayName, 'Veil Verifier');
     assert.strictEqual(manifest.icon, 'icon.png');
     assert.deepStrictEqual(fs.readFileSync(path.join(installDir, manifest.icon)),
       fs.readFileSync(path.join(repoRoot, 'editors', 'vscode', manifest.icon)));
@@ -732,6 +752,56 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
         theory: [{ name: 'limit', value: '_' }],
       }, uri]);
       assert.deepStrictEqual(await actionsFor(), [], 'the menus of the editor do not show it');
+    } finally {
+      await server.close();
+    }
+  });
+
+  test('Lean reports executable definitions after direct, indirect, and macro generation, and forgets removed commands', async () => {
+    const server = new LeanServer(repoRoot);
+    try {
+      await within(server.request('initialize',
+        { processId: process.pid, rootUri: pathToFileURL(repoRoot).href, capabilities: {} }), 60_000, 'Starting Lean');
+      server.notify('initialized', {});
+      const uri = pathToFileURL(path.join(repoRoot, 'VeilTest', 'Regression', 'GenExecutable.lean')).href;
+      const header = [
+        'module', 'public import Veil', 'veil module ExecutableHint',
+        'individual flag : Bool', 'after_init { flag := false }', 'action toggle { flag := !flag }', '#gen_spec',
+      ];
+      let version = 0;
+      for (const [command, generated] of [
+        ['', false],
+        ['#gen_executable', true],
+        ['#model_check interpreted {} {} (sequential := true)', true],
+        ['#simulate interpreted {} {} (seed := 1) (numTraces := 1) (maxSteps := 1)', true],
+        ['macro "#generate_test_executable" : command => `(command| #gen_executable)\n#generate_test_executable', true],
+        ['#model_check interpreted {} {} (maxDepth := true)', false],
+        ['-- #gen_executable', false],
+      ] as const) {
+        const text = [...header, command, 'end ExecutableHint'].join('\n');
+        if (++version === 1) {
+          server.notify('textDocument/didOpen', { textDocument: { uri, languageId: 'lean4', version, text } });
+        } else {
+          server.notify('textDocument/didChange', { textDocument: { uri, version }, contentChanges: [{ text }] });
+        }
+        await within(server.request('textDocument/waitForDiagnostics', { uri, version }), 60_000, `Processing ${command}`);
+        const actionsAt = async (line: number, kind: string) => await server.request('textDocument/codeAction', {
+          textDocument: { uri },
+          range: { start: { line, character: 0 }, end: { line, character: text.split('\n')[line].length } },
+          context: { diagnostics: [], only: [kind] },
+        }) as { command?: { command: string; arguments: unknown[] } }[];
+        const namesAt = async (line: number) => (await actionsAt(line, 'refactor.veil.executableModules'))
+          .find(action => action.command?.command === 'veil.modelCheck.executableModules')?.command?.arguments[0];
+        assert.deepStrictEqual(await namesAt(header.length - 1), [], 'the #gen_spec snapshot precedes generation');
+        const endLine = text.split('\n').length - 1;
+        assert.deepStrictEqual(await namesAt(endLine), generated ? ['ExecutableHint'] : [], command);
+        const templates = (await actionsAt(endLine, 'refactor.veil.modelCheckConfig'))
+          .filter(action => action.command?.command === 'veil.modelCheck.createConfig');
+        assert.strictEqual(templates.length, generated ? 1 : 0, command);
+        if (generated) assert.deepStrictEqual(templates[0].command?.arguments[0], {
+          module: 'ExecutableHint', import: 'VeilTest.Regression.GenExecutable', instantiation: [], theory: [],
+        });
+      }
     } finally {
       await server.close();
     }

@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
 import {
   BuildCommandSite, BuildStatus, ReportedMessage, Severity, buildStatus, findBuildCommands, findVeilModules,
-  headerEndLine, importsOutOfDate,
+  headerEndLine, importsOutOfDate, moduleLensLines,
 } from './buildCommands';
 import { ResultStore, freshness } from './resultStore';
 import { RunManager } from './runManager';
 import { RunOutcomeKind } from './snapshot';
 import { ModelConfigs } from './modelConfigs';
+import { hasExecutableDefinitions } from './leanQueries';
 
 const severities: Record<vscode.DiagnosticSeverity, Severity> = {
   [vscode.DiagnosticSeverity.Error]: 'error',
@@ -64,8 +65,8 @@ function when(epochMs: number): string {
     : `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${time}`;
 }
 
-/** The lenses above each `veil module` and its `#gen_executable`, to check it, and above each
- * `#mc_config` command: what Lean is doing with it, how to run it, and its last result. */
+/** The lenses above each `veil module` and its `#gen_executable` (or `#gen_spec` when the executable
+ * is missing), to check it, and above each `#mc_config`: its build, run, and last result. */
 export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeCodeLenses = this.changed.event;
@@ -89,17 +90,16 @@ export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Dispo
 
   async provideCodeLenses(document: vscode.TextDocument): Promise<vscode.CodeLens[]> {
     const modules = (await Promise.all(findVeilModules(document.getText()).map(async site => {
-      const configs = site.genExecutableLine === undefined ? [] : await this.configs.ofModule(site.name);
-      const [title, tooltip] = site.genExecutableLine === undefined
+      const executable = await hasExecutableDefinitions(document, site);
+      const configs = executable ? await this.configs.ofModule(site.name) : [];
+      const [title, tooltip] = !executable
         ? ['$(add) Add #gen_executable', `Add #gen_executable to ${site.name} so a config can build its model checker`]
         : configs.length === 0
           ? ['$(new-file) Create model checking config', `Create and open a config for ${site.name}, with values to fill in`]
           : configs.length === 1
             ? ['$(play) Run model checker', `Save Lean changes, rebuild what they affect, and run the model checker of the config for ${site.name}`]
             : ['$(play) Select config and run...', `Select a config for ${site.name}, save Lean changes, rebuild what they affect, and run its model checker`];
-      const lines = [site.line];
-      if (site.genExecutableLine !== undefined) lines.push(site.genExecutableLine);
-      return lines.map(line => {
+      return moduleLensLines(site, executable).map(line => {
         const character = line === site.line ? site.character : 0;
         return new vscode.CodeLens(new vscode.Range(line, character, line, character), {
           title, command: 'veil.modelCheck.checkModel',

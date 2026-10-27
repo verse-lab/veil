@@ -4,8 +4,8 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { VeilModuleSite, findVeilModules } from './buildCommands';
 import { BuildCommand, buildCommandsOf } from './codeLens';
-import { ConfigTemplate, SnippetPart, configCommand, configFileFor, configHeader } from './configTemplate';
-import { askLean } from './leanQueries';
+import { ConfigTemplate, SnippetPart, configCommand, configFileFor, configHeader, isOfModule } from './configTemplate';
+import { askLeanCommands, hasExecutableDefinitions } from './leanQueries';
 import { ModelConfigs } from './modelConfigs';
 
 /** The kind of the code action that gives the template, as `configTemplateKind` in Lean */
@@ -54,10 +54,10 @@ async function addGenExecutable(document: vscode.TextDocument, site: VeilModuleS
   await vscode.workspace.applyEdit(edit);
 }
 
-/** The template of a config file for the module of `document`, from the code action that Lean gives
- * at its `#gen_executable`, on `line` */
-async function requestTemplate(document: vscode.TextDocument, line: number): Promise<ConfigTemplate | undefined> {
-  return (await askLean(document, line, CONFIG_TEMPLATE_KIND, 'veil.modelCheck.createConfig'))?.[0] as ConfigTemplate | undefined;
+/** The template of a config file, after the module's executable definitions have been generated */
+async function requestTemplate(document: vscode.TextDocument, line: number, module: string): Promise<ConfigTemplate | undefined> {
+  const commands = await askLeanCommands(document, line, CONFIG_TEMPLATE_KIND, 'veil.modelCheck.createConfig');
+  return commands.map(args => args[0] as ConfigTemplate).find(template => isOfModule(module, template.module));
 }
 
 function toSnippet(parts: SnippetPart[]): vscode.SnippetString {
@@ -97,7 +97,7 @@ export async function checkModel(run: (document: vscode.TextDocument, command: B
   const picked = await pickModule(uri, line);
   if (!picked) return;
   const { document, site } = picked;
-  if (site.genExecutableLine === undefined) {
+  if (!await hasExecutableDefinitions(document, site)) {
     // The lens already names the edit; the generic command-palette entry still needs to ask.
     if (uri === undefined || line === undefined) {
       const add = await vscode.window.showWarningMessage(`Module ${site.name} has no \`#gen_executable\`, which a ` +
@@ -109,13 +109,14 @@ export async function checkModel(run: (document: vscode.TextDocument, command: B
   }
   const configs = await modelConfigs.ofModule(site.name);
   if (configs.length === 0) {
-    const genExecutableLine = site.genExecutableLine;
+    // At `#gen_executable`, Lean answers without processing the rest of the module first
+    const askAt = site.genExecutableLine ?? site.endLine ?? document.lineCount - 1;
     const template = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: `Asking Lean for a config template for ${site.name}` },
-      () => requestTemplate(document, genExecutableLine));
+      () => requestTemplate(document, askAt, site.name));
     if (template) await createConfig(template, document.uri);
     else void vscode.window.showWarningMessage(`Lean has no config template for ${site.name}: check that Lean ` +
-      'processes its `#gen_executable` without errors.');
+      'processes its `#gen_executable`, `#model_check` or `#simulate` without errors.');
     return;
   }
   const config = configs.length === 1 ? configs[0] : (await vscode.window.showQuickPick(

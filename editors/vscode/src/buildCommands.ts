@@ -157,6 +157,15 @@ export function findVeilModules(text: string): VeilModuleSite[] {
   return modules;
 }
 
+/** The lines of the lenses of module `site`: its `veil module`, and its `#gen_executable`. Without
+ * `#gen_executable`, the second lens is above `#gen_spec` while the module has no `executable`
+ * definitions, e.g. until Lean has processed its `#model_check`. */
+export function moduleLensLines(site: VeilModuleSite, executable: boolean): number[] {
+  if (site.genExecutableLine !== undefined) return [site.line, site.genExecutableLine];
+  if (!executable && site.genSpecLine !== undefined) return [site.line, site.genSpecLine];
+  return [site.line];
+}
+
 export type Severity = 'error' | 'warning' | 'information' | 'hint';
 
 /** A message that Lean reports for a file, as a diagnostic. */
