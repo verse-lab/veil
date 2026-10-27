@@ -229,6 +229,34 @@ invariant [ConsistentObservedSnapshots]
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model `Benchmarks/TLA/Oswald/Oswald.cfg`.
+-- It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `writer := Fin 2`: the writers are `0`, `1` (cfg: `Writers = {w1, w2}`).
+-- * `gc := Fin 1`: a single garbage collector, `0` (cfg: `GarbageCollectors = {gc1}`).
+-- * `value := Fin 4`: the values are `0..3` (cfg: `Values = {A, B, C, D}`).
+-- * `ValueSet := OrdList _`, `LsnSet := OrdList Nat`, `SnapshotSet := OrdList _`: `OrdList` has
+--   the `TSet` instances that the `instantiate` lines above require.
+-- * `ChunkMap`, `SnapshotMap` and `ObservationMap := Std.ExtTreeMap Nat _`: `Std.ExtTreeMap` has
+--   the `TMap` instances that the `instantiate` lines above require.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `Values := OrdList.ofList (List.finRange 4)`: the set of all values, for where the spec uses
+--   `Values` as a value, as in `Cardinality(Values)`. The `assumption [values_complete]` above
+--   checks that it contains every value.
+--
+-- The other settings of the cfg:
+-- * `SNAPSHOT_RECOVERY = SNAPSHOT_RECOVERY`, ..., `DELETE = DELETE`: model values for the
+--   writer and GC states. Here they are the constructors of `WriterState` and `GCState`.
+-- * `NIL = NIL`: a model value for a missing chunk. Here `none` stands for it.
+-- * `INVARIANTS TypeOK ConsistentWriterSnapshots ConsistentObservedSnapshots`: `#model_check`
+--   checks every `invariant` of the module, which here has the same three names. The `TypeOK`
+--   here keeps the numeric bounds of the spec's `TypeOK`; Lean's types ensure the rest.
+-- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
+--   deadlocks either.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled
   { writer := Fin 2, gc := Fin 1, value := Fin 4,
@@ -247,6 +275,6 @@ invariant [ConsistentObservedSnapshots]
 --     LsnSet := OrdList Nat, SnapshotSet := OrdList (List (Fin 1)),
 --     ChunkMap := Std.ExtTreeMap Nat (Fin 1), SnapshotMap := Std.ExtTreeMap Nat (List (Fin 1)),
 --     ObservationMap := Std.ExtTreeMap Nat (OrdList (List (Fin 1))) }
---   { Values := OrdList.ofList (List.finRange 1) } (fingerprintType := UInt64)
+--   { Values := OrdList.ofList (List.finRange 1) }
 
 end Oswald

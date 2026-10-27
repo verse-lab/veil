@@ -410,18 +410,45 @@ invariant [Strong] pc (.client oneClient) = CW →
 #gen_executable
 
 -- ==================== Model checking ====================
--- client := Fin NumClients; Node.cloud maps to 0 and Node.client i to i + 1.
--- Uncomment one entire command block to run it. Every case checks all declared
--- invariants. MaxNumOp = 3 satisfies the source assumption MaxNumOp < 10.
--- No depth bound or state constraint is used. Fingerprints and parallel search
--- use the defaults; Elab.async does not serialize Veil's background tasks.
+-- Each check below uses the instance of one TLC model `Benchmarks/TLA/CosmosDB/properties-*.cfg`,
+-- named above the check. Uncomment one entire command block to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `client := Fin 1`: a single client, `0` (cfg: `NumClients = 1`, with
+--   `Clients == 1..NumClients`). `Node.cloud` stands for TLA+'s `Cloud == 0`, and
+--   `Node.client i` for TLA+'s client `i + 1`.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `oneClient := 0`: the client whose history the invariants read, TLA+'s client `1`. The cfg
+--   has no counterpart, since the TLA+ invariants name `chistory[1]` and `pc[1]` directly.
+-- * `MaxNumOp := 3`: the client makes 3 writes, each followed by a read (cfg: `MaxNumOp = 3`).
+--   This satisfies the source assumption `MaxNumOp < 10`.
+-- * `K := 1` or `K := 0`: a `Bounded_Staleness` read returns one of the last `K + 1` entries
+--   (cfg: `K = 1` or `K = 0`).
+-- * `Consistency := ConsistencyLevel.Strong`, and so on: the consistency level of the client's
+--   reads (cfg: `Consistency = "Strong"`, and so on).
+--
+-- The other settings of the cfgs:
+-- * `INVARIANTS Eventual Consistent_Prefix Session Bounded_Staleness Strong`: every case checks
+--   all declared invariants. `Eventual` stands for both `Eventual` and `Consistent_Prefix`, which
+--   the source defines identically.
+-- * `CHECK_DEADLOCK FALSE`: the `termination` clause above is commented out, so Veil reports no
+--   deadlocks either. The client stops at `Done`.
+-- * No depth bound or state constraint is used, as in the cfgs.
+-- * `counts-*.cfg` and `bug-*.cfg` check fewer invariants. `Benchmarks/TLA/CosmosDB/check.py`
+--   runs their Veil counterparts on copies of this module that declare only those invariants.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * Fingerprints and parallel search use the defaults; Elab.async does not serialize Veil's
+--   background tasks.
 
+-- cfg: `properties-Strong-3-1.cfg`.
 -- Strong reads the latest write: all invariants hold (26 states).
 -- #model_check compiled
 --   { client := Fin 1 }
 --   { oneClient := 0, MaxNumOp := 3, K := 1,
 --     Consistency := ConsistencyLevel.Strong }
 
+-- cfg: `properties-Session-3-1.cfg`.
 -- With one client, Session's token also forces reads to see its latest write.
 -- Expected: all invariants hold (26 states).
 -- #model_check compiled
@@ -429,6 +456,7 @@ invariant [Strong] pc (.client oneClient) = CW →
 --   { oneClient := 0, MaxNumOp := 3, K := 1,
 --     Consistency := ConsistencyLevel.Session }
 
+-- cfg: `properties-Bounded_Staleness-3-0.cfg`.
 -- K = 0 forces Bounded Staleness to return the latest entry.
 -- Expected: all invariants hold (26 states).
 -- #model_check compiled
@@ -436,6 +464,7 @@ invariant [Strong] pc (.client oneClient) = CW →
 --   { oneClient := 0, MaxNumOp := 3, K := 0,
 --     Consistency := ConsistencyLevel.Bounded_Staleness }
 
+-- cfg: `properties-Bounded_Staleness-3-1.cfg`.
 -- K = 1 permits write 1 followed by read 0: Bounded Staleness holds, Strong fails.
 -- Expected: safety_failure (violates: Strong).
 -- #model_check compiled
@@ -443,6 +472,7 @@ invariant [Strong] pc (.client oneClient) = CW →
 --   { oneClient := 0, MaxNumOp := 3, K := 1,
 --     Consistency := ConsistencyLevel.Bounded_Staleness }
 
+-- cfg: `properties-Eventual-3-1.cfg`.
 -- Eventual permits the same stale read; the search stops at the Strong violation.
 -- Expected: safety_failure (violates: Strong).
 -- #model_check compiled
@@ -450,6 +480,7 @@ invariant [Strong] pc (.client oneClient) = CW →
 --   { oneClient := 0, MaxNumOp := 3, K := 1,
 --     Consistency := ConsistencyLevel.Eventual }
 
+-- cfg: `properties-Consistent_Prefix-3-1.cfg`.
 -- Consistent Prefix has the same read choices as Eventual in this source model.
 -- Expected: safety_failure (violates: Strong).
 -- #model_check compiled

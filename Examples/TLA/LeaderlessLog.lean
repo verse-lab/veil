@@ -249,6 +249,31 @@ termination false
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model
+-- `Benchmarks/TLA/LeaderlessLog/LeaderlessLog.cfg`. It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `writer := Fin 2`: the writers are `0`, `1` (cfg: `Writers = {w1, w2}`, where `w1 = w1` and
+--   `w2 = w2` make them model values).
+-- * `maxOffset := 13`: the offsets are `1..13` (cfg: `MaxOffset = 13`).
+-- * `maxBatch := 2`: a write's batch size is at most 2 (cfg: `MaxBatch = 2`).
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `CompactRangeStart := 1`, `CompactRangeEnd := 3`: the first compaction round compacts
+--   offsets `1..3` (cfg: `CompactRangeStart = 1`, `CompactRangeEnd = 3`).
+-- * `CompactRange2Start := 4`, `CompactRange2End := 5`: the second round compacts offsets
+--   `4..5` (cfg: `CompactRange2Start = 4`, `CompactRange2End = 5`).
+--
+-- Before searching, `#model_check` checks these values against the `assumption`s above, which
+-- are the spec's `ASSUME`s.
+--
+-- The other settings of the cfg:
+-- * `INVARIANTS TypeOK MonotonicOffsets ... SequentialCompactionSafety`: `#model_check` checks
+--   every `invariant` of the module, which here has the same nine names.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
+--   above, Veil also reports every state without successors as a deadlock.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled { writer := Fin 2, maxOffset := 13, maxBatch := 2 }
   { CompactRangeStart := 1, CompactRangeEnd := 3, CompactRange2Start := 4, CompactRange2End := 5 }
@@ -258,6 +283,5 @@ termination false
 -- -- Boundary: dense single-record batches, with both compaction rounds retained.
 -- #model_check { writer := Fin 2, maxOffset := 5, maxBatch := 1 }
 --   { CompactRangeStart := 1, CompactRangeEnd := 3, CompactRange2Start := 4, CompactRange2End := 5 }
---   (fingerprintType := UInt64)
 
 end LeaderlessLog

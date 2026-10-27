@@ -322,6 +322,32 @@ invariant [AckImpliesCommit] commit_ack → Committed
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model
+-- `Benchmarks/TLA/ParallelCommits/ParallelCommits.cfg`. It is commented out; uncomment it to
+-- run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `key := Fin 2`: the keys are `0`, `1` (cfg: `KEYS = {k1, k2}`).
+-- * `preventer := Fin 2`: the preventer processes are `0`, `1` (cfg: `PREVENTERS = {p1, p2}`).
+-- * `KeySet := OrdList (Fin 2)`: `OrdList` has the `TSet` instance that the `instantiate` line
+--   above requires.
+-- * `maxAttempts := 4`: the committer gives up after 4 attempts (cfg: `MAX_ATTEMPTS = 4`).
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `AllKeys := OrdList.ofList (List.finRange 2)`: the set of all keys, for where the spec uses
+--   `KEYS` as a value. The `assumption [keys_complete]` above checks that it contains every key.
+--
+-- Before searching, `#model_check` also checks the other `assumption`s above, which are the
+-- spec's `ASSUME`s.
+--
+-- The other settings of the cfg:
+-- * `INVARIANTS TypeInvariants AckImpliesCommit`: `#model_check` checks every `invariant` of the
+--   module, which here has the same two names. The `TypeInvariants` here keeps the numeric
+--   bounds of the spec's `TypeInvariants`; Lean's types ensure the rest.
+-- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
+--   deadlocks either.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled
   { key := Fin 2, preventer := Fin 2, KeySet := OrdList (Fin 2), maxAttempts := 4 }

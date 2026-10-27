@@ -127,9 +127,31 @@ invariant [progress_critical]
      pc (if p = P1 then P2 else P1) yieldTurn))
 
 
+termination false
+
 #gen_spec
 
 -- #check_invariants
+
+-- TLC checks this spec with `Benchmarks/TLA/TLAPlusExamples/Peterson.cfg`, which sets no
+-- constants: the TLA+ spec fixes its processes as `ProcSet == 1..2`.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s. It is
+-- empty here: the two processes are the `enum Process = { P1, P2 }` above, and an `enum`
+-- needs no instantiation.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{ }`.
+--
+-- The other settings of the cfg:
+-- * `INVARIANTS TypeOK Inv`: `#model_check` checks every `invariant` and `safety` clause of the
+--   module. `flag_consistency`, `progress_critical` and `mutual_exclusion` are the three
+--   conjuncts of `Inv`. `pc_total` and `unique_phase` check that the relation `pc` gives each
+--   process exactly one phase, which the TLA+ function `pc` does by its type (`TypeOK`).
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
+--   above, Veil also reports every state without successors as a deadlock.
+-- Options:
+-- * The check names no mode, so its search starts in Lean's interpreter and moves to a compiled
+--   checker once that is built.
 #model_check{ }{ }
 
 end Peterson

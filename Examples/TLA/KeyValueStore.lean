@@ -166,8 +166,36 @@ ghost relation transaction_cleanup :=
 
 invariant [Txlifecycle] snapshot_isolation ∧ transaction_cleanup
 
+-- Report every state without successors as a deadlock, as TLC does by default.
+termination false
+
 #gen_spec
 
+-- TLC checks this spec with `Benchmarks/TLA/TLAPlusExamples/KeyValueStore.cfg`.
+-- The second check below, commented out, uses the cfg's instance; uncomment it to run it.
+-- The first check, which runs when this file is built, uses 2 values instead of 3.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `key := Fin 2`: the keys are `0`, `1` (cfg: `Key = {k1, k2}`).
+-- * `value := Fin 3`: the values are `0`, `1`, `2` (cfg: `Val = {v1, v2, v3}`).
+-- * `txId := Fin 3`: the transaction IDs are `0`, `1`, `2` (cfg: `TxId = {t1, t2, t3}`).
+-- * `KeySet := OrdList _`, `TxIdSet := OrdList _`: `OrdList` has the `TSet` instances that the
+--   `instantiate` lines above require.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{}`.
+--
+-- The other settings of the cfg:
+-- * `NoVal = NoVal`: a model value outside `Val`. Here the stores hold `Option value` instead,
+--   where `none` stands for `NoVal`.
+-- * `INVARIANTS TxLifecycle`: `#model_check` checks every `invariant` of the module, here
+--   `Txlifecycle`.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
+--   above, Veil also reports every state without successors as a deadlock.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(maxDepth := 2)` explores only the states at most 2 steps from an initial state.
+-- * `(sequential := true)` searches with a single thread.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 -- TEST ONLY
 #model_check compiled
 { key := Fin 2,

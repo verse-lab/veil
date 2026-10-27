@@ -204,6 +204,27 @@ set_option maxHeartbeats 2500000
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model `Benchmarks/TLA/TLAPlusExamples/Bakery.cfg`.
+-- It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `maxProc := 2`: the processes are `0`, `1`, `2`, for TLA+'s `1`, `2`, `3` (cfg: `N = 3`,
+--   with `Procs == 1..N`).
+-- * `maxNum := 3`: the ticket numbers are `0..3` (cfg: `MaxNat = 3` and `Nat <- NatOverride`,
+--   where `NatOverride == 0 .. MaxNat`).
+-- * `ProcessSet := OrdList (ProcTy 2)`: `OrdList` has the `TSet` instance that the `instantiate`
+--   line above requires.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{ }`.
+--
+-- The other settings of the cfg:
+-- * `INVARIANTS MutualExclusion IInv`: `#model_check` checks every `invariant` and `safety`
+--   clause of the module, here `mutual_exclusion` and `iinv`.
+-- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
+--   deadlocks either.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled
 { maxProc := 2,

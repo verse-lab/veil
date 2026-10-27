@@ -117,6 +117,25 @@ invariant [Inv] P0 ∨ P1 ∨ P2
 
 #gen_spec
 
+-- TLC checks this spec with `Benchmarks/TLA/TLAPlusExamples/EWD840.cfg`.
+-- The second check below, commented out, uses the cfg's instance; uncomment it to run it.
+-- The first check, which runs when this file is built, uses a smaller instance.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `n := 10`: the nodes are `0..10`, 11 of them (cfg: `N = 11`, with `Node == 0 .. N-1`).
+--   The first check's `n := 3` gives 4 nodes.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- so the first check omits it.
+--
+-- The other settings of the cfg:
+-- * `INVARIANTS TerminationDetection Inv`: `#model_check` checks every `invariant` of the
+--   module, here `TerminationDetection` and `Inv`.
+-- * `CHECK_DEADLOCK TRUE`: with the `termination [allDeactive]` clause above, Veil reports a
+--   state without successors as a deadlock unless all nodes are inactive. TLC makes the same
+--   exception, since the spec's `Termination` action lets such a state stutter.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 -- TEST ONLY
 #model_check compiled
 { n := 3 }

@@ -203,6 +203,15 @@ invariant [honest_non_conflicting_votes]
 
 #check_invariants
 
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `nodeset := ByzNSet (Fin (3 * 1 + 1))`: sets of nodes are stored as bit vectors. The
+--   `ByzNodeSet` instance that Lean finds for them makes node `0` Byzantine, a supermajority at
+--   least 3 nodes, and more than a third at least 2 nodes. Writing the size as `3 * 1 + 1`, not
+--   `4`, lets Lean find that instance, for `f = 1`.
+-- * `address := Fin (3 * 1 + 1)`: the nodes are `0..3`, which tolerates `f = 1` Byzantine node.
+-- * `round := Fin 3`: the rounds are `0`, `1`, `2`.
+-- * `value := Fin 3`: the values are `0`, `1`, `2`.
+-- The theory (second argument) is left out, since this module has no `immutable` fields.
 -- #model_check
 --   { nodeset := ByzNSet (Fin (3 * 1 + 1))
 --     address := Fin (3 * 1 + 1)

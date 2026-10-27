@@ -254,6 +254,38 @@ state_constraint [StateConstraint]
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model `Benchmarks/TLA/LeaseGuard/LeaseGuard.cfg`,
+-- which TLC runs on `mcLeaseGuard.tla`. It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `server := Fin 3`: the servers are `0`, `1`, `2` (cfg: `Server = {n1, n2, n3}`).
+-- * `key := Fin 1`: a single key, `0` (cfg: `Key = {k1}`).
+-- * `ServerSet := OrdList (Fin 3)`, `CommitSet := OrdList (CommitRecord (Fin 1))`: `OrdList`
+--   has the `TSet` instances that the `instantiate` lines above require.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `AllServers := OrdList.ofList (List.finRange 3)`: the set of all servers, for where the spec
+--   uses `Server` as a value. The `assumption [ServerDomain]` above checks that it contains
+--   every server.
+-- * `Delta := 3`: the lease duration, in clock ticks (cfg: `Delta = 3`).
+-- * `MaxTerm := 2`, `MaxLogLen := 2`, `MaxClock := 7`: the bounds of the state constraint
+--   (cfg: `MaxTerm = 2`, `MaxLogLen = 2`, `MaxClock = 7`).
+--
+-- The other settings of the cfg:
+-- * `Follower = Follower`, `Leader = Leader`: model values for the server roles. Here they are
+--   the constructors of `Role`.
+-- * `CONSTRAINT StateConstraint`: the `state_constraint [StateConstraint]` above. Unlike TLC,
+--   Veil does not check the invariants in the states that the constraint drops.
+-- * `INVARIANTS TypeOK EntryIndexes ... LinearizableReads`: `#model_check` checks every
+--   `invariant` of the module, which here has the same names except `TypeOK`. Lean's types
+--   ensure `TypeOK`.
+-- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
+--   deadlocks either.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
+-- The last check, also commented out, uses 2 keys and the smaller bounds `MaxTerm := 1`,
+-- `MaxLogLen := 1`, `MaxClock := 3`. Its options:
+-- * `(sequential := true)` searches with a single thread.
 /- EVAL
 #model_check compiled
   { server := Fin 3, key := Fin 1, ServerSet := OrdList (Fin 3),
@@ -268,6 +300,5 @@ state_constraint [StateConstraint]
 --     CommitSet := OrdList (CommitRecord (Fin 2)) }
 --   { AllServers := OrdList.ofList (List.finRange 3), Delta := 3,
 --     MaxTerm := 1, MaxLogLen := 1, MaxClock := 3 }
---   (fingerprintType := UInt64) (sequential := true)
 
 end LeaseGuard

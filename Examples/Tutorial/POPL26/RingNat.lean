@@ -52,6 +52,12 @@ invariant [messages_nodup] messages.Nodup
 
 #gen_spec
 
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s. There are
+-- none, hence `{ }`: the nodes are natural numbers.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `allNodes := [1, 2, 3, 4, 5]`: the nodes.
+-- * `nextNode := fun n => match n with ...`: each node's successor on the ring
+--   `1 → 5 → 2 → 4 → 3 → 1`.
 #model_check { }
   { allNodes := [1, 2, 3, 4, 5],
     nextNode := fun n =>

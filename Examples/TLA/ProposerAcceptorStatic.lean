@@ -236,6 +236,36 @@ state_constraint [StateConstraint]
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model
+-- `Benchmarks/TLA/ProposerAcceptorStatic/ProposerAcceptorStatic.cfg`, which TLC runs on
+-- `MCProposerAcceptorStatic.tla`. It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `proposer := Fin 2`: the proposers are `0`, `1` (cfg: `proposers = {p1, p2}`).
+-- * `acceptor := Fin 3`: the acceptors are `0`, `1`, `2` (cfg: `acceptors = {a1, a2, a3}`).
+-- * `AcceptorSet := OrdList _`, `CommittedSet := OrdList _`: `OrdList` has the `TSet` instances
+--   that the `instantiate` lines above require.
+-- * `ElectedMap := Std.ExtTreeMap _ _`: `Std.ExtTreeMap` has the `TMap` instance that the
+--   `instantiate` line above requires.
+-- * `maxTerm := 2`, `maxEntries := 3`: the state constraint bounds each proposer's term by 2 and
+--   its log length by 3 (cfg: `max_term = 2`, `max_entries = 3`).
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `acceptors := OrdList.ofList (List.finRange 3)`: the set of all acceptors, for where the
+--   spec uses `acceptors` as a value. The `assumption [acceptors_complete]` above checks that it
+--   contains every acceptor.
+--
+-- The other settings of the cfg:
+-- * `NULL = NULL`: a model value for a missing value. Here `none` stands for it.
+-- * `CONSTRAINT StateConstraint`: the `state_constraint [StateConstraint]` above. Unlike TLC,
+--   Veil does not check the invariants in the states that the constraint drops.
+-- * `INVARIANT TypeOk ElectionSafetyFull ... CommittedNotTruncated`: `#model_check` checks every
+--   `invariant` of the module, which here has the same names except `TypeOk`. Lean's types
+--   ensure `TypeOk`.
+-- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
+--   deadlocks either.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled
   { proposer := Fin 2, acceptor := Fin 3, AcceptorSet := OrdList _,
@@ -251,6 +281,5 @@ state_constraint [StateConstraint]
 --     CommittedSet := OrdList TermLsn, ElectedMap := Std.ExtTreeMap Nat Nat,
 --     maxTerm := 1, maxEntries := 1 }
 --   { acceptors := OrdList.ofList (List.finRange 3) }
---   (fingerprintType := UInt64)
 
 end ProposerAcceptorStatic

@@ -54,6 +54,10 @@ invariant (N1 ≠ N2 ∧  holds N1) → replied N1 N2
 
 #time #gen_spec
 
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `node := Fin 3`: the nodes are `0`, `1`, `2`.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{ }`.
 #model_check { node := Fin 3 } { }
 
 #check_invariants

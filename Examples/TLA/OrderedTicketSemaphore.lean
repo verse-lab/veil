@@ -164,6 +164,41 @@ termination false
 #gen_spec
 #gen_executable
 
+-- The check below uses the instance of the TLC model
+-- `Benchmarks/TLA/OrderedTicketSemaphore/OrderedTicketSemaphore.cfg`, which TLC runs on
+-- `MCOrderedTicketSemaphore.tla`. It is commented out; uncomment it to run it.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `client := Fin 6`: the clients are `0..5`, the resizer included
+--   (cfg: `Clients = {c1, c2, c3, c4, c5}`, to which the spec adds `ResizerClient`).
+-- * `ClientSet := OrdList _`: `OrdList` has the `TSet` instance that the `instantiate` line above
+--   requires.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `AllClients := OrdList.ofList (List.finRange 6)`: the set of all six clients, the spec's
+--   `AllClients == Clients \union {ResizerClient}`. The `assumption [all_clients_complete]` above
+--   checks that it contains every client.
+-- * `ResizerClient := 5`: client `5` is the resizer. The cfg has no counterpart, since the spec
+--   defines `ResizerClient == "ResizerClient"`.
+-- * `InitPermits := 3`: the initial number of permits (cfg: `InitPermits = 3`).
+-- * `ResizerClientMaxTickets := 2`: the most tickets the resizer holds at once
+--   (cfg: `ResizerClientMaxTickets = 2`).
+-- * `ResizeDelta := 3`: the most tickets of an immediate resize (cfg: `ResizeDelta = 3`).
+--
+-- Before searching, `#model_check` also checks the `assumption [initial_capacity]` above, which
+-- is the spec's `ASSUME InitPermits >= ResizerClientMaxTickets`.
+--
+-- The other settings of the cfg:
+-- * `CONSTRAINT BenchmarkBound`: the `state_constraint [TicketLimit]` above, as
+--   `BenchmarkBound == permits + taken <= 9`. Unlike TLC, Veil does not check the invariants in
+--   the states that the constraint drops.
+-- * `INVARIANTS TypeOK TakenNonNegative ... AwakeBeforeNonAwake`: `#model_check` checks every
+--   `invariant` of the module, which here has the same names except `TypeOK`. Lean's types
+--   ensure `TypeOK`.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
+--   above, Veil also reports every state without successors as a deadlock.
+-- Options:
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 /- EVAL
 #model_check compiled
   { client := Fin 6, ClientSet := OrdList _ }

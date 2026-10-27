@@ -241,6 +241,16 @@ abbrev nodeSize := 3 -- Anything larger will cause OOM error (sorry, working on 
 abbrev valueSize := 2
 abbrev numFailures := 1
 
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `node := Fin nodeSize`: the nodes are `0`, `1`, `2`.
+-- * `nodeSet := (Std.ExtTreeSet (Fin nodeSize) compare)`: `Std.ExtTreeSet` has the `TSet`
+--   instance that the `instantiate` line above requires.
+-- * `value := Fin valueSize`: the values are `0`, `1`, ordered as numbers by the `TotalOrder`
+--   instance that Lean finds for `val_ord`.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields:
+-- * `t := numFailures`: at most 1 node crashes.
+-- * `allnodes := (Std.ExtTreeSet.empty.insertMany (List.finRange nodeSize))`: the set of all
+--   nodes, `{0, 1, 2}`. The `safety [all_nodes]` clause checks that it contains every node.
 set_option veil.violationIsError false in
 #model_check
   { node := Fin nodeSize,

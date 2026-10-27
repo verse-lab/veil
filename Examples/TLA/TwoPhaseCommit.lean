@@ -228,8 +228,29 @@ action RMRcvAbortMsg (rm : RM) {
 invariant [TCConsistency] ¬ (∃ rm1 rm2 : RM,
   (rmState rm1 == committed) ∧ (rmState rm2 == aborted))
 
+termination false
+
 #gen_spec
 
+-- TLC checks this spec with `Benchmarks/TLA/TLAPlusExamples/TwoPhaseCommit.cfg`.
+-- The second check below, commented out, uses the cfg's instance; uncomment it to run it.
+-- The first check, which runs when this file is built, uses 3 resource managers.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `RM := Fin 10`: the resource managers are `0..9` (cfg: `RM = {r1, r2, ..., r10}`).
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{}`.
+--
+-- The other settings of the cfg:
+-- * `INVARIANT TCConsistent`: `#model_check` checks every `invariant` of the module, here
+--   `TCConsistency`.
+-- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
+--   above, Veil also reports every state without successors as a deadlock.
+-- Options:
+-- * `interpreted` runs the search only in Lean's interpreter, without compiling a checker.
+-- * `compiled` runs the search only in a compiled checker, not in Lean's interpreter.
+-- * `(sequential := true)` searches with a single thread.
+-- * `(seenSet := HAMTMapShard)`: the sharded map of visited states uses `HAMTMapShard`.
 -- TEST ONLY
 #model_check interpreted { RM := Fin 3 }
   {} (sequential := true)

@@ -65,7 +65,6 @@ action shutter_termination {
   require (∀p, pc p Done)
 }
 
-termination [all_done] (∀ P : ProcSet, pc P Done)
 invariant [pc_unique] pc P S ∧ pc P T → S = T
 safety [puzzle_unsolvable]
   -- Car is always at the light (negated goal)
@@ -73,6 +72,30 @@ safety [puzzle_unsolvable]
 
 #time #gen_spec
 
+-- TLC checks this spec with `Benchmarks/TLA/Traffic.cfg`, which sets no constants and checks no
+-- invariant.
+-- The check below finds a violation of `puzzle_unsolvable`, which claims that the car stays at
+-- the light: the trace shows the car driving off.
+-- `set_option veil.violationIsError false in` reports that violation without failing the build.
+--
+-- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
+-- * `ProcSet := ProcSet_IndT`, `Color := Color_IndT`, `states := states_IndT`: each `enum` above
+--   is a type parameter, and these give it its generated `_IndT` type. That is the default, so
+--   these items could be left out. The cfg has no counterpart: in TLA+, the processes are
+--   `"light"` and `"car"`, and the colors and labels are strings.
+-- The theory (second `{ ... }` argument) sets the module's `immutable` fields. There are none,
+-- hence `{}`.
+--
+-- The other settings of the cfg:
+-- * The cfg checks no invariant. This module adds `puzzle_unsolvable`, and `pc_unique`, which
+--   checks that the relation `pc` gives each process a single label.
+-- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
+--   deadlocks either.
+-- * `PROPERTY Termination`, commented out in the cfg: a temporal property, which Veil does not
+--   check.
+-- Options:
+-- * The check names no mode, so its search starts in Lean's interpreter and moves to a compiled
+--   checker once that is built.
 set_option veil.violationIsError false in
 #model_check { ProcSet := ProcSet_IndT, Color := Color_IndT, states := states_IndT } {}
 
