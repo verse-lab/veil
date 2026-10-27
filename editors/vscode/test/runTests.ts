@@ -631,40 +631,6 @@ function within<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
 }
 
 if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
-  test('the workspace installer bundles its icon, current README, and architecture documentation', withStoreDir(async dir => {
-    const build = spawnSync(process.execPath, ['esbuild.mjs', '--production'],
-      { cwd: path.join(repoRoot, 'editors', 'vscode'), encoding: 'utf8' });
-    assert.strictEqual(build.status, 0, build.stderr);
-    const bin = path.join(dir, 'bin');
-    const workspace = path.join(dir, 'workspace with spaces');
-    fs.mkdirSync(bin);
-    fs.mkdirSync(workspace);
-    const windows = process.platform === 'win32';
-    fs.writeFileSync(path.join(bin, windows ? 'npm.cmd' : 'npm'),
-      windows ? '@exit /b 0\r\n' : '#!/bin/sh\nexit 0\n', { mode: 0o755 });
-    const pathKey = Object.keys(process.env).find(key => key.toLowerCase() === 'path') ?? 'PATH';
-    const installed = spawnSync('lake', ['script', 'run', 'veilInstallVSCodeExtension', workspace], {
-      cwd: repoRoot, encoding: 'utf8',
-      env: { ...process.env, [pathKey]: bin + path.delimiter + (process.env[pathKey] ?? '') },
-    });
-    assert.strictEqual(installed.status, 0, installed.stdout + installed.stderr);
-    const installDir = path.join(workspace, '.vscode', 'extensions', 'veil');
-    const manifest = JSON.parse(fs.readFileSync(path.join(installDir, 'package.json'), 'utf8'));
-    assert.strictEqual(manifest.name, 'veil-verifier');
-    assert.strictEqual(manifest.displayName, 'Veil Verifier');
-    assert.strictEqual(manifest.icon, 'icon.png');
-    assert.deepStrictEqual(fs.readFileSync(path.join(installDir, manifest.icon)),
-      fs.readFileSync(path.join(repoRoot, 'editors', 'vscode', manifest.icon)));
-    const readme = fs.readFileSync(path.join(installDir, 'README.md'), 'utf8');
-    const sourceReadme = fs.readFileSync(path.join(repoRoot, 'editors', 'vscode', 'README.md'), 'utf8');
-    const document = 'ModelChecker-VSCode-Architecture.md';
-    const expectedReadme = sourceReadme.split(`../../docs/${document}#`).join('#')
-      .split(`../../docs/${document}`).join('#model-checker-in-vs-code-architecture');
-    assert.ok(readme.startsWith(expectedReadme + '\n'), 'the installer must preserve the README with local documentation links');
-    assert.ok(!readme.includes('../../docs/'));
-    assert.ok(readme.endsWith(fs.readFileSync(path.join(repoRoot, 'docs', document), 'utf8')));
-  }));
-
   for (const [name, args] of [['sequential', []], ['parallel', ['2', '1', '1']]] as const) {
     test(`a ${name} binary reports its result`, async () => {
       let start: StartReport | undefined;

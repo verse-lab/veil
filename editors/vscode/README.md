@@ -105,17 +105,8 @@ npm test        # needs a built Veil: it builds the binaries of test/fixtures wi
 To try the extension, open `editors/vscode` in VS Code and run **Run Extension**
 (F5). This opens the repository in a new window with the extension loaded.
 
-To install the extension from the Veil revision used by a workspace, run this
-from the workspace root (requires Node.js and npm):
-
-```sh
-lake script run veilInstallVSCodeExtension
-```
-
-Reload the window with **Developer: Reload Window** and install Veil from
-**Workspace Recommendations** in the Extensions view. Local workspace extensions
-require VS Code 1.89 or later and a trusted workspace. After updating Veil, run
-the script again and reload the window.
+To install a locally built VSIX, use **Extensions: Install from VSIX...** in
+the command palette.
 
 ## Feedback
 
