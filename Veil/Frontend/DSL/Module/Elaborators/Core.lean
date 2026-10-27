@@ -775,7 +775,10 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
 module `modId`, typically from another file, without running it. -/
 private def elabBuildCommand {α : Type} (cmdName : String) (traceClass : Name) (stx : Syntax)
     (modId : Ident) (instTerm : Term) (theoryTerm? : Option Term) (elabConfig : CommandElabM α)
-    (mkCall : ExecutionCallCommandContext α → CommandElabM Term) : CommandElabM Unit := do
+    (mkCall : ExecutionCallCommandContext α → CommandElabM Term) : CommandElabM Unit := withScope id do
+  -- `withScope id` starts with the current scope unchanged and restores it on success or error,
+  -- so applying the defaults of `veil module` here does not affect subsequent commands.
+  overrideLeanDefaults
   withTraceNode traceClass (fun _ => return s!"#{cmdName}") do
     let some em ← getExecutableModule? modId.getId
       | throwErrorAt modId "Module {modId.getId} has no executable definitions here: add \
