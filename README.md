@@ -14,6 +14,8 @@ verification for transition systems and their properties expressed in
 decidable fragments of first-order logic, with the full power of a
 modern higher-order proof assistant for when automation falls short.
 
+[Website](https://veil.dev/) · [Online playground](https://try.veil.dev/)
+
 ## Veil 2.0 Pre-Release
 
 You are looking at a pre-release version of Veil 2.0, the upcoming major
@@ -31,8 +33,8 @@ Lean Zulip, and we will be happy to answer.
  
 ## Learn Veil
 
-The [Examples/Tutorial](Examples/Tutorial) folder contains extensively commented
-walkthrough specifications:
+Start with the extensively commented walkthroughs in
+[Examples/Tutorial](Examples/Tutorial):
 
 - [Examples/Tutorial/Ring.lean](Examples/Tutorial/Ring.lean) — the Ring Leader
   Election protocol, introducing Veil's syntax and its main commands
@@ -44,10 +46,24 @@ walkthrough specifications:
   symbolic model checking, counterexample-driven invariant discovery, and an
   interactive Lean proof
 
-These files are also available in the [online playground](#online-playground), under the Examples button.
+These files are also available in the [online playground](https://try.veil.dev/), under the Examples button.
 
 An explanation of the constructs of the Veil DSL can be found at
 [`docs/DSL-Reference.md`](docs/DSL-Reference.md). 
+
+## Examples
+
+Other examples in [Examples/](Examples/) are organised as follows:
+
+| Directory | Contents |
+| --- | --- |
+| [TLA/](Examples/TLA/) | Translations and adaptations of TLA+ specifications. |
+| [Ivy/](Examples/Ivy/) | Ivy-style first-order protocol models. |
+| [Synchronous/](Examples/Synchronous/) | Synchronous consensus protocols with crash faults. |
+| [Simulate/](Examples/Simulate/) | Simulation testing examples using `#simulate`. |
+| [Puzzles/](Examples/Puzzles/) | State-machine models of recreational puzzles. |
+| [AWS/](Examples/AWS/) | Buggy and fixed models of an AWS DNS race. |
+| [StellarConsensus/](Examples/StellarConsensus/) | The Stellar Consensus Protocol and its supporting theory. |
 
 ## Build
 
@@ -120,3 +136,23 @@ lake build
 There is a sporadic issue in the build process for
 [`lean-cvc5`](https://github.com/abdoo8080/lean-cvc5). Trying to build again
 often fixes the problem.
+
+## VS Code
+
+The [Veil Verifier extension](editors/vscode/README.md) lets you create
+model-checking configurations, run model checkers, track progress, and
+inspect counterexamples directly in VS Code. It works alongside the
+Lean 4 extension.
+
+See the [extension README](editors/vscode/README.md) for installation
+and usage instructions.
+
+## Benchmarking
+
+[scripts/tlc-vs-veil-mc-evaluation.py](scripts/tlc-vs-veil-mc-evaluation.py)
+runs TLC on 20 TLA+ benchmarks, runs Veil on their translations, and
+generates execution-time and peak-memory comparison plots.
+
+See the [benchmark instructions](Benchmarks/TLA/scripts/README.md#tlc-and-veil-comparison)
+for prerequisites and an example command, or run
+`python3 scripts/tlc-vs-veil-mc-evaluation.py --help` for options.
