@@ -407,11 +407,14 @@ inductive, or for an execution that violates them:
 ```lean
 public import Veil.Core.Tools.Synthesizer
 
-#synthesize_invariants certify
+#updr certify
+#gen_theorems
 ```
 
 It prints the strengthening as `invariant` lines to paste into the module,
-or a counterexample. With `certify`, the result is a kernel-checked theorem:
+or a counterexample. Search and certification run in the background with live
+progress in the infoview. `#gen_theorems` waits for certification and imports
+the resulting declarations. With `certify`, the result is a kernel-checked theorem:
 `Mod.ic3_safe` that every reachable state satisfies the properties, or
 `Mod.ic3_unsafe` that one does not. The command needs its own import. See the
 [Invariant Synthesizer Guide](Synthesizer-Guide.md) for its options, the

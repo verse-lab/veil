@@ -7,7 +7,7 @@ public meta import Veil.Core.Tools.Synthesizer.Counterexample
 public meta import Veil.Core.UI.Widget.SynthesizerProgress
 
 /-!
-# `#synthesize_invariants`
+# `#updr`
 
 This file defines the command, which runs UPDR on the current module's `safety` properties and
 reports the outcome: strengthening clauses to paste into the module, a concrete counterexample, an
@@ -15,7 +15,7 @@ abstract counterexample showing that no universal inductive invariant exists, or
 stopped. With `certify`, an invariant or a counterexample becomes a kernel-checked theorem;
 `#gen_theorems` waits for the result and adds its declarations to the module.
 
-    #synthesize_invariants (fuel := 500) (log := "run.jsonl") (invariants := true) verbose certify
+    #updr (fuel := 500) (log := "run.jsonl") (invariants := true) verbose certify
 
 Options may appear in any order, each at most once.
 -/
@@ -46,8 +46,8 @@ syntax synthOpt := "(" (synthFuel <|> synthLog <|> synthExpect <|> synthInvarian
   synthGeneralizer <|> synthCores) ")"
 /-- Search for universal invariants that make the module's `safety` properties inductive, with
 UPDR. -/
-syntax (name := synthesizeInvariants)
-  "#synthesize_invariants" (synthOpt <|> &"verbose" <|> &"certify")* : command
+syntax (name := updr)
+  "#updr" (synthOpt <|> &"verbose" <|> &"certify")* : command
 
 /-- The outcome a test expects (`(expect := …)`). -/
 inductive Expectation where
@@ -314,7 +314,7 @@ private def finishProgress (ref? : Option Progress.Ref) (status : Progress.Statu
       return
   Progress.finish ref? status result
 
-private def runSynthesizeInvariants (mod : Veil.Module) (opts : Options) :
+private def runUpdr (mod : Veil.Module) (opts : Options) :
     CommandElabM (Option CertificateResult) := do
   let { cfg, expectation, certify := doCertify } := opts
   let progress? := cfg.progress?
@@ -412,7 +412,7 @@ private def runSynthesizeInvariants (mod : Veil.Module) (opts : Options) :
 private def runWithProgress (mod : Veil.Module) (opts : Options) :
     CommandElabM (Option CertificateResult) := do
   try
-    withoutCommandIncrementality true <| runSynthesizeInvariants mod opts
+    withoutCommandIncrementality true <| runUpdr mod opts
   catch e =>
     finishProgress opts.cfg.progress? .failed (← e.toMessageData.toString)
     throw e
@@ -465,7 +465,7 @@ private def importCertificate (result : Task (Option (Except String (Option Cert
 
 /-- Register search work with Lean so cancellation and diagnostics follow the command, while
 the main elaborator returns immediately and exposes the panel to all infoview requests. -/
-private def startSynthesizeInvariants (stx : Syntax) (mod : Veil.Module) (opts : Options) :
+private def startUpdr (stx : Syntax) (mod : Veil.Module) (opts : Options) :
     CommandElabM Unit := do
   let cancel ← IO.CancelToken.new
   let result ← IO.Promise.new
@@ -487,9 +487,9 @@ private def startSynthesizeInvariants (stx : Syntax) (mod : Veil.Module) (opts :
     registerTheoremGenerator mod.name (importCertificate result.result?)
   opts.cfg.progress?.forM fun ref => Progress.display stx ref cancel
 
-@[command_elab synthesizeInvariants]
-def elabSynthesizeInvariants : CommandElab := fun stx ↦ do
-  let mod ← getCurrentModule (errMsg := "#synthesize_invariants must be used inside a Veil module")
+@[command_elab updr]
+def elabUpdr : CommandElab := fun stx ↦ do
+  let mod ← getCurrentModule (errMsg := "#updr must be used inside a Veil module")
   mod.throwIfSpecNotFinalized
   let opts ← parseOptions stx[1].getArgs
   let progress? ← if Elab.inServer.get (← getOptions) && veil.synthesizer.widget.get (← getOptions) then
@@ -497,6 +497,6 @@ def elabSynthesizeInvariants : CommandElab := fun stx ↦ do
       pure (some ref)
     else pure none
   let opts := { opts with cfg.progress? := progress? }
-  startSynthesizeInvariants stx mod opts
+  startUpdr stx mod opts
 
 end Veil.Synthesizer

@@ -69,7 +69,7 @@ def throwIfCertified (mod : Veil.Module) (names : List Name) : CommandElabM Unit
   for n in names do
     if (← getEnv).contains (mod.name ++ n) then
       throwError "IC3 certificate: {mod.name ++ n} is already declared; a module can hold one \
-        certificate, so run `#synthesize_invariants … certify` once per module"
+        certificate, so run `#updr … certify` once per module"
 
 /-- `liftTermElabM` without the command's heartbeat limit. -/
 def liftUnbounded (x : TermElabM α) : CommandElabM α :=

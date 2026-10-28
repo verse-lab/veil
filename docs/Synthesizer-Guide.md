@@ -1,6 +1,6 @@
 # Veil Invariant Synthesizer Guide
 
-`#synthesize_invariants` searches for `invariant` clauses that make a module's
+`#updr` searches for `invariant` clauses that make a module's
 `safety` properties inductive. It reports an inductive invariant, an execution
 that violates the properties, or that no universal inductive invariant exists.
 With `certify`, an invariant or a violation becomes a theorem checked by the
@@ -24,7 +24,7 @@ safety [mutex] holds C ∧ holds D → C = D
 
 #gen_spec
 
-#synthesize_invariants certify
+#updr certify
 #gen_theorems
 
 #check ic3_safe
@@ -44,7 +44,7 @@ Certified: theorem LockServer.ic3_safe (strengthening LockServer.ic3_inv); axiom
 
 ### Live progress
 
-In the Lean editor, put the cursor on `#synthesize_invariants` to see its progress
+In the Lean editor, put the cursor on `#updr` to see its progress
 panel in the infoview. It shows the current activity, elapsed time, search queries
 completed and the query budget, time spent in queries, clauses per frame, and
 candidate/admission counts. During `certify`, it shows the current proof obligation
@@ -74,13 +74,13 @@ builds do not create a widget. For progress outside the editor, use `verbose` or
 `(log := "run.jsonl")` and watch the log with `tail -F run.jsonl`.
 
 `#guard_msgs` deliberately waits for background diagnostics, so a panel inside it
-appears after completion. Use a direct `#synthesize_invariants` command for live
+appears after completion. Use a direct `#updr` command for live
 updates.
 
 ### Options
 
 Options may appear in any order, each at most once:
-`#synthesize_invariants (fuel := 500) (log := "run.jsonl") verbose certify`.
+`#updr (fuel := 500) (log := "run.jsonl") verbose certify`.
 
 | option | meaning | default |
 |---|---|---|

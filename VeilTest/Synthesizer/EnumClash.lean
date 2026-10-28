@@ -51,7 +51,7 @@ safety [never_fired] ¬ fired
 
 /-- invariant [ic3_0] pc = phase_EnumClass.Cycle ∨ ¬ armed -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (fuel := 200) (expect := invariant) certify
+#updr (fuel := 200) (expect := invariant) certify
 
 #gen_theorems
 
