@@ -47,7 +47,9 @@ safety [mutex] holds C ∧ holds D → C = D
 
 /-- invariant [ic3_0] ∀ (x0 : client), ¬ holds x0 ∨ ¬ lock_free -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants certify
+#updr certify
+
+#gen_theorems
 
 /-- info: 'LockServer.ic3_safe' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

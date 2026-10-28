@@ -7,10 +7,11 @@ public meta import Veil.Core.Tools.Synthesizer.Command
 /-!
 # Invariant synthesis
 
-`#synthesize_invariants`, run after `#gen_spec` in a Veil module, finds universal `invariant`
+`#updr`, run after `#gen_spec` in a Veil module, finds universal `invariant`
 clauses that make the module's `safety` properties inductive, finds an execution that violates
 them, or reports that no universal inductive invariant exists. With `certify`, an invariant or an
-execution becomes a kernel-checked theorem, `ic3_safe` or `ic3_unsafe`. The search is UPDR, the
+execution is checked in the background as `ic3_safe` or `ic3_unsafe`; `#gen_theorems` waits and
+imports the certificate. The search is UPDR, the
 first-order form of IC3 [Karbyshev et al.]. See `docs/Synthesizer-Guide.md` for usage.
 
 The command is not part of `import Veil`:

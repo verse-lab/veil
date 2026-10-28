@@ -183,9 +183,12 @@ def structInstance (fields : Array (Name × Term)) : CommandElabM Term := do
   `({ $items:structInstField,* })
 
 /-- Build and check the counterexample certificate. `property` are the conjuncts of `P`. -/
-def certifyUnsafe (mod : Veil.Module) (property : Array Term) (path : DecodedTrace) :
+def certifyUnsafe (mod : Veil.Module) (property : Array Term) (path : DecodedTrace)
+    (progress? : Option Progress.Ref := none) :
     CommandElabM CertificateResult := do
   let some σ₀ := path.states[0]? | throwError "IC3: empty counterexample"
+  Progress.beginCertificate progress? (path.states.size + 2)
+  Progress.activity progress? "Reconstructing the counterexample's theory and states"
   throwIfCertified mod [`ic3_unsafe, `ic3_prop]
   let ctx ← liftTermElabM (QueryCtx.ofModule mod)
   let sig ← liftTermElabM (Signature.ofModule mod)
@@ -233,10 +236,12 @@ def certifyUnsafe (mod : Veil.Module) (property : Array Term) (path : DecodedTra
   let prop ← `($propName $sortTerms* $instArgs*)
   let defs := #[thName] ++ stateNames ++ instNames ++ enumEqs
   let fact (name : Ident) (stmt : Term) (unfolds : Array Ident) : CommandElabM Unit := do
+    Progress.activity progress? s!"Checking counterexample fact {name.getId}"
     elabChecked (← `(command| theorem $name : $stmt := by
       unfold $[$unfolds:ident]*
       try veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]
       all_goals veil_concrete [$defs,*]))
+    Progress.completeObligation progress?
   let rtsName := mkIdent (mod.name ++ assembledRTSName)
   let hasName := mkIdent `ic3_cex_assumptions
   fact hasName (← `(term| ($rts).$(mkIdent `assumptions) $thName))
@@ -254,6 +259,7 @@ def certifyUnsafe (mod : Veil.Module) (property : Array Term) (path : DecodedTra
   let badName := mkIdent `ic3_cex_bad
   fact badName (← `(¬ ($prop) $thName $(stateNames.back!))) #[propName]
   let thmName := mkIdent `ic3_unsafe
+  Progress.activity progress? "Checking the final counterexample theorem"
   let (th, st) := (mkIdent `th, mkIdent `st)
   elabChecked (← `(command|
     theorem $thmName : ¬ (∀ ($th : @$(mkIdent theoryName) $sortTerms*) ($st : $stateT),

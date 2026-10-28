@@ -2,7 +2,7 @@ module
 
 public meta import Veil.Core.Tools.Synthesizer.Structure
 
-/-! Laws of the clause layer of `#synthesize_invariants`, on a two-node Ring
+/-! Laws of the clause layer of `#updr`, on a two-node Ring
 state: evaluation of a structure's diagram and of its blocking clause,
 subsumption up to variable renaming, and generalization by dropping literals
 of the blocking clause. -/

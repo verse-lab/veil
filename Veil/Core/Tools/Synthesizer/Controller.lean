@@ -169,6 +169,7 @@ def propagate (N : Nat) : SearchM (Option Nat) := do
         let a := { a with viaTrust := a.viaTrust || r.isTrusted }
         modify fun s ↦
           { s with frames := s.frames.modify i (Clause.insertSubsuming (·.clause) · a) }
+        reportProgress
       else allPushed := false
     if allPushed then return some i
   return none
@@ -197,6 +198,7 @@ partial def mainLoop (N : Nat) : SearchM Outcome := do
     say s!"frame {N} is clear; opening frame {N + 1}"
     event "frame_clear" [("frame", N), ("frameSizes", toJson (← frameSizes))]
     modify fun s ↦ { s with frames := s.frames.push #[], lastFrontier := none }
+    reportProgress
     let some i ← propagate N | mainLoop (N + 1)
     say s!"frame {i} equals frame {i + 1}: fixpoint"
     let s ← get
@@ -221,6 +223,7 @@ def collectSamples : SearchM Unit := do
 /-- The search: the reachable samples, `init ∧ ¬P` and `init ∧ tr ∧ ¬P'`, then the main loop. -/
 def search : SearchM Outcome := do
   let ctx ← read
+  reportProgress
   if ctx.cfg.generalizer == .linear && !ctx.sig.numericSorts.isEmpty then collectSamples
   match ← perConjunct (initQuery · (retry := true)) with
   | r@(.sat _) | r@(.satUndecoded _) => violation 0 r
@@ -260,14 +263,20 @@ def synthesize (mod : Veil.Module) (cfg : Config) (sig : Signature) : TermElabM 
       propertyTerm := ← repeatedAnd propertyConjuncts }
   -- The state lives in a reference, so that the frames survive an exception.
   let ref ← IO.mkRef ({ fuel := cfg.fuel } : St)
-  let phases₀ ← queryPhases.get
+  let phasesRef ← IO.mkRef ({} : QueryPhases)
+  let previousPhases := queryPhases.getState (← getEnv)
+  modifyEnv fun env => queryPhases.setState env (some phasesRef)
   -- Each query is bounded by its own budget and the run by fuel; the command's is lifted.
-  let outcome ← withTheReader Core.Context (fun c ↦ { c with maxHeartbeats := 0 }) <|
-    tryCatchRuntimeEx (SearchM.search.run ctx ref) fun e ↦ do
-      return .internalError ((← e.toMessageData.toString).take 400).toString
-        ((← ref.get).frames.map (·.size))
+  let outcome ← try
+    withTheReader Core.Context (fun c ↦ { c with maxHeartbeats := 0 }) <|
+      tryCatchRuntimeEx (SearchM.search.run ctx ref) fun e ↦ do
+        return .internalError ((← e.toMessageData.toString).take 400).toString
+          ((← ref.get).frames.map (·.size))
+    finally
+      modifyEnv fun env => queryPhases.setState env previousPhases
   let s ← ref.get
-  let phases := (← queryPhases.get).sub phases₀
+  SearchM.reportProgress.run ctx ref
+  let phases ← phasesRef.get
   return { outcome, stats := { s.stats with phases }, log := s.log }
 
 end Veil.Synthesizer
