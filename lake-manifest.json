@@ -31,7 +31,7 @@
    "inputRev": "v4.32.0",
    "inherited": false,
    "configFile": "lakefile.toml"},
-  {"url": "https://github.com/verse-lab/LTLLib.git",
+  {"url": "https://github.com/verse-lab/Lasso.git",
    "type": "git",
    "subDir": null,
    "scope": "",
