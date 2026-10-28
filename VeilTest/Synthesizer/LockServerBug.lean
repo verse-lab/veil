@@ -46,7 +46,7 @@ safety [mutex] holds C ∧ holds D → C = D
 
 /-- info: Violated: the safety property. Execution of 4 step(s) -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := unsafe) certify
+#updr (expect := unsafe) certify
 
 #gen_theorems
 
@@ -64,6 +64,6 @@ Re-check with:
     grant
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := unsafe)
+#updr (expect := unsafe)
 
 end LockServerBug

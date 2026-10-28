@@ -37,7 +37,7 @@ safety [stays] ¬ go
 #gen_spec
 
 #guard_msgs(drop info) in
-#synthesize_invariants (expect := unsafe) certify
+#updr (expect := unsafe) certify
 
 #gen_theorems
 

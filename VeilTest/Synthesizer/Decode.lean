@@ -3,7 +3,7 @@ module
 public meta import Veil
 public meta import Veil.Core.Tools.Synthesizer.Model
 
-/-! The model decoder of `#synthesize_invariants` against the `ToJson` serialization of Veil values.
+/-! The model decoder of `#updr` against the `ToJson` serialization of Veil values.
 
 Each case serializes a Lean function with `ToJson`, as `VeilTrace.toJson evalExprToJson` does for
 the components of a solver model, decodes it with `Model.table` or `Model.numTable`, and compares

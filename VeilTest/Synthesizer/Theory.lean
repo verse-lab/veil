@@ -41,7 +41,7 @@ safety [never_bad] ¬ bad
 Certified: theorem ImmTernary.ic3_safe (strengthening ImmTernary.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := invariant) certify
+#updr (expect := invariant) certify
 
 end ImmTernary
 
@@ -77,7 +77,7 @@ safety [never_bad] ¬ bad
 link: (0,0,0) (0,0,1) (0,1,0) (0,1,1) (1,0,0) (1,0,1) (1,1,0) (1,1,1)
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := unsafe) certify
+#updr (expect := unsafe) certify
 
 end ImmTernaryBug
 
@@ -115,7 +115,7 @@ safety [never_bad] ¬ bad
 Certified: theorem Btw.ic3_safe (strengthening Btw.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := invariant) certify
+#updr (expect := invariant) certify
 
 end Btw
 
@@ -155,6 +155,6 @@ safety [never_bad] ¬ bad
 btwn.btw: (0,2,1) (1,0,2) (2,1,0)
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := unsafe)
+#updr (expect := unsafe)
 
 end BtwBug

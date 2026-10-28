@@ -3,7 +3,7 @@ module
 public meta import Veil
 public meta import Veil.Core.Tools.Synthesizer.Model
 
-/-! Randomized round-trips through the model decoder of `#synthesize_invariants`.
+/-! Randomized round-trips through the model decoder of `#updr`.
 
 Each case builds a pseudo-random relation or function over `Fin n` (`n` from 1 to 4) and an enum,
 of 1 to 4 arguments, serializes it with `ToJson` as `VeilTrace.toJson evalExprToJson` does, decodes
