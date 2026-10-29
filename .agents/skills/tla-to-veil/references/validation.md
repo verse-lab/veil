@@ -54,7 +54,7 @@ For targeted count diagnostics, use separate temporary variants. A self-loop pro
 
 ## Report
 
-Keep an active `#model_check` for an instance compared with TLC in the delivered file, and identify that TLC run in a comment. Comment out other invocations with a reason.
+Keep an active `#model_check` for an instance compared with TLC in the delivered file, and identify that TLC run in its comment ([explaining.md](explaining.md)). Comment out other invocations with a reason.
 
 One row per instance or variant. Mark each check as passed, failed, not run, or not applicable, and mark incomplete searches explicitly. Explain any count comparison that is not applicable. Use fresh runs rather than numbers from earlier validation notes.
 

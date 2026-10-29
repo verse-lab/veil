@@ -67,7 +67,7 @@ Options follow the theory, e.g.
 | `sequential` | `false` | Runs a single-threaded search instead of the parallel one |
 | `parallelCfg` | one subtask per core | Tunes the parallel search (`numSubTasks`, `thresholdToParallel`, `numSubSteps`) |
 | `fingerprintType` | `Nat` | Type of the stored state fingerprints; `UInt64` keeps the full hash but uses more memory |
-| `seenSet` | `TreeSetShard` | Set type of the parallel search's seen-set shards; `HAMTShard` and `HAMTKeysShard` are faster but use more memory per state |
+| `seenSet` | `TreeMapShard` | Map type of the shards of the parallel search's seen set, which also records how the search first reached each state; `HAMTMapShard` is usually faster but uses more memory per state |
 
 The `#model_check` docstring describes `fingerprintType` and `seenSet` in
 detail.
