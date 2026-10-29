@@ -137,12 +137,14 @@ There is a sporadic issue in the build process for
 [`lean-cvc5`](https://github.com/abdoo8080/lean-cvc5). Trying to build again
 often fixes the problem.
 
-## VS Code
+## VS Code extension (optional)
 
-The [Veil Verifier extension](editors/vscode/README.md) lets you create
-model-checking configurations, run model checkers, track progress, and
-inspect counterexamples directly in VS Code. It works alongside the
-Lean 4 extension.
+The [Veil Verifier extension](editors/vscode/README.md) provides an optional
+VS Code interface for creating model-checking configurations, running model
+checkers, tracking progress, and inspecting counterexamples. It works
+alongside the Lean 4 extension.
+Veil's verification and model-checking commands can be used without this
+extension.
 
 See the [extension README](editors/vscode/README.md) for installation
 and usage instructions.
