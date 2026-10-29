@@ -32,6 +32,30 @@ private def findKindOutsideQuotations? (stx : Syntax) (kind : SyntaxNodeKind) : 
   findOutsideQuotations? stx fun candidate =>
     if candidate.isOfKind kind then some candidate else none
 
+/-- Contract expressions must remain pure even when a term macro introduces
+an immediate monadic action. Quotations are data, so only active syntax is
+expanded and inspected. -/
+partial def findContractEffect? (stx : Syntax) (inQuotation := false) :
+    TermElabM (Option Syntax) := do
+  unless inQuotation do
+    if stx.isOfKind ``Lean.Parser.Term.nestedAction then return some stx
+    if let some (_, expanded?) ← liftMacroM <| expandMacroImpl? (← getEnv) stx then
+      let expanded ← liftMacroM <| liftExcept expanded?
+      return ← withIncRecDepth <| findContractEffect? expanded false
+  for child in stx.getArgs do
+    if let some effect ← findContractEffect? child (Action.childrenAreQuoted stx inQuotation) then
+      return some effect
+  return none
+
+private partial def validatePureEnsures (stx : Syntax) (inQuotation := false) :
+    TermElabM Unit := do
+  unless inQuotation do
+    if let `(doElem| ensure $predicate) := stx then
+      if let some effect ← findContractEffect? predicate then
+        throwErrorAt effect "effects are not supported inside `ensure` postconditions"
+  for child in stx.getArgs do
+    validatePureEnsures child (Action.childrenAreQuoted stx inQuotation)
+
 /-- Find the immediate-expression form `(← do ...)`.  This is not a deferred
 term-level `do`: Lean lifts it into preceding statements.  However, Lean 4.32
 infers branch control information before performing that lift, so mutations of
@@ -67,9 +91,9 @@ private def classifiedDoElemKinds : NameSet := .ofList [
   -- inserted by Lean's own doElem macro expansion (e.g. `if` without `else`)
   ``Lean.Parser.Term.InternalSyntax.doSkip,
   -- Veil's own statements
-  ``requireDo, ``assertDo, ``ifSomeDo, ``letPick, ``havocAssignment,
+  ``requireDo, ``assertDo, ``ensureDo, ``ifSomeDo, ``letPick, ``havocAssignment,
   ``veilLetDo, ``veilVarDo, ``stateAssignWrapper, ``internalExpr,
-  ``theoryOpen,
+  ``theoryOpen, ``saveEntryState,
   -- rejected with targeted diagnostics
   ``Lean.Parser.Term.doLetRec, ``Lean.Parser.Term.doFor,
   ``Lean.Parser.Term.doWhile, ``Lean.Parser.Term.doRepeat,
@@ -104,6 +128,28 @@ private partial def validateStatementKinds (stx : Syntax)
 applied both to the user's surface syntax and to the syntax obtained after
 `prepareStateAssignments` expands `doElem` macros. -/
 def validateVeilDo (body : ActionSyntax) : TermElabM Unit := do
+  if (findKindOutsideQuotations? body.raw ``ensureDo).isSome then
+    /- Until all returns are routed through a contract epilogue, reject exits
+    that might bypass a postcondition. A final top-level return is safe. -/
+    let items : Array (TSyntax ``Lean.Parser.Term.doSeqItem) := match body with
+      | `(Lean.Parser.Term.doSeq| $items:doSeqItem*) => items
+      | `(Lean.Parser.Term.doSeq| { $items:doSeqItem* }) => items
+      | _ => #[]
+    for h : i in [:items.size] do
+      let item := items[i]
+      let isFinalReturn := i + 1 == items.size && item.raw[0].isOfKind ``Lean.Parser.Term.doReturn
+      if isFinalReturn then
+        if let some effect ← findContractEffect? item.raw then
+          throwErrorAt effect "effects in the final return of an action with `ensure` are not supported: evaluate the return value before its postconditions"
+      unless isFinalReturn do
+        if let some ret := findKindOutsideQuotations? item.raw ``Lean.Parser.Term.doReturn then
+          throwErrorAt ret "early returns in an action with `ensure` are not supported: a return could bypass its postconditions"
+  if let some effect := findOutsideQuotations? body.raw fun candidate =>
+      if candidate.isOfKind ``oldTerm then
+        findKindOutsideQuotations? candidate ``Lean.Parser.Term.nestedAction
+      else none then
+    throwErrorAt effect "effects are not supported inside `old` expressions"
+  validatePureEnsures body.raw
   if let some termDo := findKindOutsideQuotations? body.raw ``Lean.Parser.Term.do then
     throwErrorAt termDo
       "term-level `do` blocks cannot be stored, passed, or otherwise deferred inside Veil actions; execute the block directly as a statement or bind its result"
@@ -168,6 +214,11 @@ def elabVeilDo (procName : Name) (readerType stateType : Term)
     | throwErrorAt body "internal error: Veil action type is not a monad application"
   let some body ← prependDoSeqItem? (← `(Term.doSeqItem| veil_do_open_theory%)) body
     | throwErrorAt body "unexpected Veil action body"
+  let body ← if (findKindOutsideQuotations? body.raw ``ensureDo).isSome then do
+      let some body ← prependDoSeqItem? (← `(Term.doSeqItem| veil_do_save_entry%)) body
+        | throwErrorAt body "unexpected Veil action body"
+      pure body
+    else pure body
   withVeilDoContext { mod := mod, proc := procName, monad, parameters := parameters.ids } do
     withOptions (fun opts => opts.setBool `backward.do.legacy false) do
       Lean.Elab.Do.elabDoWith .default body (some expectedType)

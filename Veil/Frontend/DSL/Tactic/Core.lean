@@ -931,7 +931,8 @@ private def mkTrueLocalRPropComponents [Monad m] [MonadQuotation m] (mod : Modul
   return (trueCore, rflLocalEq)
 
 private def mkLocalPreconditionTactics (mod : Module) (theoryType stateType pre : Expr)
-    (tacticName : String) : DesugarTacticM (Option (TSyntax `tactic) × TSyntax `tactic) := do
+    (actualModuleArgs : Array Expr)
+    (_tacticName : String) : DesugarTacticM (Option (TSyntax `tactic) × TSyntax `tactic) := do
   let invariantsEqName ← resolveGlobalConstNoOverloadCore <| toCoreSimplifiedEqName assembledInvariantsName
   let invariantsName ← resolveGlobalConstNoOverloadCore assembledInvariantsName
   let truePre ← withLocalDeclsDND
@@ -942,7 +943,8 @@ private def mkLocalPreconditionTactics (mod : Module) (theoryType stateType pre 
     -- the still-open `preCore` metavariable.  Closing `preCore` first with bare
     -- `Invariants.core_simplified` loses the module-prefix arguments because
     -- the expected type is already just the field-core function type.
-    pure (none, ← `(tactic| exact $(mkIdent invariantsEqName):ident))
+    let eqTerm ← mod.explicitClassCall invariantsEqName #[]
+    pure (none, ← `(tactic| exact $eqTerm:term))
   else if ← withBackwardsCompatibility (isDefEq pre truePre) then
     -- Initializer VCs have precondition `fun _ _ => True`.  Build the matching
     -- field-level core directly instead of asking Lean to infer a shared
@@ -951,7 +953,19 @@ private def mkLocalPreconditionTactics (mod : Module) (theoryType stateType pre 
     let (truePreCore, rflLocalEq) ← mkTrueLocalRPropComponents mod
     pure (some (← `(tactic| exact $truePreCore:term)), ← `(tactic| exact $rflLocalEq:term))
   else
-    throwError "{tacticName}: expected precondition to be Invariants or True, got{indentExpr pre}"
+    -- A proof-support restriction supplies a conjunction of selected named
+    -- predicates. Its LocalRProp instance is composed from those predicates'
+    -- instances, retaining the same field abstraction as the ordinary path.
+    -- In particular, do not substitute the full Invariants core here.
+    let className ← resolveGlobalConstNoOverloadCore localRPropTCName
+    unless actualModuleArgs.size == mod.parameters.size do
+      throwError "local precondition has an unexpected module parameter layout"
+    let classType ← mkAppOptM className
+      (actualModuleArgs.map some ++ #[some (mkSort .zero), some pre])
+    let inst ← synthInstance classType
+    let coreEq ← instantiateMVars (← mkProjection inst `core_eq)
+    let coreEqTerm ← delabVeilExpr coreEq true
+    pure (none, ← `(tactic| exact $coreEqTerm:term))
 
 /-- Implementation of `veil_apply_local_wp`; see the tactic syntax declaration
 for the user-facing behavior. -/
@@ -965,7 +979,7 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
   -- the expected target instead of being rebuilt as one giant application.
   let mod ← getCurrentModule
   let goal ← getMainGoal
-  let (actName, wpLocalEqName, preCoreTac?, hPreTac, handlerTerm, postIsTrue) ← goal.withContext do
+  let (actName, wpLocalEqName, preCoreTac?, hPreTac, handlerTerm, postIsTrue, actualModuleTerms) ← goal.withContext do
     let target ← instantiateMVars (← goal.getType)
     let target := target.consumeMData
     -- After introducing action parameters, the goal should be one of the
@@ -994,8 +1008,11 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
     let some actName := act.getAppFn'.constName?
       | throwError "veil_apply_local_wp: expected action to be headed by a constant, got{indentExpr act}"
     let wpLocalEqName ← resolveGlobalConstNoOverloadCore (toWpLocalEqName actName)
-    let (preCoreTac?, hPreTac) ← mkLocalPreconditionTactics mod theoryType stateType pre "veil_apply_local_wp"
-    pure (actName, wpLocalEqName, preCoreTac?, hPreTac, handlerTerm, postIsTrue)
+    let actualModuleArgs := act.getAppArgs'.extract 0 mod.parameters.size
+    let (preCoreTac?, hPreTac) ← mkLocalPreconditionTactics mod theoryType stateType pre
+      actualModuleArgs "veil_apply_local_wp"
+    let actualModuleTerms ← actualModuleArgs.mapM (delabVeilExpr · true)
+    pure (actName, wpLocalEqName, preCoreTac?, hPreTac, handlerTerm, postIsTrue, actualModuleTerms)
   -- NOTE: We intentionally use a lightly-applied `refine` here rather than
   -- building a fully-instantiated theorem application.  On larger modules,
   -- constructing the complete application forces Lean to elaborate huge VC
@@ -1013,26 +1030,35 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
   let truePostTerm ← `(term| fun _ _ => $(mkIdent ``True))
   let truePostInst? ← if postIsTrue then
       let (trueCore, rflLocalEq) ← mkTrueLocalRPropComponents mod
-      pure <| some <| ← `(term| ⟨$trueCore:term, $rflLocalEq:term⟩)
+      let ctor ← resolveGlobalConstNoOverloadCore (localRPropTCName ++ `mk)
+      let args := actualModuleTerms ++ #[(← `(term| Prop)), truePostTerm, trueCore, rflLocalEq]
+      pure <| some <| ← `(term| @$(mkIdent ctor):ident $args:term*)
     else pure none
   let hWpTac ← do
-    let tm ← match truePostInst? with
-      | some inst => `($(mkIdent wpLocalEqName):ident ($(mkVeilImplementationDetailIdent `localRPropTC) := $inst:term))
-      | none => `($(mkIdent wpLocalEqName):ident)
+    let args : Array Term ← match truePostInst? with
+      | some inst => do
+        let named ← `(Parser.Term.namedArgument|
+          ($(mkVeilImplementationDetailIdent `localRPropTC) := $inst:term))
+        pure #[⟨named.raw⟩]
+      | none => pure #[]
+    let tm ← mod.explicitClassCall wpLocalEqName args
     `(tactic| (unhygienic intro $(mkIdent `handler) $(mkIdent `th) $(mkIdent `st) ; rw [$tm:term]))
   let refineTac ← do
-    let tm ← match truePostInst? with
-      | some inst => `($localMeetsSpecificationIfSuccessfulAssuming:ident
-        ($(mkVeilImplementationDetailIdent `post):ident := $truePostTerm:term)
-        ($(mkVeilImplementationDetailIdent `localRPropTC):ident := $inst:term)
-        $handlerTerm:term ?_ ?_ ?_ ?_ ?_ ?_)
-      | none => `($localMeetsSpecificationIfSuccessfulAssuming:ident
-        $handlerTerm:term ?_ ?_ ?_ ?_ ?_ ?_)
+    let mut args : Array Term := #[]
+    if let some inst := truePostInst? then
+      let post ← `(Parser.Term.namedArgument|
+        ($(mkVeilImplementationDetailIdent `post):ident := $truePostTerm:term))
+      let localInst ← `(Parser.Term.namedArgument|
+        ($(mkVeilImplementationDetailIdent `localRPropTC):ident := $inst:term))
+      args := #[⟨post.raw⟩, ⟨localInst.raw⟩]
+    args := args.push handlerTerm ++ (← (List.range 6).toArray.mapM fun _ => `(term| ?_))
+    let tm ← mod.explicitClassCall localMeetsSpecificationIfSuccessfulAssumingName args
+    let assuEq ← mod.explicitClassCall (toCoreSimplifiedEqName assembledAssumptionsName) #[]
     `(tactic| refine' $tm:term <;>
       [ skip
       ; skip
       ; $preCoreTac:tactic
-      ; exact $(mkIdent <| toCoreSimplifiedEqName assembledAssumptionsName):ident
+      ; exact $assuEq:term
       ; $hPreTac:tactic
       ; $hWpTac:tactic
       ; skip ])
@@ -1059,6 +1085,8 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
     try unfold $(mkIdent <| toWpLocalPredName actName):ident
     try unfold $(mkIdent <| toCoreSimplifiedName assembledAssumptionsName):ident at $has:ident
     try unfold $(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident at $hinv:ident
+    veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident,
+      $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident] at $hinv:ident
     veil_dsimp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]
     veil_dsimp +$(mkIdent `instances) only [↓ $(mkIdent `reduceStateLabelDomainCodomainDsimproc):ident]
     )
@@ -1088,7 +1116,9 @@ def elabVeilApplyLocalTr : DesugarTacticM Unit := veilWithMainContext do
     let some trName := tr.getAppFn'.constName?
       | throwError "veil_apply_local_tr: expected transition to be headed by a constant, got{indentExpr tr}"
     let trAbstractName ← resolveTransitionAbstractName trName
-    let (preCoreTac?, hPreTac) ← mkLocalPreconditionTactics mod theoryType stateType pre "veil_apply_local_tr"
+    let actualModuleArgs := tr.getAppArgs'.extract 0 mod.parameters.size
+    let (preCoreTac?, hPreTac) ← mkLocalPreconditionTactics mod theoryType stateType pre
+      actualModuleArgs "veil_apply_local_tr"
     pure (trName, trAbstractName, preCoreTac?, hPreTac)
   -- The theorem shape mirrors the WP bridge theorem.  The bracketed
   -- `<;> [...]` block exposes the fixed side-goal order in the generated
@@ -1100,13 +1130,17 @@ def elabVeilApplyLocalTr : DesugarTacticM Unit := veilWithMainContext do
     | some tac => pure tac
     | none => `(tactic| skip)
   -- Preserve the bridge theorem's assigned instances during application.
-  let hTrTac ← `(tactic| (unhygienic intro _ _ _; __veil_apply_no_synth $(mkIdent trAbstractName):ident))
+  let trAbstract ← mod.explicitClassCall trAbstractName #[]
+  let hTrTac ← `(tactic| (unhygienic intro _ _ _; __veil_apply_no_synth $trAbstract:term))
+  let bridge ← mod.explicitClassCall localTransitionMeetsSpecificationIfSuccessfulAssumingName
+    (← (List.range 6).toArray.mapM fun _ => `(term| ?_))
+  let assuEq ← mod.explicitClassCall (toCoreSimplifiedEqName assembledAssumptionsName) #[]
   veilEvalTactic $ ← `(tactic|
-    refine' $localTransitionMeetsSpecificationIfSuccessfulAssuming:ident ?_ ?_ ?_ ?_ ?_ ?_ <;>
+    refine' $bridge:term <;>
       [ skip
       ; skip
       ; $preCoreTac:tactic
-      ; exact $(mkIdent <| toCoreSimplifiedEqName assembledAssumptionsName):ident
+      ; exact $assuEq:term
       ; $hPreTac:tactic
       ; $hTrTac:tactic
       ; skip ])
@@ -1129,6 +1163,8 @@ def elabVeilApplyLocalTr : DesugarTacticM Unit := veilWithMainContext do
     try unfold $(mkIdent trName) at $htr:ident
     try unfold $(mkIdent <| toCoreSimplifiedName assembledAssumptionsName):ident at $has:ident
     try unfold $(mkIdent <| toCoreSimplifiedName assembledInvariantsName):ident at $hinv:ident
+    veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident,
+      $(mkIdent `invSimp):ident, $(mkIdent `smtSimp):ident] at $hinv:ident
     veil_dsimp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident] at $htr:ident ⊢
     )
   veilEvalTactic tac
@@ -1181,13 +1217,13 @@ private def elabSimplifyBeforeConcretizeWp [Monad m] [MonadOptions m] [MonadQuot
     else #[`substateSimp, `invSimp, `smtSimp, `forallQuantifierSimp]
   let initialSimps := if unfoldghostRel? then initialSimps.push `ghostRelSimp else initialSimps
   let initialSimps := initialSimps.map Lean.mkIdent
-  let ghostRelTac ← if unfoldghostRel?
-    then `(tactic| skip )
+  let ghostRelTac ← match unfoldghostRel? with
+    | true => `(tactic| skip )
     -- NOTE: Both here and below assume the hypothesis for `Invariants` has name `hinv`
-    else `(tactic| (__veil_ghost_relation_ssa at $(mkIdent `hinv):ident ; __veil_ghost_relation_ssa ))
-  let simpTac ← if simpHinv
-    then `(tactic| open $classicalIdent:ident in veil_simp +$(mkIdent `instances) only [$[$initialSimps:ident],*] at *)
-    else -- skip `hinv`
+    | false => `(tactic| (__veil_ghost_relation_ssa at $(mkIdent `hinv):ident ; __veil_ghost_relation_ssa ))
+  let simpTac ← match simpHinv with
+    | true => `(tactic| open $classicalIdent:ident in veil_simp +$(mkIdent `instances) only [$[$initialSimps:ident],*] at *)
+    | false => -- skip `hinv`
       `(tactic| open $classicalIdent:ident in veil_simp +$(mkIdent `instances) only [$[$initialSimps:ident],*] at $(mkIdent `has):ident ⊢ )
   `(tacticSeq| $simpTac ; veil_intro_ho ; $ghostRelTac )
 
@@ -1195,9 +1231,9 @@ private def elabSimplifyBeforeConcretizeWp [Monad m] [MonadOptions m] [MonadQuot
 def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
   let preTac ← elabSimplifyBeforeConcretizeWp fast true
   let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
-  let concretizeFieldsTac ← if fast
-    then `(tactic| __veil_concretize_fields_wp !)
-    else `(tactic| __veil_concretize_fields_wp)
+  let concretizeFieldsTac ← match fast with
+    | true => `(tactic| __veil_concretize_fields_wp !)
+    | false => `(tactic| __veil_concretize_fields_wp)
   let tac ← `(tacticSeq| $inferNonemptyTac:tactic; ($preTac) ; __veil_neutralize_decidable_inst at * ; __veil_concretize_state_wp ; $concretizeFieldsTac )
   veilEvalTactic tac
 
@@ -1212,9 +1248,9 @@ def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
   let tac ← do
     let classicalIdent := mkIdent `Classical
     let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
-    let tac ← if fast
-      then `(tactic| (veil_destruct' ; veil_dsimp +$(mkIdent `instances) only at *; veil_intros) )
-      else `(tactic| (veil_destruct; (open $classicalIdent:ident in veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident] at * ); veil_intros) )
+    let tac ← match fast with
+      | true => `(tactic| (veil_destruct' ; veil_dsimp +$(mkIdent `instances) only at *; veil_intros) )
+      | false => `(tactic| (veil_destruct; (open $classicalIdent:ident in veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident] at * ); veil_intros) )
     -- FIXME: There is `inferNonemptyTac` both in `veil_fol` and `veil_smt` and `concretize_wp`. Just keep one?
     `(tactic| ($inferNonemptyTac:tactic; $tac:tactic))
   veilEvalTactic tac

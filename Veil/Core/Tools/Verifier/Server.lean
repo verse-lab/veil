@@ -6,6 +6,7 @@ public meta import Veil.Core.Tools.Verifier.Results
 public meta import Std.Sync.Mutex
 public meta import Veil.Util.Multiprocessing
 public meta import Veil.Util.Meta
+public meta import Lean.Util.CollectAxioms
 
 public meta section
 
@@ -34,8 +35,14 @@ def withVCManager (f : IO.Ref (VCManager VCMetadata SmtResult) → CommandElabM 
   vcManager.atomically f
 
 def reset (managerId : ManagerId) : CommandElabM Unit := sendNotification (.reset managerId)
-def startAll : CommandElabM Unit := sendNotification .startAll
-def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := sendNotification (.startFiltered filter)
+def startAll : CommandElabM Unit := do
+  vcManager.atomically fun ref => ref.modify (·.enableAll)
+  sendNotification .startAll
+def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := do
+  -- Record the requested work synchronously. In particular, an immediately
+  -- following export can wait for this selection without enabling more VCs.
+  vcManager.atomically fun ref => ref.modify (·.enableMatching filter)
+  sendNotification (.startFiltered filter)
 
 def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
 
@@ -210,11 +217,22 @@ def waitFilteredSync (filter : VCMetadata → Bool) : CommandElabM (Verification
   startFiltered filter
   awaitFilteredWithLogging filter
 
+/-- Wait for work requested by preceding verification commands. Unlike
+`waitFilteredSync`, this does not start unchecked verification conditions. -/
+def waitEnabledSync : CommandElabM (VerificationResults VCMetadata SmtResult) := do
+  let mgr ← vcManager.atomically fun ref => ref.get
+  let selected := mgr.nodes.toArray.filterMap fun (id, vc) =>
+    if mgr.enabledVCs.contains id then some vc.metadata else none
+  awaitFilteredWithLogging (selected.contains ·)
+
 private def ensureExistingTheoremMatches (fullName : Name) (statement : Expr) : TermElabM Unit := do
   let some info := (← getEnv).find? fullName
     | return
   unless ← Meta.isDefEq info.type statement do
     throwError "cannot generate VC theorem `{fullName}` because a declaration with that name already exists with a different type"
+  unless veil.smt.trust.get (← getOptions) do
+    if (← collectAxioms fullName).contains ``sorryAx then
+      throwError "cannot reuse VC theorem `{fullName}` because its proof depends on sorryAx while veil.smt.trust is false"
 
 private def addProvenVCTheorem (vc : VerificationCondition VCMetadata SmtResult)
     (witness : Witness) : CommandElabM Unit := do
@@ -225,7 +243,12 @@ private def addProvenVCTheorem (vc : VerificationCondition VCMetadata SmtResult)
       ensureExistingTheoremMatches fullName statement
       return
     let witness ← instantiateMVars witness
-    let _ ← addVeilTheorem vc.name statement witness
+    let savedEnv ← getEnv
+    let name ← addVeilTheorem vc.name statement witness
+    unless veil.smt.trust.get (← getOptions) do
+      if (← collectAxioms name).contains ``sorryAx then
+        setEnv savedEnv
+        throwError "cannot export VC theorem `{name}` because its proof depends on sorryAx while veil.smt.trust is false"
     return ()
 
 /-- Add theorem declarations for all already-proven VCs matching `filter`.

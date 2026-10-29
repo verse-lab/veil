@@ -50,6 +50,10 @@ inductive reachable (sys : RelationalTransitionSystem ρ σ l) (th : ρ) : σ �
   | init : ∀ (s : σ), sys.assumptions th → sys.init th s → sys.reachable th s
   | step : ∀ (s s' : σ), sys.reachable th s → sys.next th s s' → sys.reachable th s'
 
+/-- A state predicate holds in every reachable state of the concrete system. -/
+def isInvariant (sys : RelationalTransitionSystem ρ σ l) (inv : ρ → σ → Prop) : Prop :=
+  ∀ th s, sys.reachable th s → inv th s
+
 /-- Assumptions hold in all reachable states. -/
 @[grind .]
 theorem reachable_assumptions (sys : RelationalTransitionSystem ρ σ l) (th : ρ) (s : σ) (h : reachable sys th s) : sys.assumptions th := by

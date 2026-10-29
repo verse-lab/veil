@@ -13,6 +13,7 @@ public import Veil.Base
 public meta import Veil.Frontend.DSL.Module.Syntax
 public meta import Veil.Frontend.DSL.Action.Syntax
 public import Veil.Frontend.DSL.Action.Semantics.Theorems
+public import Veil.Frontend.DSL.Action.Semantics.Contracts
 public meta import Veil.Frontend.DSL.Module.Representation
 public meta import Veil.Frontend.DSL.Module.Elaborators.Verification
 public meta import Veil.Frontend.DSL.Module.ConfigTemplate

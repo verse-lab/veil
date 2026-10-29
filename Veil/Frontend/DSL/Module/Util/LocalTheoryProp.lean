@@ -57,18 +57,26 @@ def Module.declareLocalTheoryPropTC (mod : Module) : MetaM (List Command) := do
       $core_eq:ident : $coreEqType)
   let cmd2 ← `(command| attribute [$(mkIdent `nextSimp):ident] $(mkIdent <| localTheoryPropTCName ++ `core):ident)
   let cmdTrue ← do
-    let implBinders ← paramBinders.mapM mkImplicitBinder
+    -- Dictionaries are indices of this proof artifact, inferred from its
+    -- target rather than synthesized again from caller instance search.
+    let implBinders ← params.mapM fun parameter => do
+      match parameter.kind == .moduleTypeclass .userDefined with
+      | true => `(bracketedBinder| {$(mkIdent parameter.name) : $(parameter.type)})
+      | false => mkImplicitBinder (← parameter.binder)
     let args ← params.mapM (·.arg)
     let fieldNames : Array Ident := mod.immutableComponents.map fun sc => mkIdent sc.name
     let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f =>
       `(Lean.Parser.Term.funBinder| $f)
     let coreFn ← mkFunSyntax fieldBinders <| mkIdent ``True
+    let constructor := mkIdent (localTheoryPropTCName ++ `mk)
     `(command| scoped instance $[$implBinders]* :
-        @$localTheoryPropTC $args* Prop (fun _ => True) where
-      $core:ident := $coreFn
-      $core_eq:ident := by intros ; rfl)
+        @$localTheoryPropTC $args* Prop (fun _ => True) :=
+      @$constructor $args* Prop (fun _ => True) $coreFn (by intros ; rfl))
   let cmd3 ← do
-    let implBinders ← paramBinders.mapM mkImplicitBinder
+    let implBinders ← params.mapM fun parameter => do
+      match parameter.kind == .moduleTypeclass .userDefined with
+      | true => `(bracketedBinder| {$(mkIdent parameter.name) : $(parameter.type)})
+      | false => mkImplicitBinder (← parameter.binder)
     let p ← Lean.mkIdent <$> mkFreshUserName `p
     let q ← Lean.mkIdent <$> mkFreshUserName `q
     let inst1 ← Lean.mkIdent <$> mkFreshUserName `inst1
@@ -78,12 +86,19 @@ def Module.declareLocalTheoryPropTC (mod : Module) : MetaM (List Command) := do
     let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f =>
       `(Lean.Parser.Term.funBinder| $f)
     let fieldArgs : Array Term ← fieldNames.mapM fun f => `(term| $f)
-    let coreFn ← mkFunSyntax fieldBinders (← `(term| $inst1.$(mkIdent `core) $fieldArgs* ∧ $inst2.$(mkIdent `core) $fieldArgs*))
+    let coreProjection := mkIdent (localTheoryPropTCName ++ `core)
+    let eqProjection := mkIdent (localTheoryPropTCName ++ `core_eq)
+    let constructor := mkIdent (localTheoryPropTCName ++ `mk)
+    let coreFn ← mkFunSyntax fieldBinders (← `(term|
+      @$coreProjection $args* Prop $p $inst1 $fieldArgs* ∧
+      @$coreProjection $args* Prop $q $inst2 $fieldArgs*))
     `(command| scoped instance $[$implBinders]* ($p $q : $environmentTheory → Prop)
         [$inst1 : @$localTheoryPropTC $args* Prop $p] [$inst2 : @$localTheoryPropTC $args* Prop $q] :
-        @$localTheoryPropTC $args* Prop (fun $th => $p $th ∧ $q $th) where
-      $core:ident := $coreFn
-      $core_eq:ident := fun $th => $(mkIdent ``congrArg₂) $(mkIdent ``And) ($inst1.$(mkIdent `core_eq) $th) ($inst2.$(mkIdent `core_eq) $th))
+        @$localTheoryPropTC $args* Prop (fun $th => $p $th ∧ $q $th) :=
+      @$constructor $args* Prop (fun $th => $p $th ∧ $q $th)
+        $coreFn (fun $th => $(mkIdent ``congrArg₂) $(mkIdent ``And)
+          (@$eqProjection $args* Prop $p $inst1 $th)
+          (@$eqProjection $args* Prop $q $inst2 $th)))
   pure [cmd1, cmd2, cmdTrue, cmd3]
 
 /-! ## Simplification Infrastructure -/
@@ -252,7 +267,9 @@ private def Module.proveLocalityForTheoryPredicateCore (mod : Module) (nm : Name
         let fullProof ← mkCongrArg ff (← theoryAltResult.getProof)
         mkLambdaFVars #[th] fullProof
       let inst ← Meta.mkAppOptM ctor.name (ctorArgs |>.push (some core) |>.push (some coreEq))
-      mkLambdaFVars xs inst (usedOnly := true)
+      let dictionaries := (layout.params.zip xs).filterMap fun (parameter, argument) =>
+        if parameter.kind == .moduleTypeclass .userDefined then some argument else none
+      withImplicitBinderInfos dictionaries <| mkLambdaFVars xs inst (usedOnly := true)
   check inst
   let inst ← instantiateMVars inst
   trace[veil.debug] "LocalTheoryProp instance for {nm}: {inst}"

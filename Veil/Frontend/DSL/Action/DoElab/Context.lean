@@ -39,6 +39,27 @@ initialize contextExt : SimpleScopedEnvExtension (Option Context) (Option Contex
 
 private def actionBodyMarkerPrefix : Name := `__veil_action_body
 
+/-- The state captured once at entry to each invocation, before its body runs. -/
+def entryStateBindingName : Name := mkVeilImplementationDetailName `entry_state
+
+/-- A lexical boundary around the proposition of an `ensure`. -/
+def ensureScopeMarkerName : Name := mkVeilImplementationDetailName `ensure_scope
+
+/-- Locals created by the body do not exist at entry. Logical binders created
+inside the postcondition do, however, remain meaningful arguments to old state
+functions. Lexical markers distinguish these even after postponed elaboration. -/
+def bodyLocalsBeforeEnsure : TermElabM FVarIdSet := do
+  let (_, _, locals) := (← getLCtx).foldl (init := (false, false, ({} : FVarIdSet)))
+    fun (inBody, inEnsure, locals) decl =>
+      if actionBodyMarkerPrefix.isPrefixOf decl.userName then
+        (true, false, {})
+      else if decl.userName == ensureScopeMarkerName then
+        (inBody, true, locals)
+      else if inBody && !inEnsure && decl.kind != .implDetail then
+        (inBody, inEnsure, locals.insert decl.fvarId)
+      else (inBody, inEnsure, locals)
+  return locals
+
 private def actionBodyMarker (proc : Name) : Name :=
   Name.append actionBodyMarkerPrefix proc
 
@@ -316,6 +337,20 @@ private def bindInternalResult (ref : Syntax) (hint operation : Name)
 
 syntax (name := theoryOpen) "veil_do_open_theory%" : doElem
 
+syntax (name := saveEntryState) "veil_do_save_entry%" : doElem
+
+@[doElem_control_info saveEntryState]
+def saveEntryStateControlInfo : ControlInfoHandler := fun _ =>
+  return ControlInfo.pure
+
+@[doElem_elab saveEntryState]
+def elabSaveEntryState : DoElab := fun stx dec => do
+  let ctx ← requireVeilDoBlock
+  let stateType ← ctx.mod.stateStx
+  let rhs ← `(doElem| veil_do_internal_expr% ($(mkIdent ``get) :
+    $(mkIdent ``VeilM) $veilModeVar $environmentTheory $environmentState $stateType))
+  elabDoIdDecl (mkIdent entryStateBindingName) none rhs (← dec.ensureUnitAt stx).continueWithUnit
+
 @[doElem_control_info theoryOpen]
 def theoryOpenControlInfo : ControlInfoHandler := fun _ =>
   return ControlInfo.pure
@@ -328,7 +363,7 @@ def elabTheoryOpen : DoElab := fun stx dec => do
   let shadowed ← userLocalNames
   bindInternalResult stx `theory ``read fun theoryName =>
     bindTheoryFields shadowed theoryName ctx.mod.immutableComponents
-      dec.continueWithUnit
+      (ctx.mod.withSourceFieldInstances dec.continueWithUnit)
 
 /-- Bind the current state from a fresh monadic `get` under
 `currentStateBindingName`, reopen all unshadowed mutable fields from it, then
@@ -337,7 +372,7 @@ def openStateAround (mod : Module) (k : DoElabM Expr) : DoElabM Expr := do
   let ref ← getRef
   let shadowed ← userLocalNames
   bindInternalResultAs ref currentStateBindingName ``get <|
-    bindStateFields shadowed mod.mutableComponents k
+    bindStateFields shadowed mod.mutableComponents (mod.withSourceFieldInstances k)
 
 /-- Inline generated field views, and ordinary local lets derived from them,
 when an expression's outer shape must be visible to a later consumer. -/

@@ -18,6 +18,7 @@ public meta import Veil.Frontend.DSL.Module.Util.Enumeration
 public meta import Veil.Frontend.DSL.Module.Util.Instantiation
 public meta import Veil.Util.Multiprocessing
 public meta import Veil.Frontend.DSL.Module.AssertionInfo
+public meta import Veil.Frontend.DSL.Module.Util.Isolate
 
 public meta section
 
@@ -75,6 +76,7 @@ def elabModuleDeclaration : CommandElab := fun stx => do
       throwError s!"Module {mod.name} is already open, but you are now trying to open module {name}. Nested modules are not supported!"
     elabVeilCommand $ ← `(open Veil)
     elabVeilCommand $ ← `(namespace $modName)
+    let name ← getCurrNamespace
     -- Generated declarations form the reusable API of a Veil module. Scope these
     -- defaults to its namespace, so `end` restores the surrounding Lean defaults.
     let exposeAttr ← `(Parser.Term.attrInstance| expose)
@@ -90,7 +92,7 @@ def elabModuleDeclaration : CommandElab := fun stx => do
 
 @[command_elab Veil.typeDeclaration]
 def elabTypeDeclaration : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot declare a type outside of a Veil module!")
+  let mod ← recordModuleCommand (← getCurrentModule (errMsg := "You cannot declare a type outside of a Veil module!")) stx
   mod.throwIfStateAlreadyDefined
   match stx with
   | `(type $id:ident) => do
@@ -100,20 +102,41 @@ def elabTypeDeclaration : CommandElab := fun stx => do
 
 @[command_elab Veil.parameterDeclaration]
 def elabParameterDeclaration : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot declare a parameter outside of a Veil module!")
+  let mod ← recordModuleCommand (← getCurrentModule (errMsg := "You cannot declare a parameter outside of a Veil module!")) stx
   mod.throwIfStateAlreadyDefined
   let (id, tp) ← match stx with
   | `(param $id:ident : $tp:term) => pure (id, tp)
   | _ => throwUnsupportedSyntax
+  if let some mod ← mod.tryDeclareModuleReference id tp stx then
+    localEnv.modifyModule (fun _ => mod)
+    return
   let nm := id.getId
   mod.throwIfAlreadyDeclared nm
-  let p : Parameter := { kind := .userParameter, name := nm, «type» := tp, userSyntax := stx }
+  let (tp, classValued) ← liftTermElabMWithBinders (← mod.parameters.mapM (·.binder)) fun _ =>
+    mod.withSourceInstances do
+      let wrapped ← mod.wrapSourceInstanceArguments tp
+      let ty ← Term.withoutErrToSorry <| elabType wrapped
+      Term.synthesizeSyntheticMVarsNoPostponing
+      let ty ← instantiateMVars ty
+      if ty.hasMVar then
+        throwErrorAt tp "could not fully elaborate the declared parameter type"
+      let pinned ← withOptions (fun opts => opts
+        |>.setBool `pp.fullNames true |>.setBool `pp.notation false
+        |>.setBool `pp.fieldNotation false) <| delabVeilExpr ty true
+      let roundtrip ← Term.withoutErrToSorry <| elabType pinned
+      Term.synthesizeSyntheticMVarsNoPostponing
+      let roundtrip ← instantiateMVars roundtrip
+      unless !roundtrip.hasMVar && (← Meta.isDefEq ty roundtrip) do
+        throwErrorAt tp "could not preserve the declared parameter type"
+      return (pinned, (← Meta.isClass? ty).isSome)
+  let p : Parameter := { kind := .userParameter, name := nm, «type» := tp, userSyntax := stx, classValued }
   let newMod := { mod with parameters := mod.parameters.push p, _declarations := mod._declarations.insert nm .moduleParameter }
   localEnv.modifyModule (fun _ => newMod)
 
 @[command_elab Veil.stateComponentDeclaration]
 def elabStateComponent : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot declare a state component outside of a Veil module!")
+  let mod ← recordModuleCommand (← getCurrentModule (errMsg := "You cannot declare a state component outside of a Veil module!")) stx
+  if mod.isReferenceTemplate then return
   mod.throwIfStateAlreadyDefined
   let new_mod : Module ← match stx with
   | `($mutab:stateMutability ? $kind:stateComponentKind $name:ident $br:bracketedBinder* : $dom:term) =>
@@ -152,10 +175,27 @@ where
 
 @[command_elab Veil.instanceDeclaration]
 def elabInstantiate : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "You cannot instantiate a typeclass outside of a Veil module!")
+  let mod ← recordModuleCommand (← getCurrentModule (errMsg := "You cannot instantiate a typeclass outside of a Veil module!")) stx
   mod.throwIfStateAlreadyDefined
   let new_mod : Module ← match stx with
   | `(instantiate $inst:ident : $tp:term) => do
+    let tp ← liftTermElabMWithBinders (← mod.parameters.mapM (·.binder)) fun _ =>
+      mod.withSourceInstances do
+        let wrapped ← mod.wrapSourceInstanceArguments tp
+        let ty ← Term.withoutErrToSorry <| elabType wrapped
+        Term.synthesizeSyntheticMVarsNoPostponing
+        let ty ← instantiateMVars ty
+        if ty.hasMVar then
+          throwErrorAt tp "could not fully elaborate the declared instance type"
+        let pinned ← withOptions (fun opts => opts
+          |>.setBool `pp.fullNames true |>.setBool `pp.notation false
+          |>.setBool `pp.fieldNotation false) <| delabVeilExpr ty true
+        let roundtrip ← Term.withoutErrToSorry <| elabType pinned
+        Term.synthesizeSyntheticMVarsNoPostponing
+        let roundtrip ← instantiateMVars roundtrip
+        unless !roundtrip.hasMVar && (← Meta.isDefEq ty roundtrip) do
+          throwErrorAt tp "could not preserve the declared instance type"
+        return pinned
     let p : Parameter := { kind := .moduleTypeclass .userDefined, name := inst.getId, «type» := tp, userSyntax := stx }
     pure { mod with parameters := mod.parameters.push p }
   | _ => throwUnsupportedSyntax
@@ -238,8 +278,10 @@ private def generateIgnoreFn (mod : Module) : CommandElabM Unit := do
 /-- Crystallizes the state of the module, i.e. it defines it as a Lean
 `structure` definition, if that hasn't already happened. -/
 def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
+  let mod ← mod.materializeIsolates
   if mod.isStateDefined then
     return mod
+  let instancesBefore ← getEnv
   -- Resolve concrete representation configurations
   let repConfigs ← resolveConcreteRepConfigs mod._concreteRepConfig
   let (mod, fieldStxs) ← mod.declareStateFieldLabelTypeAndDispatchers repConfigs
@@ -264,6 +306,9 @@ def Module.ensureStateIsDefined (mod : Module) : CommandElabM Module := do
       elabVeilCommand cmd
     catch ex =>
       logWarning m!"unable to generate transition weakening lemma: {ex.toMessageData}"
+  let generated := generatedInstancesSince instancesBefore (← getEnv)
+  let mod := { mod with generatedInstanceNames := mod.generatedInstanceNames ++ generated }
+  localEnv.modifyModule (fun _ => mod)
   pure mod
 
 private def Module.toExecutableModule (mod : Module)
@@ -330,8 +375,10 @@ def elabGenState : CommandElab := fun _stx => do
 def elabInitializer : CommandElab := fun stx => do
   -- Use dynamic trace class name for detailed profiling
   withTraceNode `veil.perf.elaborator.afterInit (fun _ => return "after_init") do
-    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an initializer outside of a Veil module!")
+    let mut mod ← recordModuleCommand (← getCurrentModule (errMsg := "You cannot elaborate an initializer outside of a Veil module!")) stx
+    if mod.isReferenceTemplate then return
     mod ← mod.ensureStateIsDefined
+    let stx ← mod.resolveInstanceNames stx
     mod.throwIfSpecAlreadyFinalized
     let new_mod ← match stx with
     | `(command|after_init {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.initializer) .none .none l stx
@@ -343,8 +390,10 @@ def elabProcedure : CommandElab := fun stx => do
   let nm := extractDefinitionName stx
   -- Use dynamic trace class name that includes the action name
   withTraceNode (`veil.perf.elaborator.action ++ nm) (fun _ => return s!"action {nm}") do
-    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
+    let mut mod ← recordModuleCommand (← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")) stx
+    if mod.isReferenceTemplate then return
     mod ← mod.ensureStateIsDefined
+    let stx ← mod.resolveInstanceNames stx
     mod.throwIfSpecAlreadyFinalized
     let new_mod ← match stx with
     | `(command|action $nm:ident $br:explicitBinders ? {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.action nm.getId) br .none l stx
@@ -357,8 +406,10 @@ def elabTransition : CommandElab := fun stx => do
   let nm := extractDefinitionName stx
   -- Use dynamic trace class name that includes the transition name
   withTraceNode (`veil.perf.elaborator.transition ++ nm) (fun _ => return s!"transition {nm}") do
-    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a transition outside of a Veil module!")
+    let mut mod ← recordModuleCommand (← getCurrentModule (errMsg := "You cannot elaborate a transition outside of a Veil module!")) stx
+    if mod.isReferenceTemplate then return
     mod ← mod.ensureStateIsDefined
+    let stx ← mod.resolveInstanceNames stx
     mod.throwIfSpecAlreadyFinalized
     let new_mod ← match stx with
     | `(command|transition $nm:ident $br:explicitBinders ? { $t:term }) =>
@@ -393,8 +444,10 @@ def elabProcedureWithSpec : CommandElab := fun stx => do
   let nm := extractDefinitionName stx
   -- Use dynamic trace class name that includes the action name
   withTraceNode (`veil.perf.elaborator.actionWithSpec ++ nm) (fun _ => return s!"action+spec {nm}") do
-    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")
+    let mut mod ← recordModuleCommand (← getCurrentModule (errMsg := "You cannot elaborate an action outside of a Veil module!")) stx
+    if mod.isReferenceTemplate then return
     mod ← mod.ensureStateIsDefined
+    let stx ← mod.resolveInstanceNames stx
     mod.throwIfSpecAlreadyFinalized
     let new_mod ← match stx with
     | `(command|action $nm:ident $br:explicitBinders ? $spec:doSeq {$l:doSeq}) => mod.defineProcedure (ProcedureInfo.action nm.getId) br spec l stx
@@ -407,8 +460,10 @@ def elabGhostDefinition : CommandElab := fun stx => do
   let nm := extractDefinitionName stx
   -- Use dynamic trace class name that includes the ghost relation name
   withTraceNode (`veil.perf.elaborator.ghostDefinition ++ nm) (fun _ => return s!"ghost {nm}") do
-    let mut mod ← getCurrentModule (errMsg := "You cannot elaborate a ghost definition outside of a Veil module!")
+    let mut mod ← recordModuleCommand (← getCurrentModule (errMsg := "You cannot elaborate a ghost definition outside of a Veil module!")) stx
+    if mod.isReferenceTemplate then return
     mod ← mod.ensureStateIsDefined
+    let stx ← mod.resolveInstanceNames stx
     mod.throwIfSpecAlreadyFinalized
     let new_mod ← match stx with
     | `(command|$[theory%$forTheory]? ghost relation $nm:ident $br:explicitBinders ? := $t:term) =>
@@ -420,8 +475,10 @@ def elabGhostDefinition : CommandElab := fun stx => do
 
 @[command_elab Veil.assertionDeclaration]
 def elabAssertion : CommandElab := fun stx => do
-  let mut mod ← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")
+  let mut mod ← recordModuleCommand (← getCurrentModule (errMsg := "You cannot declare an assertion outside of a Veil module!")) stx
+  if mod.isReferenceTemplate then return
   mod ← mod.ensureStateIsDefined
+  let stx ← mod.resolveInstanceNames stx
   mod.throwIfSpecAlreadyFinalized
   -- TODO: handle assertion sets correctly
   let assertion : StateAssertion ← match stx with

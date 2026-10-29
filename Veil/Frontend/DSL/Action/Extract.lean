@@ -279,11 +279,12 @@ where
   let multiExecMonadType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState)
   let extractor := mkIdent <| (if useWeak then ``MultiExtractor.NonDetT.extractPartialList else ``MultiExtractor.NonDetT.extractList)
   -- HACK: when not `intoMonadicActions`, `targetType` is actually partial
-  let targetType ← if intoMonadicActions then `($multiExecMonadType Unit)
-    else
-      let tmp ← if useWeak
-        then `(term| $(mkIdent ``MultiExtractor.findOfPartialCandidates) _)
-        else `(term| $(mkIdent ``MultiExtractor.findOfCandidates) _)
+  let targetType ← match intoMonadicActions with
+    | true => `($multiExecMonadType Unit)
+    | false => do
+      let tmp ← match useWeak with
+        | true => `(term| $(mkIdent ``MultiExtractor.findOfPartialCandidates) _)
+        | false => `(term| $(mkIdent ``MultiExtractor.findOfCandidates) _)
       `(term| $(mkIdent ``MultiExtractor.ConstrainedExtractResult) ($κ) _ ($multiExecMonadType) ($tmp))
   let extractSimps : Array Ident :=
     #[`multiExtractSimp, ``instMonadLiftT,
@@ -317,9 +318,9 @@ def specializeAndExtractSingle (mod : Module) (pi : ProcedureInfo) (extractedNam
       `(fun ($rd : @& $environmentTheory) ($st : @& $environmentState) => ($extractBody) $rd $st)
     else pure extractBody
   let defBody ← buildingTermWithDefaultχSpecialized baseParams (extraParams ++ actualParams) injectedBinders extractBody mod
-  let cmd ← if attrs.isEmpty
-    then `(command| def $(mkIdent extractedName):ident := $(defBody.body):term)
-    else `(command| @[$[$attrs],*] def $(mkIdent extractedName):ident := $(defBody.body):term)
+  let cmd ← match attrs.isEmpty with
+    | true => `(command| def $(mkIdent extractedName):ident := $(defBody.body):term)
+    | false => `(command| @[$[$attrs],*] def $(mkIdent extractedName):ident := $(defBody.body):term)
   elabVeilCommand cmd
   return defBody
 

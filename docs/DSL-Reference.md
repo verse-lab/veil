@@ -45,6 +45,10 @@ Verification tools are imported for elaboration only; compiled model checkers li
 `veil module` sets the visibility and transparency of its declarations automatically;
 users do not need a `public section` or `@[expose]` annotation.
 
+Reusable module definitions can be instantiated with `isolate`, binding their
+parameters and existing component references. See the [modularity guide](Modularity-Guide.md)
+for the complete syntax, checked contracts, proof views, and composed bridge example.
+
 ### 2. Type Declarations
 
 Veil supports several kinds of type declarations:

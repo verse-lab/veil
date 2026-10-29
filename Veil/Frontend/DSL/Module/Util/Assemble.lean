@@ -335,6 +335,46 @@ def Module.assembleInit (mod : Module) : CommandElabM (Command × Module) := do
 
 /-! ## Relational Transition System Assembly -/
 
+private partial def substituteAssemblyParameters
+    (bindings : Array (Name × Term)) (stx : Syntax) : Syntax :=
+  if stx.isIdent then
+    match bindings.find? (·.1 == stx.getId) with
+    | some (_, term) => term.raw
+    | none => stx
+  else stx.setArgs (stx.getArgs.map (substituteAssemblyParameters bindings))
+
+/-- Instantiate every formal module slot of a concrete RTS reference.
+Equal-typed user dictionaries must retain their distinct declaration slots. -/
+private def Module.concreteAssemblyArguments [Monad m] [MonadQuotation m]
+    [MonadExceptOf Exception m] [AddErrorMessageContext m]
+    (mod : Module) (params : Array Parameter) (theoryType stateType fieldType : Term) :
+    m (Array Term) := do
+  let sorts ← mod.uninterpretedParamIdents
+  let decEqArgs ← (mod.parameters.filter fun p =>
+    p.kind == .moduleTypeclass .sortAssumption &&
+      p.name.toString.endsWith "_dec_eq").mapM (·.arg)
+  let rep ← `(term| @$instAbstractFieldRepresentation $sorts* $decEqArgs*)
+  let lawful ← `(term| @$instLawfulAbstractFieldRepresentation $sorts* $decEqArgs*)
+  let reader ← `(term| $(mkIdent ``instIsSubReaderOfRefl))
+  let substate ← `(term| $(mkIdent ``instIsSubStateOfRefl))
+  let replacements := #[(environmentTheoryName, theoryType), (environmentStateName, stateType),
+    (fieldConcreteTypeName, fieldType), (fieldRepresentationName, rep),
+    (lawfulFieldRepresentationName, lawful), (environmentSubTheoryName, reader),
+    (environmentSubStateName, substate)]
+  params.mapM fun p => do
+    match p.kind with
+    | .backgroundTheory => pure theoryType
+    | .environmentState => pure stateType
+    | .fieldConcreteType => pure fieldType
+    | .moduleTypeclass .fieldRepresentation => pure rep
+    | .moduleTypeclass .lawfulFieldRepresentation => pure lawful
+    | .moduleTypeclass .backgroundTheory => pure reader
+    | .moduleTypeclass .environmentState => pure substate
+    | .definitionParameter _ .typeclass =>
+        let typeTerm : Term := ⟨substituteAssemblyParameters replacements p.type.raw⟩
+        `(term| (by classical exact inferInstance : $typeTerm:term))
+    | _ => p.arg
+
 /-- Assembles a `RelationalTransitionSystem` instance combining `Assumptions`, `Init`, and `Next`.
     This is a noncomputable definition that uses Classical logic. -/
 def Module.assembleRelationalTransitionSystem [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Command × Module) := do
@@ -342,15 +382,17 @@ def Module.assembleRelationalTransitionSystem [Monad m] [MonadQuotation m] [Mona
   let sorts ← mod.uninterpretedParamIdents
   -- Module parameter binders: (node : Type) (n : Nat) etc.
   let sortBinders ← mod.uninterpretedParamBinders
-  -- Inhabited instances for every sort: [Inhabited node]
-  let inhabitedBinders ← mod.assumeForEverySort ``Inhabited
+  -- Keep both named sort-assumption slots. Generated calls require exact
+  -- dictionaries even when a user provides another instance of the same type.
+  let sortClassBinders ← (mod.parameters.filter fun p =>
+    p.kind == .moduleTypeclass .sortAssumption).mapM (·.binder)
   -- User-defined typeclass parameters
   let userDefinedParams : Array Parameter := mod.parameters.filter fun p =>
     match p.kind with
     | .moduleTypeclass .userDefined => true
     | _ => false
   let userDefinedBinders ← userDefinedParams.mapM (·.binder)
-  let allBinders := sortBinders ++ inhabitedBinders ++ userDefinedBinders
+  let allBinders := sortBinders ++ sortClassBinders ++ userDefinedBinders
   -- Construct type arguments
   let theoryT ← mod.theoryStx
   let stateT ← `(term| $(mkIdent stateName) ($fieldAbstractDispatcher $sorts*))
@@ -358,10 +400,16 @@ def Module.assembleRelationalTransitionSystem [Monad m] [MonadQuotation m] [Mona
   -- Construct the RTS type
   let rtsType ← `(term| $(mkIdent ``RelationalTransitionSystem) $theoryT $stateT $labelT)
   -- Construct field values with explicit type annotations
-  let (ρArg, σArg, χArg) := (mkIdent `ρ, mkIdent `σ, mkIdent `χ)
-  let assumptionsVal ← `(term| $assembledAssumptions ($ρArg := $theoryT) $sorts*)
-  let initVal ← `(term| $assembledInit ($ρArg := $theoryT) ($σArg := $stateT) ($χArg := $fieldAbstractDispatcher $sorts*) $sorts*)
-  let nextVal ← `(term| $assembledNext ($ρArg := $theoryT) ($σArg := $stateT) ($χArg := $fieldAbstractDispatcher $sorts*) $sorts*)
+  let fieldT ← `(term| $fieldAbstractDispatcher $sorts*)
+  let makeReference (name : Name) : m Term := do
+    let some kind := mod._declarations[name]?
+      | throwError "missing assembled declaration {name}"
+    let (params, _) ← mod.declarationAllParams name kind
+    let args ← mod.concreteAssemblyArguments params theoryT stateT fieldT
+    `(term| @$(mkIdent name):ident $args*)
+  let assumptionsVal ← makeReference assembledAssumptionsName
+  let initVal ← makeReference assembledInitName
+  let nextVal ← makeReference assembledNextName
   -- Generate the definition
   let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let rtsDef ← `(command|

@@ -8,6 +8,7 @@ public meta import Veil.Frontend.DSL.Infra.Metadata
 public meta import Veil.Util.Meta
 public meta import Veil.Core.Tools.Verifier.Server
 public meta import Veil.Frontend.DSL.Tactic
+public meta import Veil.Frontend.DSL.Tactic.InvSet
 -- FIXME: it really doesn't make sense to import this here
 public meta import Veil.Core.UI.Verifier.Model
 public meta import Veil.Core.UI.Verifier.InductionCounterexample
@@ -35,6 +36,14 @@ private def overallSmtResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT B
   buildSmtResult outputs (fun sat => do
     sat.filterMapM (fun ce => return ← ce.mapM (fun ce => do
       try
+        -- Internal procedures have no external dispatch label. Preserve the
+        -- raw solver model for a contract failure rather than attempting to
+        -- manufacture a nonexistent `Label.procedure` constructor.
+        if actName != initializerName && !mod.actions.any (·.name == actName) then
+          return some {
+            raw := ce, rawHtml := ← renderSmtModel ce,
+            structuredJson := Json.mkObj [("kind", toJson "contract"),
+              ("procedure", toJson actName)] }
         let veilModel ← buildCounterexampleExprs ce mod actName
         let structuredJson : Json ← unsafe veilModel.toJson
         return .some { raw := ce, rawHtml := ← renderSmtModel ce, structuredJson := structuredJson }
@@ -117,9 +126,12 @@ private def mkVCForSpecTheorem [Monad m] [MonadMacroAdapter m] [MonadExceptOf Ex
     (specName : Name) (vcName : Name) (vcKind : InductionVCKind)
     (style : VCStyle := .wp) (extraDeps : Std.HashSet Name := {})
     (extraBinders : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) := #[])
-    (extraTerms : Array Term := #[]) : m (VCData VCMetadata) := do
+    (extraTerms : Array Term := #[])
+    (contractOwner : Option Name := none)
+    (contractAssumesInvariants : Bool := false) : m (VCData VCMetadata) := do
   -- FIXME: make all the name-related/parameter functions work with `ext` names
-  let assumesInvariants := actKind.assumesInvariantsForInductionVC
+  let assumesInvariants := if contractOwner.isSome then contractAssumesInvariants
+    else actKind.assumesInvariantsForInductionVC
   let baseDeps :=
     if assumesInvariants then
       #[actName, assembledAssumptionsName, assembledInvariantsName]
@@ -150,7 +162,7 @@ private def mkVCForSpecTheorem [Monad m] [MonadMacroAdapter m] [MonadExceptOf Ex
     metadata := .induction {
       kind := vcKind,
       style := style,
-      «action» := actName,
+      «action» := contractOwner.getD actName,
       property := propertyName,
       baseParams := thmBaseParams,
       extraParams := thmExtraParams,
@@ -229,24 +241,92 @@ private def Module.actsToCheck (mod : Module) : Array ProcedureSpecification :=
     These VCs check that actions don't throw exceptions assuming the invariants hold. -/
 def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
   let actsToCheck := mod.actsToCheck
-  let wpTactic ← `(by veil_solve_wp_doesnotthrow)
   -- Prepare VC data outside the lock
-  let vcData ← actsToCheck.mapM fun act =>
-    return (act, ← mkDoesNotThrowVC mod act.name act.declarationKind InductionVCKind.primary)
+  let vcData ← actsToCheck.mapM fun act => do
+    let support? ← mod.invSetSupportForAction act.name
+    let wpTactic ← match support? with
+      | none => `(by veil_solve_wp_doesnotthrow)
+      | some support => do
+          let ids := support.map mkIdent
+          if act.info.isTransition then
+            -- Native transitions enumerate concrete represented states;
+            -- they do not have the imperative local-WP equality bridge.
+            `(by
+              veil_restrict_invset_pre [$[$ids:ident],*]
+              veil_intros
+              __veil_solve_wp_conservative)
+          else
+            `(by
+              veil_restrict_invset_pre [$[$ids:ident],*]
+              veil_apply_local_wp
+              __veil_solve_wplo)
+    return (act, ← mkDoesNotThrowVC mod act.name act.declarationKind InductionVCKind.primary, wpTactic)
   -- Add all VCs atomically
   Verifier.withVCManager fun ref => do
-    for (act, vc) in vcData do
+    for (act, vc, wpTactic) in vcData do
       let mgr ← ref.get
       let (mgr, vcId) := mgr.addVC vc {} #[]
       let mgr ← mgr.mkAddDischarger vcId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
       ref.set mgr
 
+/-- Procedure contracts quantify over arbitrary states satisfying their
+explicit leading requirements and immutable assumptions. External-action
+certificates may additionally require the boundary invariant conjunction;
+that premise remains explicit in their theorem type. -/
+private def Module.generateCompanionVCs (mod : Module) (suffix : Name) : CommandElabM Unit := do
+  -- The verification-only Unit view calls the real implementation internally;
+  -- its local WP bridge supports the same field abstraction as action VCs.
+  let mut vcs := #[]
+  for proc in mod.procedures do
+    let contractName := proc.name ++ suffix
+    let some contract := mod.procedures.find? (·.name == contractName) | continue
+    let support? ← match proc.info with
+      | .action _ _ => mod.invSetSupportForAction proc.name
+      | _ => pure none
+    let tactic ← match support? with
+      | none => `(by veil_solve_wp_doesnotthrow)
+      | some support => do
+          let ids := support.map mkIdent
+          if proc.info.isTransition then
+            -- Keep the native method's concrete-state semantics, including
+            -- frame assertions, under exactly the selected precondition.
+            `(by
+              veil_restrict_invset_pre [$[$ids:ident],*]
+              veil_intros
+              __veil_solve_wp_conservative)
+          else
+            `(by
+              veil_restrict_invset_pre [$[$ids:ident],*]
+              veil_apply_local_wp
+              __veil_solve_wplo)
+    let vc ← mkVCForSpecTheorem mod contract.name
+      (propertyName := suffix) contract.declarationKind
+      ``VeilM.doesNotThrowAssuming_ex (Name.mkSimple s!"{proc.name}_{suffix}")
+      InductionVCKind.primary
+      (extraBinders := #[← `(bracketedBinder| ($exception:ident : ExId))])
+      (extraTerms := #[← `(term| $exception:ident)])
+      (contractOwner := some proc.name)
+      (contractAssumesInvariants := match proc.info with | .action _ _ => true | _ => false)
+    vcs := vcs.push (proc.name, vc, tactic)
+  Verifier.withVCManager fun ref => do
+    for (proc, vc, tactic) in vcs do
+      let mgr ← ref.get
+      let (mgr, vcId) := mgr.addVC vc {} #[]
+      let mgr ← mgr.mkAddDischarger vcId (VCDischarger.fromTerm tactic proc (nameSuffix := s!"_{suffix}_WP"))
+      ref.set mgr
+
+def Module.generateContractVCs (mod : Module) : CommandElabM Unit :=
+  mod.generateCompanionVCs `contract
+
+/-- Every instantiated method must prove that its complete implementation,
+including opaque helper effects, leaves foreign owned fields unchanged. -/
+def Module.generateFrameVCs (mod : Module) : CommandElabM Unit :=
+  mod.generateCompanionVCs `frame
+
 /-- Generate invariant preservation VCs for all actions × invariant clauses.
     These VCs check that each action preserves each invariant clause. -/
 def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
   let actsToCheck := mod.actsToCheck
-  let wpTactic ← if mod._useLocalRPropTC then `(by veil_solve_wp) else `(by veil_solve_wp)
-  let trTactic ← `(by veil_solve_tr)
   -- Prepare all VC data outside the lock
   let vcData ← actsToCheck.foldlM (init := #[]) fun acc act => do
     let clauseVCs ← mod.checkableInvariants.foldlM (init := #[]) fun acc' invClause => do
@@ -257,11 +337,26 @@ def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
       let trVC ← mkMeetsSpecificationIfSuccessfulClauseTrVC mod act.name
         act.declarationKind invClause.name
         (if trPrimary then InductionVCKind.primary else InductionVCKind.alternative)
-      return acc'.push (act, wpVC, trVC, trPrimary)
+      let support? ← if act.info == .initializer then pure none
+        else mod.invSetSupportFor invClause.name
+      let (wpTactic, trTactic) ← match support? with
+        | none => pure (← `(by veil_solve_wp), ← `(by veil_solve_tr))
+        | some support => do
+          let ids := support.map mkIdent
+          let wpTactic ← `(by
+            veil_restrict_invset_pre [$[$ids:ident],*]
+            veil_apply_local_wp
+            __veil_solve_wplo)
+          let trTactic ← `(by
+            veil_restrict_invset_pre [$[$ids:ident],*]
+            veil_apply_local_tr
+            __veil_solve_trlo)
+          pure (wpTactic, trTactic)
+      return acc'.push (act, wpVC, trVC, trPrimary, wpTactic, trTactic)
     return acc ++ clauseVCs
   -- Add all VCs atomically
   Verifier.withVCManager fun ref => do
-    for (act, wpVC, trVC, trPrimary) in vcData do
+    for (act, wpVC, trVC, trPrimary, wpTactic, trTactic) in vcData do
       let mgr ← ref.get
       let mgr ←
         if trPrimary then do
@@ -284,6 +379,8 @@ def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
 /-- Generate all VCs (both doesNotThrow and invariant preservation). -/
 def Module.generateVCs (mod : Module) : CommandElabM Unit := do
   mod.generateDoesNotThrowVCs
+  mod.generateContractVCs
+  mod.generateFrameVCs
   mod.generateInvariantVCs
 
 end Veil

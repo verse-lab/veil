@@ -1,5 +1,7 @@
 module
 
+public meta import Veil.Frontend.DSL.Module.Util.SourceInstances
+
 public meta import Veil.Frontend.DSL.Module.Util.StateTheory
 
 public meta section
@@ -178,6 +180,9 @@ def Module.withTheoryAndStateTermTemplate (mod : Module)
   let stateFieldsWithSuffix suf : Array Ident :=
     stateFields.map fun (f : Ident) => f.getId.appendAfter suf |> Lean.mkIdent
   let t ← t theoryFields stateFields
+  let t ← if mod.sourceInstanceFieldNames?.isSome || !mod.instances.isEmpty then
+      `(veil_source_fields% $t)
+    else pure t
   targets.foldrM (init := t) fun (kind, i, wrap?) body => do
     match kind with
     | .theory =>
@@ -304,16 +309,23 @@ def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind) (param
   let baseParams ← mod.declarationBaseParams dk
   let binders ← baseParams.mapM (·.binder)
   let paramBinders ← Option.stxArrMapM params toBracketedBinderArray
+  let paramBinders ← paramBinders.mapM fun binder => do
+    unless binder.raw.isOfKind ``Lean.Parser.Term.explicitBinder do
+      throwError "unsupported source predicate parameter binder"
+    let ty ← mod.wrapSourceInstanceArguments ⟨binder.raw[3]⟩
+    pure (⟨binder.raw.setArg 3 ty.raw⟩ : TSyntax `Lean.Parser.Term.bracketedBinder)
   -- We don't `universallyQuantifyCapitals` after `withTheory` /
   -- `withTheoryAndState` because we want to have the universal
   -- quantification as deeply inside the term as possible, rather than above
   -- the binders for `rd` and `st` introduced below.
   let body ← if quantifyCapitals then `(uqc% ($term:term)) else pure term
   let (thstBinders, term') ← if justTheory then withTheory body motiveType else withTheoryAndState body motiveType
+  let term' ← mod.wrapSourceInstanceArguments term'
   let term' := Syntax.inheritSourceSpanFrom term' term
   -- Record the `Decidable` instances that are needed for the assertion.
-  let allBinders := binders ++ paramBinders ++ thstBinders
-  let (insts, expr) ← elabBinders allBinders $ fun vs => do
+  let (insts, expr) ← elabBinders binders $ fun baseVs => mod.withSourceInstances do
+    elabBinders (paramBinders ++ thstBinders) $ fun remainingVs => do
+    let vs := baseVs ++ remainingVs
     let (insts, expr) ← getRequiredDecidableInstances name term' (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
     let expr ← instantiateMVars expr
     -- Segment `vs`

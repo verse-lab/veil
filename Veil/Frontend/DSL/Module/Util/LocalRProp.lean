@@ -59,19 +59,31 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (List Command) := do
   -- Given `[LocalRProp p]` and `[LocalRProp q]`, derive `LocalRProp (fun th st => p th st ∧ q th st)`.
   -- This allows `Invariants` (a conjunction) to automatically get a `LocalRProp` instance.
   let cmd3 ← do
-    let implBinders ← paramBinders.mapM mkImplicitBinder
+    -- Infer immutable dictionary identities from the target LocalRProp;
+    -- synthesizing these slots again can choose another occurrence's instance.
+    let implBinders ← params.mapM fun parameter => do
+      match parameter.kind == .moduleTypeclass .userDefined with
+      | true => `(bracketedBinder| {$(mkIdent parameter.name) : $(parameter.type)})
+      | false => mkImplicitBinder (← parameter.binder)
     let p ← Lean.mkIdent <$> mkFreshUserName `p ; let q ← Lean.mkIdent <$> mkFreshUserName `q
     let inst1 ← Lean.mkIdent <$> mkFreshUserName `inst1 ; let inst2 ← Lean.mkIdent <$> mkFreshUserName `inst2
     let args ← params.mapM (·.arg)
     let fieldNames : Array Ident := (mod.immutableComponents ++ mod.mutableComponents).map fun sc => mkIdent sc.name
     let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f => `(Lean.Parser.Term.funBinder| $f)
     let fieldArgs : Array Term ← fieldNames.mapM fun f => `(term| $f)
-    let coreFn ← mkFunSyntax fieldBinders (← `(term| $inst1.$(mkIdent `core) $fieldArgs* ∧ $inst2.$(mkIdent `core) $fieldArgs*))
+    let coreProjection := mkIdent (localRPropTCName ++ `core)
+    let eqProjection := mkIdent (localRPropTCName ++ `core_eq)
+    let constructor := mkIdent (localRPropTCName ++ `mk)
+    let coreFn ← mkFunSyntax fieldBinders (← `(term|
+      @$coreProjection $args* Prop $p $inst1 $fieldArgs* ∧
+      @$coreProjection $args* Prop $q $inst2 $fieldArgs*))
     `(command| scoped instance $[$implBinders]* ($p $q : $(mkIdent ``SProp) $environmentTheory $environmentState)
         [$inst1 : @$localRPropTC $args* Prop $p] [$inst2 : @$localRPropTC $args* Prop $q] :
-        @$localRPropTC $args* Prop (fun $th $st => $p $th $st ∧ $q $th $st) where
-      $core:ident := $coreFn
-      $core_eq:ident := fun $th $st => $(mkIdent ``congrArg₂) $(mkIdent ``And) ($inst1.$(mkIdent `core_eq) $th $st) ($inst2.$(mkIdent `core_eq) $th $st))
+        @$localRPropTC $args* Prop (fun $th $st => $p $th $st ∧ $q $th $st) :=
+      @$constructor $args* Prop (fun $th $st => $p $th $st ∧ $q $th $st)
+        $coreFn (fun $th $st => $(mkIdent ``congrArg₂) $(mkIdent ``And)
+          (@$eqProjection $args* Prop $p $inst1 $th $st)
+          (@$eqProjection $args* Prop $q $inst2 $th $st)))
   return [cmd1, cmd2, cmd3]
 
 /-! ## Simplification Infrastructure -/
@@ -324,7 +336,9 @@ private def Module.proveLocalityForStatePredicateCore (mod : Module) (nm : Name)
             -- which should be the case in general
             mkLambdaFVars #[th, st] fullProof
           let inst ← Meta.mkAppOptM ctor.name (ctorArgs |>.push (some core) |>.push (some coreEq))
-          mkLambdaFVars xs inst (usedOnly := true)
+          let dictionaries := (layout.params.zip xs).filterMap fun (parameter, argument) =>
+            if parameter.kind == .moduleTypeclass .userDefined then some argument else none
+          withImplicitBinderInfos dictionaries <| mkLambdaFVars xs inst (usedOnly := true)
   check inst
   let inst ← instantiateMVars inst
   trace[veil.debug] "LocalRProp instance for {nm}: {inst}"

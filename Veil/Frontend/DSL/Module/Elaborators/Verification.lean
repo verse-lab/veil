@@ -4,6 +4,8 @@ public meta import Veil.Frontend.DSL.Module.Elaborators.Core
 public meta import Veil.Frontend.DSL.Tactic
 public meta import Veil.Core.UI.Verifier.AssertionErrors
 public meta import Veil.Frontend.DSL.Module.VCGen
+public meta import Veil.Frontend.DSL.Module.ReachableInvariants
+public meta import Veil.Frontend.DSL.Module.Elaborators.InvSet
 public meta import Veil.Core.Tools.Verifier.Server
 public meta import Veil.Core.Tools.Verifier.Results
 public meta import Veil.Core.UI.Verifier.VerificationResults
@@ -30,6 +32,7 @@ private def throwIfNoInitializerDefined (mod : Module) : CommandElabM Unit := do
 conditions, starting the `doesNotThrow` checks. This needs the WP-based
 verification definitions of every procedure. -/
 private def Module.prepareVerification (mod : Module) (stx : Syntax) : CommandElabM Module := do
+  let mod ← mod.withInstanceInvSets
   -- Generate ActionTag type for symbolic model checking
   -- NOTE: ActionTag is query-local (not a module sort), but we generate the
   -- axiomatisation class and concrete type here for convenience
@@ -61,6 +64,8 @@ private def Module.prepareVerification (mod : Module) (stx : Syntax) : CommandEl
     pure mod
   Verifier.runManager
   mod.generateDoesNotThrowVCs
+  mod.generateContractVCs
+  mod.generateFrameVCs
   -- Run doesNotThrow VCs asynchronously and log errors at assertion locations when done
   Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowErrors
   mod.generateInvariantVCs
@@ -151,11 +156,13 @@ def elabGenSpec : CommandElab := fun stx => do
   -- Use dynamic trace class name for detailed profiling
   withTraceNode `veil.perf.elaborator.genSpec (fun _ => return "#gen_spec") do
     let mod ← getCurrentModule (errMsg := "You cannot elaborate a specification outside of a Veil module!")
+    if ← mod.finishTemplateSpec stx then return
     let mod ← mod.ensureSpecIsFinalized stx
     -- A previous #gen_spec may have finalized the spec while deferring verification.
     let mod ← if veil.deferVCGeneration.get (← getOptions) then pure mod
       else mod.ensureVerificationSpec stx
     localEnv.modifyModule (fun _ => mod)
+    saveModuleTemplate mod
 
 private def proofHasSorryGoalCount (results : VerificationResults VCMetadata SmtResult) : Nat :=
   results.vcs.foldl (init := 0) fun count vc =>
@@ -233,14 +240,26 @@ private def throwUnknownCheckAction (mod : Module) (actionName : Name) : Command
       s!"Available actions: {", ".intercalate availableActions.toList}"
   throwError s!"Unknown action {actionName} for #check_action. {suggestion}"
 
-@[command_elab Veil.checkInvariants]
+@[command_elab Veil.checkInvariants, command_elab Veil.checkInvariantsSelected]
 def elabCheckInvariants : CommandElab := fun stx => do
   -- Use dynamic trace class name for detailed profiling
   withTraceNode `veil.perf.elaborator.checkInvariants (fun _ => return "#check_invariants") do
     -- Skip in compilation mode (no verification feedback needed)
     let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
+    if stx.getKind == ``checkInvariantsSelected && !stx[2].isNone then
+      throwErrorAt stx "`using` overrides require separate proof provenance and are not supported yet; declare the desired support with `invset ... extends ...`"
     let mod ← mod.ensureVerificationSpec stx
-    runFilteredInvariantCheck stx mod VCMetadata.isInduction
+    if stx.getKind == ``checkInvariantsSelected then
+      let target := stx[1].getId
+      let some group := mod.invSets[target]?
+        | throwErrorAt stx "unknown invset or isolate {target}"
+      logInfoAt stx m!"Checking partial invariant view {target}; global reachability still requires all proof obligations."
+      runFilteredInvariantCheck stx mod fun
+        | .induction m => group.targets.contains m.property ||
+            m.property == `doesNotThrow || m.property == `contract || m.property == `frame
+        | .trace _ => false
+    else
+      runFilteredInvariantCheck stx mod VCMetadata.isInduction
 
 @[command_elab Veil.checkAction]
 def elabCheckAction : CommandElab := fun stx => do
@@ -249,7 +268,9 @@ def elabCheckAction : CommandElab := fun stx => do
     mod.throwIfSpecNotFinalized
     unless stx.getKind == `Veil.checkAction do
       throwUnsupportedSyntax
-    let actionName := stx[1].getId
+    let requestedName := stx[1].getId
+    let actionName := (mod.instanceNames.find? (·.1 == requestedName)).map (·.2)
+      |>.getD requestedName
     unless (getCheckableAction? mod actionName).isSome do
       throwUnknownCheckAction mod actionName
     let mod ← mod.ensureVerificationSpec stx
@@ -260,8 +281,12 @@ def elabCheckAction : CommandElab := fun stx => do
 def elabGenTheorems : CommandElab := fun stx => do
   withTraceNode `veil.perf.elaborator.genTheorems (fun _ => return "#gen_theorems") do
     let mod ← getCurrentModule (errMsg := "You cannot #gen_theorems outside of a Veil module!")
-    let _ ← mod.ensureVerificationSpec stx
-    let _ ← Verifier.waitFilteredSync (fun _ => true)
+    mod.throwIfSpecNotFinalized
+    if mod._vcGenerationDeferred then
+      logWarningAt stx "#gen_theorems has no checked verification conditions to export; verification generation is deferred. Run #check_invariants or #check_action first."
+      return
+    let _ ← Verifier.waitEnabledSync
     Verifier.addProvenTheoremsInDependencyOrder (fun _ => true)
+    mod.generateReachableInvariantTheorems (← parseTheoremSortSubstitutions stx)
 
 end Veil

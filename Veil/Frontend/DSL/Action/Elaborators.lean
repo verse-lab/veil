@@ -302,7 +302,8 @@ where
   /-- Simplify using the locally assumed `LocalRProp` instance for `post` *only*. -/
   buildLocalRPropSimp : TermElabM Simplifier := do
     let ctx ← mkVeilSimpCtx #[]
-    let simpTerm ← `(term| $(mkIdent `LocalRProp.core_eq) ($(mkIdent `self) := by assumption))
+    let self ← `(Parser.Term.namedArgument| ($(mkIdent `self) := by assumption))
+    let simpTerm ← mod.explicitClassCall `LocalRProp.core_eq #[⟨self.raw⟩]
     let arr := #[(simpTerm, (← mkFreshUserName `LocalRProp.core_eq))]
     let ctx' ← elabSimpArgForTerms ctx arr
     pure <| Simp.simpCore ctx'
@@ -355,7 +356,10 @@ where
       [(.theory, thIdent, false), (.state .none .none, stIdent, false)]
       (some (← `(Prop)))
       (fun theoryFields stateFields => do
-        pure <| Syntax.mkApp (← `($localRPropTCArgIdent.$(mkIdent `core))) (theoryFields ++ stateFields))
+        let head ← `($localRPropTCArgIdent.$(mkIdent `core))
+        let call ← mod.explicitClassCall `LocalRProp.core
+          ((theoryFields ++ stateFields).map fun id => ⟨id.raw⟩)
+        pure ⟨call.raw.setArg 0 head.raw⟩)
       (stateSortTerm := some abstractStateSortTerm)
       (stateView := .abstract)
     `(fun $uIdent $thIdent $stIdent => $step3PostBody)
@@ -748,10 +752,9 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
         `(Lean.Parser.Term.funBinder| $f)
       let body ← `(¬(⟨$[$theoryFieldIdents],*⟩ = $auxrr ∧ ⟨$[$stateFieldIdents],*⟩ = $auxss))
       mkFunSyntax fieldBinders body
-    `(tactic| let _ ($auxrr : $theoryTy) ($auxss : $abstractStateTypeTerm) : $ty := {
-      $(mkIdent `core):ident := $coreStx
-      $(mkIdent `core_eq):ident := by intros ; dsimp
-    })
+    let constructor := mkIdent (localRPropTCName ++ `mk)
+    `(tactic| let _ ($auxrr : $theoryTy) ($auxss : $abstractStateTypeTerm) : $ty :=
+      @$constructor $paramArgs* Prop $post $coreStx (by intros ; dsimp))
   -- Build the command
   let cmd ← do
     let h := mkIdent `h
@@ -784,6 +787,10 @@ where
       | .backgroundTheory => theoryStx
       | .environmentState => stateStx
       | .fieldConcreteType => fieldRepStx
+      -- User dictionaries are immutable parameters. Abstracting the state
+      -- does not change their type or permit choosing another occurrence's
+      -- dictionary of the same class.
+      | .moduleTypeclass .userDefined | .moduleTypeclass .sortAssumption => arg
       -- NOTE: The consideration here is that `definitionParameter` might
       -- not have correct type under different specialized types
       | .moduleTypeclass _ | .definitionParameter _ .typeclass => hole
@@ -873,10 +880,10 @@ where
     let predArgs := predArgs.map (·.1)
     let predStx ← do
       `(@$(mkIdent <| toWpLocalPredName nm) $predArgs*)
-    let derivedEqThm := toDerivedEqName nm
-    let wpLocalEqThm := toWpLocalEqName nm
-    let wpEqThm := toWpEqName nm
-    let wpEqLocalThm := toWpEqLocalName nm
+    let derivedEqThm ← mod.explicitClassCall (toDerivedEqName nm) #[]
+    let wpLocalEqThm ← mod.explicitClassCall (toWpLocalEqName nm) #[]
+    let wpEqThm ← mod.explicitClassCall (toWpEqName nm) #[]
+    let wpEqLocalThm ← mod.explicitClassCall (toWpEqLocalName nm) #[]
     let [tr, act, pred, trDerivedEq, wpLocalEq, wpEq] :=
       [`tr, `act, `pred, `tr_derived_eq, `wp_local_eq, `wp_eq].map mkVeilImplementationDetailIdent
       | unreachable!
@@ -886,7 +893,7 @@ where
     let h := mkIdent `h
     -- `wp_eq` rewrites to the raw abstract-state `act.ext.wp`; connect that
     -- pointwise result to the pre-simplified `.wp_local_eq.pred` as well.
-    let wpEqProof ← `(term| by intros ; rw [$(mkIdent wpEqThm):ident, $(mkIdent wpEqLocalThm):ident])
+    let wpEqProof ← `(term| by intros ; rw [$wpEqThm:term, $wpEqLocalThm:term])
     -- NOTE: Below, `h` is not `applied` because `__veil_neutralize_decidable_inst` might
     -- unexpectedly simplify away certain things.
     let tac ← `(term| by
@@ -895,8 +902,8 @@ where
         ($tr := $trStx)
         ($act := $actStx)
         ($pred := $predStx)
-        ($trDerivedEq := by intros; rw [$(mkIdent derivedEqThm):ident])
-        ($wpLocalEq := by intros; rw [$(mkIdent wpLocalEqThm):ident])
+        ($trDerivedEq := by intros; rw [$derivedEqThm:term])
+        ($wpLocalEq := by intros; rw [$wpLocalEqThm:term])
         ($wpEq := $wpEqProof)
       __veil_neutralize_decidable_inst at *
       exact $h
@@ -1016,11 +1023,14 @@ private def withVeilModeVar (bi : BinderInfo) (k : Expr → TermElabM α) : Term
 
 /-- Elaborate `body` under `br`, and obtain its extra parameters. -/
 def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (body : Term) (addModeArg : Bool := true) : TermElabM (Array Parameter × Expr) := withExporting (isExporting := true) do
+  let mod ← getCurrentModule
+  mod.withSourceInstances do
   -- Matchers generated while elaborating an action must have public names as
   -- well as public bodies, so extraction can unfold them in an importing module.
   withDeclName ((← getCurrNamespace) ++ pi.nameInMode .none) do
   let brs ← Option.stxArrMapM br toFunBinderArray
   let stx ← mkFunSyntax brs body
+  let stx ← mod.wrapSourceInstanceArguments stx
   try
     withVeilModeVar BinderInfo.default fun mode => do
     /- We want to throw an error if anything fails or is missing during elaboration. -/
@@ -1106,6 +1116,7 @@ private structure DeferredWPGeneration where
   intKind : DeclarationKind
   extKind : DeclarationKind
   deriveTransition : Bool
+  externalVerification : Bool
   /-- Options and open declarations in effect at the declaration. -/
   options : Options
   openDecls : List OpenDecl
@@ -1134,7 +1145,7 @@ def Module.generateDeferredWPs (mod : Module) : CommandElabM Unit := do
             (fun ctx => { ctx with maxRecDepth := maxRecDepth.get d.options }) do
           AuxiliaryDefinitions.defineWp d.mod (d.info.nameInMode Mode.internal) .internal
             d.intKind d.deriveTransition
-          if d.info matches .initializer | .action _ _ then
+          if d.externalVerification then
             d.mod.defineExternalVerificationDefinitions d.info d.extKind d.deriveTransition
       catch ex =>
         if ex.isInterrupt then throw ex
@@ -1144,9 +1155,12 @@ def Module.generateDeferredWPs (mod : Module) : CommandElabM Unit := do
 parts (i.e. registering the action, then elaboration the definitions),
 but that would eliminate opportunities for async elaboration. -/
 def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
-  (eDo : Expr) (ps : ProcedureSpecification) (deriveTransition? : Bool) : CommandElabM Module := do
+  (eDo : Expr) (ps : ProcedureSpecification) (deriveTransition? : Bool)
+  (forceExternalVerification : Bool := false) : CommandElabM Module := do
   withTraceNode `veil.perf.extract (fun _ => return s!"defineProcedureCore {pi.name}") do
     let deferWP := veil.deferVCGeneration.get (← getOptions)
+    let externalVerification := forceExternalVerification ||
+      (match pi with | .initializer | .action _ _ => true | _ => false)
     -- If the option was set for earlier declarations of this module but is
     -- off now, generate their deferred definitions first: this procedure may
     -- call them, and its WP generation needs their `wp_eq` lemmas.
@@ -1168,7 +1182,7 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
 
       -- Procedures are never considered in their external view, so save some
       -- time by not elaborating those definitions.
-      if pi matches .initializer | .action _ _ then do
+      if externalVerification then do
         let (nmExt, eExt) ← elabProcedureInMode pi Mode.external
         let _nmExt_fullyQualified ← addVeilDefinition nmExt eExt (attr := #[{name := `actSimp}])
         unless deferWP do
@@ -1176,19 +1190,139 @@ def Module.defineProcedureCore (mod : Module) (pi : ProcedureInfo)
     if deferWP then
       -- Pack the information needed for deferred WP generation
       let d : DeferredWPGeneration := {
-        mod, info := pi, intKind, extKind, deriveTransition := deriveTransition?
+        mod, info := pi, intKind, extKind, deriveTransition := deriveTransition?, externalVerification
         options := ← getOptions, openDecls := ← getOpenDecls, ref := ps.userSyntax }
       modifyEnv (deferredWPGenerationExt.modifyState · fun m =>
         m.insert mod.name (((m.find? mod.name).getD #[]).push d))
     return mod
 
+/-- Checkable contracts use a separate wrapper that assumes only the leading
+entry requirements, then calls the concrete implementation in internal mode.
+Consequently all requirements at the call site and all implementation ensures
+remain assertions. No owner invariant is introduced by this wrapper. -/
+private def leadingContractGuards (body : ActionSyntax) :
+    CommandElabM (Array (TSyntax ``Lean.Parser.Term.doSeqItem)) := do
+  let body : ActionSyntax := ⟨← liftTermElabM <| Action.DoElab.prepareStateAssignments body.raw⟩
+  let items : Array (TSyntax ``Lean.Parser.Term.doSeqItem) := match body with
+    | `(Lean.Parser.Term.doSeq| $items:doSeqItem*) => items
+    | `(Lean.Parser.Term.doSeq| { $items:doSeqItem* }) => items
+    | _ => #[]
+  let mut guards : Array (TSyntax ``Lean.Parser.Term.doSeqItem) := #[]
+  for item in items do
+    match item.raw[0] with
+    | `(doElem| require $predicate) =>
+      if let some effect ← liftTermElabM <| Action.DoElab.findContractEffect? predicate then
+        throwErrorAt effect "effects are not supported in contract entry requirements: evaluate effects before calling the procedure"
+      guards := guards.push (← `(Lean.Parser.Term.doSeqItem| assume $predicate))
+    | _ => break
+  return guards
+
+private def contractWrapperBody? (pi : ProcedureInfo)
+    (params : Array Parameter) (body : ActionSyntax) : CommandElabM (Option ActionSyntax) := do
+  -- Initialization is checked in external mode by its ordinary no-throw VC.
+  -- In particular, composed initializer blocks retain external require guards.
+  if pi == .initializer then return none
+  -- This scan precedes normal body elaboration because macros may introduce
+  -- contracts. Preserve the ordinary action diagnostic for expansion errors.
+  let body : ActionSyntax ← try
+      pure ⟨← liftTermElabM <| Action.DoElab.prepareStateAssignments body.raw⟩
+    catch ex =>
+      if ex.isInterrupt then throw ex
+      throwError "Error in action {pi.name}: {← ex.toMessageData.toString}"
+  unless (Action.findOutsideQuotations? body.raw fun stx =>
+      if stx.isOfKind ``ensureDo then some () else none).isSome do
+    return none
+  let guards ← leadingContractGuards body
+  let args ← params.mapM (·.arg)
+  let callTerm ← (← getCurrentModule).explicitClassCall pi.name args
+  let call ← `(Lean.Parser.Term.doSeqItem| $callTerm:term)
+  let items := guards.push call
+  return some (← `(Lean.Parser.Term.doSeq| { $items* }))
+
+private def Module.defineVerificationCompanion (mod : Module) (name : Name)
+    (br : Option (TSyntax ``Lean.explicitBinders)) (body : ActionSyntax)
+    (stx : Syntax) : CommandElabM Module := do
+  let info := ProcedureInfo.procedure name
+  let binders ← (← mod.declarationBaseParams (.procedure info)).mapM (·.binder)
+  let (extras, expr) ← liftTermElabMWithBinders binders fun vs =>
+    elabProcedureBody vs info br body
+  let (mod, extras) ← liftTermElabM $ mod.canonicalizeExtraParams extras
+  let params ← explicitBindersToParameters br name
+  let ps := ProcedureSpecification.mk info params extras none body stx
+  mod.defineProcedureCore info expr ps true (forceExternalVerification := true)
+
+/-- Pointwise semantic frames cover every field outside this occurrence,
+including effects performed through opaque Lean helpers. -/
+private def Module.instanceFrameEnsures (mod : Module) (owner : Name) :
+    CommandElabM (Array (TSyntax ``Lean.Parser.Term.doSeqItem)) := do
+  let foreign := mod.mutableComponents.filter fun field =>
+    !mod.instanceNames.any (fun (qualified, flat) =>
+      owner.isPrefixOf qualified && flat == field.name)
+  foreign.mapM fun field => do
+    let vars ← field.domainTerms.mapIdxM fun i ty => do
+      let id ← liftTermElabM <| mkFreshUserName
+        (mkVeilImplementationDetailName (.mkSimple s!"frame_index_{i}"))
+      let ident := mkIdent id
+      let binder ← `(bracketedBinder| ($ident : $ty))
+      return (ident, binder)
+    let (args, binders) := vars.unzip
+    let value ← `(term| $(mkIdent field.name) $args:ident*)
+    let equality ← `(term| old($value) = $value)
+    let proposition ← if binders.isEmpty then pure equality
+      else `(term| ∀ $binders:bracketedBinder*, $equality)
+    `(Lean.Parser.Term.doSeqItem| ensure $proposition)
+
+private def Module.defineMethodFrame (mod : Module) (pi : ProcedureInfo)
+    (br : Option (TSyntax ``Lean.explicitBinders)) (params : Array Parameter)
+    (body : ActionSyntax) (stx : Syntax) (owner? : Option Name := none) : CommandElabM Module := do
+  let inferredOwner : Option Name := do
+    let (qualified, _) ← mod.instanceNames.find? (·.2 == pi.name)
+    let owner ← mod.instances.find? (·.name.isPrefixOf qualified)
+    pure owner.name
+  let some owner := owner? <|> inferredOwner | return mod
+  let guards ← leadingContractGuards body
+  let args ← params.mapM (·.arg)
+  let call ← mod.explicitClassCall pi.name args
+  let result := mkVeilImplementationDetailIdent `frame_result
+  let invoke ← `(Lean.Parser.Term.doSeqItem| let $result:ident ← $call:term)
+  let finish ← `(Lean.Parser.Term.doSeqItem| return $result:ident)
+  let items := guards ++ #[invoke] ++ (← mod.instanceFrameEnsures owner) ++ #[finish]
+  let wrapper ← `(Lean.Parser.Term.doSeq| { $items* })
+  mod.defineVerificationCompanion (pi.name ++ `frame) br wrapper stx
+
 def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (spec : Option ActionSyntax) (l : ActionSyntax) (stx : Syntax) : CommandElabM Module := do
+  let params ← explicitBindersToParameters br pi.name
+  -- Check duplicated entry predicates before elaborating the implementation,
+  -- including effects hidden by term macros.
+  let contractBody? ← contractWrapperBody? pi params l
   -- Obtain `extraParams` so we can register the action
   let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
   let (extraParams, eDo) ← liftTermElabMWithBinders actionBinders $ fun vs => elabProcedureBody vs pi br l
   let (mod, extraParams) ← liftTermElabM $ mod.canonicalizeExtraParams extraParams
-  let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams spec l stx
-  mod.defineProcedureCore pi eDo ps true
+  let ps := ProcedureSpecification.mk pi params extraParams spec l stx
+  let mut mod ← mod.defineProcedureCore pi eDo ps true
+  -- This Unit view exists only for the no-throw proof and its local WP bridge.
+  -- The companion remains a procedure, so neither it nor its external view is
+  -- added to dispatch; the original internal definition keeps its result.
+  if let some wrapper := contractBody? then
+    mod ← mod.defineVerificationCompanion (pi.name ++ `contract) br wrapper stx
+  mod.defineMethodFrame pi br params l stx
+
+/-- A verification-only copy of one component initializer uses its real
+external guard interpretation. It is never added to dispatch; the composed
+initializer still executes the original blocks in order. -/
+def Module.defineInstanceInitializerFrame (mod : Module) (owner : Name)
+    (body : ActionSyntax) : CommandElabM Module := do
+  let info := ProcedureInfo.procedure (.mkSimple s!"inst_{owner.toString.length}_{owner}__initializer")
+  let binders ← (← mod.declarationBaseParams (.procedure info)).mapM (·.binder)
+  let (extras, expr) ← liftTermElabMWithBinders binders fun vs =>
+    elabProcedureBody vs info none body
+  let expr ← liftTermElabM <| withVeilModeVar .default fun mode =>
+    Meta.mkLambdaFVars #[mode] (mkApp expr Mode.external.expr)
+  let (mod, extras) ← liftTermElabM $ mod.canonicalizeExtraParams extras
+  let ps := ProcedureSpecification.mk info #[] extras none body body.raw
+  let mod ← mod.defineProcedureCore info expr ps true
+  mod.defineMethodFrame info none #[] body body.raw (owner? := some owner)
 
 /-- When `act` is given in the transition form, `act.ext.tr` will be defined
 based on its syntax, and `act.do`, `act` and `act.ext` will be defined
@@ -1213,6 +1347,7 @@ def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TS
   -- FIXME: How to define the `l` in `ps`? Might need to change the definition of `ProcedureSpecification`
   let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams .none /- this is not correct -/ ⟨t.raw⟩ stx
   let _nmTr_fullyQualified ← liftTermElabM $ addVeilDefinition (toTransitionName <| toActName pi.name .external) eTr
-  mod.defineProcedureCore pi eDo ps false
+  let mod ← mod.defineProcedureCore pi eDo ps false
+  mod.defineMethodFrame pi br ps.params ps.code stx
 
 end Veil
