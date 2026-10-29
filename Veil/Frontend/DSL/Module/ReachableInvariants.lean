@@ -143,6 +143,32 @@ private def mkAppWithNamedAndPositionalArgs
   let args := namedArgs.map (·.raw) ++ positionalArgs.map (·.raw)
   ⟨mkNode `Lean.Parser.Term.app #[mkIdent name, mkNullNode args]⟩
 
+/-- Explicit applications skip Lean's optional-argument scan of the result.
+For a WP certificate that result contains the computed semantics of the action;
+recursively telescoping it can expand an entire composed initializer. -/
+private def mkExplicitCertificateApp
+    (name : Name) (namedArgs : Array (TSyntax `Lean.Parser.Term.namedArgument))
+    (positionalArgs : Array Term) : CommandElabM Term := do
+  let head ← `(term| @$(mkIdent name))
+  let mut args := namedArgs
+  let supplied := namedArgs.filterMap fun arg => match arg with
+    | `(Lean.Parser.Term.namedArgument| ($id:ident := $_:term)) => some id.getId
+    | _ => none
+  let info ← getConstInfo ((← getCurrNamespace) ++ name)
+  let mut declType := info.type
+  -- Preserve ordinary instance inference for declaration-specific dictionaries
+  -- (for example, decidability of an ensure). Stop at the syntactic result:
+  -- reducing it here would perform the very WP scan we are avoiding.
+  while let .forallE binder _ body bi := declType do
+    if !supplied.contains binder then
+      if bi.isInstImplicit then
+        args := args.push (← mkNamedArg binder (← `(term| inferInstance)))
+      else if bi.isImplicit || bi.isStrictImplicit then
+        args := args.push (← mkNamedArg binder (← `(term| _)))
+    declType := body
+  let appArgs := args.map (·.raw) ++ positionalArgs.map (·.raw)
+  return ⟨mkNode `Lean.Parser.Term.app #[head.raw, mkNullNode appArgs]⟩
+
 private def mkGenCtx (mod : Module) (substs : ReachableInvariantSubst) : CommandElabM GenCtx := do
   -- Binders: sorts/userParams become implicit; typeclass binders are kept
   -- unless a sort assumption is specialized away. User dictionaries remain
@@ -215,31 +241,25 @@ private def GenCtx.mkTrProof (ctx : GenCtx) (actName invName : Name)
     (positional : Array Term) : CommandElabM Term := do
   let trName := preservationTheoremName actName invName true
   if ← theoremAvailable trName then
-    return mkAppWithNamedAndPositionalArgs trName ctx.namedArgs positional
+    return ← mkExplicitCertificateApp trName ctx.namedArgs positional
   let wpName := preservationTheoremName actName invName false
-  let wpApp := mkAppWithNamedAndPositionalArgs wpName ctx.namedArgs positional
-  `(term| Eq.mpr
-    ($(mkIdent ``Transition.meetsSpecificationIfSuccessful_eq) _ _ _) $wpApp)
+  let wpApp ← mkExplicitCertificateApp wpName ctx.namedArgs positional
+  let act := mkAppWithNamedAndPositionalArgs (toExtName actName) ctx.namedArgs positional
+  let derivedEq := mkAppWithNamedAndPositionalArgs
+    (toDerivedEqName (toExtName actName)) ctx.namedArgs positional
+  `(term| by
+    let hact := $act
+    have checked := $wpApp
+    -- A bare proof name also triggers the optional-argument scan.
+    exact $(mkIdent ``VeilM.meetsSpecificationIfSuccessfulAssuming_toTransition)
+      (m := $(mkIdent ``Mode.external)) hact $derivedEq (@checked))
 
 private def mkInitArm (ctx : GenCtx) (invName : Name) :
     CommandElabM (TSyntax `Lean.Parser.Tactic.tacticSeq) := do
   let hpresApp ← ctx.mkTrProof initializerName invName (positional := #[])
-  let derivedEq := mkAppWithNamedAndPositionalArgs
-    (toDerivedEqName (toExtName initializerName)) ctx.namedArgs #[]
-  let hasTr ← theoremAvailable (preservationTheoremName initializerName invName true)
-  let normalize ← match hasTr with
-    | true => `(tactic| skip)
-    | false => `(tactic| simp (config := { failIfUnchanged := false }) only
-      [$(mkIdent ``VeilM.toTransitionDerived_sound):ident, $derivedEq:term] at hpres)
   `(tacticSeq|
     have hpres := $hpresApp
-    $normalize:tactic
-    simp only [$(mkIdent ``Transition.meetsSpecificationIfSuccessfulAssuming):ident,
-      $(mkIdent ``Transition.meetsSpecificationIfSuccessful):ident,
-      $(mkIdent ``Transition.triple):ident] at hpres
-    exact hpres th default s ⟨has, trivial⟩ (by
-      simp only [nextSimp]
-      exact hinit))
+    exact hpres th default s ⟨has, trivial⟩ hinit)
 
 private def mkActionArm
     (ctx : GenCtx) (actName invName : Name) (actionArgs : Array Ident) :
@@ -247,13 +267,6 @@ private def mkActionArm
   let positional := actionArgs.map fun id => (⟨id⟩ : Term)
   let hpresApp ← ctx.mkTrProof actName invName (positional := positional)
   let native := (ctx.mod.actions.find? (·.name == actName)).any (·.info.isTransition)
-  let derivedEq := mkAppWithNamedAndPositionalArgs
-    (toDerivedEqName (toExtName actName)) ctx.namedArgs positional
-  let hasTr ← theoremAvailable (preservationTheoremName actName invName true)
-  let normalize ← match hasTr with
-    | true => `(tactic| skip)
-    | false => `(tactic| simp (config := { failIfUnchanged := false }) only
-      [$(mkIdent ``VeilM.toTransitionDerived_sound):ident, $derivedEq:term] at hpres)
   let rawStep := mkIdent `hraw
   let convert ← match native with
     | true => do
@@ -281,10 +294,6 @@ private def mkActionArm
     | false => `(tactic| exact htr)
   `(tacticSeq|
     have hpres := $hpresApp
-    $normalize:tactic
-    simp only [$(mkIdent ``Transition.meetsSpecificationIfSuccessfulAssuming):ident,
-      $(mkIdent ``Transition.meetsSpecificationIfSuccessful):ident,
-      $(mkIdent ``Transition.triple):ident] at hpres
     $convert:tactic
     exact hpres th s s' ⟨has, ih⟩ (by
       simp only [nextSimp]
@@ -316,7 +325,7 @@ private def mkActionCaseAlt (ctx : GenCtx) (act : ProcedureSpecification) :
   `(Lean.Parser.Tactic.inductionAlt|
     | $(mkIdent act.name):ident $actionArgs:ident* =>
         simp only [nextSimp] at htr
-        dsimp [$(mkIdent assembledInvariantsName):ident]
+        unfold $(mkIdent assembledInvariantsName):ident
         $conjunctionTac:tactic)
 
 private def mkActionCasesTactic (ctx : GenCtx) : CommandElabM (TSyntax `tactic) := do
@@ -341,8 +350,7 @@ private def mkReachableInvariantsTheorem (ctx : GenCtx) : CommandElabM Command :
       intro th st hr
       induction hr with
       | init s has hinit =>
-          simp only [nextSimp] at hinit
-          dsimp [$(mkIdent assembledInvariantsName):ident]
+          unfold $(mkIdent assembledInvariantsName):ident
           $initConjunctionTac:tactic
       | step s s' hreach hnext ih =>
           have has := $(mkIdent ``RelationalTransitionSystem.reachable_assumptions) _ _ _ hreach
@@ -393,7 +401,7 @@ private def mkProjectionTheorem (ctx : GenCtx) (invName : Name) : CommandElabM C
         $(mkIdent ``RelationalTransitionSystem.isInvariant) $rtsTerm $invPredicate := by
       intro th st hr
       have h := $outerProof:term
-      dsimp [$(mkIdent assembledInvariantsName):ident] at h
+      unfold $(mkIdent assembledInvariantsName):ident at h
       $destructTac:tactic)
 
 /-! ## Entry Points -/

@@ -276,6 +276,20 @@ theorem Transition.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM
   act.toTransition.preservesInvariantsIfSuccesful inv = act.preservesInvariantsIfSuccesful inv := by
   apply Transition.meetsSpecificationIfSuccessful_eq
 
+/-- Transport a checked WP certificate to a named concrete transition. Keeping
+the action explicit avoids inferring it backwards through its computed WP. -/
+theorem VeilM.meetsSpecificationIfSuccessfulAssuming_toTransition [Inhabited α]
+    (act : VeilM m ρ σ α) {tr : Transition ρ σ}
+    {assu : ρ → Prop} {pre post : SProp ρ σ}
+    (derivedEq : act.toTransitionDerived = tr)
+    (checked : act.meetsSpecificationIfSuccessfulAssuming assu pre post) :
+    tr.meetsSpecificationIfSuccessfulAssuming assu pre post := by
+  have h := Eq.mpr
+    (Transition.meetsSpecificationIfSuccessful_eq act
+      (fun th st => assu th ∧ pre th st) post) checked
+  change act.toTransition.meetsSpecificationIfSuccessfulAssuming assu pre post at h
+  simpa only [VeilM.toTransitionDerived_sound, derivedEq] using h
+
 end TransitionSemanticsTheorems
 
 section VCTheorems
