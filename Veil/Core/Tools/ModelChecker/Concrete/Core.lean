@@ -78,42 +78,30 @@ structure MapReduceQueueItem (σₕ σ κ : Type) where
   entry : LogEntry σₕ κ
 deriving Repr
 
+/-- What the search has found with one action label. Both of its fields count over the transitions of the
+system that the search runs on; a post-state that violates a state constraint is not counted. -/
 structure ActionStat where
+  /-- The successful transitions with the label from the states that the search has expanded, one
+  per post-state, whether the search had seen it or not. Summed over the labels, this is
+  `BaseSearchContext.statesFound` minus the number of initial states. -/
   statesGenerated : Nat
+  /-- The states that the search reached first by a transition with the label.
+  Each state in the log but the initial ones counts under exactly one label,
+  so the sum over the labels is the size of the log minus the number of initial states in it.
+
+  A state reachable by several transitions counts under the label of the one that the order of
+  exploration takes first, so the split among the labels differs between the sequential and the
+  parallel search, and with the number of workers, though each state still counts once. The
+  sequential search counts a state when it logs it; the parallel search counts it in the reduce phase,
+  since a worker cannot tell whether another one has found the same state. -/
   distinctStates : Nat
 deriving Lean.ToJson, Lean.FromJson, BEq, DecidableEq, Repr, Inhabited
 
+/-- Count a transition with the label, and its post-state as distinct if `distinct?` is set. -/
 @[inline]
-def ActionStat.update (distinct? : Bool) (stat : ActionStat) : ActionStat :=
+def ActionStat.increment (distinct? : Bool) (stat : ActionStat) : ActionStat :=
   let ⟨sg, ds⟩ := stat
   if distinct? then ⟨sg.succ, ds.succ⟩ else ⟨sg.succ, ds⟩
-
-@[inline]
-def ActionStat.merge (stat1 stat2 : ActionStat) : ActionStat :=
-  let ⟨sg1, ds1⟩ := stat1
-  let ⟨sg2, ds2⟩ := stat2
-  ⟨sg1 + sg2, ds1 + ds2⟩
-
-abbrev ActionStatsMap κ [BEq κ] [Hashable κ] := Std.HashMap κ ActionStat
-
--- Use `.alter` to ensure linear usage
--- NOTE: This doesn't seem `specialize`d; what happened?
-@[inline]
-def ActionStatsMap.update [BEq κ] [Hashable κ] (distinct? : Bool) (label : κ) (amap : ActionStatsMap κ) : ActionStatsMap κ :=
-  if distinct? then
-    amap.alter label fun
-      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds + 1⟩
-      | none => Option.some { statesGenerated := 1, distinctStates := 1 }
-  else
-    amap.alter label fun
-      | some ⟨as, ds⟩ => Option.some ⟨as + 1, ds⟩
-      | none => Option.some { statesGenerated := 1, distinctStates := 0 }
-
-/-- Merge two `ActionStatsMap`s. Note that the time complexity depends on the *second* one;
-but in the case here, the domain size of `m2` should be mostly fixed, so it should not
-matter too much which operand the time complexity depends on. -/
-def ActionStatsMap.combine [BEq κ] [Hashable κ] (m1 m2 : ActionStatsMap κ) : ActionStatsMap κ :=
-  m1.mergeWith (other := m2) fun _ => ActionStat.merge
 
 /-- Statistics for a single action (transition label), for display. -/
 structure ActionStatDisplay extends ActionStat where
@@ -122,58 +110,61 @@ structure ActionStatDisplay extends ActionStat where
   label : Lean.Json
   deriving Lean.ToJson, Lean.FromJson, Inhabited
 
-/-- Abstract action statistics map. `asm` tracks `statesGenerated` per action label. -/
-class ActionStatUpdate (κ : Type u) (asm : outParam (Type v)) where
-  /-- Empty stats map -/
-  empty : asm
-  increment : κ → Bool → asm → asm
-  /-- Combine (sum) two stats maps -/
-  merge : asm → asm → asm
-  -- /-- Read the count for a specific label -/
-  -- lookup : κ → asm → Nat
-  dump : asm → List ActionStatDisplay
+/-- A table from the labels of `κ` to values, that is, a total function `κ → α`, stored as a `T α`.
+The sequential search keeps its statistics in a table of `ActionStat`s; the parallel search keeps
+each of the two counts in a table of `Nat`s, since its workers and its merge count them apart. -/
+class LabelTable (κ : Type u) (T : outParam (Type → Type)) where
+  /-- The table that maps every label to `a`. -/
+  replicate : α → T α
+  /-- Apply `f` to the value of `label`. -/
+  modify (label : κ) (f : α → α) : T α → T α
+  /-- Combine two tables label by label. -/
+  zipWith (f : α → β → γ) : T α → T β → T γ
+  /-- The labels with their values. A table may leave out the labels that still have the value it
+  was replicated from. -/
+  toList : T α → List (κ × α)
 
-/-- Array-based instance: O(1) increment and lookup.
-    Selected when `FinEncodableInjOnly κ` is available. -/
-instance (priority := high) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Display κ] :
-  ActionStatUpdate κ (Array ActionStat) where
-  empty := Array.replicate instf.card default
-  increment label distinct? arr := arr.modify (instf.encode label).val (ActionStat.update distinct?)
-  merge arr1 arr2 := arr1.zipWith ActionStat.merge arr2
-  dump arr := inste.allValues.map fun label =>
+/-- A table with an entry for every label, at the label's encoding. -/
+abbrev LabelVector (κ : Type u) [enc : FinEncodableInjOnly κ] (α : Type) := Vector α enc.card
+
+/-- O(1) `modify`. Selected when `FinEncodableInjOnly κ` is available, as for the labels of a Veil
+module. -/
+instance [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] : LabelTable κ (LabelVector κ) where
+  replicate a := Vector.replicate instf.card a
+  modify label f vec :=
     let idx := instf.encode label
-    let stat := arr.getD idx.val default
-    { stat with label := Display.display label }
+    vec.modify idx.val f idx.isLt
+  zipWith f vec1 vec2 := vec1.zipWith f vec2
+  toList vec := inste.allValues.map fun label => (label, vec[instf.encode label])
 
-abbrev VectorForActionStatUpdate (α : Type u) (κ : Type v) [enc : FinEncodableInjOnly κ] := Vector α enc.card
+/-- A table with entries for the labels whose values have been modified, and the value of the
+others. -/
+structure LabelHashMap (κ : Type u) [BEq κ] [Hashable κ] (α : Type) where
+  -- CHECK Do we actually need this `default`?
+  default : α
+  map : Std.HashMap κ α
 
-/-- Vector-based instance: O(1) increment and lookup. -/
-instance (priority := high + 100) [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] [Display κ] :
-  ActionStatUpdate κ (VectorForActionStatUpdate ActionStat κ) where
-  empty := Vector.replicate instf.card default
-  increment label distinct? vec :=
-    let idx := instf.encode label
-    vec.modify idx.val (ActionStat.update distinct?) idx.isLt
-  merge vec1 vec2 := vec1.zipWith ActionStat.merge vec2
-  dump vec := inste.allValues.map fun label =>
-    let idx := instf.encode label
-    let stat := vec[idx]
-    { stat with label := Display.display label }
+/-- The fallback for label types without `FinEncodableInjOnly`. -/
+instance (priority := low) [BEq κ] [Hashable κ] : LabelTable κ (LabelHashMap κ) where
+  replicate a := ⟨a, {}⟩
+  -- Use `.alter` to ensure linear usage
+  modify label f t := ⟨t.default, t.map.alter label fun a? => some (f (a?.getD t.default))⟩
+  zipWith f t1 t2 :=
+    let map := t1.map.fold (init := {}) fun map label a =>
+      map.insert label (f a (t2.map.getD label t2.default))
+    let map := t2.map.fold (init := map) fun map label b =>
+      if t1.map.contains label then map else map.insert label (f t1.default b)
+    ⟨f t1.default t2.default, map⟩
+  toList t := t.map.toList
 
-/-- HashMap-based fallback instance for types without `FinEncodableInjOnly`. -/
-instance (priority := low) [BEq κ] [Hashable κ] [Display κ] : ActionStatUpdate κ (ActionStatsMap κ) where
-  empty := {}
-  increment label distinct? m := m.update distinct? label
-  merge m1 m2 := m1.combine m2
-  -- lookup label m := m.getD label 0
-  dump m := m.fold (init := []) fun acc label stat =>
-    { stat with label := Display.display label } :: acc
+/-- The statistics of the labels in `stats`, with each label shown by its `Display`. -/
+def ActionStatDisplay.ofTable [LabelTable κ T] [Display κ] (stats : T ActionStat) : List ActionStatDisplay :=
+  (LabelTable.toList (κ := κ) stats).map fun (label, stat) => { stat with label := Display.display label }
 
 /-- A model checker search context is parametrised by the system that's being
 checked and the theory it's being checked under. -/
-structure BaseSearchContext (σ κ σₕ asm : Type)
+structure BaseSearchContext (σ κ σₕ : Type)
   [fp : StateFingerprint σ σₕ]
-  [ActionStatUpdate κ asm]
 where
   violatingStates    : List (σₕ × ViolationKind)
   /-- Have we finished the search? If so, why? -/
@@ -182,8 +173,6 @@ where
   currentFrontierDepth : Nat
   /-- Total number of post-states generated (before deduplication) -/
   statesFound : Nat
-  /-- Per-action statistics (only `statesGenerated`) -/
-  actionStatsMap : asm
 
 structure SearchContextInvariants {ρ σ κ σₕ : Type}
   [fp : StateFingerprint σ σₕ]
@@ -200,26 +189,25 @@ where
       share its fingerprint even when the view is injective on reachable states. -/
   visited_sound      : ∀ x, seen x → ∃ st, sys.reachable st ∧ x = fp.view st
 
-variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
+variable {ρ σ κ σₕ : Type} [fp : StateFingerprint σ σₕ]
   (params : SearchParameters ρ σ) (th : ρ) (fpSt : σₕ) (curr : σ)
 
 @[inline]
-def BaseSearchContext.hasFinished (ctx : BaseSearchContext σ κ σₕ asm) : Bool := ctx.finished.isSome
+def BaseSearchContext.hasFinished (ctx : BaseSearchContext σ κ σₕ) : Bool := ctx.finished.isSome
 
 /-- The depth up to which ALL states have been fully explored (successors enqueued): the one before
 the frontier's, and `0` while the frontier is at depth `0`. -/
 @[inline]
-def BaseSearchContext.completedDepth (ctx : BaseSearchContext σ κ σₕ asm) : Nat := ctx.currentFrontierDepth - 1
+def BaseSearchContext.completedDepth (ctx : BaseSearchContext σ κ σₕ) : Nat := ctx.currentFrontierDepth - 1
 
 /-- The context of a search before any state is processed: the `numInitialStates` initial states
 are all it has found. -/
 @[inline]
-def BaseSearchContext.initial (numInitialStates : Nat) : BaseSearchContext σ κ σₕ asm :=
+def BaseSearchContext.initial (numInitialStates : Nat) : BaseSearchContext σ κ σₕ :=
   { violatingStates := [],
     finished := none,
     currentFrontierDepth := 0,
-    statesFound := numInitialStates,
-    actionStatsMap := ActionStatUpdate.empty (κ := κ) }
+    statesFound := numInitialStates }
 
 -- NOTE: Hopefully, if `outcomes` does not have any other reference, then
 -- Lean should be able to reuse constructors inside it? Can we somehow
@@ -256,7 +244,7 @@ def checkViolationsAndMaybeTerminate
 -- @[inline, specialize]
 def BaseSearchContext.processState
   (trs : Transitions κ Int σ)
-  (ctx : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm × Option (List (κ × σ)) :=
+  (ctx : BaseSearchContext σ κ σₕ) : BaseSearchContext σ κ σₕ × Option (List (κ × σ)) :=
   let hasSuccessfulTransition := !trs.successes.isEmpty
   let completedDepth := ctx.completedDepth
   let (newViolations, earlyTermination) :=
@@ -274,16 +262,15 @@ def BaseSearchContext.processState
     | none => ctx
   (ctx, if earlyTermination.isSome then none else some trs.successes)
 
-/-- Merge the violations and the statistics of `ctx2` into `ctx1`, keeping the depths of `ctx1`. -/
-def BaseSearchContext.mergeWithoutDepthChange (ctx1 ctx2 : BaseSearchContext σ κ σₕ asm) : BaseSearchContext σ κ σₕ asm :=
+/-- Merge the violations and the found states of `ctx2` into `ctx1`, keeping the depths of `ctx1`. -/
+def BaseSearchContext.mergeWithoutDepthChange (ctx1 ctx2 : BaseSearchContext σ κ σₕ) : BaseSearchContext σ κ σₕ :=
   { violatingStates := ctx1.violatingStates ++ ctx2.violatingStates,
     finished := ctx1.finished.or ctx2.finished,
     currentFrontierDepth := ctx1.currentFrontierDepth,
-    statesFound := ctx1.statesFound + ctx2.statesFound,
-    actionStatsMap := ActionStatUpdate.merge (κ := κ) ctx1.actionStatsMap ctx2.actionStatsMap }
+    statesFound := ctx1.statesFound + ctx2.statesFound }
 
 theorem BaseSearchContext.mergeWithoutDepthChange_foldl_description
-  (acc : BaseSearchContext σ κ σₕ asm) (ctxs : List (BaseSearchContext σ κ σₕ asm)) :
+  (acc : BaseSearchContext σ κ σₕ) (ctxs : List (BaseSearchContext σ κ σₕ)) :
   let res := ctxs.foldl (init := acc) BaseSearchContext.mergeWithoutDepthChange
   res.finished = acc.finished.or ((ctxs.find? (·.hasFinished)).bind (fun x => x.finished)) := by
   dsimp only

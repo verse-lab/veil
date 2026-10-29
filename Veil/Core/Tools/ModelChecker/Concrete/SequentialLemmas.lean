@@ -7,9 +7,9 @@ public section
 
 namespace Veil.ModelChecker.Concrete
 
-variable {ρ σ κ σₕ asm : Type}
+variable {ρ σ κ σₕ : Type} {T : Type → Type}
   [fp : StateFingerprint σ σₕ]
-  [ActionStatUpdate κ asm]
+  [LabelTable κ T]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
@@ -37,9 +37,9 @@ theorem initialLogAndRepresentativesSequential_eq_dedupFold (initialStates : Lis
     List.foldlIdx_eq_foldl_zipIdx] ; simp only [Nat.zero_add] ; rfl
 
 /-- Sequential initialization keeps the initial-state indices only in the log. -/
-@[expose] def SequentialSearchContext.initial : SequentialSearchContext σ κ σₕ asm :=
+@[expose] def SequentialSearchContext.initial : SequentialSearchContext σ κ σₕ T :=
   let (eq := hres) (len, reps, log) := initialLogAndRepresentativesSequential (κ := κ) sys.initStates
-  ⟨BaseSearchContext.initial len, log, fQueue.ofListWithKnownLength reps
+  ⟨BaseSearchContext.initial len, LabelTable.replicate (κ := κ) default, log, fQueue.ofListWithKnownLength reps
     ⟨log.size, by
       rw [initialLogAndRepresentativesSequential_eq_dedupFold] at hres
       simp [Prod.ext_iff] at hres
@@ -89,31 +89,33 @@ theorem SequentialSearchContext.initial_invs :
     · intros ; subst_vars ; simp [h4] ; grind
 
 theorem SequentialSearchContextInvariants.setCancelled
-  {ctx : BaseSearchContext σ κ σₕ asm} {log : Std.HashMap σₕ (LogEntry σₕ κ)} {sq : fQueue (QueueItem σₕ σ)}
-  (h : SequentialSearchContextInvariants sys params .none ⟨ctx, log, sq⟩) :
-  SequentialSearchContextInvariants sys params .none ⟨{ ctx with finished := some (.earlyTermination .cancelled) }, log, sq⟩ := by
+  {ctx : BaseSearchContext σ κ σₕ} {stats : T ActionStat} {log : Std.HashMap σₕ (LogEntry σₕ κ)}
+  {sq : fQueue (QueueItem σₕ σ)}
+  (h : SequentialSearchContextInvariants sys params .none ⟨ctx, stats, log, sq⟩) :
+  SequentialSearchContextInvariants sys params .none ⟨{ ctx with finished := some (.earlyTermination .cancelled) }, stats, log, sq⟩ := by
   rcases h with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩
   constructor ; on_goal 1 => constructor
   all_goals dsimp only at * ; try solve | assumption | grind
 
 theorem SequentialSearchContext.LogSound.setCancelled
-  {ctx : BaseSearchContext σ κ σₕ asm} {log : Std.HashMap σₕ (LogEntry σₕ κ)} {sq : fQueue (QueueItem σₕ σ)}
+  {ctx : BaseSearchContext σ κ σₕ} {stats : T ActionStat} {log : Std.HashMap σₕ (LogEntry σₕ κ)}
+  {sq : fQueue (QueueItem σₕ σ)}
   {rep : σₕ → Option σ} {dep : σₕ → Nat}
-  (h : SequentialSearchContext.LogSound sys params ⟨ctx, log, sq⟩ rep dep) :
-  SequentialSearchContext.LogSound sys params ⟨{ ctx with finished := some (.earlyTermination .cancelled) }, log, sq⟩ rep dep := by
+  (h : SequentialSearchContext.LogSound sys params ⟨ctx, stats, log, sq⟩ rep dep) :
+  SequentialSearchContext.LogSound sys params ⟨{ ctx with finished := some (.earlyTermination .cancelled) }, stats, log, sq⟩ rep dep := by
   rcases h with ⟨⟨hv, _⟩, hlog, hq⟩ ; exact ⟨⟨hv, by simp [TerminationSound]⟩, hlog, hq⟩
 
 /-- When finishing processing a state, we move from having that state `curr`
 in transit to having no state in transit, provided that all successfully
 reachable neighbors of `curr` in transit have been seen. -/
 theorem SequentialSearchContextInvariants.finish_stateInTransit
-  {sctx : SequentialSearchContext σ κ σₕ asm}
+  {sctx : SequentialSearchContext σ κ σₕ T}
   {curr : σ}
   (sctx_invs : SequentialSearchContextInvariants sys params (.some curr) sctx)
   (h_neighbors_seen : ∀ l v, (l, ExecutionOutcome.success v) ∈ sys.tr th curr →
     (fp.view v) ∈ sctx.log) :
   SequentialSearchContextInvariants sys params .none sctx := by
-  rcases sctx with ⟨ctx, log, sq⟩ ; rcases sctx_invs with ⟨h1, h2, h3, h_closed⟩ ; dsimp only at *
+  rcases sctx with ⟨ctx, stats, log, sq⟩ ; rcases sctx_invs with ⟨h1, h2, h3, h_closed⟩ ; dsimp only at *
   constructor <;> try assumption
   simp [SequentialSearchContext.isStableClosed] at h_closed ⊢
   intro ha hb u h_reachable hc hd l v hin
@@ -122,12 +124,12 @@ theorem SequentialSearchContextInvariants.finish_stateInTransit
   subst u ; eapply h_neighbors_seen ; assumption
 
 theorem SequentialSearchContext.bfs_completeness
-  {sctx : SequentialSearchContext σ κ σₕ asm}
+  {sctx : SequentialSearchContext σ κ σₕ T}
   (sctx_invs : SequentialSearchContextInvariants sys params .none sctx)
   (h_explore_all : sctx.base.finished = some (.exploredAllReachableStates))
   (h_view_inj : Function.InjectiveOn fp.view sys.reachable) :
   ∀ s : σ, sys.reachable s → (fp.view s) ∈ sctx.log := by
-  rcases sctx with ⟨ctx, log, sq⟩ ; rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at *
+  rcases sctx with ⟨ctx, stats, log, sq⟩ ; rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at *
   intro s h_reachable
   induction h_reachable with
   | init s h_s_in_initStates => grind   -- using the initial seen set

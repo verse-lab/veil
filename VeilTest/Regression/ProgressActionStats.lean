@@ -51,10 +51,10 @@ step 1 1/1: [] 1/1
       s!"[{args}] {st.statesGenerated}/{st.distinctStates}"
     s!"{g.baseName} {g.totalGenerated}/{g.totalDistinct}: {", ".intercalate variants}"
   -- The statistics that the model checker keeps for the module's labels
-  let s := ActionStatUpdate.empty (κ := ProgressActionStats.Label)
-  let s := ActionStatUpdate.increment (ProgressActionStats.Label.set true) true s
-  let s := ActionStatUpdate.increment (ProgressActionStats.Label.set true) false s
-  let groups := groupActionStats (ActionStatUpdate.dump (κ := ProgressActionStats.Label) s)
+  let s := LabelTable.replicate (κ := ProgressActionStats.Label) (default : ActionStat)
+  let s := LabelTable.modify (ProgressActionStats.Label.set true) (ActionStat.increment true) s
+  let s := LabelTable.modify (ProgressActionStats.Label.set true) (ActionStat.increment false) s
+  let groups := groupActionStats (ActionStatDisplay.ofTable (κ := ProgressActionStats.Label) s)
   groups.forM fun g => IO.println (describe g)
   IO.println s!"never enabled: {getNeverEnabledActions groups ["flip", "set"]}"
   (groupActionStats [{ statesGenerated := 1, distinctStates := 1, label := .str "step 1" }]).forM

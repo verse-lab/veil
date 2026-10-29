@@ -13,16 +13,18 @@ namespace Veil.ModelChecker.Concrete
 section Sequential
 
 /-- The state of a sequential search. Its log doubles as its seen set. -/
-structure SequentialSearchContext (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] where
-  base : BaseSearchContext σ κ σₕ asm
+structure SequentialSearchContext (σ κ σₕ : Type) (T : Type → Type) [fp : StateFingerprint σ σₕ] [LabelTable κ T] where
+  base : BaseSearchContext σ κ σₕ
+  /-- The statistics of each label. -/
+  actionStats : T ActionStat
   /-- The seen set, with how each seen state was first reached; `recoverTrace` rebuilds a
   counterexample trace from it. -/
   log : Std.HashMap σₕ (LogEntry σₕ κ)
   queue : fQueue (QueueItem σₕ σ)
 
-variable {ρ σ κ σₕ asm : Type}
+variable {ρ σ κ σₕ : Type} {T : Type → Type}
   [fp : StateFingerprint σ σₕ]
-  [ActionStatUpdate κ asm]
+  [LabelTable κ T]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (params : SearchParameters ρ σ)
@@ -30,7 +32,7 @@ variable {ρ σ κ σₕ asm : Type}
 /-- A sequential search context is stable closed if for any reachable state `u`
 that has been seen and has been fully processed (i.e., not in the queue, not being
 processed), then all its successful successors have also been seen. -/
-abbrev SequentialSearchContext.isStableClosed (sctx : SequentialSearchContext σ κ σₕ asm)
+abbrev SequentialSearchContext.isStableClosed (sctx : SequentialSearchContext σ κ σₕ T)
   -- (Optional) state that is currently being processed
   (stateInTransit : Option σ) : Prop :=
   Function.InjectiveOn fp.view sys.reachable →
@@ -44,7 +46,7 @@ abbrev SequentialSearchContext.isStableClosed (sctx : SequentialSearchContext σ
 -- (e.g., arguments), otherwise some reference counting will boom?
 structure SequentialSearchContextInvariants
   (stateInTransit : Option σ)
-  (sctx : SequentialSearchContext σ κ σₕ asm)
+  (sctx : SequentialSearchContext σ κ σₕ T)
 extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun (x : σₕ) (st : σ) => ∃ d, ⟨x, st, d⟩ ∈ sctx.queue) (· ∈ sctx.log)
 where
   -- NOTE: should be strengthened to talk about depth, with this
@@ -56,14 +58,14 @@ where
 /-- The log of a sequential search describes, through the representatives `rep`, the states
 the search has queued and the violations it has recorded. Kept apart from
 `SequentialSearchContextInvariants`, since it is preserved for a growing `rep`. -/
-structure SequentialSearchContext.LogSound (sctx : SequentialSearchContext σ κ σₕ asm)
+structure SequentialSearchContext.LogSound (sctx : SequentialSearchContext σ κ σₕ T)
     (rep : σₕ → Option σ) (dep : σₕ → Nat) : Prop
     extends BaseSearchContext.ViolationTerminationSound sys params sctx.base rep where
   log_invs : LogInvariants sys (logLookup sctx.log) rep dep
   queue_rep : ∀ item ∈ sctx.queue, rep item.fingerprint = some item.state
 
 abbrev LawfulSequentialSearchContext (stateInTransit : Option σ := .none) : Type :=
-  Subtype (α := SequentialSearchContext σ κ σₕ asm) fun sctx =>
+  Subtype (α := SequentialSearchContext σ κ σₕ T) fun sctx =>
     SequentialSearchContextInvariants sys params stateInTransit sctx ∧ ∃ rep dep, sctx.LogSound sys params rep dep
 
 end Sequential
@@ -75,9 +77,14 @@ how the search first reached a state of that fingerprint, in `numShards` shards 
 abbrev MapReduceGlobalSeen (σₕ κ Shard : Type) [Hashable σₕ] [Membership σₕ Shard] (numShards : PosUSize) : Type :=
   ShardedMapUSize σₕ (LogEntry σₕ κ) Shard numShards
 
-structure MapReduceSearchContextMain (σ κ σₕ asm Shard : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
+structure MapReduceSearchContextMain (σ κ σₕ : Type) (T : Type → Type) (Shard : Type) [fp : StateFingerprint σ σₕ] [LabelTable κ T]
     [Membership σₕ Shard] (numShards : PosUSize) where
-  base : BaseSearchContext σ κ σₕ asm
+  base : BaseSearchContext σ κ σₕ
+  /-- The `statesGenerated` of each label, which the workers count. -/
+  statesGenerated : T Nat
+  /-- The `distinctStates` of each label, which the merge of each round counts, since only the merge
+  knows which states of the round are new. -/
+  distinctStates : T Nat
   tovisitLen : Nat
   tovisit : List (MapReduceQueueItem σₕ σ κ)
   /-- The seen set, which is also the log: how the search first reached each state it has seen,
@@ -85,16 +92,18 @@ structure MapReduceSearchContextMain (σ κ σₕ asm Shard : Type) [fp : StateF
   globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards
 
 /-- The state of a worker of the parallel search. -/
-structure MapReduceSearchContextLocal (σ κ σₕ asm : Type) [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm] where
-  base : BaseSearchContext σ κ σₕ asm
+structure MapReduceSearchContextLocal (σ κ σₕ : Type) (T : Type → Type) [fp : StateFingerprint σ σₕ] [LabelTable κ T] where
+  base : BaseSearchContext σ κ σₕ
+  /-- The `statesGenerated` of each label, over the states the worker has processed. -/
+  statesGenerated : T Nat
   /-- The fingerprints of the states in `queue`, to deduplicate within the worker. -/
   seen : Std.HashSet σₕ
   /-- The states the worker found new, each with its log entry. -/
   queue : List (MapReduceQueueItem σₕ σ κ)
 
-variable {ρ σ κ σₕ asm : Type}
+variable {ρ σ κ σₕ : Type} {T : Type → Type}
   [fp : StateFingerprint σ σₕ]
-  [ActionStatUpdate κ asm]
+  [LabelTable κ T]
   {Shard : Type} [Membership σₕ Shard] {numShards : PosUSize}
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
@@ -103,7 +112,7 @@ variable {ρ σ κ σₕ asm : Type}
 /-- A map-reduce main context is stable closed if for any reachable state `u`
 that has been seen (in globalSeen) and has been fully processed (i.e., not in the
 frontier array), then all its successful successors have also been seen. -/
-abbrev MapReduceSearchContextMain.isStableClosed (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards) : Prop :=
+abbrev MapReduceSearchContextMain.isStableClosed (mctx : MapReduceSearchContextMain σ κ σₕ T Shard numShards) : Prop :=
   Function.InjectiveOn fp.view sys.reachable →
     (mctx.base.finished = some (.exploredAllReachableStates) ∨ mctx.base.finished = none) →
       ∀ u, sys.reachable u → (fp.view u) ∈ mctx.globalSeen →
@@ -112,7 +121,7 @@ abbrev MapReduceSearchContextMain.isStableClosed (mctx : MapReduceSearchContextM
             (fp.view v) ∈ mctx.globalSeen
 
 structure MapReduceSearchContextMainInvariants
-  (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards)
+  (mctx : MapReduceSearchContextMain σ κ σₕ T Shard numShards)
 extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ∃ e, ⟨x, st, e⟩ ∈ mctx.tovisit) (· ∈ mctx.globalSeen)
 where
   init_states_included : ∀ s ∈ sys.initStates, (fp.view s) ∈ mctx.globalSeen
@@ -124,20 +133,20 @@ where
 states on its frontier and the violations it has recorded. Kept apart from
 `MapReduceSearchContextMainInvariants`, since it is preserved for a growing `rep`. -/
 structure MapReduceSearchContextMain.LogSound [MapShard σₕ (LogEntry σₕ κ) Shard]
-    (mctx : MapReduceSearchContextMain σ κ σₕ asm Shard numShards)
+    (mctx : MapReduceSearchContextMain σ κ σₕ T Shard numShards)
     (rep : σₕ → Option σ) (dep : σₕ → Nat) : Prop
     extends BaseSearchContext.ViolationTerminationSound sys params mctx.base rep where
   log_invs : LogInvariants sys (ShardedMapUSize.get? mctx.globalSeen) rep dep
   tovisit_rep : ∀ item ∈ mctx.tovisit, rep item.fingerprint = some item.state
 
 abbrev LawfulMapReduceSearchContextMain [MapShard σₕ (LogEntry σₕ κ) Shard] : Type :=
-  Subtype (α := MapReduceSearchContextMain σ κ σₕ asm Shard numShards) fun mctx =>
+  Subtype (α := MapReduceSearchContextMain σ κ σₕ T Shard numShards) fun mctx =>
     MapReduceSearchContextMainInvariants sys params mctx ∧ ∃ rep dep, mctx.LogSound sys params rep dep
 
 structure MapReduceSearchContextLocalInvariants
   (globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards)
   (visited : MapReduceQueueItem σₕ σ κ → Prop)
-  (lctx : MapReduceSearchContextLocal σ κ σₕ asm)
+  (lctx : MapReduceSearchContextLocal σ κ σₕ T)
 extends @SearchContextInvariants ρ σ κ σₕ fp th sys params (fun x st => ∃ e, ⟨x, st, e⟩ ∈ lctx.queue) (fun h => ∃ s e, ⟨h, s, e⟩ ∈ lctx.queue)
 where
   not_explored_all : lctx.base.finished ≠ some (.exploredAllReachableStates)   -- OK, but why?
@@ -152,7 +161,7 @@ where
 /-- What a worker's results say through the representatives `rep`: the entry of each item it has
 queued is a transition from the representative of the entry's parent, and each violation it has
 recorded is exhibited by the representative of its fingerprint. -/
-structure MapReduceSearchContextLocal.LogSound (lctx : MapReduceSearchContextLocal σ κ σₕ asm)
+structure MapReduceSearchContextLocal.LogSound (lctx : MapReduceSearchContextLocal σ κ σₕ T)
     (rep : σₕ → Option σ) : Prop
     extends BaseSearchContext.ViolationTerminationSound sys params lctx.base rep where
   entries_sound : ∀ item ∈ lctx.queue, ∃ p l i sp, item.entry = .step p l i ∧ rep p = some sp ∧
@@ -164,7 +173,7 @@ representatives of the main context. -/
 abbrev LawfulMapReduceSearchContextLocal
   (globalSeen : MapReduceGlobalSeen σₕ κ Shard numShards)
   (visited : MapReduceQueueItem σₕ σ κ → Prop) : Type :=
-  Subtype (α := MapReduceSearchContextLocal σ κ σₕ asm) fun lctx =>
+  Subtype (α := MapReduceSearchContextLocal σ κ σₕ T) fun lctx =>
     MapReduceSearchContextLocalInvariants sys params globalSeen visited lctx ∧
     ∀ rep : σₕ → Option σ, (∀ c, visited c → rep c.fingerprint = some c.state) → lctx.LogSound sys params rep
 

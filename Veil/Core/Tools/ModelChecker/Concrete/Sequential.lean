@@ -10,7 +10,7 @@ namespace Veil.ModelChecker.Concrete
 open Std
 open Veil fQueue
 
-variable {ρ σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
+variable {ρ σ κ σₕ : Type} {T : Type → Type} [fp : StateFingerprint σ σₕ] [LabelTable κ T]
   (params : SearchParameters ρ σ) (th : ρ)
 
 -- CHECK inline this later? seems a good target to inline
@@ -22,16 +22,16 @@ def SequentialSearchContext.tryExploreNeighbor
   (fpSt : σₕ)         -- fingerprint of state we're coming from (pre-state), for logging
   (nextDepth : Nat)   -- depth of the current state + 1
   (idx : Nat)         -- position of the transition among the successes of the pre-state
-  (sctx : SequentialSearchContext σ κ σₕ asm)
+  (sctx : SequentialSearchContext σ κ σₕ T)
   (label : κ)
   (succ : σ)
-  : SequentialSearchContext σ κ σₕ asm :=
-  let ⟨ctx, log, sq⟩ := sctx
+  : SequentialSearchContext σ κ σₕ T :=
+  let ⟨ctx, stats, log, sq⟩ := sctx
   let fingerprint := fp.view succ
   if log.contains fingerprint then
-    ⟨{ ctx with actionStatsMap := ActionStatUpdate.increment label false ctx.actionStatsMap }, log, sq⟩
+    ⟨ctx, LabelTable.modify label (ActionStat.increment false) stats, log, sq⟩
   else
-    ⟨{ ctx with actionStatsMap := ActionStatUpdate.increment label true ctx.actionStatsMap },
+    ⟨ctx, LabelTable.modify label (ActionStat.increment true) stats,
       log.insert fingerprint (.step fpSt label idx), sq.enqueue ⟨fingerprint, succ, nextDepth⟩⟩
 
 -- CHECK inline this later? seems a good target to inline
@@ -41,7 +41,7 @@ def SequentialSearchContext.processSuccessors
   (depth : Nat)   -- depth of curr
   (start : Nat)     -- usually 0
   (successors : List (κ × σ))
-  (sctx : SequentialSearchContext σ κ σₕ asm) : SequentialSearchContext σ κ σₕ asm :=
+  (sctx : SequentialSearchContext σ κ σₕ T) : SequentialSearchContext σ κ σₕ T :=
   let nextDepth := depth + 1
   successors.foldlIdx (start := start) (init := sctx) fun i current_sctx (tr, postState) =>
     SequentialSearchContext.tryExploreNeighbor fpSt nextDepth i current_sctx tr postState
@@ -51,11 +51,11 @@ def SequentialSearchContext.processState
   (depth : Nat)  -- depth of the current state
   (curr : σ)
   (trs : Transitions κ Int σ)
-  (sctx : SequentialSearchContext σ κ σₕ asm)
+  (sctx : SequentialSearchContext σ κ σₕ T)
   -- Depth tracking information computed by caller
   (newFrontierDepth : Nat) :
-  SequentialSearchContext σ κ σₕ asm :=
-  let ⟨ctx, log, sq⟩ := sctx
+  SequentialSearchContext σ κ σₕ T :=
+  let ⟨ctx, stats, log, sq⟩ := sctx
   let (ctx', outcomesOpt) := ctx.processState params th fpSt curr trs
   match outcomesOpt with
   | none =>
@@ -63,7 +63,7 @@ def SequentialSearchContext.processState
     -- CHECK What does this update mean?
     ⟨{ ctx' with
       currentFrontierDepth := newFrontierDepth
-    }, log, sq⟩
+    }, stats, log, sq⟩
   | some successfulTransitions =>
     -- CHECK Is it useful/possible to remove the call to `successfulTransitions.length`?
     let newStatesFound := ctx'.statesFound + successfulTransitions.length
@@ -71,18 +71,18 @@ def SequentialSearchContext.processState
       currentFrontierDepth := newFrontierDepth
       statesFound := newStatesFound
     }
-    SequentialSearchContext.processSuccessors fpSt depth 0 successfulTransitions ⟨ctx'', log, sq⟩
+    SequentialSearchContext.processSuccessors fpSt depth 0 successfulTransitions ⟨ctx'', stats, log, sq⟩
 
 /-- Perform one step of BFS. -/
 -- @[inline, specialize]
 def SequentialSearchContext.bfsStep
   (outcomesComputer : ρ → σ → Transitions κ Int σ)
-  (sctx : SequentialSearchContext σ κ σₕ asm) : SequentialSearchContext σ κ σₕ asm :=
-  let ⟨ctx, log, sq⟩ := sctx
+  (sctx : SequentialSearchContext σ κ σₕ T) : SequentialSearchContext σ κ σₕ T :=
+  let ⟨ctx, stats, log, sq⟩ := sctx
   match sq.dequeue? with
   | none =>
     -- Queue is empty: finished searching
-    ⟨{ ctx with finished := some (.exploredAllReachableStates) }, log, sq⟩
+    ⟨{ ctx with finished := some (.exploredAllReachableStates) }, stats, log, sq⟩
   | some (⟨fpSt, curr, depth⟩, q_tail) =>
     -- Update the frontier depth when we move to a new frontier level
     let newFrontierDepth :=
@@ -93,13 +93,13 @@ def SequentialSearchContext.bfsStep
     -- Process curr: add successors to seen, enqueue them, and dequeue curr
     -- processState handles the complete lifecycle of processing a state
     SequentialSearchContext.processState params th fpSt depth curr (outcomesComputer th curr)
-      ⟨ctx, log, q_tail⟩ newFrontierDepth
+      ⟨ctx, stats, log, q_tail⟩ newFrontierDepth
 
 /-! ### The search invariants -/
 
 theorem SequentialSearchContext.processSuccessors_preserves_invs
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
-  {sctx : SequentialSearchContext σ κ σₕ asm}
+  {sctx : SequentialSearchContext σ κ σₕ T}
   (h_not_finished : sctx.base.finished = .none)
   {fpSt depth} (start : Nat) (curr : σ) {succs}
   (h_reachable : sys.reachable curr)
@@ -122,7 +122,7 @@ theorem SequentialSearchContext.processSuccessors_preserves_invs
       fun_cases tryExploreNeighbor
       on_goal 1=> cases sctx_invs ; constructor <;> assumption
       -- enqueue case
-      rename_i ctx log sq fingerprint h_not_seen ; subst fingerprint
+      rename_i ctx stats log sq fingerprint h_not_seen ; subst fingerprint
       simp at h_not_seen h_not_finished
       rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; simp at h_q_sound
       have h_post_reachable : sys.reachable postState :=
@@ -131,7 +131,7 @@ theorem SequentialSearchContext.processSuccessors_preserves_invs
       all_goals dsimp only at * ; grind
 
 theorem SequentialSearchContext.processSuccessors_add_to_seen
-  {sctx : SequentialSearchContext σ κ σₕ asm}
+  {sctx : SequentialSearchContext σ κ σₕ T}
   {fpSt depth start succs} :
   letI res := sctx.processSuccessors fpSt depth start succs
   ∀ l v, (l, v) ∈ succs ∨ fp.view v ∈ sctx.log → (fp.view v) ∈ res.log := by
@@ -147,11 +147,11 @@ theorem SequentialSearchContext.processSuccessors_add_to_seen
 
 theorem SequentialSearchContext.bfsStep_preserves_invs
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
-  {sctx : SequentialSearchContext σ κ σₕ asm}
+  {sctx : SequentialSearchContext σ κ σₕ T}
   (h_not_finished : sctx.base.hasFinished = false)
   (sctx_invs : SequentialSearchContextInvariants sys params .none sctx) :
   SequentialSearchContextInvariants sys params .none (sctx.bfsStep params th sys.tr) := by
-  rcases sctx with ⟨ctx, log, sq⟩ ; rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at * ; simp at h_q_sound
+  rcases sctx with ⟨ctx, stats, log, sq⟩ ; rcases sctx_invs with ⟨⟨h_q_sound, h_vis_sound⟩, h_init_incl, h_q_emp, h_closed⟩ ; dsimp only at * ; simp at h_q_sound
   simp [BaseSearchContext.hasFinished] at h_not_finished
   unfold SequentialSearchContext.bfsStep ; dsimp only
   rcases h_deq : sq.dequeue? with _ | ⟨⟨fpSt, curr, depth⟩, q_tail⟩ <;> dsimp only
@@ -200,7 +200,7 @@ section LogSound
 variable {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
 
 theorem SequentialSearchContext.processSuccessors_log_sound
-  {sctx : SequentialSearchContext σ κ σₕ asm} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+  {sctx : SequentialSearchContext σ κ σₕ T} {rep : σₕ → Option σ} {dep : σₕ → Nat}
   (hls : SequentialSearchContext.LogSound sys params sctx rep dep)
   {fpSt : σₕ} {curr : σ} {depth : Nat}
   (hrep : rep fpSt = some curr) :
@@ -217,7 +217,7 @@ theorem SequentialSearchContext.processSuccessors_log_sound
     fun_cases tryExploreNeighbor
     · apply ih <;> try assumption
       rcases hls with ⟨⟨hv, hf⟩, hlog, hq⟩ ; exact ⟨⟨hv, hf⟩, hlog, hq⟩    -- `hls` is not affected by the changed fields
-    · rename_i ctx log sq fingerprint hnotseen ; subst fingerprint
+    · rename_i ctx stats log sq fingerprint hnotseen ; subst fingerprint
       rcases hls with ⟨⟨hv, hf⟩, hlog, hq⟩
       dsimp only at *
       simp at hnotseen
@@ -233,14 +233,14 @@ theorem SequentialSearchContext.processSuccessors_log_sound
       · intro item hi ; rw [fQueue.mem_enqueue_iff] at hi ; unfold repUpdate ; grind [LogInvariants.mem_of_rep_isSome]
 
 theorem SequentialSearchContext.processState_log_sound
-  {sctx : SequentialSearchContext σ κ σₕ asm} {rep : σₕ → Option σ} {dep : σₕ → Nat}
+  {sctx : SequentialSearchContext σ κ σₕ T} {rep : σₕ → Option σ} {dep : σₕ → Nat}
   (hls : SequentialSearchContext.LogSound sys params sctx rep dep)
   {fpSt : σₕ} {depth : Nat} {curr : σ}
   (hrep : rep fpSt = some curr)
   {newFrontierDepth : Nat} :
   ∃ rep' dep', SequentialSearchContext.LogSound sys params
     (sctx.processState params th fpSt depth curr (sys.tr th curr) newFrontierDepth) rep' dep' := by
-  rcases sctx with ⟨ctx, log, sq⟩
+  rcases sctx with ⟨ctx, stats, log, sq⟩
   rcases hls with ⟨⟨hv, hf⟩, hlog, hq⟩ ; dsimp only at *
   have hsound := BaseSearchContext.processState_sound sys params (fpSt := fpSt) (curr := curr) ctx hrep hv hf
   have hsnd := BaseSearchContext.processState_snd params th fpSt curr (sys.tr th curr) ctx
@@ -255,18 +255,18 @@ theorem SequentialSearchContext.processState_log_sound
     exact processSuccessors_log_sound params th ⟨⟨hv', hf'⟩, hlog, hq⟩ hrep
 
 theorem SequentialSearchContext.bfsStep_log_sound
-  {sctx : SequentialSearchContext σ κ σₕ asm}
+  {sctx : SequentialSearchContext σ κ σₕ T}
   (h : ∃ rep dep, SequentialSearchContext.LogSound sys params sctx rep dep) :
   ∃ rep dep, SequentialSearchContext.LogSound sys params (sctx.bfsStep params th sys.tr) rep dep := by
   obtain ⟨rep, dep, hls⟩ := h
-  rcases sctx with ⟨ctx, log, sq⟩
+  rcases sctx with ⟨ctx, stats, log, sq⟩
   unfold bfsStep ; dsimp only
   rcases hdeq : sq.dequeue? with _ | ⟨⟨fpSt, curr, depth⟩, q_tail⟩ <;> dsimp only
   · rcases hls with ⟨⟨hv, _⟩, hlog, hq⟩ ; dsimp only at *
     exact ⟨rep, dep, ⟨hv, by simp [TerminationSound]⟩, hlog, hq⟩
   · have hmem : (⟨fpSt, curr, depth⟩ : QueueItem σₕ σ) ∈ sq := fQueue.mem_of_dequeue _ _ _ hdeq
     have hrep := hls.queue_rep _ hmem
-    have hls' : SequentialSearchContext.LogSound sys params ⟨ctx, log, q_tail⟩ rep dep :=
+    have hls' : SequentialSearchContext.LogSound sys params ⟨ctx, stats, log, q_tail⟩ rep dep :=
       ⟨hls.toViolationTerminationSound, hls.log_invs,
         fun item hitem => hls.queue_rep item (fQueue.mem_of_mem_dequeue_tail _ _ _ _ hdeq hitem)⟩
     exact processState_log_sound params th hls' hrep
@@ -279,8 +279,8 @@ def LawfulSequentialSearchContext.setCancelled {th : ρ}
   {sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th}
   (sctx : LawfulSequentialSearchContext (fp := fp) sys params) :
   { sctx : LawfulSequentialSearchContext (fp := fp) sys params // sctx.val.base.finished.isSome } :=
-  let ⟨⟨ctx, log, sq⟩, h_sctx⟩ := sctx
-  ⟨⟨⟨{ ctx with finished := some (.earlyTermination .cancelled) }, log, sq⟩,
+  let ⟨⟨ctx, stats, log, sq⟩, h_sctx⟩ := sctx
+  ⟨⟨⟨{ ctx with finished := some (.earlyTermination .cancelled) }, stats, log, sq⟩,
     ⟨SequentialSearchContextInvariants.setCancelled sys params h_sctx.1,
       h_sctx.2.elim fun rep h => h.elim fun dep h => ⟨rep, dep, SequentialSearchContext.LogSound.setCancelled sys params h⟩⟩⟩,
     rfl⟩
@@ -290,7 +290,7 @@ omit th in
 has finished, so the context it returns records why. -/
 def breadthFirstSearchSequential.loop {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
-  [∀ α, Lean.Order.CCPO (m α)] [Lean.Order.MonoBind m]
+  [∀ α, Lean.Order.CCPO (m α)] [Lean.Order.MonoBind m] [Display κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (updateTimeInterval : Nat)
@@ -313,12 +313,12 @@ def breadthFirstSearchSequential.loop {m : Type → Type}
       ⟨SequentialSearchContext.bfsStep_preserves_invs params th h_not_finished h_sctx.1,
         SequentialSearchContext.bfsStep_log_sound params th h_sctx.2⟩
     match heq : sctx' with
-    | ⟨ctx', log', sq'⟩ =>
+    | ⟨ctx', stats', log', sq'⟩ =>
       -- If we found a violation, mark it so handoff is prevented
       trySetViolationFound progressInstanceId ctx'
-      tryUpdateProgressWithNewFrontierDepth progressInstanceId oldFrontierDepth ctx' sq'.size log'.size
-      let newtime? ← checkCancellationWithPeriodicUpdate progressInstanceId lastUpdateTime updateTimeInterval cancelToken ctx' sq'.size log'.size
-      let sctx : LawfulSequentialSearchContext (fp := fp) sys params := Subtype.mk ⟨ctx', log', sq'⟩ (heq.symm ▸ h_sctx')
+      tryUpdateProgressWithNewFrontierDepth progressInstanceId oldFrontierDepth ctx' stats' sq'.size log'.size
+      let newtime? ← checkCancellationWithPeriodicUpdate progressInstanceId lastUpdateTime updateTimeInterval cancelToken ctx' stats' sq'.size log'.size
+      let sctx : LawfulSequentialSearchContext (fp := fp) sys params := Subtype.mk ⟨ctx', stats', log', sq'⟩ (heq.symm ▸ h_sctx')
       match newtime? with
       | .updateTime t => breadthFirstSearchSequential.loop sys updateTimeInterval progressInstanceId cancelToken sctx t
       | .searchCancelled => return sctx.setCancelled params
@@ -329,7 +329,7 @@ partial_fixpoint
 omit th in
 def breadthFirstSearchSequential {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
-  [∀ α, Lean.Order.CCPO (m α)] [Lean.Order.MonoBind m]
+  [∀ α, Lean.Order.CCPO (m α)] [Lean.Order.MonoBind m] [Display κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (updateTimeInterval : Nat)
@@ -338,8 +338,8 @@ def breadthFirstSearchSequential {m : Type → Type}
   m { sctx : LawfulSequentialSearchContext (fp := fp) sys params // sctx.val.base.finished.isSome } := do
   let res ← breadthFirstSearchSequential.loop (fp := fp) params sys updateTimeInterval progressInstanceId cancelToken
     (Subtype.mk (SequentialSearchContext.initial sys) (SequentialSearchContext.initial_invs sys params)) 0
-  let ⟨⟨⟨ctx, log, sq⟩, _⟩, _⟩ := res
-  updateProgressDuringBFS progressInstanceId ctx sq.size log.size
+  let ⟨⟨⟨ctx, stats, log, sq⟩, _⟩, _⟩ := res
+  updateProgressDuringBFS progressInstanceId ctx stats sq.size log.size
   return res
 
 end Veil.ModelChecker.Concrete

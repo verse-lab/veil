@@ -339,30 +339,31 @@ def resetProgressForHandoff (instanceId : Nat) : IO (Option IO.CancelToken) := d
 
 section Utilities
 
-variable {σ κ σₕ asm : Type} [fp : StateFingerprint σ σₕ] [inst : ActionStatUpdate κ asm]
+variable {σ κ σₕ : Type} [fp : StateFingerprint σ σₕ] [LabelTable κ T] [Display κ]
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   (progressInstanceId : Nat)
 
+/-- Report the progress of a search, with `actionStats` the statistics of each label. -/
 @[inline]
-def updateProgressDuringBFS (ctx : BaseSearchContext σ κ σₕ asm) (qSize : Nat)
+def updateProgressDuringBFS (ctx : BaseSearchContext σ κ σₕ) (actionStats : T ActionStat) (qSize : Nat)
     (distinctNumState : Nat) : m Unit := do
   updateModelCheckProgress progressInstanceId
     ctx.currentFrontierDepth ctx.statesFound distinctNumState qSize
-    (inst.dump ctx.actionStatsMap)
+    (ActionStatDisplay.ofTable (κ := κ) actionStats)
 
 -- NOTE: Any attempt to inline these functions might lead to **significant** performance
 -- regression, due to certain reason
 
 /-- A thin wrapper around `setViolationFound`.
     If we found a violation, mark it so handoff is prevented. -/
-def trySetViolationFound (ctx : BaseSearchContext σ κ σₕ asm) : m Unit := do
+def trySetViolationFound (ctx : BaseSearchContext σ κ σₕ) : m Unit := do
   if let some (.earlyTermination cond) := ctx.finished then
     if EarlyTerminationReason.isViolation cond then setViolationFound progressInstanceId
 
-def tryUpdateProgressWithNewFrontierDepth (oldFrontierDepth : Nat) (ctx : BaseSearchContext σ κ σₕ asm)
-    (qSize distinctNumState : Nat) : m Unit := do
+def tryUpdateProgressWithNewFrontierDepth (oldFrontierDepth : Nat) (ctx : BaseSearchContext σ κ σₕ)
+    (actionStats : T ActionStat) (qSize distinctNumState : Nat) : m Unit := do
   if ctx.currentFrontierDepth > oldFrontierDepth then
-    updateProgressDuringBFS progressInstanceId ctx qSize distinctNumState
+    updateProgressDuringBFS progressInstanceId ctx actionStats qSize distinctNumState
 
 inductive SearchPeriodicProgressUpdate where
   | searchCancelled
@@ -371,14 +372,14 @@ inductive SearchPeriodicProgressUpdate where
 
 -- FIXME: Use `Option` to unify the two functions?
 def checkCancellationWithPeriodicUpdate (lastUpdateTime updateTimeInterval : Nat)
-  (cancelToken : IO.CancelToken) (ctx : BaseSearchContext σ κ σₕ asm) (qSize distinctNumState : Nat) :
-    m SearchPeriodicProgressUpdate := do
+  (cancelToken : IO.CancelToken) (ctx : BaseSearchContext σ κ σₕ) (actionStats : T ActionStat)
+  (qSize distinctNumState : Nat) : m SearchPeriodicProgressUpdate := do
   let now ← IO.monoMsNow
   if now - lastUpdateTime ≥ updateTimeInterval then
     if ← shouldStop cancelToken progressInstanceId then
       return .searchCancelled
     else
-      updateProgressDuringBFS progressInstanceId ctx qSize distinctNumState
+      updateProgressDuringBFS progressInstanceId ctx actionStats qSize distinctNumState
       return .updateTime now
   else
     return .noUpdate
