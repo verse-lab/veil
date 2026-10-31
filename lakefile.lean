@@ -2,7 +2,7 @@ import Lake
 open Lake DSL System
 
 require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.32.0-veil-no-mathlib"
-require Loom from git "https://github.com/verse-lab/loom.git" @ "2a81b46446d3d163e9b4db807d68b16a2a61499d"
+require Loom from git "https://github.com/verse-lab/loom.git" @ "396cfd2165e4916e460d935d9cbb27c54d8669a2"
 require VerifiedHAMT from git "https://github.com/verse-lab/VerifiedHAMT.git" @ "24bbc61c6ca37ef38f984566399461c9afa2b0d3"
 
 require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.32.0"

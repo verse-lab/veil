@@ -11,8 +11,6 @@ public section
 
 namespace Veil
 
-deriving instance Repr for DivM
-
 instance [Repr κ] [Repr α] : Repr (PeDivM κ α) :=
   inferInstanceAs (Repr (_ × _))
 
