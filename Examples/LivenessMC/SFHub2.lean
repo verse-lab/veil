@@ -29,7 +29,7 @@ temporal [goal]
 
 #gen_spec
 
--- set_option veil.violationIsError false in
+set_option veil.violationIsError false in
 #temporal_check {}
 
 end SFHub2
