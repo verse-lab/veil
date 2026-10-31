@@ -17,11 +17,11 @@ either the sequential or parallel implementation based on configuration. -/
 search's log `look`: the log is sound for some representatives, which exhibit the violations that
 `ctx` records. The picks of the trace come from `pickSource`, which is built only for a trace.
 The search has finished, so `ctx` records why. -/
-def searchResult {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th : ρ}
+def searchResult {ρ σ κ σₕ : Type} {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (pickSource : Unit → PickSource σ κ)
   (params : SearchParameters ρ σ) [fp : StateFingerprint σ σₕ]
-  (ctx : BaseSearchContext σ κ σₕ asm) (look : LogLookup σₕ κ) (distinctCount : Nat)
+  (ctx : BaseSearchContext σ κ σₕ) (look : LogLookup σₕ κ) (distinctCount : Nat)
   (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ctx.ViolationTerminationSound sys params rep)
   (h_fin : ctx.finished.isSome) :
   ModelCheckingResult ρ σ κ σₕ :=
@@ -57,11 +57,11 @@ def searchResult {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th : ρ}
 /-- The result of a search is sound: each violation it reports comes with a trace that is valid in
 `sys`, ends at a state that exhibits the violation, and has the failing step of an assertion
 failure. -/
-theorem searchResult_sound {ρ σ κ σₕ : Type} [ActionStatUpdate κ asm] {th : ρ}
+theorem searchResult_sound {ρ σ κ σₕ : Type} {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   (pickSource : Unit → PickSource σ κ)
   (params : SearchParameters ρ σ) [fp : StateFingerprint σ σₕ]
-  (ctx : BaseSearchContext σ κ σₕ asm) (look : LogLookup σₕ κ) (distinctCount : Nat)
+  (ctx : BaseSearchContext σ κ σₕ) (look : LogLookup σₕ κ) (distinctCount : Nat)
   (h : ∃ rep dep, LogInvariants sys look rep dep ∧ ctx.ViolationTerminationSound sys params rep)
   (h_fin : ctx.finished.isSome) :
   ResultSound sys params (searchResult sys pickSource params ctx look distinctCount h h_fin) := by
@@ -83,7 +83,7 @@ variable {ρ σ κ σₕ α : Type} {m : Type → Type}
   [Monad m] [MonadLiftT BaseIO m] [MonadLiftT IO m]
   -- The search loops are defined by `partial_fixpoint`, which needs these; `IO` has them
   [∀ α, Lean.Order.CCPO (m α)] [Lean.Order.MonoBind m]
-  [ActionStatUpdate κ asm]
+  {T : Type → Type} [LabelTable κ T] [Display κ]
   {th : ρ}
   (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int κ (Transitions κ Int σ) th)
   -- The initial states and transitions of `sys` computed with the picks logged (`LogSwitch`), which

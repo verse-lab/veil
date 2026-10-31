@@ -616,8 +616,8 @@ theorem TerminationSound.mono {params : SearchParameters ρ σ} {rep rep' : σ�
 
 /-- The violations that `ctx` has recorded, and the one that its early termination reports, if any,
 are exhibited by the representatives `rep`. -/
-structure BaseSearchContext.ViolationTerminationSound {asm : Type} [ActionStatUpdate κ asm]
-    (params : SearchParameters ρ σ) (ctx : BaseSearchContext σ κ σₕ asm) (rep : σₕ → Option σ) : Prop where
+structure BaseSearchContext.ViolationTerminationSound
+    (params : SearchParameters ρ σ) (ctx : BaseSearchContext σ κ σₕ) (rep : σₕ → Option σ) : Prop where
   violations_sound : ∀ v ∈ ctx.violatingStates, ViolationSound sys params rep v
   termination_sound : TerminationSound sys params rep ctx.finished
 
@@ -644,16 +644,16 @@ theorem checkViolationsAndMaybeTerminate_sound (params : SearchParameters ρ σ)
 
 -- FIXME: Why is this thing here?
 omit fp in
-theorem BaseSearchContext.processState_snd {asm : Type} [fp : StateFingerprint σ σₕ] [ActionStatUpdate κ asm]
+theorem BaseSearchContext.processState_snd [fp : StateFingerprint σ σₕ]
     (params : SearchParameters ρ σ) (th : ρ) (fpSt : σₕ) (curr : σ) (trs : Transitions κ Int σ)
-    (ctx : BaseSearchContext σ κ σₕ asm) :
+    (ctx : BaseSearchContext σ κ σₕ) :
     ∀ succs, (ctx.processState params th fpSt curr trs).2 = some succs → succs = trs.successes := by
   unfold BaseSearchContext.processState ; grind
 
 /-- Processing a state records only violations that it exhibits. -/
-theorem BaseSearchContext.processState_sound {asm : Type} [ActionStatUpdate κ asm]
+theorem BaseSearchContext.processState_sound
     (params : SearchParameters ρ σ) {fpSt : σₕ} {curr : σ}
-    (ctx : BaseSearchContext σ κ σₕ asm) {rep : σₕ → Option σ} (hrep : rep fpSt = some curr)
+    (ctx : BaseSearchContext σ κ σₕ) {rep : σₕ → Option σ} (hrep : rep fpSt = some curr)
     (hv : ∀ v ∈ ctx.violatingStates, ViolationSound sys params rep v)
     (hf : TerminationSound sys params rep ctx.finished) :
     letI res := ctx.processState params th fpSt curr (sys.tr th curr)
@@ -665,9 +665,9 @@ theorem BaseSearchContext.processState_sound {asm : Type} [ActionStatUpdate κ a
   grind
 
 /-- Merging base contexts keeps what their violations say. -/
-theorem BaseSearchContext.mergeWithoutDepthChange_foldl_sound {asm : Type} [ActionStatUpdate κ asm]
+theorem BaseSearchContext.mergeWithoutDepthChange_foldl_sound
     (params : SearchParameters ρ σ) {rep : σₕ → Option σ}
-    {acc : BaseSearchContext σ κ σₕ asm} {ctxs : List (BaseSearchContext σ κ σₕ asm)}
+    {acc : BaseSearchContext σ κ σₕ} {ctxs : List (BaseSearchContext σ κ σₕ)}
     (h_acc : acc.ViolationTerminationSound sys params rep)
     (h_ctxs : ∀ ctx ∈ ctxs, ctx.ViolationTerminationSound sys params rep) :
     (ctxs.foldl (init := acc) BaseSearchContext.mergeWithoutDepthChange).ViolationTerminationSound sys params rep := by

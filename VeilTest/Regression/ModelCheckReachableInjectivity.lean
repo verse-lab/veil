@@ -55,7 +55,7 @@ example : ¬ Veil.Function.Injective fingerprint.view := by
   have := h (a := .initial) (b := .unreachable) rfl
   contradiction
 
-abbrev Stats := VectorForActionStatUpdate ActionStat Unit
+abbrev Stats := LabelVector Unit
 
 def initial : SequentialSearchContext State Unit Bool Stats :=
   SequentialSearchContext.initial sys
@@ -65,7 +65,7 @@ example : SequentialSearchContextInvariants sys params .none initial :=
 
 -- The unreachable state has a seen fingerprint, but is still unreachable.
 example : fingerprint.view State.unreachable ∈ initial.log := by
-  exact (SequentialSearchContext.initial_invs (asm := Stats) sys params).1.init_states_included
+  exact (SequentialSearchContext.initial_invs (T := Stats) sys params).1.init_states_included
     .initial (by simp [sys])
 
 example : ¬ sys.reachable .unreachable := fun h => reachable_ne_unreachable h rfl
