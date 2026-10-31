@@ -86,6 +86,7 @@ declare_syntax_cat veilActionKeyword
 scoped syntax (name := kw_require) "require" : veilActionKeyword
 scoped syntax (name := kw_assume) "assume" : veilActionKeyword
 scoped syntax (name := kw_assert) "assert" : veilActionKeyword
+scoped syntax (name := kw_ensure) "ensure" : veilActionKeyword
 scoped syntax (name := kw_pick) "pick" : veilActionKeyword
 scoped syntax (name := kw_veil_var) "veil_var" : veilActionKeyword
 scoped syntax (name := kw_veil_let) "veil_let" : veilActionKeyword
@@ -132,6 +133,14 @@ scoped syntax (name := requireDo) kw_require term : doElem
 /-- `assert P` means that `P` must hold on every execution that reaches
 this statement. If `P` does not hold, this execution fails. -/
 scoped syntax (name := assertDo) (priority := high) kw_assert term : doElem
+
+/-- A checked postcondition. Unlike the low-level abstract-specification
+primitive `VeilM.ensure`, this checks the implementation in both calling modes. -/
+scoped syntax (name := ensureDo) kw_ensure term : doElem
+
+/-- Read an expression in this invocation's entry state. Only available in
+`ensure`; logical binders inside a postcondition remain in scope. -/
+scoped syntax (name := oldTerm) "old(" term ")" : term
 
 /--
 `if x :| p then … else …` is the conditional twin of `let x :| p`: if a

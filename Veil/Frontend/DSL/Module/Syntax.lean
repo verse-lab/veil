@@ -303,6 +303,13 @@ scoped syntax (name := stateConstraintKind) kw_state_constraint : propertyKind
 /-- An assertion. -/
 scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term : command
 
+/-- Group invariant proof targets, optionally inheriting another group's
+pre-state proof support. This is proof automation over unchanged VCs. -/
+scoped syntax (name := invsetBlock) "invset" ident ("extends" ident*)?
+  "{" command* "}" : command
+scoped syntax (name := invsetExplicit) "invset" ident ("extends" ident*)?
+  ":=" "{" ident,* "}" : command
+
 /-- Assemble the specification. -/
 scoped syntax (name := genSpec) kw_gen_spec : command
 
@@ -317,9 +324,18 @@ Options:
 does not have them yet, so `#gen_executable` with other options must come before them. -/
 scoped syntax (name := genExecutable) kw_gen_executable Parser.Tactic.optConfig : command
 
-scoped syntax (name := genTheorems) kw_gen_theorems : command
+/-- Replace a module sort in the generated reachability theorem. -/
+declare_syntax_cat theoremSortSubstitution
+scoped syntax ident " := " term : theoremSortSubstitution
+
+/-- Export available VC proofs and, when all obligations are closed, the
+reachable invariant conjunction and per-invariant `.is_inv` theorems. -/
+scoped syntax (name := genTheorems) kw_gen_theorems
+  (" with " theoremSortSubstitution,*)? : command
 
 scoped syntax (name := checkInvariants) "#check_invariants" : command
+scoped syntax (name := checkInvariantsSelected) "#check_invariants" ident
+  ("using" ident*)? : command
 
 scoped syntax (name := checkAction) "#check_action" ident : command
 

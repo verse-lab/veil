@@ -18,7 +18,7 @@ namespace Action.DoElab
 /- The existential `if x :| p` is a pure macro over `doIf` and `let x :| p`
 (see `Action/Syntax.lean`); it needs no handler here. -/
 
-@[doElem_control_info requireDo, doElem_control_info assertDo]
+@[doElem_control_info requireDo, doElem_control_info assertDo, doElem_control_info ensureDo]
 def assertionControlInfo : ControlInfoHandler := fun _ =>
   return ControlInfo.pure
 
@@ -31,13 +31,58 @@ private def elabAssertionStatement (operation : Name) (stx : DoElem)
     let elem ← `(doElem| $term:term)
     Lean.Elab.Do.elabDoExpr elem (← dec.ensureUnitAt stx)
 
-@[doElem_elab requireDo, doElem_elab assertDo]
+syntax (name := checkedPostcondition) "veil_checked_post% " term : term
+
+@[term_elab checkedPostcondition]
+def elabCheckedPostcondition : TermElab := fun stx expectedType => do
+  let `(veil_checked_post% $proposition) := stx | throwUnsupportedSyntax
+  withLocalDecl ensureScopeMarkerName .default (mkConst ``Unit) (kind := .implDetail) fun _ =>
+    Term.elabTerm proposition expectedType
+
+/-- Reopen the owned state at the saved entry snapshot. The current lexical
+scope is retained, so `∀ x, old(r x)` applies the saved relation to `x`. -/
+@[term_elab oldTerm]
+def elabOld : TermElab := fun stx expectedType => do
+  let `(old($term)) := stx | throwUnsupportedSyntax
+  unless (← getLCtx).any (fun decl => decl.userName == ensureScopeMarkerName) do
+    throwErrorAt stx "`old` is only available inside an `ensure` postcondition"
+  let mod ← getCurrentModule
+  let some entry := (← getLCtx).findDeclRev? fun decl =>
+      if decl.userName == entryStateBindingName then some decl else none
+    | throwErrorAt stx "`old` requires an invocation entry snapshot"
+  let forbidden ← bodyLocalsBeforeEnsure
+  let entryExpr := mkFVar entry.fvarId
+  let fields ← mod.mutableComponents.filterM fun field =>
+    return !(← isUserShadowed field.name)
+  let result ← withLetDecl currentStateBindingName entry.type entryExpr (kind := .implDetail) fun state => do
+    let rec withFields (i : Nat) : TermElabM Expr := do
+      if h : i < fields.size then
+        let field := fields[i]
+        let ty ← Term.elabType (← field.typeStx)
+        let value ← Term.elabTermEnsuringType
+          (← `(($fieldRepresentation _).$(mkIdent `get)
+            $(mkIdent currentStateBindingName).$(mkIdent field.name))) ty
+        withLetDecl field.name ty value (kind := .implDetail) fun value => do
+          mkLetFVars #[value] (← withFields (i + 1))
+            (usedLetOnly := true) (generalizeNondepLet := false)
+      else mod.withSourceFieldInstances (Term.elabTerm term expectedType)
+      termination_by fields.size - i
+    mkLetFVars #[state] (← withFields 0) (usedLetOnly := true) (generalizeNondepLet := false)
+  for fvar in (collectFVars {} result).fvarIds do
+    if forbidden.contains fvar then
+      let decl ← fvar.getDecl
+      throwErrorAt stx m!"`old` cannot refer to body-local `{decl.userName}`: it is unavailable at invocation entry"
+  return result
+
+@[doElem_elab requireDo, doElem_elab assertDo, doElem_elab ensureDo]
 def elabAssertion : DoElab := fun stx dec => do
   match stx with
   | `(doElem| require $p:term) =>
     elabAssertionStatement ``VeilM.require stx p dec
   | `(doElem| assert $p:term) =>
     elabAssertionStatement ``VeilM.assert stx p dec
+  | `(doElem| ensure $p:term) =>
+    elabAssertionStatement ``VeilM.assert stx (← `(veil_checked_post% $p)) dec
   | _ => throwUnsupportedSyntax
 
 

@@ -22,6 +22,7 @@ invariant [excluded] r N ∨ ¬ r N
 
 #gen_spec
 
+#check_invariants
 #gen_theorems
 
 #gen_theorems
@@ -59,6 +60,8 @@ invariant [excluded] r N ∨ ¬ r N
 
 theorem keep_excluded : True := by
   trivial
+
+#check_invariants
 
 /--
 error: cannot generate VC theorem `VCTheoremDeclarationNameConflict.keep_excluded` because a declaration with that name already exists with a different type

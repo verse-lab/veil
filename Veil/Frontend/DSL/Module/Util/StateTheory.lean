@@ -1,6 +1,8 @@
 module
 
 public meta import Veil.Frontend.DSL.Module.Util.Basic
+public meta import Veil.Frontend.DSL.Module.Util.SourceInstances
+public meta import Veil.Frontend.DSL.Module.Util.TemplateHygiene
 public meta import Veil.Frontend.DSL.State.ConcreteRegistry
 public meta import Veil.Frontend.DSL.Infra.Quantifiers
 
@@ -47,11 +49,39 @@ def Module.declareStateComponent (mod : Module) (sc : StateComponent) : CommandE
     throwErrorAt sc.userSyntax s!"Invalid name: {sc.name} is not an atomic name."
   mod.throwIfAlreadyDeclared sc.name
   let sig ← sc.getSimpleBinder
-  let tp ← match sig with
-  | `(Command.structSimpleBinder| $_:ident : $tp:term) => liftTermElabMWithBinders (← mod.uninterpretedParamBinders) (fun _ => do Meta.reduceAll $ ← elabTerm tp .none)
+  let (tp, pinned?) ← match sig with
+  | `(Command.structSimpleBinder| $_:ident : $tp:term) =>
+    liftTermElabMWithBinders (← mod.uninterpretedParamBinders) fun _ => mod.withSourceInstances do
+      let tp ← mod.wrapSourceInstanceArguments tp
+      let expr ← elabTerm tp .none
+      if mod.sourceCommandScope?.isSome then
+        synthesizeSyntheticMVarsNoPostponing
+      let expr ← Meta.reduceAll (← instantiateMVars expr)
+      let pinned? ← if mod.sourceCommandScope?.isSome then do
+          let pinned ← withOptions (fun opts => opts
+            |>.setBool `pp.fullNames true |>.setBool `pp.notation false
+            |>.setBool `pp.fieldNotation false) <| delabVeilExpr expr true
+          pure (some pinned)
+        else pure none
+      return (expr, pinned?)
   | _ => throwErrorAt sc.userSyntax "Unsupported syntax for state component"
   if !(← isValidStateComponentType sc.kind tp) then
     failureMsg sig sc
+  let sc ← match pinned? with
+    | none => pure sc
+    | some pinned => do
+      let rootBindings := (← mod.uninterpretedParamIdents).map fun p => (p.getId, (⟨p.raw⟩ : Term))
+      let pinned : Term := ⟨← specializeTemplateSyntax pinned rootBindings fun name =>
+        return if (← getEnv).contains name then some name else none⟩
+      liftTermElabMWithBinders (← mod.uninterpretedParamBinders) fun _ => mod.withSourceInstances do
+        let original ← elabType (← mod.wrapSourceInstanceArguments (← sc.typeStx))
+        let replayed ← elabType pinned
+        synthesizeSyntheticMVarsNoPostponing
+        unless ← Meta.isDefEq original replayed do
+          throwErrorAt sc.userSyntax "could not preserve the field's definition-site type during specialization"
+      let binder ← `(Command.structSimpleBinder| $(mkIdent sc.name):ident : $pinned)
+      let (domainTerms, codomainTerm) ← splitForallArgsCodomain pinned
+      pure { sc with «type» := .simple binder, domainTerms, codomainTerm }
   let mod := { mod with signature := mod.signature.push sc, _declarations := mod._declarations.insert sc.name sc.declarationKind }
   return mod
 where
