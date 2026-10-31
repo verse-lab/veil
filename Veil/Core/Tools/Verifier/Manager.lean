@@ -209,14 +209,13 @@ inductive ManagerNotification (VCMetaT ResultT : Type) where
   | dischargerResult (id : DischargerIdentifier) (res : DischargerResult ResultT)
   /-- Issued by the frontend to reset the VCManager. -/
   | reset (managerId : ManagerId)
-  /-- Issued by the frontend to start all ready tasks. -/
-  | startAll
-  /-- Start VCs matching the filter. -/
-  | startFiltered (filter : VCMetaT → Bool)
-  /-- Top the pool of running dischargers back up to capacity from already-
-  enabled VCs, without enabling anything new. Sent after frontend mutations
-  that can make enabled work ready (e.g. an interactive `@[veil]` result that
-  completes a VC or re-opens one). -/
+  /-- Issued by the frontend to start all ready tasks in this generation. -/
+  | startAll (managerId : ManagerId)
+  /-- Start VCs matching the filter in this generation. -/
+  | startFiltered (managerId : ManagerId) (filter : VCMetaT → Bool)
+  /-- Reap finished physical tasks and refill capacity from already-enabled
+  VCs, without enabling new work. Physical task completion sends this even
+  when its result was published earlier. -/
   | fill
 deriving Inhabited
 
@@ -225,8 +224,8 @@ instance [ToString ResultT] : ToString (ManagerNotification VCMetaT ResultT) whe
     match res with
     | .dischargerResult dischargerId res => s!"dischargerResult {dischargerId} {res}"
     | .reset managerId => s!"reset {managerId}"
-    | .startAll => s!"startAll"
-    | .startFiltered _ => s!"startFiltered"
+    | .startAll managerId => s!"startAll {managerId}"
+    | .startFiltered managerId _ => s!"startFiltered {managerId}"
     | .fill => s!"fill"
 
 /-- Resolve the discharger's result promise and notify the manager. `BaseIO`,
@@ -302,15 +301,15 @@ structure VCManager (VCMetaT ResultT: Type) where
   enabledVCs : HashSet VCId := HashSet.emptyWithCapacity
 
   protected _nextVcId : VCId := 0
-  /-- Number of dischargers that have finished executing. -/
+  /-- Number of distinct accepted discharger results. -/
   protected _totalDischarged : Nat := 0
-  /-- Number of dischargers that have finished successfully. This is equal to
-  the number of VCs that have been proven. -/
+  /-- Number of VCs currently proven by effective accepted results. -/
   protected _totalSolved : Nat := 0
 
   protected _doneWith : HashMap VCId VCStatus := HashMap.emptyWithCapacity
 
-  /-- Store discharger results for each VC, indexed by (VCId, DischargerId). -/
+  /-- Accepted results, indexed by (VCId, DischargerId). Scheduling and
+  completion use this ledger, not the independently published promises. -/
   protected _dischargerResults : HashMap (VCId × DischargerId) (DischargerResult ResultT) := HashMap.emptyWithCapacity
 
   protected _managerId : ManagerId := 0
@@ -358,9 +357,8 @@ def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dep
     mgr' := { mgr' with dormantVCs := mgr'.dormantVCs.insert uid }
   (mgr', uid)
 
-/-- Add an alternative VC associated with a primary VC. The alternative
-starts dormant and will only be triggered when the primary VC fails
-(i.e., all of its dischargers fail). -/
+/-- Add an alternative VC associated with a primary VC. It starts dormant
+unless the primary already has an accepted terminal automatic failure. -/
 def VCManager.addAlternativeVC (mgr : VCManager VCMetaT ResultT)
     (vc : VCData VCMetaT)
     (primaryVCId : VCId)
@@ -374,6 +372,11 @@ def VCManager.addAlternativeVC (mgr : VCManager VCMetaT ResultT)
   let mgr'' := { mgr' with
     alternativeVCs := mgr'.alternativeVCs.insert primaryVCId (alts.push altId)
   }
+  if mgr._doneWith[primaryVCId]?.any (· != .proven) &&
+      mgr.nodes[primaryVCId]?.any (fun primary => !primary.dischargers.any (·.isInteractive)) then
+    return ({ mgr'' with
+      dormantVCs := mgr''.dormantVCs.erase altId
+      enabledVCs := mgr''.enabledVCs.insert altId }, altId)
   (mgr'', altId)
 
 private def VCManager.mkDischargerIdentifier (mgr : VCManager VCMetaT ResultT)
@@ -449,25 +452,15 @@ def Discharger.run (discharger : Discharger ResultT) : BaseIO (Discharger Result
     let task ← discharger.mkTask
     return { discharger with task := some task }
 
-def Discharger.status (discharger : Discharger ResultT) : BaseIO (DischargeStatus ResultT) := do
-  let resultTask := discharger.resultPromise.result?
-  match ← IO.hasFinished resultTask with
-  | true =>
-    match resultTask.get with
-    | some res => return .finished res
-    | none =>
-      -- The promise was dropped without being resolved: the discharger died
-      -- without publishing. Report it as a finished error.
-      return .finished (.error #[] 0)
-  | false =>
-    match discharger.task with
-    | none => return .notStarted
-    | some _ => return .running
-
-def Discharger.isSuccessful (discharger : Discharger ResultT) : BaseIO Bool := do
-  match (← discharger.status) with
-  | .finished (.proven _ _ _) => return true
-  | _ => return false
+/-- Status of a discharger as accepted by this manager. A result that has been
+published but not yet accepted still reports `.running`, so rendering agrees
+with scheduling and completion. -/
+def VCManager.dischargerStatus (mgr : VCManager VCMetaT ResultT)
+    (vc : VerificationCondition VCMetaT ResultT) (discharger : Discharger ResultT)
+    : DischargeStatus ResultT :=
+  match mgr._dischargerResults[(vc.uid, discharger.id.dischargerId)]? with
+  | some res => .finished res
+  | none => if discharger.task.isSome then .running else .notStarted
 
 /-- Interactive theorem dischargers take precedence over automatic dischargers:
 when a VC has at least one explicit `@[veil]` theorem, only those interactive
@@ -481,12 +474,6 @@ def VerificationCondition.hasInteractiveDischarger
     (vc : VerificationCondition VCMetaT ResultT) : Bool :=
   vc.dischargers.any (·.isInteractive)
 
-def VerificationCondition.cancelNonInteractiveDischargers
-    (vc : VerificationCondition VCMetaT ResultT) : BaseIO Unit := do
-  for discharger in vc.dischargers do
-    unless discharger.isInteractive do
-      discharger.cancelTk.set
-
 /-- Get the start time if the promise has been resolved (i.e., the discharger has started). -/
 def Discharger.startTime (discharger : Discharger ResultT) : BaseIO (Option Nat) := do
   let task := discharger.startTimePromise.result?
@@ -495,24 +482,32 @@ def Discharger.startTime (discharger : Discharger ResultT) : BaseIO (Option Nat)
   else
     return none
 
-/-- Find the next discharger to try. Once this function returns `none`, it will
-not return `some` again unless new dischargers are added. -/
-def VerificationCondition.nextDischarger? (vc : VerificationCondition VCMetaT ResultT) : BaseIO (Option (Discharger ResultT)) := do
-  match vc.successful with
-  | some _ => return .none
-  | none =>
-    if vc.hasInteractiveDischarger then
-      return none
-    for discharger in vc.dischargers do
-      match ← discharger.status with
-      | .notStarted => return some discharger
-      -- if the discharger is still running, wait for it to finish
-      | .running => return none
-      -- if the discharger is finished the VC is proven or disproven, we're done
-      | .finished (.proven _ _ _)  | .finished (.disproven _ _) => return none
-      | .finished (.unknown _ _) => continue
-      | .finished (.error _ _) => continue
-    return none
+/-- Find the next automatic discharger using only results committed by this
+manager. A published result may still be waiting in the notification channel,
+so the live result promise must not advance the solver sequence. -/
+def VCManager.nextDischarger? (mgr : VCManager VCMetaT ResultT)
+    (vc : VerificationCondition VCMetaT ResultT) : Option (Discharger ResultT) := Id.run do
+  if vc.successful.isSome || vc.hasInteractiveDischarger then return none
+  for discharger in vc.dischargers do
+    match mgr._dischargerResults[(vc.uid, discharger.id.dischargerId)]? with
+    | some (.proven _ _ _) | some (.disproven _ _) => return none
+    | some (.unknown _ _) | some (.error _ _) => continue
+    | none => return if discharger.task.isNone then some discharger else none
+  return none
+
+/-- Having no ready discharger can mean either waiting or exhaustion. A VC is
+complete only after a conclusive effective result, or after every effective
+discharger has a committed result. -/
+private def VCManager.isVCComplete (mgr : VCManager VCMetaT ResultT)
+    (vc : VerificationCondition VCMetaT ResultT) : Bool :=
+  let dischargers := vc.effectiveDischargers
+  vc.successful.isSome ||
+    dischargers.any (fun discharger =>
+      match mgr._dischargerResults[(vc.uid, discharger.id.dischargerId)]? with
+      | some (.proven _ _ _) | some (.disproven _ _) => true
+      | _ => false) ||
+    dischargers.all (fun discharger =>
+      mgr._dischargerResults.contains (vc.uid, discharger.id.dischargerId))
 
 /-- Enable every VC currently in the manager (dormant ones included: they
 stay dormant until woken, but need no separate enabling then). -/
@@ -527,31 +522,48 @@ def VCManager.enableMatching (mgr : VCManager VCMetaT ResultT)
     (fun s vcId vc => if filter vc.metadata then s.insert vcId else s)
   { mgr with enabledVCs := enabled }
 
+/-- An alternative is hidden when its primary has a checkpoint-local proof. -/
+private def VCManager.hasInteractivePrimary (mgr : VCManager VCMetaT ResultT)
+    (vcId : VCId) : Bool :=
+  mgr.alternativeVCs.toArray.any fun (primaryId, alternatives) =>
+    alternatives.contains vcId &&
+      mgr.nodes[primaryId]?.any (·.hasInteractiveDischarger)
+
+/-- Enable automatic work requested through a checkpoint view. Interactive
+proofs suppress new attempts only for that request, never previously enabled
+shared work needed by another checkpoint. -/
+def VCManager.enableMatchingFromView (mgr view : VCManager VCMetaT ResultT)
+    (filter : VCMetaT → Bool) : VCManager VCMetaT ResultT :=
+  let enabled := view.nodes.fold (init := mgr.enabledVCs)
+    (fun enabled vcId vc =>
+      if filter vc.metadata && !vc.hasInteractiveDischarger &&
+          !view.hasInteractivePrimary vcId then enabled.insert vcId
+      else enabled)
+  { mgr with enabledVCs := enabled }
+
 /-- The enabled, not-yet-done, non-dormant VCs with no outstanding
 dependencies whose next discharger can be started. -/
 def VCManager.readyTasks (mgr : VCManager VCMetaT ResultT)
-    : BaseIO (List (VerificationCondition VCMetaT ResultT × Discharger ResultT)) := do
-  let ready ← mgr.inDegree.toList.filterMapM (fun (vcId, inDegree) => do
+    : List (VerificationCondition VCMetaT ResultT × Discharger ResultT) :=
+  mgr.inDegree.toList.filterMap fun (vcId, inDegree) => do
     let .some vc := mgr.nodes[vcId]? | panic! "VCManager.readyTasks: VC {vcId} not found"
     -- Only VCs some verifier command has requested
-    if !mgr.enabledVCs.contains vcId then pure none
+    if !mgr.enabledVCs.contains vcId then none
     -- Skip completed VCs (also covers `.blocked`-style terminal states)
-    else if mgr._doneWith.contains vcId then pure none
+    else if mgr._doneWith.contains vcId then none
     -- Skip dormant VCs (e.g., alternative VCs waiting for their primary to fail)
-    else if mgr.dormantVCs.contains vcId then pure none
-    else if inDegree != 0 then pure none else
-      match ← vc.nextDischarger? with
-      | some discharger => pure (some (vc, discharger))
-      | none => pure none)
-  return ready
+    else if mgr.dormantVCs.contains vcId then none
+    else if inDegree != 0 then none
+    else mgr.nextDischarger? vc |>.map (vc, ·)
 
-/-- Number of dischargers that have been started but have not yet published a
-result. Relies on every started discharger eventually resolving its result
+/-- Logical number of effective dischargers that have been started but have not yet published a
+result. Hidden automatic tasks remain in the separate physical pool. Relies on every started discharger eventually resolving its result
 promise via `publishDischargerResult`. FIXME: this is inefficient. -/
 def VCManager.inFlightCount (mgr : VCManager VCMetaT ResultT) : BaseIO Nat := do
   let mut count := 0
-  for (_, vc) in mgr.nodes do
-    for d in vc.dischargers do
+  for (vcId, vc) in mgr.nodes do
+    if mgr.dormantVCs.contains vcId then continue
+    for d in vc.effectiveDischargers do
       if d.task.isSome && !(← IO.hasFinished d.resultPromise.result?) then
         count := count + 1
   return count
@@ -585,93 +597,99 @@ private def VCManager.exhaustedVCStatus (mgr : VCManager VCMetaT ResultT)
   else
     let results := vc.effectiveDischargers.filterMap fun discharger =>
       mgr._dischargerResults[(vc.uid, discharger.id.dischargerId)]?
-    let (hasDisproven, hasUnknown, hasError, allErrorsAreTimeout) :=
+    let (hasDisproven, hasError, allErrorsAreTimeout) :=
       results.foldl
-        (init := (false, false, false, true))
-        fun (hasDisproven, hasUnknown, hasError, allErrorsAreTimeout) result =>
+        (init := (false, false, true))
+        fun (hasDisproven, hasError, allErrorsAreTimeout) result =>
           match result with
-          | .disproven _ _ => (true, hasUnknown, hasError, allErrorsAreTimeout)
-          | .unknown _ _ => (hasDisproven, true, hasError, allErrorsAreTimeout)
+          | .disproven _ _ => (true, hasError, allErrorsAreTimeout)
           | .error _ _ =>
-            (hasDisproven, hasUnknown, true, allErrorsAreTimeout && dischargerErrorIsTimeout result)
-          | .proven _ _ _ => (hasDisproven, hasUnknown, hasError, allErrorsAreTimeout)
+            (hasDisproven, true, allErrorsAreTimeout && dischargerErrorIsTimeout result)
+          | .unknown _ _ | .proven _ _ _ => (hasDisproven, hasError, allErrorsAreTimeout)
     if hasDisproven then
       .disproven
     else if hasError then
       if allErrorsAreTimeout then .timeout else .error
-    else if hasUnknown then
-      .unknown
     else
       .unknown
 
-def VCManager.markDischarger (mgr : VCManager VCMetaT ResultT) (id : DischargerIdentifier) (res : DischargerResult ResultT): BaseIO (VCManager VCMetaT ResultT) := do
-  let mut mgr := mgr
-  let vcId := id.vcId
-  let mut .some vc := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} not found"; return mgr
-  let incomingIsInteractive := match vc.dischargers[id.dischargerId]? with
-    | some discharger => discharger.isInteractive
-    | none => false
-  if vc.hasInteractiveDischarger && !incomingIsInteractive then
-    return mgr
-  let wasAlreadySuccessful := vc.successful.isSome
-  if incomingIsInteractive then
-    vc.cancelNonInteractiveDischargers
-    if wasAlreadySuccessful then
-      vc := { vc with successful := none }
-      mgr := { mgr with
-        nodes := mgr.nodes.insert vcId vc
-        _doneWith := mgr._doneWith.erase vcId }
-  let mut vcStatus := .unknown
-  -- Store the discharger result for JSON serialization
-  mgr := { mgr with _dischargerResults := mgr._dischargerResults.insert (vcId, id.dischargerId) res }
-  -- A late failure from another discharger must not undo a proof we already recorded.
-  if vc.successful.isSome && !res.isSuccessful && !incomingIsInteractive then
-    return { mgr with _doneWith := mgr._doneWith.insert vcId .proven }
-  -- Update downstream in-degrees
-  match res with
-  | .proven _ _ _ => do
-    vcStatus := .proven
-    if vc.successful.isNone then
-      vc := { vc with successful := some id.dischargerId }
-      mgr := { mgr with nodes := mgr.nodes.insert vcId vc }
-      unless wasAlreadySuccessful do
-        let downstream := match mgr.downstream[vcId]? with
-        | some downstream => downstream
-        | none => HashSet.emptyWithCapacity 0
-        for downstreamVc in downstream do
-          let .some downstreamInDegree := mgr.inDegree[downstreamVc]? | dbg_trace "VCManager.markDischarger: VC {downstreamVc} not found in the in-degree map"; return mgr
-          mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (downstreamInDegree - 1) }
-  | .disproven _ _ => vcStatus := .disproven
-  | .unknown _ _ => vcStatus := .unknown
-  | .error _ _ => vcStatus := .error
-  let .some vc' := mgr.nodes[vcId]? | dbg_trace "VCManager.markDischarger: VC {vcId} disappeared"; return mgr
-  -- Mark that we're done with this VC (if we've been successful or there are no more dischargers to try)
-  if vc'.successful.isSome || (← vc'.nextDischarger?).isNone then
-    vcStatus := mgr.exhaustedVCStatus vc'
-    mgr := { mgr with _doneWith := mgr._doneWith.insert vcId vcStatus }
-    -- Trigger alternative VCs if this VC failed (not proven)
-    if vcStatus != .proven && !vc'.hasInteractiveDischarger then
-      if let .some altIds := mgr.alternativeVCs[vcId]? then
-        for altId in altIds do
-          -- Wake up the alternative VC: remove from the dormant set and
-          -- enable it (its primary was necessarily enabled to have run).
-          mgr := { mgr with
-            dormantVCs := mgr.dormantVCs.erase altId
-            enabledVCs := mgr.enabledVCs.insert altId }
+/-- Accept an exact current discharger result and update all derived bookkeeping.
+Automatic results are accepted once; interactive results may replace their own
+entry as a proof is edited. Rejected notifications have no side effects, and
+accepting never cancels running work: interactive proofs only shadow automatic
+attempts in the caller's view. -/
+def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
+    (id : DischargerIdentifier) (res : DischargerResult ResultT) : BaseIO (VCManager VCMetaT ResultT) := do
+  if id.managerId != mgr._managerId then return mgr
+  let some vc := mgr.nodes[id.vcId]? | return mgr
+  if vc.uid != id.vcId then return mgr
+  let some discharger := vc.dischargers[id.dischargerId]? | return mgr
+  if discharger.id != id then return mgr
+  let incomingIsInteractive := discharger.isInteractive
+  if vc.hasInteractiveDischarger && !incomingIsInteractive then return mgr
+  let key := (id.vcId, id.dischargerId)
+  let alreadyRecorded := mgr._dischargerResults.contains key
+  if alreadyRecorded && !incomingIsInteractive then return mgr
+
+  let wasSuccessful := vc.successful.isSome
+  let mut mgr := { mgr with
+    _dischargerResults := mgr._dischargerResults.insert key res
+    _totalDischarged := mgr._totalDischarged + if alreadyRecorded then 0 else 1 }
+  -- Only editable interactive entries can invalidate an accepted proof. Keep
+  -- the previous witness if it is still effective, otherwise select another
+  -- accepted interactive proof before reporting failure.
+  let successful := if incomingIsInteractive then Id.run do
+      if let some old := vc.successful then
+        if vc.dischargers[old]?.any (·.isInteractive) &&
+            (mgr._dischargerResults[(vc.uid, old)]?.any (·.isSuccessful)) then
+          return some old
+      return (vc.effectiveDischargers.find? fun d =>
+        mgr._dischargerResults[(vc.uid, d.id.dischargerId)]?.any (·.isSuccessful)).map
+          (·.id.dischargerId)
+    else if vc.successful.isSome then vc.successful
+    else if res.isSuccessful then some id.dischargerId else none
+  let vc := { vc with successful }
+  mgr := { mgr with
+    nodes := mgr.nodes.insert id.vcId vc
+    _totalSolved := (mgr._totalSolved - if wasSuccessful then 1 else 0) +
+      if successful.isSome then 1 else 0
+    _doneWith := mgr._doneWith.erase id.vcId }
+  if !wasSuccessful && successful.isSome then
+    for downstreamVc in mgr.downstream[id.vcId]?.getD {} do
+      if let some degree := mgr.inDegree[downstreamVc]? then
+        mgr := { mgr with inDegree := mgr.inDegree.insert downstreamVc (degree - 1) }
+  if mgr.isVCComplete vc then
+    let status := mgr.exhaustedVCStatus vc
+    mgr := { mgr with _doneWith := mgr._doneWith.insert id.vcId status }
+    if status != .proven && !vc.hasInteractiveDischarger then
+      for altId in mgr.alternativeVCs[id.vcId]?.getD #[] do
+        mgr := { mgr with
+          dormantVCs := mgr.dormantVCs.erase altId
+          enabledVCs := mgr.enabledVCs.insert altId }
   return mgr
 
-/-- Record a finished discharger result, updating aggregate counters and VC
-status bookkeeping together. -/
-def VCManager.recordDischargerResult (mgr : VCManager VCMetaT ResultT)
-    (id : DischargerIdentifier) (res : DischargerResult ResultT) :
+/-- Project checkpoint-local completed interactive proofs over shared automatic
+attempts. This is an immutable view: no automatic task is canceled or replaced.
+The runtime manager must not be replaced with the resulting view. -/
+def VCManager.withInteractiveResults (mgr : VCManager VCMetaT ResultT)
+    (registrations : Array (Discharger ResultT × DischargerResult ResultT)) :
     BaseIO (VCManager VCMetaT ResultT) := do
-  let alreadySolved := match mgr.nodes[id.vcId]? with
-    | some vc => vc.successful.isSome
-    | none => false
-  let mut mgr := { mgr with _totalDischarged := mgr._totalDischarged + 1 }
-  if res.isSuccessful && !alreadySolved then
-    mgr := { mgr with _totalSolved := mgr._totalSolved + 1 }
-  mgr.markDischarger id res
+  let mut mgr := mgr
+  for (discharger, result) in registrations do
+    if discharger.id.managerId != mgr._managerId then continue
+    let some vc := mgr.nodes[discharger.id.vcId]? | continue
+    -- Positional IDs are assigned by each view: later automatic additions
+    -- must not collide with a registration captured before they existed.
+    let discharger := { discharger with id.dischargerId := vc.dischargers.size }
+    let vc := { vc with dischargers := vc.dischargers.push discharger }
+    mgr := { mgr with nodes := mgr.nodes.insert vc.uid vc }
+    mgr ← mgr.recordDischargerResult discharger.id result
+    -- A shared automatic failure may have activated these alternatives for an
+    -- older checkpoint. This proof view must keep them dormant regardless.
+    if discharger.isInteractive then
+      for altId in mgr.alternativeVCs[vc.uid]?.getD #[] do
+        mgr := { mgr with dormantVCs := mgr.dormantVCs.insert altId }
+  return mgr
 
 def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : String := Id.run do
   match mgr._doneWith[vcId]? with
@@ -688,9 +706,11 @@ def VCManager.findVCByFilter (mgr : VCManager VCMetaT ResultT) (filter : VCMetaT
 /-- Check if all VCs are done. A VC is considered "done" if it's either:
 - In `_doneWith` (has been processed), or
 - In `dormantVCs` (is dormant and won't be processed because its primary succeeded)
-This correctly handles alternative VCs that remain dormant when their primary succeeds. -/
+A dormant alternative may also have an accepted interactive result. Check each
+actual VC once so overlap and extraneous set IDs cannot change coverage. -/
 def VCManager.isDone (mgr : VCManager VCMetaT ResultT) : Bool :=
-  mgr._doneWith.size + mgr.dormantVCs.size == mgr.nodes.size
+  mgr.nodes.toArray.all fun (vcId, _) =>
+    mgr._doneWith.contains vcId || mgr.dormantVCs.contains vcId
 
 /-- Check if all VCs matching the filter are done. -/
 def VCManager.isDoneFiltered (mgr : VCManager VCMetaT ResultT) (filter : VCMetaT → Bool) : Bool :=

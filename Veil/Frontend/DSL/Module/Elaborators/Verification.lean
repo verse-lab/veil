@@ -123,7 +123,7 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   -- else that needs the actions' WPs, including the `doesNotThrow` checks, wait
   -- for a verification command.
   let mod ← if veil.deferVCGeneration.get (← getOptions) then do
-      -- Still drop the VCs of a previous module, as `prepareVerification` does.
+      -- Capture an independent owner while verification generation is deferred.
       Verifier.runManager
       pure { mod with _vcGenerationDeferred := true }
     else do
@@ -168,19 +168,19 @@ private def trustedSmtWarning (count : Nat) : MessageData :=
 private def addUndischargedTheoremSuggestion
     (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
   let some theoremText := Verifier.undischargedTheoremStubsText results | return
-  let replacement ← match stx.getPos?, stx.getTailPos? with
-    | some startPos, some endPos =>
-      let commandText := String.Pos.Raw.extract (← getFileMap).source startPos endPos
-      pure s!"{commandText}\n\n{theoremText}"
-    | _, _ =>
-      pure theoremText
+  let fileMap ← getFileMap
+  -- Keep enclosing commands such as `set_option ... in` on the check.
+  let insertPos := fileMap.lineStart (fileMap.toPosition (← read).cmdPos).line
+  -- Insert before the line rather than replacing the command, preserving its
+  -- indentation and exact source text (including multiline syntax).
+  let insertSpan := Syntax.ofRange { start := insertPos, stop := insertPos }
   let label := "Insert theorem stubs for undischarged verification conditions"
   let suggestion : Lean.Meta.Tactic.TryThis.Suggestion := {
-    suggestion := .string replacement
+    suggestion := .string (theoremText ++ "\n\n")
     toCodeActionTitle? := some fun _ => label
   }
   liftCoreM <| Lean.Meta.Tactic.TryThis.addSuggestion stx suggestion
-    (header := s!"{label}:\n")
+    (origSpan? := some insertSpan) (header := s!"{label}:\n")
 
 /-- Log verification results asynchronously after all VCs complete. -/
 def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
@@ -195,19 +195,27 @@ def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetad
     logWarningAt stx (trustedSmtWarning trustedCount)
   addUndischargedTheoremSuggestion stx results
 
+/-- Bind the widget to the generation requested by its asynchronous observer. -/
+private def captureInvariantResults (managerId : ManagerId) (filter : VCMetadata → Bool)
+    : CommandElabM (CoreM (VerificationResults VCMetadata SmtResult × Verifier.StreamingStatus)) := do
+  let owner ← Verifier.getVCManagerOwner
+  let getManager ← Verifier.captureVCManager
+  return do
+    -- CAREFUL: do not hold the lock to print
+    let mgr ← getManager
+    if (← owner.cancelTk.isSet) || mgr._managerId != managerId then
+      throwError "verification interrupted: specification owner was canceled or reset"
+    let done := mgr.isDoneFiltered filter
+    let results ← mgr.toResults filter (includeTheoremText := done)
+    pure (results, if done then .done else .running)
+
 private def runFilteredInvariantCheck
     (stx : Syntax)
     (mod : Module)
     (filter : VCMetadata → Bool)
     : CommandElabM Unit := do
-  Verifier.runFilteredAsync filter (logVerificationResults stx)
-  Verifier.displayStreamingResults stx
-    (do
-      -- CAREFUL: do not hold the lock to print
-      let mgr ← Verifier.vcManager.atomically fun ref => ref.get
-      let done := mgr.isDoneFiltered filter
-      let results ← mgr.toResults filter (includeTheoremText := done)
-      pure (results, if done then .done else .running))
+  let managerId ← Verifier.runFilteredAsyncWithManagerId filter (logVerificationResults stx)
+  Verifier.displayStreamingResults stx (← captureInvariantResults managerId filter)
     mod.specFinalizedAtStx
 
 private def isInductionForAction (actionName : Name) : VCMetadata → Bool

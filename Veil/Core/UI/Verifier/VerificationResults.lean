@@ -24,7 +24,7 @@ open Veil in
 structure VerificationResultsProps where
   /-- The verification results to display. -/
   results : VerificationResults VCMetadata SmtResult
-  /-- Position after #check_invariants for inserting generated theorem stubs. -/
+  /-- Start of the outer verification command's line, for inserting theorem stubs before it. -/
   theoremInsertPos : Lsp.Position
   /-- Position before #gen_spec for inserting the trust-disabling option. -/
   optionInsertPos : Option Lsp.Position
@@ -55,19 +55,18 @@ private def displayWidget (atStx : Syntax) (html : Html) : CommandElabM Unit := 
     (return json% { html: $(← Server.rpcEncode html) })
     atStx
 
-/-- Compute the theorem insertion position (line after the syntax) and document URI. -/
-private def getTheoremInsertInfo (atStx : Syntax) : CommandElabM (Lsp.Position × String) := do
+/-- Compute the theorem insertion position (start of the outer command's line) and document URI. -/
+private def getTheoremInsertInfo : CommandElabM (Lsp.Position × String) := do
   let fileMap ← getFileMap
   let docUri := (← getFileName)
-  -- Get position at end of the syntax, then move to start of next line
-  let some tailPos := atStx.getTailPos? | return ({ line := 0, character := 0 }, docUri)
-  let pos := fileMap.toPosition tailPos
-  -- Insert at the start of the line after the command
-  let insertPos : Lsp.Position := { line := pos.line, character := 0 }
+  -- `cmdPos` includes enclosing commands such as `set_option ... in`.
+  let pos := fileMap.toPosition (← read).cmdPos
+  -- FileMap positions have 1-based lines; LSP positions have 0-based lines.
+  let insertPos : Lsp.Position := { line := pos.line - 1, character := 0 }
   return (insertPos, docUri)
 
 def displayResults (atStx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
-  let (theoremInsertPos, documentUri) ← getTheoremInsertInfo atStx
+  let (theoremInsertPos, documentUri) ← getTheoremInsertInfo
   let html := Html.ofComponent VerificationResultsViewer {
     results,
     theoremInsertPos,
@@ -80,9 +79,7 @@ private def getOptionInsertPos? (atStx : Syntax) : CommandElabM (Option Lsp.Posi
   let fileMap ← getFileMap
   let some startPos := atStx.getPos? | return none
   let pos := fileMap.toPosition startPos
-  -- `FileMap.toPosition` uses 1-based lines, while LSP edits use 0-based
-  -- lines. The existing tail-position insertion relies on this offset to
-  -- insert after a command; inserting before a command needs the conversion.
+  -- `FileMap.toPosition` uses 1-based lines, while LSP edits use 0-based lines.
   return some { line := pos.line - 1, character := 0 }
 
 private partial def runStreamingResults (theoremInsertPos : Lsp.Position)
@@ -106,7 +103,7 @@ private partial def runStreamingResults (theoremInsertPos : Lsp.Position)
 def displayStreamingResults (atStx : Syntax)
     (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus))
     (optionStx? : Option Syntax := none) : CommandElabM Unit := do
-  let (theoremInsertPos, documentUri) ← getTheoremInsertInfo atStx
+  let (theoremInsertPos, documentUri) ← getTheoremInsertInfo
   let optionInsertPos ← optionStx?.mapM getOptionInsertPos? <&> Option.join
   let html ← liftCoreM <| ProofWidgets.mkRefreshComponentM (.text "Loading...")
     (runStreamingResults theoremInsertPos optionInsertPos documentUri getter)

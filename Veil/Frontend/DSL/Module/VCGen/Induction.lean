@@ -80,7 +80,8 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
   let dischargerId :=
     if nameSuffix.isEmpty then dischargerId
     else { dischargerId with name := Name.mkSimple s!"{dischargerId.name.getString!}{nameSuffix}" }
-  let env0 ← getEnv
+  -- Proof inlining only needs declarations, not mutable runtime handles.
+  let env0 := Veil.Verifier.clearVerifierRuntime (← getEnv)
   Discharger.fromTermWith term vcStatement dischargerId ch fun smtCh data time => do
     let data : Witness ⊕ Exception ← match data with
       | .inl witness => do
