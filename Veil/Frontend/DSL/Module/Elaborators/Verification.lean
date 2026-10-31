@@ -168,19 +168,19 @@ private def trustedSmtWarning (count : Nat) : MessageData :=
 private def addUndischargedTheoremSuggestion
     (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
   let some theoremText := Verifier.undischargedTheoremStubsText results | return
-  let replacement ← match stx.getPos?, stx.getTailPos? with
-    | some startPos, some endPos =>
-      let commandText := String.Pos.Raw.extract (← getFileMap).source startPos endPos
-      pure s!"{commandText}\n\n{theoremText}"
-    | _, _ =>
-      pure theoremText
+  let fileMap ← getFileMap
+  -- Keep enclosing commands such as `set_option ... in` on the check.
+  let insertPos := fileMap.lineStart (fileMap.toPosition (← read).cmdPos).line
+  -- Insert before the line rather than replacing the command, preserving its
+  -- indentation and exact source text (including multiline syntax).
+  let insertSpan := Syntax.ofRange { start := insertPos, stop := insertPos }
   let label := "Insert theorem stubs for undischarged verification conditions"
   let suggestion : Lean.Meta.Tactic.TryThis.Suggestion := {
-    suggestion := .string replacement
+    suggestion := .string (theoremText ++ "\n\n")
     toCodeActionTitle? := some fun _ => label
   }
   liftCoreM <| Lean.Meta.Tactic.TryThis.addSuggestion stx suggestion
-    (header := s!"{label}:\n")
+    (origSpan? := some insertSpan) (header := s!"{label}:\n")
 
 /-- Log verification results asynchronously after all VCs complete. -/
 def logVerificationResults (stx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
