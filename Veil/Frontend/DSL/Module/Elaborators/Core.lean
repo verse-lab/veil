@@ -873,7 +873,7 @@ private def mkSearchParameters (em : ExecutableModule) (config : ModelCheckerCon
     for reusing `SearchParameters`: liveness only needs assumptions and state constraints,
     which should eventually have a separate shared construction interface.-/
     (includeSafetyAndDeadlock : Bool := true) : CommandElabM Term := do
-  let mkAssumption (sa : StateAssertion) : CommandElabM Term :=
+  let mkAssumption (name : Name) : CommandElabM Term :=
     `($(mkIdent ``Veil.ModelChecker.TheoryProperty.mk)
         ($(mkIdent `name) := $(quote name))
         ($(mkIdent `property) := fun $(mkIdent `th) => $(mkIdentWithModName em name) $(mkIdent `th)))
@@ -1125,15 +1125,15 @@ private def routeTerm (route : LivenessMC.Route) : Term :=
     | .fair => ``LivenessMC.Route.fair
 
 /-- Build a liveness call with the same continuation interface as the other runners. -/
-private def mkLivenessCheckerCall (mod : Module) (instTerm theoryTerm : Term)
+private def mkLivenessCheckerCall (em : ExecutableModule) (instTerm theoryTerm : Term)
     (properties : Array TemporalProperty) (route : LivenessMC.Route)
     (finiteReachBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq)) : CommandElabM Term :=
-  mkExecutionCall mod {} instTerm theoryTerm (includeSafetyAndDeadlock := false) fun ectx => do
+  mkExecutionCall em {} instTerm theoryTerm (includeSafetyAndDeadlock := false) fun ectx => do
   let instSortArgs := ectx.instSortArgs
   let sys := ectx.sysWithoutLog
   let sp := ectx.searchParams
   let props ← properties.mapM fun lp =>
-    `($(mkIdentWithModName mod (toTemporalAstName lp.name))
+    `($(mkIdentWithModName em (toTemporalAstName lp.name))
       ($theoryIdent $instSortArgs*) ($stateIdent ($fieldConcreteDispatcher $instSortArgs*))
       $instSortArgs* ($fieldConcreteDispatcher $instSortArgs*))
   let checkAll := mkIdent ``Veil.LivenessMC.checkAllWithProgress
@@ -1196,9 +1196,14 @@ def elabLivenessCheck : CommandElab := fun stx => do
     warnAboutTransitions mod
     if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
       checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
+    let extractStartMs ← IO.monoMsNow
     mod.ensureExecutableModelCheckerDefinitions
-    let callExpr ← mkLivenessCheckerCall mod instTerm theoryTerm properties cfg.route finiteReachBy
-    ExecutionWorkflow.run { name := "temporal_check" } .liveness mod stx mode callExpr
+    let extractMs := (← IO.monoMsNow) - extractStartMs
+    let executable ← mod.toExecutableModule
+    let instantiation ← `(__veil_instantiation% $instTerm)
+    let callExpr ← mkLivenessCheckerCall executable instantiation theoryTerm properties cfg.route finiteReachBy
+    ExecutionWorkflow.run { name := "temporal_check", actionLabels := executable.actionLabels.toList }
+      .liveness mod stx mode callExpr (extractMs := extractMs)
       (numLivenessProperties := properties.size)
 
 end Veil
