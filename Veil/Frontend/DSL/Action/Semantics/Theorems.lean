@@ -127,7 +127,7 @@ theorem VeilM.terminates_preservesInvariants (act : VeilM m ρ σ α) (inv : SPr
 theorem VeilExecM.not_raises_imp_terminates_wp (act : VeilExecM m ρ σ α)
   (invEx : ExId -> RProp α ρ σ) :
   ⨅ ex, [IgnoreEx (· ≠ ex)| wp act (invEx ex)] ≤ [DemonFail| wp act (iInf invEx)] := by
-  intro r s; simp [VeilExecM.wp_eq, DivM.wp_eq]
+  intro r s; simp [VeilExecM.wp_eq, PartialCorrectness.DivM.wp_eq]
   cases (act r s) <;> aesop (add safe simp loomLogicSimp)
 
 theorem VeilM.not_raises_imp_terminates_wp (act : VeilM m ρ σ α)
