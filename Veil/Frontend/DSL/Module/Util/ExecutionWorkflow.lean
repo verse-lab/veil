@@ -40,13 +40,6 @@ private structure ExecutionContext where
   /-- Where the actions and the properties of the module are, which the result gives the infoview,
   if known -/
   sources : Json := .null
-  /-- `#model_check`, `#simulate` or `#liveness_check`, for the timing record. -/
-  commandName : String
-  mode : ModelCheckingMode
-  /-- Wall clock of the compilation in milliseconds; `none` if nothing was compiled. -/
-  compileMs : IO.Ref (Option Nat)
-  /-- Wall clock of the compiled binary in milliseconds; `none` if no binary ran. -/
-  runMs : IO.Ref (Option Nat)
 
 /-- Report compilation failures without stopping an interpreted run during handoff.
 Interruptions produce no diagnostic: a killed build returns `none`, and an interrupt raised
@@ -227,12 +220,10 @@ private def verifyBinaryExists (buildFolder : System.FilePath) (instanceId : Nat
   ModelChecker.Concrete.finishProgress instanceId (errorJson s!"Binary not found at {binPath}")
   return none
 
-/-- Run the compiled binary and return its JSON result and wall clock in milliseconds, if it
-completed. -/
+/-- Run the compiled binary and return its JSON result if completed. -/
 private def runBinaryForJson (binPath : System.FilePath) (args : Array String)
-    (instanceId : Nat) (cancelToken : IO.CancelToken) : IO (Option (Json × Nat)) := do
+    (instanceId : Nat) (cancelToken : IO.CancelToken) : IO (Option Json) := do
   ModelChecker.Concrete.updateStatus instanceId "Running compiled binary..."
-  let spawnedAt ← IO.monoMsNow
   let child ← IO.Process.spawn {
     cmd := binPath.toString, args,
     stdin := .piped, stdout := .piped, stderr := .piped }
@@ -271,9 +262,7 @@ private def runBinaryForJson (binPath : System.FilePath) (args : Array String)
         unless (Json.parse line).toOption.any (·.getObjVal? "start" |>.isOk) do
           stderrAccum.modify (· ++ line)
   let stdoutTask ← IO.asTask (prio := .dedicated) child.stdout.readToEnd
-  let waitTask ← IO.asTask (prio := .dedicated) do
-    let exitCode ← child.wait
-    return (exitCode, (← IO.monoMsNow) - spawnedAt)
+  let waitTask ← IO.asTask (prio := .dedicated) child.wait
   -- Monitor for cancellation
   while !(← IO.hasFinished waitTask) do
     if ← checkCancelled cancelToken instanceId then
@@ -287,16 +276,14 @@ private def runBinaryForJson (binPath : System.FilePath) (args : Array String)
       return none
     IO.sleep 100
   let stdout ← IO.ofExcept (← IO.wait stdoutTask)
-  let (exitCode, runMs) ← IO.ofExcept (← IO.wait waitTask)
+  let exitCode ← IO.ofExcept (← IO.wait waitTask)
   -- Process exit does not imply stderr has been drained. Join the reader before
   -- consuming diagnostics or publishing a final result; propagate reader failures.
   IO.ofExcept (← IO.wait stderrTask)
   let stderr ← stderrAccum.get
   if exitCode != 0 then
     throw <| IO.userError s!"Binary exited with code {exitCode}{if stderr.isEmpty then "" else s!"\n{stderr}"}"
-  return some
-    (Json.parse stdout |>.toOption.getD (errorJson s!"Failed to parse output: {stdout.take 500}"),
-     runMs)
+  return some (Json.parse stdout |>.toOption.getD (errorJson s!"Failed to parse output: {stdout.take 500}"))
 
 /-- Elaborate the interpreted mode computation. Must be called synchronously. -/
 private def elaborateInterpretedComputation (instanceId : Nat) (callExpr : Term)
@@ -321,8 +308,7 @@ private def logModelCheckResult (kind : TraceDisplay.ResultKind) (stx : Syntax)
 /-- Allocate a model check context with progress tracking. -/
 private def allocExecutionContext (mod : Module) (stx : Syntax)
     (parallelCfg : Option ModelChecker.ParallelConfig)
-    (resultKind : TraceDisplay.ResultKind) (commandName : String)
-    (mode : ModelCheckingMode) (numLivenessProperties : Option Nat) :
+    (resultKind : TraceDisplay.ResultKind) (numLivenessProperties : Option Nat) :
     CommandElabM ExecutionContext := do
   let details : ModelChecker.Concrete.ProgressDetails ← do
     match resultKind with
@@ -336,46 +322,13 @@ private def allocExecutionContext (mod : Module) (stx : Syntax)
   let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
   let (actions, properties) ← getDeclSources mod
   let sources := infoviewSources actions properties (← IO.currentDir)
-  return { stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind, sources,
-           commandName, mode, compileMs := ← IO.mkRef none, runMs := ← IO.mkRef none }
+  return { stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind, sources }
 
 /-- Handle errors in model checking computations. -/
 private def handleModelCheckError (ctx : ExecutionContext) (e : Exception) : CommandElabM Unit := do
   let json := errorJson s!"{← e.toMessageData.toString}"
   logModelCheckResult ctx.resultKind ctx.stx json
   ModelChecker.Concrete.finishProgress ctx.instanceId json
-
-def ModelCheckingMode.name : ModelCheckingMode → String
-  | .interpreted => "interpreted"
-  | .compiled => "compiled"
-  | .default => "default"
-
-/-- If `veil.modelChecker.emitTimings` is set, print this run's timings to stderr as one JSON line:
-
-```json
-{"veil_timing":{"command":"temporal_check","mode":"compiled","compile_ms":17204,"run_ms":131,
-  "wall_ms":128,"result":"no_violation_found",
-  "timing":{"route":"prune","search_ns":942000,"properties":[…]}}}
-```
-
-`compile_ms` and `run_ms` are absent when nothing was compiled or run, and `timing` when the runner
-reports none. -/
-private def emitTimings (ctx : ExecutionContext) (json : Json) : CommandElabM Unit := do
-  unless veil.modelChecker.emitTimings.get (← getOptions) do return
-  let progress ← liftIO <| ModelChecker.Concrete.getProgress ctx.instanceId
-  let compileMs ← liftIO ctx.compileMs.get
-  let runMs ← liftIO ctx.runMs.get
-  let fields := [("command", Json.str ctx.commandName), ("mode", Json.str ctx.mode.name),
-      ("wall_ms", toJson progress.elapsedMs)]
-    ++ (match compileMs with | some ms => [("compile_ms", toJson ms)] | none => [])
-    ++ (match runMs with | some ms => [("run_ms", toJson ms)] | none => [])
-    ++ (match json.getObjValAs? String "result" with
-        | .ok r => [("result", Json.str r)]
-        | .error _ => [])
-    ++ (match json.getObjVal? "timing" with
-        | .ok t => [("timing", t)]
-        | .error _ => [])
-  liftIO <| IO.eprintln (Json.mkObj [("veil_timing", Json.mkObj fields)]).compress
 
 /-- Finish model checking with a successful result. -/
 private def finishWithResult (ctx : ExecutionContext) (json : Json) : CommandElabM Unit := do
@@ -390,7 +343,6 @@ private def finishWithResult (ctx : ExecutionContext) (json : Json) : CommandEla
   let json := if json matches .obj _ && !ctx.sources.isNull then json.setObjVal! "sources" ctx.sources else json
   logModelCheckResult ctx.resultKind ctx.stx json
   ModelChecker.Concrete.finishProgress ctx.instanceId json
-  emitTimings ctx json
 
 /-- Run the compiled binary and log the result. -/
 private def runBinaryAndLogResult (ctx : ExecutionContext) (buildFolder : System.FilePath)
@@ -401,8 +353,7 @@ private def runBinaryAndLogResult (ctx : ExecutionContext) (buildFolder : System
   let args := match handoffState with
     | some state => args ++ #["--handoff-state", state.compress]
     | none => args
-  let some (json, runMs) ← runBinaryForJson binPath args ctx.instanceId ctx.cancelToken | return
-  ctx.runMs.set (some runMs)
+  let some json ← runBinaryForJson binPath args ctx.instanceId ctx.cancelToken | return
   ModelChecker.Compilation.markRegistryFinished sourceFile command commandId buildFolder
   finishWithResult ctx json
 
@@ -457,24 +408,12 @@ private def compileModel (sourceFile : String) (callExpr : Term)
     timing.set { emitCMs, ccLinkMs, cBytes := cCode.utf8ByteSize }
   return some buildFolder
 
-/-- `compileModel`, recording its wall clock in `ctx.compileMs`. -/
-private def compileModelTimed (ctx : ExecutionContext) (sourceFile : String) (callExpr : Term)
-    (commandId : String) (cancelToken : IO.CancelToken)
-    (command : ModelChecker.Compilation.CompiledCommandSpec) :
-    CommandElabM (Option System.FilePath) := do
-  let t0 ← liftIO IO.monoMsNow
-  let result ← compileModel sourceFile callExpr commandId ctx.instanceId cancelToken command
-  if result.isSome then
-    ctx.compileMs.set (some ((← liftIO IO.monoMsNow) - t0))
-  return result
-
 /-- Handle interpreted mode: evaluate and display results directly. -/
-private def runInterpreted (command : ModelChecker.Compilation.CompiledCommandSpec)
+private def runInterpreted
     (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax) (callExpr : Term)
     (parallelCfg : Option ModelChecker.ParallelConfig)
     (numLivenessProperties : Option Nat) : CommandElabM Unit := do
-  let ctx ← allocExecutionContext mod stx parallelCfg kind command.name .interpreted
-    numLivenessProperties
+  let ctx ← allocExecutionContext mod stx parallelCfg kind numLivenessProperties
   let ioComputation ← elaborateInterpretedComputation ctx.instanceId callExpr parallelCfg
   let computation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
@@ -526,8 +465,7 @@ private def runCompiled (command : ModelChecker.Compilation.CompiledCommandSpec)
     (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax) (callExpr : Term)
     (parallelCfg : Option ModelChecker.ParallelConfig)
     (numLivenessProperties : Option Nat) : CommandElabM Unit := do
-  let ctx ← allocExecutionContext mod stx parallelCfg kind command.name .compiled
-    numLivenessProperties
+  let ctx ← allocExecutionContext mod stx parallelCfg kind numLivenessProperties
   compileThen command stx callExpr ctx.instanceId ctx.cancelToken
     (fun buildFolder sourceFile commandId =>
       runBinaryAndLogResult ctx buildFolder sourceFile command commandId)
@@ -539,8 +477,7 @@ private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSp
     (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax) (callExpr : Term)
     (parallelCfg : Option ModelChecker.ParallelConfig)
     (numLivenessProperties : Option Nat) : CommandElabM Unit := do
-  let ctx ← allocExecutionContext mod stx parallelCfg kind command.name .default
-    numLivenessProperties
+  let ctx ← allocExecutionContext mod stx parallelCfg kind numLivenessProperties
   let sourceFile ← getFileName
   let commandId ← getCompiledCommandId s!"#{command.name}" stx
   let ioComputation ← elaborateInterpretedComputation ctx.instanceId callExpr parallelCfg
@@ -582,7 +519,8 @@ private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSp
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
       let some buildFolder ← withCompilationDiagnostics stx ctx.instanceId true <|
-        compileModelTimed ctx sourceFile callExpr commandId compilationCancelTk command | do
+        compileModel sourceFile callExpr commandId ctx.instanceId compilationCancelTk
+        command | do
           ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
           return
       -- Skip handoff if violation found or interpreted finished
@@ -731,7 +669,7 @@ private def runBuildOnly (command : ModelChecker.Compilation.CompiledCommandSpec
 continuation, in that order. Its result must have a `ToJson` instance. `extractMs`, the time the
 command spent generating the module's executable definitions, is reported by
 `veil.modelChecker.buildOnly`. `numLivenessProperties` is how many properties a
-`#liveness_check` will search, which is fewer than the module declares
+`#temporal_check` will search, which is fewer than the module declares
 when the command named a subset; the other commands leave it `none`. -/
 def run (command : ModelChecker.Compilation.CompiledCommandSpec)
     (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax)
@@ -743,7 +681,7 @@ def run (command : ModelChecker.Compilation.CompiledCommandSpec)
     return ← runBuildOnly command stx callExpr extractMs
   let mode := if (← liftIO isVeilOnlineEnv) then .interpreted else mode
   match mode with
-  | .interpreted => runInterpreted command kind mod stx callExpr parallelCfg numLivenessProperties
+  | .interpreted => runInterpreted kind mod stx callExpr parallelCfg numLivenessProperties
   | .compiled => runCompiled command kind mod stx callExpr parallelCfg numLivenessProperties
   | .default => runWithHandoff command kind mod stx callExpr parallelCfg numLivenessProperties
 
