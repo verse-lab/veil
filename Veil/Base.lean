@@ -183,12 +183,6 @@ register_option veil.simulate.maxSteps : Nat := {
   descr := "Maximum number of action transitions per simulation trace, excluding the initial state. Default is 100."
 }
 
-register_option veil.modelChecker.emitTimings : Bool := {
-  defValue := false
-  descr := "If true, `#model_check`, `#simulate` and `#temporal_check` print the timings of a \
-  finished run to stderr as a JSON object under the key `veil_timing`. Default is false."
-}
-
 register_option veil.modelChecker.maxStoredBuilds : Nat := {
   defValue := 1
   descr := "Maximum number of compiled builds of `#model_check`, `#simulate`, and `#temporal_check` stored in \
