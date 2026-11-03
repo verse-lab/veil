@@ -122,7 +122,7 @@ interface InsertPosition {
 
 interface VerificationResultsProps {
   results: VerificationResults;
-  /** Position after #check_invariants for theorem insertion */
+  /** Start of the outer verification command's line for inserting theorem stubs before it. */
   theoremInsertPos: InsertPosition;
   /** Position before #gen_spec for option insertion */
   optionInsertPos?: InsertPosition | null;
@@ -506,7 +506,7 @@ const useTheoremInserter = (documentUri: string, theoremInsertPos: InsertPositio
             start: { line: theoremInsertPos.line, character: theoremInsertPos.character },
             end: { line: theoremInsertPos.line, character: theoremInsertPos.character }
           },
-          newText: '\n\n' + theoremText
+          newText: theoremText + '\n\n'
         }]
       };
       await editorCtx.api.applyEdit({ documentChanges: [edit] });

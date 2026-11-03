@@ -1,0 +1,3 @@
+module
+meta import VeilTest.Regression.VerifierGenerationSupport
+run_cmd VeilTest.VerifierGeneration.queuedStart false
