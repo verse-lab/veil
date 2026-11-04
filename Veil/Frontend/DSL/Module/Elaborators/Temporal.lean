@@ -1,6 +1,7 @@
 module
 
 public meta import Veil.Frontend.DSL.Module.Elaborators.Verification
+public meta import Lentil
 
 public meta section
 
@@ -137,14 +138,16 @@ private def Module.getStatementForTemporalTheorems [Monad m] [MonadQuotation m] 
   let thmType ← `($(mkIdent `Lentil.pred_implies) $behavior $propRef)
   pure (thmName, allBinders ++ #[thBinder, hassBinder], thmType)
 
-/-- Generate the theorem `<p>._proof` with the user's tactics as its proof. As for
+/-- Generate the theorem `<p>._proof`. Its proof starts with the prelude
+`tstart hInit hNext hInv` and `tdsimp only [p]`, followed by the user's tactics. As for
 `elabProveVeilInvariantGoal`, `@[incremental]` keeps the command's snapshot bundle
 available for Lean's theorem/tactic elaborators, and the generated syntax stays the
-same across proof edits, so that they reuse the unchanged prefix of the proof. -/
+same across proof edits, so that they reuse the prelude and the unchanged prefix of
+the proof. -/
 @[command_elab Veil.proveTemporalBy, incremental]
 def elabProveTemporalBy : CommandElab := fun stx => do
-  let (name, tacs) ← match stx with
-    | `(command|prove_temporal_by [$name:ident] $tacs:tacticSeq) => pure (name, tacs)
+  let (name, rbrack, tacs) ← match stx with
+    | `(command|prove_temporal_by [$name:ident]%$rbrack $tacs:tacticSeq) => pure (name, rbrack, tacs)
     | _ => throwUnsupportedSyntax
   let mod ← getCurrentModule (errMsg := "prove_temporal_by must be inside a Veil module!")
   let propName := name.getId.eraseMacroScopes
@@ -159,10 +162,19 @@ def elabProveTemporalBy : CommandElab := fun stx => do
       let mod ← withReader (fun ctx => { ctx with snap? := none }) <|
         mod.ensureVerificationSpec name
       let (thmName, allBinders, thmType) ← mod.getStatementForTemporalTheorems propName
+      -- The end of the header, `]`, should show the goal after the prelude.
+      let entry : TSyntax `tactic := ⟨(← `(tactic| skip)).raw.setInfo rbrack.getHeadInfo⟩
+      let steps := tacticSeqSteps tacs
+      -- The prelude names the conjuncts `⌜ Init ⌝`, `□ ⟨ NextStep ⟩` and `□ ⌜ Invariants ⌝`
+      -- of the behavior, for the user's tactics to refer to, and unfolds the property.
       let cmd ← `(command|
-        theorem $(mkIdent thmName) $[$allBinders]* : $thmType := by $tacs)
+        theorem $(mkIdent thmName) $[$allBinders]* : $thmType := by
+          tstart $(mkIdent `hInit) $(mkIdent `hNext) $(mkIdent `hInv)
+          tdsimp only [$(mkIdent propName):ident]
+          $entry:tactic
+          $steps;*)
       -- Delegate directly to Lean's theorem/tactic elaborators, which reuse the
-      -- snapshots of the unchanged tactics.
+      -- snapshots of the prelude and of the unchanged tactics.
       elabCommand cmd
 
 open Term in

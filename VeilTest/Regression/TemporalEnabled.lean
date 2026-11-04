@@ -48,21 +48,15 @@ temporal (only := verify) [markEnabled] ∀ n : Fin actionBound, ⌞ n.val < lim
 temporal (only := verify) [neverEnabled] ¬ Enabled disabled
 
 prove_temporal_by [ghostArgs]
-  tstart hInit hNext hInv
-  tdsimp only [ghostArgs]
   tintro hBound hAt
   tassumption
 
 prove_temporal_by [markEnabled]
-  tstart hInit hNext hInv
   tclear hInit hNext hInv
-  tdsimp only [markEnabled]
   veil_solve_temporal
 
 prove_temporal_by [neverEnabled]
-  tstart hInit hNext hInv
   tclear hInit hNext hInv
-  tdsimp only [neverEnabled]
   veil_solve_temporal
 
 -- The statement accessor agrees with the generated theorem, including all binders.

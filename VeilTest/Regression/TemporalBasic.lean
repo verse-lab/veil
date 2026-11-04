@@ -70,4 +70,8 @@ set_option warningAsError false
 #guard_msgs in
 prove_temporal_by [relationAsError] sorry
 
+-- The prelude also comes before a bracketed proof
+temporal (only := verify) [bracketedProof] ⌜ counter = limit ⌝ → ⌜ counter = limit ⌝
+prove_temporal_by [bracketedProof] { tintro h; tassumption }
+
 end TemporalBasic

@@ -113,9 +113,7 @@ temporal [someLeafEnabled] Enabled toLeaf ↔ ∃ l : Loc, Enabled (toLeaf l)
 #temporal_check [someLeafEnabled] interpreted {}
 
 prove_temporal_by [someLeafEnabled]
-  tstart hInit hNext hInv
   tclear hInit hNext hInv
-  tdsimp only [someLeafEnabled]
   tfinite_window
   simp only [Lentil.enabled]
   exact exists_comm

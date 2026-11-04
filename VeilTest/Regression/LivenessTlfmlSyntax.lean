@@ -44,9 +44,7 @@ temporal [zeroLeadsToThree] ⌜ x = 0 ⌝ ↝ ⌜ x = 3 ⌝
 
 -- Lentil has `↔` too, so `iff` is also proved
 prove_temporal_by [iff]
-  tstart hInit hNext hInv
   tclear hInit hNext hInv
-  tdsimp only [iff]
   tconstructor <;> tfinite_window <;> simp
 
 /--

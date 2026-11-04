@@ -20,8 +20,6 @@ temporal (only := verify) [stable] ⌜ x ≤ 10 ⌝ → ⌜ x ≤ 10 ⌝
 #gen_spec
 
 prove_temporal_by [stable]
-  tstart hInit hNext hInv
-  tdsimp only [stable]
   tintro h
   tassumption -- first proof
 
@@ -37,8 +35,6 @@ temporal (only := verify) [stable] ⌜ x ≤ 20 ⌝ → ⌜ x ≤ 20 ⌝
 #gen_spec
 
 prove_temporal_by [stable]
-  tstart hInit hNext hInv
-  tdsimp only [stable]
   tintro h
   tassumption -- second proof
 
