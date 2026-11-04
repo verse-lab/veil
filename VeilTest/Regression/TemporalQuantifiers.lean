@@ -76,7 +76,7 @@ temporal (only := check) [everyLeafFails] ∀ l : Loc, ◇ ⌜ loc = l ⌝
 
 -- Binder predicates are not supported
 /--
-error: a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `Enabled …` and `⟨ … ⟩`, the fairness conditions `𝒲ℱ …` and `𝒮ℱ …`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and `∃ x : T, …`; this formula is none of them
+error: a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `Enabled …` and `⟨ … ⟩`, the fairness conditions `𝒲ℱ …` and `𝒮ℱ …`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `𝑅`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and `∃ x : T, …`; this formula is none of them
 -/
 #guard_msgs in
 temporal (only := check) [bounded] ∀ l > (0 : Loc), ◇ ⌜ loc = l ⌝

@@ -19,7 +19,7 @@ public meta import Veil.Frontend.DSL.Module.Util.Instantiation
 public meta import Veil.Util.Multiprocessing
 public meta import Veil.Frontend.DSL.Module.AssertionInfo
 public import Veil.Core.Tools.LivenessMC.Interface
-public meta import Veil.Core.Tools.LivenessMC.Syntax
+public meta import Lasso.LTL.Notation
 public meta import Veil.Core.Tools.LivenessMC.Runtime
 
 public meta section
@@ -516,8 +516,8 @@ which see the module's fields as an assertion does; `Enabled a …`/`⟨ a … �
 
 `⟨ a ⟩` is decided by the label of the step taken, which is stronger than Lentil's action predicate that
 the shallow definition uses; see `Veil.temporalDeclaration`.
-Tried before the plain reading of `[ltl| …]` (`LivenessMC.elabLtlAtom`), to which it defers otherwise. -/
-@[term_elab LivenessMC.ltlFormula] def elabModuleLtlAtom : TermElab := fun stx expectedType? => do
+Tried before the plain reading of `[ltl| …]` (`Lasso.elabLtlAtom`), to which it defers otherwise. -/
+@[term_elab Lasso.ltlFormula] def elabModuleLtlAtom : TermElab := fun stx expectedType? => do
   unless veil.temporal.moduleAtoms.get (← getOptions) do throwUnsupportedSyntax
   let mod ← getCurrentModule
   let (th, st) := (mkIdent `th, mkIdent `st)
@@ -554,7 +554,7 @@ Tried before the plain reading of `[ltl| …]` (`LivenessMC.elabLtlAtom`), to wh
     | `([ltl| $f]) =>
       throwErrorAt f "a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `Enabled …` and \
         `⟨ … ⟩`, the fairness conditions `𝒲ℱ …` and `𝒮ℱ …`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, \
-        `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and \
+        `↔`, `□`, `◇`, `◯`, `𝑈`, `𝑅`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and \
         `∃ x : T, …`; this formula is none of them"
     | _ => throwUnsupportedSyntax
   elabTerm (← `($(mkIdent ``Lasso.Formula.atom) $atom)) expectedType?
