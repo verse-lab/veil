@@ -422,22 +422,34 @@ To check a single action, use `#check_action <name>`.
 
 #### Synthesizing Invariants
 
-Searches for the `invariant` clauses that make the `safety` properties
-inductive, or for an execution that violates them:
+`#updr` tries to prove your `safety` properties automatically. It searches
+for extra `invariant` clauses that, together with the `safety` properties,
+hold in all initial states and are preserved by every action.
+
+Run it after `#gen_spec`:
 
 ```lean
-#updr certify
-#gen_theorems
+#updr
 ```
 
-It prints the strengthening as `invariant` lines to paste into the module,
-or a counterexample. Search and certification run in the background with live
-progress in the infoview. `#gen_theorems` waits for certification and imports
-the resulting declarations. With `certify`, the result is a kernel-checked theorem:
-`Mod.ic3_safe` that every reachable state satisfies the properties, or
-`Mod.ic3_unsafe` that one does not. See the
-[Invariant Synthesizer Guide](Synthesizer-Guide.md) for its options, the
-algorithm and its limitations.
+The command reports one of these results:
+
+- the `invariant` clauses it found.
+- an execution that violates a `safety` property.
+- that it could not find an invariant, and why.
+
+If it finds clauses, click the suggestion to insert them above `#gen_spec`.
+They are then ordinary `invariant` clauses, so `#check_invariants` checks
+them as usual. In rare cases, `#check_invariants` rejects a clause that
+depends on a state component that `after_init` does not set. The command
+warns you when this can happen.
+
+The search runs in the background and shows its progress in the infoview.
+
+If you need a theorem without using `#check_invariants`, run
+`#updr certify` followed by `#gen_theorems`. For this option, the other
+options, how the search works and its limits, see the
+[Invariant Synthesizer Guide](Synthesizer-Guide.md).
 
 #### Explicit-State Model Checking
 
