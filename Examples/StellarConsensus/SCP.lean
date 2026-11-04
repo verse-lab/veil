@@ -245,39 +245,7 @@ invariant ∀ N B V1 V2,
 
 #gen_spec
 
-@[veil]
-theorem receive_accept_commit_intertwined_safe (ρ : Type) (σ : Type) (value : Type)
-    [value_dec_eq : DecidableEq.{1} value] [value_inhabited : Inhabited.{1} value] (node : Type)
-    [node_dec_eq : DecidableEq.{1} node] [node_inhabited : Inhabited.{1} node] (nset : Type)
-    [nset_dec_eq : DecidableEq.{1} nset] [nset_inhabited : Inhabited.{1} nset] (ballot : Type)
-    [ballot_dec_eq : DecidableEq.{1} ballot] [ballot_inhabited : Inhabited.{1} ballot]
-    [tot : TotalOrderWithMinimum ballot] [bg : Background node nset] (χ : State.Label → Type)
-    [χ_rep :
-      ∀ __veil_f,
-        Veil.FieldRepresentation (State.Label.toDomain value node nset ballot __veil_f)
-          (State.Label.toCodomain value node nset ballot __veil_f) (χ __veil_f)]
-    [χ_rep_lawful :
-      ∀ __veil_f,
-        Veil.LawfulFieldRepresentation (State.Label.toDomain value node nset ballot __veil_f)
-          (State.Label.toCodomain value node nset ballot __veil_f) (χ __veil_f) (χ_rep __veil_f)]
-    [σ_sub : IsSubStateOf (@State χ) σ] [ρ_sub : IsSubReaderOf (@Theory value node nset ballot) ρ]
-    [receive_accept_commit_dec_0 :
-      delta% @SCP.receive_accept_commit._veil_dec_type_0 node ballot value χ nset bg χ_rep tot]
-    [receive_accept_commit_dec_1 :
-      delta% @SCP.receive_accept_commit._veil_dec_type_1 node ballot value χ nset bg χ_rep] :
-    ∀ (na : node) (nb : node) (b : ballot) (v : value),
-      Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
-        (@receive_accept_commit.ext ρ σ value value_dec_eq value_inhabited node node_dec_eq node_inhabited nset
-          nset_dec_eq nset_inhabited ballot ballot_dec_eq ballot_inhabited tot bg χ χ_rep χ_rep_lawful σ_sub ρ_sub
-          receive_accept_commit_dec_0 receive_accept_commit_dec_1 na nb b v)
-        (@Assumptions ρ value value_dec_eq value_inhabited node node_dec_eq node_inhabited nset nset_dec_eq
-          nset_inhabited ballot ballot_dec_eq ballot_inhabited tot bg ρ_sub)
-        (@Invariants ρ σ value value_dec_eq value_inhabited node node_dec_eq node_inhabited nset nset_dec_eq
-          nset_inhabited ballot ballot_dec_eq ballot_inhabited tot bg χ χ_rep χ_rep_lawful σ_sub ρ_sub)
-        (@intertwined_safe ρ σ value value_dec_eq value_inhabited node node_dec_eq node_inhabited nset nset_dec_eq
-          nset_inhabited ballot ballot_dec_eq ballot_inhabited tot bg χ χ_rep χ_rep_lawful σ_sub ρ_sub) :=
-  by
-  unveil
+prove_veil_invariant_goal receive_accept_commit intertwined_safe using wp by
   classical
   rcases hinv with ⟨hsafe, hcommitted_prepared, hno_conflict, hconfirmed_quorum,
     hprepared_quorum, hreceived, _, hprepared_unique⟩

@@ -175,46 +175,7 @@ invariant [join_ack_msg_property3] join_ack_msg N R RP V ∧ V ≠ none → vote
 
 #time #gen_spec
 
-@[veil]
-theorem propose_choosable_proposal (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
-    [node_inhabited : Inhabited.{1} node] (value : Type) [value_dec_eq : DecidableEq.{1} value]
-    [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
-    [quorum_inhabited : Inhabited.{1} quorum] (round : Type) [round_dec_eq : DecidableEq.{1} round]
-    [round_inhabited : Inhabited.{1} round] (config : Type) [config_dec_eq : DecidableEq.{1} config]
-    [config_inhabited : Inhabited.{1} config] [tot : TotalOrder round] (χ : State.Label → Type)
-    [χ_rep :
-      ∀ __veil_f,
-        Veil.FieldRepresentation (State.Label.toDomain node value quorum round config __veil_f)
-          (State.Label.toCodomain node value quorum round config __veil_f) (χ __veil_f)]
-    [χ_rep_lawful :
-      ∀ __veil_f,
-        Veil.LawfulFieldRepresentation (State.Label.toDomain node value quorum round config __veil_f)
-          (State.Label.toCodomain node value quorum round config __veil_f) (χ __veil_f) (χ_rep __veil_f)]
-    [σ_sub : IsSubStateOf (@State χ) σ] [ρ_sub : IsSubReaderOf (@Theory node value quorum round config) ρ]
-    [propose_dec_0 : delta% @VerticalPaxosFirstOrder.propose._veil_dec_type_0 round χ value node quorum config χ_rep]
-    [propose_dec_1 :
-      delta% @VerticalPaxosFirstOrder.propose._veil_dec_type_1 round χ tot config node value quorum χ_rep]
-    [propose_dec_2 :
-      delta% @VerticalPaxosFirstOrder.propose._veil_dec_type_2 round node value quorum config χ tot χ_rep]
-    [propose_dec_3 :
-      delta% @VerticalPaxosFirstOrder.propose._veil_dec_type_3 round node value quorum config χ tot χ_rep]
-    [propose_dec_4 :
-      delta% @VerticalPaxosFirstOrder.propose._veil_dec_type_4 round node value quorum config χ χ_rep tot] :
-    ∀ (r : round) (c : config) (cr : round),
-      Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
-        (@propose.ext ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited quorum quorum_dec_eq
-          quorum_inhabited round round_dec_eq round_inhabited config config_dec_eq config_inhabited tot χ χ_rep
-          χ_rep_lawful σ_sub ρ_sub propose_dec_0 propose_dec_1 propose_dec_2 propose_dec_3 propose_dec_4 r c cr)
-        (@Assumptions ρ node node_dec_eq node_inhabited value value_dec_eq value_inhabited quorum quorum_dec_eq
-          quorum_inhabited round round_dec_eq round_inhabited config config_dec_eq config_inhabited tot ρ_sub)
-        (@Invariants ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited quorum quorum_dec_eq
-          quorum_inhabited round round_dec_eq round_inhabited config config_dec_eq config_inhabited tot χ χ_rep
-          χ_rep_lawful σ_sub ρ_sub)
-        (@choosable_proposal ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited quorum quorum_dec_eq
-          quorum_inhabited round round_dec_eq round_inhabited config config_dec_eq config_inhabited tot χ χ_rep
-          χ_rep_lawful σ_sub ρ_sub) :=
-  by
-  unveil
+prove_veil_invariant_goal propose choosable_proposal using wp by
   classical
   rcases hinv with
     ⟨_, hproposal_unique, _, _, _, honly_vote_proposed, _, hcomplete_holds, _, hdecisions_from_quorums,
@@ -348,41 +309,7 @@ theorem propose_choosable_proposal (ρ : Type) (σ : Type) (node : Type) [node_d
       · exact old_proposal_witness hlt
           (hproposal_post (by intro hr hp; exact hnew ⟨hr, hp⟩)) hneq hconfigured hquorum
 
-@[veil]
-theorem join_round_complete_choosable_decision (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
-    [node_inhabited : Inhabited.{1} node] (value : Type) [value_dec_eq : DecidableEq.{1} value]
-    [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
-    [quorum_inhabited : Inhabited.{1} quorum] (round : Type) [round_dec_eq : DecidableEq.{1} round]
-    [round_inhabited : Inhabited.{1} round] (config : Type) [config_dec_eq : DecidableEq.{1} config]
-    [config_inhabited : Inhabited.{1} config] [tot : TotalOrder round] (χ : State.Label → Type)
-    [χ_rep :
-      ∀ __veil_f,
-        Veil.FieldRepresentation (State.Label.toDomain node value quorum round config __veil_f)
-          (State.Label.toCodomain node value quorum round config __veil_f) (χ __veil_f)]
-    [χ_rep_lawful :
-      ∀ __veil_f,
-        Veil.LawfulFieldRepresentation (State.Label.toDomain node value quorum round config __veil_f)
-          (State.Label.toCodomain node value quorum round config __veil_f) (χ __veil_f) (χ_rep __veil_f)]
-    [σ_sub : IsSubStateOf (@State χ) σ] [ρ_sub : IsSubReaderOf (@Theory node value quorum round config) ρ]
-    [join_round_dec_0 :
-      delta% @VerticalPaxosFirstOrder.join_round._veil_dec_type_0 node round χ value quorum config χ_rep tot]
-    [join_round_dec_1 :
-      delta% @VerticalPaxosFirstOrder.join_round._veil_dec_type_1 node round χ value quorum config χ_rep] :
-    ∀ (n : node) (r : round) (rp : round),
-      Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
-        (@join_round.ext ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited quorum quorum_dec_eq
-          quorum_inhabited round round_dec_eq round_inhabited config config_dec_eq config_inhabited tot χ χ_rep
-          χ_rep_lawful σ_sub ρ_sub join_round_dec_0 join_round_dec_1 n r rp)
-        (@Assumptions ρ node node_dec_eq node_inhabited value value_dec_eq value_inhabited quorum quorum_dec_eq
-          quorum_inhabited round round_dec_eq round_inhabited config config_dec_eq config_inhabited tot ρ_sub)
-        (@Invariants ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited quorum quorum_dec_eq
-          quorum_inhabited round round_dec_eq round_inhabited config config_dec_eq config_inhabited tot χ χ_rep
-          χ_rep_lawful σ_sub ρ_sub)
-        (@complete_choosable_decision ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited quorum
-          quorum_dec_eq quorum_inhabited round round_dec_eq round_inhabited config config_dec_eq config_inhabited tot χ
-          χ_rep χ_rep_lawful σ_sub ρ_sub) :=
-  by
-  unveil
+prove_veil_invariant_goal join_round complete_choosable_decision using wp by
   rcases hinv with
     ⟨_, _, _, _, _, _, _, _, _, _, _, _, hcomplete_choosable_decision, _, _, _, _, _, _⟩
   intro _ _ t
@@ -398,41 +325,7 @@ theorem join_round_complete_choosable_decision (ρ : Type) (σ : Type) (node : T
         intro x hxmem x₁ hx₁ x₂ x₃ hjoin
         exact hchoosable x hxmem x₁ hx₁ x₂ x₃ (fun _ => hjoin))
 
-@[veil]
-theorem join_round_choosable_proposal (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
-    [node_inhabited : Inhabited.{1} node] (value : Type) [value_dec_eq : DecidableEq.{1} value]
-    [value_inhabited : Inhabited.{1} value] (quorum : Type) [quorum_dec_eq : DecidableEq.{1} quorum]
-    [quorum_inhabited : Inhabited.{1} quorum] (round : Type) [round_dec_eq : DecidableEq.{1} round]
-    [round_inhabited : Inhabited.{1} round] (config : Type) [config_dec_eq : DecidableEq.{1} config]
-    [config_inhabited : Inhabited.{1} config] [tot : TotalOrder round] (χ : State.Label → Type)
-    [χ_rep :
-      ∀ __veil_f,
-        Veil.FieldRepresentation (State.Label.toDomain node value quorum round config __veil_f)
-          (State.Label.toCodomain node value quorum round config __veil_f) (χ __veil_f)]
-    [χ_rep_lawful :
-      ∀ __veil_f,
-        Veil.LawfulFieldRepresentation (State.Label.toDomain node value quorum round config __veil_f)
-          (State.Label.toCodomain node value quorum round config __veil_f) (χ __veil_f) (χ_rep __veil_f)]
-    [σ_sub : IsSubStateOf (@State χ) σ] [ρ_sub : IsSubReaderOf (@Theory node value quorum round config) ρ]
-    [join_round_dec_0 :
-      delta% @VerticalPaxosFirstOrder.join_round._veil_dec_type_0 node round χ value quorum config χ_rep tot]
-    [join_round_dec_1 :
-      delta% @VerticalPaxosFirstOrder.join_round._veil_dec_type_1 node round χ value quorum config χ_rep] :
-    ∀ (n : node) (r : round) (rp : round),
-      Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
-        (@join_round.ext ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited quorum quorum_dec_eq
-          quorum_inhabited round round_dec_eq round_inhabited config config_dec_eq config_inhabited tot χ χ_rep
-          χ_rep_lawful σ_sub ρ_sub join_round_dec_0 join_round_dec_1 n r rp)
-        (@Assumptions ρ node node_dec_eq node_inhabited value value_dec_eq value_inhabited quorum quorum_dec_eq
-          quorum_inhabited round round_dec_eq round_inhabited config config_dec_eq config_inhabited tot ρ_sub)
-        (@Invariants ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited quorum quorum_dec_eq
-          quorum_inhabited round round_dec_eq round_inhabited config config_dec_eq config_inhabited tot χ χ_rep
-          χ_rep_lawful σ_sub ρ_sub)
-        (@choosable_proposal ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited quorum quorum_dec_eq
-          quorum_inhabited round round_dec_eq round_inhabited config config_dec_eq config_inhabited tot χ χ_rep
-          χ_rep_lawful σ_sub ρ_sub) :=
-  by
-  unveil
+prove_veil_invariant_goal join_round choosable_proposal using wp by
   rcases hinv with
     ⟨_, _, _, _, _, _, _, _, _, _, hchoosable_proposal, _, _, _, _, _, _, _, _⟩
   intro _ _ t

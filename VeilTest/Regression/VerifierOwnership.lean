@@ -152,7 +152,7 @@ private def canceledOwner : CommandElabM Unit := do
     let errors := observer.task.get.element.diagnostics.msgLog.toArray.filter (·.severity == .error)
     check (errors.size == 1) "canceled owner observer lost interruption diagnostic"
     let message ← errors[0]!.data.toString
-    check (message.contains "specification owner was canceled") "unexpected observer error"
+    check (message.contains "specification owner was canceled") s!"unexpected observer error: {message}"
     check ((← calls.get) == 0) "obsolete owner observer invoked callback"
     check (← b.d.cancelTk.isSet) "obsolete owner did not cancel its queued worker"
     a.publish.resolve (); a.finish.resolve ()

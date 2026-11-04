@@ -302,6 +302,10 @@ private def awaitFilteredWithLogging (managerId : ManagerId) (filter : VCMetadat
     -- Snapshot under the lock, render outside it (`toResults` pretty-prints).
     let mgr ← readVCManager
     if mgr._managerId != managerId then
+      -- Owner cleanup replaces the generation. Cancellation may have raced
+      -- the check above while we were acquiring the manager snapshot.
+      if ← owner.cancelTk.isSet then
+        throwError ownerCanceledMessage
       throwError "verification interrupted: VC manager generation {managerId} was replaced by {mgr._managerId}"
     registered ← logPendingDischargerTasks mgr filter registered
     if mgr.isDoneFiltered filter then

@@ -317,11 +317,31 @@ Options:
 does not have them yet, so `#gen_executable` with other options must come before them. -/
 scoped syntax (name := genExecutable) kw_gen_executable Parser.Tactic.optConfig : command
 
+/-- Run the current module's verification conditions (VCs) and add Lean theorem
+declarations for those with successful proof witnesses.
+
+Requires a finalized specification (`#gen_spec`). If `veil.deferVCGeneration`
+is enabled, generate the deferred verification definitions and VCs first.
+Starts any pending checks and blocks elaboration until all VCs have completed;
+no preceding `#check_invariants` is needed.
+
+Theorems use the VC names in the current namespace, e.g. `keep_excluded` for
+action `keep` and invariant `[excluded]`, or `keep_doesNotThrow` for its assertion
+check. VCs without a successful proof witness are skipped, including successful
+trace queries that do not produce proofs.
+
+Repeated calls to this reuse existing declarations with definitionally equal types;
+a name collision with a different type is an error. -/
 scoped syntax (name := genTheorems) kw_gen_theorems : command
 
 scoped syntax (name := checkInvariants) "#check_invariants" : command
 
 scoped syntax (name := checkAction) "#check_action" ident : command
+
+/-- Prove an action/invariant VC after automatically running `unveil`.
+The VC style is `wp` or `tr`; `doesNotThrow` selects the WP exception VC. -/
+scoped syntax (name := proveVeilInvariantGoal)
+  "prove_veil_invariant_goal " ident ident " using " (&"wp" <|> &"tr") " by " Tactic.tacticSeqIndentGt : command
 
 /-- Run the explicit state model checker on the current module with the given
 type instantiation and theory. The optional `maxDepth` parameter limits how

@@ -401,43 +401,17 @@ preserved by every action.
 
 If the SMT solver cannot solve a goal, rather than being stuck, we can prove
 this VC _interactively_. Clicking "Insert" (or Command+Click on the VC's name)
-in the InfoView widget places the statement of the verification condition into
-the editor buffer as a Lean `theorem` with a missing proof. The theorem is
-tagged with the `@[veil]` attribute, which informs Veil of its existence:
+in the InfoView widget inserts a `prove_veil_invariant_goal` proof stub into
+the editor buffer. The command generates the theorem statement from the
+current specification and registers the theorem with `@[veil]`:
 `#check_invariants` discharges the corresponding VC by applying it, tagging the
 clause as INTERACTIVE in the widget. The proof below does exactly this.
 -/
 
-/- The proof skeleton inserted by Veil includes the `unveil` tactic, which
-eliminates implementation details of Veil's encoding and presents the user
-with a human-readable goal. The overall structure of the proof mirrors the
-informal correctness argument. -/
-@[veil]
-theorem nodeDecide_agreement (ρ : Type) (σ : Type) (node : Type) [node_dec_eq : DecidableEq.{1} node]
-    [node_inhabited : Inhabited.{1} node] (value : Type) [value_dec_eq : DecidableEq.{1} value]
-    [value_inhabited : Inhabited.{1} value] [val_ord : TotalOrder value] (χ : State.Label → Type)
-    [χ_rep :
-      ∀ __veil_f,
-        Veil.FieldRepresentation (State.Label.toDomain node value __veil_f) (State.Label.toCodomain node value __veil_f)
-          (χ __veil_f)]
-    [χ_rep_lawful :
-      ∀ __veil_f,
-        Veil.LawfulFieldRepresentation (State.Label.toDomain node value __veil_f)
-          (State.Label.toCodomain node value __veil_f) (χ __veil_f) (χ_rep __veil_f)]
-    [σ_sub : IsSubStateOf (@State χ) σ] [ρ_sub : IsSubReaderOf (@Theory node value) ρ]
-    [nodeDecide_dec_0 : delta% @FloodSet.nodeDecide._veil_dec_type_0 node χ value χ_rep]
-    [nodeDecide_dec_1 : delta% @FloodSet.deterministicDecision._veil_dec_type_0 node value χ χ_rep val_ord] :
-    ∀ (n : node),
-      Veil.VeilM.meetsSpecificationIfSuccessfulAssuming
-        (@nodeDecide.ext ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited val_ord χ χ_rep
-          χ_rep_lawful σ_sub ρ_sub nodeDecide_dec_0 nodeDecide_dec_1 n)
-        (@Assumptions ρ node node_dec_eq node_inhabited value value_dec_eq value_inhabited val_ord ρ_sub)
-        (@Invariants ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited val_ord χ χ_rep χ_rep_lawful
-          σ_sub ρ_sub)
-        (@agreement ρ σ node node_dec_eq node_inhabited value value_dec_eq value_inhabited val_ord χ χ_rep χ_rep_lawful
-          σ_sub ρ_sub) :=
-  by
-  unveil
+/- The command runs `unveil` before the proof, eliminating implementation
+details of Veil's encoding and presenting a human-readable goal. The overall
+structure of the proof mirrors the informal correctness argument. -/
+prove_veil_invariant_goal nodeDecide agreement using wp by
   rcases hinv with
     ⟨hagree, _, _, hdecision_min, hcrash_limit, _, hdecision_crashed_after_end, _,
       hcrashed_le_round, _, hdecided_in_seen, _, hcrash_round_gap, _, hparticipants_equal⟩
