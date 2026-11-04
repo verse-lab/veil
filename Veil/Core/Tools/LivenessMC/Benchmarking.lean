@@ -105,19 +105,6 @@ def readVeilTimers : IO VeilTimers := do
     labelNs := (← sysLabelNs.get), labelCalls := (← sysLabelCalls.get), labelElems := (← sysLabelElems.get)
   }
 
-/-- Instrumented `check`: both Veil callbacks are wrapped so
-that `readVeilTimers` reports the time spent computing successors and labels. -/
-def checkTimed
-    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
-    (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
-    (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
-      (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true) :
-    LTLLib.EmptinessResult (σ × LTLLib.BAState) :=
-  LTLLib.modelCheck (S := Std.HashSet (LTLLib.NNF Nat)) p.φ sys.initStates
-    (timed (sysSucc sys)) (timedLabel (sysLabelOf sys p th))
-    (finiteReach_of_closed (sysSucc sys) sys.initStates (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed)
-
 /-- Instrumented `checkNDFS` (nested DFS over the *labelled* degeneralized TBA product): see `checkTimed`.
 
 Distinct from `checkTimed`, which benchmarks the legacy `LTLLib.modelCheck` (NNF tableau +

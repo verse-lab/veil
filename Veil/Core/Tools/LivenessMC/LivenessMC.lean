@@ -1,7 +1,6 @@
 module
 
 public import Veil.Core.Tools.LivenessMC.Interface
-public import LTLLib.TGBABased.ModelCheck
 public import LTLLib.ModelCheck
 
 public section
@@ -180,18 +179,6 @@ theorem sysStepOf_eq [BEq l] [Hashable l]
   · show p.stateLabel th' st (if p.hasEnabledAtoms then enabledOfOutcomes (sys.tr th st) else []) = _
     rw [sysLabelOf, sysLabelOfTr]
     split <;> rfl
-
-/-- Run `LTLLib.modelCheck` for a `liveness`-declared property `p` -/
-def check
-    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
-    (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
-    (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
-      (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true) :
-    LTLLib.EmptinessResult (σ × LTLLib.BAState) :=
-  LTLLib.modelCheck (S := Std.HashSet (LTLLib.NNF Nat)) p.φ sys.initStates (sysSucc sys)
-    (sysLabelOf sys p th)
-    (finiteReach_of_closed (sysSucc sys) sys.initStates (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed)
 
 /-- Run `LTLLib.modelCheckDijkstra` for a `liveness`-declared property `p` -/
 def checkDijkstra [Inhabited σ]
