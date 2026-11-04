@@ -6,8 +6,8 @@
   "scripts": {
     "watch": "rollup --environment NODE_ENV:production --config --watch",
     "watch-dev": "rollup --config --watch",
-    "build": "npx tsc && rollup --environment NODE_ENV:production --config",
-    "build-dev": "npx tsc && rollup --config",
+    "build": "npm run clean && npx tsc && rollup --environment NODE_ENV:production --config",
+    "build-dev": "npm run clean && npx tsc && rollup --config",
     "clean": "rm -rf dist/"
   },
   "dependencies": {
