@@ -263,12 +263,4 @@ def specShape [Inhabited σ]
     let cs := Lasso.CompiledSpec.of (Lasso.streettRSpecOf tgba ss sl dss)
     (cs.numOptions, cs.numOptMarks, cs.optMarks.foldl (init := 0) fun n m => n + m.size)
 
-/-- Instrumented `checkUnderFairness`, the cross and region latch. -/
-def checkUnderFairnessTimed [Inhabited σ]
-    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
-    Lasso.EmptinessResult ((σ × Nat) × Bool) :=
-  Lasso.modelCheckUnderFairness p.φ sys.initStates
-    (timedSteps (sysStepsLabelled sys (edgeLabelling p))) (timedLabel (sysLabelOf sys p th))
-
 end Veil.LivenessMC

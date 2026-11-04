@@ -183,16 +183,6 @@ def checkNDFS [Inhabited σ]
         exact finiteReach_of_closed (sysSucc sys) sys.initStates
           (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed)
 
-/-- Run `Lasso.modelCheckUnderFairness` on the declared property as written. Every conjunct of the negated property that is
-a fairness in the sense of [LSFZ16] and flattens into `LTL(F, G)` becomes acceptance marks and a region restriction on the
-product rather than reaching the tableau. -/
-def checkUnderFairness [Inhabited σ]
-    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
-    Lasso.EmptinessResult ((σ × Nat) × Bool) :=
-  Lasso.modelCheckUnderFairness p.φ sys.initStates
-    (sysStepsLabelled sys (edgeLabelling p)) (sysLabelOf sys p th)
-
 /-! ## When the prune takes its fast path
 
 The prune is the faster route and the default. A hoisted `◇□` region that mentions an edge atom has to be committed before a
