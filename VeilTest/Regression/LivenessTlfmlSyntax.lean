@@ -1,11 +1,12 @@
 module
 
 public import Veil
+public import Veil.Liveness
 
 /-!
 # `liveness` formulas are written in `tlfml`
 
-`liveness` reads Lentil's `tlfml` category, extended with `E(…)`, `T(…)` and `↔`, and checks it as an
+`liveness` reads Lentil's `tlfml` category, extended with `E(…)` and `T(…)`, and checks it as an
 `LTLLib.Formula` built by `[ltl| …]`.
 -/
 
@@ -28,7 +29,7 @@ action step {
 -- state `x = 0`, whereas `(x = 1 → x = 2) → x = 3` does not.
 temporal [impliesRight] ⌜ x = 1 ⌝ → ⌜ x = 2 ⌝ → ⌜ x = 3 ⌝
 temporal [impliesLeft] (⌜ x = 1 ⌝ → ⌜ x = 2 ⌝) → ⌜ x = 3 ⌝
-temporal (only := check) [iff] ⌜ x = 0 ⌝ ↔ ¬ ⌜ x ≠ 0 ⌝
+temporal [iff] ⌜ x = 0 ⌝ ↔ ¬ ⌜ x ≠ 0 ⌝
 temporal (only := check) [stepFair] □ (E(step) → ◇ T(step))
 -- The only run is `x = 0, 1, 2, 3, 3, …`
 temporal [nextIsOne] ◯ ⌜ x = 1 ⌝
@@ -41,6 +42,13 @@ temporal [zeroLeadsToThree] ⌜ x = 0 ⌝ ↝ ⌜ x = 3 ⌝
 #guard_msgs in
 #temporal_check [impliesRight] [iff] [stepFair] [nextIsOne] [belowUntilThree] [zeroLeadsToThree]
   interpreted {}
+
+-- Lentil has `↔` too, so `iff` is also proved
+prove_temporal_by [iff]
+  tstart hInit hNext hInv
+  tclear hInit hNext hInv
+  tdsimp only [iff]
+  tconstructor <;> tfinite_window <;> simp
 
 /--
 error: ❌ Violation: liveness_failure (violates: impliesLeft)

@@ -5,6 +5,7 @@ require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.32.0-veil
 require Loom from git "https://github.com/verse-lab/loom.git" @ "396cfd2165e4916e460d935d9cbb27c54d8669a2"
 require VerifiedHAMT from git "https://github.com/verse-lab/VerifiedHAMT.git" @ "24bbc61c6ca37ef38f984566399461c9afa2b0d3"
 require LTLLib from git "https://github.com/verse-lab/Lasso.git" @ "main"
+require lentil from git "https://github.com/verse-lab/Lentil.git" @ "v4.32.0"
 
 require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.32.0"
 require aesop from git "https://github.com/leanprover-community/aesop" @ "v4.32.0"

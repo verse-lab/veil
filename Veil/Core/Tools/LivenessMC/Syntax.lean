@@ -18,9 +18,6 @@ namespace Veil.LivenessMC
 
 open Lean Elab Term
 
-/-- `φ ↔ ψ`. Non-associative, like Lean's `↔`. -/
-syntax:20 (name := tlfmlIff) tlfml:21 " ↔ " tlfml:21 : tlfml
-
 /-- An LTL formula as an `LTLLib.Formula` syntax tree. -/
 syntax (name := ltlFormula) "[ltl|" tlfml "]" : term
 
