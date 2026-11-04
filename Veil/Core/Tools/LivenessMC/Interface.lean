@@ -15,9 +15,9 @@ instantiation of an action can fire is determined by the state alone. -/
 inductive LivenessAtom (ρ σ l : Type) where
   -- the `⌜ … ⌝` form, a predicate on the state
   | state (p : Veil.ModelChecker.SafetyProperty ρ σ)
-  -- `E(a)`, matched on the action label, so `E(send)` and `E(send n next)` are one construct with a different predicate
+  -- `Enabled a`, matched on the action label, so `Enabled send` and `Enabled (send n next)` use different predicates
   | enabled (name : Name) (isMatch : l → Bool)
-  -- `T(a)`, a property of the step
+  -- `⟨a⟩`, a property of the step
   | taken (name : Name) (isMatch : l → Bool)
 
 def LivenessAtom.name : LivenessAtom ρ σ l → Name
@@ -66,7 +66,7 @@ where
     | .eventually φ => .eventually <$> number φ
     | .always φ => .always <$> number φ
 
-/-- The state atoms holding at `st`, the `⌜ … ⌝` predicates plus the `E(a)` atoms matched by some label that can fire at `st`.
+/-- The state atoms holding at `st`, the `⌜ … ⌝` predicates plus the `Enabled a` atoms matched by some label that can fire at `st`.
 `enabledHere` is the caller's list of step-enabled labels, those with a `.success` outcome, not merely those whose guard passes. -/
 @[inline, specialize]
 def LivenessProperty.stateLabel (p : LivenessProperty ρ σ l) (th : ρ) (st : σ)
@@ -77,7 +77,7 @@ def LivenessProperty.stateLabel (p : LivenessProperty ρ σ l) (th : ρ) (st : �
       | .enabled _ isMatch => if enabledHere.any isMatch then acc.insert i else acc
       | .taken _ _ => acc)).2
 
-/-- The edge atoms a step labelled `lbl` contributes: the `T(a)` atoms matching it. -/
+/-- The edge atoms a step labelled `lbl` contributes: the `⟨a⟩` atoms matching it. -/
 @[inline, specialize]
 def LivenessProperty.edgeLabel (p : LivenessProperty ρ σ l) (lbl : l) : Std.HashSet Nat :=
   (p.atoms.foldl (init := ((0 : Nat), (∅ : Std.HashSet Nat))) fun (i, acc) a =>
@@ -85,7 +85,7 @@ def LivenessProperty.edgeLabel (p : LivenessProperty ρ σ l) (lbl : l) : Std.Ha
       | .taken _ isMatch => if isMatch lbl then acc.insert i else acc
       | _ => acc)).2
 
-/-- Is atom index `i` a `T(…)`, one a step can contribute? This is the `edgeAtom` predicate Lasso's
+/-- Is atom index `i` a `⟨…⟩`, one a step can contribute? This is the `edgeAtom` predicate Lasso's
 `modelCheckFairRoutedOfStep` takes, and the whole of what Veil tells it. -/
 def LivenessProperty.isEdgeAtom (p : LivenessProperty ρ σ l) (i : Nat) : Bool :=
   match p.atoms[i]? with
@@ -129,11 +129,11 @@ theorem LivenessProperty.isEdgeAtom_of_mem_edgeLabel (p : LivenessProperty ρ σ
     | state _ => simp only [ha] at hj'; exact hacc j' hj'
     | enabled _ _ => simp only [ha] at hj'; exact hacc j' hj'
 
-/-- Does the property mention an `E(a)`? -/
+/-- Does the property mention an `Enabled a`? -/
 def LivenessProperty.hasEnabledAtoms (p : LivenessProperty ρ σ l) : Bool :=
   p.atoms.any fun | .enabled _ _ => true | _ => false
 
-/-- Does the property mention a `T(a)`? Only then are the steps' letters non-empty. -/
+/-- Does the property mention a `⟨a⟩`? Only then are the steps' letters non-empty. -/
 def LivenessProperty.hasEdgeAtoms (p : LivenessProperty ρ σ l) : Bool :=
   p.atoms.any fun | .taken _ _ => true | _ => false
 

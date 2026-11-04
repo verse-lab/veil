@@ -50,7 +50,7 @@ def sysSucc
   ((sys.tr th st).successes.map Prod.snd).toArray
 
 /-- The labels (action instantiations) that can fire in `st`, those with a `.success` outcome. Step-enabled, not
-guard-enabled, which keeps `E(a)` coherent with `T(a)`: `E(a)` holds at `s` exactly when some `T(a)`-step leaves `s`. -/
+guard-enabled, which keeps `Enabled a` coherent with `⟨a⟩`: `Enabled a` holds at `s` exactly when some `⟨a⟩`-step leaves `s`. -/
 def enabledLabelsTr [BEq l] [Hashable l]
     (tr : σ → Veil.Transitions l Int σ) (st : σ) : List l :=
   ((tr st).successes.foldl (init := Std.HashSet.emptyWithCapacity) fun seen (lbl, _) =>
@@ -64,11 +64,11 @@ def enabledLabels [BEq l] [Hashable l]
 /-- One shared empty letter, a closed constant allocated once. -/
 def emptyLetter : Std.HashSet Nat := ∅
 
-/-- The edge labelling as data, `none` when the property has no `T(…)`. -/
+/-- The edge labelling as data, `none` when the property has no `⟨…⟩`. -/
 def edgeLabelling (p : LivenessProperty ρ σ l) : Option (l → Std.HashSet Nat) :=
   if p.hasEdgeAtoms then some p.edgeLabel else none
 
-/-- The system as a labelled graph, each successful step paired with the `T(a)` atoms its label matches. -/
+/-- The system as a labelled graph, each successful step paired with the `⟨a⟩` atoms its label matches. -/
 def sysStepsLabelledTr (tr : σ → Veil.Transitions l Int σ)
     (edgeLabel? : Option (l → Std.HashSet Nat)) :
     σ → Array (Lasso.LStep Nat σ) :=
@@ -100,8 +100,8 @@ theorem targets_sysStepsLabelled
         List.toList_toArray, List.map_map]
       rfl
 
-/-- The state labelling, the `⌜ … ⌝` atoms plus the `E(a)` atoms. The enabled set costs a `tr` call, so it is computed only
-when the property mentions an `E`. -/
+/-- The state labelling, the `⌜ … ⌝` atoms plus the `Enabled a` atoms. The enabled set costs a `tr` call, so it is computed only
+when the property mentions an `Enabled`. -/
 def sysLabelOfTr [BEq l] [Hashable l]
     (tr : σ → Veil.Transitions l Int σ) (p : LivenessProperty ρ σ l) (th' : ρ) :
     σ → Std.HashSet Nat :=
@@ -116,7 +116,7 @@ def sysLabelOf [BEq l] [Hashable l]
 
 /-! ## One walk of `tr` per state
 
-`sysStepsLabelled` and `sysLabelOf` each enumerate `sys.tr`, and with an `E(a)` in the property the search needs both at
+`sysStepsLabelled` and `sysLabelOf` each enumerate `sys.tr`, and with an `Enabled a` in the property the search needs both at
 every state it visits. `sysStepOf` gives a state's steps and its atoms from one call. -/
 
 /-- The steps of already-enumerated transitions. -/
@@ -188,17 +188,17 @@ def checkNDFS [Inhabited σ]
 The prune is the faster route and the default. A hoisted `◇□` region that mentions an edge atom has to be committed before a
 report, which costs an extra search level over the accepting SCC, while a region that does not is committable on the first
 pass. The decision is `Lasso.modelCheckFairRoutedOfStep`'s, Veil owes it only the classification of which atom indices are
-`T(…)` and the proof that a step contributes nothing else. -/
+`⟨…⟩` and the proof that a step contributes nothing else. -/
 
 omit [BEq σ] [Hashable σ] [LawfulBEq σ] [BEq l] [Hashable l] in
-/-- Every atom a labelled step contributes is a `T(…)` index. -/
+/-- Every atom a labelled step contributes is a `⟨…⟩` index. -/
 theorem steps_edgeAtom
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     ∀ s, ∀ st ∈ Lasso.LSys.totalize (sysStepsLabelled sys (edgeLabelling p)) s,
       ∀ a ∈ st.1, p.isEdgeAtom a = true := by
   intro s st hst a ha
-  -- with no `T(…)` every step reads `emptyLetter`, so there is nothing to classify
+  -- with no `⟨…⟩` every step reads `emptyLetter`, so there is nothing to classify
   rcases hlab : edgeLabelling p with _ | f
   · rw [hlab] at hst
     rcases Lasso.LSys.mem_totalize.mp hst with h
@@ -225,12 +225,12 @@ theorem steps_edgeAtom
       rw [← heq] at ha
       exact p.isEdgeAtom_of_mem_edgeLabel lbl ha
 
-/-- Does every region the prune would receive avoid the `T(…)` atoms? -/
+/-- Does every region the prune would receive avoid the `⟨…⟩` atoms? -/
 def pruneRegionsAvoidEdgeAtoms (p : LivenessProperty ρ σ l) : Bool :=
   Lasso.pruneApplicable p.isEdgeAtom p.φ
 
 /-- The default route, `Lasso.modelCheckFairRoutedOfStep`, which takes the prune, every fairness conjunct hoisted and
-decided per SCC, and falls back to the crossing when a hoisted region mentions a `T(…)` atom. -/
+decided per SCC, and falls back to the crossing when a hoisted region mentions a `⟨…⟩` atom. -/
 def checkFair [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
@@ -361,7 +361,7 @@ instance [Inhabited σ] {sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (
     (Veil.Transitions l Int σ) th} : RouteCertificate .fair sys := ⟨trivial⟩
 
 /-- Run `route` on `p`. `patOnly` and `prune` fall back to `crossing` when a hoisted region mentions
-a `T(…)` atom. -/
+a `⟨…⟩` atom. -/
 def checkRoute [Inhabited σ] (route : Route)
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)

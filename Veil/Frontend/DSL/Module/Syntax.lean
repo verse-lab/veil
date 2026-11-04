@@ -319,36 +319,7 @@ scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term :
 
 /- ## Temporal (LTL) properties
 
-Formulas are written in Lentil's `tlfml` category, extended below with the action atoms `E(…)` and
-`T(…)` and the fairness conditions `WF(…)` and `SF(…)`; these only exist for model checking. -/
-
-/-- `E(a)`: Some instantiation of action `a` can fire here. `E(a x y)`: That parameterized instantiation can.
-
-A *state* atom: whether an action can fire is determined by the state alone. "Can fire" means the action
-has a successful outcome, see `LivenessMC.enabledLabels`. -/
-scoped syntax (name := tlfmlEnabled) "E(" ident (term:max)* ")" : tlfml
-
-/-- `T(a)`: The step taken here is some instantiation of action `a`. `T(a x y)`: It is that parameterized instantiation.
-
-An *edge* atom: it is a property of the step, not of either endpoint. -/
-scoped syntax (name := tlfmlTaken) "T(" ident (term:max)* ")" : tlfml
-
-/-- Weak fairness.
-
-`WF(a x y)` means `(◇ □ E(a x y)) → □ ◇ T(a x y)`: if from some point on `a x y` can fire in every state,
-then `a x y` is taken infinitely often.
-
-`WF(a)` means `(◇ □ E(a)) → □ ◇ T(a)`. Since `E(a)` and `T(a)` are about any instantiation of `a`, this
-says: if from some point on some instantiation of `a` can fire in every state (not necessarily the same
-one), then some instantiation of `a` is taken infinitely often (again not necessarily the same one).
-
-So `WF(a)` does not make every instantiation of `a` fair. For example, a run that keeps taking `a 2`
-satisfies `WF(a)`, even if `a 1` can always fire and is never taken; it does not satisfy `WF(a 1)`.
-To make every instantiation of `a` fair, write `∀ x, WF(a x)`. -/
-scoped syntax (name := tlfmlWeakFairness) "WF(" ident (term:max)* ")" : tlfml
-
-/-- Strong fairness. See the explanation for `WF(…)` for details. -/
-scoped syntax (name := tlfmlStrongFairness) "SF(" ident (term:max)* ")" : tlfml
+Formulas are written in Lentil's `tlfml` category; see `temporal` for how Veil reads them. -/
 
 /-- A temporal property is an LTL formula over the system's execution traces. Unlike safety
 properties, which are state predicates, temporal properties are properties about traces.
@@ -356,11 +327,35 @@ properties, which are state predicates, temporal properties are properties about
 Veil defines it twice: `p`, a `Lentil.pred` that `prove_temporal_by [p]` proves, and `p.ast`, an
 `Lasso.Formula` syntax tree that `#temporal_check` checks. `(only := verify)` and `(only := check)` keep
 one of them. Without `(only := …)`, a definition that fails to elaborate is dropped with a warning, e.g.
-`p` when the formula uses `E(…)`, which only model checking supports.
+`p.ast` when the formula uses `⟨ r ⟩` for a relation `r` that is not one of the module's actions.
 
 Declared before `#gen_spec`, the definitions are generated once the spec is finalized; declared after,
 right away. Inside `⌜ … ⌝`, the module's theory and state fields and its ghosts are in scope, as in an
 assertion.
+
+The module's actions appear in `Enabled a`, `⟨ a ⟩`, `𝒲ℱ a` and `𝒮ℱ a`, applied to arguments (`a x y`) or
+not (`a`, which stands for some instantiation of `a`). `Enabled a` means the same in `p` and `p.ast`: some
+execution of `a` does not throw.
+
+---
+
+**Caveat.** `⟨ a ⟩` does not:
+- in `p`, it is Lentil's action predicate: the transition relation of `a` holds between the two states,
+  i.e. the step has the same effect as some execution of `a` from the same starting state;
+- in `p.ast`, it holds on a step whose label is (an instantiation of) `a`, i.e. the step the model checker
+  took *is* `a`.
+
+If two distinct actions `a` and `b` have the same transition relation, a step taken by `b`
+satisfies `⟨ a ⟩` in `p`, but not in `p.ast`. Consequently, the two definitions of a temporal
+property can give different answers; see `ParallelEdges` in `VeilTest/ActionAtoms.lean`.
+
+---
+
+`𝒲ℱ a` and `𝒮ℱ a` are weak and strong fairness. For `p.ast` they unfold to `(◇ □ Enabled a) → □ ◇ ⟨ a ⟩`
+and `(□ ◇ Enabled a) → □ ◇ ⟨ a ⟩` (Lentil's `wf_as_implies` and `sf_as_implies`). Since an unapplied `a`
+stands for some instantiation, `𝒲ℱ a` does not make every instantiation of `a` fair: a run that keeps
+taking `a 2` satisfies `𝒲ℱ a`, even if `a 1` can always fire and is never taken. To make every
+instantiation of `a` fair, write `∀ x, 𝒲ℱ (a x)`.
 
 `∀ x, φ` and `∃ x, φ` (or `∀ x : T, φ` and `∃ x : T, φ`) quantify over all values of the type of `x`.
 To model check them, the type needs an `Enumeration` instance: `#temporal_check` checks the conjunction
@@ -370,9 +365,9 @@ is the instance of the type that `#temporal_check` puts in for the sort, e.g. `F
 Example:
 ```lean
 temporal [someChosen] ◇ ⌜ chosen = 1 ⌝
-temporal (only := check) [sendIsFair] □ (E(send) → ◇ T(send))
-temporal (only := check) [allSent] (∀ n, WF(send n)) → ∀ n, ◇ ⌜ sent n ⌝
-temporal (only := verify) [eventuallyChosen] 𝒲ℱ choose → ◇ ⌜ ∃ v, chosen v ⌝
+temporal [sendIsFair] □ (Enabled send → ◇ ⟨ send ⟩)
+temporal [allSent] (∀ n, 𝒲ℱ (send n)) → ∀ n, ◇ ⌜ sent n ⌝
+temporal [eventuallyChosen] 𝒲ℱ choose → ◇ ⌜ ∃ v, chosen v ⌝
 ```
 -/
 syntax (name := temporalDeclaration)

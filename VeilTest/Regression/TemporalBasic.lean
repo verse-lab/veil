@@ -32,34 +32,42 @@ temporal [usesMutableRelationField] ◇ ⌜ seen limit ⌝
 temporal [usesMutableIndividualField] ◇ ⌜ counter = limit ⌝
 temporal [top] (⊤)
 
--- The action atoms only exist for model checking: without `only`, such a property is only model checked
+-- The action atoms exist for both proving and model checking
+#guard_msgs in
+temporal [usesEnabledAtom] □ Enabled tick
+#guard_msgs in
+temporal [usesTakenAtom] □ ◇ ⟨tick⟩
+
+-- A step relation that is not one of the module's actions only exists for proving: without `only`, such a
+-- property is only proved
 /--
-warning: `usesEnabledAtom` is only model checked, since its proof definition fails to elaborate (write `temporal (only := check)` to say so):
-  `E(…)` only exists for model checking
+warning: `usesRelation` is only proved, since its model-checking definition fails to elaborate (write `temporal (only := verify)` to say so):
+  expected an action of this module, applied to arguments or not; the module's actions are [tick]
 -/
 #guard_msgs in
-temporal [usesEnabledAtom] □ E(tick)
-/-- error: `T(…)` only exists for model checking -/
+temporal [usesRelation] □ ◇ ⟨ fun s s' => s ≠ s' ⟩
+/-- error: expected an action of this module, applied to arguments or not; the module's actions are [tick] -/
 #guard_msgs in
-temporal (only := verify) [usesTakenAtom] □ ◇ T(tick)
+temporal (only := check) [checksRelation] □ ◇ ⟨ fun s s' => s ≠ s' ⟩
 
-/-- error: Temporal property 'usesEnabledAtom' is only model checked, so it has nothing to prove -/
+temporal (only := check) [checkOnly] □ ◇ ⟨tick⟩
+/-- error: Temporal property 'checkOnly' is only model checked, so it has nothing to prove -/
 #guard_msgs in
-prove_temporal_by [usesEnabledAtom] sorry
+prove_temporal_by [checkOnly] sorry
 
--- `warningAsError` turns the warning into an error; the property is still kept for model checking.
+-- `warningAsError` turns the warning into an error; the property is still kept for proving.
 -- (Not `set_option … in`: the section it opens would drop the property from the module when it ends.)
 set_option warningAsError true
 /--
-error: `takenAsError` is only model checked, since its proof definition fails to elaborate (write `temporal (only := check)` to say so):
-  `T(…)` only exists for model checking
+error: `relationAsError` is only proved, since its model-checking definition fails to elaborate (write `temporal (only := verify)` to say so):
+  expected an action of this module, applied to arguments or not; the module's actions are [tick]
 -/
 #guard_msgs in
-temporal [takenAsError] □ ◇ T(tick)
+temporal [relationAsError] □ ◇ ⟨ fun s s' => s ≠ s' ⟩
 set_option warningAsError false
 
-/-- error: Temporal property 'takenAsError' is only model checked, so it has nothing to prove -/
+/-- warning: declaration uses `sorry` -/
 #guard_msgs in
-prove_temporal_by [takenAsError] sorry
+prove_temporal_by [relationAsError] sorry
 
 end TemporalBasic

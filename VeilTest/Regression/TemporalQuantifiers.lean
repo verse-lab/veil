@@ -27,14 +27,14 @@ action stay {
 }
 
 -- HOLDS: strong fairness of every `toLeaf l` visits every location infinitely often
-temporal (only := check) [allVisited] (∀ l : Loc, SF(toLeaf l)) ∧ WF(toHub) → ∀ l : Loc, □ ◇ ⌜ loc = l ⌝
+temporal (only := check) [allVisited] (∀ l : Loc, 𝒮ℱ (toLeaf l)) ∧ 𝒲ℱ toHub → ∀ l : Loc, □ ◇ ⌜ loc = l ⌝
 temporal (only := check) [allVisitedByHand]
-  ((SF(toLeaf 0) ∧ SF(toLeaf 1) ∧ SF(toLeaf 2)) ∧ WF(toHub)) →
+  ((𝒮ℱ (toLeaf 0) ∧ 𝒮ℱ (toLeaf 1) ∧ 𝒮ℱ (toLeaf 2)) ∧ 𝒲ℱ toHub) →
     (□ ◇ ⌜ loc = 0 ⌝) ∧ (□ ◇ ⌜ loc = 1 ⌝) ∧ (□ ◇ ⌜ loc = 2 ⌝)
 -- The same, with the type of `l` inferred from `toLeaf l`
-temporal (only := check) [allVisitedInferred] (∀ l, SF(toLeaf l)) ∧ WF(toHub) → ∀ l : Loc, □ ◇ ⌜ loc = l ⌝
+temporal (only := check) [allVisitedInferred] (∀ l, 𝒮ℱ (toLeaf l)) ∧ 𝒲ℱ toHub → ∀ l : Loc, □ ◇ ⌜ loc = l ⌝
 -- FAILS: strong fairness of `toLeaf` as a whole is met by the run `0, 2, 0, 2, …`
-temporal (only := check) [wholeFails] SF(toLeaf) ∧ WF(toHub) → ∀ l : Loc, □ ◇ ⌜ loc = l ⌝
+temporal (only := check) [wholeFails] 𝒮ℱ toLeaf ∧ 𝒲ℱ toHub → ∀ l : Loc, □ ◇ ⌜ loc = l ⌝
 -- HOLDS: every run reaches some leaf
 temporal (only := check) [someLeaf] ∃ l : Loc, ◇ ⌜ loc = l ∧ l ≠ 0 ⌝
 temporal (only := check) [someLeafByHand]
@@ -76,7 +76,7 @@ temporal (only := check) [everyLeafFails] ∀ l : Loc, ◇ ⌜ loc = l ⌝
 
 -- Binder predicates are not supported
 /--
-error: a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `E(…)` and `T(…)`, the fairness conditions `WF(…)` and `SF(…)`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and `∃ x : T, …`; this formula is none of them
+error: a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `Enabled …` and `⟨ … ⟩`, the fairness conditions `𝒲ℱ …` and `𝒮ℱ …`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and `∃ x : T, …`; this formula is none of them
 -/
 #guard_msgs in
 temporal (only := check) [bounded] ∀ l > (0 : Loc), ◇ ⌜ loc = l ⌝
@@ -106,11 +106,11 @@ action back {
 ghost relation isVisited (n : node) := visiting n
 
 -- HOLDS: strong fairness of every `go n` visits every node
-temporal (only := check) [eachVisited] (∀ n, SF(go n)) ∧ WF(back) → ∀ n, □ ◇ ⌜ visiting n ⌝
+temporal (only := check) [eachVisited] (∀ n, 𝒮ℱ (go n)) ∧ 𝒲ℱ back → ∀ n, □ ◇ ⌜ visiting n ⌝
 -- FAILS: strong fairness of `go` as a whole is met by always visiting the same node
-temporal (only := check) [eachVisitedWhole] SF(go) ∧ WF(back) → ∀ n, □ ◇ ⌜ visiting n ⌝
+temporal (only := check) [eachVisitedWhole] 𝒮ℱ go ∧ 𝒲ℱ back → ∀ n, □ ◇ ⌜ visiting n ⌝
 -- HOLDS: nested quantifiers, and a ghost under them
-temporal (only := check) [nested] (∀ n, SF(go n)) ∧ WF(back) → ∀ n, ∃ m, □ ◇ ⌜ isVisited m ∧ m = n ⌝
+temporal (only := check) [nested] (∀ n, 𝒮ℱ (go n)) ∧ 𝒲ℱ back → ∀ n, ∃ m, □ ◇ ⌜ isVisited m ∧ m = n ⌝
 -- HOLDS: the `Decidable` instance of the atom depends on `n`
 temporal (only := check) [atMostOne] □ ∀ n, ⌜ visiting n → ∀ m, visiting m → m = n ⌝
 -- HOLDS, and also gets its proof definition, through Lentil's `∃`

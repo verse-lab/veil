@@ -6,8 +6,7 @@ public import Veil.Liveness
 /-!
 # `liveness` formulas are written in `tlfml`
 
-`liveness` reads Lentil's `tlfml` category, extended with `E(…)` and `T(…)`, and checks it as an
-`Lasso.Formula` built by `[ltl| …]`.
+`liveness` reads Lentil's `tlfml` category and checks it as a `Lasso.Formula` built by `[ltl| …]`.
 -/
 
 veil module LivenessTlfmlSyntax
@@ -30,7 +29,7 @@ action step {
 temporal [impliesRight] ⌜ x = 1 ⌝ → ⌜ x = 2 ⌝ → ⌜ x = 3 ⌝
 temporal [impliesLeft] (⌜ x = 1 ⌝ → ⌜ x = 2 ⌝) → ⌜ x = 3 ⌝
 temporal [iff] ⌜ x = 0 ⌝ ↔ ¬ ⌜ x ≠ 0 ⌝
-temporal (only := check) [stepFair] □ (E(step) → ◇ T(step))
+temporal (only := check) [stepFair] □ (Enabled step → ◇ ⟨step⟩)
 -- The only run is `x = 0, 1, 2, 3, 3, …`
 temporal [nextIsOne] ◯ ⌜ x = 1 ⌝
 temporal [belowUntilThree] ⌜ x < 3 ⌝ 𝑈 ⌜ x = 3 ⌝
@@ -91,12 +90,12 @@ action step {
 ghost relation positive := x > 0
 
 temporal (only := check) [bare] ◇ positive
-temporal (only := check) [weakFair] 𝒲ℱ step
+temporal (only := check) [bigConj] ⋀ i ∈ [0, 1], ◇ ⌜ x = i ⌝
 
 /--
 error: a plain term is not an atomic proposition of a model-checked property; write `⌜ positive ⌝` for a state predicate
 ---
-error: a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `E(…)` and `T(…)`, the fairness conditions `WF(…)` and `SF(…)`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and `∃ x : T, …`; this formula is none of them
+error: a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `Enabled …` and `⟨ … ⟩`, the fairness conditions `𝒲ℱ …` and `𝒮ℱ …`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and `∃ x : T, …`; this formula is none of them
 -/
 #guard_msgs in
 #gen_spec

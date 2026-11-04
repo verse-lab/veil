@@ -35,7 +35,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "5305ab77f8153ea79f775e771e9cbb0ad241c1e1",
+   "rev": "c31df369e5c135c70435ba59a904337e05e58245",
    "name": "lentil",
    "manifestFile": "lake-manifest.json",
    "inputRev": "v4.32.0",
