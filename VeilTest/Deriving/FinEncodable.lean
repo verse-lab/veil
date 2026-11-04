@@ -175,6 +175,48 @@ deriving FinEncodable, FinEncodableInjOnly
 
 end DifferentEncodings
 
+-- A wide inductive: the deforested encoding's equations are checked by the kernel
+-- (`veil_kernel_rfl`); the elaborator's `rfl` ran out of heartbeats at 24 constructors.
+inductive Wide (node : Type u) where
+  | a0 (n : node)
+  | a1 (n : node)
+  | a2 (n : node)
+  | a3 (n : node)
+  | a4 (n : node)
+  | a5 (n : node)
+  | a6 (n : node)
+  | a7 (n : node)
+  | a8 (n : node)
+  | a9 (n : node)
+  | a10 (n : node)
+  | a11 (n : node)
+  | a12 (n : node)
+  | a13 (n : node)
+  | a14 (n : node)
+  | a15 (n : node)
+  | a16 (n : node)
+  | a17 (n : node)
+  | a18 (n : node)
+  | a19 (n : node)
+  | a20 (n : node)
+  | a21 (n : node)
+  | a22 (n : node)
+  | a23 (n : node)
+deriving FinEncodable
+
+#guard FinEncodable.card (Wide (Fin 2)) == 48
+#guard (FinEncodable.equiv (Wide.a23 (1 : Fin 2))).val == 47
+
+#eval do
+  let enc := FinEncodable.equiv (α := Wide (Fin 2))
+  for i in List.finRange 48 do
+    assert! enc (enc.symm i) == i
+
+example (x : Wide (Fin 3)) :
+    FinEncodable.equiv x =
+      (FinEncodable.ofEquiv (veil_proxy_equiv% Wide (Fin 3)).symm).equiv x := by
+  cases x <;> veil_kernel_rfl
+
 -- Unsupported type shapes retain the proxy machinery's clear diagnostics.
 /-- error: proxy equivalence: recursive inductive types are not supported (and are usually infinite) -/
 #guard_msgs in
