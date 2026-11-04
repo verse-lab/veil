@@ -29,16 +29,14 @@ invariant true
 
 -- Both definitions, generated once the spec is finalized
 temporal [selfImplied] ⌜ raised ⌝ → ⌜ raised ⌝
--- `T(…)` has no proof definition, and `𝒲ℱ` no model-checking one
-temporal [raiseRecurs] □ ◇ T(raise)
+temporal [raiseRecurs] □ ◇ ⟨raise⟩
 temporal [fairRaise] 𝒲ℱ raise → ◇ ⌜ raised ⌝
+-- A step relation that is not one of the module's actions has no model-checking definition
+temporal [anyChange] □ ◇ ⟨ fun s s' => s ≠ s' ⟩
 
 /--
-warning: `fairRaise` is only proved, since its model-checking definition fails to elaborate (write `temporal (only := verify)` to say so):
-  a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `E(…)` and `T(…)`, the fairness conditions `WF(…)` and `SF(…)`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and `∃ x : T, …`; this formula is none of them
----
-warning: `raiseRecurs` is only model checked, since its proof definition fails to elaborate (write `temporal (only := check)` to say so):
-  `T(…)` only exists for model checking
+warning: `anyChange` is only proved, since its model-checking definition fails to elaborate (write `temporal (only := verify)` to say so):
+  expected an action of this module, applied to arguments or not; the module's actions are [raise]
 -/
 #guard_msgs in
 #gen_spec
@@ -54,9 +52,13 @@ prove_temporal_by [selfImplied]
   tintro h
   tassumption
 
-/-- error: `fairRaise` is not a model-checked temporal property of this module. Model checked: selfImplied, raiseRecurs -/
+/-- info: ✅ No liveness violation (checked 2 properties, explored 2 product states) -/
 #guard_msgs in
-#temporal_check [fairRaise] interpreted {}
+#temporal_check [raiseRecurs] [fairRaise] interpreted {}
+
+/-- error: `anyChange` is not a model-checked temporal property of this module. Model checked: selfImplied, raiseRecurs, fairRaise -/
+#guard_msgs in
+#temporal_check [anyChange] interpreted {}
 
 end TemporalTargets
 

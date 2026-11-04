@@ -9,7 +9,8 @@ public meta section
 /-! # `[ltl| φ]`: LTL formulas as `Lasso.Formula` syntax trees
 
 The deep counterpart of Lentil's `[tlfml| φ]`, over the same `tlfml` syntax category. What an atom means is up to the
-context, a Veil module reads `⌜ t ⌝`, `E(…)` and `T(…)` against itself through `Veil.elabModuleLtlAtom`, tried first. -/
+context, a Veil module reads `⌜ t ⌝`, `Enabled …`, `⟨…⟩`, `𝒲ℱ …` and `𝒮ℱ …` against itself through
+`Veil.elabModuleLtlAtom`, tried first. -/
 
 namespace Veil.LivenessMC
 

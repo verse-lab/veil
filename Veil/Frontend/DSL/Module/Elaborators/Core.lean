@@ -449,27 +449,46 @@ def elabAssertion : CommandElab := fun stx => do
   --   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
     localEnv.modifyModule (fun _ => mod')
 
-/-- Resolve the action named in an `E(…)`/`T(…)` atom and check its arity. An unapplied name means "any instantiation". -/
-private def resolveActionAtom (mod : Module) (a : Ident) (args : Array Term) : TermElabM Name := do
-  let actionName := a.getId
-  let some spec := mod.actions.find? (fun p => p.name == actionName)
-    | throwErrorAt a "unknown action `{actionName}`; the module's actions are \
-        {mod.actions.map (·.name) |>.toList}"
-  unless args.isEmpty || args.size == spec.params.size do
-    throwErrorAt a "action `{actionName}` takes {spec.params.size} parameter(s), but {args.size} \
-      were given; write `{actionName}` on its own for any instantiation"
-  return actionName
+/-- `t` of `Enabled t`, `⟨ t ⟩`, `𝒲ℱ t` or `𝒮ℱ t` as an action, applied to arguments (`a x y`) or not (`a`),
+possibly in parentheses: the name `a` and the arguments, if `t` has this shape. Both definitions of a temporal
+property recognize an action this way (`actionAtomOf`, `elabTlfmlAction`). -/
+partial def actionApp? : Term → Option (Ident × Array Term)
+  | `(($t)) => actionApp? t
+  | `($a:ident) => some (a, #[])
+  | `($a:ident $args:term*) => some (a, args)
+  | _ => none
 
-/-- The label predicate deciding `E(a …)`/`T(a …)`. For an unapplied action name it is a match over every
+/-- The module's action named `a`, if any, after checking that `args` are all of its parameters or none of
+them; an unapplied name means "any instantiation". -/
+def Module.resolveActionAtom? (mod : Module) (a : Ident) (args : Array Term) :
+    TermElabM (Option ProcedureSpecification) := do
+  let some spec := mod.actions.find? (·.name == a.getId) | return none
+  unless args.isEmpty || args.size == spec.params.size do
+    throwErrorAt a "action `{spec.name}` takes {spec.params.size} parameter(s), but {args.size} \
+      were given; write `{spec.name}` on its own for any instantiation"
+  return some spec
+
+/-- The action and its arguments in `Enabled t`, `⟨ t ⟩`, `𝒲ℱ t` or `𝒮ℱ t`, where `t` must be an action of
+the module (`actionApp?`). -/
+private def actionAtomOf (mod : Module) (t : Term) : TermElabM (Name × Array Term) := do
+  let actions := mod.actions.map (·.name) |>.toList
+  let some (a, args) := actionApp? t
+    | throwErrorAt t "expected an action of this module, applied to arguments or not; the module's \
+        actions are {actions}"
+  let some spec ← mod.resolveActionAtom? a args
+    | throwErrorAt a "unknown action `{a.getId}`; the module's actions are {actions}"
+  return (spec.name, args)
+
+/-- The label predicate deciding `Enabled a …`/`⟨ a … ⟩`. For an unapplied action name it is a match over every
 constructor, and for an applied one equality against that instantiation via the derived `DecidableEq Label`.
 
-For a module whose actions are `send (n : node)` and `recv`, `E(send)` and `T(send)` give
+For a module whose actions are `send (n : node)` and `recv`, `Enabled send` and `⟨ send ⟩` give
 ```lean
 fun lbl => match lbl with
   | Label.send .. => true
   | Label.recv .. => false
 ```
-and `E(send n₀)` and `T(send n₀)` give `fun lbl => decide (lbl = Label.send n₀)`. -/
+and `Enabled (send n₀)` and `⟨ send n₀ ⟩` give `fun lbl => decide (lbl = Label.send n₀)`. -/
 private def mkActionLabelMatch (mod : Module) (actionName : Name) (args : Array Term) : TermElabM Term := do
   let lbl := mkIdent `lbl
   if args.isEmpty then
@@ -492,8 +511,11 @@ macro_rules
 
 /-- The atoms of `[ltl| …]`, read against the current module while Veil elaborates one of its temporal
 formulas (`veil.temporal.moduleAtoms`). `⌜ t ⌝` is a state predicate and `⌞ t ⌟` a theory predicate,
-which see the module's fields as an assertion does; `E(a …)`/`T(a …)` name one of its actions, and
-`WF(a …)`/`SF(a …)` are the formulas they abbreviate, the same as when written out.
+which see the module's fields as an assertion does; `Enabled a …`/`⟨ a … ⟩` name one of its actions, and
+`𝒲ℱ a …`/`𝒮ℱ a …` are the formulas they abbreviate, the same as when written out.
+
+`⟨ a ⟩` is decided by the label of the step taken, which is stronger than Lentil's action predicate that
+the shallow definition uses; see `Veil.temporalDeclaration`.
 Tried before the plain reading of `[ltl| …]` (`LivenessMC.elabLtlAtom`), to which it defers otherwise. -/
 @[term_elab LivenessMC.ltlFormula] def elabModuleLtlAtom : TermElab := fun stx expectedType? => do
   unless veil.temporal.moduleAtoms.get (← getOptions) do throwUnsupportedSyntax
@@ -508,29 +530,30 @@ Tried before the plain reading of `[ltl| …]` (`LivenessMC.elabLtlAtom`), to wh
   let atom ← match stx with
     | `([ltl| ⌜ $t:term ⌝]) => statePredicate [(.theory, th, true), (.state .none "_conc", st, true)] t
     | `([ltl| ⌞ $t:term ⌟]) => statePredicate [(.theory, th, true)] t
-    -- `E(a)`/`T(a)` are decided by a predicate on the action label, not on a state
-    | `([ltl| E($a:ident $args*)]) =>
-      let actionName ← resolveActionAtom mod a args
-      `($(mkIdent ``LivenessMC.LivenessAtom.enabled) $(quote (Name.mkSimple s!"E({actionName})"))
+    -- `Enabled a`/`⟨ a ⟩` are decided by a predicate on the action label, not on a state
+    | `([ltl| Enabled $t:term]) =>
+      let (actionName, args) ← actionAtomOf mod t
+      `($(mkIdent ``LivenessMC.LivenessAtom.enabled) $(quote (Name.mkSimple s!"Enabled {actionName}"))
           $(← mkActionLabelMatch mod actionName args))
-    | `([ltl| T($a:ident $args*)]) =>
-      let actionName ← resolveActionAtom mod a args
-      `($(mkIdent ``LivenessMC.LivenessAtom.taken) $(quote (Name.mkSimple s!"T({actionName})"))
+    | `([ltl| ⟨ $t:term ⟩]) =>
+      let (actionName, args) ← actionAtomOf mod t
+      `($(mkIdent ``LivenessMC.LivenessAtom.taken) $(quote (Name.mkSimple s!"⟨{actionName}⟩"))
           $(← mkActionLabelMatch mod actionName args))
-    -- Checking `a …` before unfolding reports a wrong one once, not for both `E(a …)` and `T(a …)`
-    | `([ltl| WF($a:ident $args*)]) =>
-      discard <| resolveActionAtom mod a args
-      return ← elabTerm (← `([ltl| (◇ □ E($a $args*)) → □ ◇ T($a $args*)])) expectedType?
-    | `([ltl| SF($a:ident $args*)]) =>
-      discard <| resolveActionAtom mod a args
-      return ← elabTerm (← `([ltl| (□ ◇ E($a $args*)) → □ ◇ T($a $args*)])) expectedType?
+    -- Checking `t` before unfolding reports a wrong one once, not for both `Enabled t` and `⟨ t ⟩`. The
+    -- unfoldings are Lentil's fairness (`Lentil.wf_as_implies`, `Lentil.sf_as_implies`).
+    | `([ltl| 𝒲ℱ $t:term]) =>
+      discard <| actionAtomOf mod t
+      return ← elabTerm (← `([ltl| (◇ □ Enabled $t) → □ ◇ ⟨ $t ⟩])) expectedType?
+    | `([ltl| 𝒮ℱ $t:term]) =>
+      discard <| actionAtomOf mod t
+      return ← elabTerm (← `([ltl| (□ ◇ Enabled $t) → □ ◇ ⟨ $t ⟩])) expectedType?
     -- `tlfml` also admits a plain term (a `Lentil.pred`), which has no meaning for the model checker
     | `([ltl| $t:term]) =>
       throwErrorAt t "a plain term is not an atomic proposition of a model-checked property; write \
         `⌜ {t} ⌝` for a state predicate"
     | `([ltl| $f]) =>
-      throwErrorAt f "a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `E(…)` and \
-        `T(…)`, the fairness conditions `WF(…)` and `SF(…)`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, \
+      throwErrorAt f "a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `Enabled …` and \
+        `⟨ … ⟩`, the fairness conditions `𝒲ℱ …` and `𝒮ℱ …`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, \
         `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and \
         `∃ x : T, …`; this formula is none of them"
     | _ => throwUnsupportedSyntax

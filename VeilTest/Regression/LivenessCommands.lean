@@ -16,9 +16,9 @@ action activate (n : node) { active n := true }
 action idle { active N := active N }
 
 temporal [alwaysTrue] □ ⊤
-temporal (only := check) [enabled] □ E(activate)
-temporal (only := check) [step] □ (T(activate) ∨ T(idle))
-temporal (only := check) [fairProgress] (□ ◇ T(activate)) → ◇ ⌜ ∃ n, active n ⌝
+temporal (only := check) [enabled] □ Enabled activate
+temporal (only := check) [step] □ (⟨activate⟩ ∨ ⟨idle⟩)
+temporal (only := check) [fairProgress] (□ ◇ ⟨activate⟩) → ◇ ⌜ ∃ n, active n ⌝
 
 invariant true
 #gen_spec
@@ -96,7 +96,7 @@ action idle { flag := flag }
 state_constraint [unflagged] ¬ flag
 temporal [alwaysUnflagged] □ ⌜ ¬ flag ⌝
 -- Negating this places an edge atom in a hoisted FG region, exercising crossing.
-temporal (only := check) [fairIdle] (□ ◇ E(idle)) → (□ ◇ T(idle))
+temporal (only := check) [fairIdle] (□ ◇ Enabled idle) → (□ ◇ ⟨idle⟩)
 invariant true
 #gen_spec
 /-- info: ✅ No liveness violation (checked 2 properties, explored 1 product states) -/
@@ -157,7 +157,7 @@ after_init { flag := false; other := false }
 action set { flag := true }
 action idle { other := other }
 temporal [fairFlag] (□ ◇ ⌜ ¬ flag ⌝) → □ ◇ ⌜ ¬ flag ⌝
-temporal (only := check) [eventuallyFlag] (□ ◇ T(set)) → ◇ ⌜ flag ⌝
+temporal (only := check) [eventuallyFlag] (□ ◇ ⟨set⟩) → ◇ ⌜ flag ⌝
 invariant true
 #gen_spec
 

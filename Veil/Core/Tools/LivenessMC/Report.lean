@@ -61,7 +61,7 @@ def explainFairness (p : LivenessProperty ρ σ l) : IO Unit := do
   -- Which route `checkFair` takes.
   if pruneRegionsAvoidEdgeAtoms p then
     let splits := Lasso.fairPruneSplits p.φ
-    IO.println s!"  route      prune, {splits.length} run(s); no hoisted region mentions a T(…) atom"
+    IO.println s!"  route      prune, {splits.length} run(s); no hoisted region mentions a ⟨…⟩ atom"
     for (kept, dss) in splits do
       IO.println s!"    run      {dss.length} hoisted conjunct(s), {optionCount dss} option(s), \
 {markCount dss} mark(s); {keptDesc nm kept}"
@@ -69,7 +69,7 @@ def explainFairness (p : LivenessProperty ρ σ l) : IO Unit := do
     let (kept, ds) := Lasso.fairCrossSplit p.φ
     IO.println s!"  route      crossing, {ds.length} latched check(s), \
 {ds.foldl (fun n (d : Lasso.NNF.FairDisjunct Nat) => n + d.2.length) 0} extra mark(s); a hoisted ◇□ \
-region mentions a T(…) atom, which the prune cannot decide per SCC"
+region mentions a ⟨…⟩ atom, which the prune cannot decide per SCC"
     IO.println s!"    kept     {keptDesc nm kept}"
 
 def printCheckResult {α} [Repr σ] (sysName propName : String) :

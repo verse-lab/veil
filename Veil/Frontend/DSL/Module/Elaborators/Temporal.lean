@@ -16,13 +16,16 @@ assertion: the theory fields are bound around the whole formula, and the state f
 /-- Internal: the atom `⌜ t ⌝` of a `[tlfml| …]` formula, see `elabTlfmlStateAtom`. -/
 syntax (name := tlfmlStateAtom) "veil_tlfml_state_atom% " term:max : term
 
+/-- Internal: `t` of `Enabled t`, `⟨ t ⟩`, `𝒲ℱ t` or `𝒮ℱ t` in a `[tlfml| …]` formula, see
+`elabTlfmlAction`. -/
+syntax (name := tlfmlAction) "veil_tlfml_action% " term:max : term
+
 macro_rules
   | `([tlfml| ⌜ $t:term ⌝]) => `(veil_tlfml_state_atom% ($t))
-  -- These name the action labels that the model checker sees, which a `Lentil.pred` cannot observe
-  | `([tlfml| E($a:ident $_args*)]) => Macro.throwErrorAt a "`E(…)` only exists for model checking"
-  | `([tlfml| T($a:ident $_args*)]) => Macro.throwErrorAt a "`T(…)` only exists for model checking"
-  | `([tlfml| WF($a:ident $_args*)]) => Macro.throwErrorAt a "`WF(…)` only exists for model checking"
-  | `([tlfml| SF($a:ident $_args*)]) => Macro.throwErrorAt a "`SF(…)` only exists for model checking"
+  | `([tlfml| Enabled $t:term]) => `(Lentil.tl_enabled (veil_tlfml_action% ($t)))
+  | `([tlfml| ⟨ $t:term ⟩]) => `(Lentil.action_pred (veil_tlfml_action% ($t)))
+  | `([tlfml| 𝒲ℱ $t:term]) => `(Lentil.weak_fairness (veil_tlfml_action% ($t)))
+  | `([tlfml| 𝒮ℱ $t:term]) => `(Lentil.strong_fairness (veil_tlfml_action% ($t)))
 
 /-- `⌜ t ⌝` as Lentil reads it, `state_pred t`, or, while a temporal property of the current module is
 elaborated, `state_pred (fun st => t)` with the state fields bound in `t` as in an assertion. -/
@@ -35,6 +38,21 @@ elaborated, `state_pred (fun st => t)` with the state fields bound in `t` as in 
   let body ← mod.withTheoryAndStateTermTemplate [(.state .none "_conc", st, true)] (some (← `(Prop)))
     (fun _ _ => `(uqc% ($t:term)))
   elabTerm (← `($(mkIdent ``Lentil.state_pred) fun ($st : $environmentState) => $body)) expectedType?
+
+/-- Elaborate a temporal action relation on the proof side. In a module's temporal property, an
+unapplied parameterized action is existentially quantified: e.g. `send` becomes
+`fun s s' => ∃ n, send n s s'`. Otherwise, elaborate `t` directly. -/
+@[term_elab tlfmlAction] def elabTlfmlAction : TermElab := fun stx expectedType? => do
+  let `(veil_tlfml_action% $t) := stx | throwUnsupportedSyntax
+  let some (a, args) := actionApp? t | elabTerm t expectedType?
+  let some spec ← (do
+      unless veil.temporal.moduleAtoms.get (← getOptions) do return none
+      (← getCurrentModule).resolveActionAtom? a args)
+    | elabTerm t expectedType?
+  if !args.isEmpty || spec.params.isEmpty then return ← elabTerm t expectedType?
+  -- Generate the existential quantifiers for the action's parameters and construct the body of the relation
+  let xs ← spec.params.mapM fun p => Lean.mkIdent <$> mkFreshUserName p.name
+  elabTerm (← `(fun (s s' : $environmentState) => ∃ $[$xs:ident]*, $a $xs* s s')) expectedType?
 
 /-- Declares a temporal property. Its definitions (`Module.defineTemporalCheck` and
 `Module.defineTemporalVerify`) need what the spec provides: before `#gen_spec`, they are generated once the
