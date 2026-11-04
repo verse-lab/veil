@@ -147,7 +147,7 @@ def Parameter.isRelatedToFieldRep (p : Parameter) : Bool :=
 
 def Module.freshWithName [Monad m] [MonadQuotation m] (name : Name) : m Module := do
   let params := #[← Parameter.environmentTheory, ← Parameter.environmentState]
-  return { name := name, parameters := params, dependencies := #[], signature := #[], procedures := #[], assertions := #[], _declarations := .emptyWithCapacity, _derivedDefinitions := .emptyWithCapacity }
+  return { name := name, parameters := params, dependencies := #[], signature := #[], procedures := #[], assertions := #[], temporalProperties := #[], _declarations := .emptyWithCapacity, _derivedDefinitions := .emptyWithCapacity }
 
 def Module.isDeclared (mod : Module) (name : Name) : Bool :=
   mod._declarations.contains name

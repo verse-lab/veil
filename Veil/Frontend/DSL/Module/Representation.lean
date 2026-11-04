@@ -424,7 +424,7 @@ structure Module where
   /-- The assertions that this module makes -/
   assertions : Array StateAssertion
   /-- Temporal properties declared in this module, to be proved, model checked, or both. -/
-  temporalProperties : Array TemporalProperty := #[]
+  temporalProperties : Array TemporalProperty
 
   /-- Derived definitions that this module has. -/
   protected _derivedDefinitions : Std.HashMap Name DerivedDefinition
