@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.Synthesizer
 
 /-! An action named like an enum constructor (`Cycle`). The bare constructor
 name would resolve to the action, so the strengthening clause names the

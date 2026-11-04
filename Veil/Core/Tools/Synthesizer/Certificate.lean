@@ -2,7 +2,7 @@ module
 
 public meta import Veil.Core.Tools.Synthesizer.Progress
 
-public meta import Veil
+public meta import Veil.DSL
 public meta import Veil.Core.Tools.Synthesizer.Solver
 public import Veil.Core.Tools.Synthesizer.Soundness
 

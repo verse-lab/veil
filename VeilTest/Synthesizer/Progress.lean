@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.Synthesizer
 
 open Lean Elab Command Veil.Synthesizer
 

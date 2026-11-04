@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.Synthesizer
 
 /-! A counterexample whose step rewrites one row of a relation over two enum
 sorts (`pc light S := …`). The certificate proves that step by splitting each

@@ -8,14 +8,12 @@ Lean kernel. Run `#gen_theorems` to add its declarations to the current module.
 
 ## Running the Synthesizer
 
-The command is not part of `import Veil`. Import
-`Veil.Core.Tools.Synthesizer` and run the command after `#gen_spec`:
+The command is part of `import Veil`. Run it after `#gen_spec`:
 
 ```lean
 module
 
 public import Veil
-public import Veil.Core.Tools.Synthesizer
 
 veil module LockServer
 -- the lock server of `VeilTest/Synthesizer/LockServer.lean`

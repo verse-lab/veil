@@ -1,6 +1,6 @@
 module
 
-public import Veil
+public import Veil.DSL
 public import Veil.Core.Tools.Synthesizer.Soundness
 public meta import Veil.Core.Tools.Synthesizer.Command
 
@@ -14,14 +14,7 @@ execution is checked in the background as `ic3_safe` or `ic3_unsafe`; `#gen_theo
 imports the certificate. The search is UPDR, the
 first-order form of IC3 [Karbyshev et al.]. See `docs/Synthesizer-Guide.md` for usage.
 
-The command is not part of `import Veil`:
-
-```lean
-module
-
-public import Veil
-public import Veil.Core.Tools.Synthesizer
-```
+The command is part of `import Veil`.
 
 ## Structure
 

@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.Synthesizer
 
 /-! A lock server whose mutual exclusion needs one strengthening clause: the
 command finds it and certifies it as `LockServer.ic3_safe`, a theorem on the

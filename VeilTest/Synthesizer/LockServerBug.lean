@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.Synthesizer
 
 /-! The lock server with a bug: `grant` does not check that the lock is free.
 The command finds an execution in which two clients hold the lock and

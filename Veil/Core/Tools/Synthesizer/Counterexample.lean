@@ -1,6 +1,6 @@
 module
 
-public meta import Veil
+public meta import Veil.DSL
 public meta import Veil.Core.Tools.Synthesizer.Certificate
 public meta import Veil.Core.Tools.Synthesizer.Model
 public meta import Veil.Core.Tools.Synthesizer.Tactic

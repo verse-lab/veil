@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.Synthesizer
 
 /-! A token passes between nodes, and `finish` fires only when no node holds
 it. The property holds, but the strengthening it needs, "some node holds the

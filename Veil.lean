@@ -4,3 +4,4 @@ module
 -- Import modules here that should be built as part of the library.
 public import Veil.Base
 public import Veil.DSL
+public import Veil.Core.Tools.Synthesizer
