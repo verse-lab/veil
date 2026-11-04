@@ -119,20 +119,33 @@ private def Module.getStatementForTemporalTheorems [Monad m] [MonadQuotation m] 
   let thmType ← `($(mkIdent `Lentil.pred_implies) $behavior $propRef)
   pure (thmName, allBinders ++ #[thBinder, hassBinder], thmType)
 
--- FIXME: This `incremental` does not work as intended; even changing it into a simpler
--- `Macro`-based implementation we cannot achieve full incrementality (e.g., the incrementality
--- breaks at a call to `split_ands`).
-@[incremental, command_elab Veil.proveTemporalBy]
+/-- Generate the theorem `<p>._proof` with the user's tactics as its proof. As for
+`elabProveVeilInvariantGoal`, `@[incremental]` keeps the command's snapshot bundle
+available for Lean's theorem/tactic elaborators, and the generated syntax stays the
+same across proof edits, so that they reuse the unchanged prefix of the proof. -/
+@[command_elab Veil.proveTemporalBy, incremental]
 def elabProveTemporalBy : CommandElab := fun stx => do
-  let mod ← getCurrentModule (errMsg := "prove_temporal_by must be inside a Veil module!")
-  let mod ← mod.ensureVerificationSpec stx
-  let (propName, tacs) ← match stx with
-    | `(command|prove_temporal_by [$name:ident] $tacs:tacticSeq) => pure (name.getId.eraseMacroScopes, tacs)
+  let (name, tacs) ← match stx with
+    | `(command|prove_temporal_by [$name:ident] $tacs:tacticSeq) => pure (name, tacs)
     | _ => throwUnsupportedSyntax
-  let (thmName, allBinders, thmType) ← mod.getStatementForTemporalTheorems propName
-  let thmCmd ← `(command|
-    theorem $(mkIdent thmName) $[$allBinders]* : $thmType := by $tacs)
-  elabVeilCommand thmCmd
+  let mod ← getCurrentModule (errMsg := "prove_temporal_by must be inside a Veil module!")
+  let propName := name.getId.eraseMacroScopes
+  -- Key quotation hygiene by the property. The default seed includes the whole
+  -- command's text, so editing a tactic would change generated names.
+  withInitQuotContext (some (hash (← getCurrNamespace, propName))) do
+    -- Anchor generated syntax to the property name: the whole command's end
+    -- position moves on proof edits. The user's tactics retain their own positions.
+    withRef name do
+      -- Hide the snapshot bundle from the helper declarations of deferred
+      -- preparation; see `elabProveVeilInvariantGoal`.
+      let mod ← withReader (fun ctx => { ctx with snap? := none }) <|
+        mod.ensureVerificationSpec name
+      let (thmName, allBinders, thmType) ← mod.getStatementForTemporalTheorems propName
+      let cmd ← `(command|
+        theorem $(mkIdent thmName) $[$allBinders]* : $thmType := by $tacs)
+      -- Delegate directly to Lean's theorem/tactic elaborators, which reuse the
+      -- snapshots of the unchanged tactics.
+      elabCommand cmd
 
 open Term in
 @[term_elab kw_fetch_temporal_theorem_body]

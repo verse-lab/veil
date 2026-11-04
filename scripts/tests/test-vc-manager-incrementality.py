@@ -33,8 +33,7 @@ def run_regression(multi_module, compact):
     proof_kind = "compact" if compact else "theorem"
     server = LeanServer(f"{name}-{proof_kind}")
     try:
-        server.send("initialize", {"processId": None, "rootUri": ROOT.as_uri(), "capabilities": {}}, True)
-        server.send("initialized", {})
+        server.initialize()
         if multi_module:
             server.open(uri, source)
             server.check(uri, 1, "fresh multi-module file")
