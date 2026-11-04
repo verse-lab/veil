@@ -190,6 +190,10 @@ def statsMessage (stats : RunStats) (status : TrNorm.Status) : String :=
     {seconds ph.preprocessMs} s, elaboration {seconds ph.elabMs} s, solving {seconds ph.smtMs} s, \
     decoding {seconds ph.decodeMs} s){note}"
 
+/-- The strengthening clauses as `invariant` declarations, one per line. -/
+def strengtheningLines (clauses : Array Admitted) : Array String :=
+  clauses.zipIdx.map fun (a, k) ↦ s!"invariant [ic3_{k}] {a.clause}"
+
 /-- The report of an invariant. -/
 def invariantMessage (frame : Nat) (clauses : Array Admitted) (anyTrusted trusting : Bool) :
     String :=
@@ -205,7 +209,7 @@ def invariantMessage (frame : Nat) (clauses : Array Admitted) (anyTrusted trusti
   else
     s!"Inductive invariant found at frame {frame} with {clauses.size} strengthening \
       clause(s){trustNote}:\n" ++
-      "".intercalate (clauses.toList.zipIdx.map fun (a, k) ↦ s!"invariant [ic3_{k}] {a.clause}\n")
+      "".intercalate ((strengtheningLines clauses).toList.map (· ++ "\n"))
 
 /-- The report of a no-universal-invariant verdict. -/
 def absenceMessage (sig : Signature) (propertyName : String) (diagrams : Array FinStructure)
@@ -296,6 +300,25 @@ def violationMessage (property : Array Term) (propertyName : String) (path : Dec
 
 /-! ### The command -/
 
+/-- Offer to insert the strengthening clauses above the command that finalized the specification
+(usually `#gen_spec`), where the module's assertions are declared. -/
+def addStrengtheningSuggestion (mod : Veil.Module) (clauses : Array Admitted) :
+    CommandElabM Unit := do
+  if clauses.isEmpty then return
+  let some finalizer := mod.specFinalizedAtStx | return
+  let (some startPos, some endPos) := (finalizer.getPos?, finalizer.getTailPos?) | return
+  let fileMap ← getFileMap
+  let indent := "".pushn ' ' (fileMap.toPosition startPos).column
+  let commandText := String.Pos.Raw.extract fileMap.source startPos endPos
+  let lines := strengtheningLines clauses
+  let label := "Insert the strengthening invariants"
+  let suggestion : Lean.Meta.Tactic.TryThis.Suggestion := {
+    suggestion := .string <| s!"\n{indent}".intercalate lines.toList ++ s!"\n\n{indent}{commandText}"
+    toCodeActionTitle? := some fun _ => label
+  }
+  liftCoreM <| Lean.Meta.Tactic.TryThis.addSuggestion (← getRef) suggestion
+    (origSpan? := finalizer) (header := s!"{label} before {commandText}:\n")
+
 /-- Log a report as information when it is the expected outcome, at `severity` otherwise. -/
 def logReport (expected : Bool) (severity : MessageSeverity) (msg : String) :
     CommandElabM Unit := do
@@ -367,6 +390,7 @@ private def runUpdr (mod : Veil.Module) (opts : Options) :
   match outcome with
   | .foundInvariant frame clauses anyTrusted =>
     logInfo (invariantMessage frame clauses anyTrusted (veil.synthesizer.trust.get (← getOptions)))
+    addStrengtheningSuggestion mod clauses
     if doCertify then
       let cert ← certifyTimed <| certify mod property (clauses.map (·.clause)) progress?
       logInfo s!"Certified: theorem {cert.theoremName} (strengthening {cert.strengtheningName}); \

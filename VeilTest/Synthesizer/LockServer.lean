@@ -44,7 +44,11 @@ safety [mutex] holds C ∧ holds D → C = D
 
 #gen_spec
 
-/-- invariant [ic3_0] ∀ (x0 : client), ¬ holds x0 ∨ ¬ lock_free -/
+/--
+Insert the strengthening invariants before #gen_spec:
+
+  [apply] invariant [ic3_0] ∀ (x0 : client), ¬ holds x0 ∨ ¬ lock_free
+-/
 #guard_msgs(info, substring := true) in
 #updr certify
 

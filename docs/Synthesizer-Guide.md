@@ -30,7 +30,8 @@ end LockServer
 ```
 
 The command prints the strengthening as lines to paste into the module, and
-`certify` checks the theorem `LockServer.ic3_safe` in the background.
+offers a suggestion (click it, or use the code action) that inserts them above
+`#gen_spec`. `certify` checks the theorem `LockServer.ic3_safe` in the background.
 `#gen_theorems` waits for certification and imports it, alongside any results from
 `#check_invariants`:
 
