@@ -29,9 +29,7 @@ structure StartReport where
   actionLabels : List String
   deriving ToJson, FromJson
 
-/-- Launch-time arguments, separated from the positional parallel settings. None of these is part
-of the generated program, so none of them changes its cache key: one build serves every way of
-launching it. -/
+/-- Command-line arguments of a compiled binary. -/
 private structure LaunchArgs where
   /-- The positional parallel settings. -/
   positional : List String := []

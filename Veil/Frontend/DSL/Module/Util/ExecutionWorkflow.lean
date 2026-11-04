@@ -668,9 +668,7 @@ private def runBuildOnly (command : ModelChecker.Compilation.CompiledCommandSpec
 `callExpr` takes parallel configuration, progress ID, cancellation token, and a result
 continuation, in that order. Its result must have a `ToJson` instance. `extractMs`, the time the
 command spent generating the module's executable definitions, is reported by
-`veil.modelChecker.buildOnly`. `numLivenessProperties` is how many properties a
-`#temporal_check` will search, which is fewer than the module declares
-when the command named a subset; the other commands leave it `none`. -/
+`veil.modelChecker.buildOnly`. -/
 def run (command : ModelChecker.Compilation.CompiledCommandSpec)
     (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax)
     (mode : ModelCheckingMode) (callExpr : Term)

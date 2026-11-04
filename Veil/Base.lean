@@ -201,7 +201,7 @@ register_option veil.modelChecker.maxStoredCheckers : Nat := {
 
 register_option veil.modelChecker.buildOnly : Bool := {
   defValue := false
-  descr := "Build the binary of `#model_check`, `#simulate`, and `#liveness_check` inside a module without running it, \
+  descr := "Build the binary of `#model_check`, `#simulate`, and `#temporal_check` inside a module without running it, \
   whatever mode the command names, and report it and the time of each phase of the build as an \
   info message whose last line is `VEIL_BUILD_ONLY` followed by a JSON object. As for \
   `#mc_config`, the binary is copied to `.lake/model_checkers` \
