@@ -320,8 +320,7 @@ scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term :
 /- ## Temporal (LTL) properties
 
 Formulas are written in Lentil's `tlfml` category, extended below with the action atoms `E(…)` and
-`T(…)` and the fairness conditions `WF(…)` and `SF(…)`, and with `↔` in `Veil.Core.Tools.LivenessMC.Syntax`;
-these only exist for model checking. -/
+`T(…)` and the fairness conditions `WF(…)` and `SF(…)`; these only exist for model checking. -/
 
 /-- `E(a)`: Some instantiation of action `a` can fire here. `E(a x y)`: That parameterized instantiation can.
 
