@@ -458,48 +458,66 @@ partial def actionApp? : Term → Option (Ident × Array Term)
   | `($a:ident $args:term*) => some (a, args)
   | _ => none
 
-/-- The module's action named `a`, if any, after checking that `args` are all of its parameters or none of
-them; an unapplied name means "any instantiation". -/
+/-- The module's action named `a`, if any, and its arguments `args`, one for each of its parameters. A
+parameter left open, as `·` or by stopping before it, is `none` and stands for any value: for an action
+`a (x y : T)`, `a`, `a ·` and `a · ·` all mean "any instantiation", and `a x₀` and `a x₀ ·` both mean `a x₀ y`
+for some `y`. -/
 def Module.resolveActionAtom? (mod : Module) (a : Ident) (args : Array Term) :
-    TermElabM (Option ProcedureSpecification) := do
+    TermElabM (Option (ProcedureSpecification × Array (Option Term))) := do
   let some spec := mod.actions.find? (·.name == a.getId) | return none
-  unless args.isEmpty || args.size == spec.params.size do
+  if args.size > spec.params.size then
     throwErrorAt a "action `{spec.name}` takes {spec.params.size} parameter(s), but {args.size} \
-      were given; write `{spec.name}` on its own for any instantiation"
-  return some spec
+      were given; write `·` for a parameter that can take any value"
+  let args := args.map fun arg => if arg.raw.isOfKind ``Lean.Parser.Term.cdot then none else some arg
+  return some (spec, args ++ .replicate (spec.params.size - args.size) none)
 
 /-- The action and its arguments in `Enabled t`, `⟨ t ⟩`, `𝒲ℱ t` or `𝒮ℱ t`, where `t` must be an action of
-the module (`actionApp?`). -/
-private def actionAtomOf (mod : Module) (t : Term) : TermElabM (Name × Array Term) := do
+the module (`actionApp?`), with `none` for a parameter left open (`Module.resolveActionAtom?`). -/
+private def actionAtomOf (mod : Module) (t : Term) : TermElabM (Name × Array (Option Term)) := do
   let actions := mod.actions.map (·.name) |>.toList
   let some (a, args) := actionApp? t
     | throwErrorAt t "expected an action of this module, applied to arguments or not; the module's \
         actions are {actions}"
-  let some spec ← mod.resolveActionAtom? a args
+  let some (spec, args) ← mod.resolveActionAtom? a args
     | throwErrorAt a "unknown action `{a.getId}`; the module's actions are {actions}"
   return (spec.name, args)
 
-/-- The label predicate deciding `Enabled a …`/`⟨ a … ⟩`. For an unapplied action name it is a match over every
-constructor, and for an applied one equality against that instantiation via the derived `DecidableEq Label`.
+/-- The label predicate deciding `Enabled a …`/`⟨ a … ⟩`, a match over every constructor: the one of `a`
+compares the label's arguments with the given ones, leaving the open parameters unconstrained, and the
+others are false.
 
-For a module whose actions are `send (n : node)` and `recv`, `Enabled send` and `⟨ send ⟩` give
+For a module whose actions are `send (src dst : node)` and `recv`, `Enabled send` and `⟨ send ⟩` give
 ```lean
 fun lbl => match lbl with
   | Label.send .. => true
   | Label.recv .. => false
 ```
-and `Enabled (send n₀)` and `⟨ send n₀ ⟩` give `fun lbl => decide (lbl = Label.send n₀)`. -/
-private def mkActionLabelMatch (mod : Module) (actionName : Name) (args : Array Term) : TermElabM Term := do
+and `Enabled (send · d₀)` and `⟨ send · d₀ ⟩` give
+```lean
+fun lbl => match lbl with
+  | Label.send _ dst => decide (dst = d₀)
+  | Label.recv .. => false
+``` -/
+private def mkActionLabelMatch (mod : Module) (actionName : Name) (args : Array (Option Term)) :
+    TermElabM Term := do
   let lbl := mkIdent `lbl
-  if args.isEmpty then
-    let alts ← mod.actions.mapM fun (act : ProcedureSpecification) => do
-      let ctor : Ident := Lean.mkIdent (labelTypeName ++ act.name)
-      let rhs : Ident :=
-        if act.name == actionName then Lean.mkIdent ``Bool.true else Lean.mkIdent ``Bool.false
-      `(Lean.Parser.Term.matchAltExpr| | $ctor:ident .. => $rhs)
-    `(term| fun $lbl => match $lbl:ident with $alts:matchAlt*)
-  else
-    `(term| fun $lbl => decide ($lbl = $(Lean.mkIdent (labelTypeName ++ actionName)):ident $args*))
+  let alts ← mod.actions.mapM fun (act : ProcedureSpecification) => do
+    let ctor : Ident := Lean.mkIdent (labelTypeName ++ act.name)
+    if act.name != actionName then
+      `(Lean.Parser.Term.matchAltExpr| | $ctor:ident .. => $(Lean.mkIdent ``Bool.false))
+    else if args.all Option.isNone then
+      `(Lean.Parser.Term.matchAltExpr| | $ctor:ident .. => $(Lean.mkIdent ``Bool.true))
+    else
+      -- A fresh variable for each given argument, so that the argument cannot capture it
+      let mut pats : Array Term := #[]
+      let mut eqs : Array Term := #[]
+      for (p, arg?) in act.params.zip args do
+        let some arg := arg? | pats := pats.push (← `(_))
+        let x := Lean.mkIdent (← mkFreshUserName p.name)
+        pats := pats.push x
+        eqs := eqs.push (← `($x = $arg))
+      `(Lean.Parser.Term.matchAltExpr| | $(Syntax.mkApp ctor pats):term => decide ($(← repeatedAnd eqs)))
+  `(term| fun $lbl => match $lbl:ident with $alts:matchAlt*)
 
 -- `∀ x, φ` and `∃ x, φ` become the conjunction and the disjunction of `φ` over the values that `Enumeration`
 -- lists for the type of `x`. For a sort, these are only known once `#temporal_check` instantiates the module.

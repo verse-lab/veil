@@ -78,14 +78,14 @@ run_meta do
 temporal (only := check) [unknownAction] 𝒮ℱ toLeave
 
 /--
-error: action `toLeaf` takes 1 parameter(s), but 2 were given; write `toLeaf` on its own for any instantiation
+error: action `toLeaf` takes 1 parameter(s), but 2 were given; write `·` for a parameter that can take any value
 -/
 #guard_msgs in
 temporal (only := check) [tooManyArguments] 𝒲ℱ (toLeaf 1 2)
 
 -- The proof reads an action as the model checker does
 /--
-error: action `toLeaf` takes 1 parameter(s), but 2 were given; write `toLeaf` on its own for any instantiation
+error: action `toLeaf` takes 1 parameter(s), but 2 were given; write `·` for a parameter that can take any value
 -/
 #guard_msgs in
 temporal (only := verify) [tooManyArgumentsVerify] 𝒲ℱ (toLeaf 1 2)

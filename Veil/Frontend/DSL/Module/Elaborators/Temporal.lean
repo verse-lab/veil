@@ -40,20 +40,28 @@ elaborated, `state_pred (fun st => t)` with the state fields bound in `t` as in 
     (fun _ _ => `(uqc% ($t:term)))
   elabTerm (← `($(mkIdent ``Lentil.state_pred) fun ($st : $environmentState) => $body)) expectedType?
 
-/-- Elaborate a temporal action relation on the proof side. In a module's temporal property, an
-unapplied parameterized action is existentially quantified: e.g. `send` becomes
-`fun s s' => ∃ n, send n s s'`. Otherwise, elaborate `t` directly. -/
+/-- Elaborate a temporal action relation on the proof side. In a module's temporal property, the
+parameters of an action left open (`Module.resolveActionAtom?`) are existentially quantified: e.g. for
+`send (src dst : node)`, `send` becomes `fun s s' => ∃ src dst, send src dst s s'` and `send · d₀` becomes
+`fun s s' => ∃ src, send src d₀ s s'`. Otherwise, elaborate `t` directly. -/
 @[term_elab tlfmlAction] def elabTlfmlAction : TermElab := fun stx expectedType? => do
   let `(veil_tlfml_action% $t) := stx | throwUnsupportedSyntax
   let some (a, args) := actionApp? t | elabTerm t expectedType?
-  let some spec ← (do
+  let some (spec, args) ← (do
       unless veil.temporal.moduleAtoms.get (← getOptions) do return none
       (← getCurrentModule).resolveActionAtom? a args)
     | elabTerm t expectedType?
-  if !args.isEmpty || spec.params.isEmpty then return ← elabTerm t expectedType?
-  -- Generate the existential quantifiers for the action's parameters and construct the body of the relation
-  let xs ← spec.params.mapM fun p => Lean.mkIdent <$> mkFreshUserName p.name
-  elabTerm (← `(fun (s s' : $environmentState) => ∃ $[$xs:ident]*, $a $xs* s s')) expectedType?
+  if args.all Option.isSome then return ← elabTerm t expectedType?
+  -- Generate the existential quantifiers for the open parameters and construct the body of the relation
+  let mut xs : Array Ident := #[]
+  let mut actualArgs : Array Term := #[]
+  for (p, arg?) in spec.params.zip args do
+    let some arg := arg? | do
+      let x := Lean.mkIdent (← mkFreshUserName p.name)
+      xs := xs.push x
+      actualArgs := actualArgs.push x
+    actualArgs := actualArgs.push arg
+  elabTerm (← `(fun (s s' : $environmentState) => ∃ $[$xs:ident]*, $a $actualArgs* s s')) expectedType?
 
 /-- Declares a temporal property. Its definitions (`Module.defineTemporalCheck` and
 `Module.defineTemporalVerify`) need what the spec provides: before `#gen_spec`, they are generated once the
