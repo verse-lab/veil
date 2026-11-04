@@ -69,7 +69,7 @@ def getNodeByNat : Nat → Fin 6 := fun n => ⟨n % 6, Nat.mod_lt n (by omega)�
 def forAllPreds' (n : Fin 6) (f : Fin 6 → Bool) : Bool :=
   Fin.foldl n.val (fun acc i => acc && f ⟨i.val, by omega⟩) true
 def forAllSuccs' (n : Fin 6) (f : Fin 6 → Bool) : Bool :=
-  Fin.foldl (5 - n.val) (fun acc i => acc && f ⟨n.val + 1 + i.val, by omega⟩) true
+  Fin.foldl (6 - n.val) (fun acc i => acc && f ⟨n.val + i.val, by omega⟩) true
 
 def theory0 : Theory (Fin 6) :=
   { pred := fun n => (n - 1) % 6,
