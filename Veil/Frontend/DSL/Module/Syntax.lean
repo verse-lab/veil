@@ -333,9 +333,10 @@ Declared before `#gen_spec`, the definitions are generated once the spec is fina
 right away. Inside `⌜ … ⌝`, the module's theory and state fields and its ghosts are in scope, as in an
 assertion.
 
-The module's actions appear in `Enabled a`, `⟨ a ⟩`, `𝒲ℱ a` and `𝒮ℱ a`, applied to arguments (`a x y`) or
-not (`a`, which stands for some instantiation of `a`). `Enabled a` means the same in `p` and `p.ast`: some
-execution of `a` does not throw.
+The module's actions appear in `Enabled a`, `⟨ a ⟩`, `𝒲ℱ a` and `𝒮ℱ a`, applied to all, some or none of
+their arguments. A parameter left open, as `·` (`a · y`) or by leaving out the trailing arguments (`a x`),
+stands for some value of it: `a · y` stands for the action `∃ x, a x y`, and the unapplied `a` for some
+instantiation of `a`. `Enabled a` means the same in `p` and `p.ast`: some execution of `a` does not throw.
 
 ---
 
@@ -355,7 +356,8 @@ property can give different answers; see `ParallelEdges` in `VeilTest/ActionAtom
 and `(□ ◇ Enabled a) → □ ◇ ⟨ a ⟩` (Lentil's `wf_as_implies` and `sf_as_implies`). Since an unapplied `a`
 stands for some instantiation, `𝒲ℱ a` does not make every instantiation of `a` fair: a run that keeps
 taking `a 2` satisfies `𝒲ℱ a`, even if `a 1` can always fire and is never taken. To make every
-instantiation of `a` fair, write `∀ x, 𝒲ℱ (a x)`.
+instantiation of `a` fair, write `∀ x, 𝒲ℱ (a x)`. In between, `∀ y, 𝒲ℱ (a · y)` makes `∃ x, a x y` fair for
+every `y`.
 
 `∀ x, φ` and `∃ x, φ` (or `∀ x : T, φ` and `∃ x : T, φ`) quantify over all values of the type of `x`.
 To model check them, the type needs an `Enumeration` instance: `#temporal_check` checks the conjunction
@@ -367,6 +369,7 @@ Example:
 temporal [someChosen] ◇ ⌜ chosen = 1 ⌝
 temporal [sendIsFair] □ (Enabled send → ◇ ⟨ send ⟩)
 temporal [allSent] (∀ n, 𝒲ℱ (send n)) → ∀ n, ◇ ⌜ sent n ⌝
+temporal [allReceived] (∀ dst, 𝒲ℱ (deliver · dst)) → ∀ dst, □ ◇ ⌜ received dst ⌝
 temporal [eventuallyChosen] 𝒲ℱ choose → ◇ ⌜ ∃ v, chosen v ⌝
 ```
 -/
