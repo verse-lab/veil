@@ -11,15 +11,10 @@ variable {ρ l : Type} [BEq l] [Hashable l] {th : ρ}
 
 /-! ## Benchmark instrumentation
 
-`modelCheck`/`modelCheckTGBA` call back into Veil for two things: computing the successors of a
-state (`sysSucc`, which *executes* every action instance) and computing a state's label
-(`LivenessProperty.sysLabel`, which *decides* every atom instance). Both are the Veil-specific cost.
-
-`timed`/`timedLabel` are identity wrappers whose `@[implemented_by]` impls accumulate wall-clock
-time (and call/element counts) spent inside those callbacks into the refs below. A harness resets
-the refs with `resetVeilTimers`, runs an instrumented `checkTimed`/`checkDijkstraTimed`, then reads
-them back with `readVeilTimers` and compares against its own wall-clock total. See
-`Examples/LivenessMC/MCDijkstraPerf.lean`. -/
+The search calls back into Veil to compute a state's successors, which executes every action instance, and its label, which
+decides every atom instance. Both are the Veil-specific cost. `timed` and `timedLabel` are identity wrappers whose
+`@[implemented_by]` impls accumulate time and counts into the refs below. A harness resets them with `resetVeilTimers`, runs
+an instrumented check, then reads them back with `readVeilTimers`. -/
 
 initialize sysSuccNs : IO.Ref Nat ← IO.mkRef 0
 initialize sysSuccElems : IO.Ref Nat ← IO.mkRef 0  -- total successors produced (also forces r)
@@ -50,9 +45,8 @@ initialize sysSuccCalls : IO.Ref Nat ← IO.mkRef 0  -- number of `sysSucc` invo
 @[implemented_by timedStepsImpl] private def timedSteps (f : σ → Array (LTLLib.LStep Nat σ)) :
     σ → Array (LTLLib.LStep Nat σ) := f
 
-/-- `timed` for the **fused** system callback. With `sysStepOf` the steps and the label come from one
-call, so there is no longer a succ/label split to report: the whole Veil cost lands in the `succ`
-counters and `label` stays at zero. -/
+/-- `timed` for the fused system callback. The steps and the label come from one call, so the whole Veil cost lands in the
+`succ` counters and `label` stays at zero. -/
 @[noinline] private unsafe def timedStepFnImpl
     (f : LTLLib.LSys.StepFn Nat σ) : LTLLib.LSys.StepFn Nat σ := fun s =>
   unsafeBaseIO do
@@ -105,11 +99,7 @@ def readVeilTimers : IO VeilTimers := do
     labelNs := (← sysLabelNs.get), labelCalls := (← sysLabelCalls.get), labelElems := (← sysLabelElems.get)
   }
 
-/-- Instrumented `checkNDFS` (nested DFS over the *labelled* degeneralized TBA product): see `checkTimed`.
-
-Distinct from `checkTimed`, which benchmarks the legacy `LTLLib.modelCheck` (NNF tableau +
-`nestedDFSChecker`) route with an *unlabelled* successor function. That route never touches `TBAProduct`,
-so it cannot measure anything about edge labels. This one is the route `checkNDFS` ships. -/
+/-- Instrumented `checkNDFS`, nested DFS over the labelled degeneralized TBA product. -/
 def checkNDFSTimed [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
@@ -124,7 +114,7 @@ def checkNDFSTimed [Inhabited σ]
         exact finiteReach_of_closed (sysSucc sys) sys.initStates
           (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed)
 
-/-- Instrumented `checkDijkstra` (Dijkstra SCC / TGBA): see `checkTimed`. -/
+/-- Instrumented `checkDijkstra`, Dijkstra SCC over the TGBA product. -/
 def checkDijkstraTimed [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
@@ -145,8 +135,8 @@ where
           if seen.contains t then (seen, next) else (seen.insert t, next.push t)
       go seen next
 
-/-- The reachable product states, computed with **uninstrumented** callbacks so the probe's own setup
-does not pollute the counters. -/
+/-- The reachable product states, computed with uninstrumented callbacks so the probe's own setup does not pollute the
+counters. -/
 def probeProductStates [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
@@ -156,8 +146,7 @@ def probeProductStates [Inhabited σ]
   productClosure (LTLLib.TGBAProduct.getSuccessors tgba ss sl)
     (LTLLib.TGBAProduct.initialStates tgba sys.initStates)
 
-/-- The top-level shape: one fused `expand` per state. Returns the total number of successors, so the
-caller can report mean out-degree. -/
+/-- The top-level shape, one fused `expand` per state. Returns the total number of successors, for the mean out-degree. -/
 def probeFusedExpand [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
@@ -166,12 +155,10 @@ def probeFusedExpand [Inhabited σ]
   let sl := timedLabel (sysLabelOf sys p th)
   states.foldl (init := 0) fun acc q =>
     let e := LTLLib.TGBAProduct.expand tgba ss sl q
-    -- §13.17 widened `expand` to a triple; the marks are `.2.1` and the option payload `.2.2` is empty
-    -- on this route, so forcing the first two arrays is still forcing all the work there is
+    -- the marks are `.2.1`, and the option payload `.2.2` is empty on this route
     acc + e.1.size + (e.2.1.foldl (init := 0) fun n _ => n)
 
-/-- The region shape, as `Candidate.expand` composes it: successors, then `keptEdgeMarks` once per
-successor. `sccSuccs`'s state filter is omitted because it only drops elements and makes no callbacks. -/
+/-- The region shape as `Candidate.expand` composes it, successors then `keptEdgeMarks` once per successor. -/
 def probeRegionExpand [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
@@ -183,8 +170,8 @@ def probeRegionExpand [Inhabited σ]
     let ms := out.map (LTLLib.TGBAProduct.keptEdgeMarks tgba ss sl (fun _ => true) q)
     acc + out.size + (ms.foldl (init := 0) fun n _ => n)
 
-/-- The region shape **after** Level 1: the spec's own fused `keptExpand`, which is what
-`Candidate.expand` now filters. Should read 1.0x on both callbacks, like the top-level scan. -/
+/-- The region shape of the spec's own fused `keptExpand`, which `Candidate.expand` filters. Should read 1.0x on both
+callbacks, like the top-level scan. -/
 def probeKeptExpand [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
@@ -197,41 +184,33 @@ def probeKeptExpand [Inhabited σ]
 
 /-! ### Mode-split probes
 
-`patOnly`, `prune` and `fair` all end in `modelCheckPruneSplit`; they differ only in which conjuncts
-reach it. `patOnly` hoists the syntactically flat ones (`hoistFlat`), `prune` adds [LSFZ16] Appendix A
-flattening, `fair` adds the disjunctive hoist on top.
-These three instrumented copies let the modes be compared on one system with callback counts and explored-state counts. -/
+`patOnly`, `prune` and `fair` all end in `modelCheckPruneSplit` and differ only in which conjuncts reach it. `patOnly`
+hoists the syntactically flat ones, `prune` adds [LSFZ16] Appendix A flattening, `fair` adds the disjunctive hoist. -/
 
-/-- Instrumented `patOnly`: hoist only the syntactically flat conjuncts. -/
+/-- Instrumented `patOnly`, hoisting only the syntactically flat conjuncts. -/
 def checkFairDirectTimed [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult (σ × Nat) :=
   LTLLib.modelCheckFairDirectOfStep p.φ sys.initStates (timedStepFn (sysStepOf sys p th))
 
-/-- Instrumented `prune`: the fair-normal-form split, decided per SCC. -/
+/-- Instrumented `prune`, the fair-normal-form split decided per SCC. -/
 def checkFairFNFPruneTimed [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult (σ × Nat) :=
   LTLLib.modelCheckFairFNFPruneOfStep p.φ sys.initStates (timedStepFn (sysStepOf sys p th))
 
-/-- Instrumented `fair`: the prune plus the disjunctive hoist. The shipped default route. -/
+/-- Instrumented `fair`, the prune plus the disjunctive hoist. The default route. -/
 def checkFairTimed [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     LTLLib.EmptinessResult (σ × Nat) :=
   LTLLib.modelCheckFairOfStep p.φ sys.initStates (timedStepFn (sysStepOf sys p th))
 
-/-- The **top-level scan** of a prune route, run on its own.
-
-`streettCheck` is `streettRun` followed by `pruneLoop`. This is the first half only, so the caller can
-count the Veil callbacks it makes and subtract from the full route's total, the difference is exactly
-what the candidate re-scans cost. Returns `(live, dead)` so the caller can force the result and report
-the states the scan settled.
-
-`kept`/`dss` are what the mode's hoisting produced: `patOnly` passes `hoistFlat`'s, `prune` passes
-`hoistFairness` + `rehoist`'s. -/
+/-- The top-level scan of a prune route, run on its own. `streettCheck` is `streettRun` followed by `pruneLoop`, and this is
+the first half only, so the caller can subtract it from the full route's total to get what the candidate re-scans cost.
+`kept` and `dss` are what the mode's hoisting produced. -/
 def pruneScanOnly [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
@@ -247,12 +226,8 @@ def pruneScanOnly [Inhabited σ]
       (LTLLib.TGBAProduct.initialStates tgba sys.initStates)
     (r.2.live.size, r.2.dead.size)
 
-/-- Partition a Streett scan's Veil callbacks between the DFS and `streettPop`.
-
-* `timeExpand = true`  — counts the DFS's own expansions, one per state discovered.
-* `timeExpand = false` — counts what `streettPop` spends, i.e. `scanFrame`'s `internalEdges succs`.
-
-The two should sum to the figure `pruneScanOnly` reports. -/
+/-- Partition a Streett scan's Veil callbacks between the DFS and `streettPop`, selected by `which`. The parts are disjoint
+and sum to the figure `pruneScanOnly` reports. -/
 def pruneScanSplit [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
@@ -263,9 +238,7 @@ def pruneScanSplit [Inhabited σ]
   | some tgba =>
     let ssU := sysStepsLabelled sys (edgeLabelling p)
     let slU := sysLabelOf sys p th
-    -- 0 = the DFS's `expand`; 1 = `succs`/`edgeMarks`, which reach only `ops.pop`; 2 = the spec's own
-    -- region callbacks, which `scanFrame` -> `scanLetters` enters when it evaluates a region on an edge
-    -- (that needs the edge's *letter*, hence `sysLabel`). The three are disjoint and must sum.
+    -- 0 = the DFS's `expand`, 1 = `succs` and `edgeMarks`, which reach only `ops.pop`, 2 = the spec's own region callbacks
     let ssE := if which == 0 then timedSteps ssU else ssU
     let slE := if which == 0 then timedLabel slU else slU
     let ssC := if which == 2 then timedSteps ssU else ssU
@@ -276,11 +249,7 @@ def pruneScanSplit [Inhabited σ]
       (LTLLib.TGBAProduct.initialStates tgba sys.initStates)
     (r.2.live.size, r.2.dead.size)
 
-/-- The compiled spec's shape, to divide the measured region-callback count by.
-
-`scanLabels` walks the edge list and `scanOptionsAt` walks the options inside it, so the region
-callbacks are one `regionSuccs` per (edge, option) plus the option's mark predicates, each of which
-is another. -/
+/-- The compiled spec's shape, to divide the measured region-callback count by. -/
 def specShape [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
@@ -294,8 +263,7 @@ def specShape [Inhabited σ]
     let cs := LTLLib.CompiledSpec.of (LTLLib.streettRSpecOf tgba ss sl dss)
     (cs.numOptions, cs.numOptMarks, cs.optMarks.foldl (init := 0) fun n m => n + m.size)
 
-/-- Instrumented `checkUnderFairness` (cross / region latch): both Veil callbacks are wrapped so that
-`readVeilTimers` reports the time spent computing successors and labels. -/
+/-- Instrumented `checkUnderFairness`, the cross and region latch. -/
 def checkUnderFairnessTimed [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :

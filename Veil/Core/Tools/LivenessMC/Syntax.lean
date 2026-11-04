@@ -8,11 +8,8 @@ public meta section
 
 /-! # `[ltl| φ]`: LTL formulas as `LTLLib.Formula` syntax trees
 
-The deep counterpart of Lentil's `[tlfml| φ]`, over the same `tlfml` syntax category. The connectives
-are macros onto the constructors of `LTLLib.Formula`. What an atom means is up to the context: here
-`⌜ a ⌝` is the atom `a` itself and a plain term is a formula, while a Veil module reads `⌜ t ⌝`,
-`E(…)` and `T(…)` against itself through an elaborator of its own (`Veil.elabModuleLtlAtom`), which,
-registered later, is tried first. -/
+The deep counterpart of Lentil's `[tlfml| φ]`, over the same `tlfml` syntax category. What an atom means is up to the
+context, a Veil module reads `⌜ t ⌝`, `E(…)` and `T(…)` against itself through `Veil.elabModuleLtlAtom`, tried first. -/
 
 namespace Veil.LivenessMC
 
@@ -20,6 +17,9 @@ open Lean Elab Term
 
 /-- An LTL formula as an `LTLLib.Formula` syntax tree. -/
 syntax (name := ltlFormula) "[ltl|" tlfml "]" : term
+
+/-- `↔` for `tlfml`, which Lentil leaves undefined. Looser than `→` and non-associative, as with Lean's own `Iff`. -/
+syntax:20 tlfml:21 " ↔ " tlfml:21 : tlfml
 
 macro_rules
   | `([ltl| ( $f )]) => `([ltl| $f])
@@ -37,8 +37,7 @@ macro_rules
   | `([ltl| $f ↝ $g]) => `([ltl| □ ($f → ◇ $g)])
   | `([ltl| $f ⇒ $g]) => `([ltl| □ ($f → $g)])
 
-/-- The atoms of `[ltl| …]` outside a Veil module: `⌜ a ⌝` is the atom `a`, and a plain term is a
-formula. -/
+/-- The atoms of `[ltl| …]` outside a Veil module, `⌜ a ⌝` is the atom `a`, and a plain term is a formula. -/
 @[term_elab ltlFormula] def elabLtlAtom : TermElab := fun stx expectedType? => do
   match stx with
   | `([ltl| ⌜ $a:term ⌝]) => elabTerm (← `(LTLLib.Formula.atom $a)) expectedType?

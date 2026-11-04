@@ -10,7 +10,7 @@ namespace Veil.LivenessMC
 variable {σ : Type} [BEq σ] [Hashable σ] [LawfulBEq σ]
 variable {ρ l : Type} [BEq l] [Hashable l] {th : ρ}
 
-/-- Render an `NNF` with atoms shown by their declared names, and `⊤ U ψ` and `⊥ R ψ` shown as `◇` and `□`. -/
+/-- Render an `NNF` with atoms shown by their declared names. -/
 private def showNNF (nm : Nat → String) : LTLLib.NNF Nat → String
   | .tt => "⊤"
   | .ff => "⊥"
@@ -24,12 +24,12 @@ private def showNNF (nm : Nat → String) : LTLLib.NNF Nat → String
   | .release .ff ψ => s!"□{showNNF nm ψ}"
   | .release φ ψ => s!"({showNNF nm φ} R {showNNF nm ψ})"
 
-/-- The total acceptance marks a hoisted split carries, over every option of every conjunct. -/
+/-- The acceptance marks a hoisted split carries. -/
 private def markCount (dss : List (List (LTLLib.NNF.FairDisjunct Nat))) : Nat :=
   dss.foldl (init := 0) fun n ds =>
     ds.foldl (init := n) fun m (d : LTLLib.NNF.FairDisjunct Nat) => m + d.2.length
 
-/-- The options a hoisted split offers, summed over its conjuncts. -/
+/-- The options a hoisted split offers. -/
 private def optionCount (dss : List (List (LTLLib.NNF.FairDisjunct Nat))) : Nat :=
   dss.foldl (init := 0) fun n ds => n + ds.length
 
@@ -38,12 +38,8 @@ private def keptDesc (nm : Nat → String) (cs : List (LTLLib.NNF Nat)) : String
   if cs.isEmpty then "the tableau gets ⊤"
   else s!"the tableau gets {String.intercalate " ∧ " (cs.map (showNNF nm))}"
 
-/-- Explain how a `liveness` property written as `fairness → property` is routed: which conjuncts of the
-assumption are hoisted onto the product, which stay in the property, and what the hoisted ones cost.
-Nothing here affects checking.
-
-The route is read off LTLLib's own split (`fairPruneSplits`, `fairCrossSplit`, `pruneApplicable`), not
-re-derived here, so what this prints is what `checkFair` will actually run. -/
+/-- Explain how a property written as `fairness → property` is routed, which conjuncts of the assumption are hoisted onto
+the product, which stay in the property, and what the hoisted ones cost. Nothing here affects checking. -/
 def explainFairness (p : LivenessProperty ρ σ l) : IO Unit := do
   let nm := fun i => match p.atoms[i]? with
     | some a => toString a.name
@@ -62,7 +58,7 @@ def explainFairness (p : LivenessProperty ρ σ l) : IO Unit := do
       | none => "kept, goes to the tableau"
     IO.println s!"    {showNNF nm c}"
     IO.println s!"      {route}, {cost}"
-  -- Which route `checkFair` takes, and what that route will run.
+  -- Which route `checkFair` takes.
   if pruneRegionsAvoidEdgeAtoms p then
     let splits := LTLLib.fairPruneSplits p.φ
     IO.println s!"  route      prune, {splits.length} run(s); no hoisted region mentions a T(…) atom"
