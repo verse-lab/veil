@@ -10,18 +10,14 @@ public section
 namespace Veil.LivenessMC
 open Lean
 
-/-- An atomic proposition of a liveness property.
-
-`state` is the `⌜ … ⌝` form, a predicate on the state. `enabled` and `taken` are the two action
-primitives, both identified by a predicate on the action *label*, so that `E(send)` (any instantiation)
-and `E(send n next)` (one instantiation) are the same construct with a different predicate.
-
-The split that matters is that **`enabled` is a state atom and only `taken` is an edge atom**: whether some
-instantiation of an action can fire is determined by the state alone, so `E(a)` needs nothing from the
-labelled product and works on every mode, while `T(a)` is a property of the step. -/
+/-- An atomic proposition of a liveness property. `enabled` is a state atom and only `taken` is an edge atom, whether some
+instantiation of an action can fire is determined by the state alone. -/
 inductive LivenessAtom (ρ σ l : Type) where
+  -- the `⌜ … ⌝` form, a predicate on the state
   | state (p : Veil.ModelChecker.SafetyProperty ρ σ)
+  -- `E(a)`, matched on the action label, so `E(send)` and `E(send n next)` are one construct with a different predicate
   | enabled (name : Name) (isMatch : l → Bool)
+  -- `T(a)`, a property of the step
   | taken (name : Name) (isMatch : l → Bool)
 
 def LivenessAtom.name : LivenessAtom ρ σ l → Name
@@ -34,26 +30,22 @@ structure LivenessProperty (ρ σ l : Type) where
   atoms : List (LivenessAtom ρ σ l)
   φ : LTLLib.Formula Nat -- Reference atomic props by their index in `atoms`
 
-/-- The disjunction of a list of formulas, `⊥` for the empty list. Like `LTLLib.Formula.conj`, it adds no
-`⊥` to a non-empty list.
+/-- The disjunction of a list of formulas, `⊥` for the empty list.
 
 TODO: This belongs in LTLLib, next to `LTLLib.Formula.conj`. -/
 def disj (φs : List (LTLLib.Formula α)) : LTLLib.Formula α :=
   LentilLib.List.foldrD .or .ff φs
 
-/-- The conjunction of `φ x` over all values `x` that `Enumeration` lists. In a Veil module,
-`[ltl| ∀ x, φ]` elaborates to it. `φ` comes before the instance, so that the type of `x` can be inferred
-from `φ`. -/
+/-- The conjunction of `φ x` over all values `x` that `Enumeration` lists. In a Veil module, `[ltl| ∀ x, φ]` elaborates to it. -/
 def forallEnum (φ : α → LTLLib.Formula β) [Enumeration α] : LTLLib.Formula β :=
   LTLLib.Formula.conj (Enumeration.allValues.map φ)
 
-/-- The disjunction of `φ x` over all values `x` that `Enumeration` lists. In a Veil module,
-`[ltl| ∃ x, φ]` elaborates to it. -/
+/-- The disjunction of `φ x` over all values `x` that `Enumeration` lists. In a Veil module, `[ltl| ∃ x, φ]` elaborates to it. -/
 def existsEnum (φ : α → LTLLib.Formula β) [Enumeration α] : LTLLib.Formula β :=
   disj (Enumeration.allValues.map φ)
 
-/-- The property `φ` with its atoms numbered: every occurrence of an atom becomes an atomic proposition
-of its own, numbered in the order `φ` mentions it, left to right. -/
+/-- The property `φ` with its atoms numbered, every occurrence becoming an atomic proposition of its own, numbered in the
+order `φ` mentions it, left to right. -/
 def LivenessProperty.ofFormula (name : Name) (φ : LTLLib.Formula (LivenessAtom ρ σ l)) :
     LivenessProperty ρ σ l :=
   let (φ, atoms) := (number φ).run #[]
@@ -74,14 +66,8 @@ where
     | .eventually φ => .eventually <$> number φ
     | .always φ => .always <$> number φ
 
-/-- The state atoms holding at `st`: the `⌜ … ⌝` predicates, plus the `E(a)` atoms matched by some label
-that can fire at `st`.
-
-`enabledHere` is the caller's list of **step-enabled** labels — those with a `.success` outcome, not merely
-those whose guard passes. That keeps `E` and `T` coherent on the graph the checker actually walks: `E(a)`
-holds at `s` exactly when some `T(a)`-step leaves `s`. An action whose guard holds but which then faults is
-not enabled in this sense; that is an assertion failure, which the safety checker reports, not a fairness
-obligation. -/
+/-- The state atoms holding at `st`, the `⌜ … ⌝` predicates plus the `E(a)` atoms matched by some label that can fire at `st`.
+`enabledHere` is the caller's list of step-enabled labels, those with a `.success` outcome, not merely those whose guard passes. -/
 @[inline, specialize]
 def LivenessProperty.stateLabel (p : LivenessProperty ρ σ l) (th : ρ) (st : σ)
     (enabledHere : List l) : Std.HashSet Nat :=
@@ -99,10 +85,8 @@ def LivenessProperty.edgeLabel (p : LivenessProperty ρ σ l) (lbl : l) : Std.Ha
       | .taken _ isMatch => if isMatch lbl then acc.insert i else acc
       | _ => acc)).2
 
-/-- Is atom index `i` a `T(…)`, i.e. one a *step* can contribute? This is the `edgeAtom` predicate
-LTLLib's `modelCheckFairRoutedOfStep` takes, and the whole of what Veil tells it: a hoisted `◇□` region
-mentioning one of these cannot be decided by the source state, which is the condition the prune needs, so
-a property that has one is routed to the crossing instead. -/
+/-- Is atom index `i` a `T(…)`, one a step can contribute? This is the `edgeAtom` predicate LTLLib's
+`modelCheckFairRoutedOfStep` takes, and the whole of what Veil tells it. -/
 def LivenessProperty.isEdgeAtom (p : LivenessProperty ρ σ l) (i : Nat) : Bool :=
   match p.atoms[i]? with
   | some (.taken _ _) => true
@@ -149,8 +133,7 @@ theorem LivenessProperty.isEdgeAtom_of_mem_edgeLabel (p : LivenessProperty ρ σ
 def LivenessProperty.hasEnabledAtoms (p : LivenessProperty ρ σ l) : Bool :=
   p.atoms.any fun | .enabled _ _ => true | _ => false
 
-/-- Does the property mention a `T(a)`? Only then are the steps' letters non-empty, and only then does the
-route have to be a labelled one. -/
+/-- Does the property mention a `T(a)`? Only then are the steps' letters non-empty. -/
 def LivenessProperty.hasEdgeAtoms (p : LivenessProperty ρ σ l) : Bool :=
   p.atoms.any fun | .taken _ _ => true | _ => false
 

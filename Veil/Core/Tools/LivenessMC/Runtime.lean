@@ -8,8 +8,7 @@ public section
 namespace Veil.LivenessMC
 open Lean ModelChecker Concrete
 
-/-- Completed prefix of this command's property list. The workflow transfers it only
-between executions of the same elaborated snapshot; it is not a reusable certificate. -/
+/-- Completed prefix of this command's property list, transferred only between executions of the same elaborated snapshot. -/
 private structure HandoffCheckpoint where
   propertiesChecked : Nat := 0
   exploredStates : Nat := 0
@@ -24,22 +23,12 @@ private def timingJson (route : Route) (searchNs : Nat) (perProperty : Array Jso
   Json.mkObj [("route", route.name), ("search_ns", toJson searchNs),
     ("properties", Json.arr perProperty)]
 
-/-- Check declared properties in order with `checkRoute route`, stopping at the first
-counterexample. Assumptions and state constraints match the safety checker.
-A dead end stutters: LTLLib gives it a self-loop, so a run may end there. Assertion
-failures and safety invariants are checked separately by `#model_check`.
+/-- Check declared properties in order with `checkRoute route`, stopping at the first counterexample. Assumptions and state
+constraints match the safety checker, and a dead end stutters. Assertion failures and safety invariants are checked
+separately by `#model_check`.
 
-Cancellation is honoured between properties only. LTLLib's search is pure, so the
-property being checked always runs to completion; it is recorded in the checkpoint
-before the token is consulted again, and a handoff redoes none of its work. Progress
-is likewise reported between properties. Compiled runs are cancelled by killing the
-process instead.
-
-The counterexample preserves LTLLib's state projections of the stem and loop.
-It does not invent action labels: parallel labelled edges need not be determined
-by their endpoints. Explored counts are product states summed over passed properties,
-including the completed prefix carried over from interpreted execution at handoff.
-Only the first unfinished property restarts its search. -/
+Cancellation and progress are honoured between properties only. Explored counts are product states summed over passed
+properties, including the prefix carried over at handoff. -/
 def checkAllWithProgress [ToJson ρ] [ToJson σ]
     (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l (Transitions l Int σ) th)
     (params : SearchParameters ρ σ) (properties : List (LivenessProperty ρ σ l))
