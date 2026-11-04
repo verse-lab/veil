@@ -5,7 +5,7 @@ public import Veil.Core.Tools.LivenessMC.LivenessMC
 public meta import Veil.Core.Tools.LivenessMC.LivenessMC
 public meta import Veil.Core.Tools.LivenessMC.Report
 public meta import Veil.Core.Tools.LivenessMC.Benchmarking
-import LTLLib
+import Lasso
 
 /-! # Nested fairness: a fairness assumption TLC has to build a tableau for
 
@@ -99,10 +99,10 @@ temporal [server0EmitsFair]
 There is no translated-assumption row because there cannot be one. Handing `server0EmitsFair` to a checker
 that translates the whole implication overflows the tableau construction, which is the same wall TLC hits on
 `NestedFairnessServers.tla`, where it fails to finish at three servers. The two negative controls use the
-verified `check` entry point so nothing here depends on a `sorry`. -/
+verified `checkNDFS` entry point so nothing here depends on a `sorry`. -/
 
 open Veil.LivenessMC in
-private def timeIt {α} (name : String) (f : Unit → LTLLib.EmptinessResult α) : IO Unit := do
+private def timeIt {α} (name : String) (f : Unit → Lasso.EmptinessResult α) : IO Unit := do
   let t0 ← IO.monoNanosNow
   let r := f ()
   let d := match r with
@@ -119,11 +119,11 @@ private def timeIt {α} (name : String) (f : Unit → LTLLib.EmptinessResult α)
 #eval show IO Unit from do
   IO.println "NestedServers, 3 servers, 64 states"
   timeIt "no assumption          " fun _ =>
-    Veil.LivenessMC.check (enumerableTransitionSystem {})
+    Veil.LivenessMC.checkNDFS (enumerableTransitionSystem {})
       (server0Emits.ast Theory (State FieldConcreteType) FieldConcreteType)
       (by native_decide) (by native_decide)
   timeIt "weak assumption        " fun _ =>
-    Veil.LivenessMC.check (enumerableTransitionSystem {})
+    Veil.LivenessMC.checkNDFS (enumerableTransitionSystem {})
       (server0EmitsWeak.ast Theory (State FieldConcreteType) FieldConcreteType)
       (by native_decide) (by native_decide)
   timeIt "nested assumption, hoisted" fun _ =>
@@ -133,8 +133,8 @@ private def timeIt {α} (name : String) (f : Unit → LTLLib.EmptinessResult α)
 /-! ## Veil callbacks per product state
 
 `server0EmitsFair` holds, so the cross route's `disjunctFeasible` fail-fast does not fire and the run
-actually walks the *product* region latch — which `MCDijkstraPerf.lean`'s philosophers case never reaches.
-`1.0x` means a callback is entered once per product state, which is what LTLLib's fused `expand` buys;
+actually walks the *product* region latch — which `MCDijkstraPerf.md`'s philosophers case never reaches.
+`1.0x` means a callback is entered once per product state, which is what Lasso's fused `expand` buys;
 anything above means once per edge. See `EdgeLabels.md` §9. -/
 #eval show IO Unit from do
   Veil.LivenessMC.resetVeilTimers

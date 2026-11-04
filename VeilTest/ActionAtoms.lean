@@ -45,7 +45,7 @@ open Veil.LivenessMC in
 #eval do
   let sys := enumerableTransitionSystem {}
   let expect (nm : String) (want : Bool)
-      (r : LTLLib.EmptinessResult (State FieldConcreteType × LTLLib.TBAState)) : IO Unit := do
+      (r : Lasso.EmptinessResult (State FieldConcreteType × Lasso.TBAState)) : IO Unit := do
     let got := match r with | .empty _ => true | .nonEmpty _ _ => false
     if got == want then IO.println s!"  ok    {nm}"
     else IO.println s!"  FAIL  {nm}: expected {if want then "holds" else "fails"}"
@@ -65,7 +65,7 @@ open Veil.LivenessMC in
 #eval do
   let sys := enumerableTransitionSystem {}
   let expect (nm : String) (want : Bool)
-      (r : LTLLib.EmptinessResult ((State FieldConcreteType × Nat) × Bool)) : IO Unit := do
+      (r : Lasso.EmptinessResult ((State FieldConcreteType × Nat) × Bool)) : IO Unit := do
     let got := match r with | .empty _ => true | .nonEmpty _ _ => false
     if got == want then IO.println s!"  ok    {nm}"
     else IO.println s!"  FAIL  {nm}: expected {if want then "holds" else "fails"}"
@@ -117,7 +117,7 @@ open Veil.LivenessMC in
 #eval do
   let sys := enumerableTransitionSystem {}
   let expect (nm : String) (want : Bool)
-      (r : LTLLib.EmptinessResult (State FieldConcreteType × LTLLib.TBAState)) : IO Unit := do
+      (r : Lasso.EmptinessResult (State FieldConcreteType × Lasso.TBAState)) : IO Unit := do
     let got := match r with | .empty _ => true | .nonEmpty _ _ => false
     if got == want then IO.println s!"  ok    {nm}"
     else IO.println s!"  FAIL  {nm}: expected {if want then "holds" else "fails"}"
@@ -139,7 +139,7 @@ open Veil.LivenessMC in
 #eval do
   let sys := enumerableTransitionSystem {}
   let expect (nm : String) (want : Bool)
-      (r : LTLLib.EmptinessResult ((State FieldConcreteType × Nat) × Bool)) : IO Unit := do
+      (r : Lasso.EmptinessResult ((State FieldConcreteType × Nat) × Bool)) : IO Unit := do
     let got := match r with | .empty _ => true | .nonEmpty _ _ => false
     if got == want then IO.println s!"  ok    {nm}"
     else IO.println s!"  FAIL  {nm}: expected {if want then "holds" else "fails"}"
@@ -202,7 +202,7 @@ open Veil.LivenessMC in
 #eval do
   let sys := enumerableTransitionSystem {}
   let expect (nm : String) (want : Bool)
-      (r : LTLLib.EmptinessResult ((State FieldConcreteType × Nat) × Bool)) : IO Unit := do
+      (r : Lasso.EmptinessResult ((State FieldConcreteType × Nat) × Bool)) : IO Unit := do
     let got := match r with | .empty _ => true | .nonEmpty _ _ => false
     if got == want then IO.println s!"  ok    {nm}"
     else IO.println s!"  FAIL  {nm}: expected {if want then "holds" else "fails"}"
@@ -249,7 +249,7 @@ open Veil.LivenessMC in
 open Veil.LivenessMC in
 #eval do
   let sys := enumerableTransitionSystem {}
-  let expect (nm : String) (want : Bool) (r : LTLLib.EmptinessResult (State FieldConcreteType × Nat)) :
+  let expect (nm : String) (want : Bool) (r : Lasso.EmptinessResult (State FieldConcreteType × Nat)) :
       IO Unit := do
     let got := match r with | .empty _ => true | .nonEmpty _ _ => false
     if got == want then IO.println s!"  ok    {nm}"

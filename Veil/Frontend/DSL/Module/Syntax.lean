@@ -354,7 +354,7 @@ scoped syntax (name := tlfmlStrongFairness) "SF(" ident (term:max)* ")" : tlfml
 properties, which are state predicates, temporal properties are properties about traces.
 
 Veil defines it twice: `p`, a `Lentil.pred` that `prove_temporal_by [p]` proves, and `p.ast`, an
-`LTLLib.Formula` syntax tree that `#temporal_check` checks. `(only := verify)` and `(only := check)` keep
+`Lasso.Formula` syntax tree that `#temporal_check` checks. `(only := verify)` and `(only := check)` keep
 one of them. Without `(only := …)`, a definition that fails to elaborate is dropped with a warning, e.g.
 `p` when the formula uses `E(…)`, which only model checking supports.
 

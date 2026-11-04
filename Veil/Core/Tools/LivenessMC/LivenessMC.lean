@@ -1,7 +1,7 @@
 module
 
 public import Veil.Core.Tools.LivenessMC.Interface
-public import LTLLib.ModelCheck
+public import Lasso.ModelCheck
 
 public section
 
@@ -30,7 +30,7 @@ theorem finiteReach_of_closed
     (succs : σ → Array σ) (initialStates : List σ) (closure : Std.HashSet σ)
     (hinit : initialStates.all closure.contains = true)
     (hclosed : closure.toList.all (fun s => (succs s).all closure.contains) = true) :
-    LTLLib.FiniteReach initialStates succs := by
+    Lasso.FiniteReach initialStates succs := by
   refine ⟨closure.toList, ?_⟩
   intro x hx
   induction hx with
@@ -71,7 +71,7 @@ def edgeLabelling (p : LivenessProperty ρ σ l) : Option (l → Std.HashSet Nat
 /-- The system as a labelled graph, each successful step paired with the `T(a)` atoms its label matches. -/
 def sysStepsLabelledTr (tr : σ → Veil.Transitions l Int σ)
     (edgeLabel? : Option (l → Std.HashSet Nat)) :
-    σ → Array (LTLLib.LStep Nat σ) :=
+    σ → Array (Lasso.LStep Nat σ) :=
   match edgeLabel? with
   | none => fun st =>
     ((tr st).successes.map fun (_, s') => (emptyLetter, s')).toArray
@@ -82,7 +82,7 @@ def sysStepsLabelled
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th)
     (edgeLabel? : Option (l → Std.HashSet Nat)) :
-    σ → Array (LTLLib.LStep Nat σ) :=
+    σ → Array (Lasso.LStep Nat σ) :=
   sysStepsLabelledTr (sys.tr th) edgeLabel?
 
 omit [BEq σ] [Hashable σ] [LawfulBEq σ] [BEq l] [Hashable l] in
@@ -91,7 +91,7 @@ theorem targets_sysStepsLabelled
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th)
     (edgeLabel? : Option (l → Std.HashSet Nat)) :
-    LTLLib.LSys.targets (sysStepsLabelled sys edgeLabel?) = sysSucc sys := by
+    Lasso.LSys.targets (sysStepsLabelled sys edgeLabel?) = sysSucc sys := by
   funext st
   cases edgeLabel? <;>
     · show Array.map Prod.snd _ = _
@@ -121,7 +121,7 @@ every state it visits. `sysStepOf` gives a state's steps and its atoms from one 
 
 /-- The steps of already-enumerated transitions. -/
 @[inline] def stepsOfOutcomes (outs : Veil.Transitions l Int σ)
-    (edgeLabel? : Option (l → Std.HashSet Nat)) : Array (LTLLib.LStep Nat σ) :=
+    (edgeLabel? : Option (l → Std.HashSet Nat)) : Array (Lasso.LStep Nat σ) :=
   match edgeLabel? with
   | none =>
     (outs.successes.map fun (_, s') => (emptyLetter, s')).toArray
@@ -138,7 +138,7 @@ every state it visits. `sysStepOf` gives a state's steps and its atoms from one 
 def sysStepOf [BEq l] [Hashable l]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) (th' : ρ) :
-    LTLLib.LSys.StepFn Nat σ :=
+    Lasso.LSys.StepFn Nat σ :=
   let edgeLabel? := edgeLabelling p
   let hasE := p.hasEnabledAtoms
   fun st =>
@@ -162,42 +162,42 @@ theorem sysStepOf_eq [BEq l] [Hashable l]
     rw [sysLabelOf, sysLabelOfTr]
     split <;> rfl
 
-/-- Run `LTLLib.modelCheckDijkstra` for the property `p`. -/
+/-- Run `Lasso.modelCheckDijkstra` for the property `p`. -/
 def checkDijkstra [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
-    LTLLib.EmptinessResult (σ × Nat) :=
-  LTLLib.modelCheckTGBAOfStep p.φ sys.initStates (sysStepOf sys p th)
+    Lasso.EmptinessResult (σ × Nat) :=
+  Lasso.modelCheckTGBAOfStep p.φ sys.initStates (sysStepOf sys p th)
 
-/-- Run `LTLLib.modelCheckNDFS`, nested DFS over the degeneralized automaton, for the property `p`. -/
+/-- Run `Lasso.modelCheckNDFS`, nested DFS over the degeneralized automaton, for the property `p`. -/
 def checkNDFS [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
     (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
       (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true) :
-    LTLLib.EmptinessResult (σ × LTLLib.TBAState) :=
-  LTLLib.modelCheckNDFSOfStep p.φ sys.initStates (sysStepOf sys p th)
+    Lasso.EmptinessResult (σ × Lasso.TBAState) :=
+  Lasso.modelCheckNDFSOfStep p.φ sys.initStates (sysStepOf sys p th)
     (by simp only [sysStepOf_eq]
         rw [targets_sysStepsLabelled]
         exact finiteReach_of_closed (sysSucc sys) sys.initStates
           (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed)
 
-/-- Run `LTLLib.modelCheckUnderFairness` on the declared property as written. Every conjunct of the negated property that is
+/-- Run `Lasso.modelCheckUnderFairness` on the declared property as written. Every conjunct of the negated property that is
 a fairness in the sense of [LSFZ16] and flattens into `LTL(F, G)` becomes acceptance marks and a region restriction on the
 product rather than reaching the tableau. -/
 def checkUnderFairness [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
-    LTLLib.EmptinessResult ((σ × Nat) × Bool) :=
-  LTLLib.modelCheckUnderFairness p.φ sys.initStates
+    Lasso.EmptinessResult ((σ × Nat) × Bool) :=
+  Lasso.modelCheckUnderFairness p.φ sys.initStates
     (sysStepsLabelled sys (edgeLabelling p)) (sysLabelOf sys p th)
 
 /-! ## When the prune takes its fast path
 
 The prune is the faster route and the default. A hoisted `◇□` region that mentions an edge atom has to be committed before a
 report, which costs an extra search level over the accepting SCC, while a region that does not is committable on the first
-pass. The decision is `LTLLib.modelCheckFairRoutedOfStep`'s, Veil owes it only the classification of which atom indices are
+pass. The decision is `Lasso.modelCheckFairRoutedOfStep`'s, Veil owes it only the classification of which atom indices are
 `T(…)` and the proof that a step contributes nothing else. -/
 
 omit [BEq σ] [Hashable σ] [LawfulBEq σ] [BEq l] [Hashable l] in
@@ -205,13 +205,13 @@ omit [BEq σ] [Hashable σ] [LawfulBEq σ] [BEq l] [Hashable l] in
 theorem steps_edgeAtom
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
-    ∀ s, ∀ st ∈ LTLLib.LSys.totalize (sysStepsLabelled sys (edgeLabelling p)) s,
+    ∀ s, ∀ st ∈ Lasso.LSys.totalize (sysStepsLabelled sys (edgeLabelling p)) s,
       ∀ a ∈ st.1, p.isEdgeAtom a = true := by
   intro s st hst a ha
   -- with no `T(…)` every step reads `emptyLetter`, so there is nothing to classify
   rcases hlab : edgeLabelling p with _ | f
   · rw [hlab] at hst
-    rcases LTLLib.LSys.mem_totalize.mp hst with h
+    rcases Lasso.LSys.mem_totalize.mp hst with h
     split at h
     · rw [h] at ha; simp at ha
     · obtain ⟨lbl, s', -, heq⟩ :
@@ -226,7 +226,7 @@ theorem steps_edgeAtom
       · exact absurd hlab (by simp)
     subst hf
     rw [hlab] at hst
-    rcases LTLLib.LSys.mem_totalize.mp hst with h
+    rcases Lasso.LSys.mem_totalize.mp hst with h
     split at h
     · rw [h] at ha; simp at ha
     · obtain ⟨lbl, s', -, heq⟩ :
@@ -237,29 +237,29 @@ theorem steps_edgeAtom
 
 /-- Does every region the prune would receive avoid the `T(…)` atoms? -/
 def pruneRegionsAvoidEdgeAtoms (p : LivenessProperty ρ σ l) : Bool :=
-  LTLLib.pruneApplicable p.isEdgeAtom p.φ
+  Lasso.pruneApplicable p.isEdgeAtom p.φ
 
-/-- The default route, `LTLLib.modelCheckFairRoutedOfStep`, which takes the prune, every fairness conjunct hoisted and
+/-- The default route, `Lasso.modelCheckFairRoutedOfStep`, which takes the prune, every fairness conjunct hoisted and
 decided per SCC, and falls back to the crossing when a hoisted region mentions a `T(…)` atom. -/
 def checkFair [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
-    LTLLib.EmptinessResult (σ × Nat) :=
-  LTLLib.modelCheckFairRoutedOfStep p.φ sys.initStates (sysStepOf sys p th) p.isEdgeAtom
+    Lasso.EmptinessResult (σ × Nat) :=
+  Lasso.modelCheckFairRoutedOfStep p.φ sys.initStates (sysStepOf sys p th) p.isEdgeAtom
 
 /-- Soundness of `checkFair`: an `.empty` result means every labelled run of the system satisfies `p.φ`. -/
 theorem checkFair_empty_unsat [Inhabited σ] [LawfulHashable σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
-    (sysFR : LTLLib.FiniteReach sys.initStates
-      (LTLLib.LSys.targets (sysStepsLabelled sys (edgeLabelling p))))
+    (sysFR : Lasso.FiniteReach sys.initStates
+      (Lasso.LSys.targets (sysStepsLabelled sys (edgeLabelling p))))
     {n : Nat} (h : checkFair sys p = .empty n) :
-    ∀ ρ' : Nat → LTLLib.LSys.Edge Nat σ,
-      (LTLLib.LSys.toSpec (sysStepsLabelled sys (edgeLabelling p)) sys.initStates
+    ∀ ρ' : Nat → Lasso.LSys.Edge Nat σ,
+      (Lasso.LSys.toSpec (sysStepsLabelled sys (edgeLabelling p)) sys.initStates
         (sysLabelOf sys p th)).isRun ρ' →
-      LTLLib.Formula.directSatisfies (LTLLib.LSys.valuation (sysLabelOf sys p th) ρ') p.φ := by
+      Lasso.Formula.directSatisfies (Lasso.LSys.valuation (sysLabelOf sys p th) ρ') p.φ := by
   rw [checkFair] at h
-  have hx := LTLLib.modelCheckFairRoutedOfStep_empty_unsat
+  have hx := Lasso.modelCheckFairRoutedOfStep_empty_unsat
     (φ := p.φ) (sysInit := sys.initStates) (sysStep := sysStepOf sys p th)
     (edgeAtom := p.isEdgeAtom) (by simpa only [sysStepOf_eq] using sysFR) h
   simpa only [sysStepOf_eq] using hx
@@ -269,33 +269,33 @@ theorem checkFair_empty_unsat [Inhabited σ] [LawfulHashable σ]
 theorem checkFair_nonEmpty_sat [Inhabited σ] [LawfulHashable σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
-    (sysFR : LTLLib.FiniteReach sys.initStates
-      (LTLLib.LSys.targets (sysStepsLabelled sys (edgeLabelling p))))
+    (sysFR : Lasso.FiniteReach sys.initStates
+      (Lasso.LSys.targets (sysStepsLabelled sys (edgeLabelling p))))
     {stem loop : List (σ × Nat)}
     (h : checkFair sys p = .nonEmpty stem loop) :
-    ∃ ρ' : Nat → LTLLib.LSys.Edge Nat σ,
-      (LTLLib.LSys.toSpec (sysStepsLabelled sys (edgeLabelling p)) sys.initStates
+    ∃ ρ' : Nat → Lasso.LSys.Edge Nat σ,
+      (Lasso.LSys.toSpec (sysStepsLabelled sys (edgeLabelling p)) sys.initStates
         (sysLabelOf sys p th)).isRun ρ' ∧
-      ¬ LTLLib.Formula.directSatisfies (LTLLib.LSys.valuation (sysLabelOf sys p th) ρ') p.φ ∧
-      ∀ i, LTLLib.lassoAt (stem.map Prod.fst) (loop.tail.map Prod.fst) i = some (ρ' i).1 := by
+      ¬ Lasso.Formula.directSatisfies (Lasso.LSys.valuation (sysLabelOf sys p th) ρ') p.φ ∧
+      ∀ i, Lasso.lassoAt (stem.map Prod.fst) (loop.tail.map Prod.fst) i = some (ρ' i).1 := by
   rw [checkFair] at h
-  have hc := LTLLib.modelCheckFairRoutedOfStep_nonEmpty_sat
+  have hc := Lasso.modelCheckFairRoutedOfStep_nonEmpty_sat
     (φ := p.φ) (sysInit := sys.initStates) (sysStep := sysStepOf sys p th)
     (edgeAtom := p.isEdgeAtom)
     (by simpa only [sysStepOf_eq] using steps_edgeAtom sys p)
     -- finiteness is owed only on the fallback branch, so the prune-routed case never reads it
     (fun _ => by simpa only [sysStepOf_eq] using sysFR) h
-  simpa only [sysStepOf_eq, LTLLib.lassoAt_map] using hc
+  simpa only [sysStepOf_eq, Lasso.lassoAt_map] using hc
 
 /-! ## Routes
 
 | `Route`    | entry point                           | search |
 |------------|---------------------------------------|--------|
 | `ndfs`     | `checkNDFS`                           | whole formula, degeneralized `TBA`, nested DFS |
-| `dijkstra` | `LTLLib.modelCheckDijkstraOfStep`     | whole formula, SCC emptiness check on the TGBA product |
-| `patOnly`  | `LTLLib.modelCheckFairDirectOfStep`   | syntactic `□◇p`/`◇□p` conjuncts hoisted, then pruned |
-| `crossing` | `LTLLib.modelCheckFairFNFCrossOfStep` | fair normal form [LSFZ16], one check per combination of disjuncts |
-| `prune`    | `LTLLib.modelCheckFairFNFPruneOfStep` | fair normal form [LSFZ16], decided per SCC [SLDP09] |
+| `dijkstra` | `Lasso.modelCheckDijkstraOfStep`     | whole formula, SCC emptiness check on the TGBA product |
+| `patOnly`  | `Lasso.modelCheckFairDirectOfStep`   | syntactic `□◇p`/`◇□p` conjuncts hoisted, then pruned |
+| `crossing` | `Lasso.modelCheckFairFNFCrossOfStep` | fair normal form [LSFZ16], one check per combination of disjuncts |
+| `prune`    | `Lasso.modelCheckFairFNFPruneOfStep` | fair normal form [LSFZ16], decided per SCC [SLDP09] |
 | `fair`     | `checkFair`                           | default |
 
 References:
@@ -328,8 +328,8 @@ def Route.needsFiniteReach : Route → Bool
 
 /-- Project a route's result to system states. -/
 private def projectStates {P : Type} (f : P → σ) :
-    LTLLib.EmptinessResult P → LTLLib.EmptinessResult σ :=
-  LTLLib.EmptinessResult.map f
+    Lasso.EmptinessResult P → Lasso.EmptinessResult σ :=
+  Lasso.EmptinessResult.map f
 
 /-- The precondition of a route. For `ndfs`: the `bfsClosure` of the system contains every initial
 state and is closed under successors. `True` otherwise. -/
@@ -376,30 +376,30 @@ def checkRoute [Inhabited σ] (route : Route)
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
     [cert : RouteCertificate route sys] :
-    LTLLib.EmptinessResult σ :=
+    Lasso.EmptinessResult σ :=
   let init := sys.initStates
   let step := sysStepOf sys p th
   match route, cert.cert with
   | .ndfs, ⟨hinit, hclosed⟩ =>
     projectStates Prod.fst (checkNDFS sys p hinit hclosed)
-  | .dijkstra, _ => projectStates Prod.fst (LTLLib.modelCheckDijkstraOfStep p.φ init step)
+  | .dijkstra, _ => projectStates Prod.fst (Lasso.modelCheckDijkstraOfStep p.φ init step)
   | .crossing, _ =>
-    projectStates (fun q => q.1.1) (LTLLib.modelCheckFairFNFCrossOfStep p.φ init step)
+    projectStates (fun q => q.1.1) (Lasso.modelCheckFairFNFCrossOfStep p.φ init step)
   | .patOnly, _ =>
     if pruneRegionsAvoidEdgeAtoms p then
-      projectStates Prod.fst (LTLLib.modelCheckFairDirectOfStep p.φ init step)
-    else projectStates (fun q => q.1.1) (LTLLib.modelCheckFairFNFCrossOfStep p.φ init step)
+      projectStates Prod.fst (Lasso.modelCheckFairDirectOfStep p.φ init step)
+    else projectStates (fun q => q.1.1) (Lasso.modelCheckFairFNFCrossOfStep p.φ init step)
   | .prune, _ =>
     if pruneRegionsAvoidEdgeAtoms p then
-      projectStates Prod.fst (LTLLib.modelCheckFairFNFPruneOfStep p.φ init step)
-    else projectStates (fun q => q.1.1) (LTLLib.modelCheckFairFNFCrossOfStep p.φ init step)
+      projectStates Prod.fst (Lasso.modelCheckFairFNFPruneOfStep p.φ init step)
+    else projectStates (fun q => q.1.1) (Lasso.modelCheckFairFNFCrossOfStep p.φ init step)
   | .fair, _ => projectStates Prod.fst (checkFair sys p)
 
 /-- On `fair`, `checkRoute` is `checkFair` projected to system states. -/
 theorem checkRoute_fair [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
-    checkRoute .fair sys p = LTLLib.EmptinessResult.map Prod.fst (checkFair sys p) := by
+    checkRoute .fair sys p = Lasso.EmptinessResult.map Prod.fst (checkFair sys p) := by
   unfold checkRoute projectStates; rfl
 
 end Veil.LivenessMC

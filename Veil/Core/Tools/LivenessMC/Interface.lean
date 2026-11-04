@@ -2,7 +2,7 @@ module
 
 public import Veil.Core.Tools.ModelChecker.Interface
 public import Veil.Frontend.DSL.State.Types
-public import LTLLib.LTL.Syntax
+public import Lasso.LTL.Syntax
 public import Lentil.Utils.MiscLemmas
 
 public section
@@ -28,30 +28,30 @@ def LivenessAtom.name : LivenessAtom ρ σ l → Name
 structure LivenessProperty (ρ σ l : Type) where
   name : Name := Name.anonymous
   atoms : List (LivenessAtom ρ σ l)
-  φ : LTLLib.Formula Nat -- Reference atomic props by their index in `atoms`
+  φ : Lasso.Formula Nat -- Reference atomic props by their index in `atoms`
 
 /-- The disjunction of a list of formulas, `⊥` for the empty list.
 
-TODO: This belongs in LTLLib, next to `LTLLib.Formula.conj`. -/
-def disj (φs : List (LTLLib.Formula α)) : LTLLib.Formula α :=
+TODO: This belongs in Lasso, next to `Lasso.Formula.conj`. -/
+def disj (φs : List (Lasso.Formula α)) : Lasso.Formula α :=
   LentilLib.List.foldrD .or .ff φs
 
 /-- The conjunction of `φ x` over all values `x` that `Enumeration` lists. In a Veil module, `[ltl| ∀ x, φ]` elaborates to it. -/
-def forallEnum (φ : α → LTLLib.Formula β) [Enumeration α] : LTLLib.Formula β :=
-  LTLLib.Formula.conj (Enumeration.allValues.map φ)
+def forallEnum (φ : α → Lasso.Formula β) [Enumeration α] : Lasso.Formula β :=
+  Lasso.Formula.conj (Enumeration.allValues.map φ)
 
 /-- The disjunction of `φ x` over all values `x` that `Enumeration` lists. In a Veil module, `[ltl| ∃ x, φ]` elaborates to it. -/
-def existsEnum (φ : α → LTLLib.Formula β) [Enumeration α] : LTLLib.Formula β :=
+def existsEnum (φ : α → Lasso.Formula β) [Enumeration α] : Lasso.Formula β :=
   disj (Enumeration.allValues.map φ)
 
 /-- The property `φ` with its atoms numbered, every occurrence becoming an atomic proposition of its own, numbered in the
 order `φ` mentions it, left to right. -/
-def LivenessProperty.ofFormula (name : Name) (φ : LTLLib.Formula (LivenessAtom ρ σ l)) :
+def LivenessProperty.ofFormula (name : Name) (φ : Lasso.Formula (LivenessAtom ρ σ l)) :
     LivenessProperty ρ σ l :=
   let (φ, atoms) := (number φ).run #[]
   { name, atoms := atoms.toList, φ }
 where
-  number : LTLLib.Formula (LivenessAtom ρ σ l) → StateM (Array (LivenessAtom ρ σ l)) (LTLLib.Formula Nat)
+  number : Lasso.Formula (LivenessAtom ρ σ l) → StateM (Array (LivenessAtom ρ σ l)) (Lasso.Formula Nat)
     | .tt => pure .tt
     | .ff => pure .ff
     | .atom a => modifyGet fun atoms => (.atom atoms.size, atoms.push a)
@@ -85,7 +85,7 @@ def LivenessProperty.edgeLabel (p : LivenessProperty ρ σ l) (lbl : l) : Std.Ha
       | .taken _ isMatch => if isMatch lbl then acc.insert i else acc
       | _ => acc)).2
 
-/-- Is atom index `i` a `T(…)`, one a step can contribute? This is the `edgeAtom` predicate LTLLib's
+/-- Is atom index `i` a `T(…)`, one a step can contribute? This is the `edgeAtom` predicate Lasso's
 `modelCheckFairRoutedOfStep` takes, and the whole of what Veil tells it. -/
 def LivenessProperty.isEdgeAtom (p : LivenessProperty ρ σ l) (i : Nat) : Bool :=
   match p.atoms[i]? with

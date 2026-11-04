@@ -293,7 +293,7 @@ inductive TemporalTarget where
   | both
   /-- Only proved, through its shallow definition (a `Lentil.pred`). -/
   | verify
-  /-- Only model checked, through its deep definition (an `LTLLib.Formula` syntax tree). -/
+  /-- Only model checked, through its deep definition (an `Lasso.Formula` syntax tree). -/
   | check
 deriving Inhabited, BEq, Repr
 
@@ -309,7 +309,7 @@ def TemporalTarget.needsVerify : TemporalTarget → Bool
 
 /-- A temporal property is a temporal formula over the system's execution traces. Its shallow definition
 `p`, a `Lentil.pred`, is what `prove_temporal_by` proves, and its deep definition `p.ast`, an
-`LTLLib.Formula` syntax tree, is what `#temporal_check` checks. -/
+`Lasso.Formula` syntax tree, is what `#temporal_check` checks. -/
 structure TemporalProperty where
   name : Name
   /-- The formula as written. The shallow definition elaborates it through Lentil's `[tlfml| …]`,

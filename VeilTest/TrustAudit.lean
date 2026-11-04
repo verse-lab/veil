@@ -79,11 +79,11 @@ def run : CoreM Unit := do
   IO.println "TrustAudit: the six shipped routes, and two instrumented controls"
   let rs ← [
     mustBeClean "fair      Veil.LivenessMC.checkFair          " [``Veil.LivenessMC.checkFair],
-    mustBeClean "prune     LTLLib.modelCheckFairFNFPruneOfStep" [``LTLLib.modelCheckFairFNFPruneOfStep],
-    mustBeClean "patOnly   LTLLib.modelCheckFairDirectOfStep  " [``LTLLib.modelCheckFairDirectOfStep],
-    mustBeClean "crossing  LTLLib.modelCheckFairFNFCrossOfStep" [``LTLLib.modelCheckFairFNFCrossOfStep],
-    mustBeClean "dijkstra  LTLLib.modelCheckDijkstraOfStep    " [``LTLLib.modelCheckDijkstraOfStep],
-    mustBeClean "ndfs      LTLLib.modelCheckNDFSOfStep        " [``LTLLib.modelCheckNDFSOfStep],
+    mustBeClean "prune     Lasso.modelCheckFairFNFPruneOfStep" [``Lasso.modelCheckFairFNFPruneOfStep],
+    mustBeClean "patOnly   Lasso.modelCheckFairDirectOfStep  " [``Lasso.modelCheckFairDirectOfStep],
+    mustBeClean "crossing  Lasso.modelCheckFairFNFCrossOfStep" [``Lasso.modelCheckFairFNFCrossOfStep],
+    mustBeClean "dijkstra  Lasso.modelCheckDijkstraOfStep    " [``Lasso.modelCheckDijkstraOfStep],
+    mustBeClean "ndfs      Lasso.modelCheckNDFSOfStep        " [``Lasso.modelCheckNDFSOfStep],
     mustBeDirty "CONTROL   Veil.LivenessMC.checkFairTimed     " [``Veil.LivenessMC.checkFairTimed],
     mustBeDirty "CONTROL   Veil.LivenessMC.checkDijkstraTimed " [``Veil.LivenessMC.checkDijkstraTimed]
   ].foldlM (fun acc m => do return acc.push (← m)) (#[] : Array Bool)

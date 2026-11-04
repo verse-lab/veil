@@ -22,7 +22,7 @@ private def loopingSystem :
 private def pairs : Nat := 16
 
 /-- `□◇(atom i)`. -/
-private def gf (i : Nat) : LTLLib.Formula Nat := .always (.eventually (.atom i))
+private def gf (i : Nat) : Lasso.Formula Nat := .always (.eventually (.atom i))
 
 /-- `(⋀ i < pairs, □◇a_2i → □◇a_2i+1) → □◇a_0`. -/
 private def manyStrongPairs : LivenessProperty Unit Nat Unit := {

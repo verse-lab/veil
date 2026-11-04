@@ -534,12 +534,12 @@ Tried before the plain reading of `[ltl| …]` (`LivenessMC.elabLtlAtom`), to wh
         `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and \
         `∃ x : T, …`; this formula is none of them"
     | _ => throwUnsupportedSyntax
-  elabTerm (← `($(mkIdent ``LTLLib.Formula.atom) $atom)) expectedType?
+  elabTerm (← `($(mkIdent ``Lasso.Formula.atom) $atom)) expectedType?
 
 /-! ## Definitions of temporal properties
 
 A temporal property `p` has up to two definitions: the shallow `p`, a `Lentil.pred` for `prove_temporal_by`,
-and the deep `p.ast`, an `LTLLib.Formula` syntax tree for `#temporal_check`. One declared before the spec is
+and the deep `p.ast`, an `Lasso.Formula` syntax tree for `#temporal_check`. One declared before the spec is
 finalized gets them later: `p.ast` once `Label` exists (`Module.ensureSpecIsFinalized`), and `p` once `Init`,
 `NextStep`, … do (`Module.ensureVerificationSpec`). -/
 
