@@ -7,7 +7,7 @@ public import Veil.Liveness
 # `liveness` formulas are written in `tlfml`
 
 `liveness` reads Lentil's `tlfml` category, extended with `E(…)` and `T(…)`, and checks it as an
-`LTLLib.Formula` built by `[ltl| …]`.
+`Lasso.Formula` built by `[ltl| …]`.
 -/
 
 veil module LivenessTlfmlSyntax

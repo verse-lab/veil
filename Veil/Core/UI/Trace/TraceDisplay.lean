@@ -203,7 +203,7 @@ private def formatLivenessResult (j : Json) : MessageData :=
           match lasso.getObjValD part with
           | .arr states => states.toList
           | _ => []
-        -- `loop.tail` is the cycle: LTLLib repeats its first state at the head of `loop`.
+        -- `loop.tail` is the cycle: Lasso repeats its first state at the head of `loop`.
         m!"{fmtViolation j}\n  Stem:\n{renderStates (states "stem")}\n  Loop (repeats):\n{renderStates (states "loop").tail}"
   | "no_violation_found" =>
       m!"✅ No liveness violation (checked {formatJson (j.getObjValD "properties_checked")} properties, explored {formatJson (j.getObjValD "explored_states")} product states)"
