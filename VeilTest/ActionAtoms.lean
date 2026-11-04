@@ -65,7 +65,7 @@ open Veil.LivenessMC in
 #eval do
   let sys := enumerableTransitionSystem {}
   let expect (nm : String) (want : Bool)
-      (r : Lasso.EmptinessResult ((State FieldConcreteType × Nat) × Bool)) : IO Unit := do
+      (r : Lasso.EmptinessResult (State FieldConcreteType × Nat)) : IO Unit := do
     let got := match r with | .empty _ => true | .nonEmpty _ _ => false
     if got == want then IO.println s!"  ok    {nm}"
     else IO.println s!"  FAIL  {nm}: expected {if want then "holds" else "fails"}"
@@ -73,11 +73,11 @@ open Veil.LivenessMC in
   -- were lifted this route took an unlabelled successor function, so every `T(…)` would have read false.
   IO.println "action atoms (fairness route agrees):"
   expect "□◇T(up)"                true
-    (checkUnderFairness sys (upTaken.ast Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (upTaken.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□(E(reset) → ◇T(reset))" true
-    (checkUnderFairness sys (resetFair.ast Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (resetFair.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□¬(T(up) ∧ T(reset))"   true
-    (checkUnderFairness sys (notBoth.ast Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (notBoth.ast Theory (State FieldConcreteType) FieldConcreteType))
 
 end ActionAtoms
 
@@ -139,7 +139,7 @@ open Veil.LivenessMC in
 #eval do
   let sys := enumerableTransitionSystem {}
   let expect (nm : String) (want : Bool)
-      (r : Lasso.EmptinessResult ((State FieldConcreteType × Nat) × Bool)) : IO Unit := do
+      (r : Lasso.EmptinessResult (State FieldConcreteType × Nat)) : IO Unit := do
     let got := match r with | .empty _ => true | .nonEmpty _ _ => false
     if got == want then IO.println s!"  ok    {nm}"
     else IO.println s!"  FAIL  {nm}: expected {if want then "holds" else "fails"}"
@@ -148,13 +148,13 @@ open Veil.LivenessMC in
   -- an encoding that read the region off the pair would answer differently.
   IO.println "parallel edges (fairness route agrees):"
   expect "□◇T(toggle1)"                false
-    (checkUnderFairness sys (t1Recurs.ast Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (t1Recurs.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "◇□T(toggle1)"                false
-    (checkUnderFairness sys (t1Forever.ast Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (t1Forever.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□(T(toggle1) ∨ T(toggle2))"  true
-    (checkUnderFairness sys (eitherStep.ast Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (eitherStep.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□¬(T(toggle1) ∧ T(toggle2))" true
-    (checkUnderFairness sys (notBothPar.ast Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (notBothPar.ast Theory (State FieldConcreteType) FieldConcreteType))
 
 end ParallelEdges
 
@@ -202,23 +202,23 @@ open Veil.LivenessMC in
 #eval do
   let sys := enumerableTransitionSystem {}
   let expect (nm : String) (want : Bool)
-      (r : Lasso.EmptinessResult ((State FieldConcreteType × Nat) × Bool)) : IO Unit := do
+      (r : Lasso.EmptinessResult (State FieldConcreteType × Nat)) : IO Unit := do
     let got := match r with | .empty _ => true | .nonEmpty _ _ => false
     if got == want then IO.println s!"  ok    {nm}"
     else IO.println s!"  FAIL  {nm}: expected {if want then "holds" else "fails"}"
   IO.println "edge atoms inside a hoisted fairness:"
   expect "◇flag=1"                          false
-    (checkUnderFairness sys (reaches.ast Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (reaches.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□◇T(work) → ◇flag=1"              true
-    (checkUnderFairness sys (reachesFair.ast Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (reachesFair.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□◇E(work) → □◇T(work)"            false
-    (checkUnderFairness sys (sfWork.ast Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (sfWork.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "SF(work) → ◇flag=1"               true
-    (checkUnderFairness sys (sfForces.ast Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (sfForces.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "□◇T(idle) → ◇flag=1"              false
-    (checkUnderFairness sys (idleRecurs.ast Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (idleRecurs.ast Theory (State FieldConcreteType) FieldConcreteType))
   expect "◇□T(idle) → ◇flag=1"              false
-    (checkUnderFairness sys (idleForever.ast Theory (State FieldConcreteType) FieldConcreteType))
+    (checkFair sys (idleForever.ast Theory (State FieldConcreteType) FieldConcreteType))
 
 /-! ### Which properties get the prune's free path
 

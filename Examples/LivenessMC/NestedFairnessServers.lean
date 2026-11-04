@@ -93,7 +93,7 @@ temporal [server0EmitsFair]
 
 /-! ## Benchmark
 
-`checkUnderFairness` hoists every fairness conjunct that flattens, so its tableau only ever sees
+`checkFair` hoists every fairness conjunct that flattens, so its tableau only ever sees
 `□◇emit 0` and the assumption becomes nine acceptance marks in a single disjunct.
 
 There is no translated-assumption row because there cannot be one. Handing `server0EmitsFair` to a checker
@@ -127,19 +127,18 @@ private def timeIt {α} (name : String) (f : Unit → Lasso.EmptinessResult α) 
       (server0EmitsWeak.ast Theory (State FieldConcreteType) FieldConcreteType)
       (by native_decide) (by native_decide)
   timeIt "nested assumption, hoisted" fun _ =>
-    Veil.LivenessMC.checkUnderFairness (enumerableTransitionSystem {})
+    Veil.LivenessMC.checkFair (enumerableTransitionSystem {})
       (server0EmitsFair.ast Theory (State FieldConcreteType) FieldConcreteType)
 
 /-! ## Veil callbacks per product state
 
-`server0EmitsFair` holds, so the cross route's `disjunctFeasible` fail-fast does not fire and the run
-actually walks the *product* region latch — which `MCDijkstraPerf.md`'s philosophers case never reaches.
-`1.0x` means a callback is entered once per product state, which is what Lasso's fused `expand` buys;
-anything above means once per edge. See `EdgeLabels.md` §9. -/
+`1.0x` means a callback is entered once per product state, which is what Lasso's fused `expand` buys, anything above
+means once per edge. See `EdgeLabels.md` §9. Every conjunct of `server0EmitsFair` hoists, so the kept property is `⊤` and
+the search settles without walking the product, which is why the ratio has no product state to divide by. -/
 #eval show IO Unit from do
   Veil.LivenessMC.resetVeilTimers
   let t0 ← IO.monoNanosNow
-  let r := Veil.LivenessMC.checkUnderFairnessTimed (enumerableTransitionSystem {})
+  let r := Veil.LivenessMC.checkFairTimed (enumerableTransitionSystem {})
     (server0EmitsFair.ast Theory (State FieldConcreteType) FieldConcreteType)
   let (verdict, states) := match r with
     | .empty k => (s!"holds, {k} product states", k)
