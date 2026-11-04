@@ -373,10 +373,15 @@ temporal [eventuallyChosen] 𝒲ℱ choose → ◇ ⌜ ∃ v, chosen v ⌝
 syntax (name := temporalDeclaration)
   kw_temporal (atomic("(" &"only") " := " ident ")")? (propertyName)? tlfml : command
 
-/-- Prove a previously declared temporal property using tactics.
+/-- Prove a previously declared temporal property `p` using tactics.
 Must come after `#gen_spec` since it needs the assembled transition system.
 The tactic block should prove that the temporal property holds on all
-system behaviors. -/
+system behaviors.
+
+The tactics run after `tstart hInit hNext hInv` and `tdsimp only [p]`:
+the proof-mode hypotheses `hInit`, `hNext` and `hInv` are the conjuncts
+`⌜ Init ⌝`, `□ ⟨ NextStep ⟩` and `□ ⌜ Invariants ⌝` of the behavior, and `p` is
+unfolded in the goal. -/
 syntax (name := proveTemporalBy) kw_prove_temporal_by (propertyName)? tacticSeq : command
 
 /-- Assemble the specification. -/

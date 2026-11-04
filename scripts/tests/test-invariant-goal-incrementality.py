@@ -79,13 +79,14 @@ def run_single_module(server, deferred):
     goal = doc.goal(source.splitlines().index(header), len(header))
     assert 'FieldRepresentation' not in goal and 'meetsSpecification' not in goal, goal
 
-    # Keep `unveil` in flight while editing a later tactic.
-    unveil = doc.logged('  IO.FS.withFile LOG .append fun h => h.putStrLn "unveil"\n'
-                        '  Veil.elabVeilTactics stx\n')
-    gated = doc.gate('unveil', body='Veil.elabVeilTactics stx')
+    # Keep the first tactic of the proof in flight while editing a later one.
+    gated = '  run_tac do\n' + doc.gate('prefix', indent='    ')
     observer = doc.observer('Veil.proveVeilInvariantGoal', 'Veil.elabProveVeilInvariantGoal')
-    check_edit_while_running(doc, replace_once(initial, unveil, gated + '\n' + observer),
-                             'unveil', ('  grind', '  skip\n  grind'))
+    source = replace_once(initial, doc.counted('prefix'), gated)
+    source = replace_once(source, 'veil module', observer + '\nveil module')
+    executions = check_edit_while_running(doc, source, 'prefix', ('  grind', '  skip\n  grind'))
+    # `unveil` is reused as well.
+    assert executions.count('unveil') == 1, executions
 
 
 def run_multi_module(server, deferred):

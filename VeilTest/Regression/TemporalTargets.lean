@@ -47,8 +47,6 @@ warning: `anyChange` is only proved, since its model-checking definition fails t
 #temporal_check [selfImplied] interpreted {}
 
 prove_temporal_by [selfImplied]
-  tstart hInit hNext hInv
-  tdsimp only [selfImplied]
   tintro h
   tassumption
 

@@ -153,6 +153,15 @@ def Module.ensureVerificationSpec (mod : Module) (stx : Syntax) : CommandElabM M
   localEnv.modifyModule (fun _ => mod)
   return mod
 
+/-- The tactics of the proof `tacs`, to splice after generated tactics in a single
+sequence rather than nest `tacs` as `($tacs)`, a single tactic: once a tactic of a
+sequence changes, Lean cancels what still runs of its previous version, so any edit
+to the proof would restart its running tactics instead of waiting for them. -/
+def tacticSeqSteps (tacs : TSyntax ``Parser.Tactic.tacticSeq) : Syntax.TSepArray `tactic ";" :=
+  match tacs with
+  | `(tacticSeq| $steps;*) => steps
+  | _ => ⟨#[tacs.raw[0]]⟩  -- `{ … }` is a tactic itself
+
 -- NOTE: Taking some inspiration from how incrementality was done in Velvet
 /-- Generate a theorem whose proof starts with `unveil`. `@[incremental]` keeps
 the command's snapshot bundle available for Lean's theorem/tactic elaborators;
@@ -184,11 +193,12 @@ def elabProveVeilInvariantGoal : CommandElab := fun stx => do
       -- The visible `by` token should show the simplified goal, including when
       -- the user has not written any tactics yet.
       let entry : TSyntax `tactic := ⟨(← `(tactic| skip)).raw.setInfo byTk.getHeadInfo⟩
+      let steps := tacticSeqSteps proof
       let cmd ← `(command|
         @[veil] theorem $thmId $(vc.params)* : $(vc.statement) := by
           unveil
           $entry:tactic
-          ($proof:tacticSeq))
+          $steps;*)
       -- Delegate directly to Lean's theorem/tactic elaborators so their snapshot
       -- tree can reuse `unveil` and the unchanged prefix of the user's proof.
       -- They compare the generated syntax and cancel the parts invalidated by

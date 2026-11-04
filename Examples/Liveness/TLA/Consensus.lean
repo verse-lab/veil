@@ -46,10 +46,9 @@ set_option veil.smt.trust false
 temporal (only := verify) [success] 𝒲ℱ choose → ◇ ⌜ someChosen ⌝
 
 prove_temporal_by [success]
-  -- Name each of the three conjuncts: ⌜ Init ⌝, □⟨ NextStep ⟩ and □⌜ Invariants ⌝
-  tstart hInit hNext hInv
+  -- The proof starts with the three conjuncts named, hInit : ⌜ Init ⌝,
+  -- hNext : □⟨ NextStep ⟩ and hInv : □⌜ Invariants ⌝, and `success` unfolded
   tclear hInv             -- the agreement invariant is not needed for this proof
-  tdsimp only [success]   -- unfold `success`
   tintro hwf              -- introduce hwf : weak fairness of `choose` to the
                           -- temporal proof context
 

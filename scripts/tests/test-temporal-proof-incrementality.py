@@ -15,11 +15,17 @@ retained in the printed temporary directory.
 from proof_reuse import (ProofDocument, check_edit_while_running, check_multi_module_reuse,
                          defer, main, replace_once)
 
+# `countedStart` logs each run of the prelude's `tstart`, then leaves it to Lentil.
 # The properties are declared before `#gen_spec`, so that under deferred VC
 # generation `prove_temporal_by` is the command that prepares verification.
 SOURCE = '''module
 public import Veil
 public import Veil.Liveness
+
+open Lean Elab Tactic in
+@[tactic Lentil.ProofMode.tlStartTac] public meta def countedStart : Tactic := fun _ => do
+  IO.FS.withFile LOG .append fun h => h.putStrLn "prelude"
+  throwUnsupportedSyntax
 
 open Lentil
 
@@ -35,9 +41,7 @@ temporal (only := verify) [otherSelfImplied] (⌜ x ≤ 11 ⌝ → ⌜ x ≤ 11 
 
 prove_temporal_by [selfImplied]
   run_tac IO.FS.withFile LOG .append fun h => h.putStrLn "prefix"
-  tstart hInit hNext hInv
   tclear hInit hNext hInv
-  tdsimp only [selfImplied]
   tsplit_ands
   run_tac IO.FS.withFile LOG .append fun h => h.putStrLn "split"
   all_goals (tintro h; tassumption)
@@ -46,21 +50,19 @@ end IncrementalTemporal
 '''
 
 
-def rename(old, new):
-    return [(f'prove_temporal_by [{old}]', f'prove_temporal_by [{new}]'),
-            (f'tdsimp only [{old}]', f'tdsimp only [{new}]')]
-
-
 def run_single_module(server, deferred):
     doc = ProofDocument(server, 'VeilTest/Regression/TemporalBasic.lean')
     initial = doc.logged(SOURCE)
     if deferred:
         initial = defer(initial, 'IncrementalTemporal')
-    assert doc.change(initial, 'open') == ['prefix', 'split'], doc.executions()
-    # The whole obligation at the first tactic, and both conjuncts after `tsplit_ands`
+    assert doc.change(initial, 'open') == ['prelude', 'prefix', 'split'], doc.executions()
+    # The goal after the prelude, at the end of the header and at the first tactic,
+    # and both conjuncts after `tsplit_ands`
     lines = initial.splitlines()
-    goal = doc.goal(lines.index('prove_temporal_by [selfImplied]') + 1, 2)
-    assert '|-tl-' in goal and 'selfImplied' in goal, goal
+    header = lines.index('prove_temporal_by [selfImplied]')
+    for line, character in [(header, len(lines[header])), (header + 1, 2)]:
+        goal = doc.goal(line, character)
+        assert 'hInit' in goal and 'x ≤ 10' in goal and 'selfImplied' not in goal, goal
     goal = doc.goal(next(i for i, line in enumerate(lines) if '"split"' in line), 2)
     assert 'x ≤ 10' in goal and 'x < 11' in goal, goal
     for label, replacements, expected in [
@@ -68,8 +70,9 @@ def run_single_module(server, deferred):
         ('shorter proof', [('  skip\n  all_goals', '  all_goals')], []),
         ('different proof after tsplit_ands', [('"split"', '"split2"')], ['split2']),
         ('different proof prefix', [('"prefix"', '"prefix2"')], ['prefix2', 'split2']),
-        ('different property', rename('selfImplied', 'otherSelfImplied'), ['prefix2', 'split2']),
-        ('upstream action edit', [('require x < 9', 'require x < 8')], ['prefix2', 'split2']),
+        ('different property', [('prove_temporal_by [selfImplied]', 'prove_temporal_by [otherSelfImplied]')],
+         ['prelude', 'prefix2', 'split2']),
+        ('upstream action edit', [('require x < 9', 'require x < 8')], ['prelude', 'prefix2', 'split2']),
     ]:
         executions = doc.edit(label, *replacements)
         assert executions == expected, (label, executions)
@@ -80,20 +83,23 @@ def run_single_module(server, deferred):
     source = replace_once(initial, doc.counted('prefix'), gated)
     source = replace_once(source, 'open Lentil\n', observer + '\nopen Lentil\n')
     executions = check_edit_while_running(doc, source, 'prefix', ('  all_goals', '  skip\n  all_goals'))
-    # The tactics between the gate and the edit are reused as well.
-    assert executions.count('split') == 1, executions
+    # The prelude and the tactics between the gate and the edit are reused as well.
+    assert executions.count('prelude') == 1 and executions.count('split') == 1, executions
 
 
 def run_multi_module(server, deferred):
     doc = ProofDocument(server, 'VeilTest/Regression/ProveTemporalMultiModule.lean')
-    source = doc.path.read_text()
+    instrumentation = doc.logged('''
+open Lean Elab Tactic in
+@[tactic Lentil.ProofMode.tlStartTac] public meta def countedStart : Tactic := fun _ => do
+  let ns ← getCurrNamespace
+  IO.FS.withFile LOG .append fun h => h.putStrLn s!"prelude:{ns}"
+  throwUnsupportedSyntax
+''')
+    header = 'public import Veil.Liveness\n'
+    source = replace_once(doc.path.read_text(), header, header + instrumentation)
     if deferred:
         source = defer(source, 'ProveTemporalFirst')
-    # Count the first tactic of each proof as its start.
-    header = 'prove_temporal_by [stable]\n'
-    for which in ('first', 'second'):
-        start = source.rindex(header, 0, source.index(f'  tassumption -- {which} proof')) + len(header)
-        source = source[:start] + doc.counted(f'start:{which}') + source[start:]
 
     def check_goals():
         lines = doc.source.splitlines()
@@ -103,8 +109,9 @@ def run_multi_module(server, deferred):
             goal = doc.goal(line, 2)
             assert f'x ≤ {bound}' in goal and '|-tl-' in goal, goal
 
-    check_multi_module_reuse(doc, source, 'tassumption', check_goals,
-                             start={'first': 'start:first', 'second': 'start:second'})
+    # The start of each proof is its prelude, run in the namespace of `stable._proof`.
+    check_multi_module_reuse(doc, source, 'tassumption', check_goals, start={
+        'first': 'prelude:ProveTemporalFirst.stable', 'second': 'prelude:ProveTemporalSecond.stable'})
 
 
 if __name__ == '__main__':
