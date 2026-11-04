@@ -73,6 +73,10 @@ class LeanServer:
             else:
                 self.notifications.append(response)
 
+    def initialize(self):
+        self.send("initialize", {"processId": None, "rootUri": ROOT.as_uri(), "capabilities": {}}, True)
+        self.send("initialized", {})
+
     def diagnostics(self, uri, version, label):
         self.send("textDocument/waitForDiagnostics", {"uri": uri, "version": version}, True)
         (self.work / f"notifications-{version}.json").write_text(
