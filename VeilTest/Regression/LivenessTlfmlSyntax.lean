@@ -34,13 +34,16 @@ temporal (only := check) [stepFair] □ (Enabled step → ◇ ⟨step⟩)
 temporal [nextIsOne] ◯ ⌜ x = 1 ⌝
 temporal [belowUntilThree] ⌜ x < 3 ⌝ 𝑈 ⌜ x = 3 ⌝
 temporal [zeroLeadsToThree] ⌜ x = 0 ⌝ ↝ ⌜ x = 3 ⌝
+-- Lasso's release `p 𝑅 q`: `q` holds up to and including the first state where `p` does, if any
+temporal [releaseHolds] ⌜ x = 2 ⌝ 𝑅 ⌜ x ≤ 2 ⌝
+temporal [releaseFails] ⌜ x = 3 ⌝ 𝑅 ⌜ x ≤ 2 ⌝
 
 #gen_spec
 
-/-- info: ✅ No liveness violation (checked 6 properties, explored 19 product states) -/
+/-- info: ✅ No liveness violation (checked 7 properties, explored 22 product states) -/
 #guard_msgs in
 #temporal_check [impliesRight] [iff] [stepFair] [nextIsOne] [belowUntilThree] [zeroLeadsToThree]
-  interpreted {}
+  [releaseHolds] interpreted {}
 
 -- Lentil has `↔` too, so `iff` is also proved
 prove_temporal_by [iff]
@@ -64,6 +67,29 @@ error: ❌ Violation: liveness_failure (violates: impliesLeft)
 -/
 #guard_msgs in
 #temporal_check [impliesLeft] interpreted {}
+
+/--
+error: ❌ Violation: liveness_failure (violates: releaseFails)
+  Stem:
+    State 0:
+      x = 0
+    State 1:
+      x = 1
+    State 2:
+      x = 2
+    State 3:
+      x = 3
+    State 4:
+      x = 3
+  Loop (repeats):
+    State 0:
+      x = 3
+-/
+#guard_msgs in
+#temporal_check [releaseFails] interpreted {}
+
+-- Outside a temporal property, `[ltl| …]` reads its atoms as Lasso does
+example : ([ltl| □ ⌜ 1 ⌝] : Lasso.Formula Nat) = .always (.atom 1) := rfl
 
 end LivenessTlfmlSyntax
 
@@ -93,7 +119,7 @@ temporal (only := check) [bigConj] ⋀ i ∈ [0, 1], ◇ ⌜ x = i ⌝
 /--
 error: a plain term is not an atomic proposition of a model-checked property; write `⌜ positive ⌝` for a state predicate
 ---
-error: a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `Enabled …` and `⟨ … ⟩`, the fairness conditions `𝒲ℱ …` and `𝒮ℱ …`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and `∃ x : T, …`; this formula is none of them
+error: a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `Enabled …` and `⟨ … ⟩`, the fairness conditions `𝒲ℱ …` and `𝒮ℱ …`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `𝑅`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and `∃ x : T, …`; this formula is none of them
 -/
 #guard_msgs in
 #gen_spec
