@@ -332,7 +332,9 @@ def elabLivenessNarrowAction : DesugarTacticM Unit := veilWithMainContext do
       veilEvalTactic (← `(tactic| (simp only [$[$simps:ident],*] at $(mkIdent nextHyp.userName):ident) ; clear $[$toClear:ident]* ))
   -- Keep "active" branches
   let activeIdxs := Array.range actions.size |>.filter fun i => negActHyps.all (fun (_, idx) => idx != i)
-  let activeIdxsList := activeIdxs.map Syntax.mkNatLit
+  -- Construct `Fin` indices directly and disable `Fin.reduceFinMk` below so their values
+  -- reduce by projection rather than relying on numeral-coercion simp lemmas.
+  let activeIdxsList ← activeIdxs.mapM fun i => `(term| ⟨$(Syntax.mkNatLit i), by decide⟩)
   let dsimps := #[``repeatedOrProp, ``List.reverse, ``IteratedPred.exists].map Lean.mkIdent
   -- Sometimes Lean has difficulty finding the theory argument, so need to provide it explicitly here
   -- FIXME: The following just uses the simplest heuristic
@@ -343,7 +345,7 @@ def elabLivenessNarrowAction : DesugarTacticM Unit := veilWithMainContext do
         ($environmentState := $environmentState)
         ($(mkVeilImplementationDetailIdent `idxs) := [$activeIdxsList,*])
         ($(mkVeilImplementationDetailIdent `r₀) := $(mkIdent `th))
-        _ _ $(mkIdent nextHyp.userName):ident ; dsimp [$[$dsimps:ident],*] at $(mkIdent nextHyp.userName):ident))
+        _ _ $(mkIdent nextHyp.userName):ident ; dsimp [$[$dsimps:ident],*, -$(mkIdent ``Fin.reduceFinMk):ident] at $(mkIdent nextHyp.userName):ident))
 
 /-! ## Common pipeline -/
 
