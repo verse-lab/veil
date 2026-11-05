@@ -608,7 +608,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
 
   // Compute all unique field names from the trace
   const lasso = 'lasso' in result ? result.lasso : undefined;
-  // `loop.slice(1)` is the cycle: LTLLib repeats its first state at the head of `loop`.
+  // `loop.slice(1)` is the cycle: Lasso repeats its first state at the head of `loop`.
   const lassoCycle = React.useMemo(() => lasso ? lasso.loop.slice(1) : [], [lasso]);
   const traceData: TraceData | null | undefined = React.useMemo(() => lasso ? {
     theory: 'theory' in result ? result.theory ?? {} : {},
