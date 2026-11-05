@@ -353,6 +353,11 @@ def elabLivenessNarrowAction : DesugarTacticM Unit := veilWithMainContext do
     neutralizing, and simplifying. Finding-based sub-tactics self-skip when
     their targets are not present. -/
 def elabUnveilTemporal : DesugarTacticM Unit := do
+  -- Temporal atoms can reconstruct `Theory`/`State` when supplying ghost defaults.
+  -- Resolve locality from each call before finite-window reduction unfolds its body.
+  veilWithMainContext do
+    veilEvalTactic (← `(tactic| veil_simp +$(mkIdent `instances) only
+      [↓ $(mkIdent ``replaceLocalRPropGeneralCase):ident, $(mkIdent `substateSimp):ident] at *))
   veilEvalTactic <| ← `(tactic| tsimp only [$(mkIdent ``Lentil.and_imp):ident] ; tfinite_window )
   elabUnveilTemporalPreparePremises
   -- Narrowing
