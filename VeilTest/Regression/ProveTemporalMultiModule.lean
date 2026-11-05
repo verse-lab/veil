@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Liveness
 
 /-! Both modules deliberately reuse the property name, with different obligations.
 The LSP test instruments the marked proofs to count tactic execution:

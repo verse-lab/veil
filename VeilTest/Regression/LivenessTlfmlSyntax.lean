@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Liveness
 
 /-!
 # `liveness` formulas are written in `tlfml`

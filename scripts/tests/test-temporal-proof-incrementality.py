@@ -20,7 +20,6 @@ from proof_reuse import (ProofDocument, check_edit_while_running, check_multi_mo
 # generation `prove_temporal_by` is the command that prepares verification.
 SOURCE = '''module
 public import Veil
-public import Veil.Liveness
 
 open Lean Elab Tactic in
 @[tactic Lentil.ProofMode.tlStartTac] public meta def countedStart : Tactic := fun _ => do
@@ -96,7 +95,7 @@ open Lean Elab Tactic in
   IO.FS.withFile LOG .append fun h => h.putStrLn s!"prelude:{ns}"
   throwUnsupportedSyntax
 ''')
-    header = 'public import Veil.Liveness\n'
+    header = 'public import Veil\n'
     source = replace_once(doc.path.read_text(), header, header + instrumentation)
     if deferred:
         source = defer(source, 'ProveTemporalFirst')
