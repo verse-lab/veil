@@ -99,11 +99,11 @@ def Edges4 : Fin 4 → Fin 4 → Bool := fun m n =>
   let pairs : List (Fin 4 × Fin 4) := [(0, 1), (2, 3)]
   pairs.contains (m, n) || pairs.contains (n, m)
 
-#model_check compiled
+#model_check
   { node := Fin 4, nodeSet := OrdList (Fin 4), Edges := Edges4, Root := 0, MaxCardinality := 4 }
   { Nodes := OrdList.ofList (List.finRange 4) }
 
-#temporal_check compiled
+#temporal_check
   { node := Fin 4, nodeSet := OrdList (Fin 4), Edges := Edges4, Root := 0, MaxCardinality := 4 }
   { Nodes := OrdList.ofList (List.finRange 4) }
 

@@ -4,7 +4,7 @@ public import Veil
 
 -- https://github.com/tlaplus/Examples/blob/master/specifications/CoffeeCan/CoffeeCan.tla
 -- Gries' coffee can problem: drawing two beans and returning one shrinks the can by one bean a step.
--- CoffeeCan100Beans.cfg (MaxBeanCount = 100): 5150 distinct states on TLC.
+-- CoffeeCan100Beans.cfg (MaxBeanCount = 100).
 
 veil module CoffeeCan
 

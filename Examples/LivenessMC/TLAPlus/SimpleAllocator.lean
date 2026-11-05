@@ -4,7 +4,7 @@ public import Veil
 
 -- https://github.com/tlaplus/Examples/blob/master/specifications/allocator/SimpleAllocator.tla
 -- An allocator that hands out sets of resources to clients, with per-client fairness.
--- SPECIFICATION SimpleAllocator, instance `Clients = {c1,c2}`, `Resources = {r1}` (TLC: 8 states).
+-- SPECIFICATION SimpleAllocator, instance `Clients = {c1,c2}`, `Resources = {r1}`.
 
 veil module SimpleAllocator
 
@@ -91,10 +91,10 @@ temporal (only := check) [InfOftenSatisfied]
 
 #gen_spec
 
-#model_check compiled
+#model_check
   { client := Fin 2, resource := Fin 1, ResourceSet := OrdList _ }
 
-#temporal_check compiled
+#temporal_check
   { client := Fin 2, resource := Fin 1, ResourceSet := OrdList _ }
 
 end SimpleAllocator

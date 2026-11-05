@@ -92,10 +92,10 @@ temporal (only := check) [Liveness]
 
 #gen_spec
 
-#model_check compiled
+#model_check
   { node := Fin 3, IdSet := OrdList Nat, nodeId := fun i => i.val + 1, succ := fun i => i + 1 }
 
-#temporal_check compiled
+#temporal_check
   { node := Fin 3, IdSet := OrdList Nat, nodeId := fun i => i.val + 1, succ := fun i => i + 1 }
 
 end ChangRoberts

@@ -79,8 +79,8 @@ temporal (only := check) [Victory] WF(Step) → ◇ ⌜ observed_box = cat_box �
 
 #gen_spec
 
-#model_check compiled { Number_Of_Boxes := 5, Directions := Directions_IndT }
+#model_check { Number_Of_Boxes := 5, Directions := Directions_IndT }
 
-#temporal_check compiled { Number_Of_Boxes := 5, Directions := Directions_IndT }
+#temporal_check { Number_Of_Boxes := 5, Directions := Directions_IndT }
 
 end MovingCatPuzzle

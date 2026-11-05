@@ -44,8 +44,8 @@ temporal (only := check) [AllTimes]
 
 #gen_spec
 
-#model_check compiled {}
+#model_check {}
 
-#temporal_check compiled {}
+#temporal_check {}
 
 end HourClock
