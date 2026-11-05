@@ -133,6 +133,7 @@ elab "#test_liveness_handoff" fail:term : command => do
   let mod ← getCurrentModule
   let call ← `(VeilTest.LivenessHandoff.handoffProbe $fail)
   ExecutionWorkflow.run { name := "liveness_handoff_test" } .liveness mod (← getRef) .default call
+    (.liveness { numProperties := mod.checkableTemporalProperties.size })
 
 veil module Handoff
 individual flag : Bool

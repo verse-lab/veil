@@ -784,8 +784,11 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
       instantiation := ← `(__veil_instantiation% $instTerm)
       «theory» := theoryTerm
     }
+    let initialProgress : ModelChecker.Concrete.ProgressDetails := match kind with
+      | .simulate => .simulation {}
+      | _ => .modelCheck { allActionLabels := executable.actionLabels.toList }
     ExecutionWorkflow.run { name := cmdName, actionLabels := executable.actionLabels.toList } kind mod stx
-      mode callExpr parallelCfg extractMs
+      mode callExpr initialProgress parallelCfg extractMs
 
 /-- Shared elaboration of the build commands, which build the binary of an execution command for
 module `modId`, typically from another file, without running it. -/
@@ -959,7 +962,6 @@ def elabLivenessCheck : CommandElab := fun stx => do
     let instantiation ← `(__veil_instantiation% $instTerm)
     let callExpr ← mkLivenessCheckerCall executable instantiation theoryTerm properties cfg.route finiteReachBy
     ExecutionWorkflow.run { name := "temporal_check", actionLabels := executable.actionLabels.toList }
-      .liveness mod stx mode callExpr (extractMs := extractMs)
-      (numLivenessProperties := properties.size)
+      .liveness mod stx mode callExpr (.liveness { numProperties := properties.size }) (extractMs := extractMs)
 
 end Veil

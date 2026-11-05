@@ -308,17 +308,9 @@ private def logModelCheckResult (kind : TraceDisplay.ResultKind) (stx : Syntax)
 /-- Allocate a model check context with progress tracking. -/
 private def allocExecutionContext (mod : Module) (stx : Syntax)
     (parallelCfg : Option ModelChecker.ParallelConfig)
-    (resultKind : TraceDisplay.ResultKind) (numLivenessProperties : Option Nat) :
+    (resultKind : TraceDisplay.ResultKind) (initialProgress : ModelChecker.Concrete.ProgressDetails) :
     CommandElabM ExecutionContext := do
-  let details : ModelChecker.Concrete.ProgressDetails ← do
-    match resultKind with
-    | .simulate => pure <| .simulation {}
-    | .liveness =>
-      pure <| .liveness { numProperties := numLivenessProperties.getD mod.checkableTemporalProperties.size }
-    | _ =>
-      let actionLabels := actionLabelNames mod
-      pure <|.modelCheck { allActionLabels := actionLabels }
-  let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance details
+  let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance initialProgress
   let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
   let (actions, properties) ← getDeclSources mod
   let sources := infoviewSources actions properties (← IO.currentDir)
@@ -409,12 +401,8 @@ private def compileModel (sourceFile : String) (callExpr : Term)
   return some buildFolder
 
 /-- Handle interpreted mode: evaluate and display results directly. -/
-private def runInterpreted
-    (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax) (callExpr : Term)
-    (parallelCfg : Option ModelChecker.ParallelConfig)
-    (numLivenessProperties : Option Nat) : CommandElabM Unit := do
-  let ctx ← allocExecutionContext mod stx parallelCfg kind numLivenessProperties
-  let ioComputation ← elaborateInterpretedComputation ctx.instanceId callExpr parallelCfg
+private def runInterpreted (ctx : ExecutionContext) (callExpr : Term) : CommandElabM Unit := do
+  let ioComputation ← elaborateInterpretedComputation ctx.instanceId callExpr ctx.parallelCfg
   let computation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
       if ← checkCancelled ctx.cancelToken ctx.instanceId then return
@@ -427,7 +415,7 @@ private def runInterpreted
   ) ctx.cancelToken
   let mkTask ← BaseIO.asTask (computation ()) (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := mkTask }
-  ModelChecker.displayStreamingProgress stx ctx.instanceId
+  ModelChecker.displayStreamingProgress ctx.stx ctx.instanceId
 
 /-- Compile `callExpr`, then pass the build folder to `withBinary`, with the source file and the
 identity of the command in it. The build folder stays in use until `withBinary` returns. Compilation
@@ -462,25 +450,19 @@ private def compileThen (command : ModelChecker.Compilation.CompiledCommandSpec)
 
 /-- Handle compiled-only mode: compile and run binary without interpreted fallback. -/
 private def runCompiled (command : ModelChecker.Compilation.CompiledCommandSpec)
-    (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax) (callExpr : Term)
-    (parallelCfg : Option ModelChecker.ParallelConfig)
-    (numLivenessProperties : Option Nat) : CommandElabM Unit := do
-  let ctx ← allocExecutionContext mod stx parallelCfg kind numLivenessProperties
-  compileThen command stx callExpr ctx.instanceId ctx.cancelToken
+    (ctx : ExecutionContext) (callExpr : Term) : CommandElabM Unit := do
+  compileThen command ctx.stx callExpr ctx.instanceId ctx.cancelToken
     (fun buildFolder sourceFile commandId =>
       runBinaryAndLogResult ctx buildFolder sourceFile command commandId)
     (handleModelCheckError ctx)
-  ModelChecker.displayStreamingProgress stx ctx.instanceId
+  ModelChecker.displayStreamingProgress ctx.stx ctx.instanceId
 
 /-- Handle default mode: run interpreted + background compile with handoff. -/
 private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSpec)
-    (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax) (callExpr : Term)
-    (parallelCfg : Option ModelChecker.ParallelConfig)
-    (numLivenessProperties : Option Nat) : CommandElabM Unit := do
-  let ctx ← allocExecutionContext mod stx parallelCfg kind numLivenessProperties
+    (ctx : ExecutionContext) (callExpr : Term) : CommandElabM Unit := do
   let sourceFile ← getFileName
-  let commandId ← getCompiledCommandId s!"#{command.name}" stx
-  let ioComputation ← elaborateInterpretedComputation ctx.instanceId callExpr parallelCfg
+  let commandId ← getCompiledCommandId s!"#{command.name}" ctx.stx
+  let ioComputation ← elaborateInterpretedComputation ctx.instanceId callExpr ctx.parallelCfg
 
   -- Register the compilation token before starting either task.
   let compilationCancelTk ← IO.CancelToken.new
@@ -518,7 +500,7 @@ private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSp
     ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
   let compilationComputation ← Command.wrapAsyncAsSnapshot (fun () => do
     try
-      let some buildFolder ← withCompilationDiagnostics stx ctx.instanceId true <|
+      let some buildFolder ← withCompilationDiagnostics ctx.stx ctx.instanceId true <|
         compileModel sourceFile callExpr commandId ctx.instanceId compilationCancelTk
         command | do
           ModelChecker.Concrete.setCompilationCancelToken ctx.instanceId none
@@ -571,7 +553,7 @@ private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSp
   let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := compilationCancelTk, task := compilationTask }
 
-  ModelChecker.displayStreamingProgress stx ctx.instanceId
+  ModelChecker.displayStreamingProgress ctx.stx ctx.instanceId
 
 /-- Directory of the binaries that `buildChecker` builds. They are copied there out of their build
 folders, which another check may prune before the binaries run. -/
@@ -668,20 +650,22 @@ private def runBuildOnly (command : ModelChecker.Compilation.CompiledCommandSpec
 `callExpr` takes parallel configuration, progress ID, cancellation token, and a result
 continuation, in that order. Its result must have a `ToJson` instance. `extractMs`, the time the
 command spent generating the module's executable definitions, is reported by
-`veil.modelChecker.buildOnly`. -/
+`veil.modelChecker.buildOnly`. `initialProgress` supplies the command-specific metrics before
+execution starts. -/
 def run (command : ModelChecker.Compilation.CompiledCommandSpec)
     (kind : TraceDisplay.ResultKind) (mod : Module) (stx : Syntax)
     (mode : ModelCheckingMode) (callExpr : Term)
+    (initialProgress : ModelChecker.Concrete.ProgressDetails)
     (parallelCfg : Option ModelChecker.ParallelConfig := none)
-    (extractMs : Nat := 0)
-    (numLivenessProperties : Option Nat := none) : CommandElabM Unit := do
+    (extractMs : Nat := 0) : CommandElabM Unit := do
   if veil.modelChecker.buildOnly.get (← getOptions) then
     return ← runBuildOnly command stx callExpr extractMs
   let mode := if (← liftIO isVeilOnlineEnv) then .interpreted else mode
+  let ctx ← allocExecutionContext mod stx parallelCfg kind initialProgress
   match mode with
-  | .interpreted => runInterpreted kind mod stx callExpr parallelCfg numLivenessProperties
-  | .compiled => runCompiled command kind mod stx callExpr parallelCfg numLivenessProperties
-  | .default => runWithHandoff command kind mod stx callExpr parallelCfg numLivenessProperties
+  | .interpreted => runInterpreted ctx callExpr
+  | .compiled => runCompiled command ctx callExpr
+  | .default => runWithHandoff command ctx callExpr
 
 /-- How the message of `buildOnly` starts: the VS Code extension reads the rest as the path of the
 binary (`BUILT_PREFIX`) -/
