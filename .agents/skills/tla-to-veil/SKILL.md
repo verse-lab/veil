@@ -1,6 +1,6 @@
 ---
 name: tla-to-veil
-description: Translate TLA+ specifications (a .tla module plus its TLC .cfg) into Veil specifications in Lean, or review an existing TLA+-to-Veil translation. Covers state and action mapping, keeping the source's structure (actions, constants, quantifiers), encoding choices and their model-checking cost, semantic traps (primed-variable dependencies, framing, CHOOSE, stuttering, deadlock), reporting Veil failures as minimal examples, and validating the result against TLC through invariants, known violations, and distinct-state counts. Use whenever the user wants to port, re-model, review, or cross-check a TLA+ spec in Veil, even if they don't say "translate". Not for general Lean proofs or TLA+-only work.
+description: Translate TLA+ specifications (a .tla module plus its TLC .cfg) into Veil specifications in Lean, or review an existing TLA+-to-Veil translation. Covers state and action mapping, keeping the source's structure (actions, constants, quantifiers), encoding choices and their model-checking cost, semantic traps (primed-variable dependencies, framing, CHOOSE, stuttering, deadlock), reporting Veil failures as minimal examples, validating the result against TLC through invariants, known violations, and distinct-state counts, and explaining the result in comments for readers who know TLA+ but not Lean. Use whenever the user wants to port, re-model, review, explain, or cross-check a TLA+ spec in Veil, even if they don't say "translate". Not for general Lean proofs or TLA+-only work.
 ---
 
 # TLA+ to Veil
@@ -11,6 +11,7 @@ Veil's own documentation lives in the Veil repository (or, under `.lake/packages
 
 - [translation.md](references/translation.md): mirroring the source, semantic traps, encoding alternatives, and what to do when Veil misbehaves. Read before translating or reviewing.
 - [validation.md](references/validation.md): checking the translation against TLC and reporting the results.
+- [explaining.md](references/explaining.md): the comment above each `#model_check` that tells a reader what each argument stands for in the cfg and how to run the check. Read before delivering.
 
 ## 1. Pin down the source model
 
@@ -49,10 +50,10 @@ After validation, you may tune execution and storage settings such as execution 
 
 ## 4. Deliver
 
-The Veil file, building without warnings and headed by a comment naming the source (pinned to a commit if it is public), the selected configuration, and the main encoding choices. With it, a short account of: the selected source, config, and scope; the state/action mapping; notable encoding choices; the validation table and the commands used; and remaining gaps (out-of-scope properties, unresolved mismatches, Veil failures with their minimal examples).
+The Veil file, building without warnings and headed by a comment naming the source (pinned to a commit if it is public), the selected configuration, and the main encoding choices. Above each `#model_check`, a comment that maps its arguments to the cfg and says how to run it (explaining.md). With it, a short account of: the selected source, config, and scope; the state/action mapping; notable encoding choices; the validation table and the commands used; and remaining gaps (out-of-scope properties, unresolved mismatches, Veil failures with their minimal examples).
 
 ## Reviewing an existing translation
 
 Run the same steps on the existing file, comparing it with the source definition by definition; translation.md's "Mirror the source" doubles as the checklist. Typical findings: a source action split into several, a parameter the source lacks, a `List` standing in for a set constant, quantifiers detoured through `toList`, a dropped `LET` or a substituted operator, and a missing `termination false` where the cfg checks deadlock.
 
-For each finding, show the source next to the translation, then the fix. Also list what you keep and why (an equivalent form, a workaround for a reported Veil failure) and the alternatives you reject. After fixing, rebuild without warnings, rerun the checks, and update probes or harnesses that call renamed or merged actions. Rerun rather than trust earlier validation notes, and flag claims in them that no longer hold.
+For each finding, show the source next to the translation, then the fix. Also list what you keep and why (an equivalent form, a workaround for a reported Veil failure) and the alternatives you reject. After fixing, rebuild without warnings and rerun the checks. Update probes or harnesses that call renamed or merged actions, and the comments above each `#model_check` (explaining.md). Rerun rather than trust earlier validation notes, and flag claims in them that no longer hold.

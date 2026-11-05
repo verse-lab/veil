@@ -5,6 +5,11 @@ from VS Code. Track progress, inspect counterexamples, and save or export result
 Lean builds the model checkers through `#mc_config`; the extension runs the
 generated executables and displays their progress and results.
 
+The GIF below shows how to run model checking with the extension, starting from a
+Veil module containing `#gen_spec`. Alternatively, if your module already contains
+a `#model_check` command (even if it is commented out), you can generate a
+configuration file directly from its settings; see the [Use](#use) section.
+
 ![Veil Verifier demo](https://raw.githubusercontent.com/verse-lab/veil/main/editors/vscode/demo.gif)
 
 ## Install

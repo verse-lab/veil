@@ -81,6 +81,33 @@ with the heap of `--heap` and a timeout of 36000 seconds by default (`--timeout`
 directory, and is deleted as soon as TLC exits, however the run ends: at most
 one run's states take disk space at any time.
 
+# TLC and Veil comparison
+
+[`scripts/tlc-vs-veil-mc-evaluation.py`](../../../scripts/tlc-vs-veil-mc-evaluation.py)
+runs TLC on the 20 benchmarks above, runs Veil on their translations, and
+generates execution-time and peak-memory comparison plots.
+
+It needs Java 11 or later, a working [Veil build](../../../README.md#build)
+with Lean's `lake` on `PATH`, and the Python packages below. From the repository
+root:
+
+```sh
+python3 -m pip install -r Benchmarks/TLA/scripts/requirements.txt matplotlib numpy
+python3 scripts/tlc-vs-veil-mc-evaluation.py --threads 1 4 --repeat 1
+```
+
+`--threads` selects both TLC worker counts and Veil thread counts; `--repeat`
+sets the number of runs per Veil benchmark and thread count. Results go to
+`benchmark-results/tlc` and `benchmark-results/all` by default, and the plots to
+`benchmark-results/comparison_time.pdf` and
+`benchmark-results/comparison_memory.pdf`. Veil times in the plots include
+compilation time. The full suite can take hours, and TLC uses a 20 GB heap by
+default (see [TLC runs](#tlc-runs)).
+
+Repeating the same command continues an interrupted evaluation by reusing
+recorded results. Run the script with `--help` for the reuse rules and options
+for naming the result directories and plots.
+
 # Lines of code
 
 [`loc_ratio.py`](loc_ratio.py) counts the lines of code of a TLA+ spec and of
