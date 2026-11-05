@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { findBuildCommands } from './buildCommands';
 import { checkModel, createConfig, createConfigFromCheck } from './checkModel';
+import { VeilCompatibility } from './compatibilityCheck';
 import { ModelConfigs } from './modelConfigs';
 import { BuildCommand, BuildCommandLenses, buildCommandsOf, outcomeIcons } from './codeLens';
 import { ConfigTemplate } from './configTemplate';
@@ -128,6 +129,7 @@ async function revealSource(source: RunSource): Promise<vscode.TextDocument | un
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('Veil');
+  const compatibility = new VeilCompatibility(context.extension, output);
   // Without a workspace, e.g. for a single file, the results are kept for all windows
   const store = new ResultStore(
     vscode.Uri.joinPath(context.storageUri ?? context.globalStorageUri, 'results').fsPath,
@@ -169,6 +171,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     preparing = true;
     try {
+      // Before waiting for a build, whose message an unsupported Veil may never report
+      if (!await compatibility.beforeCommand(document)) return;
       const built = await rebuildModel(document, command.site.command, importChanges);
       if (!built) return;
       const { site, status, documentVersion } = built;
@@ -282,7 +286,7 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     openLocation: location => void openLocation(location),
   }, freshnessOf);
-  const lenses = new BuildCommandLenses(runs, store, modelConfigs);
+  const lenses = new BuildCommandLenses(runs, store, modelConfigs, compatibility);
 
   const updateStatus = (): void => {
     void vscode.commands.executeCommand('setContext', 'veil.modelCheck.isRunning', runs.isRunning);
@@ -300,16 +304,20 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   context.subscriptions.push(
-    output, runs, panel, lenses, modelConfigs, statusBar, watchImportChanges(importChanges),
+    output, compatibility, runs, panel, lenses, modelConfigs, statusBar, watchImportChanges(importChanges),
     vscode.languages.registerCodeLensProvider({ language: 'lean4' }, lenses),
     vscode.commands.registerCommand('veil.modelCheck.run', run),
     vscode.commands.registerCommand('veil.modelCheck.runWithOptions', runWithOptions),
     vscode.commands.registerCommand('veil.modelCheck.checkModel',
-      (uri?: string, line?: number) => checkModel(runCommand, modelConfigs, uri, line)),
+      (uri?: string, line?: number) => checkModel(runCommand, modelConfigs, compatibility, uri, line)),
     // The command of the code action of Lean that gives the template
     vscode.commands.registerCommand('veil.modelCheck.createConfig',
       (template: ConfigTemplate, uri: string) => createConfig(template, vscode.Uri.parse(uri))),
-    vscode.commands.registerCommand('veil.modelCheck.createConfigFromCheck', createConfigFromCheck),
+    vscode.commands.registerCommand('veil.modelCheck.createConfigFromCheck',
+      (uri: string, line: number, character: number) => createConfigFromCheck(compatibility, uri, line, character)),
+    // The command of the lenses that stand for the actions when the Veil of a project is not supported
+    vscode.commands.registerCommand('veil.modelCheck.explainIncompatibility',
+      async (uri: string) => compatibility.explain(await vscode.workspace.openTextDocument(vscode.Uri.parse(uri)))),
     vscode.commands.registerCommand('veil.modelCheck.runAgain', runAgain),
     vscode.commands.registerCommand('veil.modelCheck.stop', () => runs.stop()),
     // The status bar shows the run of this window

@@ -13,6 +13,9 @@ import {
   importsOutOfDate, moduleLensLines,
 } from '../src/buildCommands';
 import {
+  IDE_PROTOCOL, LEGACY_IDE_PROTOCOL, compatibility, incompatibilityMessage, otherProtocolNotice,
+} from '../src/compatibility';
+import {
   ConfigTemplate, appendSeparator, configCommand, configFileFor, configHeader, importsModule, isOfModule, snippetText,
 } from '../src/configTemplate';
 import { ImportChanges } from '../src/importChanges';
@@ -463,8 +466,10 @@ test('parses lines of progress', () => {
 });
 
 test('parses the start report', () => {
-  const line = '{"start":{"actionLabels":["finish","reset"]}}';
-  assert.deepStrictEqual(parseStartLine(line), { actionLabels: ['finish', 'reset'] });
+  const line = '{"start":{"actionLabels":["finish","reset"],"ideProtocol":1}}';
+  assert.deepStrictEqual(parseStartLine(line), { actionLabels: ['finish', 'reset'], ideProtocol: 1 });
+  // The binary of a Veil from before it reported its IDE protocol
+  assert.deepStrictEqual(parseStartLine('{"start":{"actionLabels":["finish"]}}'), { actionLabels: ['finish'] });
   assert.strictEqual(parseProgressLine(line), undefined);
   assert.strictEqual(parseStartLine(progressLine(5, 3)), undefined);
 });
@@ -500,6 +505,78 @@ test('passes the parallel settings as arguments', () => {
   assert.deepStrictEqual(parallelArgs(4, 20, 2, 8), ['4', '20', '2']);
   assert.deepStrictEqual(parallelArgs(1, 20, 1, 8), []);
   assert.deepStrictEqual(parallelArgs(0, 20, 1, 1), []);
+});
+
+// ---- The Veil of a project ----
+
+function assertSays(text: string, parts: string[]): void {
+  for (const part of parts) assert.ok(text.includes(part), `${JSON.stringify(text)} does not say ${JSON.stringify(part)}`);
+}
+
+test('supports the Veil of a project only when it reports the IDE protocol of the extension', () => {
+  assert.deepStrictEqual(compatibility(undefined), { kind: 'unknown' });
+  assert.deepStrictEqual(compatibility(IDE_PROTOCOL), { kind: 'supported' });
+  assert.deepStrictEqual(compatibility(IDE_PROTOCOL + 1), { kind: 'newerVeil', protocol: IDE_PROTOCOL + 1 });
+  assert.deepStrictEqual(compatibility(IDE_PROTOCOL - 1), { kind: 'olderVeil', protocol: IDE_PROTOCOL - 1 });
+  // What a Veil from before the IDE protocol gives stays version 1 when the protocol is bumped
+  assert.strictEqual(LEGACY_IDE_PROTOCOL, 1);
+});
+
+test('tells how to get a Veil and an extension that fit', () => {
+  const version = `0.${IDE_PROTOCOL}.4`;
+  assertSays(incompatibilityMessage({ kind: 'newerVeil', protocol: IDE_PROTOCOL + 1 }, version), [
+    'newer than this extension supports', `IDE protocol ${IDE_PROTOCOL + 1}`,
+    `Veil Verifier ${version} supports IDE protocol ${IDE_PROTOCOL}`,
+    `Update the extension to a version 0.${IDE_PROTOCOL + 1}.x`, '.lake/packages/veil/editors/vscode',
+  ]);
+  assertSays(incompatibilityMessage({ kind: 'olderVeil', protocol: IDE_PROTOCOL - 1 }, version), [
+    'older than this extension supports', '"lake update veil"', `the latest version 0.${IDE_PROTOCOL - 1}.x`,
+    'Install Specific Version...', 'auto update',
+  ]);
+});
+
+// ---- Versions of the extension ----
+
+const extensionRoot = path.resolve(__dirname, '../..');
+
+/** Run `script` of the extension, as a copy in a new directory with `files` when given */
+function runScript(script: string, args: string[] = [], files?: Record<string, string>, env?: NodeJS.ProcessEnv) {
+  let file = path.join(extensionRoot, script);
+  if (files) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'veil-verifier-'));
+    for (const [name, text] of Object.entries({ ...files, [script]: fs.readFileSync(file, 'utf8') })) {
+      fs.mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
+      fs.writeFileSync(path.join(dir, name), text);
+    }
+    file = path.join(dir, script);
+  }
+  return spawnSync(process.execPath, [file, ...args], { encoding: 'utf8', env: env ?? process.env });
+}
+
+test('the version of the extension is 0.N.x for the IDE protocol N that it supports', () => {
+  const { version } = JSON.parse(fs.readFileSync(path.join(extensionRoot, 'package.json'), 'utf8')) as { version: string };
+  assert.match(version, new RegExp(`^0\\.${IDE_PROTOCOL}\\.\\d+$`));
+  // What `vscode:prepublish` checks before every package
+  const check = runScript('checkVersion.mjs');
+  assert.strictEqual(check.status, 0, check.stderr);
+  const withVersion = (version: string) => runScript('checkVersion.mjs', [], {
+    'package.json': JSON.stringify({ version }), 'src/compatibility.ts': 'export const IDE_PROTOCOL = 3;\n',
+  });
+  assert.strictEqual(withVersion('0.3.12').status, 0);
+  for (const wrong of ['0.2.5', '0.4.0', '1.3.0']) {
+    const rejected = withVersion(wrong);
+    assert.strictEqual(rejected.status, 1, wrong);
+    assertSays(rejected.stderr, [`${wrong}, must be 0.3.x`]);
+  }
+});
+
+test('publishing bumps the patch version only', () => {
+  // Without a PATH, a refusal that failed could not reach vsce
+  for (const args of [['minor'], ['major'], ['0.2.0'], ['patch', 'minor']]) {
+    const refused = runScript('publish.mjs', args, undefined, { PATH: '' });
+    assert.strictEqual(refused.status, 1, args.join(' '));
+    assertSays(refused.stderr, ['Publish with "patch" or without an argument']);
+  }
 });
 
 // ---- The panel ----
@@ -603,6 +680,16 @@ test('the panel tells a saved run, or one from a file, from a run of this window
   const running = view({ run: snapshot({}) });
   assertShows(running, ['<button class="primary" disabled="">Check again</button>']);
   assert.ok(!running.includes('Export...'));
+});
+
+test('the panel says when the binary of a run reported another IDE protocol', () => {
+  const view = (ideProtocol?: number) => render(snapshot({ status: 'stopped', endedAt: 5000, ideProtocol }));
+  const other = view(IDE_PROTOCOL + 1);
+  assertShows(other, [`reported IDE protocol ${IDE_PROTOCOL + 1}`, 'may not show the run correctly']);
+  for (const same of [IDE_PROTOCOL, undefined]) {
+    assert.ok(!view(same).includes('IDE protocol'), `a run with protocol ${same}`);
+    assert.strictEqual(otherProtocolNotice(same), undefined);
+  }
 });
 
 test('the panel links the actions and properties of a run to their sources', () => {
@@ -894,6 +981,7 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
       assert.deepStrictEqual([result.result, result.explored_states], ['no_violation_found', 4]);
       // The start report lists all actions, so the panel tells the one that was never enabled
       assert.deepStrictEqual(start?.actionLabels, ['finish', 'finishAfter', 'reset']);
+      assert.strictEqual(start?.ideProtocol, IDE_PROTOCOL, 'the Veil of this checkout has the IDE protocol of its extension');
       assert.deepStrictEqual(progress && modelCheckMetrics(progress)?.allActionLabels, []);
       assertShows(render(snapshot({ progress, actionLabels: start?.actionLabels })),
         ['Never enabled: reset', 'finishAfter', '<span>previous=0, n=1</span>', '<span>previous=1, n=0</span>']);
@@ -932,6 +1020,44 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
     // Well before `stop` would kill the binary
     assert.ok(Date.now() - stoppedAt < 1500, `the binary took ${Date.now() - stoppedAt} ms to exit`);
     assert.ok((progress && modelCheckMetrics(progress)?.distinctStates || 0) > 0);
+  });
+
+  test('Lean says the IDE protocol of Veil at the first command, to a request for its kind only', async () => {
+    const server = new LeanServer(repoRoot);
+    try {
+      const initialized = await within(server.request('initialize',
+        { processId: process.pid, rootUri: pathToFileURL(repoRoot).href, capabilities: {} }), 60_000, 'Starting Lean');
+      const kinds = (initialized as { capabilities: { codeActionProvider: { codeActionKinds: string[] } } })
+        .capabilities.codeActionProvider.codeActionKinds;
+      assert.ok(kinds.some(kind => 'refactor.veil.ideProtocol'.startsWith(`${kind}.`)),
+        'VS Code must select the Lean code action provider');
+      server.notify('initialized', {});
+      const file = path.join(repoRoot, 'VeilTest', 'Regression', 'ModelCheckBuildHelper.lean');
+      const uri = pathToFileURL(file).href;
+      const text = fs.readFileSync(file, 'utf8');
+      server.notify('textDocument/didOpen', { textDocument: { uri, languageId: 'lean4', version: 1, text } });
+      // As the extension asks: at the first command after the imports, without waiting for the rest
+      const line = headerEndLine(text);
+      type Action = { kind?: string; command?: { command: string; arguments: unknown[] } };
+      const actionsFor = async (only?: string[]) => await within(server.request('textDocument/codeAction', {
+        textDocument: { uri },
+        range: { start: { line, character: 0 }, end: { line, character: text.split('\n')[line].length } },
+        context: { diagnostics: [], ...(only ? { only } : {}) },
+      }), 600_000, 'Answering at the first command') as Action[];
+      const ofProtocol = (actions: Action[]) => actions.filter(action => action.kind === 'refactor.veil.ideProtocol');
+      const actions = ofProtocol(await actionsFor(['refactor.veil.ideProtocol']));
+      assert.strictEqual(actions.length, 1);
+      assert.strictEqual(actions[0].command?.command, 'veil.ideProtocol');
+      assert.deepStrictEqual(actions[0].command.arguments, [{ ideProtocol: IDE_PROTOCOL }],
+        'the Veil of this checkout has the IDE protocol of its extension');
+      assert.deepStrictEqual(ofProtocol(await actionsFor()), [], 'the menus of the editor do not show it');
+      // What the extension asks there of a Veil from before the IDE protocol, which this Veil still answers
+      const legacy = (await actionsFor(['refactor.veil.executableModules']))
+        .find(action => action.command?.command === 'veil.modelCheck.executableModules');
+      assert.ok(Array.isArray(legacy?.command?.arguments[0]));
+    } finally {
+      await server.close();
+    }
   });
 
   test('Lean gives the config template of a module, to a request for its kind only', async () => {

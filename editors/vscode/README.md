@@ -28,8 +28,13 @@ See the [Veil setup instructions](https://github.com/verse-lab/veil#build)
 for the required tools and build steps.
 
 This extension uses Veil's `#gen_executable` and `#mc_config` workflow and follows
-Veil's build messages and result format. If your project uses an incompatible
-Veil revision, build the extension from that revision as described under
+Veil's build messages and result format. Veil reports the version of these, its
+IDE protocol, and Veil Verifier 0.N.x supports IDE protocol N; the
+[changelog](CHANGELOG.md) says which Veil each version is for. When your
+project's Veil reports another one, the lenses say so and tell you what to
+update. **Use Anyway** brings their actions back for the window. If no published
+version supports your project's Veil yet, build the extension from the project's
+copy of Veil, in `.lake/packages/veil/editors/vscode`, as described under
 [Develop](#develop).
 
 ## Use
@@ -131,8 +136,8 @@ npm test        # needs a built Veil: it builds the binaries of test/fixtures wi
 To try the extension, open `editors/vscode` in VS Code and run **Run Extension**
 (F5). This opens the repository in a new window with the extension loaded.
 
-To install a locally built VSIX, use **Extensions: Install from VSIX...** in
-the command palette.
+To install a locally built VSIX (see [PUBLISHING.md](PUBLISHING.md)), use
+**Extensions: Install from VSIX...** in the command palette.
 
 ## Feedback
 

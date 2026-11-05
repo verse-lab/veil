@@ -42,6 +42,8 @@ export interface RunSnapshot {
   endedAt?: number;
   /** The labels of all actions, from the start report of the binary */
   actionLabels?: string[];
+  /** The IDE protocol of what the binary printed, from its start report, if it reported one */
+  ideProtocol?: number;
   /** Where the actions and properties of the module are, if Lean said when the run started */
   sources?: ModuleSources;
   /** The last progress that the binary reported */

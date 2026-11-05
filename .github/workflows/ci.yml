@@ -57,3 +57,10 @@ jobs:
       run: |
         npm ci --prefix widget
         node widget/tests/veilUtils.test.cjs
+    # Against the Veil of this checkout, built above: this also checks that both report the same IDE protocol
+    - name: Test the VS Code extension
+      working-directory: editors/vscode
+      run: |
+        npm ci
+        npm test
+      timeout-minutes: 20

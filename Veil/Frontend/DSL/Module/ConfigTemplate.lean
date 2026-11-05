@@ -2,18 +2,40 @@ module
 
 public meta import Lean.Server.CodeActions
 meta import Lean.Util.LakePath
+public meta import Veil.Core.Tools.ModelChecker.CompiledRuntime
 public meta import Veil.Frontend.DSL.Module.Syntax
 public meta import Veil.Frontend.DSL.Module.Util.Instantiation
 
-/-! What the VS Code extension of Veil asks Lean for with code actions: the template of a config file,
-which builds the model checker of a module with `#mc_config` in another file, and where the
-declarations of the module of such a command are. -/
+/-! What the VS Code extension of Veil asks Lean for with code actions: `ideProtocolVersion`, the
+template of a config file, which builds the model checker of a module with `#mc_config` in another
+file, and where the declarations of the module of such a command are. Their kinds, commands and
+formats are part of `ideProtocolVersion`. -/
 
 public meta section
 
 open Lean Meta Server Lsp
 
 namespace Veil
+
+/-- The kind of the code action that gives `ideProtocolVersion`, as `{"ideProtocol": n}`. Its kind,
+command and format never change, so that an extension of any version can tell a Veil that it does
+not support. As with `configTemplateKind`, only a request for it gets it. -/
+def ideProtocolKind : String := "refactor.veil.ideProtocol"
+
+/-- The command of the code action of `ideProtocolKind` -/
+def ideProtocolCommand : String := "veil.ideProtocol"
+
+/-- Answers at any command, so that the extension can ask right after the imports -/
+@[code_action_provider]
+def ideProtocolCodeAction : CodeActionProvider := fun params _ => do
+  unless params.context.only?.any (·.contains ideProtocolKind) do return #[]
+  return #[{ eager := {
+    title := "Version of what the VS Code extension of Veil relies on"
+    kind? := ideProtocolKind
+    command? := some {
+      title := ""
+      command := ideProtocolCommand
+      arguments? := #[Json.mkObj [("ideProtocol", toJson ideProtocolVersion)]] } } }]
 
 /-- A field of a config template, with the value that the template suggests for it -/
 structure ConfigTemplateField where
@@ -57,6 +79,9 @@ The `refactor` prefix therefore keeps VS Code from filtering out the Lean provid
 the request, as it would for `source.veil.modelCheckConfig`. -/
 def configTemplateKind : String := "refactor.veil.modelCheckConfig"
 
+/-- The command of the code action of `configTemplateKind` -/
+def configTemplateCommand : String := "veil.modelCheck.createConfig"
+
 /-- The kind of the code action that gives the names of the modules whose executable definitions
 this file has generated before the requested position, with `veil.modelCheck.executableModules` as
 its command. It leaves out the modules of imported files. Besides `#gen_executable`, `#model_check`
@@ -64,6 +89,9 @@ and `#simulate` also generate the definitions, so the extension asks at the `end
 all of its commands. As with `configTemplateKind`, only a request for it gets it, and it is a
 `refactor` kind for VS Code to ask Lean. -/
 def executableModulesKind : String := "refactor.veil.executableModules"
+
+/-- The command of the code action of `executableModulesKind` -/
+def executableModulesCommand : String := "veil.modelCheck.executableModules"
 
 @[code_action_provider]
 def executableModulesCodeAction : CodeActionProvider := fun params snap => do
@@ -74,7 +102,7 @@ def executableModulesCodeAction : CodeActionProvider := fun params snap => do
     kind? := executableModulesKind
     command? := some {
       title := ""
-      command := "veil.modelCheck.executableModules"
+      command := executableModulesCommand
       arguments? := #[toJson names] } } }]
 
 @[code_action_provider]
@@ -106,7 +134,7 @@ def configTemplateCodeAction : CodeActionProvider := fun params snap => do
       kind? := configTemplateKind
       command? := some {
         title := "Create a model checking config"
-        command := "veil.modelCheck.createConfig"
+        command := configTemplateCommand
         arguments? := #[toJson template, toJson params.textDocument.uri] } } }
 
 /-- Where the declarations of a module are, by the names that model checking results give them -/
@@ -119,6 +147,9 @@ structure ModuleSources where
 `#mc_config` command are. As with `configTemplateKind`, only a request for it gets it, and it
 is a `refactor` kind for VS Code to ask Lean. -/
 def moduleSourcesKind : String := "refactor.veil.modelCheckSources"
+
+/-- The command of the code action of `moduleSourcesKind` -/
+def moduleSourcesCommand : String := "veil.modelCheck.sources"
 
 @[command_code_action Veil.modelCheckBuild]
 def moduleSourcesCodeAction : CodeAction.CommandCodeAction := fun params snap _ node => do
@@ -136,6 +167,6 @@ def moduleSourcesCodeAction : CodeAction.CommandCodeAction := fun params snap _ 
     title := s!"Where the declarations of {em.name} are"
     kind? := moduleSourcesKind
     -- The extension reads the arguments of the command, and does not run it
-    command? := some { title := "", command := "veil.modelCheck.sources", arguments? := #[toJson sources] } } }]
+    command? := some { title := "", command := moduleSourcesCommand, arguments? := #[toJson sources] } } }]
 
 end Veil

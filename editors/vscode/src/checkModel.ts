@@ -4,6 +4,8 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { VeilModuleSite, findVeilModules } from './buildCommands';
 import { BuildCommand, buildCommandsOf } from './codeLens';
+import { UNKNOWN_VEIL_HINT } from './compatibility';
+import { VeilCompatibility } from './compatibilityCheck';
 import {
   ConfigTemplate, SnippetPart, appendSeparator, configCommand, configFileFor, configHeader, importsModule, isOfModule,
 } from './configTemplate';
@@ -65,6 +67,12 @@ async function requestTemplate(document: vscode.TextDocument, line: number, modu
   return commands.map(args => args[0] as ConfigTemplate).find(template => isOfModule(module, template.module));
 }
 
+/** Why Lean may give no template for `document`, besides errors: a Veil that does not say which IDE
+ * protocol it uses may be too old for this extension */
+async function noTemplateHint(compatibility: VeilCompatibility, document: vscode.TextDocument): Promise<string> {
+  return await compatibility.isUnknown(document) ? ` ${UNKNOWN_VEIL_HINT}` : '';
+}
+
 function toSnippet(parts: SnippetPart[]): vscode.SnippetString {
   const snippet = new vscode.SnippetString();
   for (const part of parts) {
@@ -117,8 +125,10 @@ export async function createConfig(template: ConfigTemplate, moduleUri: vscode.U
 }
 
 /** Create a config from the selected in-module check, even when it is commented out. */
-export async function createConfigFromCheck(uri: string, line: number, character: number): Promise<void> {
+export async function createConfigFromCheck(compatibility: VeilCompatibility, uri: string, line: number,
+    character: number): Promise<void> {
   const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(uri));
+  if (!await compatibility.beforeCommand(document)) return;
   const source = findModelChecks(document.getText()).find(check => check.line === line && check.character === character);
   if (!source) {
     void vscode.window.showWarningMessage('The `#model_check` of this lens has changed. Use its lens again.');
@@ -134,16 +144,17 @@ export async function createConfigFromCheck(uri: string, line: number, character
     () => requestTemplate(document, site.genExecutableLine ?? site.endLine ?? document.lineCount - 1, site.name));
   if (template) await createConfig(template, document.uri, source);
   else void vscode.window.showWarningMessage(`Lean has no config template for ${site.name}: check that Lean ` +
-    'processes its executable definitions without errors.');
+    'processes its executable definitions without errors.' + await noTemplateHint(compatibility, document));
 }
 
 /** "Check Model": run the model checker of a config file of a module, once Lean has built it, or else
  * create a config file for the module. `run` runs the command of a config file. */
 export async function checkModel(run: (document: vscode.TextDocument, command: BuildCommand) => Promise<void>,
-    modelConfigs: ModelConfigs, uri?: string, line?: number): Promise<void> {
+    modelConfigs: ModelConfigs, compatibility: VeilCompatibility, uri?: string, line?: number): Promise<void> {
   const picked = await pickModule(uri, line);
   if (!picked) return;
   const { document, site } = picked;
+  if (!await compatibility.beforeCommand(document)) return;
   if (!await hasExecutableDefinitions(document, site)) {
     // The lens already names the edit; the generic command-palette entry still needs to ask.
     if (uri === undefined || line === undefined) {
@@ -163,7 +174,8 @@ export async function checkModel(run: (document: vscode.TextDocument, command: B
       () => requestTemplate(document, askAt, site.name));
     if (template) await createConfig(template, document.uri);
     else void vscode.window.showWarningMessage(`Lean has no config template for ${site.name}: check that Lean ` +
-      'processes its `#gen_executable`, `#model_check` or `#simulate` without errors.');
+      'processes its `#gen_executable`, `#model_check` or `#simulate` without errors.' +
+      await noTemplateHint(compatibility, document));
     return;
   }
   const config = configs.length === 1 ? configs[0] : (await vscode.window.showQuickPick(
