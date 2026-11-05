@@ -315,7 +315,9 @@ rewriting). -/
 inductive Stmt where
   | plain (s : Syntax)
   | send (msg dst : Syntax) (ref : Syntax)
-  | broadcast (msg : Syntax) (ref : Syntax)
+  /-- `guard?`: the condition of `broadcast (m X) if c`, which sends every
+  instance of the pattern variables that satisfies `c`. -/
+  | broadcast (msg : Syntax) (guard? : Option Syntax) (ref : Syntax)
   /-- `continues`: the single-pattern form `recv p`, whose bindings scope over
   the rest of the block; otherwise each alternative has its own body. -/
   | recv (id : Nat) (arms : Array (MsgPattern × List Stmt)) (continues : Bool) (ref : Syntax)
@@ -435,7 +437,9 @@ private partial def parseElem (e : Syntax) : ParseM Stmt := do
   let ctx ← read
   let k := e.getKind
   if k == ``sendDo then return .send e[1] e[3] e
-  if k == ``broadcastDo then return .broadcast e[1] e
+  if k == ``broadcastDo then
+    let guard? := if e[2].getNumArgs > 0 then some e[2][1] else none
+    return .broadcast e[1] guard? e
   if k == ``recvDo then
     let id ← freshId
     return .recv id #[(← parsePattern ctx.msgs ctx.reserved e[1], [])] true e
@@ -712,10 +716,14 @@ private def running (cfg : NetConfig) (n : Term) : CommandElabM Term := do
   if let some p := byzPred cfg then conds := conds.push (← `(¬ $p $n))
   conds[1:].foldlM (fun acc c => `($acc ∧ $c)) conds[0]!
 
-private def sendCode (sc : Scope) (msg : Syntax) (dst? : Option Syntax) : M (Array Syntax) := do
+private def sendCode (sc : Scope) (msg : Syntax) (dst? : Option Syntax)
+    (guard? : Option Syntax := none) : M (Array Syntax) := do
   let ctx ← read
   let (k, args) ← splitMessage ctx.messages msg
   let args ← args.mapM (userTerm sc)
+  let guard? ← guard?.mapM (userTerm sc)
+  if guard?.isSome && ctx.cfg.fifo then
+    throwErrorAt msg "a guarded `broadcast` is not supported with `order := fifo`"
   let self := ctx.self
   let allDst := mkIdent `DST
   let dst ← match dst? with
@@ -741,9 +749,11 @@ private def sendCode (sc : Scope) (msg : Syntax) (dst? : Option Syntax) : M (Arr
         ← assign (← `($sent $self $allDst)) (← `($nxt $allDst))] ++ count
   let ch := mkIdent (if ctx.cfg.synchrony == .sync then outChan k.name else netChan k.name)
   let entry ← `($ch $self $dst $args*)
-  let update ← if ctx.cfg.synchrony == .async && ctx.cfg.multiset then
-      `(doElem| $entry:term := $entry + 1)
-    else `(doElem| $entry:term := true)
+  let update ← match ctx.cfg.synchrony == .async && ctx.cfg.multiset, guard? with
+    | true, none => `(doElem| $entry:term := $entry + 1)
+    | true, some g => `(doElem| $entry:term := $entry + if $g then 1 else 0)
+    | false, none => `(doElem| $entry:term := true)
+    | false, some g => `(doElem| $entry:term := decide ($entry = true ∨ $g))
   return #[update.raw] ++ count
 
 /-- Whether the code always ends the step (with a `return`). -/
@@ -777,7 +787,7 @@ private partial def emit (stmts : List Stmt) (frames : List Frame) (visited : Li
       let sc' := sc.bind bound
       return #[e'] ++ (← emit rest frames visited sc')
     | .send msg dst _ => return (← sendCode sc msg (some dst)) ++ (← emit rest frames visited sc)
-    | .broadcast msg _ => return (← sendCode sc msg none) ++ (← emit rest frames visited sc)
+    | .broadcast msg guard? _ => return (← sendCode sc msg none guard?) ++ (← emit rest frames visited sc)
     | .halt _ => suspendAt doneLabel true
     | .recv id _ _ ref =>
       if (← isSync) then

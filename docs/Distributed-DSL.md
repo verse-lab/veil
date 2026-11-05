@@ -147,6 +147,7 @@ with the statements below. Different roles are written with `if`, e.g.
 |---|---|
 | `send (m a b) to dst` | Send message `m a b` to `dst`. |
 | `broadcast (m a b)` | Send it to every node, **including `self`**. |
+| `broadcast (m X) if c` | Broadcast `m x` for every `x` satisfying `c`, e.g. `broadcast (est V) if W V` sends every value in the node's set `W`. Fields written as capitalised variables range over all values, as in Veil assignments. The guard must be on the same line. Not available with `order := fifo`. |
 | `recv (m x y) from src` | Block until a message `m` arrives, then bind its fields and sender. `from src` is optional. |
 | `recv`<br>`\| (m x) from s => ...`<br>`\| (n y) => ...` | Block until one of several kinds of message arrives, and run the matching alternative. |
 | `next_round` | (`sync` only) End this node's step in the current round. |
