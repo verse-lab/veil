@@ -1,6 +1,7 @@
 module
 
 public meta import Veil.Frontend.DSL.Module.Elaborators.Core
+public meta import Veil.Frontend.DSL.Module.Elaborators.TemporalDefinitions
 public meta import Veil.Frontend.DSL.Tactic
 public meta import Veil.Core.UI.Verifier.AssertionErrors
 public meta import Veil.Frontend.DSL.Module.VCGen
@@ -119,7 +120,6 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
   let (labelCmds, mod) ← mod.assembleLabel
   for cmd in labelCmds do
     elabVeilCommand cmd
-  -- The deep definitions of the temporal properties declared so far, which need `Label`
   let mod ← mod.generatePendingTemporalDefinitions .check
   -- With `veil.deferVCGeneration`, the verification conditions and everything
   -- else that needs the actions' WPs, including the `doesNotThrow` checks, wait
@@ -139,7 +139,7 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
 (`veil.deferVCGeneration`), the first call generates the deferred verification
 definitions and does what `#gen_spec` skipped; otherwise this only checks that
 `#gen_spec` ran. Either way, it then defines the pending shallow definitions of
-temporal properties, which need `Init`, `NextStep`, …. -/
+temporal properties. -/
 def Module.ensureVerificationSpec (mod : Module) (stx : Syntax) : CommandElabM Module := do
   mod.throwIfSpecNotFinalized
   let deferred := mod._vcGenerationDeferred

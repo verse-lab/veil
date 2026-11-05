@@ -318,9 +318,9 @@ structure TemporalProperty where
   /-- Whether the property is proved, model checked, or both. A definition that fails to elaborate is
   dropped from `.both` (see `Module.dropTemporalDefinition`). -/
   target : TemporalTarget := .both
-  /-- Whether the deep definition is yet to be generated, which needs the finalized spec (`Label`). -/
+  /-- Whether the deep definition is yet to be generated. -/
   checkPending : Bool := false
-  /-- Whether the shallow definition is yet to be generated, which needs `Init`, `NextStep`, …. -/
+  /-- Whether the shallow definition is yet to be generated. -/
   verifyPending : Bool := false
   /-- Extra parameters needed to elaborate the shallow definition. -/
   extraParams : Array Parameter := #[]
