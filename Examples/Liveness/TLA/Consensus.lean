@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Liveness
 
 /-! # Tiny Consensus Specification
 
