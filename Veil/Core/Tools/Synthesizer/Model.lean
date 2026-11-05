@@ -3,12 +3,14 @@ module
 public meta import Lean
 public meta import Veil.Core.Tools.Synthesizer.Structure
 public meta import Veil.Core.Tools.Synthesizer.Vocabulary
+public meta import Veil.Util.ValueDisplay
 
 /-!
 # Reading solver models
 
 Veil decodes a solver model of a trace query into a `VeilTrace` and renders it as JSON
-(`VeilTrace.toJson`). This file reads that JSON as finite structures over a `Signature`.
+(`VeilTrace.toJson`), showing values through `Veil.Display`. This file reads that JSON as finite
+structures over a `Signature`.
 
 ## Main definitions
 
@@ -18,10 +20,11 @@ Veil decodes a solver model of a trace query into a `VeilTrace` and renders it a
 ## Implementation notes
 
 The JSON gives the size of each uninterpreted sort as its instantiation `Fin n`, each state's
-components under `states[i].fields`, the immutable components under `theory` and the class
-symbols under `extraVals`. A relation is a list of tuples, nested to the left, a `Bool` individual
-a boolean, a function a list of rows `[args, value]`, an individual a bare value, and an element
-of an enum sort its constructor's name.
+components under `states[i].fields` (a record), the immutable components under `theory` (a record)
+and the class symbols under `extraVals`. A relation is a tagged set of tuples, a `Bool` individual
+a boolean, a function a tagged map from argument tuples to values, an individual a bare value, and
+an element of an enum sort its constructor's name. `Display` shows a tuple as the string
+`(a, b)`.
 
 A class symbol that no axiom mentions occurs in no hypothesis of a query, so the solver may leave
 it out of the model, and any table completes it. Such a symbol gets the empty relation, or the
@@ -48,10 +51,23 @@ def intOfJson? : Json → Option Int
 def natOfJson? (j : Json) : Option Nat :=
   (intOfJson? j).bind fun n ↦ if n ≥ 0 then n.toNat else none
 
-/-- The leaves of a nested JSON array, in order. -/
-partial def leaves : Json → Array Json
-  | .arr xs => xs.flatMap leaves
+/-- The components of a tuple, which `Display` shows as the string `(a, b, c)`. Any other JSON is
+a single component. -/
+def components : Json → Array Json
+  | .str s =>
+    if s.startsWith "(" && s.endsWith ")" then
+      (((s.drop 1).dropEnd 1).toString.splitOn ", ").toArray.map fun p ↦
+        match p.trimAscii.toNat? with
+        | some n => Json.num n
+        | none => Json.str p.trimAscii.toString
+    else #[.str s]
   | j => #[j]
+
+/-- The `key` and `value` of an entry of a tagged map. -/
+def entry (e : Json) : Except String (Json × Json) :=
+  match e.getObjVal? "key", e.getObjVal? "value" with
+  | .ok k, .ok v => pure (k, v)
+  | _, _ => throw s!"malformed map entry {e}"
 
 variable (m : FinStructure)
 
@@ -80,39 +96,46 @@ def checkTotal (argSorts : Array SortName) (rows : Array (Array Nat)) : Except S
     throw s!"function table has {rows.size} row(s) for {domain.size} argument tuple(s); it must \
       be total"
 
-/-- The table of a symbol: a list of tuples, a boolean for a 0-ary relation, a bare value for an
-individual. A function's table must be total. -/
+/-- The table of a symbol: a set of tuples, a boolean for a 0-ary relation, a bare value for an
+individual, a map from argument tuples to values for a function. A function's table must be
+total. -/
 def table (sym : Symbol) (j : Json) : Except String (Array (Array Nat)) := do
   let sorts := sym.argSorts
   let rows ← match j with
     | .bool b =>
       if sorts.isEmpty then pure (if b then #[#[]] else #[])
       else throw "boolean for a symbol of arity > 0"
-    | .arr rows => rows.mapM fun row ↦ do
-      let ls := leaves row
-      unless ls.size == sorts.size do
-        throw s!"tuple of wrong shape {row} (expected arity {sorts.size})"
-      (sorts.zip ls).mapM fun (s, l) ↦ element m s l
     | j =>
-      if sorts.size == 1 then return #[#[← element m sorts[0]! j]]
-      else throw s!"scalar {j} for a symbol of arity ≠ 1"
+      let row (ls : Array Json) : Except String (Array Nat) := do
+        unless ls.size == sorts.size do
+          throw s!"tuple of wrong shape {ls} (expected arity {sorts.size})"
+        (sorts.zip ls).mapM fun (s, l) ↦ element m s l
+      match ValueDisplay.collection? j with
+      | some ("set", es) => es.mapM fun e ↦ row (components e)
+      | some ("map", es) => es.mapM fun e ↦ do
+        let (k, v) ← entry e
+        row (components k |>.push v)
+      | _ =>
+        if sorts.size == 1 then return #[#[← element m sorts[0]! j]]
+        else throw s!"scalar {j} for a symbol of arity ≠ 1"
   if sym.isFunction then checkTotal m sorts.pop (rows.map (·.pop))
   return rows
 
-/-- The value table of a numeric symbol: an integer for an individual, a total list of rows
-`[args, value]` for a function. -/
+/-- The value table of a numeric symbol: an integer for an individual, a total map from
+argument tuples to integers for a function. -/
 def numTable (sym : Symbol) (j : Json) : Except String (Array (Array Nat × Int)) := do
   let argSorts := sym.argSorts.pop
   let value (j : Json) : Except String Int := match intOfJson? j with
     | some v => pure v
     | none => throw s!"value {j} is not an integer"
   if argSorts.isEmpty then return #[(#[], ← value j)]
-  let .arr rows := j | throw s!"{j} is not a function table"
-  let rows ← rows.mapM fun row ↦ do
-    let ls := leaves row
-    unless ls.size == argSorts.size + 1 do
-      throw s!"row of wrong shape {row} (expected {argSorts.size} argument(s) and a value)"
-    return (← (argSorts.zip ls.pop).mapM fun (s, l) ↦ element m s l, ← value ls.back!)
+  let some ("map", es) := ValueDisplay.collection? j | throw s!"{j} is not a function table"
+  let rows ← es.mapM fun e ↦ do
+    let (k, v) ← entry e
+    let ks := components k
+    unless ks.size == argSorts.size do
+      throw s!"key {k} of wrong shape (expected {argSorts.size} argument(s))"
+    return (← (argSorts.zip ks).mapM fun (s, l) ↦ element m s l, ← value v)
   checkTotal m argSorts (rows.map (·.1))
   return rows
 
@@ -132,13 +155,14 @@ open Model in
 /-- The structure of one state: the state components from `fields`, the immutable components from
 `theory`, the class symbols from `extraVals`. Also returns the class symbols the model left out. -/
 def structureOfState (sig : Signature) (carrier : FinStructure)
-    (fields theoryJson extraVals : Json) : Except String (FinStructure × Array Name) := do
+    (fields theoryFields : Array (String × Json)) (extraVals : Json) :
+    Except String (FinStructure × Array Name) := do
   let mut m := carrier
   for sym in sig.stateSymbols do
-    let .ok v := fields.getObjVal? sym.name.toString | throw s!"state has no field {sym.name}"
+    let some (_, v) := fields.find? (·.1 == sym.name.toString) | throw s!"state has no field {sym.name}"
     m ← addComponent m sym v |>.mapError (s!"field {sym.name}: " ++ ·)
   for sym in sig.theorySymbols do
-    let .ok v := theoryJson.getObjVal? sym.name.toString
+    let some (_, v) := theoryFields.find? (·.1 == sym.name.toString)
       | throw s!"model theory has no field {sym.name}"
     m ← addComponent m sym v |>.mapError (s!"theory field {sym.name}: " ++ ·)
   let mut completed := #[]
@@ -179,6 +203,11 @@ def decodeTrace (sig : Signature) (j : Json) : Except String DecodedTrace := do
   let inst ← j.getObjVal? "instantiation" |>.mapError toString
   let extraVals := (j.getObjVal? "extraVals").toOption.getD (.obj {})
   let theoryJson := (j.getObjVal? "theory").toOption.getD (.obj {})
+  let record (what : String) (j : Json) : Except String (Array (String × Json)) :=
+    match ValueDisplay.record? j with
+    | some (_, fs) => pure fs
+    | none => throw s!"{what} is not a record: {j}"
+  let theoryFields ← if theoryJson == .obj {} then pure #[] else record "theory" theoryJson
   let sorts ← sig.sorts.mapM fun s ↦ do
     if let some (_, ctors) := sig.enums.find? (·.1 == s) then return (s, ctors.size)
     match inst.getObjVal? s.toString with
@@ -189,8 +218,8 @@ def decodeTrace (sig : Signature) (j : Json) : Except String DecodedTrace := do
   let carrier : FinStructure := { sorts, enums := sig.enums, rels := #[] }
   let .arr states ← j.getObjVal? "states" |>.mapError toString | throw "states is not an array"
   let decoded ← states.mapM fun st ↦ do
-    let fields ← st.getObjVal? "fields" |>.mapError toString
-    structureOfState sig carrier fields theoryJson extraVals
+    let fields ← record "state" (← st.getObjVal? "fields" |>.mapError toString)
+    structureOfState sig carrier fields theoryFields extraVals
   return {
     sorts, states := decoded.map (·.1)
     labels := states.map fun st ↦ (st.getObjVal? "transition").toOption.getD .null
