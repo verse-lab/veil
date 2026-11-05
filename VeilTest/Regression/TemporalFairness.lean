@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Liveness
 
 /-! `𝒲ℱ a` and `𝒮ℱ a` are Lentil's weak and strong fairness. For model checking, they unfold to
 `(◇ □ Enabled a) → □ ◇ ⟨a⟩` and `(□ ◇ Enabled a) → □ ◇ ⟨a⟩`. -/

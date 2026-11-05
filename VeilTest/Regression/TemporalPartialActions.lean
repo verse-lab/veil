@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Liveness
 
 /-! An action in `Enabled a`, `⟨ a ⟩`, `𝒲ℱ a` and `𝒮ℱ a` can be partially applied. A parameter left open,
 as `·` or by leaving out the trailing arguments, stands for some value of it: for the model checker, the
