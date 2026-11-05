@@ -423,8 +423,10 @@ To check a single action, use `#check_action <name>`.
 #### Synthesizing Invariants
 
 `#updr` tries to prove your `safety` properties automatically. It searches
-for extra `invariant` clauses that, together with the `safety` properties,
-hold in all initial states and are preserved by every action.
+for extra `invariant` clauses that, together with your `safety` properties
+and existing `invariant` clauses, hold in all initial states and are
+preserved by every action. If one of your existing invariants is false,
+`#updr` reports an execution that violates it.
 
 Run it after `#gen_spec`:
 

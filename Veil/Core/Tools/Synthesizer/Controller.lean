@@ -239,19 +239,23 @@ def search : SearchM Outcome := do
 
 end SearchM
 
-/-- The conjuncts of the property `P`: the module's `safety` clauses and, with
-`useDeclaredInvariants`, its declared `invariant`s. Trusted invariants are not included. -/
+/-- The declared `invariant`s that are part of the property `P`: all of them with
+`useDeclaredInvariants`, none otherwise. Trusted invariants are never included. -/
+def includedInvariants (mod : Veil.Module) (cfg : Config) : Array StateAssertion :=
+  if cfg.useDeclaredInvariants then mod.assertions.filter (·.kind == .invariant) else #[]
+
+/-- The conjuncts of the property `P`: the module's `safety` clauses and its included
+`invariant`s. -/
 def propertyConjuncts (mod : Veil.Module) (cfg : Config) : Array Term :=
-  mod.safeties.map (·.term) ++
-    if cfg.useDeclaredInvariants then (mod.assertions.filter (·.kind == .invariant)).map (·.term)
-    else #[]
+  (mod.safeties ++ includedInvariants mod cfg).map (·.term)
 
 /-- The conjuncts of `P`, or an error for a module without any. -/
 def checkedProperty (mod : Veil.Module) (cfg : Config) : CoreM (Array Term) := do
   let property := propertyConjuncts mod cfg
   if property.isEmpty then
-    throwError "IC3: the module declares no safety property{if cfg.useDeclaredInvariants then ""
-      else " (use `(invariants := true)` to work on its declared invariants)"}"
+    throwError "IC3: the module declares no {if cfg.useDeclaredInvariants then "safety property \
+      or invariant" else "safety property (drop `(invariants := false)` to work on its declared \
+      invariants)"}"
   return property
 
 /-- Run UPDR on a module's property, over its vocabulary `sig`. -/

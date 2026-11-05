@@ -60,7 +60,7 @@ structure Config where
   /-- Drop literals from blocking clauses. -/
   generalize : Bool := true
   /-- Include the module's declared invariants in the property. -/
-  useDeclaredInvariants : Bool := false
+  useDeclaredInvariants : Bool := true
   /-- Report each step as a message. -/
   verbose : Bool := false
   /-- Append one JSON object per event to this file. -/

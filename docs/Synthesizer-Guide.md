@@ -1,7 +1,7 @@
 # Veil Invariant Synthesizer Guide
 
 `#updr` searches for `invariant` clauses that make a module's
-`safety` properties inductive. It reports an inductive invariant, an execution
+`safety` properties and declared `invariant`s inductive. It reports an inductive invariant, an execution
 that violates the properties, or that no universal inductive invariant exists.
 With `certify`, an invariant or a violation becomes a theorem checked by the
 Lean kernel. Run `#gen_theorems` to add its declarations to the current module.
@@ -84,7 +84,7 @@ Options may appear in any order, each at most once:
 | option | meaning | default |
 |---|---|---|
 | `(fuel := n)` | Maximum number of solver calls. | 5000 |
-| `(invariants := true)` | Include the module's declared `invariant`s in the property. | `false` |
+| `(invariants := false)` | Leave the module's declared `invariant`s out of the property, so that the search works on the `safety` properties alone. | `true` |
 | `(generalizer := g)` | `linear` first tries linear relations between integer individuals, then `updr`; `updr` uses unsat cores and literal deletion only. They agree on a module without integer state. | `linear` |
 | `(cores := false)` | Generalize by deleting literals from the full negated diagram, as the paper does, instead of starting from the solver's unsat cores. | `true` |
 | `(log := "path.jsonl")` | Append one JSON object per event (each candidate clause and its verdict, each clause admitted, each frame cleared, the outcome) to this file. | no log |
@@ -200,8 +200,8 @@ on a field `after_init` leaves unassigned; the command warns about such fields.
 
 ## Existential Invariants
 
-The search finds universal clauses only. With `(invariants := true)` the
-declared invariants, existentials included, are part of the property. A ghost
+The search finds universal clauses only. The declared invariants,
+existentials included, are part of the property unless `(invariants := false)`. A ghost
 function that names a witness (`quorumOf : node → quorum`, maintained by the
 action that elects the leader) turns an existential fact into a universal
 clause over that function.

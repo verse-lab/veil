@@ -10,12 +10,12 @@ public meta import Veil.Core.UI.Widget.SynthesizerProgress
 # `#updr`
 
 This file defines the command, which runs UPDR on the current module's `safety` properties and
-reports the outcome: strengthening clauses to paste into the module, a concrete counterexample, an
+declared `invariant`s (unless `(invariants := false)`) and reports the outcome: strengthening clauses to paste into the module, a concrete counterexample, an
 abstract counterexample showing that no universal inductive invariant exists, or why the search
 stopped. With `certify`, an invariant or a counterexample becomes a kernel-checked theorem;
 `#gen_theorems` waits for the result and adds its declarations to the module.
 
-    #updr (fuel := 500) (log := "run.jsonl") (invariants := true) verbose certify
+    #updr (fuel := 500) (log := "run.jsonl") (invariants := false) verbose certify
 
 Options may appear in any order, each at most once.
 -/
@@ -44,8 +44,8 @@ syntax synthGeneralizer := &"generalizer" " := " (&"updr" <|> &"linear")
 syntax synthCores := &"cores" " := " (&"true" <|> &"false")
 syntax synthOpt := "(" (synthFuel <|> synthLog <|> synthExpect <|> synthInvariants <|>
   synthGeneralizer <|> synthCores) ")"
-/-- Search for universal invariants that make the module's `safety` properties inductive, with
-UPDR. -/
+/-- Search for universal invariants that make the module's `safety` properties and declared
+`invariant`s inductive, with UPDR. -/
 syntax (name := updr)
   "#updr" (synthOpt <|> &"verbose" <|> &"certify")* : command
 
@@ -190,13 +190,20 @@ def statsMessage (stats : RunStats) (status : TrNorm.Status) : String :=
     {seconds ph.preprocessMs} s, elaboration {seconds ph.elabMs} s, solving {seconds ph.smtMs} s, \
     decoding {seconds ph.decodeMs} s){note}"
 
-/-- The strengthening clauses as `invariant` declarations, one per line. -/
-def strengtheningLines (clauses : Array Admitted) : Array String :=
-  clauses.zipIdx.map fun (a, k) ↦ s!"invariant [ic3_{k}] {a.clause}"
+/-- The strengthening clauses as `invariant` declarations, one per line, named `ic3_k` with the
+smallest indices whose names are not `taken`. -/
+def strengtheningLines (clauses : Array Admitted) (taken : Array Name) : Array String := Id.run do
+  let mut lines := #[]
+  let mut k := 0
+  for a in clauses do
+    while taken.contains (Name.mkSimple s!"ic3_{k}") do k := k + 1
+    lines := lines.push s!"invariant [ic3_{k}] {a.clause}"
+    k := k + 1
+  return lines
 
 /-- The report of an invariant. -/
-def invariantMessage (frame : Nat) (clauses : Array Admitted) (anyTrusted trusting : Bool) :
-    String :=
+def invariantMessage (frame : Nat) (clauses : Array Admitted) (taken : Array Name)
+    (anyTrusted trusting : Bool) : String :=
   let trustNote :=
     if !anyTrusted then " (lean-smt reconstructed every solver answer of the search as a proof \
       term; the search does not kernel-check those terms, `certify` does)"
@@ -209,7 +216,7 @@ def invariantMessage (frame : Nat) (clauses : Array Admitted) (anyTrusted trusti
   else
     s!"Inductive invariant found at frame {frame} with {clauses.size} strengthening \
       clause(s){trustNote}:\n" ++
-      "".intercalate ((strengtheningLines clauses).toList.map (· ++ "\n"))
+      "".intercalate ((strengtheningLines clauses taken).toList.map (· ++ "\n"))
 
 /-- The report of a no-universal-invariant verdict. -/
 def absenceMessage (sig : Signature) (propertyName : String) (diagrams : Array FinStructure)
@@ -310,7 +317,7 @@ def addStrengtheningSuggestion (mod : Veil.Module) (clauses : Array Admitted) :
   let fileMap ← getFileMap
   let indent := "".pushn ' ' (fileMap.toPosition startPos).column
   let commandText := String.Pos.Raw.extract fileMap.source startPos endPos
-  let lines := strengtheningLines clauses
+  let lines := strengtheningLines clauses (mod.assertions.map (·.name))
   let label := "Insert the strengthening invariants"
   let suggestion : Lean.Meta.Tactic.TryThis.Suggestion := {
     suggestion := .string <| s!"\n{indent}".intercalate lines.toList ++ s!"\n\n{indent}{commandText}"
@@ -348,9 +355,8 @@ private def runUpdr (mod : Veil.Module) (opts : Options) :
   let _ ← liftCoreM failQueryAt
   let propertyName :=
     if mod.safeties.isEmpty then "the declared invariants"
-    else if cfg.useDeclaredInvariants then
-      "the safety property together with the declared invariants"
-    else "the safety property"
+    else if (includedInvariants mod cfg).isEmpty then "the safety property"
+    else "the safety property together with the declared invariants"
   -- The transition system does not assume trusted invariants.
   let trustedNote :=
     if mod.trustedInvariants.isEmpty then "" else " (trusted invariants were not assumed)"
@@ -389,7 +395,8 @@ private def runUpdr (mod : Veil.Module) (opts : Options) :
     return cert
   match outcome with
   | .foundInvariant frame clauses anyTrusted =>
-    logInfo (invariantMessage frame clauses anyTrusted (veil.synthesizer.trust.get (← getOptions)))
+    logInfo (invariantMessage frame clauses (mod.assertions.map (·.name)) anyTrusted
+      (veil.synthesizer.trust.get (← getOptions)))
     addStrengtheningSuggestion mod clauses
     if doCertify then
       let cert ← certifyTimed <| certify mod property (clauses.map (·.clause)) progress?
