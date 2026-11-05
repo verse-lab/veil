@@ -157,13 +157,21 @@ register_option veil.experimental.wpCompact : Bool := {
   descr := "Experimental. If true, compact generated `wp_local_eq.pred` definitions by sharing duplicated postcondition branches with `letEq` and exposing abstract-state conditionals field-wise."
 }
 
+register_option veil.temporal.moduleAtoms : Bool := {
+  defValue := false
+  descr := "Set by Veil while it elaborates a temporal formula of a module, not meant to be set by hand. \
+  If true, the atoms of `[ltl| …]` and `[tlfml| …]` are read against the current module: `⌜ t ⌝` sees its \
+  theory and state fields, as an assertion does, and `a` in `Enabled a`, `⟨ a ⟩`, `𝒲ℱ a` and `𝒮ℱ a` is one of \
+  its actions, whose parameters left open (as `·`, or by leaving out the trailing arguments) stand for some value."
+}
+
 register_option veil.deferVCGeneration : Bool := {
   defValue := false
   descr := "If true, procedures and actions declared while this option is set do not generate their verification definitions, \
   and `#gen_spec` run while it is set generates no verification conditions, so it also skips the assertion-failure (`doesNotThrow`) checks. \
   The first verification command (e.g. `#check_invariants`) generates the definitions and runs the checks. \
   If the option is turned off within a module, the next declaration or `#gen_spec` first generates the definitions deferred so far. \
-  `#model_check` and `#simulate` need neither."
+  `#model_check`, `#simulate`, and `#temporal_check` need neither."
 }
 
 register_option veil.simulate.numTraces : Nat := {
@@ -178,7 +186,7 @@ register_option veil.simulate.maxSteps : Nat := {
 
 register_option veil.modelChecker.maxStoredBuilds : Nat := {
   defValue := 1
-  descr := "Maximum number of compiled builds of `#model_check` and `#simulate` stored in \
+  descr := "Maximum number of compiled builds of `#model_check`, `#simulate`, and `#temporal_check` stored in \
   `.lake/model_checker_builds`; 0 means no limit, so builds are never deleted. When a run ends, \
   cleanup keeps the most recently compiled builds up to this limit, allowing later runs to reuse \
   them. Builds that running checks use are never deleted, even beyond the limit. Cleanup is \
@@ -194,7 +202,7 @@ register_option veil.modelChecker.maxStoredCheckers : Nat := {
 
 register_option veil.modelChecker.buildOnly : Bool := {
   defValue := false
-  descr := "Build the binary of `#model_check` and `#simulate` inside a module without running it, \
+  descr := "Build the binary of `#model_check`, `#simulate`, and `#temporal_check` inside a module without running it, \
   whatever mode the command names, and report it and the time of each phase of the build as an \
   info message whose last line is `VEIL_BUILD_ONLY` followed by a JSON object. As for \
   `#mc_config`, the binary is copied to `.lake/model_checkers` \

@@ -39,7 +39,7 @@ interface ParsedState {
 }
 type Trace = ParsedState[];
 
-type ViolationKind = "assumption_failure" | "safety_failure" | "deadlock" | "assertion_failure";
+type ViolationKind = "assumption_failure" | "safety_failure" | "liveness_failure" | "deadlock" | "assertion_failure";
 
 interface AssertionInfo {
   procedureName: string;
@@ -83,11 +83,14 @@ type ModelCheckingResult =
       result: "found_violation";
       violation: Violation;
       trace: TraceData | null;
+      lasso?: { stem: Record<string, unknown>[]; loop: Record<string, unknown>[] };
+      theory?: Record<string, unknown>;
       seed?: number;
     }
   | {
       result: "no_violation_found";
       explored_states?: number;
+      properties_checked?: number;
       termination_reason?: TerminationReason;
       traces_run?: number;
       num_traces?: number;
@@ -108,7 +111,7 @@ type ModelCheckingResult =
 /** Which command produced the result. Mirrors `Veil.TraceDisplay.ResultKind`;
  *  the renderer branches on this instead of guessing from which keys are present. */
 // Constructor names of the Lean inductive, as produced by its derived `ToJson`.
-type ResultKindTag = "modelCheck" | "simulate" | "symbolicTrace";
+type ResultKindTag = "modelCheck" | "simulate" | "liveness" | "symbolicTrace";
 
 interface ModelCheckerViewProps {
   result: ModelCheckingResult;
@@ -443,12 +446,13 @@ const ResultHeader: React.FC<{
   resultType: "found_violation" | "no_violation_found" | "cancelled";
   violation?: Violation;
   exploredStates?: number;
+  propertiesChecked?: number;
   terminationReason?: TerminationReason;
   tracesRun?: number;
   numTraces?: number;
   seed?: number;
   kind: ResultKindTag;
-}> = ({ resultType, violation, exploredStates, terminationReason, tracesRun, numTraces, seed, kind }) => {
+}> = ({ resultType, violation, exploredStates, propertiesChecked, terminationReason, tracesRun, numTraces, seed, kind }) => {
   const seedDetails = seed !== undefined ? (
     <div className="result-details">
       <strong>Seed:</strong> {seed}
@@ -479,6 +483,10 @@ const ResultHeader: React.FC<{
     let icon: string;
     let label: string;
     switch (violation.kind) {
+      case "liveness_failure":
+        icon = "⚠️";
+        label = "Liveness Violation Found";
+        break;
       case "deadlock":
         icon = "🔒";
         label = "Deadlock Detected";
@@ -499,7 +507,7 @@ const ResultHeader: React.FC<{
       <div className="result-header result-violation">
         <span className="result-icon">{icon}</span>
         <span className="result-label">{label}</span>
-        {(violation.kind === "safety_failure" || violation.kind === "assumption_failure") && violation.violates && violation.violates.length > 0 && (
+        {(violation.kind === "safety_failure" || violation.kind === "liveness_failure" || violation.kind === "assumption_failure") && violation.violates && violation.violates.length > 0 && (
           <div className="result-details">
             <strong>{violation.kind === "assumption_failure" ? "Violated assumptions" : "Violated properties"}:</strong>{" "}
             {joinNodes(violation.violates.map((name) => <SourceLink kind="property" name={name}>{name}</SourceLink>))}
@@ -517,6 +525,9 @@ const ResultHeader: React.FC<{
 
   // no_violation_found
   const getTerminationText = (reason: TerminationReason | undefined, count: number | undefined): string | null => {
+    if (kind === "liveness") {
+      return `Checked ${propertiesChecked ?? 0} properties (explored ${count ?? 0} product states)`;
+    }
     // `#simulate`: see the table on `SimulateResult` for the cases it can produce.
     if (kind === "simulate") {
       if (reason?.kind === "no_initial_states") {
@@ -596,7 +607,16 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   const [showFilterPanel, setShowFilterPanel] = React.useState(false);
 
   // Compute all unique field names from the trace
-  const traceData = 'trace' in result ? result.trace : undefined;
+  const lasso = 'lasso' in result ? result.lasso : undefined;
+  // `loop.slice(1)` is the cycle: LTLLib repeats its first state at the head of `loop`.
+  const lassoCycle = React.useMemo(() => lasso ? lasso.loop.slice(1) : [], [lasso]);
+  const traceData: TraceData | null | undefined = React.useMemo(() => lasso ? {
+    theory: 'theory' in result ? result.theory ?? {} : {},
+    states: [...lasso.stem, ...lassoCycle].map((fields, index) => ({
+      index, fields,
+      transition: index < lasso.stem.length ? 'stem' : 'loop',
+    })),
+  } : 'trace' in result ? result.trace : undefined, [result, lasso, lassoCycle]);
   const allFieldNames = React.useMemo(() => {
     if (!traceData?.states) return [];
     const names = new Set<string>();
@@ -673,6 +693,33 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       gap: 8px;
       padding: 8px;
       overflow-x: auto;
+    }
+    .mc-lasso-divider {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .mc-lasso-rule {
+      flex: 1;
+      border-top: 2px dashed var(--vscode-focusBorder);
+    }
+    .mc-trace.horizontal .mc-lasso-divider {
+      flex-direction: column;
+      align-self: stretch;
+      margin: 0 4px;
+    }
+    .mc-trace.horizontal .mc-lasso-rule {
+      min-height: 16px;
+      border-top: none;
+      border-left: 2px dashed var(--vscode-focusBorder);
+    }
+    .mc-trace.horizontal .mc-lasso-label {
+      writing-mode: vertical-rl;
     }
     .mc-summary {
       margin: 12px 8px;
@@ -1047,6 +1094,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                     resultType="no_violation_found"
                     kind={kind}
                     exploredStates={result.explored_states}
+                    propertiesChecked={result.properties_checked}
                     terminationReason={result.termination_reason}
                     tracesRun={result.traces_run}
                     numTraces={result.num_traces}
@@ -1071,11 +1119,28 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
 
             {trace.length > 0 ? (
               <>
+                {lasso && (
+                  <div className="mc-summary">
+                    The stem reaches the loop; the loop repeats indefinitely. States are projected
+                    from the product graph; action labels are not included in this witness.
+                  </div>
+                )}
                 <div className={`mc-trace ${isVertical ? "vertical" : "horizontal"}`}>
                   {trace.map((s: ParsedState, idx: number) => {
                     const prev = idx > 0 ? trace[idx - 1].fields : undefined;
                     const changes = diffChanges(prev, s.fields);
-                    return <StateCard key={s.index} st={s} changes={changes} showRemovals={showRemovals} forceOpen={allStatesOpen} hiddenFields={hiddenFields} onHideField={toggleFieldVisibility} onResetForceOpen={() => setAllStatesOpen(null)} />;
+                    return (
+                      <React.Fragment key={s.index}>
+                        {lasso && idx === lasso.stem.length && (
+                          <div className="mc-lasso-divider" role="separator">
+                            <span className="mc-lasso-rule" />
+                            <span className="mc-lasso-label">⟲ Loop (repeats)</span>
+                            <span className="mc-lasso-rule" />
+                          </div>
+                        )}
+                        <StateCard st={s} changes={changes} showRemovals={showRemovals} forceOpen={allStatesOpen} hiddenFields={hiddenFields} onHideField={toggleFieldVisibility} onResetForceOpen={() => setAllStatesOpen(null)} />
+                      </React.Fragment>
+                    );
                   })}
                 </div>
 
@@ -1084,7 +1149,9 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                 )}
 
                 <div className="mc-summary">
-                  <strong>Summary:</strong> {trace.length} states in trace
+                  <strong>Summary:</strong> {lasso
+                    ? `${lasso.stem.length} stem states, ${lassoCycle.length} loop states (repeats)`
+                    : `${trace.length} states in trace`}
                 </div>
               </>
             ) : (

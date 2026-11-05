@@ -4,6 +4,8 @@ open Lake DSL System
 require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.32.0-veil-no-mathlib"
 require Loom from git "https://github.com/verse-lab/loom.git" @ "396cfd2165e4916e460d935d9cbb27c54d8669a2"
 require VerifiedHAMT from git "https://github.com/verse-lab/VerifiedHAMT.git" @ "24bbc61c6ca37ef38f984566399461c9afa2b0d3"
+require Lasso from git "https://github.com/verse-lab/Lasso-dev.git" @ "97bbb27e0ca37f213ed4cb2cebe8c22807e6946a"
+require lentil from git "https://github.com/verse-lab/Lentil.git" @ "4b336806735fa80c9a6073c33afdb9cb0360edb8"
 
 require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.32.0"
 require aesop from git "https://github.com/leanprover-community/aesop" @ "v4.32.0"

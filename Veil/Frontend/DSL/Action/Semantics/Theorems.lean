@@ -51,6 +51,16 @@ theorem VeilM.raises_true_imp_wp_eq_angel_fail_iwp (act : VeilM m ρ σ α) (pos
     simp [iwp, ←f_ih, pi_compl_def] }
   simp [@compl_iInf, himp_eq, ←f_ih]
 
+theorem VeilM.angel_fail_of_ignore_ex (act : VeilM m ρ σ α) (post : RProp α ρ σ) :
+  [AngelFail| wp act post ] = [IgnoreEx (fun _ => True)| Loom.Cont.inv (wp act) post ] := by
+  rw [← VeilM.raises_true_imp_wp_eq_angel_fail_iwp]
+
+theorem VeilM.enabled_of_wp (act : VeilM m ρ σ α) :
+  act.enabled = act.enabledDerived := by
+  unfold VeilM.enabled VeilM.enabledDerived
+  rw [angel_fail_of_ignore_ex]
+  simp [Loom.Cont.inv, Loom.Order.compl, Loom.Order.top, Loom.Order.bot]
+
 open PartialCorrectness DemonicChoice ExceptionAsSuccess in
 theorem VeilM.wp_iInf {ι : Type} (act : VeilM m ρ σ α) (post : ι -> RProp α ρ σ) :
   wp act (iInf post) = iInf (fun i => wp act (post i)) := by
@@ -275,6 +285,31 @@ theorem Transition.meetsSpecificationIfSuccessful_eq [Inhabited α] (act : VeilM
 theorem Transition.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m ρ σ α) (inv : SProp ρ σ) :
   act.toTransition.preservesInvariantsIfSuccesful inv = act.preservesInvariantsIfSuccesful inv := by
   apply Transition.meetsSpecificationIfSuccessful_eq
+
+theorem Transition.enabled_of_wp (act : VeilM m ρ σ α) :
+  act.toTransition.enabled = act.enabled := by
+  ext r s
+  unfold VeilM.toTransition Transition.enabled _root_.triple VeilM.enabled --VeilM.toTransitionDerived VeilSpecM.toTransitionDerived
+  simp [LE.le]
+  constructor
+  · rintro ⟨s', h⟩
+    revert h ; apply [AngelFail| wp_cons (m := VeilM m ρ σ)]
+    simp
+  · intro h
+    -- Erh, `VeilExecM` is a pretty special case
+    induction act generalizing r s
+    · simp at h ⊢
+    · rename_i β x f ih
+      simp [VeilExecM.wp_eq] at h ⊢
+      generalize x r s = o at *
+      rcases o with ⟨e | a, s'⟩ | _ <;> simp [TotalCorrectness.DivM.wp_eq] at *
+      aesop
+    · rename_i τ p f ih
+      simp at h ⊢
+      rw [exists_comm]
+      rcases h with ⟨w, hw, h⟩
+      exists w
+      aesop
 
 end TransitionSemanticsTheorems
 

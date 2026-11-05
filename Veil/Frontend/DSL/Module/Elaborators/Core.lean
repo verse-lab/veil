@@ -18,6 +18,9 @@ public meta import Veil.Frontend.DSL.Module.Util.Enumeration
 public meta import Veil.Frontend.DSL.Module.Util.Instantiation
 public meta import Veil.Util.Multiprocessing
 public meta import Veil.Frontend.DSL.Module.AssertionInfo
+public import Veil.Core.Tools.LivenessMC.Interface
+public meta import Lasso.LTL.Notation
+public meta import Veil.Core.Tools.LivenessMC.Runtime
 
 public meta section
 
@@ -446,6 +449,290 @@ def elabAssertion : CommandElab := fun stx => do
   --   dbg_trace s!"Elaborated assertion: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic stx}"
     localEnv.modifyModule (fun _ => mod')
 
+/-- `t` of `Enabled t`, `⟨ t ⟩`, `𝒲ℱ t` or `𝒮ℱ t` as an action, applied to arguments (`a x y`) or not (`a`),
+possibly in parentheses: the name `a` and the arguments, if `t` has this shape. Both definitions of a temporal
+property recognize an action this way (`actionAtomOf`, `elabTlfmlAction`). -/
+partial def actionApp? : Term → Option (Ident × Array Term)
+  | `(($t)) => actionApp? t
+  | `($a:ident) => some (a, #[])
+  | `($a:ident $args:term*) => some (a, args)
+  | _ => none
+
+/-- The module's action named `a`, if any, and its arguments `args`, one for each of its parameters. A
+parameter left open, as `·` or by stopping before it, is `none` and stands for any value: for an action
+`a (x y : T)`, `a`, `a ·` and `a · ·` all mean "any instantiation", and `a x₀` and `a x₀ ·` both mean `a x₀ y`
+for some `y`. -/
+def Module.resolveActionAtom? (mod : Module) (a : Ident) (args : Array Term) :
+    TermElabM (Option (ProcedureSpecification × Array (Option Term))) := do
+  let some spec := mod.actions.find? (·.name == a.getId) | return none
+  if args.size > spec.params.size then
+    throwErrorAt a "action `{spec.name}` takes {spec.params.size} parameter(s), but {args.size} \
+      were given; write `·` for a parameter that can take any value"
+  let args := args.map fun arg => if arg.raw.isOfKind ``Lean.Parser.Term.cdot then none else some arg
+  return some (spec, args ++ .replicate (spec.params.size - args.size) none)
+
+/-- The action and its arguments in `Enabled t`, `⟨ t ⟩`, `𝒲ℱ t` or `𝒮ℱ t`, where `t` must be an action of
+the module (`actionApp?`), with `none` for a parameter left open (`Module.resolveActionAtom?`). -/
+private def actionAtomOf (mod : Module) (t : Term) : TermElabM (Name × Array (Option Term)) := do
+  let actions := mod.actions.map (·.name) |>.toList
+  let some (a, args) := actionApp? t
+    | throwErrorAt t "expected an action of this module, applied to arguments or not; the module's \
+        actions are {actions}"
+  let some (spec, args) ← mod.resolveActionAtom? a args
+    | throwErrorAt a "unknown action `{a.getId}`; the module's actions are {actions}"
+  return (spec.name, args)
+
+/-- The label predicate deciding `Enabled a …`/`⟨ a … ⟩`, a match over every constructor: the one of `a`
+compares the label's arguments with the given ones, leaving the open parameters unconstrained, and the
+others are false.
+
+For a module whose actions are `send (src dst : node)` and `recv`, `Enabled send` and `⟨ send ⟩` give
+```lean
+fun lbl => match lbl with
+  | Label.send .. => true
+  | Label.recv .. => false
+```
+and `Enabled (send · d₀)` and `⟨ send · d₀ ⟩` give
+```lean
+fun lbl => match lbl with
+  | Label.send _ dst => decide (dst = d₀)
+  | Label.recv .. => false
+``` -/
+private def mkActionLabelMatch (mod : Module) (actionName : Name) (args : Array (Option Term)) :
+    TermElabM Term := do
+  let lbl := mkIdent `lbl
+  let alts ← mod.actions.mapM fun (act : ProcedureSpecification) => do
+    let ctor : Ident := Lean.mkIdent (labelTypeName ++ act.name)
+    if act.name != actionName then
+      `(Lean.Parser.Term.matchAltExpr| | $ctor:ident .. => $(Lean.mkIdent ``Bool.false))
+    else if args.all Option.isNone then
+      `(Lean.Parser.Term.matchAltExpr| | $ctor:ident .. => $(Lean.mkIdent ``Bool.true))
+    else
+      -- A fresh variable for each given argument, so that the argument cannot capture it
+      let mut pats : Array Term := #[]
+      let mut eqs : Array Term := #[]
+      for (p, arg?) in act.params.zip args do
+        let some arg := arg? | pats := pats.push (← `(_))
+        let x := Lean.mkIdent (← mkFreshUserName p.name)
+        pats := pats.push x
+        eqs := eqs.push (← `($x = $arg))
+      `(Lean.Parser.Term.matchAltExpr| | $(Syntax.mkApp ctor pats):term => decide ($(← repeatedAnd eqs)))
+  `(term| fun $lbl => match $lbl:ident with $alts:matchAlt*)
+
+-- `∀ x, φ` and `∃ x, φ` become the conjunction and the disjunction of `φ` over the values that `Enumeration`
+-- lists for the type of `x`. For a sort, these are only known once `#temporal_check` instantiates the module.
+macro_rules
+  | `([ltl| ∀ $x:ident, $f]) => `($(mkIdent ``LivenessMC.forallEnum) fun $x => [ltl| $f])
+  | `([ltl| ∀ $x:ident : $t, $f]) => `($(mkIdent ``LivenessMC.forallEnum) fun ($x : $t) => [ltl| $f])
+  | `([ltl| ∃ $x:ident, $f]) => `($(mkIdent ``LivenessMC.existsEnum) fun $x => [ltl| $f])
+  | `([ltl| ∃ $x:ident : $t, $f]) => `($(mkIdent ``LivenessMC.existsEnum) fun ($x : $t) => [ltl| $f])
+
+/-- The atoms of `[ltl| …]`, read against the current module while Veil elaborates one of its temporal
+formulas (`veil.temporal.moduleAtoms`). `⌜ t ⌝` is a state predicate and `⌞ t ⌟` a theory predicate,
+which see the module's fields as an assertion does; `Enabled a …`/`⟨ a … ⟩` name one of its actions, and
+`𝒲ℱ a …`/`𝒮ℱ a …` are the formulas they abbreviate, the same as when written out.
+
+`⟨ a ⟩` is decided by the label of the step taken, which is stronger than Lentil's action predicate that
+the shallow definition uses; see `Veil.temporalDeclaration`.
+Tried before the plain reading of `[ltl| …]` (`Lasso.elabLtlAtom`), to which it defers otherwise. -/
+@[term_elab Lasso.ltlFormula] def elabModuleLtlAtom : TermElab := fun stx expectedType? => do
+  unless veil.temporal.moduleAtoms.get (← getOptions) do throwUnsupportedSyntax
+  let mod ← getCurrentModule
+  let (th, st) := (mkIdent `th, mkIdent `st)
+  let statePredicate (targets : List (TheoryAndStateTermTemplateArgKind × Term × Bool)) (t : Term) := do
+    let body ← mod.withTheoryAndStateTermTemplate targets (some (← `(Prop))) (fun _ _ => `(uqc% ($t:term)))
+    -- The constructor does not take the field's default, so `name` is given explicitly
+    `($(mkIdent ``LivenessMC.LivenessAtom.state) ($(mkIdent ``ModelChecker.SafetyProperty.mk)
+        ($(mkIdent `name) := $(quote Name.anonymous))
+        ($(mkIdent `property) := fun ($th : $environmentTheory) ($st : $environmentState) => $body)))
+  let atom ← match stx with
+    | `([ltl| ⌜ $t:term ⌝]) => statePredicate [(.theory, th, true), (.state .none "_conc", st, true)] t
+    | `([ltl| ⌞ $t:term ⌟]) => statePredicate [(.theory, th, true)] t
+    -- `Enabled a`/`⟨ a ⟩` are decided by a predicate on the action label, not on a state
+    | `([ltl| Enabled $t:term]) =>
+      let (actionName, args) ← actionAtomOf mod t
+      `($(mkIdent ``LivenessMC.LivenessAtom.enabled) $(quote (Name.mkSimple s!"Enabled {actionName}"))
+          $(← mkActionLabelMatch mod actionName args))
+    | `([ltl| ⟨ $t:term ⟩]) =>
+      let (actionName, args) ← actionAtomOf mod t
+      `($(mkIdent ``LivenessMC.LivenessAtom.taken) $(quote (Name.mkSimple s!"⟨{actionName}⟩"))
+          $(← mkActionLabelMatch mod actionName args))
+    -- Checking `t` before unfolding reports a wrong one once, not for both `Enabled t` and `⟨ t ⟩`. The
+    -- unfoldings are Lentil's fairness (`Lentil.wf_as_implies`, `Lentil.sf_as_implies`).
+    | `([ltl| 𝒲ℱ $t:term]) =>
+      discard <| actionAtomOf mod t
+      return ← elabTerm (← `([ltl| (◇ □ Enabled $t) → □ ◇ ⟨ $t ⟩])) expectedType?
+    | `([ltl| 𝒮ℱ $t:term]) =>
+      discard <| actionAtomOf mod t
+      return ← elabTerm (← `([ltl| (□ ◇ Enabled $t) → □ ◇ ⟨ $t ⟩])) expectedType?
+    -- `tlfml` also admits a plain term (a `Lentil.pred`), which has no meaning for the model checker
+    | `([ltl| $t:term]) =>
+      throwErrorAt t "a plain term is not an atomic proposition of a model-checked property; write \
+        `⌜ {t} ⌝` for a state predicate"
+    | `([ltl| $f]) =>
+      throwErrorAt f "a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `Enabled …` and \
+        `⟨ … ⟩`, the fairness conditions `𝒲ℱ …` and `𝒮ℱ …`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, \
+        `↔`, `□`, `◇`, `◯`, `𝑈`, `𝑅`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and \
+        `∃ x : T, …`; this formula is none of them"
+    | _ => throwUnsupportedSyntax
+  elabTerm (← `($(mkIdent ``Lasso.Formula.atom) $atom)) expectedType?
+
+/-! ## Definitions of temporal properties
+
+A temporal property `p` has up to two definitions: the shallow `p`, a `Lentil.pred` for `prove_temporal_by`,
+and the deep `p.ast`, an `Lasso.Formula` syntax tree for `#temporal_check`. One declared before the spec is
+finalized gets them later: `p.ast` once `Label` exists (`Module.ensureSpecIsFinalized`), and `p` once `Init`,
+`NextStep`, … do (`Module.ensureVerificationSpec`). -/
+
+private def Module.modifyTemporalProperty (mod : Module) (name : Name) (f : TemporalProperty → TemporalProperty) :
+    Module :=
+  { mod with temporalProperties := mod.temporalProperties.map fun tp => if tp.name == name then f tp else tp }
+
+/-- Define and register `p.ast`, the deep definition of `tp`: a `LivenessProperty ρ σ Label` built by
+`LivenessProperty.ofFormula` from `[ltl| φ]`, elaborating the formula once. Needs the finalized spec. As for an assertion
+(`Module.mkVeilTerm`), every `Decidable` instance that cannot be synthesized here, such as one for a quantifier
+over a sort or one that exists only at a concrete type, becomes a trailing instance-implicit parameter, which
+`#temporal_check` synthesizes at the types it instantiates the module with. The same goes for the
+`Enumeration` instances that the temporal quantifiers `∀ x, …`/`∃ x, …` need, such as one for a sort. -/
+private def Module.defineTemporalCheck (mod : Module) (tp : TemporalProperty) : CommandElabM Module := do
+  let defName := toTemporalAstName tp.name
+  let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .invariantLike {})
+  let decParams ← liftTermElabM <| withExporting (isExporting := true) do
+    withDeclName ((← getCurrNamespace) ++ defName) do
+    let binders ← (baseParams ++ extraParams).mapM (·.binder)
+    let body ← `(($(mkIdent ``Veil.LivenessMC.LivenessProperty.ofFormula) $(quote tp.name) [ltl| $(tp.formula)] :
+      $(mkIdent ``Veil.LivenessMC.LivenessProperty) $environmentTheory $environmentState $(← mod.labelTypeStx)))
+    let (insts, e) ← elabBinders binders fun vs => do
+      -- The atoms are read against this module (`elabModuleLtlAtom`)
+      let (insts, e) ← withOptions (veil.temporal.moduleAtoms.set · true) <|
+        getRequiredDecidableInstances defName body (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
+          (alsoExtract := #[``Veil.Enumeration])
+      let e ← Meta.mkLambdaFVars (vs ++ insts.map (·.2)) (← instantiateMVars e)
+        (binderInfoForMVars := .instImplicit)
+      let e ← instantiateMVars e
+      if e.hasMVar then
+        let holes ← (← Meta.getMVars e).mapM fun mv => do instantiateMVars (← mv.getType)
+        let holes := MessageData.joinSep (holes.toList.map toMessageData) Format.line
+        throwError "the definition of `{defName}` still has holes after elaboration, of type(s){indentD holes}"
+      pure (insts, e)
+    let _ ← addVeilDefinition defName (← Meta.letToHave e)
+    return insts.mapIdx fun i (decT, _) =>
+      { kind := .definitionParameter defName .typeclass, name := Name.mkSimple s!"{tp.name}_dec_{i}",
+        «type» := decT, userSyntax := .missing : Parameter }
+  let (mod, decParams) ← liftTermElabM <| mod.canonicalizeExtraParams decParams
+  mod.registerDerivedDefinition
+    { name := defName, kind := .invariantLike, params := #[], extraParams := extraParams ++ decParams,
+      derivedFrom := {}, stx := none }
+
+/-- Define `p`, the shallow definition of `tp`, and record its extra parameters in `tp`. Needs `Init`,
+`NextStep`, … (`Module.ensureVerificationSpec`). -/
+private def Module.defineTemporalVerify (mod : Module) (tp : TemporalProperty) : CommandElabM Module := do
+  -- The dependencies decide which extracted `Decidable` parameters `p` binds. The formula needs those of
+  -- the actions (bound to their transitions below) and of the ghosts (used in atoms). Only `p._proof` needs
+  -- those of `Init`, `NextStep`, `Invariants` and `Assumptions`: its statement mentions them and reuses the
+  -- binders of `p` (`Module.getStatementForTemporalTheorems`).
+  let ghostDefs := mod._derivedDefinitions.valuesArray.filter fun dd =>
+      match dd.kind with | .ghost _ | .theoryGhost _ => true | _ => false
+  let dependencies := (Std.HashSet.ofArray (mod.actions.map (·.name)))
+    |>.union (Std.HashSet.ofArray (ghostDefs.map (·.name)))
+    |>.union (Std.HashSet.ofArray #[assembledInitName, assembledNextStepName,
+        assembledInvariantsName, assembledAssumptionsName])
+  let dk : DeclarationKind := .derivedDefinition .actionLike dependencies
+  let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) dk
+  let baseBinders ← baseParams.mapM (·.binder)
+  let extraBinders ← extraParams.mapM (·.binder)
+  let allBinders := (← baseBinders.mapM mkImplicitBinder) ++ (← extraBinders.mapM mkImplicitBinder)
+  -- Build let bindings for each action's transition relation
+  -- For action `send (x : ts)`, generate:
+  --   let send := fun x => @send.ext.tr <modArgs> x th
+  -- For action `poll` (no params), generate:
+  --   let poll := @poll.ext.tr <modArgs> th
+  let thIdent := mkVeilImplementationDetailIdent `th
+  let mut letBindings : Array (Ident × Term) := #[]
+  for act in mod.actions do
+    let actTrName := mkIdent <| toTransitionName <| toExtName act.name
+    let ((_, modArgs), (specificBinders, specificArgs)) ← mod.declarationSplitBindersArgs act.name act.info.declarationKind
+    let specificFunBinders ← specificBinders.mapM bracketedBinderToFunBinder
+    let appTerm ← `(@$actTrName $modArgs* $specificArgs* $thIdent)
+    let rhs ← mkFunSyntax specificFunBinders appTerm
+    letBindings := letBindings.push (mkIdent act.name, rhs)
+  -- State fields and ghosts need no bindings: each `⌜ t ⌝` sees them as an assertion does
+  -- (`Veil.elabTlfmlStateAtom`).
+  -- Assemble the body: let bindings + [tlfml| user_formula ]
+  let fullBody ← do
+    let body ← letBindings.foldrM (init := ← `([tlfml| $(tp.formula)])) fun (bindName, bindVal) body =>
+      `(let $bindName := $bindVal; $body)
+    -- Expose immutable theory fields in temporal formulas, matching assertions and ghosts.
+    let temporalPredType ← `($(mkIdent ``Lentil.pred) $environmentState)
+    let bodyWithTheory ← liftTermElabM <|
+      mod.withTheoryAndStateTermTemplate
+        [(.theory, thIdent, true)]
+        (some temporalPredType)
+        (fun _ _ => pure body)
+    `(fun ($thIdent : $environmentTheory) => $bodyWithTheory)
+  -- Generate the definition
+  -- NOTE: We might use `remove_unused_args%` to trim some unused arguments, but
+  -- that makes the later use of the temporal property in proofs more complicated,
+  -- as we need to figure out which arguments got removed in building its syntax of application
+  let cmd ← `(noncomputable def $(mkIdent tp.name) $[$allBinders]* := $fullBody)
+  -- The atoms are read against this module (`Veil.elabTlfmlStateAtom`)
+  withScope (fun scope => { scope with opts := veil.temporal.moduleAtoms.set scope.opts true }) do
+    elabVeilCommand cmd
+  return mod.modifyTemporalProperty tp.name ({ · with extraParams })
+
+/-- `tp` loses its definition for `side` (`.check` for `p.ast`, `.verify` for `p`), which failed with `errs`.
+If `tp` has its other definition too (it did not ask for `(only := …)`), it keeps that one, and the errors
+become warnings suggesting `(only := …)`. Otherwise it has no definition left: the errors are reported and
+`tp` is forgotten. -/
+def Module.dropTemporalDefinition (mod : Module) (tp : TemporalProperty) (side : TemporalTarget)
+    (errs : Array Message) : CommandElabM Module := do
+  if tp.target matches .both then
+    let (rest, kept, failed, keptTarget) := if side.needsCheck
+      then (TemporalTarget.verify, "proved", "model-checking", "verify")
+      else (TemporalTarget.check, "model checked", "proof", "check")
+    -- `logMessage` keeps the positions of the failing subformula, which `logAt` would recompute from a
+    -- `Syntax`, but it skips `warningAsError`, which `logAt` applies
+    let severity := if warningAsError.get (← getOptions) then MessageSeverity.error else .warning
+    for e in errs do
+      logMessage { e with severity, data := m!"`{tp.name}` is only {kept}, since its {failed} \
+        definition fails to elaborate (write `temporal (only := {keptTarget})` to say so):{indentD e.data}" }
+    return mod.modifyTemporalProperty tp.name ({ · with target := rest })
+  -- Already logged once through `logAt`, these keep their positions and context
+  for e in errs do logMessage e
+  -- Forget `tp`
+  return { mod with
+    temporalProperties := mod.temporalProperties.filter (·.name != tp.name)
+    _declarations := mod._declarations.erase tp.name }
+
+/-- Whether a definition of `tp` that `side` needs (`.check` for `p.ast`, `.verify` for `p`) is yet to be
+generated. -/
+private def TemporalProperty.isPending (tp : TemporalProperty) (side : TemporalTarget) : Bool :=
+  (side.needsCheck && tp.checkPending) || (side.needsVerify && tp.verifyPending)
+
+private def TemporalProperty.clearPending (tp : TemporalProperty) (side : TemporalTarget) : TemporalProperty :=
+  { tp with
+    checkPending := tp.checkPending && !side.needsCheck
+    verifyPending := tp.verifyPending && !side.needsVerify }
+
+/-- Generate the pending definition of `tp` for `side`, dropping it if it fails (`Module.dropTemporalDefinition`):
+`.check` for `p.ast`, which needs `Label`, and `.verify` for `p`, which needs `Init`, `NextStep`, …. -/
+def Module.generateTemporalDefinition (mod : Module) (tp : TemporalProperty) (side : TemporalTarget) :
+    CommandElabM Module := do
+  let sideName := if side.needsCheck then "check" else "verify"
+  withTraceNode (`veil.perf.elaborator.temporal ++ tp.name) (fun _ => return s!"temporal {tp.name} ({sideName})") do
+    let define := if side.needsCheck then mod.defineTemporalCheck tp else mod.defineTemporalVerify tp
+    let mod ← match ← commitIfNoErrors define with
+      | .ok mod => pure mod
+      | .error errs => mod.dropTemporalDefinition tp side errs
+    return mod.modifyTemporalProperty tp.name (·.clearPending side)
+
+/-- Generate the pending definitions for `side`: the deep ones once `Label` exists, which are those of the
+properties declared before the spec was finalized, and the shallow ones once `Init`, `NextStep`, … exist,
+which under `veil.deferVCGeneration` include those of the properties declared before `#gen_spec`. -/
+def Module.generatePendingTemporalDefinitions (mod : Module) (side : TemporalTarget) : CommandElabM Module :=
+  mod.temporalProperties.foldlM (init := mod) fun mod tp =>
+    if tp.isPending side then mod.generateTemporalDefinition tp side else pure mod
+
 open Lean Meta Elab Command Veil in
 /-- Developer tool. Import all module parameters into section scope. -/
 elab "veil_variables" : command => do
@@ -501,6 +788,14 @@ declare_command_config_elab elabModelCheckCommandConfig ModelCheckCommandConfig 
     item.checkNotBool
     let base : ModelCheckerConfig ← Lean.Elab.ConfigEval.evalExprWithElab ⟨item.value⟩
     return { cfg with toModelCheckerConfig := base }
+
+/-- Configuration options for the `#temporal_check` command. -/
+structure LivenessCheckConfig where
+  /-- The search to run; see `Veil.LivenessMC.Route`. -/
+  route : LivenessMC.Route := .fair
+  deriving Repr
+
+declare_command_config_elab elabLivenessCheckConfig LivenessCheckConfig
 
 declare_command_config_elab elabSimulateConfig ModelChecker.Simulation.SimulateConfig
 
@@ -612,8 +907,13 @@ private def mkPickSourceTerm (em : ExecutableModule) (instSortArgs : Array Term)
   `(letI : $(mkIdent ``LogSwitch) := ⟨true⟩
     $(mkIdentWithModName em `pickSource) $instSortArgs* $th)
 
-/-- Build search parameters for model checking / simulation. -/
-private def mkSearchParameters (em : ExecutableModule) (config : ModelCheckerConfig) : CommandElabM Term := do
+/-- Build search parameters for model checking, simulation, or liveness checking. -/
+private def mkSearchParameters (em : ExecutableModule) (config : ModelCheckerConfig)
+  /- NOTE: For liveness, `includeSafetyAndDeadlock := false` avoids elaborating unrelated invariant/termination
+    expressions and synthesizing their `Decidable` instances. This is a temporary workaround
+    for reusing `SearchParameters`: liveness only needs assumptions and state constraints,
+    which should eventually have a separate shared construction interface.-/
+    (includeSafetyAndDeadlock : Bool := true) : CommandElabM Term := do
   let mkAssumption (name : Name) : CommandElabM Term :=
     `($(mkIdent ``Veil.ModelChecker.TheoryProperty.mk)
         ($(mkIdent `name) := $(quote name))
@@ -624,9 +924,9 @@ private def mkSearchParameters (em : ExecutableModule) (config : ModelCheckerCon
         ($(mkIdent `name) := $(quote name))
         ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName em name) $(mkIdent `th) $(mkIdent `st)))
   let assumptionList ← `([$((← em.assumptions.mapM mkAssumption)),*])
-  let safetyList ← `([$((← em.invariants.mapM mkProp)),*])
+  let safetyList ← `([$((← (if includeSafetyAndDeadlock then em.invariants else #[]).mapM mkProp)),*])
   -- FIXME: Only recognizing the first termination property might confuse users
-  let terminatingProp ← match em.terminations[0]? with
+  let terminatingProp ← match if includeSafetyAndDeadlock then em.terminations[0]? else none with
     | some t => mkProp t
     | none => `($(mkIdent `default))
   let constraintList ← `([$((← em.stateConstraints.mapM mkProp)),*])
@@ -677,11 +977,12 @@ elaborates to the module's `Instantiation`.
 Simplify field reads in the `Decidable` instances synthesized by the call. -/
 private def mkExecutionCall (em : ExecutableModule) (config : ModelCheckerConfig)
     (instantiation theoryTerm : Term)
-    (mkCall : ExecutionCallContext → CommandElabM Term) : CommandElabM Term := do
+    (mkCall : ExecutionCallContext → CommandElabM Term)
+    (includeSafetyAndDeadlock : Bool := true) : CommandElabM Term := do
   let inst := mkVeilImplementationDetailIdent `inst
   let th := mkVeilImplementationDetailIdent `th
   let instSortArgs ← em.instantiationFields.mapM fun field => `($inst.$(mkIdent field))
-  let sp ← mkSearchParameters em config
+  let sp ← mkSearchParameters em config includeSafetyAndDeadlock
   let sysWithoutLog ← mkTransitionSystemTerm em instSortArgs th
   let call ← mkCall {
     instSortArgs := instSortArgs
@@ -755,7 +1056,7 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
     warnAboutTransitions mod
     -- Let `elabConfig` choose which part should be the configuration.
     let cfg ← elabConfig stx
-    -- Optionally prove assumptions statically; both algorithms also evaluate them at runtime.
+    -- Optionally prove assumptions statically; all runners also evaluate them at runtime.
     if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
       checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
     let extractStartMs ← IO.monoMsNow
@@ -853,5 +1154,97 @@ def elabSimulate : CommandElab :=
   elabExecutionCommand "simulate" `veil.perf.elaborator.simulate .simulate
     (fun stx => elabSimulateCommandConfig stx[4]) 5 fun ecctx => do
     return (← mkSimulateCall ecctx.executable ecctx.instantiation ecctx.theory ecctx.config, none)
+
+/-- `route` as a term. -/
+private def routeTerm (route : LivenessMC.Route) : Term :=
+  mkCIdent <| match route with
+    | .ndfs => ``LivenessMC.Route.ndfs
+    | .dijkstra => ``LivenessMC.Route.dijkstra
+    | .patOnly => ``LivenessMC.Route.patOnly
+    | .crossing => ``LivenessMC.Route.crossing
+    | .prune => ``LivenessMC.Route.prune
+    | .fair => ``LivenessMC.Route.fair
+
+/-- Build a liveness call with the same continuation interface as the other runners. -/
+private def mkLivenessCheckerCall (em : ExecutableModule) (instTerm theoryTerm : Term)
+    (properties : Array TemporalProperty) (route : LivenessMC.Route)
+    (finiteReachBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq)) : CommandElabM Term :=
+  mkExecutionCall em {} instTerm theoryTerm (includeSafetyAndDeadlock := false) fun ectx => do
+  let instSortArgs := ectx.instSortArgs
+  let sys := ectx.sysWithoutLog
+  let sp := ectx.searchParams
+  let props ← properties.mapM fun lp =>
+    `($(mkIdentWithModName em (toTemporalAstName lp.name))
+      ($theoryIdent $instSortArgs*) ($stateIdent ($fieldConcreteDispatcher $instSortArgs*))
+      $instSortArgs* ($fieldConcreteDispatcher $instSortArgs*))
+  let checkAll := mkIdent ``Veil.LivenessMC.checkAllWithProgress
+  -- `ndfs` takes its certificate from the `finite_reach_by` tactic, the other routes by instance.
+  let runCall ← match finiteReachBy with
+    | none => `($checkAll:ident $sys $sp [$props,*] progressInstanceId cancelToken
+        $(routeTerm route))
+    | some tac => `($checkAll:ident $sys $sp [$props,*] progressInstanceId cancelToken
+        $(routeTerm route)
+        (cert := $(mkCIdent ``LivenessMC.RouteCertificate.ofClosure) (by ($tac:tacticSeq))))
+  `(fun (_ : Option Veil.ModelChecker.ParallelConfig) (progressInstanceId : Nat)
+        (cancelToken : IO.CancelToken) (finish : Lean.Json → IO _) => do
+      let result ← $runCall:term
+      finish result)
+
+/-- The properties named in brackets, in declaration order, or all of them if none are named. -/
+private def selectLivenessProperties (mod : Module) (selection : Array (TSyntax `propertyName)) :
+    CommandElabM (Array TemporalProperty) := do
+  let properties := mod.checkableTemporalProperties
+  if properties.isEmpty then
+    throwError "No temporal property of this module is model checked. Declare one with `temporal` \
+      (without `only := verify`) first."
+  if selection.isEmpty then return properties
+  let declared := properties.map (·.name)
+  let mut wanted : Array Name := #[]
+  for nameStx in selection do
+    let name := nameStx.getPropertyName
+    unless declared.contains name do
+      throwErrorAt nameStx "`{name}` is not a model-checked temporal property of this module. Model checked: \
+        {", ".intercalate (declared.map toString).toList}"
+    if wanted.contains name then
+      throwErrorAt nameStx "`{name}` is named twice."
+    wanted := wanted.push name
+  return properties.filter (fun lp => wanted.contains lp.name)
+
+@[command_elab Veil.livenessCheck]
+def elabLivenessCheck : CommandElab := fun stx => do
+  withTraceNode `veil.perf.elaborator.livenessCheck (fun _ => return "#temporal_check") do
+    -- `stx[1]` is the bracketed property selection (possibly empty), `stx[2]` the optional mode,
+    -- `stx[3]` the instantiation, `stx[4]` the optional theory, `stx[5]` the `optConfig`,
+    -- `stx[6]` the optional `finite_reach_by`, `stx[7]` the optional `assumptions_hold_by`
+    let selection : Array (TSyntax `propertyName) := stx[1].getArgs.map (⟨·⟩)
+    let mode := getModelCheckingMode stx[2]
+    let instTerm : Term := ⟨stx[3]⟩
+    let theoryTermOpt : Option Term := if stx[4].isNone then none else some ⟨stx[4][0]⟩
+    let assumptionsHoldBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq) :=
+      if stx[7].isNone then none else some ⟨stx[7][0][1]⟩
+    let finiteReachBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq) :=
+      if stx[6].isNone then none else some ⟨stx[6][0][1]⟩
+    let cfg ← elabLivenessCheckConfig stx[5]
+    if cfg.route.needsFiniteReach && finiteReachBy.isNone then
+      throwError "`(route := .{cfg.route.name})` needs a `finite_reach_by` clause, \
+        e.g. `finite_reach_by native_decide`."
+    if !cfg.route.needsFiniteReach && finiteReachBy.isSome then
+      throwError "`(route := .{cfg.route.name})` does not take a `finite_reach_by` clause."
+    let mod ← getCurrentModule (errMsg := "You cannot #temporal_check outside of a Veil module!")
+    mod.throwIfSpecNotFinalized
+    let properties ← selectLivenessProperties mod selection
+    let theoryTerm ← getTheoryTerm "#temporal_check" theoryTermOpt mod instTerm
+    warnAboutTransitions mod
+    if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
+      checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
+    let extractStartMs ← IO.monoMsNow
+    mod.ensureExecutableModelCheckerDefinitions
+    let extractMs := (← IO.monoMsNow) - extractStartMs
+    let executable ← mod.toExecutableModule
+    let instantiation ← `(__veil_instantiation% $instTerm)
+    let callExpr ← mkLivenessCheckerCall executable instantiation theoryTerm properties cfg.route finiteReachBy
+    ExecutionWorkflow.run { name := "temporal_check", actionLabels := executable.actionLabels.toList }
+      .liveness mod stx mode callExpr (extractMs := extractMs)
+      (numLivenessProperties := properties.size)
 
 end Veil

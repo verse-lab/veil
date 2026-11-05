@@ -3,6 +3,7 @@ module
 
 public meta import Lean
 public meta import Lean.Parser
+public meta import Lentil.Basic
 
 public meta section
 
@@ -69,6 +70,19 @@ scoped syntax (name := kw_state_constraint) "state_constraint" : veilKeyword
 scoped syntax (name := kw_gen_spec) "#gen_spec" : veilKeyword
 scoped syntax (name := kw_gen_executable) "#gen_executable" : veilKeyword
 scoped syntax (name := kw_gen_theorems) "#gen_theorems" : veilKeyword
+
+scoped syntax (name := kw_temporal) "temporal" : veilKeyword
+scoped syntax (name := kw_prove_temporal_by) "prove_temporal_by" : veilKeyword
+
+/-- Resolve a Veil module declaration by name, inserting hidden module parameters
+and an ambient theory argument when appropriate. -/
+scoped syntax (name := kw_veil_term) "veil_term% " ident : term
+
+/-- Shorthand for the transition view of a Veil action: `veil_tr% act` expands
+to `veil_term% act.ext.tr`. -/
+scoped syntax (name := kw_veil_tr) "veil_tr% " ident : term
+
+scoped syntax (name := kw_fetch_temporal_theorem_body) "temporal_theorem_body_of% " ident : term
 
 end VeilKeywords
 
@@ -303,6 +317,76 @@ scoped syntax (name := stateConstraintKind) kw_state_constraint : propertyKind
 /-- An assertion. -/
 scoped syntax (name := assertionDeclaration) propertyKind (propertyName)? term : command
 
+/- ## Temporal (LTL) properties
+
+Formulas are written in Lentil's `tlfml` category; see `temporal` for how Veil reads them. -/
+
+/-- A temporal property is an LTL formula over the system's execution traces. Unlike safety
+properties, which are state predicates, temporal properties are properties about traces.
+
+Veil defines it twice: `p`, a `Lentil.pred` that `prove_temporal_by [p]` proves, and `p.ast`, an
+`Lasso.Formula` syntax tree that `#temporal_check` checks. `(only := verify)` and `(only := check)` keep
+one of them. Without `(only := …)`, a definition that fails to elaborate is dropped with a warning, e.g.
+`p.ast` when the formula uses `⟨ r ⟩` for a relation `r` that is not one of the module's actions.
+
+Declared before `#gen_spec`, the definitions are generated once the spec is finalized; declared after,
+right away. Inside `⌜ … ⌝`, the module's theory and state fields and its ghosts are in scope, as in an
+assertion.
+
+The module's actions appear in `Enabled a`, `⟨ a ⟩`, `𝒲ℱ a` and `𝒮ℱ a`, applied to all, some or none of
+their arguments. A parameter left open, as `·` (`a · y`) or by leaving out the trailing arguments (`a x`),
+stands for some value of it: `a · y` stands for the action `∃ x, a x y`, and the unapplied `a` for some
+instantiation of `a`. `Enabled a` means the same in `p` and `p.ast`: some execution of `a` does not throw.
+
+---
+
+**Caveat.** `⟨ a ⟩` does not:
+- in `p`, it is Lentil's action predicate: the transition relation of `a` holds between the two states,
+  i.e. the step has the same effect as some execution of `a` from the same starting state;
+- in `p.ast`, it holds on a step whose label is (an instantiation of) `a`, i.e. the step the model checker
+  took *is* `a`.
+
+If two distinct actions `a` and `b` have the same transition relation, a step taken by `b`
+satisfies `⟨ a ⟩` in `p`, but not in `p.ast`. Consequently, the two definitions of a temporal
+property can give different answers; see `ParallelEdges` in `VeilTest/ActionAtoms.lean`.
+
+---
+
+`𝒲ℱ a` and `𝒮ℱ a` are weak and strong fairness. For `p.ast` they unfold to `(◇ □ Enabled a) → □ ◇ ⟨ a ⟩`
+and `(□ ◇ Enabled a) → □ ◇ ⟨ a ⟩` (Lentil's `wf_as_implies` and `sf_as_implies`). Since an unapplied `a`
+stands for some instantiation, `𝒲ℱ a` does not make every instantiation of `a` fair: a run that keeps
+taking `a 2` satisfies `𝒲ℱ a`, even if `a 1` can always fire and is never taken. To make every
+instantiation of `a` fair, write `∀ x, 𝒲ℱ (a x)`. In between, `∀ y, 𝒲ℱ (a · y)` makes `∃ x, a x y` fair for
+every `y`.
+
+`∀ x, φ` and `∃ x, φ` (or `∀ x : T, φ` and `∃ x : T, φ`) quantify over all values of the type of `x`.
+To model check them, the type needs an `Enumeration` instance: `#temporal_check` checks the conjunction
+(for `∀`) or the disjunction (for `∃`) of `φ` over the values that the instance lists. For a sort, this
+is the instance of the type that `#temporal_check` puts in for the sort, e.g. `Fin 3`.
+
+Example:
+```lean
+temporal [someChosen] ◇ ⌜ chosen = 1 ⌝
+temporal [sendIsFair] □ (Enabled send → ◇ ⟨ send ⟩)
+temporal [allSent] (∀ n, 𝒲ℱ (send n)) → ∀ n, ◇ ⌜ sent n ⌝
+temporal [allReceived] (∀ dst, 𝒲ℱ (deliver · dst)) → ∀ dst, □ ◇ ⌜ received dst ⌝
+temporal [eventuallyChosen] 𝒲ℱ choose → ◇ ⌜ ∃ v, chosen v ⌝
+```
+-/
+syntax (name := temporalDeclaration)
+  kw_temporal (atomic("(" &"only") " := " ident ")")? (propertyName)? tlfml : command
+
+/-- Prove a previously declared temporal property `p` using tactics.
+Must come after `#gen_spec` since it needs the assembled transition system.
+The tactic block should prove that the temporal property holds on all
+system behaviors.
+
+The tactics run after `tstart hInit hNext hInv` and `tdsimp only [p]`:
+the proof-mode hypotheses `hInit`, `hNext` and `hInv` are the conjuncts
+`⌜ Init ⌝`, `□ ⟨ NextStep ⟩` and `□ ⌜ Invariants ⌝` of the behavior, and `p` is
+unfolded in the goal. -/
+syntax (name := proveTemporalBy) kw_prove_temporal_by (propertyName)? tacticSeq : command
+
 /-- Assemble the specification. -/
 scoped syntax (name := genSpec) kw_gen_spec : command
 
@@ -444,6 +528,40 @@ cleanup of build folders leaves alone, so that it can be run later; it is never 
 The `veil.modelChecker.maxStoredCheckers` most recent copies are kept. -/
 -- `atomic` lets options follow a left-out theory, instead of being parsed as one
 syntax (name := modelCheckBuild) "#mc_config " ident ppSpace term:max (ppSpace atomic(term:max))? Parser.Tactic.optConfig : command
+
+/-- Proves the `FiniteReach` certificate of `(route := .ndfs)`. -/
+syntax finiteReachBy := "finite_reach_by " tacticSeq
+
+/-- Check all declared `temporal` properties that are model checked (not `only := verify`) on the
+instantiated system.
+Requires `#gen_spec`; executable definitions are generated automatically. Like `#model_check`,
+the default runs interpreted while compiling in the background and switches to the native
+binary if the interpreted search has not finished. Already passed properties are skipped;
+the first unfinished property restarts its search. `interpreted` and `compiled` select one
+mode only. Compiled execution requires a `module` header and `public import Veil`.
+
+Assumptions are evaluated at runtime; `assumptions_hold_by` optionally proves them statically.
+State constraints restrict the graph. There is no depth bound: checking finite reachable
+systems is exhaustive. Deadlocks are implicitly extended with stuttering steps;
+use `#model_check` to check safety invariants, assertion failures, and deadlocks separately.
+Violations display the state projections of a counterexample stem and repeating loop.
+
+Properties named in brackets are checked alone, in declaration order.
+
+`route` selects the search (`Veil.LivenessMC.Route`); the default is `fair`. `ndfs` also needs
+`finite_reach_by`. As with `#model_check`, write the theory term (`{}` if empty) before the option.
+
+```
+#temporal_check [goal] { node := Fin 3 } {}
+#temporal_check [goal] [noFair] compiled { node := Fin 3 } {}
+#temporal_check interpreted { node := Fin 3 } {}
+#temporal_check compiled { node := Fin 3 } {}
+#temporal_check { node := Fin 3 } {}
+#temporal_check compiled { node := Fin 3 } {} (route := .prune)
+#temporal_check compiled { node := Fin 3 } {} (route := .ndfs) finite_reach_by native_decide
+```
+-/
+scoped syntax (name := livenessCheck) "#temporal_check " (propertyName)* (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (finiteReachBy)? (assumptionsHoldBy)? : command
 
 /-- Execute a concrete Veil action/procedure term using the same nondeterministic
 extraction machinery as `#model_check`, and print every possible return value

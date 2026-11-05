@@ -1,0 +1,266 @@
+module
+
+public import Veil.Core.Tools.LivenessMC.LivenessMC
+
+public section
+
+namespace Veil.LivenessMC
+
+variable {σ : Type} [BEq σ] [Hashable σ] [LawfulBEq σ]
+variable {ρ l : Type} [BEq l] [Hashable l] {th : ρ}
+
+/-! ## Benchmark instrumentation
+
+The search calls back into Veil to compute a state's successors, which executes every action instance, and its label, which
+decides every atom instance. Both are the Veil-specific cost. `timed` and `timedLabel` are identity wrappers whose
+`@[implemented_by]` impls accumulate time and counts into the refs below. A harness resets them with `resetVeilTimers`, runs
+an instrumented check, then reads them back with `readVeilTimers`. -/
+
+initialize sysSuccNs : IO.Ref Nat ← IO.mkRef 0
+initialize sysSuccElems : IO.Ref Nat ← IO.mkRef 0  -- total successors produced (also forces r)
+initialize sysSuccCalls : IO.Ref Nat ← IO.mkRef 0  -- number of `sysSucc` invocations
+@[noinline] private unsafe def timedImpl (f : σ → Array σ) : σ → Array σ := fun s =>
+  unsafeBaseIO do
+    let t0 ← IO.monoNanosNow
+    let r := f s
+    let sz := r.foldl (init := 0) fun n _ => n + 1
+    let t1 ← IO.monoNanosNow
+    sysSuccElems.modify (· + sz)
+    sysSuccCalls.modify (· + 1)
+    sysSuccNs.modify (· + (t1 - t0))
+    return r
+@[implemented_by timedImpl] private def timed (f : σ → Array σ) : σ → Array σ := f
+
+@[noinline] private unsafe def timedStepsImpl (f : σ → Array (Lasso.LStep Nat σ)) :
+    σ → Array (Lasso.LStep Nat σ) := fun s =>
+  unsafeBaseIO do
+    let t0 ← IO.monoNanosNow
+    let r := f s
+    let sz := r.foldl (init := 0) fun n _ => n + 1
+    let t1 ← IO.monoNanosNow
+    sysSuccElems.modify (· + sz)
+    sysSuccCalls.modify (· + 1)
+    sysSuccNs.modify (· + (t1 - t0))
+    return r
+@[implemented_by timedStepsImpl] private def timedSteps (f : σ → Array (Lasso.LStep Nat σ)) :
+    σ → Array (Lasso.LStep Nat σ) := f
+
+/-- `timed` for the fused system callback. The steps and the label come from one call, so the whole Veil cost lands in the
+`succ` counters and `label` stays at zero. -/
+@[noinline] private unsafe def timedStepFnImpl
+    (f : Lasso.LSys.StepFn Nat σ) : Lasso.LSys.StepFn Nat σ := fun s =>
+  unsafeBaseIO do
+    let t0 ← IO.monoNanosNow
+    let r := f s
+    let sz := r.1.foldl (init := 0) fun n _ => n + 1
+    let sz2 := r.2.fold (init := sz) fun n _ => n + 1
+    let t1 ← IO.monoNanosNow
+    sysSuccElems.modify (· + sz2)
+    sysSuccCalls.modify (· + 1)
+    sysSuccNs.modify (· + (t1 - t0))
+    return r
+
+@[implemented_by timedStepFnImpl] private def timedStepFn
+    (f : Lasso.LSys.StepFn Nat σ) : Lasso.LSys.StepFn Nat σ := f
+
+initialize sysLabelNs : IO.Ref Nat ← IO.mkRef 0
+initialize sysLabelElems : IO.Ref Nat ← IO.mkRef 0  -- total atoms found to hold (also forces r)
+initialize sysLabelCalls : IO.Ref Nat ← IO.mkRef 0  -- number of `sysLabel` invocations
+@[noinline] private unsafe def timedLabelImpl (f : σ → Std.HashSet Nat) : σ → Std.HashSet Nat :=
+  fun s =>
+  unsafeBaseIO do
+    let t0 ← IO.monoNanosNow
+    let r := f s
+    let sz := r.fold (init := 0) fun n _ => n + 1
+    let t1 ← IO.monoNanosNow
+    sysLabelElems.modify (· + sz)
+    sysLabelCalls.modify (· + 1)
+    sysLabelNs.modify (· + (t1 - t0))
+    return r
+@[implemented_by timedLabelImpl] private def timedLabel (f : σ → Std.HashSet Nat) :
+    σ → Std.HashSet Nat := f
+
+/-- A snapshot of the Veil-specific timers (nanoseconds and counts). -/
+structure VeilTimers where
+  succNs : Nat
+  succCalls : Nat
+  succElems : Nat
+  labelNs : Nat
+  labelCalls : Nat
+  labelElems : Nat
+
+def resetVeilTimers : IO Unit := do
+  sysSuccNs.set 0; sysSuccElems.set 0; sysSuccCalls.set 0
+  sysLabelNs.set 0; sysLabelElems.set 0; sysLabelCalls.set 0
+
+def readVeilTimers : IO VeilTimers := do
+  return {
+    succNs := (← sysSuccNs.get), succCalls := (← sysSuccCalls.get), succElems := (← sysSuccElems.get),
+    labelNs := (← sysLabelNs.get), labelCalls := (← sysLabelCalls.get), labelElems := (← sysLabelElems.get)
+  }
+
+/-- Instrumented `checkNDFS`, nested DFS over the labelled degeneralized TBA product. -/
+def checkNDFSTimed [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
+    (hinit : sys.initStates.all (bfsClosure (sysSucc sys) sys.initStates).contains = true)
+    (hclosed : (bfsClosure (sysSucc sys) sys.initStates).toList.all
+      (fun s => (sysSucc sys s).all (bfsClosure (sysSucc sys) sys.initStates).contains) = true) :
+    Lasso.EmptinessResult (σ × Lasso.TBAState) :=
+  Lasso.modelCheckNDFS p.φ sys.initStates
+    (timedSteps (sysStepsLabelled sys (edgeLabelling p))) (timedLabel (sysLabelOf sys p th))
+    (by show Lasso.FiniteReach _ (Lasso.LSys.targets (sysStepsLabelled sys (edgeLabelling p)))
+        rw [targets_sysStepsLabelled]
+        exact finiteReach_of_closed (sysSucc sys) sys.initStates
+          (bfsClosure (sysSucc sys) sys.initStates) hinit hclosed)
+
+/-- Instrumented `checkDijkstra`, Dijkstra SCC over the TGBA product. -/
+def checkDijkstraTimed [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
+    Lasso.EmptinessResult (σ × Nat) :=
+  Lasso.modelCheckTGBA p.φ sys.initStates
+    (timedSteps (sysStepsLabelled sys (edgeLabelling p))) (timedLabel (sysLabelOf sys p th))
+
+/-! ### Probe: The region scan's per-state callback cost -/
+private partial def productClosure (succs : (σ × Nat) → Array (σ × Nat))
+    (init : List (σ × Nat)) : Array (σ × Nat) :=
+  go (Std.HashSet.ofList init) init.toArray
+where
+  go (seen : Std.HashSet (σ × Nat)) (frontier : Array (σ × Nat)) : Array (σ × Nat) :=
+    if frontier.isEmpty then seen.toArray
+    else
+      let (seen, next) := frontier.foldl (init := (seen, (#[] : Array (σ × Nat))))
+        fun acc s => (succs s).foldl (init := acc) fun (seen, next) t =>
+          if seen.contains t then (seen, next) else (seen.insert t, next.push t)
+      go seen next
+
+/-- The reachable product states, computed with uninstrumented callbacks so the probe's own setup does not pollute the
+counters. -/
+def probeProductStates [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
+    (tgba : Lasso.TGBA Nat) : Array (σ × Nat) :=
+  let ss := sysStepsLabelled sys (edgeLabelling p)
+  let sl := sysLabelOf sys p th
+  productClosure (Lasso.TGBAProduct.getSuccessors tgba ss sl)
+    (Lasso.TGBAProduct.initialStates tgba sys.initStates)
+
+/-- The top-level shape, one fused `expand` per state. Returns the total number of successors, for the mean out-degree. -/
+def probeFusedExpand [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
+    (tgba : Lasso.TGBA Nat) (states : Array (σ × Nat)) : Nat :=
+  let ss := timedSteps (sysStepsLabelled sys (edgeLabelling p))
+  let sl := timedLabel (sysLabelOf sys p th)
+  states.foldl (init := 0) fun acc q =>
+    let e := Lasso.TGBAProduct.expand tgba ss sl q
+    -- the marks are `.2.1`, and the option payload `.2.2` is empty on this route
+    acc + e.1.size + (e.2.1.foldl (init := 0) fun n _ => n)
+
+/-- The region shape as `Candidate.expand` composes it, successors then `keptEdgeMarks` once per successor. -/
+def probeRegionExpand [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
+    (tgba : Lasso.TGBA Nat) (states : Array (σ × Nat)) : Nat :=
+  let ss := timedSteps (sysStepsLabelled sys (edgeLabelling p))
+  let sl := timedLabel (sysLabelOf sys p th)
+  states.foldl (init := 0) fun acc q =>
+    let out := Lasso.TGBAProduct.keptSuccs tgba ss sl (fun _ => true) q
+    let ms := out.map (Lasso.TGBAProduct.keptEdgeMarks tgba ss sl (fun _ => true) q)
+    acc + out.size + (ms.foldl (init := 0) fun n _ => n)
+
+/-- The region shape of the spec's own fused `keptExpand`, which `Candidate.expand` filters. Should read 1.0x on both
+callbacks, like the top-level scan. -/
+def probeKeptExpand [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
+    (tgba : Lasso.TGBA Nat) (states : Array (σ × Nat)) : Nat :=
+  let ss := timedSteps (sysStepsLabelled sys (edgeLabelling p))
+  let sl := timedLabel (sysLabelOf sys p th)
+  states.foldl (init := 0) fun acc q =>
+    let e := Lasso.TGBAProduct.keptExpand tgba ss sl (fun _ => true) q
+    acc + e.1.size + (e.2.1.foldl (init := 0) fun n _ => n)
+
+/-! ### Mode-split probes
+
+`patOnly`, `prune` and `fair` all end in `modelCheckPruneSplit` and differ only in which conjuncts reach it. `patOnly`
+hoists the syntactically flat ones, `prune` adds [LSFZ16] Appendix A flattening, `fair` adds the disjunctive hoist. -/
+
+/-- Instrumented `patOnly`, hoisting only the syntactically flat conjuncts. -/
+def checkFairDirectTimed [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
+    Lasso.EmptinessResult (σ × Nat) :=
+  Lasso.modelCheckFairDirectOfStep p.φ sys.initStates (timedStepFn (sysStepOf sys p th))
+
+/-- Instrumented `prune`, the fair-normal-form split decided per SCC. -/
+def checkFairFNFPruneTimed [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
+    Lasso.EmptinessResult (σ × Nat) :=
+  Lasso.modelCheckFairFNFPruneOfStep p.φ sys.initStates (timedStepFn (sysStepOf sys p th))
+
+/-- Instrumented `fair`, the prune plus the disjunctive hoist. The default route. -/
+def checkFairTimed [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
+    Lasso.EmptinessResult (σ × Nat) :=
+  Lasso.modelCheckFairOfStep p.φ sys.initStates (timedStepFn (sysStepOf sys p th))
+
+/-- The top-level scan of a prune route, run on its own. `streettCheck` is `streettRun` followed by `pruneLoop`, and this is
+the first half only, so the caller can subtract it from the full route's total to get what the candidate re-scans cost.
+`kept` and `dss` are what the mode's hoisting produced. -/
+def pruneScanOnly [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
+    (kept : Lasso.Formula Nat) (dss : List (List (Lasso.NNF.FairDisjunct Nat))) : Nat × Nat :=
+  match Lasso.ltl3ba (kept.toNNF false) with
+  | none => (0, 0)
+  | some tgba =>
+    let ss := timedSteps (sysStepsLabelled sys (edgeLabelling p))
+    let sl := timedLabel (sysLabelOf sys p th)
+    let cs := Lasso.CompiledSpec.of (Lasso.streettRSpecOf tgba ss sl dss)
+    let r := Lasso.streettRunF cs 0
+      (Lasso.TGBAProduct.expandWithOpts tgba ss sl cs)
+      (Lasso.TGBAProduct.initialStates tgba sys.initStates)
+    (r.2.live.size, r.2.dead.size)
+
+/-- Partition a Streett scan's Veil callbacks between the DFS and `streettPop`, selected by `which`. The parts are disjoint
+and sum to the figure `pruneScanOnly` reports. -/
+def pruneScanSplit [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
+    (kept : Lasso.Formula Nat) (dss : List (List (Lasso.NNF.FairDisjunct Nat)))
+    (which : Nat) : Nat × Nat :=
+  match Lasso.ltl3ba (kept.toNNF false) with
+  | none => (0, 0)
+  | some tgba =>
+    let ssU := sysStepsLabelled sys (edgeLabelling p)
+    let slU := sysLabelOf sys p th
+    -- 0 = the DFS's `expand`, 1 = `succs` and `edgeMarks`, which reach only `ops.pop`, 2 = the spec's own region callbacks
+    let ssE := if which == 0 then timedSteps ssU else ssU
+    let slE := if which == 0 then timedLabel slU else slU
+    let ssC := if which == 2 then timedSteps ssU else ssU
+    let slC := if which == 2 then timedLabel slU else slU
+    let cs := Lasso.CompiledSpec.of (Lasso.streettRSpecOf tgba ssC slC dss)
+    let r := Lasso.streettRunF cs 0
+      (Lasso.TGBAProduct.expandWithOpts tgba ssE slE cs)
+      (Lasso.TGBAProduct.initialStates tgba sys.initStates)
+    (r.2.live.size, r.2.dead.size)
+
+/-- The compiled spec's shape, to divide the measured region-callback count by. -/
+def specShape [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
+    (kept : Lasso.Formula Nat) (dss : List (List (Lasso.NNF.FairDisjunct Nat))) :
+    Nat × Nat × Nat :=
+  match Lasso.ltl3ba (kept.toNNF false) with
+  | none => (0, 0, 0)
+  | some tgba =>
+    let ss := sysStepsLabelled sys (edgeLabelling p)
+    let sl := sysLabelOf sys p th
+    let cs := Lasso.CompiledSpec.of (Lasso.streettRSpecOf tgba ss sl dss)
+    (cs.numOptions, cs.numOptMarks, cs.optMarks.foldl (init := 0) fun n m => n + m.size)
+
+end Veil.LivenessMC
