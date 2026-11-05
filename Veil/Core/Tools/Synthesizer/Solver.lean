@@ -24,7 +24,8 @@ the preprocessing of `veil_bmc`, then lean-smt and cvc5.
   the solver was trusted; `sat` comes with a model rendered by Veil's trace decoder.
 * Unsat cores exist only on lean-smt's reconstruction path, so a query that asks for one is not
   trusted. When such a query's answer cannot be read, it is asked again without the core.
-* A proof that lean-smt cannot replay is asked again trusting the solver: the verdict stands.
+* A proof that lean-smt cannot replay is asked again trusting the solver: the verdict stands, and
+  certificates reconstruct their own proofs.
 * Each query runs under its own heartbeat budget; an overrun is `unknown`.
 * `veil.synthesizer.trust` is separate from Veil's `veil.smt.trust`, so a module's setting of the
   latter does not weaken the synthesizer.
@@ -38,7 +39,7 @@ open Lean Elab Command Term Meta Veil Lean.Parser.Term
 register_option veil.synthesizer.trust : Bool := {
   defValue := false
   descr := "let the IC3 search take the solver's unsat answers on faith instead of reconstructing \
-    proofs"
+    proofs (certificates always reconstruct)"
 }
 
 register_option veil.synthesizer.debug.failQuery : String := {

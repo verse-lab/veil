@@ -3,6 +3,8 @@
 `#synthesize_invariants` searches for `invariant` clauses that make a module's
 `safety` properties inductive. It reports an inductive invariant, an execution
 that violates the properties, or that no universal inductive invariant exists.
+With `certify`, an invariant or a violation becomes a theorem checked by the
+Lean kernel.
 
 ## Running the Synthesizer
 
@@ -22,22 +24,24 @@ safety [mutex] holds C ∧ holds D → C = D
 
 #gen_spec
 
-#synthesize_invariants
+#synthesize_invariants certify
 
 end LockServer
 ```
 
-The command prints the strengthening as lines to paste into the module:
+The command prints the strengthening as lines to paste into the module, and
+`certify` adds the theorem `LockServer.ic3_safe`:
 
 ```
 Inductive invariant found at frame 1 with 1 strengthening clause(s) (…):
 invariant [ic3_0] ∀ (x0 : client), ¬ holds x0 ∨ ¬ lock_free
+Certified: theorem LockServer.ic3_safe (strengthening LockServer.ic3_inv); axioms: #[propext, Classical.choice, Quot.sound]; kernel-checked, standard axioms only
 ```
 
 ### Options
 
 Options may appear in any order, each at most once:
-`#synthesize_invariants (fuel := 500) (log := "run.jsonl") verbose`.
+`#synthesize_invariants (fuel := 500) (log := "run.jsonl") verbose certify`.
 
 | option | meaning | default |
 |---|---|---|
@@ -48,26 +52,28 @@ Options may appear in any order, each at most once:
 | `(log := "path.jsonl")` | Append one JSON object per event (each candidate clause and its verdict, each clause admitted, each frame cleared, the outcome) to this file. | no log |
 | `(expect := v)` | The expected outcome: `invariant`, `unsafe`, `no_universal_invariant` or `unknown`. It is reported as information, any other outcome as an error. For tests. | none |
 | `verbose` | Report each step of the search. | off |
+| `certify` | Prove the outcome as a theorem checked by the kernel. | off |
 
 | Lean option | meaning | default |
 |---|---|---|
-| `veil.synthesizer.trust` | Let the search take the solver's `unsat` answers on faith instead of reconstructing proofs. | `false` |
+| `veil.synthesizer.trust` | Let the search take the solver's `unsat` answers on faith instead of reconstructing proofs. Certificates always reconstruct. | `false` |
 | `veil.synthesizer.normalizeTr` | Write the queries with the transition relation normalized once per module (`Mod.ic3_trNorm`, equal to `tr` by the kernel-checked `Mod.ic3_tr_eq_norm`). | `true` |
-| `veil.synthesizer.timings` | Report the wall time of the search. | `false` |
+| `veil.synthesizer.timings` | Report the wall time of the search and of the certificate. | `false` |
 | `veil.smt.timeout` | The solver timeout. A query the search cannot do without is asked again with twice the timeout before the search stops. | 60 s |
 
 ## Reading the Result
 
-| outcome | `expect` value | what is printed |
-|---|---|---|
-| Inductive invariant | `invariant` | The strengthening as `invariant [ic3_k] …` lines, none when the property is inductive on its own. |
-| Violation | `unsafe` | An execution from an initial state to a state violating the property, and a `sat trace` block that re-checks it. An error unless expected. |
-| No universal inductive invariant | `no_universal_invariant` | An abstract counterexample: finite structures, the first contained in an initial state, each next contained in a successor of a state containing the previous, and a successor of the last violating the property. |
-| Stopped | `unknown` | Why the search stopped and the clauses per frame. |
+| outcome | `expect` value | what is printed | with `certify` |
+|---|---|---|---|
+| Inductive invariant | `invariant` | The strengthening as `invariant [ic3_k] …` lines, none when the property is inductive on its own. | `Mod.ic3_safe : ∀ th st, reachable th st → ic3_prop th st`. |
+| Violation | `unsafe` | An execution from an initial state to a state violating the property, and a `sat trace` block that re-checks it. An error unless expected. | `Mod.ic3_unsafe`: at the model's sort sizes and typeclass instances, not every reachable state satisfies `ic3_prop`. |
+| No universal inductive invariant | `no_universal_invariant` | An abstract counterexample: finite structures, the first contained in an initial state, each next contained in a successor of a state containing the previous, and a successor of the last violating the property. | Nothing: the verdict is not a theorem. |
+| Stopped | `unknown` | Why the search stopped and the clauses per frame. | Nothing. |
 
 The search stops when it runs out of fuel, passes 40 frames, gets no answer to
 a query it cannot do without (even with twice the timeout), or cannot pose a
-query or decode a model.
+query or decode a model. A
+module holds one certificate, since the theorem names are fixed.
 
 ## How the Search Works
 
@@ -115,6 +121,32 @@ Every query goes through Veil's own tactic pipeline and cvc5, as
   `σ` at `F_j` with a clause of `F_{j-1}` that `σ` violates and that holds in
   every successor of `F_{j-1}`.
 
+## What `certify` Guarantees
+
+Without `certify`, lean-smt reconstructs each `unsat` answer as a proof term,
+but the search does not have the kernel check it; an answer lean-smt cannot
+replay is taken on the solver's word, and the result says so. `certify`
+builds the theorem from fresh solver answers:
+
+- **Invariant.** For each conjunct of `ic3_inv` (the property and the
+  strengthening), initiation and consecution from `ic3_inv` are asked again,
+  and lean-smt's proofs become theorems once the kernel accepts them.
+  `ic3_safe` applies `RelationalTransitionSystem.invariant_of_inductive` and
+  `Invariant.mono` (`Veil/Core/Tools/Synthesizer/Soundness.lean`).
+- **Violation.** The theory, the states and the typeclass instances become
+  definitions over `Fin n` and the enum types. The assumptions, the initial
+  state, each step and the violation are proved by evaluation (`decide`, or
+  `simp` after splitting enum variables into constructors), and `ic3_unsafe`
+  applies `RelationalTransitionSystem.not_invariant_of_reachable`. Nothing
+  rests on the solver.
+- `#print axioms` lists `propext`, `Classical.choice` and `Quot.sound`. A
+  solver step that lean-smt cannot replay, or whose replay the kernel rejects,
+  is taken on the solver's word as `ic3_init_i_trusted` or
+  `ic3_cons_i_trusted`, with a warning; the certificate then depends on
+  `sorryAx`, and the command reports it.
+- A bug in the search can make a certificate fail. It cannot make a false
+  theorem.
+
 ## Semantics
 
 Every result is about Veil's `relationalTransitionSystem`: its initial states
@@ -145,11 +177,6 @@ clause over that function.
   names of the form `x0`, `x1`, ….
 - **Universal clauses only.** A property whose invariant needs an
   existential, or arithmetic over a quantified index, has none in this form.
-- **The results are not kernel-checked.** lean-smt reconstructs each `unsat`
-  answer as a proof term, but the search does not have the kernel check it; an
-  answer lean-smt cannot replay is taken on the solver's word, and the result
-  says so. Paste the clauses into the module and run `#check_invariants`, or
-  run the printed `sat trace` block.
 - **"No universal invariant" is not a theorem.** It means that no
   conjunction of universal clauses over the module's vocabulary is an
   inductive invariant implying the property, not that the property fails. It
@@ -157,5 +184,7 @@ clause over that function.
   extension, which are not formalized here.
 - **No termination guarantee.** The search is bounded by fuel, 40 frames and
   the solver timeout.
+- **Counterexample certificates evaluate.** A step that evaluation cannot
+  prove leaves the violation reported without a theorem.
 - **Results depend on solver models.** The clauses and call counts can vary
   between runs.
