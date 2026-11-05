@@ -336,6 +336,8 @@ invariant [crash_round_gap_or_current]
 invariant [participants_have_equal_W_after_crash_free]
   hadCrashFreeRound → ∀ n₁ n₂ v, roundParticipant n₁ ∧ roundParticipant n₂ → (W n₁ v = W n₂ v)
 
+set_option veil.smt.trust false
+
 /- Before we can operate on the specification (check it, model check it, etc.)
 we must assemble it with `#gen_spec`. -/
 #gen_spec
@@ -451,6 +453,19 @@ prove_veil_invariant_goal nodeDecide agreement using wp by
     · rfl
     · exact old_eq_t hold
   exact (all_eq_t hdec₁).trans (all_eq_t hdec₂).symm
+
+prove_veil_invariant_goal crash crash_round_gap_or_current using wp by
+  rcases hinv with ⟨_, _, _, _, _, _, _, _, _, _, _, _, hcrash_round_gap, _, _⟩
+  intro _ _ hround
+  -- Before the crash there were fewer crashes than rounds, so some past round `r` was crash-free.
+  obtain ⟨r, hr_lt, hcrash_free⟩ := hcrash_round_gap (by omega)
+  -- Round `r` remains crash-free: `n` crashes in the current round, which is not `r`.
+  refine .inl ⟨r, hr_lt, fun m => ?_⟩
+  by_cases hnm : n = m
+  · exact .inr (by rw [if_pos hnm]; omega)
+  · rcases hcrash_free m with h | h
+    · exact .inl ⟨hnm, h⟩
+    · exact .inr (by rw [if_neg hnm]; exact h)
 
 #check_invariants
 
