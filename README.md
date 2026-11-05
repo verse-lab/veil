@@ -34,13 +34,13 @@ Lean Zulip, and we will be happy to answer.
 ## Learn Veil
 
 Start with the extensively commented walkthroughs in
-[Examples/Tutorial](Examples/Tutorial):
+[Examples/Demo](Examples/Demo):
 
-- [Examples/Tutorial/Ring.lean](Examples/Tutorial/Ring.lean) — the Ring Leader
+- [Examples/Demo/Ring/RingDec.lean](Examples/Demo/Ring/RingDec.lean) — the Ring Leader
   Election protocol, introducing Veil's syntax and its main commands
   (`#check_invariants`, `#model_check`, `sat`/`unsat trace`).
 
-- [Examples/Tutorial/FloodSet.lean](Examples/Tutorial/FloodSet.lean) — a
+- [Examples/Demo/FloodSetCommented.lean](Examples/Demo/FloodSetCommented.lean) — a
   complete walkthrough of Veil's multi-modal workflow via the FloodSet
   synchronous crash-fault agreement protocol: modelling, testing via concrete and
   symbolic model checking, counterexample-driven invariant discovery, and an

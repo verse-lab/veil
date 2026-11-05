@@ -16,7 +16,7 @@ its own variables, and can only learn about other nodes through messages.
 ## Example
 
 Leader election in a unidirectional ring (compare with the global-action
-version in [Examples/Tutorial/Ring.lean](../Examples/Tutorial/Ring.lean)):
+version in [Examples/Demo/Ring/RingDec.lean](../Examples/Demo/Ring/RingDec.lean)):
 
 ```lean
 veil module Ring

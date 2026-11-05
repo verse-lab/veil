@@ -3,7 +3,7 @@ module
 public import Veil
 
 /-! Leader election in a unidirectional ring (the protocol of
-`Examples/Tutorial/Ring.lean`), written as the program each node runs. -/
+`Examples/Demo/Ring/RingDec.lean`), written as the program each node runs. -/
 
 veil module DistRing
 

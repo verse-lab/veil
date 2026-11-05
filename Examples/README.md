@@ -42,7 +42,7 @@ from TLA+ examples). Useful for learning Veil's model checker.
 lake build Examples
 
 # Build and check a single example
-lake lean Examples/Tutorial/Ring.lean
+lake lean Examples/Demo/Ring/RingDec.lean
 ```
 
 ## Conventions
