@@ -41,7 +41,7 @@
    "inputRev": "4b336806735fa80c9a6073c33afdb9cb0360edb8",
    "inherited": false,
    "configFile": "lakefile.lean"},
-  {"url": "https://github.com/verse-lab/Lasso-dev.git",
+  {"url": "https://github.com/verse-lab/Lasso.git",
    "type": "git",
    "subDir": null,
    "scope": "",
