@@ -94,11 +94,11 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
       let (invariantCmd, mod) ← mod.assembleInvariants
       trace[veil.debug] s!"Elaborating invariants: {← liftTermElabM <|Lean.PrettyPrinter.formatTactic invariantCmd}"
       elabVeilCommand invariantCmd
-      if !mod.invariants.isEmpty then
-        try
-          liftTermElabM $ mod.simplifyLocalRPropCore assembledInvariantsName
-        catch ex =>
-          logWarningAt invariantCmd m!"unable to synthesize LocalRProp instance for {assembledInvariantsName}: {ex.toMessageData}"
+      -- Temporal proofs also need the simplified core of the empty conjunction (`True`).
+      try
+        liftTermElabM $ mod.simplifyLocalRPropCore assembledInvariantsName
+      catch ex =>
+        logWarningAt invariantCmd m!"unable to synthesize LocalRProp instance for {assembledInvariantsName}: {ex.toMessageData}"
       if !mod.invariants.isEmpty then
         try
           let localMeetsCmd ← liftTermElabM mod.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem
