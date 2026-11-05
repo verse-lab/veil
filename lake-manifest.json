@@ -75,7 +75,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "68575b8142fad1332fb7167e7c9d1ee4ba425a89",
+   "rev": "293dab6cf91febf02d952a37b8268ea9953bb07c",
    "name": "smt",
    "manifestFile": "lake-manifest.json",
    "inputRev": "v4.35.0-veil-no-mathlib",
