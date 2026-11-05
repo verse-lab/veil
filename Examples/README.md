@@ -4,14 +4,19 @@ This directory contains protocol specifications written in [Veil](https://github
 
 ## Directory Structure
 
-### [Tutorial/](Tutorial/)
+### [Demo/](Demo/)
 
-Extensively commented introductory examples: `Ring.lean` (leader election in a
-ring, introducing Veil's syntax and commands) and `FloodSet.lean` (a complete
-walkthrough of Veil's multi-modal workflow, from modelling through testing to
-interactive proof). Start here if you're new to Veil. The `POPL26/` subfolder
-contains the examples used in the POPL'26 tutorial, demonstrating different
-type encodings of the ring protocol (decidable, finite, natural numbers).
+Introductory examples. Start here if you're new to Veil.
+
+- [FloodSet/](Demo/FloodSet/): the FloodSet synchronous crash-fault agreement
+  protocol. `FloodSet.lean` is the bare specification, `FloodSetCommented.lean`
+  a complete commented walkthrough of Veil's multi-modal workflow (modelling,
+  testing, invariant discovery, interactive proof), `FloodSetLiveness.lean`
+  adds temporal properties checked by Lasso, and `FloodSetProgram.lean` writes
+  the protocol as a per-node program in the distributed DSL.
+- [Ring/](Demo/Ring/): leader election in a ring with different type
+  encodings: decidable (`RingDec.lean`), finite (`RingFin.lean`), and natural
+  numbers (`RingNat.lean`).
 
 ### [Ivy/](Ivy/)
 

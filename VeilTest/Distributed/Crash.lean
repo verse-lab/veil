@@ -3,7 +3,7 @@ module
 public import Veil
 
 /-! Consensus with crash faults: FloodMin, the single-value form of FloodSet
-(`Examples/Demo/FloodSet.lean`). In a synchronous network where at most
+(`Examples/Demo/FloodSet/FloodSet.lean`). In a synchronous network where at most
 `f` nodes crash, every node floods the smallest estimate it has seen for
 `f + 1` rounds and then decides it. Correct nodes agree (proved), but not with
 one round fewer (found by bounded symbolic search). A node that crashes during

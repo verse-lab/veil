@@ -40,7 +40,7 @@ Start with the extensively commented walkthroughs in
   Election protocol, introducing Veil's syntax and its main commands
   (`#check_invariants`, `#model_check`, `sat`/`unsat trace`).
 
-- [Examples/Demo/FloodSetCommented.lean](Examples/Demo/FloodSetCommented.lean) — a
+- [Examples/Demo/FloodSet/FloodSetCommented.lean](Examples/Demo/FloodSet/FloodSetCommented.lean) — a
   complete walkthrough of Veil's multi-modal workflow via the FloodSet
   synchronous crash-fault agreement protocol: modelling, testing via concrete and
   symbolic model checking, counterexample-driven invariant discovery, and an

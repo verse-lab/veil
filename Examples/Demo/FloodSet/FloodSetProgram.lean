@@ -4,7 +4,7 @@ public import Veil
 
 /-! # FloodSet as a distributed program
 
-The FloodSet consensus protocol of `Examples/Demo/FloodSet.lean`, written as
+The FloodSet consensus protocol of `Examples/Demo/FloodSet/FloodSet.lean`, written as
 the program every node runs. The network is synchronous, and at most `f` nodes
 crash; a node that crashes during a round may have sent its messages of that
 round to only some of the nodes. Every node starts with its own input, and for
