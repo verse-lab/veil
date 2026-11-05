@@ -33,6 +33,13 @@ structure EnumSortAdaptation where
   /-- Mapping from SMT index to enum constructor expression. -/
   indexToCtor : Array (Nat × Expr)
 
+/-- Evaluate an expression to its `ToJson` serialization, by dynamically synthesizing its `ToJson`
+instance. Unlike `evalExprToDisplay`, this is meant to be read back by programs. -/
+unsafe def evalExprToJson (typeExpr : Expr) (valueExpr : Expr) : MetaM Json := do
+  let inst ← Meta.synthInstance (← Meta.mkAppM ``ToJson #[typeExpr])
+  let jsonExpr ← Meta.mkAppOptM ``ToJson.toJson #[some typeExpr, some inst, some valueExpr]
+  Meta.evalExpr Json (mkConst ``Json) jsonExpr
+
 /-- Evaluate an expression to the JSON shown for it, by dynamically synthesizing its `Display`
 instance. This function works without knowing the type at compile time. -/
 unsafe def evalExprToDisplay (typeExpr : Expr) (valueExpr : Expr) : MetaM Json := do

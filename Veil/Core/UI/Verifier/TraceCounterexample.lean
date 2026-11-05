@@ -313,17 +313,20 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
       ]
     }
     ```
+    `encode` gives the JSON of each value: `evalExprToDisplay` (the default) shows it to people,
+    `evalExprToJson` serializes it for programs that read it back.
 -/
-unsafe def VeilTrace.toJson (vt : VeilTrace) : MetaM Json := do
+unsafe def VeilTrace.toJson (vt : VeilTrace)
+    (encode : Expr → Expr → MetaM Json := evalExprToDisplay) : MetaM Json := do
   -- Build theory JSON
-  let theoryJson ← evalExprToDisplay vt.theoryType vt.theoryExpr
+  let theoryJson ← encode vt.theoryType vt.theoryExpr
 
   -- Build states array
   let mut statesArr : Array Json := #[]
 
   -- First state (initial, after_init)
   if h : 0 < vt.stateExprs.size then
-    let stateJson ← evalExprToDisplay vt.stateType vt.stateExprs[0]
+    let stateJson ← encode vt.stateType vt.stateExprs[0]
     statesArr := statesArr.push <| Json.mkObj [
       ("index", Json.num 0),
       ("fields", stateJson),
@@ -333,10 +336,10 @@ unsafe def VeilTrace.toJson (vt : VeilTrace) : MetaM Json := do
   -- Subsequent states with their transition labels
   for i in [1:vt.stateExprs.size] do
     if hi : i < vt.stateExprs.size then
-      let stateJson ← evalExprToDisplay vt.stateType vt.stateExprs[i]
+      let stateJson ← encode vt.stateType vt.stateExprs[i]
       let labelIdx := i - 1
       let labelJson ← if hl : labelIdx < vt.labelExprs.size then
-        evalExprToDisplay vt.labelType vt.labelExprs[labelIdx]
+        encode vt.labelType vt.labelExprs[labelIdx]
       else
         pure (Json.str "unknown")
       statesArr := statesArr.push <| Json.mkObj [
@@ -366,7 +369,7 @@ unsafe def VeilTrace.toJson (vt : VeilTrace) : MetaM Json := do
       let concreteType := ((← Meta.inferType nameExpr).replaceFVars sortFVars sortTypes).replace
         fun e => if e.isProp then some (mkConst ``Bool) else none
       let adapted ← adaptSmtExprType valueExpr concreteType vt.enumAdapts
-      return (nameStr, ← evalExprToDisplay (← Meta.inferType adapted) adapted)
+      return (nameStr, ← encode (← Meta.inferType adapted) adapted)
 
   return Json.mkObj [
     ("instantiation", instJson),
