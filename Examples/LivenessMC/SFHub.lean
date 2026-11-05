@@ -2,6 +2,8 @@ module
 
 public import Veil
 
+set_option veil.deferVCGeneration true
+
 /-! # `sfHub` at n = 2: one arbiter and n strongly fair clients, 2n states
 
 An arbiter (location 0) and n clients on their own pair of locations, 2*n states total. The state
@@ -58,6 +60,6 @@ temporal [goalN]
 #gen_spec
 
 set_option veil.violationIsError false in
-#temporal_check { n := 2 } {}
+#temporal_check interpreted { n := 2 } {}
 
 end SFHub

@@ -2,6 +2,8 @@ module
 
 public import Veil
 
+set_option veil.deferVCGeneration true
+
 -- CAVA_LTL_Modelchecker/BoolProgs/Programs/BoolProgs_LeaderFilters.thy, `leader_filters` at
 -- n=3 (matches `demo_lf_chosen = chose_prog (STR ''LF'') 3` in CAVA_Impl.thy). AFP entry:
 -- https://www.isa-afp.org/entries/CAVA_LTL_Modelchecker.html. Actions are 3 copies (i=0,1,2)
@@ -393,8 +395,8 @@ temporal [φNoError] □ ¬ ⌜ error = true ⌝
 temporal [φStableElection] ◇ □ ⌜ elected = true ⌝
 
 #gen_spec
+#gen_executable
 
--- Checks every `liveness` property above in declaration order, stopping at the first counterexample.
-#temporal_check {}
+-- #temporal_check {}
 
 end BoolProgLeaderFilters

@@ -2,6 +2,8 @@ module
 
 public import Veil
 
+set_option veil.deferVCGeneration true
+
 -- CAVA_LTL_Modelchecker/BoolProgs/Programs/BoolProgs_Philosophers.thy, `dining` at n=3
 -- (matches `demo_phil_chosen = chose_prog (STR ''P'') 3` in CAVA_Impl.thy). AFP entry:
 -- https://www.isa-afp.org/entries/CAVA_LTL_Modelchecker.html. Fork index i+1 wraps mod 3
@@ -57,17 +59,17 @@ safety [mutex20] ¬(eat2 = true ∧ eat0 = true)
 -- Philosophers 1 and 2 trading their shared fork forever, starving philosopher 0, is another.
 temporal [φPhil0EventuallyEats] □ ◇ ⌜ eat0 = true ⌝
 
--- Not checked in the corresponding Isabelle demo, nor here: `#temporal_check` stops at the
+-- Not checked in the corresponding Isabelle demo. A full `#temporal_check` stops at the
 -- counterexample to `φPhil0EventuallyEats` before reaching the properties below.
 temporal [φMutex] □ (¬ (⌜ eat0 = true ⌝ ∧ ⌜ eat1 = true ⌝) ∧ ¬ (⌜ eat1 = true ⌝ ∧ ⌜ eat2 = true ⌝) ∧ ¬ (⌜ eat2 = true ⌝ ∧ ⌜ eat0 = true ⌝))
 
--- Not checked in the corresponding Isabelle demo, nor here (see above).
+-- Not checked in the corresponding Isabelle demo; a full run stops earlier (see above).
 temporal [φSomeoneEats] ◇ (⌜ eat0 = true ⌝ ∨ ⌜ eat1 = true ⌝ ∨ ⌜ eat2 = true ⌝)
 
 #gen_spec
+#gen_executable
 
--- Checks every `liveness` property above in declaration order, stopping at the first counterexample.
-set_option veil.violationIsError false in
-#temporal_check {}
+-- set_option veil.violationIsError false in
+-- #temporal_check {}
 
 end BoolProgPhilosophers

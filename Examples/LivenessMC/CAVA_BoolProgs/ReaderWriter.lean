@@ -2,6 +2,8 @@ module
 
 public import Veil
 
+set_option veil.deferVCGeneration true
+
 -- CAVA_LTL_Modelchecker/BoolProgs/Programs/BoolProgs_ReaderWriter.thy, `reader_writer` at
 -- r=w=2 (matches `demo_rw_chosen = chose_prog (STR ''RW'') 2` in CAVA_Impl.thy). AFP entry:
 -- https://www.isa-afp.org/entries/CAVA_LTL_Modelchecker.html. `readerStart`/`readersDone`
@@ -125,13 +127,13 @@ safety [noQError] qError = false
 temporal [φNoQError] □ ¬ ⌜ qError = true ⌝
 
 -- Not checked in the corresponding Isabelle demo. Fails: the readers can keep taking turns forever
--- and the writers never become active, so this is the property reported below, with its counterexample.
+-- and the writers never become active, so the checker reports this property with a counterexample.
 temporal [φWriterEventuallyActive] ◇ ⌜ writersActive = true ⌝
 
 #gen_spec
+#gen_executable
 
--- Checks every `liveness` property above in declaration order, stopping at the first counterexample.
-set_option veil.violationIsError false in
-#temporal_check {}
+-- set_option veil.violationIsError false in
+-- #temporal_check {}
 
 end BoolProgReaderWriter

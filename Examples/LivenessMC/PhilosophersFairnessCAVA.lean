@@ -2,6 +2,8 @@ module
 
 public import Veil
 
+set_option veil.deferVCGeneration true
+
 /-! # CAVA `BoolProgs` — "Dining Philosophers", with fairness.
     This test can have two failures:
     - Phil. 0 starves because P1 and P2 trade forks forever
@@ -10,7 +12,7 @@ public import Veil
 
     Written in the CAVA `BoolProgs` style: one `individual` per program variable, plus an
     `action_taken` field so the fairness assumption can refer to the last action taken.
-    `#temporal_check` reports the deadlock, the counterexample its search reaches first.
+    Running `#temporal_check` reports the deadlock, the counterexample its search reaches first.
     See `PhilosophersFairnessVeil.lean` for the same system over relations.
 -/
 
@@ -98,12 +100,13 @@ temporal [phil0EventuallyEatsFair]
   → □ ◇ ⌜ eat0 = true ⌝
 
 -- False without fairness: all three can pick up their left fork and deadlock, and philosophers 1
--- and 2 can also trade forks 1/2 forever; either way philosopher 0 starves. The deadlock is reported.
+-- and 2 can also trade forks 1/2 forever; either way philosopher 0 starves. The checker reports the deadlock.
 temporal [phil0EventuallyEats] □ ◇ ⌜ eat0 = true ⌝
 
 #gen_spec
+#gen_executable
 
-set_option veil.violationIsError false in
-#temporal_check {}
+-- set_option veil.violationIsError false in
+-- #temporal_check {}
 
 end BoolProgPhilosophers

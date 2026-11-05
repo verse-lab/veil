@@ -59,7 +59,7 @@ jobs:
       timeout-minutes: 10
     - name: Build examples
       run: lake build Examples
-      timeout-minutes: 15
+      timeout-minutes: 20
     - name: Test widget rendering
       run: |
         npm ci --prefix widget

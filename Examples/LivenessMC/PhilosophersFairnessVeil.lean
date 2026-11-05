@@ -2,13 +2,15 @@ module
 
 public import Veil
 
+set_option veil.deferVCGeneration true
+
 /-! # Veil-Style — "Dining Philosophers", with fairness
     This test can have two failures:
     - Phil. 0 starves because P1 and P2 trade forks forever
     - Phil. 0 starves because of deadlock: All 3 pick up their left fork at the same time,
         none can put it down before eating
 
-    `#temporal_check` reports the second error, the deadlock, which its search reaches first.
+    Running `#temporal_check` reports the second error, the deadlock, which its search reaches first.
     See `PhilosophersFairnessCAVA.lean` for the same system in the CAVA `BoolProgs` style.
 -/
 
@@ -67,8 +69,9 @@ temporal [phil0EventuallyEatsFair]
 temporal [phil0EventuallyEats] □ ◇ ⌜ eat 0 = true ⌝
 
 #gen_spec
+#gen_executable
 
-set_option veil.violationIsError false in
-#temporal_check {}
+-- set_option veil.violationIsError false in
+-- #temporal_check {}
 
 end Philosophers

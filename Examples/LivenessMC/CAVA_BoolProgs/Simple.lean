@@ -2,6 +2,8 @@ module
 
 public import Veil
 
+set_option veil.deferVCGeneration true
+
 -- CAVA_LTL_Modelchecker/BoolProgs/Programs/BoolProgs_Simple.thy, `simple` at n=4 (matches
 -- `demo_simple_chosen = chose_prog (STR ''S'') 4` in CAVA_Impl.thy). AFP entry:
 -- https://www.isa-afp.org/entries/CAVA_LTL_Modelchecker.html. `clear0..clear3` are 4 copies
@@ -44,6 +46,6 @@ temporal [φInfinitelyOn] □ ◇ ⌜ v0 = true ⌝
 
 -- Checks every `liveness` property above in declaration order, stopping at the first counterexample.
 set_option veil.violationIsError false in
-#temporal_check {}
+#temporal_check interpreted {}
 
 end BoolProgSimple

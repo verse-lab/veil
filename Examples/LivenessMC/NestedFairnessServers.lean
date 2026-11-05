@@ -7,6 +7,8 @@ public meta import Veil.Core.Tools.LivenessMC.Report
 public meta import Veil.Core.Tools.LivenessMC.Benchmarking
 import Lasso
 
+set_option veil.deferVCGeneration true
+
 /-! # Nested fairness: a fairness assumption TLC has to build a tableau for
 
     Three request-processing servers. Each sits idle until it accepts a request, processes it, and

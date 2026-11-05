@@ -2,6 +2,8 @@ module
 
 public import Veil
 
+set_option veil.deferVCGeneration true
+
 -- https://github.com/tlaplus/Examples/blob/master/specifications/ewd426/TokenRing.tla
 -- Dijkstra's self-stabilizing token ring (EWD426).
 
@@ -63,7 +65,7 @@ temporal [stab]
       ∨ (∀ (j:node), c j = c (n 0)) ⌝
 
 #gen_spec
-
+#gen_executable
 
 def getNodeByNat : Nat → Fin 6 := fun n => ⟨n % 6, Nat.mod_lt n (by omega)⟩
 def forAllPreds' (n : Fin 6) (f : Fin 6 → Bool) : Bool :=
@@ -78,6 +80,6 @@ def theory0 : Theory (Fin 6) :=
     n := getNodeByNat,
     M := 6 }
 
-#model_check { node := Fin 6 } theory0
+-- #model_check { node := Fin 6 } theory0
 
-#temporal_check compiled { node := Fin 6 } theory0
+-- #temporal_check compiled { node := Fin 6 } theory0

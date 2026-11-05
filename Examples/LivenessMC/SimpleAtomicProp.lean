@@ -2,6 +2,8 @@ module
 
 public import Veil
 
+set_option veil.deferVCGeneration true
+
 veil module Live
 
 individual chosen : Nat
@@ -35,6 +37,6 @@ temporal [chosenEqOne] □ ◇ ⌜ chosen = 1 ⌝
 #gen_spec
 
 set_option veil.violationIsError false in
-#temporal_check {}
+#temporal_check interpreted {}
 
 end Live
