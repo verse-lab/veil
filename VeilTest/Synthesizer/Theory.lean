@@ -38,7 +38,7 @@ safety [never_bad] ¬ bad
 #gen_spec
 
 /--
-invariant [ic3_0] ∀ (x0 : node), ¬ seen x0 x0 ∨ bad
+Certified: theorem ImmTernary.ic3_safe (strengthening ImmTernary.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
 #synthesize_invariants (expect := invariant) certify
@@ -112,7 +112,7 @@ safety [never_bad] ¬ bad
 #gen_spec
 
 /--
-invariant [ic3_0] ∀ (x0 : node), ¬ mark x0 x0 ∨ bad
+Certified: theorem Btw.ic3_safe (strengthening Btw.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
 #synthesize_invariants (expect := invariant) certify

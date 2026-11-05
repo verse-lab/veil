@@ -35,7 +35,7 @@ safety [never_bad] ¬ bad
 #gen_spec
 
 /--
-invariant [ic3_0] ∀ (x0 : node) (x1 : node), ¬ r x1 x1 x0
+Certified: theorem Ternary.ic3_safe (strengthening Ternary.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
 #synthesize_invariants (expect := invariant) certify
@@ -105,7 +105,7 @@ safety [never_bad] ¬ bad
 #gen_spec
 
 /--
-invariant [ic3_0] ∀ (x0 : node) (x1 : node), ¬ r x1 x1 x0 x0
+Certified: theorem Quaternary.ic3_safe (strengthening Quaternary.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
 #synthesize_invariants (expect := invariant) certify

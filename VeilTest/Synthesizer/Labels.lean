@@ -39,7 +39,7 @@ safety [never_bad] ¬ bad
 #gen_spec
 
 /--
-step: {"trip": {"p": "busy", "n": 0, "m": 1}}
+step: {"trip": {"p": "busy"
 -/
 #guard_msgs(info, substring := true) in
 #synthesize_invariants (expect := unsafe) certify

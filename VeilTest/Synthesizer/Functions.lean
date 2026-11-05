@@ -33,7 +33,7 @@ safety [never_bad] ¬ bad
 #gen_spec
 
 /--
-invariant [ic3_0] ∀ (x0 : node) (x1 : node) (x2 : node), ¬ f x1 x0 = x2 ∨ x1 = x2
+Certified: theorem BinFun.ic3_safe (strengthening BinFun.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
 #synthesize_invariants (expect := invariant) certify
@@ -109,8 +109,7 @@ safety [never_bad] ¬ bad
 #gen_spec
 
 /--
-invariant [ic3_0] ∀ (x0 : node), ¬ st x0 x0 = done
-invariant [ic3_1] ∀ (x0 : node), ¬ st x0 x0 = busy
+Certified: theorem EnumFun.ic3_safe (strengthening EnumFun.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
 #synthesize_invariants (expect := invariant) certify
@@ -145,7 +144,7 @@ safety [never_bad] ¬ bad
 #gen_spec
 
 /--
-invariant [ic3_0] ∀ (x0 : node), ¬ cnt x0 x0 = 5
+Certified: theorem IntFun.ic3_safe (strengthening IntFun.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
 #synthesize_invariants (expect := invariant) certify
