@@ -276,8 +276,8 @@ def ArrayAsFinmap.entries [inst : FinEncodable α] (m : ArrayAsFinmap α β) : A
   Array.ofFn fun i => (inst.equiv.symm i, m.val[i.val]'(m.property ▸ i.isLt))
 
 def ArrayAsFinset.members [inst : FinEncodable α] (s : ArrayAsFinset α) : Array α :=
-  Fin.foldl inst.card (init := #[]) fun out i =>
-    if s.val[i.val]'(s.property ▸ i.isLt) then out.push (inst.equiv.symm i) else out
+  Fin.foldl inst.card (fun out i =>
+    if s.val[i.val]'(s.property ▸ i.isLt) then out.push (inst.equiv.symm i) else out) #[]
 
 def BitVecAsFinmap.entries [inst : FinEncodable α] [FinEncodable β] [Inhabited β]
     (m : BitVecAsFinmap α β) : Array (α × β) :=

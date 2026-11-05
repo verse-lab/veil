@@ -19,7 +19,7 @@ private def refresh (traceWidget : Bool) (owner : VCManagerEnvironment)
     (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus))
     (shouldReject : Bool) : CommandElabM Unit := do
   let (_, token) ← ProofWidgets.mkRefreshComponent
-  let initialVersion := (← token.state.get).idx
+  let initialVersion := (← token.state.atomically get).idx
   let tk ← IO.CancelToken.new
   let wrapped ← liftCoreM <| Core.wrapAsyncAsSnapshot (fun () => do
     if traceWidget then
@@ -29,8 +29,8 @@ private def refresh (traceWidget : Bool) (owner : VCManagerEnvironment)
   let task ← (wrapped ()).asTask (prio := .dedicated)
   try
     await "refresh completes or publishes" do
-      return (← IO.hasFinished task) || (← token.state.get).idx > initialVersion
-    let updated := (← token.state.get).idx > initialVersion
+      return (← IO.hasFinished task) || (← token.state.atomically get).idx > initialVersion
+    let updated := (← token.state.atomically get).idx > initialVersion
     check (updated != shouldReject) s!"widget (trace={traceWidget}) accepted stale generation or lost current result"
     if shouldReject then
       check (← IO.hasFinished task) "stale widget kept refreshing"

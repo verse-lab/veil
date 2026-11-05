@@ -125,7 +125,7 @@ def IteratedProd'.equiv {ts : List Type} : IteratedProd ts ≃ IteratedProd' ts 
     | nil => intros ; rfl
     | cons t ts ih =>
       rintro ⟨x, xs⟩ ; rcases ts with _ | ⟨_, _⟩ <;> try rfl
-      simp [IteratedProd.toIteratedProd', IteratedProd.ofIteratedProd'] ; apply ih
+      simp [IteratedProd.toIteratedProd', IteratedProd.ofIteratedProd'] ; exact congrArg (Prod.mk x) (ih xs)
   right_inv := by
     simp [Function.RightInverse, Function.LeftInverse]
     induction ts with
@@ -211,7 +211,13 @@ theorem IteratedProd.foldMap_eq_cartesianProduct {α : Type} {ts : List Type}
     generalize (lis ()) = lis'
     induction lis' generalizing init with
     | nil => rfl
-    | cons x lis' ih => simp [List.product, ih, List.foldl_map, ← eq] ; rfl
+    | cons x lis' ih =>
+      simp only [List.product, List.flatMap_cons, List.foldl_cons]
+      erw [List.foldl_append, List.foldl_map]
+      simp only [List.product] at ih
+      rw [ih]
+      congr 1
+      exact congrArg (fun h => List.foldl h init subprods) (funext fun a => funext fun p => eq a (x, p))
 
 def IteratedProd.allComplete {ts : List Type} (elements : IteratedProd (ts.map (Unit → List ·))) : Prop :=
   elements.fold True (fun lis acc => (∀ a, a ∈ lis ()) ∧ acc)
@@ -253,11 +259,10 @@ def IteratedProd.patCmp {ts : List Type} {T : Type → Type}
 theorem IteratedProd.map_DecidableEq_eq {ts : List Type}
   (dec dec' : IteratedProd (ts.map DecidableEq)) : dec = dec' := by
   induction ts with
-  | nil => simp [IteratedProd] at dec dec' ⊢
+  | nil => rfl
   | cons t ts ih =>
-    simp [IteratedProd] at dec dec' ⊢
     rcases dec with ⟨d, dec⟩ ; rcases dec' with ⟨d', dec'⟩
-    simp ; constructor ; clear dec dec' ih ts ; grind /- ?? -/ ; apply ih
+    exact Prod.ext (Subsingleton.elim _ _) (ih _ _)
 
 macro "infer_instance_for_iterated_prod" : tactic =>
   `(tactic| repeat' (first | infer_instance | constructor ))
@@ -281,7 +286,7 @@ class Enumeration (α : Type u) where
   allValues : List α
   complete : ∀ a : α, a ∈ allValues
 
-@[inline, implicit_reducible]
+@[inline, instance_reducible]
 def Enumeration.ofEquiv (α : Type u) {β : Type v} [inst : Enumeration α] (h : α ≃ β) : Enumeration β where
   allValues := inst.allValues.map h
   complete := by simp ; intro b ; exists (h.symm b) ; simp ; apply inst.complete
@@ -486,7 +491,7 @@ theorem exists_mapped_candidate {f : α → β} {p : α → Prop} {q : β → Pr
       let funBinders ← header.binders.mapM bracketedBinderToFunBinder
       let target ← `(($(mkIdent ``Enumeration.ofEquiv) _ (veil_proxy_equiv% $header.targetType) : $(mkIdent ``Enumeration) $header.targetType))
       let defBody ← mkFunSyntax funBinders target
-      `(command|@[implicit_reducible, instance] def $(mkIdent instName) := remove_unused_args% $defBody)
+      `(command|@[instance_reducible, instance] def $(mkIdent instName) := remove_unused_args% $defBody)
     pure auxDefCmd
   elabVeilCommand cmd
   return true
@@ -532,7 +537,7 @@ class FinEncodable (α : Type u) where
 
 /-- Transfer a finite encoding across an equivalence, preserving its cardinality
 and using the existing encoder and decoder. -/
-@[inline, implicit_reducible]
+@[inline, instance_reducible]
 def FinEncodable.ofEquiv {α : Type u} {β : Type v} [inst : FinEncodable β]
     (e : α ≃ β) : FinEncodable α where
   card := inst.card
@@ -542,7 +547,7 @@ def FinEncodable.ofEquiv {α : Type u} {β : Type v} [inst : FinEncodable β]
 function. Its agreement with the proxy encoder proves both inverse laws; decoding
 uses the proxy's existing inverse. Only the direct encoder survives on the forward
 path at runtime. -/
-@[inline, implicit_reducible]
+@[inline, instance_reducible]
 def FinEncodable.ofEquivWithEnc {α : Type u} {β : Type v} [inst : FinEncodable β]
     (e : α ≃ β) (enc : α → Nat) (h_enc : ∀ a, enc a = (inst.equiv (e a)).val)
     : FinEncodable α where
@@ -555,7 +560,7 @@ def FinEncodable.ofEquivWithEnc {α : Type u} {β : Type v} [inst : FinEncodable
       left_inv := by intro a; rw [h_encode]; simp
       right_inv := by intro i; rw [h_encode]; simp }
 
-@[implicit_reducible]
+@[instance_reducible]
 def Ord.ofFinEncodable (α : Type u) [inst : FinEncodable α] : Ord α where
   compare a b := compare (inst.equiv a) (inst.equiv b)
 
@@ -780,7 +785,7 @@ theorem FinEncodable.card_ne_0_if_Inhabited [Inhabited α] [inst : FinEncodable 
     Nat.ne_of_gt (Nat.pos_of_ne_zero h)
 
 /-- Generic finite encoding, used when there is no specialized representation. -/
-@[implicit_reducible]
+@[instance_reducible]
 def FinEncodable.ofEnumeration [Enumeration α] [DecidableEq α] : FinEncodable α where
   card := (Veil.List.dedup (Enumeration.allValues (α := α))).length
   equiv :=
@@ -814,7 +819,7 @@ are rejected by the proxy machinery. -/
     let target ← `((veil_fin_encodable% $header.targetType :
       $(mkIdent ``FinEncodable) $header.targetType))
     let defBody ← mkFunSyntax funBinders target
-    `(command|@[inline, implicit_reducible, instance] def $(mkIdent instName) := remove_unused_args% $defBody)
+    `(command|@[inline, instance_reducible, instance] def $(mkIdent instName) := remove_unused_args% $defBody)
   elabVeilCommand cmd
   return true
 
@@ -871,7 +876,7 @@ instance (priority := low) [inst : FinEncodable κ] : FinEncodableInjOnly κ whe
 
 /-- Transfer `FinEncodableInjOnly` across an `Equiv`. Given `e : ProxyType ≃ TargetType`
     and `[FinEncodableInjOnly ProxyType]`, produce `FinEncodableInjOnly TargetType`. -/
-@[inline, implicit_reducible]
+@[inline, instance_reducible]
 def FinEncodableInjOnly.ofEquiv {β : Type u} [inst : FinEncodableInjOnly β] {α : Type v}
     (e : α ≃ β) : FinEncodableInjOnly α where
   card := inst.card
@@ -908,7 +913,7 @@ instance instFinEncodableInjOnlyNonDepSigma [insta : FinEncodableInjOnly α] [in
     function. `enc` computes the same `Nat` value as the proxy-type's encode — verified by the
     `h_enc` proof, typically `by intro x; cases x <;> rfl`. Proofs are transferred from the
     proxy-type instance (erased at runtime); only `enc` survives compilation. -/
-@[inline, implicit_reducible]
+@[inline, instance_reducible]
 def FinEncodableInjOnly.ofEquivWithEnc {β : Type u} [inst : FinEncodableInjOnly β] {α : Type v}
     (e : α ≃ β) (enc : α → Nat) (h_enc : ∀ a, enc a = (inst.encode (e a)).val)
     : FinEncodableInjOnly α where
@@ -1077,7 +1082,7 @@ def elabFinEncodableInjOnly : TermElab := fun stx _ => do
     let target ← `((veil_fin_encodable_inj_only% $header.targetType :
       FinEncodableInjOnly $header.targetType))
     let defBody ← mkFunSyntax funBinders target
-    `(command|@[implicit_reducible, instance] def $(mkIdent instName) := remove_unused_args% $defBody)
+    `(command|@[instance_reducible, instance] def $(mkIdent instName) := remove_unused_args% $defBody)
   elabVeilCommand cmd
   return true
 

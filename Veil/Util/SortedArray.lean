@@ -3,6 +3,8 @@ module
 import all Init.Data.Array.Basic
 import all Init.Data.Array.BinSearch
 import all Init.Data.Array.Subarray
+import all Batteries.Data.Array.Merge
+import all Batteries.Data.Array.Pairwise
 
 public import Std
 public import Batteries.Data.Array.Merge
@@ -339,7 +341,7 @@ end Array
 /-! ## Type definition -/
 
 /-- A strictly sorted array, used as a set representation. -/
-def OrdArray (α : Type u) [Ord α] : Type u :=
+@[implicit_reducible] def OrdArray (α : Type u) [Ord α] : Type u :=
   { arr : Array α // arr.toList.Pairwise (OrdList.cmpLt (α := α)) }
 
 veil_derive_wrapper_instances OrdArray

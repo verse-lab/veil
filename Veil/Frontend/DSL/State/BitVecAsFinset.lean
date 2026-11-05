@@ -118,8 +118,8 @@ def card (s : BitVecAsFinset α) : Nat := s.bits.popCount
 
 /-- The members in encoding order, built in one pass. -/
 def members (s : BitVecAsFinset α) : Array α :=
-  Fin.foldl inst.card (init := #[]) fun out i =>
-    if s.bits.getLsbInline i then out.push (inst.equiv.symm i) else out
+  Fin.foldl inst.card (fun out i =>
+    if s.bits.getLsbInline i then out.push (inst.equiv.symm i) else out) #[]
 
 def empty : BitVecAsFinset α := ⟨0⟩
 /-- The full set containing all elements of `α`. -/

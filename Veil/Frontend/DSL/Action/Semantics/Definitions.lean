@@ -17,6 +17,9 @@ open scoped Loom.Order
 
 namespace Veil
 
+open Loom (Cont)
+open scoped Loom.Order
+
 /-! ## Types  -/
 section Types
 /-- Actions in Veil can be elaborated in two ways:

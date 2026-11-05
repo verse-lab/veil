@@ -350,7 +350,7 @@ def Module.proveLocalityForTheoryPredicate (mod : Module) (nm : Name) (stx : Syn
       elabAttrs (#[tmp])
     -- Like state locality, this certificate may have a noncomputable core.
     let instName ← addVeilDefinition (generateLocalTheoryPropInstName nm) inst (compile := false)
-      (attr := #[{ name := `implicit_reducible }] ++ attrs)
+      (attr := #[{ name := `instance_reducible }] ++ attrs)
     modifyEnv (addNoncomputable · instName)
   catch ex =>
     logWarningAt stx m!"unable to prove theory locality for predicate {nm}: {ex.toMessageData}"

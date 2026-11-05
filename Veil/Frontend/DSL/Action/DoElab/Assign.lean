@@ -487,6 +487,24 @@ private def reassignArrowRhsUnderStatementOpening (ctx : Context) (stx : DoElem)
     return stx
   rewriteArrowRhs stx fun _ rhs => internalIfPlainTerm? ctx rhs
 
+/-- `x ← rhs` for a plain `let mut` local. Since Lean v4.35, Lean's own handler
+desugars it to `let __x ← rhs; x := __x` and elaborates `x := __x` through the
+`doElem` elaborator table, which inside a Veil block reaches `elabStateReassign`
+and opens the state a second time for the same statement. Mirror that
+desugaring, but elaborate the reassignment with Lean's builtin handler directly. -/
+private def elabLocalReassignArrow (stx : DoElem) (dec : DoElemCont) : DoElabM Expr := do
+  match stx with
+  | `(doReassignArrow| $x:ident $[: $t?]? ← $rhs) =>
+    throwUnlessMutVarDeclared x
+    -- Pin the variable's declared type on the bind, as Lean does.
+    let t ← match t? with
+      | some t => pure t
+      | none => Term.exprToSyntax (← getLocalDeclFromUserName x.getId).type
+    let y := mkIdentFrom x (← mkFreshUserName `__x)
+    elabDoIdDecl y (some t) rhs
+      (Lean.Elab.Do.elabDoReassign (← `(doElem| $x:ident := $y)) dec) (kind := dec.kind)
+  | _ => Lean.Elab.Do.elabDoReassignArrow stx dec
+
 /- NOTE: `lhs ← rhs` means `lhs := (← rhs)`. The RHS and its
 arguments, like a type ascription on the target, are elaborated under this
 statement's opening, that is, on the pre-call state. The target's
@@ -514,7 +532,7 @@ def elabStateReassignArrow : DoElab := fun stx dec => do
           return ← Lean.Elab.Do.elabDoReassignArrow (← stx') dec
         throwErrorAt stx "fallback branches are not supported on indexed Veil assignments"
       if target.args.isEmpty then
-        return ← Lean.Elab.Do.elabDoReassignArrow (← stx') dec
+        return ← elabLocalReassignArrow (← stx') dec
       withArrowResult ctx target type? rhs stx fun value =>
         -- The index terms must read post-call state (as in `.state` below).
         openStateAround ctx.mod <|

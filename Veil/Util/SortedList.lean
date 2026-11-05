@@ -17,7 +17,7 @@ abbrev OrdList.cmpLt [Ord α] (a b : α) : Prop := compare a b = Ordering.lt
 -- instance resolution does not see through it: the instances that show it are its own, not those of
 -- the subtype or the list (`veil_derive_wrapper_instances`).
 /-- A strictly sorted list, used as a set representation. -/
-def OrdList (α : Type u) [Ord α] : Type u :=
+@[implicit_reducible] def OrdList (α : Type u) [Ord α] : Type u :=
   { l : List α // l.Pairwise (OrdList.cmpLt (α := α)) }
 
 veil_derive_wrapper_instances OrdList

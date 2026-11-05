@@ -61,7 +61,7 @@ omit op in
 scoped instance [Hashable β] : Hashable (HashCompanioned β UInt64 hash) where
   hash := HashCompanioned.hashval
 
-@[implicit_reducible]
+@[instance_reducible]
 def toFieldRepresentation (inst : FieldRepresentation FieldDomain FieldCodomain β)
   : FieldRepresentation FieldDomain FieldCodomain (HashCompanioned β ι op) where
   get cf := inst.get cf.inner

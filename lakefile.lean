@@ -1,16 +1,16 @@
 import Lake
 open Lake DSL System
 
-require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.32.0-veil-no-mathlib"
-require Loom from git "https://github.com/verse-lab/loom.git" @ "396cfd2165e4916e460d935d9cbb27c54d8669a2"
-require VerifiedHAMT from git "https://github.com/verse-lab/VerifiedHAMT.git" @ "24bbc61c6ca37ef38f984566399461c9afa2b0d3"
+require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.35.0-veil-no-mathlib"
+require Loom from git "https://github.com/verse-lab/loom.git" @ "v4.35.0-for-veil"
+require VerifiedHAMT from git "https://github.com/verse-lab/VerifiedHAMT.git" @ "v4.35.0"
 require Lasso from git "https://github.com/verse-lab/Lasso.git" @ "97bbb27e0ca37f213ed4cb2cebe8c22807e6946a"
 require lentil from git "https://github.com/verse-lab/Lentil.git" @ "4b336806735fa80c9a6073c33afdb9cb0360edb8"
 
-require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.32.0"
-require aesop from git "https://github.com/leanprover-community/aesop" @ "v4.32.0"
+require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.35.0"
+require aesop from git "https://github.com/leanprover-community/aesop" @ "v4.35.0"
 
-require proofwidgets from git "https://github.com/leanprover-community/ProofWidgets4" @ "6e311e2a844da9b2cc3971187df2fe0066947b93"
+require proofwidgets from git "https://github.com/leanprover-community/ProofWidgets4" @ "df72b022e558978a1c50264cfc4d7fec86fa8e04"
 
 package veil where
   preferReleaseBuild := true
@@ -161,8 +161,10 @@ script veilModelCheckBuild args do
         error s!"Imported Lean artifacts for '{mod.name}' changed during validation. \
           Reload the importing file before compiling this check."
     let c ← inputTextFile (buildDir / "ModelCheckerMain.c")
-    let obj ← buildLeanO (buildDir / "ModelCheckerMain.o") c
-      exe.root.weakLeancArgs exe.root.leancArgs exe.root.leanIncludeDir?
+    -- Lake v4.35 dropped the include-dir argument of `buildLeanO`; the internal variant
+    -- falls back to the toolchain's include directory, as `Module.leanIncludeDir?` did.
+    let obj ← Internal.buildLeanO (buildDir / "ModelCheckerMain.o") c
+      exe.root.weakLeancArgs exe.root.leancArgs
     let mut objs := #[obj]
     let mut dynlibs := #[]
     -- Mirrors the link-input collection in `LeanExe.recBuildExe`, which cannot be reused
