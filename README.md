@@ -49,7 +49,9 @@ Start with the extensively commented walkthroughs in
 These files are also available in the [online playground](https://try.veil.dev/), under the Examples button.
 
 An explanation of the constructs of the Veil DSL can be found at
-[`docs/DSL-Reference.md`](docs/DSL-Reference.md). 
+[`docs/DSL-Reference.md`](docs/DSL-Reference.md). Message-passing protocols
+can also be written as the program each node runs, connected by a network with
+chosen assumptions; see [`docs/Distributed-DSL.md`](docs/Distributed-DSL.md).
 
 ## Examples
 

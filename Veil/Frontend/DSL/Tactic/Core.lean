@@ -1205,7 +1205,10 @@ def elabVeilConcretizeWp (fast : Bool) : DesugarTacticM Unit := veilWithMainCont
 def elabVeilConcretizeTr : DesugarTacticM Unit := veilWithMainContext do
   -- FIXME: figure out how to do the axiomatisation for ghost relations in TR
   let ghostRel ← `(tactic| veil_simp +$(mkIdent `instances) only [$(mkIdent `ghostRelSimp):ident] at *)
-  let tac ← `(tacticSeq| __veil_neutralize_decidable_inst at * ; $ghostRel; __veil_concretize_state_tr; __veil_concretize_fields_tr)
+  -- like `veil_concretize_wp`: proof reconstruction needs `Nonempty` instances
+  -- for the sorts, or the TR goals fail with "failed to synthesize Nonempty"
+  let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
+  let tac ← `(tacticSeq| $inferNonemptyTac:tactic; __veil_neutralize_decidable_inst at * ; $ghostRel; __veil_concretize_state_tr; __veil_concretize_fields_tr)
   veilEvalTactic tac
 
 def elabVeilFol (fast : Bool) : DesugarTacticM Unit := veilWithMainContext do
