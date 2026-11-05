@@ -288,7 +288,10 @@ def runStatementOnce (mod : Veil.Module) (stmt : Term) (steps coreLits : Nat) (w
       result ← if fault == some ("undecoded", steps) then
           pure (.satUndecoded (injectedQueryFailure "undecoded" steps))
         else
-          match ← catchRuntime do unsafe (← buildTraceFromModel m mod steps).toJson with
+          -- The `ToJson` serialization of the model, which `decodeTrace` reads back; `Display`
+          -- is what traces show to people.
+          let encode := unsafe evalExprToJson
+          match ← catchRuntime do unsafe (← buildTraceFromModel m mod steps).toJson encode with
           | .ok j => pure (.sat j)
           | .error e => pure (.satUndecoded s!"{e.take 300}")
       notePhase (fun p dt ↦ { p with decodeMs := p.decodeMs + dt }) tDecode

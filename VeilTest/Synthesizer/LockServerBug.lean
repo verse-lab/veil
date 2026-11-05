@@ -52,4 +52,16 @@ safety [mutex] holds C ∧ holds D → C = D
 #guard_msgs in
 #print axioms LockServerBug.ic3_unsafe
 
+-- The re-check block names the action of each step, read from the model's transition labels.
+/--
+Re-check with:
+  sat trace [ic3_cex] {
+    request
+    grant
+    request
+    grant
+-/
+#guard_msgs(info, substring := true) in
+#synthesize_invariants (expect := unsafe)
+
 end LockServerBug
