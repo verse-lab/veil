@@ -43,7 +43,8 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (List Command) := do
   let th ← Lean.mkIdent <$> mkFreshUserName `th
   let st ← Lean.mkIdent <$> mkFreshUserName `st
   let coreEqType ← do
-    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th, true), (.state .none "_conc", st, true)] (some codomain) fun theoryFieldNames stateFieldNames =>
+    -- Fresh field names: a field named `core` would capture `core` here.
+    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th, true), (.state .none "_conc", st, true)] (some codomain) (freshFieldNames := true) fun theoryFieldNames stateFieldNames =>
       pure <| Syntax.mkApp core (theoryFieldNames ++ stateFieldNames)
     `(term| ∀ ($th : $environmentTheory) ($st : $environmentState),
     $post $th $st = $body)
