@@ -147,14 +147,13 @@ def labelArgTerm (act p : Name) (ty : Term) (v : Option Json) : CommandElabM Ter
     return ← numeralTerm s k.mantissa
   c.elementTerm s k.mantissa.toNat
 
-/-- The label of a step from its JSON (`{"recv": {"sender": 0}}`). -/
+/-- The label of a step from its JSON, a tagged constructor of the module's label type
+(`{"$veil": "ctor", "name": "recv", "args": [{"name": "sender", "value": 0}], …}`). -/
 def labelTerm (j : Json) : CommandElabM Term := do
-  let (act, args) ← match j with
-    | .obj kvs =>
-      let #[(k, v)] := kvs.toArray | throwError "IC3: unexpected transition label {j}"
-      pure (Name.mkSimple k, v)
-    | .str k => pure (Name.mkSimple k, Json.obj {})
-    | _ => throwError "IC3: unexpected transition label {j}"
+  let (act, args) ← match ValueDisplay.ctor? j with
+    | some (_, k, args) =>
+      pure (Name.mkSimple k, Json.mkObj <| args.toList.filterMap fun (n, v) ↦ n.map (·, v))
+    | none => throwError "IC3: unexpected transition label {j}"
   let some a := c.mod.actions.find? (·.name == act)
     | throwError "IC3: transition label names unknown action {act}"
   let (_, params) ← liftTermElabM (c.mod.declarationAllParams a.name a.declarationKind)
