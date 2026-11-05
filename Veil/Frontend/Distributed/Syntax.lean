@@ -74,8 +74,13 @@ scoped syntax (name := programDeclaration)
 /-- Send a message: `send (vote r v) to dst`. -/
 scoped syntax (name := sendDo) "send " term:max " to " term : doElem
 
-/-- Send a message to every node, including the sender itself. -/
-scoped syntax (name := broadcastDo) "broadcast " term:max : doElem
+/-- Send a message to every node, including the sender itself.
+
+With a guard on the same line, the message's fields may be pattern variables
+(capitalised, as in Veil assignments), and every instance satisfying the guard
+is sent: `broadcast (est V) if W V` sends `est v` for every `v` with `W v`. -/
+scoped syntax (name := broadcastDo)
+  withPosition("broadcast " term:max (lineEq " if " term)?) : doElem
 
 /-- Block until a message matching the pattern arrives (asynchronous networks
 only): `recv (vote r v) from src`. Fields given as terms rather than names
