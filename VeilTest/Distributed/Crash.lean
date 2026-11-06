@@ -124,6 +124,8 @@ program (self : node) {
   decided := true
 }
 
+/-- warning: you have not defined any invariants or temporal properties for this specification; did you forget? -/
+#guard_msgs in
 #gen_spec
 
 -- with `f = 1`: a node crashes after reaching only some of the others

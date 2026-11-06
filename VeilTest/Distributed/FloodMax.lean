@@ -71,6 +71,8 @@ program (self : node) {
   decided := true
 }
 
+/-- warning: you have not defined any invariants or temporal properties for this specification; did you forget? -/
+#guard_msgs in
 #gen_spec
 
 -- two nodes decide differently: one of them lost the other's message

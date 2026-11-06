@@ -69,6 +69,8 @@ program (self : node) {
     send pong to p
 }
 
+/-- warning: you have not defined any invariants or temporal properties for this specification; did you forget? -/
+#guard_msgs in
 #gen_spec
 
 -- the pinger waits for a pong that will never come
