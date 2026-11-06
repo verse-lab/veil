@@ -34,7 +34,7 @@ private meta def awaitDisplay (token : ProofWidgets.RefreshToken)
     (text : String) : IO Unit := do
   let started ← IO.monoMsNow
   repeat
-    let html := (← token.state.get).curr.get
+    let html := (← token.state.atomically get).curr.get
     if ((htmlText html).splitOn text).length > 1 then return
     if (← IO.monoMsNow) - started > 3000 then
       throw <| IO.userError s!"display did not update to {text}"

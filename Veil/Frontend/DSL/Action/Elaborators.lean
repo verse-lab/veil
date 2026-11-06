@@ -666,7 +666,6 @@ theorem enabled_derive_eq_template {act : VeilM m ρ σ α}
     fun handler post => funext fun r => funext fun s => heq1 handler post r s
   subst tr pred ; rw [← VeilM.toTransitionDerived_sound, Transition.enabled_of_wp,
     VeilM.enabled_of_wp, VeilSpecM.enabledDerived, ← heq1', VeilM.enabledDerived]
-  rfl
 
 open Meta in
 private def defineEnabledByDerivingFromWp (mod : Module) (nm : Name) (dk : DeclarationKind) : TermElabM Unit :=

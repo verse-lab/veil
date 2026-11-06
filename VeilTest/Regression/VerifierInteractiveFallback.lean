@@ -126,5 +126,9 @@ private def scenario (fallbackSucceeds : Bool) : CommandElabM Unit := do
   unless (← failures.get).isEmpty do
     throwError "{String.intercalate "\n" (← failures.get).toList}"
 
+/-- warning: declaration uses `sorry` -/
+#guard_msgs(warning) in
 run_cmd scenario true
+/-- warning: declaration uses `sorry` -/
+#guard_msgs(warning) in
 run_cmd scenario false

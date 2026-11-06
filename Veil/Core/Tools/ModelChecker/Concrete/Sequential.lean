@@ -7,7 +7,6 @@ public import Veil.Core.Tools.ModelChecker.Concrete.SequentialLemmas
 public section
 
 namespace Veil.ModelChecker.Concrete
-open Std
 open Veil fQueue
 
 variable {ρ σ κ σₕ : Type} {T : Type → Type} [fp : StateFingerprint σ σₕ] [LabelTable κ T]

@@ -61,51 +61,14 @@ variable {α : Type u} {cmp : α → α → Ordering} [BEq α] [Std.TransCmp cmp
 theorem contains_insertManyFast_list
     {t : Std.TreeSet α cmp} {l : List α} {k : α} :
     (t.insertManyFast l).contains k = (t.contains k || l.contains k) := by
-  rw [← contains_insertMany_list (t := t) (l := l) (k := k)]
-  dsimp +instances only [insertManyFast, TreeMap.insertMany, DTreeMap.Const.insertMany,
-    DTreeMap.Internal.Impl.Const.insertMany, WithUnit.ForIn,
-    insertMany, TreeMap.insertManyIfNewUnit, DTreeMap.Const.insertManyIfNewUnit,
-    DTreeMap.Internal.Impl.Const.insertManyIfNewUnit, DTreeMap.Internal.Impl.insertIfNew,
-    contains, DTreeMap.contains, TreeMap.contains]
-  simp ; repeat rw [List.foldl_eq_foldr_reverse]
-  generalize l.reverse = l' ; clear l
-  induction l' generalizing k with
-  | nil => simp
-  | cons a l ih =>
-    simp only [List.foldr]
-    rw [Std.DTreeMap.Internal.Impl.contains_insert]
-    · rw [← ih] ; split
-      next h =>
-        dsimp only ; rw [← ih]
-        rcases hcmp : cmp a k == Ordering.eq
-        · rfl
-        · simp at hcmp ⊢ ; rw [Std.DTreeMap.Internal.Impl.contains_congr]
-          · exact h
-          · clear ih h hcmp ; induction l with
-            | nil => exact t.inner.inner.wf
-            | cons a l ih =>
-              dsimp only [List.foldr]
-              let : Ord α := ⟨cmp⟩
-              apply Std.DTreeMap.Internal.Impl.WF.insert ; exact ih
-          · simp ; rw [OrientedCmp.eq_comm] ; exact hcmp
-      next h =>
-        rw [Std.DTreeMap.Internal.Impl.contains_insert]
-        · rw [← ih]
-        · -- NOTE: This is repeating, but clearing the repeating is not very easy? So just keep it now
-          clear h ih ; induction l with
-          | nil => exact t.inner.inner.wf
-          | cons a l ih =>
-            dsimp only [List.foldr]
-            let : Ord α := ⟨cmp⟩
-            split
-            · exact ih
-            · apply Std.DTreeMap.Internal.Impl.WF.insert ; exact ih
-    · clear ih ; induction l with
-      | nil => exact t.inner.inner.wf
-      | cons a l ih =>
-        dsimp only [List.foldr]
-        let : Ord α := ⟨cmp⟩
-        apply Std.DTreeMap.Internal.Impl.WF.insert ; exact ih
+  have h : t.insertManyFast l = ⟨Std.TreeMap.insertMany t.inner (l.map (·, ()))⟩ := by
+    simp +instances only [insertManyFast, TreeMap.insertMany, DTreeMap.Const.insertMany,
+      DTreeMap.Internal.Impl.Const.insertMany, WithUnit.ForIn, List.forIn_map]
+  rw [h]
+  show (Std.TreeMap.insertMany t.inner (l.map (·, ()))).contains k = (t.inner.contains k || l.contains k)
+  rw [Std.TreeMap.contains_insertMany_list, List.map_map]
+  congr 2
+  exact List.map_id'' (fun _ => rfl) l
 
 -- NOTE: Write `l.contains k = true` since making it equivalent to `k ∈ l` would require `LawfulBEq α`
 theorem mem_insertManyFast_list {t : Std.TreeSet α cmp} {l : List α} {k : α} :

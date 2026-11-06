@@ -19,7 +19,7 @@ def List.insertOrdered [inst : Ord α] (a : α) : List α → List α
 
 /-! # Axiomatizations of various structures -/
 
-@[implicit_reducible]
+@[instance_reducible]
 def Fin.pos_then_inhabited {n : Nat} (h : 0 < n) : Inhabited (Fin n) where
   default := Fin.mk 0 h
 
@@ -40,7 +40,7 @@ class TotalOrder (t : Type) where
 
 /-- Form a total order from an injective mapping to `Nat`. This could be
 used for enumerate types with `.ctorIdx`. -/
-@[implicit_reducible]
+@[instance_reducible]
 def total_order_by_inj_on_nat {t : Type} (f : t → Nat) (h : Function.Injective f)
   : TotalOrder t where
   le x y := (f x) ≤ (f y)
@@ -49,7 +49,7 @@ def total_order_by_inj_on_nat {t : Type} (f : t → Nat) (h : Function.Injective
   le_antisymm _ _ h1 h2 := Nat.le_antisymm h1 h2 |> h
   le_total x y := Nat.le_total (f x) (f y)
 
-@[implicit_reducible]
+@[instance_reducible]
 def total_order_by_inj_on_fin {t : Type} {n : Nat} (f : t → Fin n) (h : Function.Injective f)
   : TotalOrder t := total_order_by_inj_on_nat (fun x => (f x).val)
   (by whnf ; simp ; intro a1 a2 h ; aesop)
@@ -209,7 +209,7 @@ instance between_fin (n : Nat) : Between (Fin n) where
 /-- A rank-based ring topology, where each node is assigned with a
 unique `Nat` rank, nodes are sorted by their rank, and the ring is
 formed by connecting the sorted list of nodes. -/
-@[implicit_reducible]
+@[instance_reducible]
 def ordered_ring (node : Type) (rank : node → Nat) (rank_inj : ∀ n1 n2, n1 ≠ n2 → rank n1 ≠ rank n2) : Between node where
   btw := fun a b c => (rank a < rank b ∧ rank b < rank c) ∨ (rank c < rank a ∧ rank a < rank b) ∨ (rank b < rank c ∧ rank c < rank a)
   btw_ring := by aesop
@@ -297,7 +297,7 @@ include hf hbyz
 
 /-- `ByzNodeSet` instance for a type of `3 * f + 1` nodes, of which the ones in `byz` (at
 most `f`) are Byzantine. -/
-@[implicit_reducible]
+@[instance_reducible]
 def byzNodeSetOf : ByzNodeSet α (ByzNSet α) where
   is_byz a := decide (a ∈ byz)
   member a s := decide (a ∈ s)
@@ -333,7 +333,7 @@ def byzNodeSetOf : ByzNodeSet α (ByzNSet α) where
   supermajority_greater_than_third := by grind
   greater_than_third_nonempty := by grind
 
--- These instances are required, even though `byzNodeSetOf` is `implicit_reducible`
+-- These instances are required, even though `byzNodeSetOf` is `instance_reducible`
 instance byzNodeSetOf_is_byz_dec :
   ∀ a, Decidable (ByzNodeSet.is_byz (self := byzNodeSetOf α f hf byz hbyz) a) := by
   dsimp +instances [byzNodeSetOf] ; intros ; infer_instance
@@ -574,11 +574,11 @@ instance instTSetOrdList [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α
     sortedDiffNoDup_contains a s1.val s2.val s1.property s2.property
   toList_contains_iff := fun a s => sortedContains_iff a s.val s.property
   subsets_iff := by
-    intro ⟨l1, hl1⟩ ⟨l2, hl2⟩
-    simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, OrdList.mem_sublists]
+    intro s1 s2
+    simp [sortedContains_iff _ _ s1.property, sortedContains_iff _ _ s2.property, OrdList.mem_sublists]
     constructor
     · grind
-    · apply OrdList.mem_contains_then_is_sublist <;> assumption
+    · exact OrdList.mem_contains_then_is_sublist _ _ s1.property s2.property
 
 open OrdList OrdArray in
 instance instTSetOrdArray [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
@@ -650,14 +650,17 @@ instance instTSetOrdArray [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq �
     exact sortedDiffNoDup_contains a s1.val.toList s2.val.toList s1.property s2.property
   toList_contains_iff := fun a s => sortedContains_iff a s.val.toList s.property
   subsets_iff := by
-    intro ⟨l1, hl1⟩ ⟨l2, hl2⟩
-    simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, subarrays, toOrdList, ofOrdList, OrdList.mem_sublists]
+    intro s1 s2
+    simp [sortedContains_iff _ _ s1.property, sortedContains_iff _ _ s2.property, subarrays, OrdList.mem_sublists]
     constructor
-    · grind
+    · rintro ⟨s, hs, rfl⟩ a ha
+      simpa [toOrdList] using hs.subset (by simpa [ofOrdList] using ha)
     · intro h
-      refine ⟨⟨l1.toList, hl1⟩, ?_, by simp⟩
-      apply OrdList.mem_contains_then_is_sublist l1.toList l2.toList hl1 hl2
-      simpa using h
+      refine ⟨s1.toOrdList, ?_, ?_⟩
+      · apply OrdList.mem_contains_then_is_sublist _ _ s1.property s2.property
+        simpa [toOrdList] using h
+      · apply OrdArray.ext
+        simp [ofOrdList, toOrdList]
 
 class TMultiset (α : outParam (Type u)) (κ : Type v) where
   empty : κ

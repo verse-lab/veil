@@ -159,7 +159,7 @@ def FieldRepresentation.FinmapLike.setSingle'
   (v : CanonicalField FieldDomain FieldCodomain) (fc : γ) :=
   delta% FieldRepresentation.FinmapLike.setSingle'Core equiv v fc (fa.footprintRaw instfin)
 
-@[implicit_reducible]
+@[instance_reducible]
 def instFinmapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain γ where
   get := delta% FieldRepresentation.FinmapLike.get equiv
   setSingle := FieldRepresentation.FinmapLike.setSingle' equiv instfin
@@ -224,7 +224,7 @@ def HybridFinmapLike.setSingle
     | some footprint => .concrete <|
       FieldRepresentation.FinmapLike.setSingle'Core equiv v fc' footprint
 
-@[implicit_reducible]
+@[instance_reducible]
 def instHybridFinmapLikeAsFieldRep : FieldRepresentation FieldDomain FieldCodomain
   (HybridFinmapLike γ FieldDomain FieldCodomain) where
   get := HybridFinmapLike.get equiv

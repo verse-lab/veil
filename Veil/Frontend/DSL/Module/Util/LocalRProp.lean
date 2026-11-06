@@ -824,7 +824,7 @@ def Module.proveLocalityForStatePredicate (mod : Module) (nm : Name) (stx : Synt
     -- The core may use classical `Decidable` instances. It is a proof artifact;
     -- execution still uses the original ghost definition and its instances.
     let instName ← addVeilDefinition (generateLocalRPropInstName nm) inst (compile := false)
-      (attr := #[{ name := `implicit_reducible }] ++ attrs)
+      (attr := #[{ name := `instance_reducible }] ++ attrs)
     modifyEnv (addNoncomputable · instName)
   catch ex =>
     logWarningAt stx m!"unable to prove locality for state predicate {nm}: {ex.toMessageData}"

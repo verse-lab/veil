@@ -101,7 +101,7 @@ theorem FieldUpdatePat.footprintRaw_valid
   (fa : FieldUpdatePat FieldDomain) :
   fa.validFootprint (fa.footprintRaw instfin) := by
   induction FieldDomain
-  all_goals (simp [FieldUpdatePat] at fa ; simp [IteratedProd] at instfin)
+  all_goals (dsimp only [FieldUpdatePat] at fa ; dsimp only [IteratedProd] at instfin)
   next => apply True.intro
   next t ts ih =>
     rcases fa with ⟨b, fa⟩ ; rcases instfin with ⟨fin, instfin⟩
@@ -116,13 +116,15 @@ theorem FieldUpdatePat.footprintRestricted_valid
   ∀ res, fa.footprintRestricted instfin = some res →
     fa.validFootprint res := by
   induction FieldDomain
-  all_goals (simp [FieldUpdatePat] at fa ; simp [IteratedProd] at instfin)
+  all_goals (dsimp only [FieldUpdatePat] at fa ; dsimp only [IteratedProd] at instfin)
   next => intros ; apply True.intro
   next t ts ih =>
     rcases fa with ⟨b, fa⟩ ; rcases instfin with ⟨⟨fin⟩, instfin⟩
     dsimp [IteratedProd, footprintRestricted, IteratedProd.zipWithM]
-    rintro ⟨lis, footprint⟩ h ; simp [Option.bind_eq_some_iff] at h
-    rcases h with ⟨h1, h2⟩
+    rintro ⟨lis, footprint⟩ h
+    obtain ⟨lis', h1, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨footprint', h2, h3⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h3)
     whnf ; constructor
     · unfold fieldUpdatePatComponentMatch at h1
       cases b <;> cases fin <;> simp at h1 <;> grind
@@ -139,8 +141,11 @@ theorem FieldUpdatePat.footprint_match_iff_when_valid
   intro args
   unfold validFootprint at h
   induction FieldDomain
-  all_goals (simp [FieldUpdatePat] at fa ; simp [IteratedProd] at dec args footprint)
-  next => simp [IteratedProd.cartesianProduct, IteratedProd.fold, FieldUpdatePat.match] ; rfl
+  all_goals (dsimp only [FieldUpdatePat] at fa ; dsimp only [IteratedProd] at dec args footprint)
+  next =>
+    cases args ; cases fa
+    simp only [IteratedProd.cartesianProduct, IteratedProd.fold, FieldUpdatePat.match]
+    exact ⟨fun _ => rfl, fun _ => List.mem_singleton_self _⟩
   next t ts ih =>
     rcases fa with ⟨b, fa⟩ ; rcases footprint with ⟨lis, footprint⟩
     simp [IteratedProd.zip, IteratedProd.zipWith, IteratedProd.fold] at h
@@ -197,7 +202,7 @@ the "default" representation of a field, and used for translation to SMT.
 
 -/
 
-@[implicit_reducible]
+@[instance_reducible]
 def canonicalFieldRepresentation {FieldDomain : List Type} {FieldCodomain : Type}
   (dec : IteratedProd (FieldDomain.map DecidableEq)) :
   (⌞_ FieldRepresentation ⌟) (⌞_ CanonicalField ⌟) where

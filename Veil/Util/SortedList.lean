@@ -972,7 +972,9 @@ instance instEnumerationOrdList [TransOrd α] [LawfulEqOrd α] [DecidableEq α] 
     OrdList.ofList (Veil.Enumeration.allValues (α := α)) |>.sublists
   complete := by
     intro ⟨l, hl⟩
-    simp [OrdList.ofList, mem_sublists]
+    apply (mem_sublists (l := OrdList.ofList (Veil.Enumeration.allValues (α := α)))
+      (s := ⟨l, hl⟩)).2
+    simp [OrdList.ofList]
     have h_sorted : (ofList.inner (Veil.Enumeration.allValues (α := α))).Pairwise (cmpLt (α := α)) :=
       (ofList.inner_spec _).left
     apply mem_contains_then_is_sublist <;> try assumption

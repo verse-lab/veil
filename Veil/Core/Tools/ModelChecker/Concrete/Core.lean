@@ -10,7 +10,6 @@ public import Batteries.Lean.HashMap
 @[expose] public section
 
 namespace Veil.ModelChecker.Concrete
-open Std
 
 /-- A function that maps a full state to a view of the state. -/
 class StateView (FullState View : Type) where

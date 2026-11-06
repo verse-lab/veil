@@ -67,7 +67,7 @@ instance : Std.TransOrd PUnit where
 instance : Std.LawfulEqOrd PUnit where
   eq_of_compare := by intros ; rfl
 
-@[implicit_reducible]
+@[instance_reducible]
 def sumOrd [Ord α] [Ord β] : Ord (Sum α β) where
   compare
     | Sum.inl a1, Sum.inl a2 => compare a1 a2
@@ -75,7 +75,7 @@ def sumOrd [Ord α] [Ord β] : Ord (Sum α β) where
     | Sum.inr _,  Sum.inl _  => Ordering.gt
     | Sum.inr b1, Sum.inr b2 => compare b1 b2
 
-@[implicit_reducible]
+@[instance_reducible]
 def lexOrdForNonDepSigma [Ord α] [Ord β] : Ord ((_ : α) × β) where
   compare x y := lexOrd.compare ⟨x.1, x.2⟩ ⟨y.1, y.2⟩
 
