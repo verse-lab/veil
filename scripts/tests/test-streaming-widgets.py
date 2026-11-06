@@ -8,13 +8,15 @@ Run after `lake build +Veil`, for all commands or the named ones:
 In each case, an elaborator in front of the command's own logs a background task that blocks until
 the test releases it, so that the command's final info tree is incomplete until then. While the task
 is blocked, Lean must answer what the infoview asks at the cursor, inside the command and at the end
-of its line, including the widget and the term information of the command, and say its IDE protocol
-at the end of the imports, where the VS Code extension asks. Editing the command must cancel its old
-task, and the final diagnostics must be complete and not duplicated. Only virtual documents are
-edited.
+of its line, including the widget and the term information of the command, and report the command as
+being processed at its start only, so that the infoview asks again once the command is elaborated.
+Lean must also say its IDE protocol at the end of the imports, where the VS Code extension asks.
+Editing the command must cancel its old task, and the final diagnostics must be complete and not
+duplicated. Only virtual documents are edited.
 """
 
 import json
+import queue
 import sys
 import time
 from dataclasses import dataclass
@@ -169,6 +171,16 @@ end
 }
 
 
+def contains(range_, pos):
+    """Whether `range_` contains `pos`, as the infoview tells: with closed ranges"""
+    start, end = range_['start'], range_['end']
+    if pos['line'] == start['line'] and pos['character'] < start['character']:
+        return False
+    if pos['line'] == end['line'] and pos['character'] > end['character']:
+        return False
+    return start['line'] <= pos['line'] <= end['line']
+
+
 def run_case(name, case):
     server = LeanServer(f'streaming-{name}')
     events = server.work / 'events.txt'
@@ -202,6 +214,26 @@ def run_case(name, case):
                 return msg['result']
         raise AssertionError(f'{name}: {method} blocked behind the background task')
 
+    def wait_processed(pos, timeout=60):
+        """The infoview asks again about the cursor when the cursor leaves the ranges that Lean
+        reports as being processed. Lean must report the background task at the start of the
+        command only, as it does the other background tasks of a command, so that this happens
+        once the command has been elaborated, while the task still runs."""
+        deadline = time.monotonic() + timeout
+        while True:
+            reports = [m['params']['processing'] for m in received
+                       if m.get('method') == '$/lean/fileProgress' and m['params']['textDocument']['uri'] == uri]
+            if reports and not any(contains(r['range'], pos) for r in reports[-1]):
+                return
+            assert time.monotonic() < deadline, (name, 'reported as being processed while its task runs', reports[-1:])
+            try:
+                msg = server.messages.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            received.append(msg)
+            if 'method' in msg and 'id' in msg:
+                server.write({'jsonrpc': '2.0', 'id': msg['id'], 'result': None})
+
     def wait_events(expected, timeout=30):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -234,6 +266,7 @@ def run_case(name, case):
         # The gate starts once Lean has elaborated the commands before this one
         wait_events({'started': 1}, timeout=300)
         infoview_requests(case.command)
+        wait_processed({'line': line, 'character': 2})
         assert read_events() == ['started'], (name, read_events())
         if case.numeral:
             term_goal = request('$/lean/plainTermGoal', {
@@ -254,6 +287,7 @@ def run_case(name, case):
         edited = case.edited(source)
         server.change(uri, 2, edited)
         infoview_requests(edited.splitlines()[line])
+        wait_processed({'line': line, 'character': 2})
         wait_events({'started': 2, 'cancelled': 1})
         assert 'released' not in read_events(), (name, read_events())
         print(f'{name}: editing the command cancelled its old task and published a new widget.', flush=True)
