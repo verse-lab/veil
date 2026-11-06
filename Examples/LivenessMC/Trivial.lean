@@ -28,7 +28,7 @@ temporal [eventuallyFalse] ◇ ⊥
 
 #gen_spec
 
---set_option veil.violationIsError false in
---#temporal_check {}
+set_option veil.violationIsError false in
+#temporal_check interpreted {}
 
 end Live
