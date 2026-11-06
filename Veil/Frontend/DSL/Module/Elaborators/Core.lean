@@ -755,7 +755,7 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
     (kind : TraceDisplay.ResultKind) (elabConfig : Syntax → CommandElabM α)
     (assumptionsHoldByIndex : Nat)
     (mkCall : ExecutionCallCommandContext α → CommandElabM (Term × Option ModelChecker.ParallelConfig))
-    : CommandElab := fun stx => do
+    : CommandElab := fun stx => ExecutionWorkflow.withStreamingInfo stx do
   -- Use dynamic trace class name for detailed profiling
   withTraceNode traceClass (fun _ => return s!"#{cmdName}") do
     -- All commands through this interface use the same syntax layout for the first three arguments:
@@ -840,7 +840,7 @@ def elabModelCheckBuild : CommandElab := fun stx => do
     mkModelCheckerCall ecctx.executable commandCfg.toModelCheckerConfig commandCfg.fingerprintType
       commandCfg.seenSet ecctx.instantiation ecctx.theory
 
-@[command_elab Veil.modelCheck]
+@[command_elab Veil.modelCheck, incremental]
 def elabModelCheck : CommandElab :=
   elabExecutionCommand "model_check" `veil.perf.elaborator.modelCheck .modelCheck
     (fun stx => elabModelCheckCommandConfig stx[4]) 5 fun ecctx => do
@@ -867,7 +867,7 @@ private def elabSimulateCommandConfig (cfgStx : Syntax)
   let seed ← liftIO <| if cfg0.seed == 0 then IO.rand 0 0xFFFFFFFFFFFFFFFF else pure cfg0.seed
   return { cfg0 with numTraces, maxSteps, seed }
 
-@[command_elab Veil.simulate]
+@[command_elab Veil.simulate, incremental]
 def elabSimulate : CommandElab :=
   elabExecutionCommand "simulate" `veil.perf.elaborator.simulate .simulate
     (fun stx => elabSimulateCommandConfig stx[4]) 5 fun ecctx => do
@@ -928,8 +928,8 @@ private def selectLivenessProperties (mod : Module) (selection : Array (TSyntax 
     wanted := wanted.push name
   return properties.filter (fun lp => wanted.contains lp.name)
 
-@[command_elab Veil.livenessCheck]
-def elabLivenessCheck : CommandElab := fun stx => do
+@[command_elab Veil.livenessCheck, incremental]
+def elabLivenessCheck : CommandElab := fun stx => ExecutionWorkflow.withStreamingInfo stx do
   withTraceNode `veil.perf.elaborator.livenessCheck (fun _ => return "#temporal_check") do
     -- `stx[1]` is the bracketed property selection (possibly empty), `stx[2]` the optional mode,
     -- `stx[3]` the instantiation, `stx[4]` the optional theory, `stx[5]` the `optConfig`,
