@@ -157,6 +157,17 @@ extension.
 See the [extension README](editors/vscode/README.md) for installation
 and usage instructions.
 
+## Agent skills
+
+[.agents/skills/](.agents/skills/) holds skills for AI coding agents. Claude
+Code loads them automatically in this repository (through `.claude/skills`).
+To use one in your own project, copy or link its directory into your agent's
+skills directory.
+
+- [tla-to-veil](.agents/skills/tla-to-veil/SKILL.md): translating TLA+
+  specifications into Veil, reviewing such translations, and checking them
+  against TLC.
+
 ## Benchmarking
 
 [scripts/tlc-vs-veil-mc-evaluation.py](scripts/tlc-vs-veil-mc-evaluation.py)
