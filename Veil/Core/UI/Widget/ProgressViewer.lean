@@ -686,6 +686,6 @@ def mkProgressWidget (instanceId : Nat) : CoreM Html := do
 with `withStreamingInfo`, since its final info tree is complete only once the run ends. -/
 def displayStreamingProgress (atStx : Syntax) (instanceId : Nat) : CommandElabM Unit := do
   let html ← liftCoreM (mkProgressWidget instanceId)
-  displayWidget atStx html
+  displayWidget atStx (← Veil.keyedPerElaboration html)
 
 end Veil.ModelChecker

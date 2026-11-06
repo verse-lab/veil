@@ -104,6 +104,7 @@ final info tree is complete only once the computation ends.
 The refresh task follows the computation's cancellation token, independently of panel visibility. -/
 def display (stx : Syntax) (ref : Ref) (cancel : IO.CancelToken) : CommandElabM Unit := do
   let (html, token) ← mkRefreshComponent (render (← ref.get) (← IO.monoMsNow))
+  let html ← Veil.keyedPerElaboration html
   let wi ← liftCoreM <| Widget.WidgetInstance.ofHash (hash HtmlDisplayPanel.javascript)
     (return json% { html: $(← Server.rpcEncode html) })
   let info := Info.ofUserWidgetInfo { wi with stx }

@@ -110,7 +110,7 @@ def displayStreamingResults (atStx : Syntax)
   let optionInsertPos ← optionStx?.mapM getOptionInsertPos? <&> Option.join
   let html ← liftCoreM <| ProofWidgets.mkRefreshComponentM (.text "Loading...")
     (runStreamingResults theoremInsertPos optionInsertPos documentUri getter)
-  displayWidget atStx html
+  displayWidget atStx (← Veil.keyedPerElaboration html)
 
 /-- Map VCStatus to emoji for text output. -/
 def statusEmoji (status : Option VCStatus) : String :=

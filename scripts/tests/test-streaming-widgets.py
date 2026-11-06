@@ -12,7 +12,8 @@ of its line, including the widget and the term information of the command, and r
 being processed at its start only, so that the infoview asks again once the command is elaborated.
 Lean must also say its IDE protocol at the end of the imports, where the VS Code extension asks.
 Editing the command must cancel its old task, and the final diagnostics must be complete and not
-duplicated. Only virtual documents are edited.
+duplicated. After Restart File, the widget must be new, not only its RPC references. Only virtual
+documents are edited.
 """
 
 import json
@@ -171,6 +172,15 @@ end
 }
 
 
+def without_refs(obj):
+    """`obj` with its RPC references left out, which Lean numbers from zero in each session"""
+    if isinstance(obj, dict):
+        return 'ref' if set(obj) == {'p'} else {k: without_refs(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [without_refs(v) for v in obj]
+    return obj
+
+
 def contains(range_, pos):
     """Whether `range_` contains `pos`, as the infoview tells: with closed ranges"""
     start, end = range_['start'], range_['end']
@@ -304,6 +314,25 @@ def run_case(name, case):
         assert sum(d['message'] == 'Gate released' for d in diagnostics) == 1, (name, diagnostics)
         assert sum(case.result in d['message'] for d in diagnostics) == 1, (name, diagnostics)
         print(f'{name}: the final diagnostics are complete and are not duplicated.', flush=True)
+
+        # Restart File reopens the document in a new worker, whose RPC session numbers its
+        # references from zero again. A `RefreshComponent` with the same references as the one on
+        # display would be kept, showing the previous run (see `Veil.keyedPerElaboration`).
+        at = {'line': line, 'character': 2}
+
+        def widgets_at():
+            return request('$/lean/rpc/call', {
+                'textDocument': {'uri': uri}, 'position': at, 'sessionId': session,
+                'method': 'Lean.Widget.getWidgets', 'params': at}, timeout=300)['widgets']
+        before = widgets_at()
+        server.write({'jsonrpc': '2.0', 'method': 'textDocument/didClose', 'params': {'textDocument': {'uri': uri}}})
+        server.write({'jsonrpc': '2.0', 'method': 'textDocument/didOpen', 'params': {
+            'textDocument': {'uri': uri, 'languageId': 'lean4', 'version': 2, 'text': edited},
+            'dependencyBuildMode': 'once'}})
+        session = request('$/lean/rpc/connect', {'uri': uri})['sessionId']
+        after = widgets_at()
+        assert len(after) == 1 and without_refs(after) != without_refs(before), (name, before, after)
+        print(f'{name}: after Restart File, the widget is new, not only its RPC references.', flush=True)
     finally:
         release.touch()
         (server.work / 'requests.json').write_text(json.dumps(received, indent=2))
