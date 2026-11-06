@@ -7,10 +7,11 @@ Run after `lake build +Veil`, for all commands or the named ones:
 
 In each case, an elaborator in front of the command's own logs a background task that blocks until
 the test releases it, so that the command's final info tree is incomplete until then. While the task
-is blocked, the widget and the term information of the command must be available, and Lean must say
-its IDE protocol at the end of the imports, where the VS Code extension asks. Editing the command
-must cancel its old task, and the final diagnostics must be complete and not duplicated. Only virtual
-documents are edited.
+is blocked, Lean must answer what the infoview asks at the cursor, inside the command and at the end
+of its line, including the widget and the term information of the command, and say its IDE protocol
+at the end of the imports, where the VS Code extension asks. Editing the command must cancel its old
+task, and the final diagnostics must be complete and not duplicated. Only virtual documents are
+edited.
 """
 
 import json
@@ -177,7 +178,6 @@ def run_case(name, case):
     uri = (ROOT / f'VeilTest/Regression/StreamingWidget_{name}.lean').as_uri()
     lines = source.splitlines()
     line = lines.index(case.command)
-    position = {'line': line, 'character': 2}
     imports_line = lines.index('public import Veil')
     received = []
 
@@ -216,16 +216,24 @@ def run_case(name, case):
         server.open(uri, source)
         session = request('$/lean/rpc/connect', {'uri': uri})['sessionId']
 
-        def widgets(timeout=60):
-            return request('$/lean/rpc/call', {
-                'textDocument': {'uri': uri}, 'position': position, 'sessionId': session,
-                'method': 'Lean.Widget.getWidgets', 'params': position,
-            }, timeout)['widgets']
+        def infoview_requests(command):
+            """What the infoview asks at the cursor, which shows the widget once all of it is answered:
+            inside the command, and at the end of its line, where the cursor is after typing it"""
+            for character in (2, len(command)):
+                at = {'line': line, 'character': character}
+                tdpp = {'textDocument': {'uri': uri}, 'position': at}
+
+                def rpc(method, params):
+                    return request('$/lean/rpc/call', {**tdpp, 'sessionId': session, 'method': method, 'params': params})
+                rpc('Lean.Widget.getInteractiveGoals', tdpp)
+                rpc('Lean.Widget.getInteractiveTermGoal', tdpp)
+                widgets = rpc('Lean.Widget.getWidgets', at)['widgets']
+                assert len(widgets) == 1, (name, at, widgets)
+                rpc('Lean.Widget.getInteractiveDiagnostics', {'lineRange': {'start': line, 'end': line + 1}})
 
         # The gate starts once Lean has elaborated the commands before this one
         wait_events({'started': 1}, timeout=300)
-        initial_widgets = widgets()
-        assert len(initial_widgets) == 1, (name, initial_widgets)
+        infoview_requests(case.command)
         assert read_events() == ['started'], (name, read_events())
         if case.numeral:
             term_goal = request('$/lean/plainTermGoal', {
@@ -239,13 +247,13 @@ def run_case(name, case):
             'context': {'diagnostics': [], 'only': ['refactor.veil.ideProtocol']},
         })
         assert [a for a in actions if a.get('command', {}).get('command') == 'veil.ideProtocol'], (name, actions)
-        available = 'the widget, the term information' if case.numeral else 'the widget'
-        print(f'{name}: {available} and the IDE protocol are available with the background task '
-              'still blocked.', flush=True)
+        term = ', with the term information,' if case.numeral else ''
+        print(f'{name}: the requests of the infoview{term} and the IDE protocol are answered with the '
+              'background task still blocked.', flush=True)
 
-        server.change(uri, 2, case.edited(source))
-        updated_widgets = widgets()
-        assert len(updated_widgets) == 1, (name, updated_widgets)
+        edited = case.edited(source)
+        server.change(uri, 2, edited)
+        infoview_requests(edited.splitlines()[line])
         wait_events({'started': 2, 'cancelled': 1})
         assert 'released' not in read_events(), (name, read_events())
         print(f'{name}: editing the command cancelled its old task and published a new widget.', flush=True)
