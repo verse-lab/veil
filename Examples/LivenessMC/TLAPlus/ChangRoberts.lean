@@ -87,7 +87,7 @@ invariant [Correctness] ∀ n, state n = won →
 -- Liveness == (\E n \in Node : state[n] = "cand") => <>(\E n \in Node : state[n] = "won")
 -- Spec == Init /\ [][Next]_vars /\ \A self \in Node : WF_vars(node(self))
 temporal (only := check) [Liveness]
-  (∀ self, (◇ □ (E(n0 self) ∨ E(n1 self))) → □ ◇ (T(n0 self) ∨ T(n1 self))) →
+  (∀ self, (◇ □ (Enabled (n0 self) ∨ Enabled (n1 self))) → □ ◇ (⟨n0 self⟩ ∨ ⟨n1 self⟩)) →
     ⌜ ∃ n, state n = cand ⌝ → ◇ ⌜ ∃ n, state n = won ⌝
 
 #gen_spec

@@ -75,7 +75,7 @@ termination false
 invariant [TypeOK] cat_box ∈ Boxes ∧ observed_box ∈ Observed_Boxes
 
 -- Victory == <>(observed_box = cat_box)
-temporal (only := check) [Victory] WF(Step) → ◇ ⌜ observed_box = cat_box ⌝
+temporal (only := check) [Victory] 𝒲ℱ Step → ◇ ⌜ observed_box = cat_box ⌝
 
 #gen_spec
 

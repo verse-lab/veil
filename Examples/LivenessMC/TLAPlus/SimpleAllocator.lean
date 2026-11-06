@@ -70,23 +70,23 @@ termination false
 
 -- ClientsWillReturn == \A c \in Clients : unsat[c]={} ~> alloc[c]={}
 temporal (only := check) [ClientsWillReturn]
-  ( (∀ c, (◇ □ (∃ S, ⌜ alloc c = S ⌝ ∧ E(Return c S)))
-          → □ ◇ (∃ S, ⌜ alloc c = S ⌝ ∧ T(Return c S)))
-  ∧ (∀ c, (□ ◇ (∃ S, E(Allocate c S))) → □ ◇ (∃ S, T(Allocate c S))) )
+  ( (∀ c, (◇ □ (∃ S, ⌜ alloc c = S ⌝ ∧ Enabled (Return c S)))
+          → □ ◇ (∃ S, ⌜ alloc c = S ⌝ ∧ ⟨Return c S⟩))
+  ∧ (∀ c, (□ ◇ (∃ S, Enabled (Allocate c S))) → □ ◇ (∃ S, ⟨Allocate c S⟩)) )
   → ∀ c, ⌜ resSet.isEmpty (unsatisfied c) ⌝ ↝ ⌜ resSet.isEmpty (alloc c) ⌝
 
 -- ClientsWillObtain == \A c \in Clients, r \in Resources : r \in unsat[c] ~> r \in alloc[c]
 temporal (only := check) [ClientsWillObtain]
-  ( (∀ c, (◇ □ (∃ S, ⌜ alloc c = S ⌝ ∧ E(Return c S)))
-          → □ ◇ (∃ S, ⌜ alloc c = S ⌝ ∧ T(Return c S)))
-  ∧ (∀ c, (□ ◇ (∃ S, E(Allocate c S))) → □ ◇ (∃ S, T(Allocate c S))) )
+  ( (∀ c, (◇ □ (∃ S, ⌜ alloc c = S ⌝ ∧ Enabled (Return c S)))
+          → □ ◇ (∃ S, ⌜ alloc c = S ⌝ ∧ ⟨Return c S⟩))
+  ∧ (∀ c, (□ ◇ (∃ S, Enabled (Allocate c S))) → □ ◇ (∃ S, ⟨Allocate c S⟩)) )
   → ∀ c, ∀ r, ⌜ r ∈ unsatisfied c ⌝ ↝ ⌜ r ∈ alloc c ⌝
 
 -- InfOftenSatisfied == \A c \in Clients : []<>(unsat[c] = {})
 temporal (only := check) [InfOftenSatisfied]
-  ( (∀ c, (◇ □ (∃ S, ⌜ alloc c = S ⌝ ∧ E(Return c S)))
-          → □ ◇ (∃ S, ⌜ alloc c = S ⌝ ∧ T(Return c S)))
-  ∧ (∀ c, (□ ◇ (∃ S, E(Allocate c S))) → □ ◇ (∃ S, T(Allocate c S))) )
+  ( (∀ c, (◇ □ (∃ S, ⌜ alloc c = S ⌝ ∧ Enabled (Return c S)))
+          → □ ◇ (∃ S, ⌜ alloc c = S ⌝ ∧ ⟨Return c S⟩))
+  ∧ (∀ c, (□ ◇ (∃ S, Enabled (Allocate c S))) → □ ◇ (∃ S, ⟨Allocate c S⟩)) )
   → ∀ c, □ ◇ ⌜ resSet.isEmpty (unsatisfied c) ⌝
 
 #gen_spec

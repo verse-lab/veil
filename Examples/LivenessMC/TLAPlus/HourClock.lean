@@ -26,7 +26,7 @@ action HCnxt {
   hr := if hr ≠ 12 then hr + 1 else 1
 }
 
--- \/ UNCHANGED hr — the stuttering `[][HCnxt]_hr` admits; the `WF(HCnxt)` hypotheses below rule it out.
+-- \/ UNCHANGED hr — the stuttering `[][HCnxt]_hr` admits; the `𝒲ℱ HCnxt` hypotheses below rule it out.
 action stutter { pure () }
 
 -- LiveHourClock.cfg has no CHECK_DEADLOCK FALSE, so TLC checks deadlock; this matches it.
@@ -36,11 +36,11 @@ termination false
 invariant [TypeInvariance] HCini
 
 -- AlwaysTick == []<><<HCnxt>>_hr
-temporal (only := check) [AlwaysTick] WF(HCnxt) → □ ◇ T(HCnxt)
+temporal (only := check) [AlwaysTick] 𝒲ℱ HCnxt → □ ◇ ⟨HCnxt⟩
 
 -- AllTimes == \A n \in 1..12 : []<>(hr = n)
 temporal (only := check) [AllTimes]
-  WF(HCnxt) → ∀ n : { n // n ∈ List.range' 1 12 }, □ ◇ ⌜ hr = n.val ⌝
+  𝒲ℱ HCnxt → ∀ n : { n // n ∈ List.range' 1 12 }, □ ◇ ⌜ hr = n.val ⌝
 
 #gen_spec
 

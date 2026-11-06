@@ -124,7 +124,7 @@ ghost relation EnabledPhilosopher (self : philosopher) :=
 -- NobodyStarves == \A p \in 1..NP: []<>(~hungry[p])
 temporal (only := check) [NobodyStarves]
   (∀ self, (◇ □ ⌜ EnabledPhilosopher self ⌝) →
-    □ ◇ ((T(_Loop self) ∨ T(_Think self) ∨ T(_Eat self)) ∧ ⌜ EnabledPhilosopher self ⌝))
+    □ ◇ ((⟨_Loop self⟩ ∨ ⟨_Think self⟩ ∨ ⟨_Eat self⟩) ∧ ⌜ EnabledPhilosopher self ⌝))
   → ∀ p, □ ◇ ⌜ ¬ hungry p ⌝
 
 -- DiningPhilosophers.cfg does not set CHECK_DEADLOCK FALSE, so TLC checks deadlock.

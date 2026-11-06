@@ -168,8 +168,8 @@ ghost relation Terminated :=
 --   WF_vars(Next) == []<>(<<Next>>_vars \/ ~ENABLED <<Next>>_vars)
 -- DT2 == Terminated ~> neutral(Leader)
 temporal (only := check) [DT2]
-  (□ ◇ ((T(SendMsg) ∨ T(SendAck) ∨ T(RcvMsg) ∨ T(RcvAck) ∨ T(Idle))
-        ∨ ¬ (E(SendMsg) ∨ E(SendAck) ∨ E(RcvMsg) ∨ E(RcvAck) ∨ E(Idle))))
+  (□ ◇ ((⟨SendMsg⟩ ∨ ⟨SendAck⟩ ∨ ⟨RcvMsg⟩ ∨ ⟨RcvAck⟩ ∨ ⟨Idle⟩)
+        ∨ ¬ (Enabled SendMsg ∨ Enabled SendAck ∨ Enabled RcvMsg ∨ Enabled RcvAck ∨ Enabled Idle)))
   → (⌜ Terminated ⌝ ↝ ⌜ neutral Leader ⌝)
 
 #gen_spec

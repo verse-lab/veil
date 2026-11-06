@@ -74,10 +74,10 @@ ghost relation PostCondition := ∀ n : node, n ∈ Nodes →
 invariant [Safety] ¬ ENABLEDNext → PostCondition
 
 -- Liveness == <>(~ ENABLED Next)
-temporal (only := check) [Liveness] WF(NextAction) → ◇ ¬ E(NextAction)
+temporal (only := check) [Liveness] 𝒲ℱ NextAction → ◇ ¬ Enabled NextAction
 
 -- Not checked on TLC.
-temporal (only := check) [ENABLEDNextAgrees] □ (E(NextAction) ↔ ⌜ ENABLEDNext ⌝)
+temporal (only := check) [ENABLEDNextAgrees] □ (Enabled NextAction ↔ ⌜ ENABLEDNext ⌝)
 
 #gen_spec
 

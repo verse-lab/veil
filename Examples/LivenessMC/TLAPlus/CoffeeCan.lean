@@ -89,15 +89,15 @@ invariant [TypeInvariant] can.black ≤ MaxBeanCount ∧ can.white ≤ MaxBeanCo
 
 -- EventuallyTerminates == <>(ENABLED Termination)
 temporal (only := check) [EventuallyTerminates]
-  (□ ◇ (T(PickSameColorWhite) ∨ T(PickSameColorBlack) ∨ T(PickDifferentColor)
-        ∨ ¬ (E(PickSameColorWhite) ∨ E(PickSameColorBlack) ∨ E(PickDifferentColor))))
-    → ◇ E(Termination)
+  (□ ◇ (⟨PickSameColorWhite⟩ ∨ ⟨PickSameColorBlack⟩ ∨ ⟨PickDifferentColor⟩
+        ∨ ¬ (Enabled PickSameColorWhite ∨ Enabled PickSameColorBlack ∨ Enabled PickDifferentColor)))
+    → ◇ Enabled Termination
 
 -- TerminationHypothesis == IF can.white % 2 = 0 THEN <>(can.black = 1 /\ can.white = 0)
 --                                               ELSE <>(can.black = 0 /\ can.white = 1)
 temporal (only := check) [TerminationHypothesis]
-  (□ ◇ (T(PickSameColorWhite) ∨ T(PickSameColorBlack) ∨ T(PickDifferentColor)
-        ∨ ¬ (E(PickSameColorWhite) ∨ E(PickSameColorBlack) ∨ E(PickDifferentColor))))
+  (□ ◇ (⟨PickSameColorWhite⟩ ∨ ⟨PickSameColorBlack⟩ ∨ ⟨PickDifferentColor⟩
+        ∨ ¬ (Enabled PickSameColorWhite ∨ Enabled PickSameColorBlack ∨ Enabled PickDifferentColor)))
     → ((⌜ can.white % 2 = 0 ⌝ → ◇ ⌜ can.black = 1 ∧ can.white = 0 ⌝)
        ∧ (⌜ can.white % 2 ≠ 0 ⌝ → ◇ ⌜ can.black = 0 ∧ can.white = 1 ⌝))
 
