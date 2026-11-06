@@ -40,10 +40,20 @@ def withStreamingInfo (stx : Syntax) (act : CommandElabM Unit) : CommandElabM Un
       let tree := InfoTree.context (.commandCtx ctx)
         (.node (.ofCommandInfo { elaborator := decl_name%, stx }) info.trees)
       Language.SnapshotTree.mk { diagnostics := .empty, infoTree? := some tree } #[]
-    -- The tasks are moved rather than copied, so that their diagnostics are reported once
+    -- The infoview shows the widget once it also has the goals at the cursor, which Lean looks for
+    -- in the next snapshots, up to the final info tree, when the cursor is past the syntax of this
+    -- one, e.g. at the end of the line of the command. So this one spans its trailing whitespace too.
+    let infoStx := (stx.getRangeWithTrailing? (canonicalOnly := true)).map (Syntax.ofRange ·) |>.getD stx
+    -- The tasks are moved rather than copied, so that their diagnostics are reported once. Lean
+    -- reports them as being processed at the start of the command only, as it does the other
+    -- background tasks of a command: the infoview fetches the info at the cursor again when the
+    -- cursor leaves a range being processed, e.g. once the command has been elaborated again.
     let tasks := s.snapshotTasks
     modify ({ · with snapshotTasks := #[] })
+    let background : Language.SnapshotTask Language.SnapshotTree := {
+      stx? := none, cancelTk? := none, task := .pure (.mk { diagnostics := .empty } tasks)
+      reportingRange := .ofOptionInheriting <| (stx.getPos? (canonicalOnly := true)).map fun pos => ⟨pos, pos⟩ }
     snap.new.resolve <| .ofTyped <| Language.SnapshotTree.mk { diagnostics := .empty }
-      (#[{ stx? := some stx, task := infoTask, cancelTk? := none }] ++ tasks)
+      #[{ stx? := some infoStx, task := infoTask, cancelTk? := none }, background]
 
 end Veil

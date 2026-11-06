@@ -7,13 +7,17 @@ Run after `lake build +Veil`, for all commands or the named ones:
 
 In each case, an elaborator in front of the command's own logs a background task that blocks until
 the test releases it, so that the command's final info tree is incomplete until then. While the task
-is blocked, the widget and the term information of the command must be available, and Lean must say
-its IDE protocol at the end of the imports, where the VS Code extension asks. Editing the command
-must cancel its old task, and the final diagnostics must be complete and not duplicated. Only virtual
+is blocked, Lean must answer what the infoview asks at the cursor, inside the command and at the end
+of its line, including the widget and the term information of the command, and report the command as
+being processed at its start only, so that the infoview asks again once the command is elaborated.
+Lean must also say its IDE protocol at the end of the imports, where the VS Code extension asks.
+Editing the command must cancel its old task, and the final diagnostics must be complete and not
+duplicated. After Restart File, the widget must be new, not only its RPC references. Only virtual
 documents are edited.
 """
 
 import json
+import queue
 import sys
 import time
 from dataclasses import dataclass
@@ -168,6 +172,25 @@ end
 }
 
 
+def without_refs(obj):
+    """`obj` with its RPC references left out, which Lean numbers from zero in each session"""
+    if isinstance(obj, dict):
+        return 'ref' if set(obj) == {'p'} else {k: without_refs(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [without_refs(v) for v in obj]
+    return obj
+
+
+def contains(range_, pos):
+    """Whether `range_` contains `pos`, as the infoview tells: with closed ranges"""
+    start, end = range_['start'], range_['end']
+    if pos['line'] == start['line'] and pos['character'] < start['character']:
+        return False
+    if pos['line'] == end['line'] and pos['character'] > end['character']:
+        return False
+    return start['line'] <= pos['line'] <= end['line']
+
+
 def run_case(name, case):
     server = LeanServer(f'streaming-{name}')
     events = server.work / 'events.txt'
@@ -177,9 +200,17 @@ def run_case(name, case):
     uri = (ROOT / f'VeilTest/Regression/StreamingWidget_{name}.lean').as_uri()
     lines = source.splitlines()
     line = lines.index(case.command)
-    position = {'line': line, 'character': 2}
     imports_line = lines.index('public import Veil')
     received = []
+    session = None
+    kept_alive = [0.0]
+
+    def keep_alive():
+        """As the infoview does: Lean drops an RPC session 30 s after its last keep-alive"""
+        if session and time.monotonic() - kept_alive[0] > 5:
+            server.write({'jsonrpc': '2.0', 'method': '$/lean/rpc/keepAlive',
+                          'params': {'uri': uri, 'sessionId': session}})
+            kept_alive[0] = time.monotonic()
 
     def read_events():
         return events.read_text().splitlines() if events.exists() else []
@@ -190,10 +221,11 @@ def run_case(name, case):
         server.write({'jsonrpc': '2.0', 'id': request_id, 'method': method, 'params': params})
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
+            keep_alive()
             try:
-                msg = server.messages.get(timeout=max(0.01, deadline - time.monotonic()))
-            except Exception:
-                break
+                msg = server.messages.get(timeout=max(0.01, min(1.0, deadline - time.monotonic())))
+            except queue.Empty:
+                continue
             received.append(msg)
             if 'method' in msg and 'id' in msg:
                 server.write({'jsonrpc': '2.0', 'id': msg['id'], 'result': None})
@@ -202,9 +234,31 @@ def run_case(name, case):
                 return msg['result']
         raise AssertionError(f'{name}: {method} blocked behind the background task')
 
+    def wait_processed(pos, timeout=60):
+        """The infoview asks again about the cursor when the cursor leaves the ranges that Lean
+        reports as being processed. Lean must report the background task at the start of the
+        command only, as it does the other background tasks of a command, so that this happens
+        once the command has been elaborated, while the task still runs."""
+        deadline = time.monotonic() + timeout
+        while True:
+            keep_alive()
+            reports = [m['params']['processing'] for m in received
+                       if m.get('method') == '$/lean/fileProgress' and m['params']['textDocument']['uri'] == uri]
+            if reports and not any(contains(r['range'], pos) for r in reports[-1]):
+                return
+            assert time.monotonic() < deadline, (name, 'reported as being processed while its task runs', reports[-1:])
+            try:
+                msg = server.messages.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            received.append(msg)
+            if 'method' in msg and 'id' in msg:
+                server.write({'jsonrpc': '2.0', 'id': msg['id'], 'result': None})
+
     def wait_events(expected, timeout=30):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
+            keep_alive()
             actual = read_events()
             if all(actual.count(event) >= count for event, count in expected.items()):
                 return
@@ -216,16 +270,25 @@ def run_case(name, case):
         server.open(uri, source)
         session = request('$/lean/rpc/connect', {'uri': uri})['sessionId']
 
-        def widgets(timeout=60):
-            return request('$/lean/rpc/call', {
-                'textDocument': {'uri': uri}, 'position': position, 'sessionId': session,
-                'method': 'Lean.Widget.getWidgets', 'params': position,
-            }, timeout)['widgets']
+        def infoview_requests(command):
+            """What the infoview asks at the cursor, which shows the widget once all of it is answered:
+            inside the command, and at the end of its line, where the cursor is after typing it"""
+            for character in (2, len(command)):
+                at = {'line': line, 'character': character}
+                tdpp = {'textDocument': {'uri': uri}, 'position': at}
+
+                def rpc(method, params):
+                    return request('$/lean/rpc/call', {**tdpp, 'sessionId': session, 'method': method, 'params': params})
+                rpc('Lean.Widget.getInteractiveGoals', tdpp)
+                rpc('Lean.Widget.getInteractiveTermGoal', tdpp)
+                widgets = rpc('Lean.Widget.getWidgets', at)['widgets']
+                assert len(widgets) == 1, (name, at, widgets)
+                rpc('Lean.Widget.getInteractiveDiagnostics', {'lineRange': {'start': line, 'end': line + 1}})
 
         # The gate starts once Lean has elaborated the commands before this one
         wait_events({'started': 1}, timeout=300)
-        initial_widgets = widgets()
-        assert len(initial_widgets) == 1, (name, initial_widgets)
+        infoview_requests(case.command)
+        wait_processed({'line': line, 'character': 2})
         assert read_events() == ['started'], (name, read_events())
         if case.numeral:
             term_goal = request('$/lean/plainTermGoal', {
@@ -239,13 +302,14 @@ def run_case(name, case):
             'context': {'diagnostics': [], 'only': ['refactor.veil.ideProtocol']},
         })
         assert [a for a in actions if a.get('command', {}).get('command') == 'veil.ideProtocol'], (name, actions)
-        available = 'the widget, the term information' if case.numeral else 'the widget'
-        print(f'{name}: {available} and the IDE protocol are available with the background task '
-              'still blocked.', flush=True)
+        term = ', with the term information,' if case.numeral else ''
+        print(f'{name}: the requests of the infoview{term} and the IDE protocol are answered with the '
+              'background task still blocked.', flush=True)
 
-        server.change(uri, 2, case.edited(source))
-        updated_widgets = widgets()
-        assert len(updated_widgets) == 1, (name, updated_widgets)
+        edited = case.edited(source)
+        server.change(uri, 2, edited)
+        infoview_requests(edited.splitlines()[line])
+        wait_processed({'line': line, 'character': 2})
         wait_events({'started': 2, 'cancelled': 1})
         assert 'released' not in read_events(), (name, read_events())
         print(f'{name}: editing the command cancelled its old task and published a new widget.', flush=True)
@@ -262,6 +326,25 @@ def run_case(name, case):
         assert sum(d['message'] == 'Gate released' for d in diagnostics) == 1, (name, diagnostics)
         assert sum(case.result in d['message'] for d in diagnostics) == 1, (name, diagnostics)
         print(f'{name}: the final diagnostics are complete and are not duplicated.', flush=True)
+
+        # Restart File reopens the document in a new worker, whose RPC session numbers its
+        # references from zero again. A `RefreshComponent` with the same references as the one on
+        # display would be kept, showing the previous run (see `Veil.keyedPerElaboration`).
+        at = {'line': line, 'character': 2}
+
+        def widgets_at():
+            return request('$/lean/rpc/call', {
+                'textDocument': {'uri': uri}, 'position': at, 'sessionId': session,
+                'method': 'Lean.Widget.getWidgets', 'params': at}, timeout=300)['widgets']
+        before = widgets_at()
+        server.write({'jsonrpc': '2.0', 'method': 'textDocument/didClose', 'params': {'textDocument': {'uri': uri}}})
+        server.write({'jsonrpc': '2.0', 'method': 'textDocument/didOpen', 'params': {
+            'textDocument': {'uri': uri, 'languageId': 'lean4', 'version': 2, 'text': edited},
+            'dependencyBuildMode': 'once'}})
+        session = request('$/lean/rpc/connect', {'uri': uri})['sessionId']
+        after = widgets_at()
+        assert len(after) == 1 and without_refs(after) != without_refs(before), (name, before, after)
+        print(f'{name}: after Restart File, the widget is new, not only its RPC references.', flush=True)
     finally:
         release.touch()
         (server.work / 'requests.json').write_text(json.dumps(received, indent=2))

@@ -307,8 +307,8 @@ private def displayTraceStreamingResults (stx : Syntax) (managerId : ManagerId) 
     (vcName : Name) (vcFilter : VCMetadata → Bool) : CommandElabM Unit := do
   let owner ← Verifier.getVCManagerOwner
   let getManager ← Verifier.captureVCManager
-  let html ← liftCoreM <| mkRefreshComponentM (.text traceLoadingMessage)
-    (runTraceRefreshStep owner getManager managerId isExpectedSat vcName vcFilter)
+  let html ← Veil.keyedPerElaboration (← liftCoreM <| mkRefreshComponentM (.text traceLoadingMessage)
+    (runTraceRefreshStep owner getManager managerId isExpectedSat vcName vcFilter))
   liftCoreM <| Widget.savePanelWidgetInfo
     (hash HtmlDisplayPanel.javascript)
     (return json% { html: $(← Server.rpcEncode html) })
