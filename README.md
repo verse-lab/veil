@@ -41,6 +41,10 @@ Start with the extensively commented walkthroughs in
 
 These files are also available in the [online playground](https://try.veil.dev/), under the Examples button.
 
+For liveness, [Examples/Demo/FloodSet/FloodSetLiveness.lean](Examples/Demo/FloodSet/FloodSetLiveness.lean)
+adds temporal properties to the FloodSet protocol, model checks them with
+`#temporal_check`, and proves one of them with `prove_temporal_by`.
+
 The [docs/](docs/) directory documents the Veil DSL and its tools:
 
 - [DSL-Reference.md](docs/DSL-Reference.md) — the constructs of the Veil DSL
@@ -67,6 +71,7 @@ Other examples in [Examples/](Examples/) are organised as follows:
 | [StellarConsensus/](Examples/StellarConsensus/) | The Stellar Consensus Protocol and its supporting theory. |
 | [Liveness/](Examples/Liveness/) | Temporal properties proved with `prove_temporal_by`. |
 | [LivenessMC/](Examples/LivenessMC/) | Temporal properties model checked with `#temporal_check`, including TLA+ specifications and CAVA benchmarks. |
+| [Demo/](Examples/Demo/) | Standalone demos: FloodSet, including its temporal properties, and the Ring protocol in three encodings. |
 
 ## Build
 
@@ -143,9 +148,9 @@ often fixes the problem.
 ## VS Code extension (optional)
 
 The [Veil Verifier extension](https://marketplace.visualstudio.com/items?itemName=verse-lab.veil-verifier) provides an optional
-VS Code interface for creating model-checking configurations, running model
-checkers, tracking progress, and inspecting counterexamples. It works
-alongside the Lean 4 extension.
+VS Code interface for safety model checking with `#model_check`: creating
+model-checking configurations, running model checkers, tracking progress, and
+inspecting counterexamples. It works alongside the Lean 4 extension.
 Veil's verification and model-checking commands can be used without this
 extension.
 
@@ -155,8 +160,9 @@ and usage instructions.
 ## Benchmarking
 
 [scripts/tlc-vs-veil-mc-evaluation.py](scripts/tlc-vs-veil-mc-evaluation.py)
-runs TLC on 20 TLA+ benchmarks, runs Veil on their translations, and
-generates execution-time and peak-memory comparison plots.
+compares TLC and Veil on safety model checking: it runs TLC on 20 TLA+
+benchmarks and `#model_check` on their translations, and generates
+execution-time and peak-memory comparison plots.
 
 See the [benchmark instructions](Benchmarks/TLA/scripts/README.md#tlc-and-veil-comparison)
 for prerequisites and an example command, or run
