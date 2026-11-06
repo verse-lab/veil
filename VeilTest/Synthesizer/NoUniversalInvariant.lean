@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.Synthesizer
 
 /-! A token passes between nodes, and `finish` fires only when no node holds
 it. The property holds, but the strengthening it needs, "some node holds the
@@ -38,6 +37,6 @@ safety [never_stopped] ¬ stopped
 
 /-- info: No universal inductive invariant over the module's vocabulary proves the safety property -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := no_universal_invariant)
+#updr (expect := no_universal_invariant)
 
 end TokenPassing

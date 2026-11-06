@@ -38,7 +38,7 @@ safety [never_bad] ¬ bad
 Certified: theorem Ternary.ic3_safe (strengthening Ternary.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := invariant) certify
+#updr (expect := invariant) certify
 
 end Ternary
 
@@ -73,7 +73,7 @@ safety [never_bad] ¬ bad
 r: (1,1,0)
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := unsafe) certify
+#updr (expect := unsafe) certify
 
 end TernaryBug
 
@@ -108,7 +108,7 @@ safety [never_bad] ¬ bad
 Certified: theorem Quaternary.ic3_safe (strengthening Quaternary.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := invariant) certify
+#updr (expect := invariant) certify
 
 end Quaternary
 
@@ -143,6 +143,6 @@ safety [never_bad] ¬ bad
 r: (1,0,0,0)
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := unsafe) certify
+#updr (expect := unsafe) certify
 
 end QuaternaryBug

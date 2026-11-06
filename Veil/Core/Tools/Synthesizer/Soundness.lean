@@ -6,7 +6,7 @@ public import Veil.Core.Tools.ModelChecker.TransitionSystem
 # Invariants of relational transition systems
 
 This file proves the facts about Veil's `RelationalTransitionSystem` that the certificates of
-`#synthesize_invariants` apply: a safety certificate is an inductive invariant that implies the
+`#updr` apply: a safety certificate is an inductive invariant that implies the
 property, and a refutation is a reachable state that violates it.
 
 ## Main definitions

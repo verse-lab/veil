@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.Synthesizer
 
 /-! A counterexample whose step rewrites one row of a relation over two enum
 sorts (`pc light S := …`). The certificate proves that step by splitting each
@@ -37,7 +36,9 @@ safety [stays] ¬ go
 #gen_spec
 
 #guard_msgs(drop info) in
-#synthesize_invariants (expect := unsafe) certify
+#updr (expect := unsafe) certify
+
+#gen_theorems
 
 /-- info: 'CexRow.ic3_unsafe' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

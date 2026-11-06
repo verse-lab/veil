@@ -1,6 +1,6 @@
 module
 
-public meta import Veil
+public meta import Veil.DSL
 
 /-!
 # Tactics for concrete certificates

@@ -1,21 +1,19 @@
 # Veil Invariant Synthesizer Guide
 
-`#synthesize_invariants` searches for `invariant` clauses that make a module's
-`safety` properties inductive. It reports an inductive invariant, an execution
+`#updr` searches for `invariant` clauses that make a module's
+`safety` properties and declared `invariant`s inductive. It reports an inductive invariant, an execution
 that violates the properties, or that no universal inductive invariant exists.
 With `certify`, an invariant or a violation becomes a theorem checked by the
-Lean kernel.
+Lean kernel. Run `#gen_theorems` to add its declarations to the current module.
 
 ## Running the Synthesizer
 
-The command is not part of `import Veil`. Import
-`Veil.Core.Tools.Synthesizer` and run the command after `#gen_spec`:
+The command is part of `import Veil`. Run it after `#gen_spec`:
 
 ```lean
 module
 
 public import Veil
-public import Veil.Core.Tools.Synthesizer
 
 veil module LockServer
 -- the lock server of `VeilTest/Synthesizer/LockServer.lean`
@@ -24,13 +22,18 @@ safety [mutex] holds C ∧ holds D → C = D
 
 #gen_spec
 
-#synthesize_invariants certify
+#updr certify
+#gen_theorems
 
+#check ic3_safe
 end LockServer
 ```
 
 The command prints the strengthening as lines to paste into the module, and
-`certify` adds the theorem `LockServer.ic3_safe`:
+offers a suggestion (click it, or use the code action) that inserts them above
+`#gen_spec`. `certify` checks the theorem `LockServer.ic3_safe` in the background.
+`#gen_theorems` waits for certification and imports it, alongside any results from
+`#check_invariants`:
 
 ```
 Inductive invariant found at frame 1 with 1 strengthening clause(s) (…):
@@ -38,27 +41,63 @@ invariant [ic3_0] ∀ (x0 : client), ¬ holds x0 ∨ ¬ lock_free
 Certified: theorem LockServer.ic3_safe (strengthening LockServer.ic3_inv); axioms: #[propext, Classical.choice, Quot.sound]; kernel-checked, standard axioms only
 ```
 
+### Live progress
+
+In the Lean editor, put the cursor on `#updr` to see its progress
+panel in the infoview. It shows the current activity, elapsed time, search queries
+completed and the query budget, time spent in queries, clauses per frame, and
+candidate/admission counts. During `certify`, it shows the current proof obligation
+and the number completed. The final display distinguishes an uncertified search
+result from a certificate and reports any additional axioms used by the certificate.
+
+Expand **Frames** to see the current strengthening clauses in each frame, or
+**Recent activity** to see the latest 50 search events. Both sections start
+collapsed and independently stay open while updates arrive. Clause lists update
+as clauses are admitted, subsumed, or propagated into later frames; every frame
+also includes the checked property.
+
+The query budget is a work limit, not a percentage of completion: the search does
+not know how many queries will be needed. Query time includes elaboration,
+preprocessing, solving, and decoding; internal solver retries are included in the
+same search query. Certification has its own obligation count.
+
+Search and certification run in a dedicated background task. The launching command
+returns immediately, so the panel updates during long queries and later commands
+can elaborate. Closing and reopening the panel does not stop synthesis or lose
+progress. Editing the command cancels the old run. `#gen_theorems` waits for the
+module's pending certificates and imports their declarations before subsequent
+commands use them; declarations written between the two commands are preserved.
+
+Use `set_option veil.synthesizer.widget false` to disable the panel. Command-line
+builds do not create a widget. For progress outside the editor, use `verbose` or
+`(log := "run.jsonl")` and watch the log with `tail -F run.jsonl`.
+
+`#guard_msgs` deliberately waits for background diagnostics, so a panel inside it
+appears after completion. Use a direct `#updr` command for live
+updates.
+
 ### Options
 
 Options may appear in any order, each at most once:
-`#synthesize_invariants (fuel := 500) (log := "run.jsonl") verbose certify`.
+`#updr (fuel := 500) (log := "run.jsonl") verbose certify`.
 
 | option | meaning | default |
 |---|---|---|
 | `(fuel := n)` | Maximum number of solver calls. | 5000 |
-| `(invariants := true)` | Include the module's declared `invariant`s in the property. | `false` |
+| `(invariants := false)` | Leave the module's declared `invariant`s out of the property, so that the search works on the `safety` properties alone. | `true` |
 | `(generalizer := g)` | `linear` first tries linear relations between integer individuals, then `updr`; `updr` uses unsat cores and literal deletion only. They agree on a module without integer state. | `linear` |
 | `(cores := false)` | Generalize by deleting literals from the full negated diagram, as the paper does, instead of starting from the solver's unsat cores. | `true` |
 | `(log := "path.jsonl")` | Append one JSON object per event (each candidate clause and its verdict, each clause admitted, each frame cleared, the outcome) to this file. | no log |
 | `(expect := v)` | The expected outcome: `invariant`, `unsafe`, `no_universal_invariant` or `unknown`. It is reported as information, any other outcome as an error. For tests. | none |
 | `verbose` | Report each step of the search. | off |
-| `certify` | Prove the outcome as a theorem checked by the kernel. | off |
+| `certify` | Check a certificate in the background; `#gen_theorems` imports it. | off |
 
 | Lean option | meaning | default |
 |---|---|---|
 | `veil.synthesizer.trust` | Let the search take the solver's `unsat` answers on faith instead of reconstructing proofs. Certificates always reconstruct. | `false` |
 | `veil.synthesizer.normalizeTr` | Write the queries with the transition relation normalized once per module (`Mod.ic3_trNorm`, equal to `tr` by the kernel-checked `Mod.ic3_tr_eq_norm`). | `true` |
 | `veil.synthesizer.timings` | Report the wall time of the search and of the certificate. | `false` |
+| `veil.synthesizer.widget` | Show live progress in the Lean editor's infoview. | `true` |
 | `veil.smt.timeout` | The solver timeout. A query the search cannot do without is asked again with twice the timeout before the search stops. | 60 s |
 
 ## Reading the Result
@@ -126,7 +165,8 @@ Every query goes through Veil's own tactic pipeline and cvc5, as
 Without `certify`, lean-smt reconstructs each `unsat` answer as a proof term,
 but the search does not have the kernel check it; an answer lean-smt cannot
 replay is taken on the solver's word, and the result says so. `certify`
-builds the theorem from fresh solver answers:
+builds the theorem from fresh solver answers. `#gen_theorems` imports its checked
+definitions and proofs; it does not rerun synthesis or certification:
 
 - **Invariant.** For each conjunct of `ic3_inv` (the property and the
   strengthening), initiation and consecution from `ic3_inv` are asked again,
@@ -138,7 +178,9 @@ builds the theorem from fresh solver answers:
   state, each step and the violation are proved by evaluation (`decide`, or
   `simp` after splitting enum variables into constructors), and `ic3_unsafe`
   applies `RelationalTransitionSystem.not_invariant_of_reachable`. Nothing
-  rests on the solver.
+  rests on the solver. The concrete instance definitions are imported, but their
+  instance registrations stay local to certification and do not affect later
+  typeclass inference.
 - `#print axioms` lists `propext`, `Classical.choice` and `Quot.sound`. A
   solver step that lean-smt cannot replay, or whose replay the kernel rejects,
   is taken on the solver's word as `ic3_init_i_trusted` or
@@ -158,8 +200,8 @@ on a field `after_init` leaves unassigned; the command warns about such fields.
 
 ## Existential Invariants
 
-The search finds universal clauses only. With `(invariants := true)` the
-declared invariants, existentials included, are part of the property. A ghost
+The search finds universal clauses only. The declared invariants,
+existentials included, are part of the property unless `(invariants := false)`. A ghost
 function that names a witness (`quorumOf : node → quorum`, maintained by the
 action that elects the leader) turns an existential fact into a universal
 clause over that function.

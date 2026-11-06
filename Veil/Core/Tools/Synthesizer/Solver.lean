@@ -1,6 +1,6 @@
 module
 
-public meta import Veil
+public meta import Veil.DSL
 public meta import Veil.Core.Tools.ModelChecker.Symbolic.TraceLang
 public meta import Veil.Core.UI.Verifier.TraceCounterexample
 public meta import Veil.Frontend.DSL.Module.VCGen.Common

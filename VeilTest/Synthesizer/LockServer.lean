@@ -1,7 +1,6 @@
 module
 
 public import Veil
-public import Veil.Core.Tools.Synthesizer
 
 /-! A lock server whose mutual exclusion needs one strengthening clause: the
 command finds it and certifies it as `LockServer.ic3_safe`, a theorem on the
@@ -45,9 +44,15 @@ safety [mutex] holds C ∧ holds D → C = D
 
 #gen_spec
 
-/-- invariant [ic3_0] ∀ (x0 : client), ¬ holds x0 ∨ ¬ lock_free -/
+/--
+Insert the strengthening invariants before #gen_spec:
+
+  [apply] invariant [ic3_0] ∀ (x0 : client), ¬ holds x0 ∨ ¬ lock_free
+-/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants certify
+#updr certify
+
+#gen_theorems
 
 /-- info: 'LockServer.ic3_safe' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

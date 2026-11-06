@@ -42,6 +42,6 @@ safety [never_bad] ¬ bad
 step: {"trip": {"p": "busy"
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := unsafe) certify
+#updr (expect := unsafe) certify
 
 end MixedLabels

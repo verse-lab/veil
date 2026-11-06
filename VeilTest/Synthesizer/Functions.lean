@@ -36,7 +36,7 @@ safety [never_bad] ¬ bad
 Certified: theorem BinFun.ic3_safe (strengthening BinFun.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := invariant) certify
+#updr (expect := invariant) certify
 
 end BinFun
 
@@ -71,7 +71,7 @@ safety [never_bad] ¬ bad
 f: (0,0)↦0 (0,1)↦0 (1,0)↦0 (1,1)↦1
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := unsafe) certify
+#updr (expect := unsafe) certify
 
 end BinFunBug
 
@@ -112,7 +112,7 @@ safety [never_bad] ¬ bad
 Certified: theorem EnumFun.ic3_safe (strengthening EnumFun.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := invariant) certify
+#updr (expect := invariant) certify
 
 end EnumFun
 
@@ -147,7 +147,7 @@ safety [never_bad] ¬ bad
 Certified: theorem IntFun.ic3_safe (strengthening IntFun.ic3_inv)
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := invariant) certify
+#updr (expect := invariant) certify
 
 end IntFun
 
@@ -177,6 +177,6 @@ safety [never_bad] ¬ bad
 cnt: (0,0)↦3 (0,1)↦-7 (1,0)↦-7 (1,1)↦3
 -/
 #guard_msgs(info, substring := true) in
-#synthesize_invariants (expect := unsafe) certify
+#updr (expect := unsafe) certify
 
 end IntFunBug
