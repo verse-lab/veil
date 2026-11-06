@@ -14,21 +14,16 @@ modern higher-order proof assistant for when automation falls short.
 
 [Website](https://veil.dev/) · [Online playground](https://try.veil.dev/)
 
-## Veil 2.0 Pre-Release
+## Veil 2.0
 
-You are looking at a pre-release version of Veil 2.0, the upcoming major
-version of Veil. There are still a few bugs and rough edges. If you encounter
-issues, please [report them to
-us](https://github.com/verse-lab/veil/issues/new), so we can fix them before
-the release. Your patience and feedback are greatly appreciated!
+This is Veil 2.0, the second major version of Veil. Veil 1.0 is available
+under the tag [`v1.0.0`](https://github.com/verse-lab/veil/tree/v1.0.0).
 
-We provide a live environment to try out Veil 2.0, at the following URL:
-<a href="https://try.veil.dev">try.veil.dev</a>
+If you encounter issues, please [report them to
+us](https://github.com/verse-lab/veil/issues/new). You can ask questions on the
+[Veil channel](https://leanprover.zulipchat.com/#narrow/channel/537982-Veil) on
+the Lean Zulip, and we will be happy to answer.
 
-You can ask questions on the [Veil
-channel](https://leanprover.zulipchat.com/#narrow/channel/537982-Veil) on the
-Lean Zulip, and we will be happy to answer.
- 
 ## Learn Veil
 
 Start with the extensively commented walkthroughs in
@@ -46,8 +41,16 @@ Start with the extensively commented walkthroughs in
 
 These files are also available in the [online playground](https://try.veil.dev/), under the Examples button.
 
-An explanation of the constructs of the Veil DSL can be found at
-[`docs/DSL-Reference.md`](docs/DSL-Reference.md). 
+The [docs/](docs/) directory documents the Veil DSL and its tools:
+
+- [DSL-Reference.md](docs/DSL-Reference.md) — the constructs of the Veil DSL
+  and its commands.
+- [ModelChecker-Guide.md](docs/ModelChecker-Guide.md) — explicit-state model
+  checking with `#model_check`.
+- [TemporalChecker-Guide.md](docs/TemporalChecker-Guide.md) — model checking
+  temporal properties with `#temporal_check`.
+- [Synthesizer-Guide.md](docs/Synthesizer-Guide.md) — invariant synthesis
+  with `#updr`.
 
 ## Examples
 
@@ -62,6 +65,8 @@ Other examples in [Examples/](Examples/) are organised as follows:
 | [Puzzles/](Examples/Puzzles/) | State-machine models of recreational puzzles. |
 | [AWS/](Examples/AWS/) | Buggy and fixed models of an AWS DNS race. |
 | [StellarConsensus/](Examples/StellarConsensus/) | The Stellar Consensus Protocol and its supporting theory. |
+| [Liveness/](Examples/Liveness/) | Temporal properties proved with `prove_temporal_by`. |
+| [LivenessMC/](Examples/LivenessMC/) | Temporal properties model checked with `#temporal_check`, including TLA+ specifications and CAVA benchmarks. |
 
 ## Build
 
@@ -137,7 +142,7 @@ often fixes the problem.
 
 ## VS Code extension (optional)
 
-The [Veil Verifier extension](editors/vscode/README.md) provides an optional
+The [Veil Verifier extension](https://marketplace.visualstudio.com/items?itemName=verse-lab.veil-verifier) provides an optional
 VS Code interface for creating model-checking configurations, running model
 checkers, tracking progress, and inspecting counterexamples. It works
 alongside the Lean 4 extension.
