@@ -234,7 +234,8 @@ action nodeDecide (n : node) {
 The model above describes _how_ the protocol operates. To test or verify it,
 we need a _specification_ of what it is supposed to do. We declare the two
 safety properties via the `safety` command (Termination is a liveness
-property, which this example does not check). -/
+property, which this example does not check; it is checked in
+`Examples/Demo/FloodSet/FloodSetLiveness.lean`). -/
 
 safety [agreement]
   ∀ n₁ n₂ v₁ v₂, decision n₁ v₁ ∧ decision n₂ v₂ → v₁ = v₂
