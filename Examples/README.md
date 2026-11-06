@@ -9,8 +9,13 @@ This directory contains protocol specifications written in [Veil](https://github
 Extensively commented introductory examples: `Ring.lean` (leader election in a
 ring, introducing Veil's syntax and commands) and `FloodSet.lean` (a complete
 walkthrough of Veil's multi-modal workflow, from modelling through testing to
-interactive proof). Start here if you're new to Veil. The `POPL26/` subfolder
-contains the examples used in the POPL'26 tutorial, demonstrating different
+interactive proof). Start here if you're new to Veil.
+
+### [Demo/](Demo/)
+
+Standalone demos. `FloodSet/` has a compact version of the FloodSet protocol, a
+commented one, and one with temporal properties (`FloodSetLiveness.lean`).
+`Ring/` has the examples used in the POPL'26 tutorial, demonstrating different
 type encodings of the ring protocol (decidable, finite, natural numbers).
 
 ### [Ivy/](Ivy/)
@@ -35,6 +40,29 @@ crash-fault tolerance.
 Recreational puzzles and brain teasers modelled as state machines (originally
 from TLA+ examples). Useful for learning Veil's model checker.
 
+### [Simulate/](Simulate/)
+
+Simulation testing examples using `#simulate`.
+
+### [AWS/](AWS/)
+
+Buggy and fixed models of an AWS DNS race.
+
+### [StellarConsensus/](StellarConsensus/)
+
+The Stellar Consensus Protocol and its supporting theory; see its
+[README](StellarConsensus/README.md).
+
+### [Liveness/](Liveness/)
+
+Temporal properties proved with `prove_temporal_by`.
+
+### [LivenessMC/](LivenessMC/)
+
+Temporal properties model checked with `#temporal_check`, including
+translations of TLA+ specifications (`TLAPlus/`) and benchmarks from the CAVA
+model checker (`CAVA_BoolProgs/`).
+
 ## Building
 
 ```bash
@@ -49,4 +77,4 @@ lake lean Examples/Tutorial/Ring.lean
 
 - File names use PascalCase (e.g., `TwoPhaseCommit.lean`)
 - Each file declares a `veil module` matching the file name
-- Each file imports only `Veil`
+- Each file starts with `module` and `public import Veil`

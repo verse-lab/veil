@@ -59,13 +59,19 @@ private def findHypHeadedByConst (nm : Name) : TacticM (Option FVarId) := do
       return some ldecl.fvarId
   return none
 
+/-- Resolve `nm`, or return `none` if the module did not generate it (e.g.
+    `Invariants.core_simplified` in a module without invariants), so that the
+    narrowing steps below self-skip instead of failing. -/
+private def resolveGeneratedConst? (nm : Name) : TacticM (Option Name) := do
+  try return some (← resolveGlobalConstNoOverloadCore nm) catch _ => return none
+
 private def getHypDeclByFinding (finder : Name → TacticM (Option FVarId)) (nm : Name) : TacticM (Option LocalDecl) := do
-  let fullName ← resolveGlobalConstNoOverloadCore nm
+  let some fullName ← resolveGeneratedConst? nm | return none
   let some fv ← finder fullName | return none
   fv.getDecl
 
 private def getHypDeclsByFinding (finder : Name → TacticM (Array FVarId)) (nm : Name) : TacticM (Array LocalDecl) := do
-  let fullName ← resolveGlobalConstNoOverloadCore nm
+  let some fullName ← resolveGeneratedConst? nm | return #[]
   let fvs ← finder fullName
   fvs.mapM fun fv => fv.getDecl
 
@@ -350,6 +356,33 @@ def elabLivenessNarrowAction : DesugarTacticM Unit := veilWithMainContext do
 
 /-! ## Common pipeline -/
 
+/-- Unfold `CanonicalField`/`IteratedArrow` in a field type, e.g.
+    `CanonicalField [node] Nat` becomes `node → Nat`. -/
+private partial def unfoldFieldType (t : Expr) : MetaM Expr := do
+  unless (t.find? fun e => e.isConstOf ``CanonicalField || e.isConstOf ``IteratedArrow).isSome do
+    return t
+  match ← whnfR t with
+  | .forallE n d b bi =>
+    -- `IteratedArrow` only builds non-dependent arrows.
+    if b.hasLooseBVars then return t
+    return .forallE n d (← unfoldFieldType b) bi
+  | t' => return t'
+
+/-- Retype the concretized state fields (`s.f : CanonicalField [α] β`) as plain
+    functions (`s.f : α → β`). lean-smt's `Nat` embedding decides syntactically
+    which variables get a `x ≥ 0` premise; a `Nat`-valued field hidden behind
+    `CanonicalField` gets the premise without being counted, which leaves the
+    last hypotheses and the negated goal out of the SMT query. -/
+def elabUnfoldConcretizedFieldTypes : DesugarTacticM Unit := veilWithMainContext do
+  let mut mv ← getMainGoal
+  for ldecl in ← getLCtx do
+    if ldecl.isImplementationDetail then continue
+    let ty ← instantiateMVars ldecl.type
+    let ty' ← unfoldFieldType ty
+    if ty' != ty then
+      mv ← mv.replaceLocalDeclDefEq ldecl.fvarId ty'
+  replaceMainGoal [mv]
+
 /-- Unveil a temporal proof obligation by narrowing, concretizing, unfolding,
     neutralizing, and simplifying. Finding-based sub-tactics self-skip when
     their targets are not present. -/
@@ -385,6 +418,7 @@ def elabUnveilTemporal : DesugarTacticM Unit := do
   -- Classical simplification
   veilWithMainContext do
     veilEvalTactic (← elabSimplifyBeforeConcretizeWp (fast := true) (simpHinv := true))
+  elabUnfoldConcretizedFieldTypes
 
 /-- Present equality of Boolean fields propositionally to the SMT Bool embedding.
 Leave literal comparisons alone so the rewrite does not recurse on `b = true`. -/
@@ -403,10 +437,17 @@ def elabVeilSolveTemporal : DesugarTacticM Unit := do
   veilWithMainContext do
     -- The SMT Bool embedding needs propositional equality under quantifiers;
     -- raw Bool equality can otherwise leave dependent `decide` applications.
+    -- Split the step relation into one goal per action and destruct its
+    -- existentials, as the safety VCs do. Otherwise an action that picks a
+    -- function (`let f : α → β :| …`) leaves a higher-order `∃` under `∨`,
+    -- which SMT cannot take.
     veilEvalTactic (← `(tacticSeq|
-      veil_fol !
-      veil_simp only [↓ $(mkIdent ``temporalBoolEq):ident] at *
-      veil_solve))
+      (try veil_cases_type* $(mkIdent ``Or):ident)
+      all_goals (
+        (try veil_destruct only [$(mkIdent ``And), $(mkIdent ``Exists)])
+        veil_fol !
+        veil_simp only [↓ $(mkIdent ``temporalBoolEq):ident] at *
+        veil_solve)))
 
 elab_rules : tactic
   -- | `(tactic| __liveness_drop_init%$tk) => elabLivenessDropInit.runByOption tk

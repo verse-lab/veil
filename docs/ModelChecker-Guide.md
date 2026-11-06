@@ -4,7 +4,9 @@
 module and checks each `safety` and `invariant` clause in every state it
 reaches. This guide covers running the checker, reading its results, and
 keeping searches small and fast. The specification language itself is
-described in [DSL-Reference.md](DSL-Reference.md).
+described in [DSL-Reference.md](DSL-Reference.md), and the model checking of
+temporal properties with `#temporal_check` in
+[TemporalChecker-Guide.md](TemporalChecker-Guide.md).
 
 ## Running the Checker
 

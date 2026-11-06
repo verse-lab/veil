@@ -91,8 +91,8 @@ safety [puzzle_unsolvable]
 --   checks that the relation `pc` gives each process a single label.
 -- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
 --   deadlocks either.
--- * `PROPERTY Termination`, commented out in the cfg: a temporal property, which Veil does not
---   check.
+-- * `PROPERTY Termination`, commented out in the cfg: a temporal property, which this example
+--   does not check.
 -- Options:
 -- * The check names no mode, so its search starts in Lean's interpreter and moves to a compiled
 --   checker once that is built.

@@ -21,7 +21,7 @@ Every Veil module follows a canonical structure with the following components:
     - actions are externally visible transitions that the environment can invoke
     - transitions are two-state relations; an alternative, relational way of
       specifying what actions specify imperatively
-9. Properties (safety, invariants, assumptions)
+9. Properties (safety, invariants, assumptions, temporal properties)
 10. Specification generation & verification commands
 
 ### 1. Module Declaration
@@ -352,6 +352,26 @@ node`): this bundles connected assumptions together, and concrete instances
 for execution/model checking are then found automatically by Lean's typeclass
 inference.
 
+#### Temporal Properties
+
+Temporal properties are LTL formulas over the runs of the system:
+
+```lean
+temporal [electsLeader]
+  (∀ n, ∀ next, 𝒲ℱ (send n next)) ∧ (∀ s, ∀ n, ∀ next, 𝒲ℱ (recv s n next)) →
+    ◇ ⌜ ∃ l, leader l ⌝
+
+temporal [leaderStays] ∀ l, □ (⌜ leader l ⌝ → ◯ ⌜ leader l ⌝)
+```
+
+Formulas use the syntax of [Lentil](https://github.com/verse-lab/Lentil):
+state predicates `⌜ P ⌝`, the action atoms `Enabled a`, `⟨ a ⟩`, `𝒲ℱ a` and
+`𝒮ℱ a`, the temporal operators `□`, `◇`, `◯`, `𝑈`, `↝` (leads to) and `⇒`,
+the usual connectives, and the quantifiers `∀ x, φ` and `∃ x, φ`, which bind
+one variable each. The `temporal` docstring explains how Veil reads the atoms,
+including partially applied actions such as `𝒲ℱ (send n)`, and the
+`(only := check)` and `(only := verify)` options.
+
 ### 10. Verification Commands
 
 To enable verification, we need to finalize the module specification:
@@ -530,3 +550,42 @@ unsat trace {
 ```
 
 Note that checking time grows exponentially with the trace length.
+
+#### Checking Temporal Properties
+
+`#temporal_check` model checks the module's temporal properties on a finite
+instance, with the same arguments as `#model_check`:
+
+```lean
+#temporal_check { node := Fin 3 }
+#temporal_check [electsLeader] { node := Fin 3 }
+```
+
+It explores every infinite run of the instance, including runs that never take
+an enabled action, so liveness properties usually need fairness assumptions, as
+in `electsLeader`. See the [Temporal Checker Guide](TemporalChecker-Guide.md).
+
+#### Proving Temporal Properties
+
+`prove_temporal_by` proves a temporal property for all instantiations of the
+module, in the proof mode of [Lentil](https://github.com/verse-lab/Lentil):
+
+```lean
+prove_temporal_by [leaderStays]
+  tclear hInit hInv   -- neither the initial state nor the invariants are needed
+  tintro l
+  tmonotone           -- reduce `□ (…)` to a single step
+  unveil_temporal     -- turn the goal into a first-order goal about the fields
+  grind
+```
+
+The resulting theorem is `leaderStays._proof`. It assumes the invariants
+(`hInv`) rather than proving them; prove them with `#check_invariants`. Besides
+Lentil's tactics and proof rules (e.g. WF1), Veil provides `unveil_temporal`
+and `veil_solve_temporal`. See
+[Examples/Liveness/TLA/Consensus.lean](../Examples/Liveness/TLA/Consensus.lean)
+for a liveness proof.
+
+Unlike `#temporal_check`, which repeats a state without successors forever,
+proofs only consider runs in which every step is an action. If the system can
+stop, add an action that does nothing (as `stutter` in `Consensus.lean`).

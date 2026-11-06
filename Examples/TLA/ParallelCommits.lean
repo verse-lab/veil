@@ -84,7 +84,7 @@ after_init {
   intent_writes K := { epoch := 0, ts := 0, resolved := false }
   tscache K := 0
   commit_ack := false
-  let chosen : { ks // TSet.isSubset ks AllKeys } :| true
+  let chosen ← pick { ks // TSet.isSubset ks AllKeys }
   pipelined_keys := chosen.val
   parallel_keys := keySet.diff AllKeys chosen.val
   attempt := 1
@@ -116,7 +116,7 @@ action PipelineWrites {
     if ¬ (intent_writes k).resolved then
       -- The generated source Assert(FALSE) fires when the cache prevents this write.
       assert tscache k < txn_ts
-      let succeeded : Bool :| true
+      let succeeded ← pick Bool
       if succeeded then
         intent_writes k := { epoch := txn_epoch, ts := txn_ts, resolved := false }
   else
@@ -173,7 +173,7 @@ action ParallelWrite {
   if oldIntent.epoch = txn_epoch then
     pc none := stageWritesAndRecordLoop
   else if tscache k ≥ txn_ts ∨ oldIntent.resolved then
-    let refresh : Bool :| true
+    let refresh ← pick Bool
     attempt := attempt + 1
     if refresh then
       txn_ts := txn_ts + 1

@@ -25,7 +25,7 @@ Example names in parentheses, such as `(Paxos)`, refer to files such as `Example
 | Strings used as tags (`"idle"`, `"done"`) | `enum phase = {idle, done}` | | Use this enum only if the source tag is always `"idle"` or `"done"` in reachable states. If the source has an `OTHER` branch for other strings, explain in a comment why that branch can never run. |
 | `Seq(S)` | `List S` | `fQueue S` for a FIFO queue, `Array S` for random access ([Sequences](#sequences)) | Keep order and duplicates, shift 1-based indices, never replace a sequence with a set |
 | `Init` | `after_init` | | A field it doesn't assign starts at its default value ([Frames and initial states](#frames-and-initial-states)) |
-| `x ∈ S` in `Init` | `let v :\| v ∈ S`, then `x := v`; `x := *` when `S` is all of `x`'s type | | Keep every allowed initial value, not one representative ([Frames and initial states](#frames-and-initial-states)) |
+| `x ∈ S` in `Init` | `let v :\| v ∈ S`, then `x := v`; `x := *` when `S` is all of `x`'s type | A tuple choice, `let (v, w) : τ × υ :\| P v w`, where the source constrains several variables jointly ([Choice](#choice)) | Keep every allowed initial value, not one representative ([Frames and initial states](#frames-and-initial-states)) |
 | Action in `Next` | `action` of the same name, the `∃` around it in `Next` as parameters | A local choice instead of a parameter, when that `∃` ranges over state (`\E m \in msgs`) or an awkward range (`-D..D`); see [Actions](#actions) | One Veil action per source action; see [Actions](#actions) |
 | Operator used by actions | `procedure` (stateful), `ghost relation`/`ghost function` (pure) | A ghost predicate instead of a derived set that is only tested for membership (SimpleAllocator) | Never an `action`, which would add an enabled step |
 | `ENABLED A` | `ghost relation` holding A's enabling conjuncts | | A uses it as its guard too |
@@ -37,6 +37,7 @@ Example names in parentheses, such as `(Paxos)`, refer to files such as `Example
 | `∃ T ∈ SUBSET S : …` | `let t : { t // TSet.isSubset t s } :\| …` | | Every allowed subset, including the empty one if allowed |
 | `INVARIANT`, `∀ x ∈ S : P` | `invariant [name]` / `safety`, `∀ x : { x // x ∈ S }, P x` | | Sequences, maps, intervals: see [Quantifiers and set operations](#quantifiers-and-set-operations) |
 | `CONSTRAINT`, deadlock checking | `state_constraint`, `termination` | | They differ from TLC; see [Stuttering, deadlock, and constraints](#stuttering-deadlock-and-constraints) |
+| Temporal `PROPERTY`, fairness in `SPECIFICATION` | `temporal (only := check)`, with the fairness as its antecedent | | See [Temporal properties and fairness](#temporal-properties-and-fairness) |
 | Relation hard to sequentialize | `transition` | | Exact but slow to model-check; prefer an imperative action when the dependencies allow |
 
 ### Modeling patterns
@@ -183,6 +184,17 @@ A variable chosen in `Init` and never changed is still state; turning it into a 
 
 A `CHOOSE` that selects a unique index can use `findIdx`.
 
+Use a tuple choice for values with a shared constraint: `let (v, w) : τ × υ :| P v w`. Each component must be finitely enumerable. CoffeeCan chooses both bean counts together:
+
+```lean
+let (b, w) : { b : Nat // b ∈ List.range' 0 (MaxBeanCount + 1) }
+           × { w : Nat // w ∈ List.range' 0 (MaxBeanCount + 1) } :|
+  b.val + w.val ∈ List.range' 1 MaxBeanCount
+can := { black := b.val, white := w.val }
+```
+
+Use `pick` when there is no further constraint: `let h ← pick { h // h ∈ List.range' 1 12 }`. This admits the same values as the corresponding `:| true` choice. Use `:| P` when you need to filter them.
+
 Narrowing a choice needs an argument that the same successors remain reachable; fewer witnesses alone isn't enough.
 
 ## Domains, bounds, and arithmetic
@@ -228,6 +240,24 @@ Keep the relation a function:
 - TLC checks deadlock unless the cfg says `CHECK_DEADLOCK FALSE`; Veil reports none unless the module has a `termination` clause. `termination false` matches TLC's default; `termination P` accepts stuck states satisfying P and adds no self-loop.
 - `CONSTRAINT` ↦ `state_constraint`. Both keep out-of-bound states out of the distinct count and don't expand them, but they differ at the boundary. TLC still checks invariants on a pruned state, counts it as generated, and doesn't treat pruning as deadlock. Veil drops the state unchecked and uncounted, and reports a deadlock where all successors are pruned (unless `termination` holds). So with a constraint, either turn deadlock checking off on both sides or, if the cfg checks deadlock, argue that no reachable state has all its successors pruned (e.g. some choice of the action that crosses the bound always stays inside). Likewise, argue that the actions crossing the bound preserve the invariants, or expect that a violation TLC finds in a just-pruned state won't appear in Veil. Guarding every action with the constraint instead checks those states but also counts them.
 - `ACTION_CONSTRAINT` has no direct counterpart; an `assume` over old and new values at the end of each action comes closest. Check its boundary behavior on a tiny instance.
+
+## Temporal properties and fairness
+
+The examples named here are in `Examples/LivenessMC/TLAPlus/`.
+
+- A temporal `PROPERTY` becomes a `temporal (only := check)` property, checked by `#temporal_check` (Veil's `docs/TemporalChecker-Guide.md`). `[]`, `<>` and `~>` are `□`, `◇` and `↝`; a state predicate `P` is `⌜ P ⌝`.
+- Veil has no fairness in the specification. For `Spec == Init /\ [][Next]_vars /\ F`, write `F` as the antecedent of each property: `temporal (only := check) [P] F → P`.
+- `𝒲ℱ` and `𝒮ℱ` take one action, whose arguments cannot read the state; a left-out argument stands for some value. Otherwise, unfold `WF_vars(A) == <>[]ENABLED <<A>>_vars => []<><<A>>_vars` (`SF_vars`: `[]<>ENABLED`) with `Enabled`, `⟨ ⟩` and `⌜ ⌝`:
+
+| TLA+ | Veil |
+| --- | --- |
+| `\A c : WF_vars(A(c))` | `∀ c, 𝒲ℱ (A c)` |
+| `SF_vars(\E S : A(c, S))` | `𝒮ℱ (A c)` |
+| `WF_vars(A(c, f[c]))`, an argument read from the state | `◇ □ (∃ S, ⌜ f c = S ⌝ ∧ Enabled (A c S)) → □ ◇ (∃ S, ⌜ f c = S ⌝ ∧ ⟨A c S⟩)`: the `⌜ ⌝` pins `S` to the current value (SimpleAllocator) |
+| `WF_vars(A)`, `A` split into Veil actions `A₁`, `A₂`; also `WF_vars(Next)` | `◇ □ (Enabled A₁ ∨ Enabled A₂) → □ ◇ (⟨A₁⟩ ∨ ⟨A₂⟩)`, leaving out `stutter` (ChangRoberts) |
+
+- `<<A>>_vars` excludes steps that leave `vars` unchanged; `⟨ A ⟩` does not. They agree when every `A` step changes the state; otherwise note the difference.
+- `[][Next]_vars` allows stuttering in every state, while `#temporal_check` stutters only in states without successors. Add an empty action (`action stutter { pure () }`) unless the fairness rules out stuttering forever in every other state, and say which in a comment (ChangRoberts).
 
 ## When Veil misbehaves
 
