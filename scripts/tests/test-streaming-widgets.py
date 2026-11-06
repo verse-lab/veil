@@ -202,6 +202,15 @@ def run_case(name, case):
     line = lines.index(case.command)
     imports_line = lines.index('public import Veil')
     received = []
+    session = None
+    kept_alive = [0.0]
+
+    def keep_alive():
+        """As the infoview does: Lean drops an RPC session 30 s after its last keep-alive"""
+        if session and time.monotonic() - kept_alive[0] > 5:
+            server.write({'jsonrpc': '2.0', 'method': '$/lean/rpc/keepAlive',
+                          'params': {'uri': uri, 'sessionId': session}})
+            kept_alive[0] = time.monotonic()
 
     def read_events():
         return events.read_text().splitlines() if events.exists() else []
@@ -212,10 +221,11 @@ def run_case(name, case):
         server.write({'jsonrpc': '2.0', 'id': request_id, 'method': method, 'params': params})
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
+            keep_alive()
             try:
-                msg = server.messages.get(timeout=max(0.01, deadline - time.monotonic()))
-            except Exception:
-                break
+                msg = server.messages.get(timeout=max(0.01, min(1.0, deadline - time.monotonic())))
+            except queue.Empty:
+                continue
             received.append(msg)
             if 'method' in msg and 'id' in msg:
                 server.write({'jsonrpc': '2.0', 'id': msg['id'], 'result': None})
@@ -231,6 +241,7 @@ def run_case(name, case):
         once the command has been elaborated, while the task still runs."""
         deadline = time.monotonic() + timeout
         while True:
+            keep_alive()
             reports = [m['params']['processing'] for m in received
                        if m.get('method') == '$/lean/fileProgress' and m['params']['textDocument']['uri'] == uri]
             if reports and not any(contains(r['range'], pos) for r in reports[-1]):
@@ -247,6 +258,7 @@ def run_case(name, case):
     def wait_events(expected, timeout=30):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
+            keep_alive()
             actual = read_events()
             if all(actual.count(event) >= count for event, count in expected.items()):
                 return
