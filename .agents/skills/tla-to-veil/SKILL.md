@@ -1,13 +1,13 @@
 ---
 name: tla-to-veil
-description: Translate TLA+ specifications (a .tla module plus its TLC .cfg) into Veil specifications in Lean, or review an existing TLA+-to-Veil translation. Covers state and action mapping, keeping the source's structure (actions, constants, quantifiers), encoding choices and their model-checking cost, semantic traps (primed-variable dependencies, framing, CHOOSE, stuttering, deadlock), reporting Veil failures as minimal examples, validating the result against TLC through invariants, known violations, and distinct-state counts, and explaining the result in comments for readers who know TLA+ but not Lean. Use whenever the user wants to port, re-model, review, explain, or cross-check a TLA+ spec in Veil, even if they don't say "translate". Not for general Lean proofs or TLA+-only work.
+description: Translate TLA+ specifications (a .tla module plus its TLC .cfg) into Veil specifications in Lean, or review an existing TLA+-to-Veil translation. Covers state and action mapping, keeping the source's structure (actions, constants, quantifiers), encoding choices and their model-checking cost, semantic traps (primed-variable dependencies, framing, CHOOSE, stuttering, deadlock, fairness), reporting Veil failures as minimal examples, validating the result against TLC through invariants, temporal properties, known violations, and distinct-state counts, and explaining the result in comments for readers who know TLA+ but not Lean. Use whenever the user wants to port, re-model, review, explain, or cross-check a TLA+ spec in Veil, even if they don't say "translate". Not for general Lean proofs or TLA+-only work.
 ---
 
 # TLA+ to Veil
 
 Produce a readable Veil specification with the same behaviors as the TLA+ model the user selected, plus evidence from TLC and Veil runs that it does. Translate the source as it is, bugs included; suggest fixes separately.
 
-Veil's own documentation lives in the Veil repository (or, under `.lake/packages/veil/`, if Veil is used as a downstream project): `docs/DSL-Reference.md` covers the language, and `docs/ModelChecker-Guide.md` covers `#model_check`, including sets (`TSet`), `termination`, `state_constraint`, and field representations. `Examples/TLA/` holds existing translations, most quoting each TLA+ definition above its Veil counterpart; translation.md says which to read for which construct. If an API named here doesn't resolve in the user's Veil version, grep `Veil/` and `VeilTest/`. This skill adds what is specific to TLA+:
+Veil's own documentation lives in the Veil repository (or, under `.lake/packages/veil/`, if Veil is used as a downstream project): `docs/DSL-Reference.md` covers the language, and `docs/ModelChecker-Guide.md` covers `#model_check`, including sets (`TSet`), `termination`, `state_constraint`, and field representations; `docs/TemporalChecker-Guide.md` covers `#temporal_check`. `Examples/TLA/` holds existing translations, most quoting each TLA+ definition above its Veil counterpart, and `Examples/LivenessMC/TLAPlus/` translations of temporal properties; translation.md says which to read for which construct. If an API named here doesn't resolve in the user's Veil version, grep `Veil/` and `VeilTest/`. This skill adds what is specific to TLA+:
 
 - [translation.md](references/translation.md): mirroring the source, semantic traps, encoding alternatives, and what to do when Veil misbehaves. Read before translating or reviewing.
 - [validation.md](references/validation.md): checking the translation against TLC and reporting the results.
@@ -33,6 +33,7 @@ In outline (details in translation.md):
 - TLA+ updates are simultaneous, Veil statements sequential: settle which right-hand sides read old vs. new values before ordering assignments.
 - An omitted Veil assignment means `UNCHANGED`; an omitted primed TLA+ variable means "any value".
 - Invariants stay invariants. Moving one into `assume` or `require` hides its violations.
+- Temporal properties become `temporal (only := check)` properties, with the fairness of `SPECIFICATION` as their antecedent.
 
 Start with the direct translation. Then simplify unnecessary choices and helpers introduced by the translation, keeping the source definitions and behavior intact. Re-run validation afterwards; see [Choice](references/translation.md#choice).
 
@@ -45,6 +46,7 @@ Follow validation.md. With parameters aligned on both sides, report each criteri
 1. **Invariants agree**: corresponding properties hold (or fail) on both sides, and the run is non-vacuous (initial states exist, actions fire).
 2. **Known violations reproduce**: if the source has a known invariant violation, Veil finds the corresponding one, and you can map the counterexample's states and actions.
 3. **Distinct-state counts match**: for a one-to-one state encoding, complete runs report equal distinct (not generated) state counts.
+4. **Temporal properties agree**: each translated temporal property holds (or fails) on both sides.
 
 These checks are evidence, not a proof of equivalence. Investigate mismatches; don't delete properties, add constraints, or change the algorithm to make counts agree.
 
