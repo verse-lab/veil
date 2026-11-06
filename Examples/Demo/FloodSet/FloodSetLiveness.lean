@@ -95,7 +95,7 @@ temporal [everyoneDecides]
 set_option veil.violationIsError false in
 #temporal_check [everyoneDecides] { node := Fin 3, value := Fin 2 } { f := 1 }
 
-/- ## Temporal propeerty proof -/
+/- ## Temporal property proof -/
 
 set_option veil.smt.trust false
 
