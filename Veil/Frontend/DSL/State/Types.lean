@@ -976,6 +976,28 @@ private def injectionEncodingConfig : FinEncodingDerivingConfig :=
 
 scoped syntax (name := finEncodableInjOnlyTerm) "veil_fin_encodable_inj_only% " term : term
 
+/-- Close an equality goal `a = b` by `Eq.refl a`, deciding `a ≡ b` with the kernel's
+    definitional equality rather than the elaborator's. The deforested encoding's equations
+    are such goals: on them the elaborator's `isDefEq` unfolds the proxy instance's `card`
+    a number of times exponential in the number of constructors (24 one-field constructors
+    exhaust the default heartbeats), while the kernel decides each at once. -/
+scoped syntax (name := kernelRflTactic) "veil_kernel_rfl" : tactic
+
+open Lean.Elab.Tactic in
+@[tactic kernelRflTactic, no_expose]
+def evalKernelRfl : Tactic := fun _ => do
+  let goal ← getMainGoal
+  goal.withContext do
+    let some (_, lhs, rhs) := (← instantiateMVars (← goal.getType)).eq?
+      | throwError "veil_kernel_rfl: expected an equality goal"
+    -- The kernel accepts no expression metavariables: instantiate the local context's.
+    let lctx ← instantiateLCtxMVars (← getLCtx)
+    unless ← ofExceptKernelException (Kernel.isDefEq (← getEnv) lctx lhs rhs) do
+      throwError "veil_kernel_rfl: the two sides are not definitionally equal{indentExpr lhs}\n\
+        and{indentExpr rhs}"
+    goal.assign (← mkEqRefl lhs)
+  replaceMainGoal []
+
 /-- Elaborate the encoder inside the generated instance's parameter context.
     `exprToSyntax` embeds field types without delaboration, preserving binders, implicit
     arguments, and universe levels. Its assigned metavariables must be consumed here,
@@ -1030,7 +1052,7 @@ scoped syntax (name := finEncodableInjOnlyTerm) "veil_fin_encodable_inj_only% " 
   let matchExpr ← `(match $[$discrs],* with $alts:matchAlt*)
   let encFn ← `(fun $xIdent => $matchExpr)
   let result ← elabTerm (← `($(mkIdent config.ofEquivWithEncName) $equiv $encFn
-    (by intro x; cases x <;> rfl))) none
+    (by intro x; cases x <;> veil_kernel_rfl))) none
   -- Resolve the proof's synthetic metavariables before `remove_unused_args%`
   -- checks which instance binders are actually needed (including phantom types).
   synthesizeSyntheticMVarsNoPostponing

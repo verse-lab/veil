@@ -185,4 +185,88 @@ deriving FinEncodableInjOnly
     [.item 0 0, .item 1 0, .item 1 1, .item 2 0, .item 2 1, .item 2 2, .stop]
   checkEncodings values
 
+-- Wide inductives, as `#gen_spec` derives for the action labels of a module with many
+-- actions. The deforested encoding's equations are checked by the kernel (`veil_kernel_rfl`):
+-- the elaborator's `rfl` unfolded `card` about 2^K times for K one-field constructors and ran
+-- out of heartbeats at 24.
+inductive Wide (node : Type u) where
+  | a0 (n : node)
+  | a1 (n : node)
+  | a2 (n : node)
+  | a3 (n : node)
+  | a4 (n : node)
+  | a5 (n : node)
+  | a6 (n : node)
+  | a7 (n : node)
+  | a8 (n : node)
+  | a9 (n : node)
+  | a10 (n : node)
+  | a11 (n : node)
+  | a12 (n : node)
+  | a13 (n : node)
+  | a14 (n : node)
+  | a15 (n : node)
+  | a16 (n : node)
+  | a17 (n : node)
+  | a18 (n : node)
+  | a19 (n : node)
+  | a20 (n : node)
+  | a21 (n : node)
+  | a22 (n : node)
+  | a23 (n : node)
+deriving FinEncodableInjOnly
+
+#guard FinEncodableInjOnly.card (κ := Wide (Fin 2)) == 48
+#guard (FinEncodableInjOnly.encode (Wide.a0 (1 : Fin 2))).val == 1
+#guard (FinEncodableInjOnly.encode (Wide.a12 (0 : Fin 2))).val == 24
+#guard (FinEncodableInjOnly.encode (Wide.a23 (1 : Fin 2))).val == 47
+
+example (x : Wide (Fin 3)) :
+    FinEncodableInjOnly.encode x =
+      (FinEncodableInjOnly.ofEquiv (veil_proxy_equiv% (Wide (Fin 3))).symm).encode x := by
+  cases x <;> veil_kernel_rfl
+
+-- Mixed field shapes, nullary constructors included.
+inductive WideMixed (node : Type u) where
+  | b0 (n : node)
+  | b1 (m n : node)
+  | b2 (n : node) (b : Bool)
+  | b3 (b : Bool)
+  | b4 (n : node)
+  | b5
+  | b6 (n : node) (b : Bool)
+  | b7 (b : Bool)
+  | b8 (n : node)
+  | b9 (m n : node)
+  | b10 (n : node) (b : Bool)
+  | b11
+  | b12 (n : node)
+  | b13 (m n : node)
+  | b14 (n : node) (b : Bool)
+  | b15 (b : Bool)
+  | b16 (n : node)
+  | b17
+  | b18 (n : node) (b : Bool)
+  | b19 (b : Bool)
+  | b20 (n : node)
+  | b21 (m n : node)
+  | b22 (n : node) (b : Bool)
+  | b23
+deriving FinEncodableInjOnly
+
+example (x : WideMixed (Fin 2)) :
+    FinEncodableInjOnly.encode x =
+      (FinEncodableInjOnly.ofEquiv (veil_proxy_equiv% (WideMixed (Fin 2))).symm).encode x := by
+  cases x <;> veil_kernel_rfl
+
+/--
+error: veil_kernel_rfl: the two sides are not definitionally equal
+  ↑(FinEncodableInjOnly.encode (Wide.a1 0))
+and
+  0
+-/
+#guard_msgs in
+example : (FinEncodableInjOnly.encode (Wide.a1 (0 : Fin 2))).val = 0 := by
+  veil_kernel_rfl
+
 end VeilTest.Deriving.FinEncodableInjOnly
