@@ -64,6 +64,17 @@ Once a direct import of a config is saved, such as the model, Lean reports that
 the imports of the config are out of date. The **Last result** lens and the
 panel then mark the result as outdated.
 
+## Which Veil the Extension Supports
+
+A project fixes its Veil, while the extension is installed once for all projects
+and updates itself, so the two may not agree on the messages and formats above.
+Veil therefore gives them a version, its IDE protocol (`Veil.ideProtocolVersion`),
+which Lean reports with a code action at the first command of a file, and binaries
+report when they start. Each version `0.N.x` of the extension supports IDE
+protocol `N` only, and its lenses say so when the project's Veil reports another.
+The [publishing guide](../editors/vscode/PUBLISHING.md#changing-what-the-extension-relies-on)
+says when to bump the protocol.
+
 ## Installing the Extension
 
 Install **Veil Verifier** (`verse-lab.veil-verifier`) from the VS Code Marketplace:
@@ -72,8 +83,9 @@ Install **Veil Verifier** (`verse-lab.veil-verifier`) from the VS Code Marketpla
 code --install-extension verse-lab.veil-verifier
 ```
 
-The extension and the project's Veil revision must use compatible configuration
-templates, build messages, and result formats. For local development, use the
+Use a version that supports the IDE protocol of the project's Veil: the
+[changelog](../editors/vscode/CHANGELOG.md) says which Veil each version is for.
+When no published version supports it yet, and for local development, use the
 Extension Development Host or install a VSIX built from the matching Veil checkout
 with **Extensions: Install from VSIX...**.
 

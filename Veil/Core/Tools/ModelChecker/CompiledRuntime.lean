@@ -4,6 +4,17 @@ public import Veil.Core.Tools.ModelChecker.Concrete.Progress
 
 public section
 
+namespace Veil
+
+/-- The version of what the VS Code extension (`editors/vscode`) relies on: the code actions of
+`ConfigTemplate.lean`, the `Model checker built: ` message, the arguments and output of model
+checker binaries, and the syntax of the commands that it reads or writes (`veil module`,
+`#mc_config`, `#model_check`, …). It equals `IDE_PROTOCOL` in `editors/vscode/src/compatibility.ts`;
+`editors/vscode/PUBLISHING.md` says when to bump both. -/
+def ideProtocolVersion : Nat := 1
+
+end Veil
+
 namespace Veil.ModelChecker.Compilation
 
 open Lean
@@ -11,6 +22,8 @@ open Lean
 /-- What a model checker executable reports once, as `{"start": ...}` on the first line of stderr,
 before any progress. -/
 structure StartReport where
+  /-- `ideProtocolVersion`, which saved results keep -/
+  ideProtocol : Nat := ideProtocolVersion
   /-- The constructor names of the actions' displayed labels, without arguments, e.g. `send`. The
   progress counts only the actions that were taken, so these tell those never enabled. -/
   actionLabels : List String

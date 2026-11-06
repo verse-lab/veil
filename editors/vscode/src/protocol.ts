@@ -5,6 +5,9 @@
 
 /** What a binary reports once, as `{"start": ...}` on the first line of stderr, before any progress. */
 export interface StartReport {
+  /** The IDE protocol of the Veil that built the binary (`Veil.ideProtocolVersion`); missing for a
+   * Veil from before it reported one */
+  ideProtocol?: number;
   /** The constructor names of the actions' displayed labels, without arguments, e.g. `send` */
   actionLabels: string[];
 }

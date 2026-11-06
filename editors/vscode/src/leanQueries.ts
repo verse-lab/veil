@@ -1,9 +1,12 @@
 // What the extension asks Lean for, with the code actions that Lean gives only to requests for their
 // kinds (see `Veil/Frontend/DSL/Module/ConfigTemplate.lean`).
 import * as vscode from 'vscode';
-import { VeilModuleSite } from './buildCommands';
+import { VeilModuleSite, headerEndLine } from './buildCommands';
+import { LEGACY_IDE_PROTOCOL } from './compatibility';
 import { isOfModule } from './configTemplate';
 
+/** The kind of the code action that gives the IDE protocol of Veil, as `ideProtocolKind` in Lean */
+const IDE_PROTOCOL_KIND = 'refactor.veil.ideProtocol';
 /** The kind of the code action that gives the modules with executable definitions, as `executableModulesKind` in Lean */
 const EXECUTABLE_MODULES_KIND = 'refactor.veil.executableModules';
 
@@ -27,6 +30,20 @@ export async function askLeanCommands(document: vscode.TextDocument, line: numbe
     if (found?.command === command) matches.push(found.arguments ?? []);
   }
   return matches;
+}
+
+/** The IDE protocol of the Veil that Lean has loaded for `document`, or `undefined` if Lean does
+ * not say, e.g. before it has processed the imports. Lean answers at the first command after them. */
+export async function veilProtocol(document: vscode.TextDocument): Promise<number | undefined> {
+  const line = Math.min(headerEndLine(document.getText()), document.lineCount - 1);
+  const args = await askLean(document, line, IDE_PROTOCOL_KIND, 'veil.ideProtocol');
+  if (args) {
+    const protocol = (args[0] as { ideProtocol?: unknown } | undefined)?.ideProtocol;
+    return typeof protocol === 'number' ? protocol : undefined;
+  }
+  // A Veil from before it reported its protocol answers this kind at any command
+  return await askLean(document, line, EXECUTABLE_MODULES_KIND, 'veil.modelCheck.executableModules')
+    ? LEGACY_IDE_PROTOCOL : undefined;
 }
 
 /** Whether Lean has generated executable definitions, including through an execution command */

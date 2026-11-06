@@ -2,5 +2,6 @@
 !dist/**
 !package.json
 !README.md
+!CHANGELOG.md
 !icon.png
 !LICENSE

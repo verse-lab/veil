@@ -4,6 +4,7 @@
 import ModelCheckerView from '@veil/widget/traceDisplay';
 import { OpenSource, OpenSourceContext, SourceLink, formatValue, logicalCtor } from '@veil/widget/veilUtils';
 import * as React from 'react';
+import { otherProtocolNotice } from '../src/compatibility';
 import { ActionStat, VerdictKind, describeResult, modelCheckMetrics } from '../src/protocol';
 import { HistoryPoint, ModuleSources, PanelMessage, RunOrigin, RunSnapshot } from '../src/snapshot';
 import { CHART_CSS, MetricChart } from './chart';
@@ -82,6 +83,8 @@ function RunContent({ run, now, origin = 'live', fileName, canRunAgain = true, o
   // A binary reports the labels once, when it starts, rather than in its progress
   const labels = run.actionLabels ?? metrics?.allActionLabels ?? [];
   const elapsed = (run.endedAt ?? now) - run.startedAt;
+  // E.g. a result saved with an older Veil, whose format this extension may not show correctly
+  const otherProtocol = otherProtocolNotice(run.ideProtocol);
   return <>
   <div className="run">
     <div className="header">
@@ -101,6 +104,7 @@ function RunContent({ run, now, origin = 'live', fileName, canRunAgain = true, o
       {outdated && ` · outdated: ${OUTDATED_BECAUSE}`}
     </div>}
     {origin === 'live' && outdated && <div className="origin outdated">Outdated: {OUTDATED_BECAUSE}</div>}
+    {otherProtocol && <div className="origin outdated">{otherProtocol}</div>}
     <StatusLine run={run} />
     <div className="muted">
       Started {clock(run.startedAt)}{run.endedAt !== undefined && `, ended ${clock(run.endedAt)}`}

@@ -3,6 +3,7 @@ import {
   BuildCommandSite, BuildStatus, ReportedMessage, Severity, buildStatus, findBuildCommands, findVeilModules,
   headerEndLine, importsOutOfDate, moduleLensLines,
 } from './buildCommands';
+import { VeilCompatibility } from './compatibilityCheck';
 import { ResultStore, freshness } from './resultStore';
 import { RunManager } from './runManager';
 import { RunOutcomeKind } from './snapshot';
@@ -74,13 +75,14 @@ export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Dispo
   private readonly subscriptions: vscode.Disposable[];
 
   constructor(private readonly runs: RunManager, private readonly store: ResultStore,
-      private readonly configs: ModelConfigs) {
+      private readonly configs: ModelConfigs, private readonly compatibility: VeilCompatibility) {
     this.subscriptions = [
       vscode.languages.onDidChangeDiagnostics(event => {
         if (event.uris.some(uri => uri.path.endsWith('.lean'))) this.changed.fire();
       }),
       runs.onDidChangeStatus(() => this.changed.fire()),
       configs.onDidChange(() => this.changed.fire()),
+      compatibility.onDidChange(() => this.changed.fire()),
     ];
   }
 
@@ -90,7 +92,21 @@ export class BuildCommandLenses implements vscode.CodeLensProvider, vscode.Dispo
   }
 
   async provideCodeLenses(document: vscode.TextDocument): Promise<vscode.CodeLens[]> {
-    const modules = (await Promise.all(findVeilModules(document.getText()).map(async site => {
+    const veilModules = findVeilModules(document.getText());
+    const commandSites = findBuildCommands(document.getText());
+    // Lean is not asked about other files
+    if (veilModules.length === 0 && commandSites.length === 0) return [];
+    const unsupported = await this.compatibility.forLenses(document);
+    if (unsupported) {
+      // In place of the actions, which may misbehave with this Veil
+      return [...veilModules, ...commandSites].map(site =>
+        new vscode.CodeLens(new vscode.Range(site.line, site.character, site.line, site.character), {
+          title: '$(warning) Veil Verifier does not support the Veil of this project',
+          command: 'veil.modelCheck.explainIncompatibility', arguments: [document.uri.toString()],
+          tooltip: this.compatibility.describe(unsupported),
+        }));
+    }
+    const modules = (await Promise.all(veilModules.map(async site => {
       const executable = await hasExecutableDefinitions(document, site);
       const configs = executable ? await this.configs.ofModule(site.name) : [];
       const [title, tooltip] = !executable

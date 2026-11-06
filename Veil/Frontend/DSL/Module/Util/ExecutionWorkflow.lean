@@ -671,12 +671,15 @@ def run (command : ModelChecker.Compilation.CompiledCommandSpec)
   | .compiled => runCompiled command kind mod stx callExpr parallelCfg
   | .default => runWithHandoff command kind mod stx callExpr parallelCfg
 
+/-- How the message of `buildOnly` starts: the VS Code extension reads the rest as the path of the
+binary (`BUILT_PREFIX`) -/
+def builtMessagePrefix : String := "Model checker built: "
+
 /-- `#model_check X …` for a module `X`: build the binary of `callExpr` in the background, without
 running it, and report its copy in `.lake/model_checkers`. -/
 def buildOnly (command : ModelChecker.Compilation.CompiledCommandSpec) (stx : Syntax) (callExpr : Term) :
     CommandElabM Unit :=
   buildChecker command stx callExpr (sync := false) fun binary _ _ =>
-    -- The VS Code extension takes the rest of this message for the path (`BUILT_PREFIX`)
-    logInfoAt stx m!"Model checker built: {binary}"
+    logInfoAt stx m!"{builtMessagePrefix}{binary}"
 
 end Veil.ExecutionWorkflow
