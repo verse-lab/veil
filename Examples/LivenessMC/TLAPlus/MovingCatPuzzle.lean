@@ -78,6 +78,7 @@ invariant [TypeOK] cat_box ∈ Boxes ∧ observed_box ∈ Observed_Boxes
 temporal (only := check) [Victory] 𝒲ℱ Step → ◇ ⌜ observed_box = cat_box ⌝
 
 #gen_spec
+#gen_executable
 
 --#model_check { Number_Of_Boxes := 5, Directions := Directions_IndT }
 --#temporal_check { Number_Of_Boxes := 5, Directions := Directions_IndT }

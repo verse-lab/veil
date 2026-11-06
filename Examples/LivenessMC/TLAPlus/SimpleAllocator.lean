@@ -90,6 +90,7 @@ temporal (only := check) [InfOftenSatisfied]
   → ∀ c, □ ◇ ⌜ resSet.isEmpty (unsatisfied c) ⌝
 
 #gen_spec
+#gen_executable
 
 --#model_check
 --  { client := Fin 2, resource := Fin 1, ResourceSet := OrdList _ }

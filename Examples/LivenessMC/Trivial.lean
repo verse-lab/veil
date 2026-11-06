@@ -27,6 +27,7 @@ temporal [alwaysTrue] □ ⊤
 temporal [eventuallyFalse] ◇ ⊥
 
 #gen_spec
+#gen_executable
 
 set_option veil.violationIsError false in
 #temporal_check interpreted {}

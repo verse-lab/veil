@@ -91,6 +91,7 @@ temporal (only := check) [Liveness]
     ⌜ ∃ n, state n = cand ⌝ → ◇ ⌜ ∃ n, state n = won ⌝
 
 #gen_spec
+#gen_executable
 
 --#model_check
 --  { node := Fin 3, IdSet := OrdList Nat, nodeId := fun i => i.val + 1, succ := fun i => i + 1 }

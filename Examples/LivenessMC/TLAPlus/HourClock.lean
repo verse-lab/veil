@@ -43,6 +43,7 @@ temporal (only := check) [AllTimes]
   𝒲ℱ HCnxt → ∀ n : { n // n ∈ List.range' 1 12 }, □ ◇ ⌜ hr = n.val ⌝
 
 #gen_spec
+#gen_executable
 
 --#model_check {}
 --#temporal_check {}

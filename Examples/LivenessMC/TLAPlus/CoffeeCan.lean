@@ -102,6 +102,7 @@ temporal (only := check) [TerminationHypothesis]
        ∧ (⌜ can.white % 2 ≠ 0 ⌝ → ◇ ⌜ can.black = 0 ∧ can.white = 1 ⌝))
 
 #gen_spec
+#gen_executable
 
 --#model_check compiled { MaxBeanCount := 100 } {}
 --#temporal_check compiled { MaxBeanCount := 100 } {}

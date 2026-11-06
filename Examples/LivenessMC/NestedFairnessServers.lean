@@ -85,6 +85,7 @@ temporal [server0EmitsFair]
   → □ ◇ ⌜ emit 0 = true ⌝
 
 #gen_spec
+#gen_executable
 
 --#temporal_check [server0EmitsFair] compiled {}
 --#temporal_check [server0EmitsWeak] compiled {}

@@ -43,6 +43,7 @@ temporal [φTerminates] ◇ □ ⌜ ¬v0 ∧ ¬v1 ∧ ¬v2 ∧ ¬v3 ⌝
 temporal [φInfinitelyOn] □ ◇ ⌜ v0 = true ⌝
 
 #gen_spec
+#gen_executable
 
 -- Checks every `liveness` property above in declaration order, stopping at the first counterexample.
 --set_option veil.violationIsError false in

@@ -173,6 +173,7 @@ temporal (only := check) [DT2]
   → (⌜ Terminated ⌝ ↝ ⌜ neutral Leader ⌝)
 
 #gen_spec
+#gen_executable
 
 -- MCProcs = {Leader, P1, P2, P3} as 0..3; MCEdges = {<<Leader,P1>>, <<P1,P2>>, <<P2,P1>>, <<P2,P3>>}.
 abbrev NProcs : Nat := 4

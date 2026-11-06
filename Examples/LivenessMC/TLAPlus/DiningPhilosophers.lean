@@ -131,6 +131,7 @@ temporal (only := check) [NobodyStarves]
 termination false
 
 #gen_spec
+#gen_executable
 
 def theory5 : Theory (Fin 5) pcLabel :=
   { succ := fun p => p + 1,

@@ -80,6 +80,7 @@ temporal (only := check) [Liveness] 𝒲ℱ NextAction → ◇ ¬ Enabled NextAc
 temporal (only := check) [ENABLEDNextAgrees] □ (Enabled NextAction ↔ ⌜ ENABLEDNext ⌝)
 
 #gen_spec
+#gen_executable
 
 -- Edges = {{n1,n2}, {n1,n3}, {n2,n3}, {n2,n4}, {n3,n4}, {n3,n5}, {n4,n5}}, n1 .. n5 as 0 .. 4.
 def Edges5 : Fin 5 → Fin 5 → Bool := fun m n =>

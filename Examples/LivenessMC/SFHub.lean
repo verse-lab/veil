@@ -60,6 +60,7 @@ temporal [goalN]
   → □ (⌜ reqAt 0 ⌝ → ◇ ⌜ ackAt 0 ⌝)
 
 #gen_spec
+#gen_executable
 
 --set_option veil.violationIsError false in
 --#temporal_check [noFair] { n := 2 } {}
