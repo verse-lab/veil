@@ -335,7 +335,8 @@ def elabLivenessNarrowAction : DesugarTacticM Unit := veilWithMainContext do
   -- Construct `Fin` indices directly and disable `Fin.reduceFinMk` below so their values
   -- reduce by projection rather than relying on numeral-coercion simp lemmas.
   let activeIdxsList ← activeIdxs.mapM fun i => `(term| ⟨$(Syntax.mkNatLit i), by decide⟩)
-  let dsimps := #[``repeatedOrProp, ``List.reverse, ``IteratedPred.exists].map Lean.mkIdent
+  let dsimps := #[``repeatedOrProp, ``List.map, ``List.reverse, ``List.reverseAux,
+    ``List.foldr, ``IteratedPred.exists].map Lean.mkIdent
   -- Sometimes Lean has difficulty finding the theory argument, so need to provide it explicitly here
   -- FIXME: The following just uses the simplest heuristic
   veilWithMainContext do
