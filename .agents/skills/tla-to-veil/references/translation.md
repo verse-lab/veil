@@ -25,7 +25,7 @@ Example names in parentheses, such as `(Paxos)`, refer to files such as `Example
 | Strings used as tags (`"idle"`, `"done"`) | `enum phase = {idle, done}` | | Use this enum only if the source tag is always `"idle"` or `"done"` in reachable states. If the source has an `OTHER` branch for other strings, explain in a comment why that branch can never run. |
 | `Seq(S)` | `List S` | `fQueue S` for a FIFO queue, `Array S` for random access ([Sequences](#sequences)) | Keep order and duplicates, shift 1-based indices, never replace a sequence with a set |
 | `Init` | `after_init` | | A field it doesn't assign starts at its default value ([Frames and initial states](#frames-and-initial-states)) |
-| `x ∈ S` in `Init` | `let v :\| v ∈ S`, then `x := v`; `x := *` when `S` is all of `x`'s type | | Keep every allowed initial value, not one representative ([Frames and initial states](#frames-and-initial-states)) |
+| `x ∈ S` in `Init` | `let v :\| v ∈ S`, then `x := v`; `x := *` when `S` is all of `x`'s type | A tuple choice, `let (v, w) : τ × υ :\| P v w`, where the source constrains several variables jointly ([Choice](#choice)) | Keep every allowed initial value, not one representative ([Frames and initial states](#frames-and-initial-states)) |
 | Action in `Next` | `action` of the same name, the `∃` around it in `Next` as parameters | A local choice instead of a parameter, when that `∃` ranges over state (`\E m \in msgs`) or an awkward range (`-D..D`); see [Actions](#actions) | One Veil action per source action; see [Actions](#actions) |
 | Operator used by actions | `procedure` (stateful), `ghost relation`/`ghost function` (pure) | A ghost predicate instead of a derived set that is only tested for membership (SimpleAllocator) | Never an `action`, which would add an enabled step |
 | `ENABLED A` | `ghost relation` holding A's enabling conjuncts | | A uses it as its guard too |
@@ -182,6 +182,19 @@ A variable chosen in `Init` and never changed is still state; turning it into a 
 3. `CHOOSE x ∈ S : P(x)` is deterministic: same S and P, same value. With a unique witness, a relational choice is fine once existence and uniqueness are clear; otherwise fix one rule and state it. TLC picks by its own value order, so matching TLC's state graph exactly may require checking which value it picks; over a TSet constant, the carrier's order plays that role ([Constants used as sets](#constants-used-as-sets)). Don't turn the no-witness case into a disabled step or an invented default.
 
 A `CHOOSE` that selects a unique index can use `findIdx`.
+
+A choice can bind a flat tuple of identifiers, which picks the components together: `let (v, w) : τ × υ :| P v w`. Write it where the source constrains the variables jointly, so that the constraint stays one condition over the whole tuple — typically a record or function drawn from a filtered set, as in `can \in {c \in Can : c.black + c.white \in 1..MaxBeanCount}` (CoffeeCan):
+
+```lean
+let (b, w) : { b : Nat // b ∈ List.range' 0 (MaxBeanCount + 1) }
+           × { w : Nat // w ∈ List.range' 0 (MaxBeanCount + 1) } :|
+  b.val + w.val ∈ List.range' 1 MaxBeanCount
+can := { black := b.val, white := w.val }
+```
+
+Chaining single choices admits the same values, but needs a filler predicate for every component but the last (`let b : τ :| true`) and hangs the joint constraint off the last one, reading as a condition on that variable alone. The type ascription is optional where Lean can infer it; each component type still has to enumerate finitely. The conditional twin takes the same witness: `if (v, w) :| P v w then …`.
+
+Conversely, a choice with no constraint to express is a `pick`: write `let h ← pick { h // h ∈ List.range' 1 12 }` rather than `let h : { h // h ∈ List.range' 1 12 } :| true`. The subtype still bounds the enumeration either way, so the two admit the same values; `:| true` only announces a filter that is not there. The preference for `:|` over `pick` is about `pick` followed by `assume`, which enumerates and then discards — it does not apply when there is nothing to filter.
 
 Narrowing a choice needs an argument that the same successors remain reachable; fewer witnesses alone isn't enough.
 

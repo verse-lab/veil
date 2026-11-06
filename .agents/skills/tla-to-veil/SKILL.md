@@ -34,7 +34,7 @@ In outline (details in translation.md):
 - An omitted Veil assignment means `UNCHANGED`; an omitted primed TLA+ variable means "any value".
 - Invariants stay invariants. Moving one into `assume` or `require` hides its violations.
 
-Start with the direct translation. Where a construct has several reasonable encodings, note the alternatives and why you chose one, labeling performance claims as measured or expected. Optimize only real bottlenecks, never by dropping nondeterminism or adding guards, and re-run the checks afterwards. Re-modeling, such as replacing quorums defined by cardinality with Veil's `Quorum` type, is a separate decision that needs its own argument.
+Start with the direct translation. Then read back what you wrote and simplify the Veil-side scaffolding that the direct pass leaves behind, without changing which behaviors are admitted: a choice whose predicate is trivially true is a `pick`, chained choices whose constraint relates them are one tuple choice, a local binding used once can be inlined, and a helper with one call site may belong in its caller. Re-run the checks and confirm the state counts are unchanged ([translation.md](references/translation.md), "Choice"). Where a construct has several reasonable encodings, note the alternatives and why you chose one, labeling performance claims as measured or expected. Optimize only real bottlenecks, never by dropping nondeterminism or adding guards, and re-run the checks afterwards. Re-modeling, such as replacing quorums defined by cardinality with Veil's `Quorum` type, is a separate decision that needs its own argument.
 
 ## 3. Check against TLC
 
@@ -54,6 +54,6 @@ The Veil file, building without warnings and headed by a comment naming the sour
 
 ## Reviewing an existing translation
 
-Run the same steps on the existing file, comparing it with the source definition by definition; translation.md's "Mirror the source" doubles as the checklist. Typical findings: a source action split into several, a parameter the source lacks, a `List` standing in for a set constant, quantifiers detoured through `toList`, a dropped `LET` or a substituted operator, and a missing `termination false` where the cfg checks deadlock.
+Run the same steps on the existing file, comparing it with the source definition by definition; translation.md's "Mirror the source" doubles as the checklist. Typical findings: a source action split into several, a parameter the source lacks, a `List` standing in for a set constant, quantifiers detoured through `toList`, a dropped `LET` or a substituted operator, a missing `termination false` where the cfg checks deadlock, and leftover scaffolding from a direct pass that was never simplified (`:| true` for a `pick`, chained choices for one tuple choice).
 
 For each finding, show the source next to the translation, then the fix. Also list what you keep and why (an equivalent form, a workaround for a reported Veil failure) and the alternatives you reject. After fixing, rebuild without warnings and rerun the checks. Update probes or harnesses that call renamed or merged actions, and the comments above each `#model_check` (explaining.md). Rerun rather than trust earlier validation notes, and flag claims in them that no longer hold.
