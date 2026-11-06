@@ -154,7 +154,11 @@ and/or and state, thus making all their fields accessible in `t`.
 are generated according to `targets`.
 - `motiveType`: Optional type to use for the motive in the `casesOn` eliminators;
   if `none`, the motive type will be `_` (to be inferred).
-- `stateSortTerm`: Optional term to use as the sort argument for state casesOn. -/
+- `stateSortTerm`: Optional term to use as the sort argument for state casesOn.
+- `freshFieldNames`: bind the fields under fresh names instead of their own, for a `t`
+  that refers to them only through the identifiers it is given. No field can then
+  capture an identifier of `t`, as a field named `core` would capture the `core` of
+  `LocalRProp` in its `core_eq`. -/
 def Module.withTheoryAndStateTermTemplate (mod : Module)
   -- The `Bool` below indicates whether to wrap the `Term` with `readFrom`/`getFrom`
   (targets : List (TheoryAndStateTermTemplateArgKind × Term × Bool))
@@ -165,6 +169,7 @@ def Module.withTheoryAndStateTermTemplate (mod : Module)
   (fieldRepInstance : Term := fieldRepresentation)
   (stateSortTerm : Option Term := none)
   (stateView : StateFieldView := .concrete)
+  (freshFieldNames : Bool := false)
   : MetaM (TSyntax `term) := do
   let motive := mkIdent `motive
   let motiveBody ← match motiveType with
@@ -173,8 +178,11 @@ def Module.withTheoryAndStateTermTemplate (mod : Module)
   let (theoryName, stateName) := (mod.name ++ theoryName, mod.name ++ stateName)
   let casesOnTheory := theoryName ++ `casesOn
   let casesOnState := stateName ++ `casesOn
-  let theoryFields ← getFieldIdentsForStruct theoryName
-  let stateFields ← getFieldIdentsForStruct stateName
+  let binderNames (fields : Array Ident) : MetaM (Array Ident) :=
+    if freshFieldNames then fields.mapM fun f => Lean.mkIdent <$> mkFreshUserName f.getId
+    else pure fields
+  let theoryFields ← binderNames (← getFieldIdentsForStruct theoryName)
+  let stateFields ← binderNames (← getFieldIdentsForStruct stateName)
   let stateFieldsWithSuffix suf : Array Ident :=
     stateFields.map fun (f : Ident) => f.getId.appendAfter suf |> Lean.mkIdent
   let t ← t theoryFields stateFields
