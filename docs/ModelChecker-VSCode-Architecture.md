@@ -69,8 +69,10 @@ panel then mark the result as outdated.
 A project fixes its Veil, while the extension is installed once for all projects
 and updates itself, so the two may not agree on the messages and formats above.
 Veil therefore gives them a version, its IDE protocol (`Veil.ideProtocolVersion`),
-which Lean reports with a code action at the first command of a file, and binaries
-report when they start. Each version `0.N.x` of the extension supports IDE
+which Lean reports with a code action at the end of the imports of a file, and
+binaries report when they start. The extension asks there rather than at the
+first command, which Lean answers only once the command's background work, such
+as the build of a `#mc_config`, has ended. Each version `0.N.x` of the extension supports IDE
 protocol `N` only, and its lenses say so when the project's Veil reports another.
 The [publishing guide](../editors/vscode/PUBLISHING.md#changing-what-the-extension-relies-on)
 says when to bump the protocol.

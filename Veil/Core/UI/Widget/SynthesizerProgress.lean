@@ -99,7 +99,8 @@ partial def refresh (ref : Ref) (cancel? : Option IO.CancelToken)
     IO.sleep 100
     refresh ref cancel? token
 
-/-- The launching command returns immediately, so ordinary widget information is sufficient.
+/-- The launching command must publish this widget information with `withStreamingInfo`: its
+final info tree is complete only once the computation ends.
 The refresh task follows the computation's cancellation token, independently of panel visibility. -/
 def display (stx : Syntax) (ref : Ref) (cancel : IO.CancelToken) : CommandElabM Unit := do
   let (html, token) ← mkRefreshComponent (render (← ref.get) (← IO.monoMsNow))

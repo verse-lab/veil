@@ -103,6 +103,14 @@ export function headerEndLine(text: string): number {
   return command?.line ?? lineOffsets.length;
 }
 
+/** The line at the end of which the extension asks Lean for the IDE protocol: the last line before
+ * the first command, which Lean answers from the snapshot of the header. At a command, Lean would
+ * first wait for the work that the command still runs, such as the build of the `#mc_config` that
+ * starts a config file. */
+export function protocolQueryLine(text: string): number {
+  return Math.max(headerEndLine(text) - 1, 0);
+}
+
 /** The `#mc_config` commands in `text`, leaving out those in comments and strings. A command must
  * start its line. */
 export function findBuildCommands(text: string): BuildCommandSite[] {

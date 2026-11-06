@@ -10,7 +10,7 @@ import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   BUILT_PREFIX, BuildAfterRestart, ReportedMessage, Severity, buildStatus, findBuildCommands, findVeilModules, headerEndLine,
-  importsOutOfDate, moduleLensLines,
+  importsOutOfDate, moduleLensLines, protocolQueryLine,
 } from '../src/buildCommands';
 import {
   IDE_PROTOCOL, LEGACY_IDE_PROTOCOL, compatibility, incompatibilityMessage, otherProtocolNotice,
@@ -379,6 +379,16 @@ test('an error in the header of a file means that none of its commands was built
     { kind: 'failed', message: 'unknown module prefix' });
   // but goes on after an error in another command
   assert.deepStrictEqual(buildStatus(config, [message(7, 'error', 'unknown identifier')], headerEnd), { kind: 'pending' });
+});
+
+test('asks for the IDE protocol at the end of the header, not at the first command', () => {
+  // A config file starts with a `#mc_config`, whose build Lean would wait for at its line
+  const config = ['module', '', 'public import Veil', 'public import Foo', '', '#mc_config Foo {}'].join('\n');
+  assert.strictEqual(protocolQueryLine(config), 4);
+  const commented = ['module', 'public import Veil', '-- A comment', '#mc_config Foo {}'].join('\n');
+  assert.strictEqual(protocolQueryLine(commented), 2);
+  // Without a header, there is only the first command to ask at
+  assert.strictEqual(protocolQueryLine('#mc_config Foo {}'), 0);
 });
 
 test('tells when Lean reports that the imports of a file are out of date', () => {
@@ -1022,7 +1032,7 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
     assert.ok((progress && modelCheckMetrics(progress)?.distinctStates || 0) > 0);
   });
 
-  test('Lean says the IDE protocol of Veil at the first command, to a request for its kind only', async () => {
+  test('Lean says the IDE protocol of Veil at the end of the imports, to a request for its kind only', async () => {
     const server = new LeanServer(repoRoot);
     try {
       const initialized = await within(server.request('initialize',
@@ -1036,14 +1046,14 @@ if (process.env.VEIL_SKIP_BINARY_TESTS !== '1') {
       const uri = pathToFileURL(file).href;
       const text = fs.readFileSync(file, 'utf8');
       server.notify('textDocument/didOpen', { textDocument: { uri, languageId: 'lean4', version: 1, text } });
-      // As the extension asks: at the first command after the imports, without waiting for the rest
-      const line = headerEndLine(text);
+      // As the extension asks: at the end of the imports, without waiting for any command
+      const line = protocolQueryLine(text);
       type Action = { kind?: string; command?: { command: string; arguments: unknown[] } };
       const actionsFor = async (only?: string[]) => await within(server.request('textDocument/codeAction', {
         textDocument: { uri },
         range: { start: { line, character: 0 }, end: { line, character: text.split('\n')[line].length } },
         context: { diagnostics: [], ...(only ? { only } : {}) },
-      }), 600_000, 'Answering at the first command') as Action[];
+      }), 600_000, 'Answering at the end of the imports') as Action[];
       const ofProtocol = (actions: Action[]) => actions.filter(action => action.kind === 'refactor.veil.ideProtocol');
       const actions = ofProtocol(await actionsFor(['refactor.veil.ideProtocol']));
       assert.strictEqual(actions.length, 1);

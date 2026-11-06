@@ -9,6 +9,7 @@ public meta import Veil.Core.Tools.Verifier.Server
 public meta import Veil.Core.Tools.Verifier.Results
 meta import Veil.Core.Tools.Verifier.TheoremDischarger
 public meta import Veil.Core.UI.Verifier.VerificationResults
+public meta import Veil.Util.StreamingInfo
 
 public meta section
 
@@ -300,8 +301,8 @@ private def throwUnknownCheckAction (mod : Module) (actionName : Name) : Command
       s!"Available actions: {", ".intercalate availableActions.toList}"
   throwError s!"Unknown action {actionName} for #check_action. {suggestion}"
 
-@[command_elab Veil.checkInvariants]
-def elabCheckInvariants : CommandElab := fun stx => do
+@[command_elab Veil.checkInvariants, incremental]
+def elabCheckInvariants : CommandElab := fun stx => withStreamingInfo stx do
   -- Use dynamic trace class name for detailed profiling
   withTraceNode `veil.perf.elaborator.checkInvariants (fun _ => return "#check_invariants") do
     -- Skip in compilation mode (no verification feedback needed)
@@ -309,13 +310,14 @@ def elabCheckInvariants : CommandElab := fun stx => do
     let mod ← mod.ensureVerificationSpec stx
     runFilteredInvariantCheck stx mod VCMetadata.isInduction
 
-@[command_elab Veil.checkAction]
+@[command_elab Veil.checkAction, incremental]
 def elabCheckAction : CommandElab := fun stx => do
+  unless stx.getKind == `Veil.checkAction do
+    throwUnsupportedSyntax
+  withStreamingInfo stx do
   withTraceNode `veil.perf.elaborator.checkAction (fun _ => return "#check_action") do
     let mod ← getCurrentModule (errMsg := "You cannot #check_action outside of a Veil module!")
     mod.throwIfSpecNotFinalized
-    unless stx.getKind == `Veil.checkAction do
-      throwUnsupportedSyntax
     let actionName := stx[1].getId
     unless (getCheckableAction? mod actionName).isSome do
       throwUnknownCheckAction mod actionName

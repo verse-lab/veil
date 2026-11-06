@@ -5,6 +5,7 @@ public meta import Veil.Core.Tools.Synthesizer.Controller
 public meta import Veil.Core.Tools.Synthesizer.Certificate
 public meta import Veil.Core.Tools.Synthesizer.Counterexample
 public meta import Veil.Core.UI.Widget.SynthesizerProgress
+public meta import Veil.Util.StreamingInfo
 
 /-!
 # `#updr`
@@ -495,7 +496,7 @@ private def importCertificate (result : Task (Option (Except String (Option Cert
   | none => throwError "invariant synthesis was cancelled before producing a certificate"
 
 /-- Register search work with Lean so cancellation and diagnostics follow the command, while
-the main elaborator returns immediately and exposes the panel to all infoview requests. -/
+the main elaborator returns immediately; `elabUpdr` publishes the panel before the search ends. -/
 private def startUpdr (stx : Syntax) (mod : Veil.Module) (opts : Options) :
     CommandElabM Unit := do
   let cancel ← IO.CancelToken.new
@@ -518,8 +519,8 @@ private def startUpdr (stx : Syntax) (mod : Veil.Module) (opts : Options) :
     registerTheoremGenerator mod.name (importCertificate result.result?)
   opts.cfg.progress?.forM fun ref => Progress.display stx ref cancel
 
-@[command_elab updr]
-def elabUpdr : CommandElab := fun stx ↦ do
+@[command_elab updr, incremental]
+def elabUpdr : CommandElab := fun stx ↦ withStreamingInfo stx do
   let mod ← getCurrentModule (errMsg := "#updr must be used inside a Veil module")
   mod.throwIfSpecNotFinalized
   let opts ← parseOptions stx[1].getArgs

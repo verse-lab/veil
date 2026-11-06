@@ -25,7 +25,9 @@ def ideProtocolKind : String := "refactor.veil.ideProtocol"
 /-- The command of the code action of `ideProtocolKind` -/
 def ideProtocolCommand : String := "veil.ideProtocol"
 
-/-- Answers at any command, so that the extension can ask right after the imports -/
+/-- Answers anywhere, also in the imports, where the extension asks. There Lean answers at once from
+their snapshot, while at a command it first waits for the work that the command still runs, such as
+the build of a `#mc_config`. -/
 @[code_action_provider]
 def ideProtocolCodeAction : CodeActionProvider := fun params _ => do
   unless params.context.only?.any (·.contains ideProtocolKind) do return #[]
