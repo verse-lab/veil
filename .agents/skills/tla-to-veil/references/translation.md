@@ -183,7 +183,7 @@ A variable chosen in `Init` and never changed is still state; turning it into a 
 
 A `CHOOSE` that selects a unique index can use `findIdx`.
 
-A choice can bind a flat tuple of identifiers, which picks the components together: `let (v, w) : τ × υ :| P v w`. Write it where the source constrains the variables jointly, so that the constraint stays one condition over the whole tuple — typically a record or function drawn from a filtered set, as in `can \in {c \in Can : c.black + c.white \in 1..MaxBeanCount}` (CoffeeCan):
+Use a tuple choice for values with a shared constraint: `let (v, w) : τ × υ :| P v w`. Each component must be finitely enumerable. CoffeeCan chooses both bean counts together:
 
 ```lean
 let (b, w) : { b : Nat // b ∈ List.range' 0 (MaxBeanCount + 1) }
@@ -192,9 +192,7 @@ let (b, w) : { b : Nat // b ∈ List.range' 0 (MaxBeanCount + 1) }
 can := { black := b.val, white := w.val }
 ```
 
-Chaining single choices admits the same values, but needs a filler predicate for every component but the last (`let b : τ :| true`) and hangs the joint constraint off the last one, reading as a condition on that variable alone. The type ascription is optional where Lean can infer it; each component type still has to enumerate finitely. The conditional twin takes the same witness: `if (v, w) :| P v w then …`.
-
-Conversely, a choice with no constraint to express is a `pick`: write `let h ← pick { h // h ∈ List.range' 1 12 }` rather than `let h : { h // h ∈ List.range' 1 12 } :| true`. The subtype still bounds the enumeration either way, so the two admit the same values; `:| true` only announces a filter that is not there. The preference for `:|` over `pick` is about `pick` followed by `assume`, which enumerates and then discards — it does not apply when there is nothing to filter.
+Use `pick` when there is no further constraint: `let h ← pick { h // h ∈ List.range' 1 12 }`. This admits the same values as the corresponding `:| true` choice. Use `:| P` when you need to filter them.
 
 Narrowing a choice needs an argument that the same successors remain reachable; fewer witnesses alone isn't enough.
 
