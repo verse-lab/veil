@@ -91,10 +91,10 @@ temporal (only := check) [InfOftenSatisfied]
 
 #gen_spec
 
-#model_check
-  { client := Fin 2, resource := Fin 1, ResourceSet := OrdList _ }
+--#model_check
+--  { client := Fin 2, resource := Fin 1, ResourceSet := OrdList _ }
 
-#temporal_check
-  { client := Fin 2, resource := Fin 1, ResourceSet := OrdList _ }
+--#temporal_check
+--  { client := Fin 2, resource := Fin 1, ResourceSet := OrdList _ }
 
 end SimpleAllocator

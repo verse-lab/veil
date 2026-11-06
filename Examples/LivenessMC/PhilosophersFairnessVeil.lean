@@ -3,15 +3,13 @@ module
 public import Veil
 
 set_option veil.deferVCGeneration true
-
-/-! # Veil-Style — "Dining Philosophers", with fairness
+/-! # Simple "Dining Philosophers", with fairness
     This test can have two failures:
     - Phil. 0 starves because P1 and P2 trade forks forever
     - Phil. 0 starves because of deadlock: All 3 pick up their left fork at the same time,
         none can put it down before eating
 
-    Running `#temporal_check` reports the second error, the deadlock, which its search reaches first.
-    See `PhilosophersFairnessCAVA.lean` for the same system in the CAVA `BoolProgs` style.
+    `#temporal_check` finds the second error first.
 -/
 
 veil module Philosophers
@@ -57,7 +55,7 @@ safety [mutex12] ¬(eat 1 = true ∧ eat 2 = true)
 safety [mutex20] ¬(eat 2 = true ∧ eat 0 = true)
 
 -- `#temporal_check` checks the properties in declaration order and stops at the first
--- counterexample, so the property that holds comes first.
+-- counterexample, so the property that holds is declared first.
 
 -- (fairness assumption) → phil0EventuallyEats.
 temporal [phil0EventuallyEatsFair]

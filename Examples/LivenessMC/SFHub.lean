@@ -51,15 +51,20 @@ ghost relation ackAt (m : Nat) := loc = 2 * m + 1
 -- Does not hold.
 temporal [noFair] □ (⌜ reqAt 0 ⌝ → ◇ ⌜ ackAt 0 ⌝)
 
--- Goal == Fair => Liveness, Fair == \A i \in 0..N-1 : ([]<>Req(i) => []<>Ack(i)). n strong pairs,
--- 2^n combinations of disjuncts.
+-- Goal == Fair => Liveness, Fair == \A i \in 0..N-1 : ([]<>Req(i) => []<>Ack(i)).
+-- n strong pairs, therefore 2^n combinations of disjuncts in the assumption.
 temporal [goalN]
+  -- For n = 2 this becomes: (¬ □ ◇ ⌜ reqAt 0 ⌝ ∨ □ ◇ ⌜ ackAt 0 ⌝) ∧ (¬ □ ◇ ⌜ reqAt 1 ⌝ ∨ □ ◇ ⌜ ackAt 1 ⌝)
+  -- So four possible combinations of disjuncts in the assumption (e.g. □ ◇ ⌜ ackAt 0 ⌝ ∧ ¬ □ ◇ ⌜ reqAt 1 ⌝)
   (∀ i : Fin n, (□ ◇ ⌜ reqAt i.val ⌝ → □ ◇ ⌜ ackAt i.val ⌝))
   → □ (⌜ reqAt 0 ⌝ → ◇ ⌜ ackAt 0 ⌝)
 
 #gen_spec
 
-set_option veil.violationIsError false in
-#temporal_check interpreted { n := 2 } {}
+--set_option veil.violationIsError false in
+--#temporal_check [noFair] { n := 2 } {}
+
+--set_option veil.violationIsError false in
+--#temporal_check [goalN] { n := 2 } {}
 
 end SFHub

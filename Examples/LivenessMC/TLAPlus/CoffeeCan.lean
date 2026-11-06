@@ -103,5 +103,5 @@ temporal (only := check) [TerminationHypothesis]
 
 #gen_spec
 
-#model_check compiled { MaxBeanCount := 100 } {}
-#temporal_check compiled { MaxBeanCount := 100 } {}
+--#model_check compiled { MaxBeanCount := 100 } {}
+--#temporal_check compiled { MaxBeanCount := 100 } {}

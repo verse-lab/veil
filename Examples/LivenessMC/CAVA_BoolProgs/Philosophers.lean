@@ -69,7 +69,8 @@ temporal [φSomeoneEats] ◇ (⌜ eat0 = true ⌝ ∨ ⌜ eat1 = true ⌝ ∨ �
 #gen_spec
 #gen_executable
 
--- set_option veil.violationIsError false in
--- #temporal_check {}
+-- Checks every `liveness` property above in declaration order, stopping at the first counterexample.
+--set_option veil.violationIsError false in
+--#temporal_check {}
 
 end BoolProgPhilosophers

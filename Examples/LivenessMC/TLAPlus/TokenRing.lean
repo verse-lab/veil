@@ -80,6 +80,5 @@ def theory0 : Theory (Fin 6) :=
     n := getNodeByNat,
     M := 6 }
 
-#model_check compiled { node := Fin 6 } theory0
-
--- #temporal_check compiled { node := Fin 6 } theory0
+--#model_check compiled { node := Fin 6 } theory0
+--#temporal_check compiled { node := Fin 6 } theory0

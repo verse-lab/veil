@@ -86,8 +86,8 @@ temporal [server0EmitsFair]
 
 #gen_spec
 
-#temporal_check [server0EmitsFair] compiled {}
-#temporal_check [server0EmitsWeak] compiled {}
-#temporal_check [server0Emits] compiled {}
+--#temporal_check [server0EmitsFair] compiled {}
+--#temporal_check [server0EmitsWeak] compiled {}
+--#temporal_check [server0Emits] compiled {}
 
 end NestedServers

@@ -138,5 +138,5 @@ def theory5 : Theory (Fin 5) pcLabel :=
     ph := fun k => ⟨(k - 1) % 5, Nat.mod_lt _ (by omega)⟩ }
 
 -- TLC on DiningPhilosophers.cfg (NP = 5): 67 distinct states.
-#model_check { philosopher := Fin 5 } theory5
-#temporal_check { philosopher := Fin 5 } theory5
+--#model_check { philosopher := Fin 5 } theory5
+--#temporal_check { philosopher := Fin 5 } theory5

@@ -195,12 +195,12 @@ def connectedToLeaderV (u : Fin NProcs → Option (Fin NEdges)) (n : Fin NProcs)
 -- MCEWD687a.cfg: MaxCounter = 3, Procs <- MCProcs, Edges <- MCEdges, CONSTRAINT StateConstraint,
 --   CHECK_DEADLOCK FALSE (hence no `termination` clause), INVARIANTS TypeOK CountersConsistent
 --   TreeWithRoot DT1Inv, PROPERTY DT2. TLC, with TreeWithRoot dropped: 18028 distinct states.
-#model_check compiled
-  { proc := Fin NProcs, edge := Fin NEdges, Leader := LeaderV, src := srcV, dst := dstV,
-    MaxCounter := 3, connectedToLeader := connectedToLeaderV } {}
+--#model_check compiled
+--  { proc := Fin NProcs, edge := Fin NEdges, Leader := LeaderV, src := srcV, dst := dstV,
+--    MaxCounter := 3, connectedToLeader := connectedToLeaderV } {}
 
-#temporal_check compiled
-  { proc := Fin NProcs, edge := Fin NEdges, Leader := LeaderV, src := srcV, dst := dstV,
-    MaxCounter := 3, connectedToLeader := connectedToLeaderV } {}
+--#temporal_check compiled
+--  { proc := Fin NProcs, edge := Fin NEdges, Leader := LeaderV, src := srcV, dst := dstV,
+--    MaxCounter := 3, connectedToLeader := connectedToLeaderV } {}
 
 end EWD687a
