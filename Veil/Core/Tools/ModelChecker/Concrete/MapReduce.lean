@@ -530,7 +530,7 @@ theorem mergeShard_description (items : Array (MapReduceQueueItem σₕ σ κ))
   · have hc : KeyShard.contains acc.shard (items[i]'(bucket.property i hi)).fingerprint = false := by
       rw [Bool.eq_false_iff, ne_eq, KeyShard.contains_iff_mem, MapShard.mem_iff_isSome_get? (β := LogEntry σₕ κ)]
       simp only [Function.comp_apply] at h ; simp [h]
-    simp only [hc, Bool.false_eq_true, if_false, Function.comp_apply, id, MapShard.get?_insert, implies_true,
+    simp only [hc, Bool.false_eq_true, ite_false, Function.comp_apply, id, MapShard.get?_insert, implies_true,
       and_true]
     simp [ShardMerge.keptItems, IndexArray.toItemsList_eq_map_toFinList,
       IndexArray.toFinList, List.pmap_append]

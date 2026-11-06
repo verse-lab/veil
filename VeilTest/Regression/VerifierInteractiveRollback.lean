@@ -17,6 +17,12 @@ private def waitFor (label : String) (p : BaseIO Bool) : CommandElabM Unit := do
 private def expectStatus (expected : Option VCStatus) : CommandElabM Unit := do
   ensure ((← readVCManager)._doneWith[0]? == expected) s!"wrong checkpoint status, expected {expected.map toString}"
 
+/--
+warning: declaration uses `sorry`
+---
+warning: declaration uses `sorry`
+-/
+#guard_msgs(warning) in
 run_cmd do
   runManager
   let owner ← getVCManagerOwner

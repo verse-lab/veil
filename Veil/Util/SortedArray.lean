@@ -35,33 +35,33 @@ theorem binSearchAux_found_continuation :
   induction lo, hi, h using binSearchAux.induct lt as k with
   | case1 lo hi h _m _a hlt hm _ ih =>
     show binSearchAux lt found as k lo hi h = _
-    rw [binSearchAux.eq_1]; rw [if_pos hlt, dif_pos hm]
+    rw [binSearchAux.eq_1]; rw [ite_eq_left hlt, dite_eq_left hm]
     show binSearchAux lt found as k ⟨_m + 1, _⟩ hi hm = found (binSearchAux lt id as k lo hi h)
     rw [show binSearchAux lt id as k lo hi h = binSearchAux lt id as k ⟨_m + 1, _⟩ hi hm from by
-      rw [binSearchAux.eq_1]; rw [if_pos hlt, dif_pos hm]]
+      rw [binSearchAux.eq_1]; rw [ite_eq_left hlt, dite_eq_left hm]]
     exact ih
   | case2 lo hi h _m _a hlt hm _ =>
     show binSearchAux lt found as k lo hi h = _
-    rw [binSearchAux.eq_1]; rw [if_pos hlt, dif_neg hm]
+    rw [binSearchAux.eq_1]; rw [ite_eq_left hlt, dite_eq_right hm]
     show found none = found (binSearchAux lt id as k lo hi h)
-    congr 1; rw [binSearchAux.eq_1]; simp only [id_eq]; rw [if_pos hlt, dif_neg hm]
+    congr 1; rw [binSearchAux.eq_1]; simp only [id_eq]; rw [ite_eq_left hlt, dite_eq_right hm]
   | case3 lo hi h _m _a hlt hltk hm _ =>
     show binSearchAux lt found as k lo hi h = _
-    rw [binSearchAux.eq_1]; rw [if_neg hlt, if_pos hltk, dif_pos hm]
+    rw [binSearchAux.eq_1]; rw [ite_eq_right hlt, ite_eq_left hltk, dite_eq_left hm]
     show found none = found (binSearchAux lt id as k lo hi h)
-    congr 1; rw [binSearchAux.eq_1]; simp only [id_eq]; rw [if_neg hlt, if_pos hltk, dif_pos hm]
+    congr 1; rw [binSearchAux.eq_1]; simp only [id_eq]; rw [ite_eq_right hlt, ite_eq_left hltk, dite_eq_left hm]
   | case4 lo hi h _m _a hlt hltk hm _ ih =>
     show binSearchAux lt found as k lo hi h = _
-    rw [binSearchAux.eq_1]; rw [if_neg hlt, if_pos hltk, dif_neg hm]
+    rw [binSearchAux.eq_1]; rw [ite_eq_right hlt, ite_eq_left hltk, dite_eq_right hm]
     show binSearchAux lt found as k lo ⟨_m - 1, _⟩ _ = found (binSearchAux lt id as k lo hi h)
     rw [show binSearchAux lt id as k lo hi h = binSearchAux lt id as k lo ⟨_m - 1, _⟩ _ from by
-      rw [binSearchAux.eq_1]; rw [if_neg hlt, if_pos hltk, dif_neg hm]]
+      rw [binSearchAux.eq_1]; rw [ite_eq_right hlt, ite_eq_left hltk, dite_eq_right hm]]
     exact ih
   | case5 lo hi h _m _a hlt hltk _ =>
     show binSearchAux lt found as k lo hi h = _
-    rw [binSearchAux.eq_1]; rw [if_neg hlt, if_neg hltk]
+    rw [binSearchAux.eq_1]; rw [ite_eq_right hlt, ite_eq_right hltk]
     show found (some _a) = found (binSearchAux lt id as k lo hi h)
-    congr 1; rw [binSearchAux.eq_1]; simp only [id_eq]; rw [if_neg hlt, if_neg hltk]
+    congr 1; rw [binSearchAux.eq_1]; simp only [id_eq]; rw [ite_eq_right hlt, ite_eq_right hltk]
 
 set_option maxHeartbeats 1600000 in
 include h in
@@ -71,7 +71,7 @@ theorem binSearchAux_some_then_found :
   induction lo, hi, h using binSearchAux.induct lt as k with
   | case1 lo hi h _m _a hlt hm _ ih =>
     show binSearchAux lt id as k lo hi h = some a → _
-    rw [binSearchAux.eq_1, id_eq, if_pos hlt, dif_pos hm]
+    rw [binSearchAux.eq_1, id_eq, ite_eq_left hlt, dite_eq_left hm]
     intro heq
     obtain ⟨i, hli, hri, heqi, hltk, hlta⟩ := ih heq
     refine ⟨i, ?_, hri, heqi, hltk, hlta⟩
@@ -81,15 +81,15 @@ theorem binSearchAux_some_then_found :
     omega
   | case2 lo hi h _m _a hlt hm _ =>
     show binSearchAux lt id as k lo hi h = some a → _
-    rw [binSearchAux.eq_1, id_eq, if_pos hlt, dif_neg hm]
+    rw [binSearchAux.eq_1, id_eq, ite_eq_left hlt, dite_eq_right hm]
     intro heq; exact absurd heq (by simp)
   | case3 lo hi h _m _a hlt hltk hm _ =>
     show binSearchAux lt id as k lo hi h = some a → _
-    rw [binSearchAux.eq_1, id_eq, if_neg hlt, if_pos hltk, dif_pos hm]
+    rw [binSearchAux.eq_1, id_eq, ite_eq_right hlt, ite_eq_left hltk, dite_eq_left hm]
     intro heq; exact absurd heq (by simp)
   | case4 lo hi h _m _a hlt hltk hm _ ih =>
     show binSearchAux lt id as k lo hi h = some a → _
-    rw [binSearchAux.eq_1, id_eq, if_neg hlt, if_pos hltk, dif_neg hm]
+    rw [binSearchAux.eq_1, id_eq, ite_eq_right hlt, ite_eq_left hltk, dite_eq_right hm]
     intro heq
     obtain ⟨i, hli, hri, heqi, hltk', hlta⟩ := ih heq
     refine ⟨i, hli, ?_, heqi, hltk', hlta⟩
@@ -99,7 +99,7 @@ theorem binSearchAux_some_then_found :
     omega
   | case5 lo hi h _m _a hlt hltk _ =>
     show binSearchAux lt id as k lo hi h = some a → _
-    rw [binSearchAux.eq_1, id_eq, if_neg hlt, if_neg hltk]
+    rw [binSearchAux.eq_1, id_eq, ite_eq_right hlt, ite_eq_right hltk]
     intro heq
     have := Option.some.inj heq; subst this
     have hm_lt : _m < as.size := by omega
@@ -118,7 +118,7 @@ theorem binSearchAux_none_then_not_found
   induction lo, hi, h using binSearchAux.induct lt as k with
   | case1 lo hi h _m _a hlt hm _ ih =>
     show binSearchAux lt id as k lo hi h = none → _
-    rw [binSearchAux.eq_1, id_eq, if_pos hlt, dif_pos hm]
+    rw [binSearchAux.eq_1, id_eq, ite_eq_left hlt, dite_eq_left hm]
     intro heq i hli hri
     by_cases hle : _m + 1 ≤ i.val
     · exact ih heq i hle hri
@@ -142,7 +142,7 @@ theorem binSearchAux_none_then_not_found
       exact htr _ _ _ hltk (hpw _m i.val (by omega) i.isLt this)
   | case4 lo hi h _m _a hlt hltk hm _ ih =>
     show binSearchAux lt id as k lo hi h = none → _
-    rw [binSearchAux.eq_1, id_eq, if_neg hlt, if_pos hltk, dif_neg hm]
+    rw [binSearchAux.eq_1, id_eq, ite_eq_right hlt, ite_eq_left hltk, dite_eq_right hm]
     intro heq i hli hri
     by_cases hle : i.val ≤ _m - 1
     · exact ih heq i hli hle
@@ -153,7 +153,7 @@ theorem binSearchAux_none_then_not_found
         exact htr _ _ _ hltk (hpw _m i.val (by omega) i.isLt this)
   | case5 lo hi h _m _a hlt hltk _ =>
     show binSearchAux lt id as k lo hi h = none → _
-    rw [binSearchAux.eq_1, id_eq, if_neg hlt, if_neg hltk]
+    rw [binSearchAux.eq_1, id_eq, ite_eq_right hlt, ite_eq_right hltk]
     intro heq; exact absurd heq (by simp)
 
 end binSearchAuxProofs
@@ -205,29 +205,29 @@ theorem binSearchIdxAux_some :
   induction lo, hi, h using binSearchIdxAux.induct lt as k with
   | case1 lo hi h _m _a hlt hm _ ih =>
     show binSearchIdxAux lt as k lo hi h = some i → _
-    rw [binSearchIdxAux.eq_1, if_pos hlt, dif_pos hm]
+    rw [binSearchIdxAux.eq_1, ite_eq_left hlt, dite_eq_left hm]
     intro heq; obtain ⟨h1, h2, h3, h4⟩ := ih heq
     refine ⟨?_, h2, h3, h4⟩; show lo.1 ≤ i.1
     have hm_def : _m = (lo.1 + hi.1) / 2 := rfl
     have h1' : _m + 1 ≤ i.1 := h1; omega
   | case2 lo hi h _m _a hlt hm =>
     show binSearchIdxAux lt as k lo hi h = some i → _
-    rw [binSearchIdxAux.eq_1, if_pos hlt, dif_neg hm]
+    rw [binSearchIdxAux.eq_1, ite_eq_left hlt, dite_eq_right hm]
     intro heq; exact absurd heq (by simp)
   | case3 lo hi h _m _a hlt hltk hm =>
     show binSearchIdxAux lt as k lo hi h = some i → _
-    rw [binSearchIdxAux.eq_1, if_neg hlt, if_pos hltk, dif_pos hm]
+    rw [binSearchIdxAux.eq_1, ite_eq_right hlt, ite_eq_left hltk, dite_eq_left hm]
     intro heq; exact absurd heq (by simp)
   | case4 lo hi h _m _a hlt hltk hm _ ih =>
     show binSearchIdxAux lt as k lo hi h = some i → _
-    rw [binSearchIdxAux.eq_1, if_neg hlt, if_pos hltk, dif_neg hm]
+    rw [binSearchIdxAux.eq_1, ite_eq_right hlt, ite_eq_left hltk, dite_eq_right hm]
     intro heq; obtain ⟨h1, h2, h3, h4⟩ := ih heq
     refine ⟨h1, ?_, h3, h4⟩; show i.1 ≤ hi.1
     have hm_def : _m = (lo.1 + hi.1) / 2 := rfl
     have h2' : i.1 ≤ _m - 1 := h2; omega
   | case5 lo hi h _m _a hlt hltk =>
     show binSearchIdxAux lt as k lo hi h = some i → _
-    rw [binSearchIdxAux.eq_1, if_neg hlt, if_neg hltk]
+    rw [binSearchIdxAux.eq_1, ite_eq_right hlt, ite_eq_right hltk]
     intro heq; have := Option.some.inj heq; subst this
     have hm_def : _m = (lo.1 + hi.1) / 2 := rfl
     refine ⟨?_, ?_, Bool.eq_false_iff.mpr hlt, Bool.eq_false_iff.mpr hltk⟩
@@ -245,7 +245,7 @@ theorem binSearchIdxAux_none
   induction lo, hi, h using binSearchIdxAux.induct lt as k with
   | case1 lo hi h _m _a hlt hm _ ih =>
     show binSearchIdxAux lt as k lo hi h = none → _
-    rw [binSearchIdxAux.eq_1, if_pos hlt, dif_pos hm]
+    rw [binSearchIdxAux.eq_1, ite_eq_left hlt, dite_eq_left hm]
     intro heq i hli hri
     by_cases hle : _m + 1 ≤ i.1
     · exact ih heq i hle hri
@@ -267,7 +267,7 @@ theorem binSearchIdxAux_none
       exact htr _ _ _ hltk (hpw _m i.1 (by omega) i.isLt this)
   | case4 lo hi h _m _a hlt hltk hm _ ih =>
     show binSearchIdxAux lt as k lo hi h = none → _
-    rw [binSearchIdxAux.eq_1, if_neg hlt, if_pos hltk, dif_neg hm]
+    rw [binSearchIdxAux.eq_1, ite_eq_right hlt, ite_eq_left hltk, dite_eq_right hm]
     intro heq i hli hri
     by_cases hle : i.1 ≤ _m - 1
     · exact ih heq i hli hle
@@ -277,7 +277,7 @@ theorem binSearchIdxAux_none
       · exact htr _ _ _ hltk (hpw _m i.1 (by omega) i.isLt (by omega))
   | case5 lo hi h _m _a hlt hltk =>
     show binSearchIdxAux lt as k lo hi h = none → _
-    rw [binSearchIdxAux.eq_1, if_neg hlt, if_neg hltk]
+    rw [binSearchIdxAux.eq_1, ite_eq_right hlt, ite_eq_right hltk]
     intro heq; exact absurd heq (by simp)
 
 end binSearchIdxProofs
@@ -826,12 +826,12 @@ private theorem mergeDedupWith_go_toList (xs ys : Array α) (acc : Array α) (i 
     acc.toList ++ sortedMergeNoDup (xs.toList.drop i) (ys.toList.drop j) := by
   induction acc, i, j using Array.mergeDedupWith.go.induct (ord := inferInstance) xs ys (fun x _ => x) with
   | case1 acc i j hi =>
-    rw [Array.mergeDedupWith.go, dif_pos hi, append_subarray_toList]
+    rw [Array.mergeDedupWith.go, dite_eq_left hi, append_subarray_toList]
     congr 1
     have : xs.toList.drop i = [] := List.drop_eq_nil_of_le (by simp; omega)
     rw [this]; simp [sortedMergeNoDup]
   | case2 acc i j hni hj =>
-    rw [Array.mergeDedupWith.go, dif_neg hni, dif_pos hj, append_subarray_toList]
+    rw [Array.mergeDedupWith.go, dite_eq_right hni, dite_eq_left hj, append_subarray_toList]
     congr 1
     have : ys.toList.drop j = [] := List.drop_eq_nil_of_le (by simp; omega)
     rw [this]
@@ -839,7 +839,7 @@ private theorem mergeDedupWith_go_toList (xs ys : Array α) (acc : Array α) (i 
   | case3 acc i j hni hnj x y hlt ih =>
     have hi' : i < xs.size := by omega
     have hj' : j < ys.size := by omega
-    rw [Array.mergeDedupWith.go, dif_neg hni, dif_neg hnj]
+    rw [Array.mergeDedupWith.go, dite_eq_right hni, dite_eq_right hnj]
     have hlt' : compare xs[i] ys[j] = .lt := hlt
     simp only [show x = xs[i] from rfl] at ih
     simp only [hlt']
@@ -853,7 +853,7 @@ private theorem mergeDedupWith_go_toList (xs ys : Array α) (acc : Array α) (i 
   | case4 acc i j hni hnj x y hgt ih =>
     have hi' : i < xs.size := by omega
     have hj' : j < ys.size := by omega
-    rw [Array.mergeDedupWith.go, dif_neg hni, dif_neg hnj]
+    rw [Array.mergeDedupWith.go, dite_eq_right hni, dite_eq_right hnj]
     have hgt' : compare xs[i] ys[j] = .gt := hgt
     simp only [show y = ys[j] from rfl] at ih
     simp only [hgt']
@@ -870,7 +870,7 @@ private theorem mergeDedupWith_go_toList (xs ys : Array α) (acc : Array α) (i 
     have hcmp : compare xs[i] ys[j] = .eq := by
       have : x = xs[i] := rfl; have : y = ys[j] := rfl
       cases h : compare xs[i] ys[j] <;> simp_all
-    rw [Array.mergeDedupWith.go, dif_neg hni, dif_neg hnj]
+    rw [Array.mergeDedupWith.go, dite_eq_right hni, dite_eq_right hnj]
     simp only [show x = xs[i] from rfl] at ih
     simp only [hcmp]
     rw [ih]
@@ -913,11 +913,11 @@ private theorem mergeDiff_go_toList (xs ys : Array α) (acc : Array α) (i j : N
     acc.toList ++ sortedDiffNoDup (xs.toList.drop i) (ys.toList.drop j) := by
   induction acc, i, j using Array.mergeDiff.go.induct (ord := inferInstance) xs ys with
   | case1 acc i j hi =>
-    rw [Array.mergeDiff.go, dif_pos hi]
+    rw [Array.mergeDiff.go, dite_eq_left hi]
     have : xs.toList.drop i = [] := List.drop_eq_nil_of_le (by simp; omega)
     rw [this]; simp [sortedDiffNoDup]
   | case2 acc i j hni hj =>
-    rw [Array.mergeDiff.go, dif_neg hni, dif_pos hj, append_subarray_toList]
+    rw [Array.mergeDiff.go, dite_eq_right hni, dite_eq_left hj, append_subarray_toList]
     congr 1
     have : ys.toList.drop j = [] := List.drop_eq_nil_of_le (by simp; omega)
     rw [this]
@@ -925,7 +925,7 @@ private theorem mergeDiff_go_toList (xs ys : Array α) (acc : Array α) (i j : N
   | case3 acc i j hni hnj x y hlt ih =>
     have hi' : i < xs.size := by omega
     have hj' : j < ys.size := by omega
-    rw [Array.mergeDiff.go, dif_neg hni, dif_neg hnj]
+    rw [Array.mergeDiff.go, dite_eq_right hni, dite_eq_right hnj]
     have hlt' : compare xs[i] ys[j] = .lt := hlt
     simp only [show x = xs[i] from rfl] at ih
     simp only [hlt']
@@ -939,7 +939,7 @@ private theorem mergeDiff_go_toList (xs ys : Array α) (acc : Array α) (i j : N
   | case4 acc i j hni hnj x y hgt ih =>
     have hi' : i < xs.size := by omega
     have hj' : j < ys.size := by omega
-    rw [Array.mergeDiff.go, dif_neg hni, dif_neg hnj]
+    rw [Array.mergeDiff.go, dite_eq_right hni, dite_eq_right hnj]
     have hgt' : compare xs[i] ys[j] = .gt := hgt
     simp only [hgt']
     rw [ih]
@@ -954,7 +954,7 @@ private theorem mergeDiff_go_toList (xs ys : Array α) (acc : Array α) (i j : N
     have hcmp : compare xs[i] ys[j] = .eq := by
       have : x = xs[i] := rfl; have : y = ys[j] := rfl
       cases h : compare xs[i] ys[j] <;> simp_all
-    rw [Array.mergeDiff.go, dif_neg hni, dif_neg hnj]
+    rw [Array.mergeDiff.go, dite_eq_right hni, dite_eq_right hnj]
     simp only [hcmp]
     rw [ih]
     have hxs : xs.toList.drop i = xs[i] :: xs.toList.drop (i + 1) := by
@@ -970,18 +970,18 @@ private theorem mergeIntersect_go_toList (xs ys : Array α) (acc : Array α) (i 
     acc.toList ++ sortedIntersectNoDup (xs.toList.drop i) (ys.toList.drop j) := by
   induction acc, i, j using Array.mergeIntersect.go.induct (ord := inferInstance) xs ys with
   | case1 acc i j hi =>
-    rw [Array.mergeIntersect.go, dif_pos hi]
+    rw [Array.mergeIntersect.go, dite_eq_left hi]
     have : xs.toList.drop i = [] := List.drop_eq_nil_of_le (by simp; omega)
     rw [this]; simp [sortedIntersectNoDup]
   | case2 acc i j hni hj =>
-    rw [Array.mergeIntersect.go, dif_neg hni, dif_pos hj]
+    rw [Array.mergeIntersect.go, dite_eq_right hni, dite_eq_left hj]
     have : ys.toList.drop j = [] := List.drop_eq_nil_of_le (by simp; omega)
     rw [this]
     cases h : xs.toList.drop i <;> simp_all
   | case3 acc i j hni hnj x y hlt ih =>
     have hi' : i < xs.size := by omega
     have hj' : j < ys.size := by omega
-    rw [Array.mergeIntersect.go, dif_neg hni, dif_neg hnj]
+    rw [Array.mergeIntersect.go, dite_eq_right hni, dite_eq_right hnj]
     have hlt' : compare xs[i] ys[j] = .lt := hlt
     simp only [hlt']
     rw [ih]
@@ -993,7 +993,7 @@ private theorem mergeIntersect_go_toList (xs ys : Array α) (acc : Array α) (i 
   | case4 acc i j hni hnj x y hgt ih =>
     have hi' : i < xs.size := by omega
     have hj' : j < ys.size := by omega
-    rw [Array.mergeIntersect.go, dif_neg hni, dif_neg hnj]
+    rw [Array.mergeIntersect.go, dite_eq_right hni, dite_eq_right hnj]
     have hgt' : compare xs[i] ys[j] = .gt := hgt
     simp only [hgt']
     rw [ih]
@@ -1008,7 +1008,7 @@ private theorem mergeIntersect_go_toList (xs ys : Array α) (acc : Array α) (i 
     have hcmp : compare xs[i] ys[j] = .eq := by
       have : x = xs[i] := rfl; have : y = ys[j] := rfl
       cases h : compare xs[i] ys[j] <;> simp_all
-    rw [Array.mergeIntersect.go, dif_neg hni, dif_neg hnj]
+    rw [Array.mergeIntersect.go, dite_eq_right hni, dite_eq_right hnj]
     simp only [show x = xs[i] from rfl] at ih
     simp only [hcmp]
     rw [ih]

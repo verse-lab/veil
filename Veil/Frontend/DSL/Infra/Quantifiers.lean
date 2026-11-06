@@ -122,7 +122,7 @@ section IteForallPushOutTheorems
 
 open Lean Elab Tactic in
 elab "prove_ite_forall_push_out" p:term : tactic => withMainContext do evalTactic $ ←
-`(tactic|apply propext; by_cases h : $p; { simp only [if_pos h, forall_const] }; { simp only [if_neg h, forall_const] })
+`(tactic|apply propext; by_cases h : $p; { simp only [ite_eq_left h, forall_const] }; { simp only [ite_eq_right h, forall_const] })
 
 theorem ite_then_forall_push_out [IsHigherOrder α] [ne : Nonempty α] (c r : Prop) [Decidable c] (q : α → Prop) : (if c then ∀ t, q t else r) = (∀ t, if c then q t else r) := by prove_ite_forall_push_out c
 attribute [forallQuantifierSimp] ite_then_forall_push_out
@@ -238,9 +238,9 @@ end exists_or
 
 theorem ite_exists_push_out [IsHigherOrder α] [ne : Nonempty α] (c r : Prop) [Decidable c] (q : α → Prop) : (if c then ∃ t, q t else r) = (∃ t, if c then q t else r) := by
   apply propext; by_cases h : c
-  { simp only [if_pos h] }
+  { simp only [ite_eq_left h] }
   {
-    simp only [if_neg h]; constructor
+    simp only [ite_eq_right h]; constructor
     intro hr
     · rcases ne with ⟨t⟩; exists t
     · rintro ⟨t, ht⟩; apply ht

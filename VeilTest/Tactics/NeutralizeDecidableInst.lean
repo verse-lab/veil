@@ -94,14 +94,14 @@ example (n : Nat) (inst : Decidable (n < 5)) (h : ¬ small n) :
     @ite Nat (small n) inst 1 0 = 0 := by
   simp only [neutralizeDecidableInst]
   guard_target =ₛ @ite Nat (small n) (Classical.propDecidable (n < 5)) 1 0 = 0
-  exact if_neg h
+  exact ite_eq_right h
 
 /-- `neutralizeDecidableInstWithExpectedType` reads it off the binder type of `ite`. -/
 example (n : Nat) (inst : Decidable (n < 5)) (h : ¬ small n) :
     @ite Nat (small n) inst 1 0 = 0 := by
   simp only [neutralizeDecidableInstWithExpectedType]
   guard_target =ₛ @ite Nat (small n) (Classical.propDecidable (small n)) 1 0 = 0
-  exact if_neg h
+  exact ite_eq_right h
 
 /-! ### Building the proofs does not unfold definitions
 

@@ -2,8 +2,8 @@ import Lake
 open Lake DSL System
 
 require smt from git "https://github.com/verse-lab/lean-smt.git" @ "v4.35.0-veil-no-mathlib"
-require Loom from git "https://github.com/verse-lab/loom.git" @ "79edcda472a69229080068dc21e9bc80eb7688f4"
-require VerifiedHAMT from git "https://github.com/verse-lab/VerifiedHAMT.git" @ "aa45d52b7eb591cf3570baa538ad8d01e584fa86"
+require Loom from git "https://github.com/verse-lab/loom.git" @ "f0ea9100bec2e48afad7193053d6a89db3d57335"
+require VerifiedHAMT from git "https://github.com/verse-lab/VerifiedHAMT.git" @ "244601f8deb02c0d6d8f855bebc4bbe368ad0c98"
 require Lasso from git "https://github.com/verse-lab/Lasso.git" @ "342cf40c1934ada5a6eec3a0163a8a16fe0ac7d6"
 require lentil from git "https://github.com/verse-lab/Lentil.git" @ "1ddf1fc16138371cae6687db2698770533c4058a"
 

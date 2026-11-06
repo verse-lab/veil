@@ -9,7 +9,7 @@ public import Std.Data.ExtTreeMap.Lemmas
 
 @[expose] public section
 namespace Veil
-open Lean Std
+open Lean
 
 /-!
 `BEq` instances
