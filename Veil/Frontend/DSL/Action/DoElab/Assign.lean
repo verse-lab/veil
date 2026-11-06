@@ -488,10 +488,13 @@ private def reassignArrowRhsUnderStatementOpening (ctx : Context) (stx : DoElem)
   rewriteArrowRhs stx fun _ rhs => internalIfPlainTerm? ctx rhs
 
 /-- `x ← rhs` for a plain `let mut` local. Since Lean v4.35, Lean's own handler
-desugars it to `let __x ← rhs; x := __x` and elaborates `x := __x` through the
-`doElem` elaborator table, which inside a Veil block reaches `elabStateReassign`
-and opens the state a second time for the same statement. Mirror that
-desugaring, but elaborate the reassignment with Lean's builtin handler directly. -/
+desugars it to `let __x ← rhs; x := __x` and dispatches the generated assignment
+through `elabDoElem`. The identifier branch below is copied from
+`Lean.Elab.Do.elabDoReassignArrow` in Lean v4.35.0's
+`src/Lean/Elab/BuiltinDo/Let.lean`. Its only intentional change is to call
+`Lean.Elab.Do.elabDoReassign` directly for the generated `x := __x`, instead
+of dispatching through `elabDoElem`. This avoids re-entering Veil's
+`elabStateReassign` and opening the state again for the same statement. -/
 private def elabLocalReassignArrow (stx : DoElem) (dec : DoElemCont) : DoElabM Expr := do
   match stx with
   | `(doReassignArrow| $x:ident $[: $t?]? ← $rhs) =>
