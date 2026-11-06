@@ -101,7 +101,7 @@ after_init {
 action StartAppend (w : writer) {
   require writerState w = wIdle
   require logState = lsOpen
-  let count : { n // n ∈ List.range' 1 maxBatch } :| true
+  let count ← pick { n // n ∈ List.range' 1 maxBatch }
   writerBatchSize w := count.val
   writerState w := wWritingWAL
 }

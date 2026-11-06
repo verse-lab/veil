@@ -29,9 +29,9 @@ ghost function Observed_Boxes : List Nat := List.range' 2 (Number_Of_Boxes - 2)
 
 -- Init == cat_box \in Boxes /\ observed_box \in Observed_Boxes /\ direction \in Directions
 after_init {
-  let c : { c // c ∈ Boxes } :| true
+  let c ← pick { c // c ∈ Boxes }
   cat_box := c.val
-  let o : { o // o ∈ Observed_Boxes } :| true
+  let o ← pick { o // o ∈ Observed_Boxes }
   observed_box := o.val
   direction := *
 }

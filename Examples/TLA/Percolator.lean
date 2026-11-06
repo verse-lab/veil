@@ -117,7 +117,7 @@ procedure cleanupStaleLock (k : key) (ts : Nat) {
         key_data k := timestamps.remove l.ts (key_data k)
         key_lock k := locks.remove l (key_lock k)
     else
-      let chosenWrite : { w // w ∈ writes } :| true
+      let chosenWrite ← pick { w // w ∈ writes }
       let w := chosenWrite.val
       key_lock k := locks.remove l (key_lock k)
       key_write k := key_write k ++ [w]

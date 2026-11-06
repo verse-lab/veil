@@ -44,7 +44,7 @@ action NextAction (n m : node) {
   require n ∈ Nodes
   require Nbrs n m
   require dist m < 1 + dist n
-  let d : { d // d ∈ List.range' (dist m + 1) (dist n - dist m - 1) } :| true
+  let d ← pick { d // d ∈ List.range' (dist m + 1) (dist n - dist m - 1) }
   dist n := d.val
   mom n := m
 }

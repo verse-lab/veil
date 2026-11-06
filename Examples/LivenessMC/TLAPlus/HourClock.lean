@@ -17,7 +17,7 @@ ghost relation HCini := hr ∈ List.range' 1 12
 
 -- HC == HCini /\ [][HCnxt]_hr
 after_init {
-  let h : { h // h ∈ List.range' 1 12 } :| true
+  let h ← pick { h // h ∈ List.range' 1 12 }
   hr := h.val
 }
 

@@ -26,8 +26,8 @@ ghost function BeanCount := can.black + can.white
 
 -- Init == can \in {c \in Can : c.black + c.white \in 1..MaxBeanCount}
 after_init {
-  let b : { b : Nat // b ∈ List.range' 0 (MaxBeanCount + 1) } :| true
-  let w : { w : Nat // w ∈ List.range' 0 (MaxBeanCount + 1) } :|
+  let (b, w) : { b : Nat // b ∈ List.range' 0 (MaxBeanCount + 1) }
+             × { w : Nat // w ∈ List.range' 0 (MaxBeanCount + 1) } :|
     b.val + w.val ∈ List.range' 1 MaxBeanCount
   can := { black := b.val, white := w.val }
 }
