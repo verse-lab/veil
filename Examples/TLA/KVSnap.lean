@@ -344,7 +344,7 @@ safety [Serialization] serialization
 --   `invariant` and `safety` clause of the module, here `SnapshotIsolation` and
 --   `Serialization`. Lean's types ensure `TypeOK`. `BaitInv` is not translated: it is a
 --   debugging aid that reads TLC's search depth with `TLCGet("level")`.
--- * `PROPERTIES Termination`: a temporal property, which Veil does not check.
+-- * `PROPERTIES Termination`: a temporal property, which this example does not check.
 -- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With the `termination [AllDone]`
 --   clause above, Veil reports a state without successors as a deadlock unless every transaction
 --   is `Done`. TLC makes the same exception, since `Terminating` lets such a state stutter.

@@ -139,7 +139,7 @@ termination false
 -- * `INVARIANT CountInvariant`: the `invariant [CountInvariant]` above.
 -- * `PROPERTIES Safety`: `Safety == [](Done => ...)` holds when every reachable state satisfies
 --   `Done => ...`, which the `safety [Safety]` clause above checks.
--- * `PROPERTIES Liveness`: the temporal property `<>Done`, which Veil does not check.
+-- * `PROPERTIES Liveness`: the temporal property `<>Done`, which this example does not check.
 -- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
 --   above, Veil also reports every state without successors as a deadlock.
 -- Options:

@@ -15,7 +15,7 @@ The user of this skill might know TLA+ and TLC well but probably not Lean. From 
    - an `INVARIANT`: the Veil clause that checks it, or why none does (e.g. Lean's types ensure `TypeOK`);
    - a `CONSTRAINT`: its `state_constraint`, and that Veil does not check invariants on the states it drops;
    - the deadlock setting: the `termination` clause that matches it (translation.md);
-   - a temporal `PROPERTY`: the `temporal` property that translates it, which `#temporal_check` checks, not `#model_check`;
+   - a temporal `PROPERTY`: the `temporal` property that translates it, which `#temporal_check` checks, not `#model_check`; if it is not translated, say that this example does not check it, not that Veil cannot;
    - `SYMMETRY` and `VIEW`: Veil does not apply them.
 8. **The options**, one plain sentence each on what they do: the mode (`compiled`, `interpreted`, or none), `maxDepth`, `sequential`, `seenSet`, `fingerprintType`, and `set_option veil.violationIsError false in` before an expected violation. Do not call an option faster or smaller: that depends on the instance and the machine.
 
@@ -48,6 +48,7 @@ Adapted from `Examples/Puzzles/Prisoners.lean` in the Veil repository:
 -- * `INVARIANT CountInvariant`: the `invariant [CountInvariant]` above.
 -- * `PROPERTIES Safety`: `Safety == [](Done => ...)` holds when every reachable state satisfies
 --   `Done => ...`, which the `safety [Safety]` clause above checks.
+-- * `PROPERTIES Liveness`: the temporal property `<>Done`, which this example does not check.
 -- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
 --   above, Veil also reports every state without successors as a deadlock.
 -- Options:
