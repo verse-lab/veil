@@ -606,7 +606,8 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
     -- `hLocal` is the obligation the tactic should leave behind after applying
     -- this theorem: fields are exposed, assumptions/preconditions are cores,
     -- and the WP side is the abstract RHS supplied by `wp_local_eq`.
-    let has := mkIdent `has ; let hinv := mkIdent `hinv
+    -- Fresh names: the fields are bound by their own names around this body.
+    let has ← Lean.mkIdent <$> mkFreshUserName `has ; let hinv ← Lean.mkIdent <$> mkFreshUserName `hinv
     let body ← `(term|
       ∀ ($has : $assuCore $theoryFieldArgs*)
         ($hinv : $preCore $theoryFieldArgs* $stateFieldArgs*),
@@ -713,7 +714,8 @@ def Module.defineTransitionMeetsSpecificationIfSuccessfulAssumingLocalTheorem (m
     -- This is the TR-side local obligation: after fields are exposed, the user
     -- receives core assumptions, a core precondition, and the abstract
     -- transition fact, and must prove the postcondition core on the next state.
-    let has := mkIdent `has ; let hinv := mkIdent `hinv
+    -- Fresh names: the fields are bound by their own names around this body.
+    let has ← Lean.mkIdent <$> mkFreshUserName `has ; let hinv ← Lean.mkIdent <$> mkFreshUserName `hinv
     let postLocalCore ← `($postLocal.$(mkIdent `core))
     let body ← `(term|
       ∀ ($has : $assuCore $theoryFieldArgs*)
