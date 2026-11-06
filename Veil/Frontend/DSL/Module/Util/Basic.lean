@@ -147,7 +147,7 @@ def Parameter.isRelatedToFieldRep (p : Parameter) : Bool :=
 
 def Module.freshWithName [Monad m] [MonadQuotation m] (name : Name) : m Module := do
   let params := #[← Parameter.environmentTheory, ← Parameter.environmentState]
-  return { name := name, parameters := params, dependencies := #[], signature := #[], procedures := #[], assertions := #[], _declarations := .emptyWithCapacity, _derivedDefinitions := .emptyWithCapacity }
+  return { name := name, parameters := params, dependencies := #[], signature := #[], procedures := #[], assertions := #[], temporalProperties := #[], _declarations := .emptyWithCapacity, _derivedDefinitions := .emptyWithCapacity }
 
 def Module.isDeclared (mod : Module) (name : Name) : Bool :=
   mod._declarations.contains name
@@ -353,6 +353,7 @@ def Module.declarationBaseParams [Monad m] [MonadQuotation m] [MonadExceptOf Exc
   | .stateAssertion .termination | .stateAssertion .stateConstraint => pure mod.parameters -- the same as `invariant`
   | .procedure _ => pure mod.parameters
   | .derivedDefinition k _ => derivedDefinitionBaseParams mod k
+  | .temporalProperty => pure mod.parameters
 where
   theoryParameters (mod : Module) : Array Parameter :=
     mod.parameters.filterMap fun p => match p.kind with
@@ -392,6 +393,10 @@ def Module.declarationSplitParams [Monad m] [MonadQuotation m] [MonadExceptOf Ex
         let .some proc := mod.procedures.find? (fun a => a.name == forDeclaration)
           | throwError "[Module.declarationSplitParams]: procedure {forDeclaration} not found"
         pure (proc.extraParams, proc.params)
+    | .temporalProperty => do
+        let some tp := mod.temporalProperties.find? (·.name == forDeclaration)
+          | throwError "temporal property {forDeclaration} not found"
+        pure (tp.extraParams, #[])
     | _ => throwError "[Module.declarationSplitParams]: declaration {forDeclaration} has unsupported kind {repr k}")
   -- dbg_trace "declarationSplitParams: {repr k} {forDeclaration} -> baseParams {baseParams.map (·.name)} extraParams {extraParams.map (·.name)}"
   return (baseParams, extraParams, actualParams)
@@ -448,6 +453,7 @@ def Module.mkDerivedDefinitionsParamsMapFn [Monad m] [MonadQuotation m] [MonadEx
     | .stateAssertion _ => return mod.assertions.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | .procedure _ => return mod.procedures.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | .derivedDefinition _ _ => return mod._derivedDefinitions.valuesArray.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
+    | .temporalProperty => return mod.temporalProperties.filterMap (fun a => if dec == a.name then .some a.extraParams else .none)
     | _ => throwError "[Module.mkDerivedDefinitionsParamsMapFn]: declaration {dec} (included in derivedFrom) has unsupported kind")
     pure $ Array.flatten extraParams)
   -- Canonicalized extra params repeat by name across declarations; bind each once.
@@ -485,6 +491,14 @@ def Module.trustedInvariants (mod : Module) : Array StateAssertion :=
 
 def Module.safeties (mod : Module) : Array StateAssertion :=
   mod.assertions.filter (fun a => a.kind == .safety)
+
+/-- The temporal properties that `#temporal_check` checks. -/
+def Module.checkableTemporalProperties (mod : Module) : Array TemporalProperty :=
+  mod.temporalProperties.filter (·.target.needsCheck)
+
+/-- The temporal properties that `prove_temporal_by` proves. -/
+def Module.verifiableTemporalProperties (mod : Module) : Array TemporalProperty :=
+  mod.temporalProperties.filter (·.target.needsVerify)
 
 /-! ## Field Utilities -/
 

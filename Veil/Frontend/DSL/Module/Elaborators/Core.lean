@@ -18,6 +18,8 @@ public meta import Veil.Frontend.DSL.Module.Util.Enumeration
 public meta import Veil.Frontend.DSL.Module.Util.Instantiation
 public meta import Veil.Util.Multiprocessing
 public meta import Veil.Frontend.DSL.Module.AssertionInfo
+public import Veil.Core.Tools.LivenessMC.Interface
+public meta import Veil.Core.Tools.LivenessMC.Runtime
 
 public meta section
 
@@ -502,6 +504,14 @@ declare_command_config_elab elabModelCheckCommandConfig ModelCheckCommandConfig 
     let base : ModelCheckerConfig ← Lean.Elab.ConfigEval.evalExprWithElab ⟨item.value⟩
     return { cfg with toModelCheckerConfig := base }
 
+/-- Configuration options for the `#temporal_check` command. -/
+structure LivenessCheckConfig where
+  /-- The search to run; see `Veil.LivenessMC.Route`. -/
+  route : LivenessMC.Route := .fair
+  deriving Repr
+
+declare_command_config_elab elabLivenessCheckConfig LivenessCheckConfig
+
 declare_command_config_elab elabSimulateConfig ModelChecker.Simulation.SimulateConfig
 
 /--
@@ -612,8 +622,13 @@ private def mkPickSourceTerm (em : ExecutableModule) (instSortArgs : Array Term)
   `(letI : $(mkIdent ``LogSwitch) := ⟨true⟩
     $(mkIdentWithModName em `pickSource) $instSortArgs* $th)
 
-/-- Build search parameters for model checking / simulation. -/
-private def mkSearchParameters (em : ExecutableModule) (config : ModelCheckerConfig) : CommandElabM Term := do
+/-- Build search parameters for model checking, simulation, or liveness checking. -/
+private def mkSearchParameters (em : ExecutableModule) (config : ModelCheckerConfig)
+  /- NOTE: For liveness, `includeSafetyAndDeadlock := false` avoids elaborating unrelated invariant/termination
+    expressions and synthesizing their `Decidable` instances. This is a temporary workaround
+    for reusing `SearchParameters`: liveness only needs assumptions and state constraints,
+    which should eventually have a separate shared construction interface.-/
+    (includeSafetyAndDeadlock : Bool := true) : CommandElabM Term := do
   let mkAssumption (name : Name) : CommandElabM Term :=
     `($(mkIdent ``Veil.ModelChecker.TheoryProperty.mk)
         ($(mkIdent `name) := $(quote name))
@@ -624,9 +639,9 @@ private def mkSearchParameters (em : ExecutableModule) (config : ModelCheckerCon
         ($(mkIdent `name) := $(quote name))
         ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName em name) $(mkIdent `th) $(mkIdent `st)))
   let assumptionList ← `([$((← em.assumptions.mapM mkAssumption)),*])
-  let safetyList ← `([$((← em.invariants.mapM mkProp)),*])
+  let safetyList ← `([$((← (if includeSafetyAndDeadlock then em.invariants else #[]).mapM mkProp)),*])
   -- FIXME: Only recognizing the first termination property might confuse users
-  let terminatingProp ← match em.terminations[0]? with
+  let terminatingProp ← match if includeSafetyAndDeadlock then em.terminations[0]? else none with
     | some t => mkProp t
     | none => `($(mkIdent `default))
   let constraintList ← `([$((← em.stateConstraints.mapM mkProp)),*])
@@ -677,11 +692,12 @@ elaborates to the module's `Instantiation`.
 Simplify field reads in the `Decidable` instances synthesized by the call. -/
 private def mkExecutionCall (em : ExecutableModule) (config : ModelCheckerConfig)
     (instantiation theoryTerm : Term)
-    (mkCall : ExecutionCallContext → CommandElabM Term) : CommandElabM Term := do
+    (mkCall : ExecutionCallContext → CommandElabM Term)
+    (includeSafetyAndDeadlock : Bool := true) : CommandElabM Term := do
   let inst := mkVeilImplementationDetailIdent `inst
   let th := mkVeilImplementationDetailIdent `th
   let instSortArgs ← em.instantiationFields.mapM fun field => `($inst.$(mkIdent field))
-  let sp ← mkSearchParameters em config
+  let sp ← mkSearchParameters em config includeSafetyAndDeadlock
   let sysWithoutLog ← mkTransitionSystemTerm em instSortArgs th
   let call ← mkCall {
     instSortArgs := instSortArgs
@@ -755,7 +771,7 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
     warnAboutTransitions mod
     -- Let `elabConfig` choose which part should be the configuration.
     let cfg ← elabConfig stx
-    -- Optionally prove assumptions statically; both algorithms also evaluate them at runtime.
+    -- Optionally prove assumptions statically; all runners also evaluate them at runtime.
     if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
       checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
     let extractStartMs ← IO.monoMsNow
@@ -768,8 +784,11 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
       instantiation := ← `(__veil_instantiation% $instTerm)
       «theory» := theoryTerm
     }
+    let initialProgress : ModelChecker.Concrete.ProgressDetails := match kind with
+      | .simulate => .simulation {}
+      | _ => .modelCheck { allActionLabels := executable.actionLabels.toList }
     ExecutionWorkflow.run { name := cmdName, actionLabels := executable.actionLabels.toList } kind mod stx
-      mode callExpr parallelCfg extractMs
+      mode callExpr initialProgress parallelCfg extractMs
 
 /-- Shared elaboration of the build commands, which build the binary of an execution command for
 module `modId`, typically from another file, without running it. -/
@@ -853,5 +872,96 @@ def elabSimulate : CommandElab :=
   elabExecutionCommand "simulate" `veil.perf.elaborator.simulate .simulate
     (fun stx => elabSimulateCommandConfig stx[4]) 5 fun ecctx => do
     return (← mkSimulateCall ecctx.executable ecctx.instantiation ecctx.theory ecctx.config, none)
+
+/-- `route` as a term. -/
+private def routeTerm (route : LivenessMC.Route) : Term :=
+  mkCIdent <| match route with
+    | .ndfs => ``LivenessMC.Route.ndfs
+    | .dijkstra => ``LivenessMC.Route.dijkstra
+    | .patOnly => ``LivenessMC.Route.patOnly
+    | .crossing => ``LivenessMC.Route.crossing
+    | .prune => ``LivenessMC.Route.prune
+    | .fair => ``LivenessMC.Route.fair
+
+/-- Build a liveness call with the same continuation interface as the other runners. -/
+private def mkLivenessCheckerCall (em : ExecutableModule) (instTerm theoryTerm : Term)
+    (properties : Array TemporalProperty) (route : LivenessMC.Route)
+    (finiteReachBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq)) : CommandElabM Term :=
+  mkExecutionCall em {} instTerm theoryTerm (includeSafetyAndDeadlock := false) fun ectx => do
+  let instSortArgs := ectx.instSortArgs
+  let sys := ectx.sysWithoutLog
+  let sp := ectx.searchParams
+  let props ← properties.mapM fun lp =>
+    `($(mkIdentWithModName em (toTemporalAstName lp.name))
+      ($theoryIdent $instSortArgs*) ($stateIdent ($fieldConcreteDispatcher $instSortArgs*))
+      $instSortArgs* ($fieldConcreteDispatcher $instSortArgs*))
+  let checkAll := mkIdent ``Veil.LivenessMC.checkAllWithProgress
+  -- `ndfs` takes its certificate from the `finite_reach_by` tactic, the other routes by instance.
+  let runCall ← match finiteReachBy with
+    | none => `($checkAll:ident $sys $sp [$props,*] progressInstanceId cancelToken
+        $(routeTerm route))
+    | some tac => `($checkAll:ident $sys $sp [$props,*] progressInstanceId cancelToken
+        $(routeTerm route)
+        (cert := $(mkCIdent ``LivenessMC.RouteCertificate.ofClosure) (by ($tac:tacticSeq))))
+  `(fun (_ : Option Veil.ModelChecker.ParallelConfig) (progressInstanceId : Nat)
+        (cancelToken : IO.CancelToken) (finish : Lean.Json → IO _) => do
+      let result ← $runCall:term
+      finish result)
+
+/-- The properties named in brackets, in declaration order, or all of them if none are named. -/
+private def selectLivenessProperties (mod : Module) (selection : Array (TSyntax `propertyName)) :
+    CommandElabM (Array TemporalProperty) := do
+  let properties := mod.checkableTemporalProperties
+  if properties.isEmpty then
+    throwError "No temporal property of this module is model checked. Declare one with `temporal` \
+      (without `only := verify`) first."
+  if selection.isEmpty then return properties
+  let declared := properties.map (·.name)
+  let mut wanted : Array Name := #[]
+  for nameStx in selection do
+    let name := nameStx.getPropertyName
+    unless declared.contains name do
+      throwErrorAt nameStx "`{name}` is not a model-checked temporal property of this module. Model checked: \
+        {", ".intercalate (declared.map toString).toList}"
+    if wanted.contains name then
+      throwErrorAt nameStx "`{name}` is named twice."
+    wanted := wanted.push name
+  return properties.filter (fun lp => wanted.contains lp.name)
+
+@[command_elab Veil.livenessCheck]
+def elabLivenessCheck : CommandElab := fun stx => do
+  withTraceNode `veil.perf.elaborator.livenessCheck (fun _ => return "#temporal_check") do
+    -- `stx[1]` is the bracketed property selection (possibly empty), `stx[2]` the optional mode,
+    -- `stx[3]` the instantiation, `stx[4]` the optional theory, `stx[5]` the `optConfig`,
+    -- `stx[6]` the optional `finite_reach_by`, `stx[7]` the optional `assumptions_hold_by`
+    let selection : Array (TSyntax `propertyName) := stx[1].getArgs.map (⟨·⟩)
+    let mode := getModelCheckingMode stx[2]
+    let instTerm : Term := ⟨stx[3]⟩
+    let theoryTermOpt : Option Term := if stx[4].isNone then none else some ⟨stx[4][0]⟩
+    let assumptionsHoldBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq) :=
+      if stx[7].isNone then none else some ⟨stx[7][0][1]⟩
+    let finiteReachBy : Option (TSyntax `Lean.Parser.Tactic.tacticSeq) :=
+      if stx[6].isNone then none else some ⟨stx[6][0][1]⟩
+    let cfg ← elabLivenessCheckConfig stx[5]
+    if cfg.route.needsFiniteReach && finiteReachBy.isNone then
+      throwError "`(route := .{cfg.route.name})` needs a `finite_reach_by` clause, \
+        e.g. `finite_reach_by native_decide`."
+    if !cfg.route.needsFiniteReach && finiteReachBy.isSome then
+      throwError "`(route := .{cfg.route.name})` does not take a `finite_reach_by` clause."
+    let mod ← getCurrentModule (errMsg := "You cannot #temporal_check outside of a Veil module!")
+    mod.throwIfSpecNotFinalized
+    let properties ← selectLivenessProperties mod selection
+    let theoryTerm ← getTheoryTerm "#temporal_check" theoryTermOpt mod instTerm
+    warnAboutTransitions mod
+    if assumptionsHoldBy.isSome && !mod.assumptions.isEmpty then
+      checkTheorySatisfiesAssumptions mod instTerm theoryTerm assumptionsHoldBy
+    let extractStartMs ← IO.monoMsNow
+    mod.ensureExecutableModelCheckerDefinitions
+    let extractMs := (← IO.monoMsNow) - extractStartMs
+    let executable ← mod.toExecutableModule
+    let instantiation ← `(__veil_instantiation% $instTerm)
+    let callExpr ← mkLivenessCheckerCall executable instantiation theoryTerm properties cfg.route finiteReachBy
+    ExecutionWorkflow.run { name := "temporal_check", actionLabels := executable.actionLabels.toList }
+      .liveness mod stx mode callExpr (.liveness { numProperties := properties.size }) (extractMs := extractMs)
 
 end Veil

@@ -18,7 +18,7 @@ Veil's own documentation lives in the Veil repository (or, under `.lake/packages
 Read the `.tla`, the `.cfg` that will actually be used, and the modules they extend. Establish:
 
 - What the cfg selects: `SPECIFICATION` or `INIT`/`NEXT`, constant and model values, operator overrides, `CONSTRAINT`/`ACTION_CONSTRAINT`, `SYMMETRY`/`VIEW`, invariants and properties, and the deadlock setting (TLC checks deadlock unless the cfg says `CHECK_DEADLOCK FALSE`).
-- The scope. Veil actions and invariants cover finite safety checking; fairness and temporal properties (`WF`, `SF`, `~>`, `[]<>`) don't carry over, so list any you leave out.
+- The scope, including any properties left out.
 - The actions `Next` is built from, with their parameters. The Veil file gets the same list.
 - A state mapping from each TLA+ variable and constant to a Veil field or type, including domains, index shifts, sentinel values, and which constant sets the source also uses as values (`Cardinality`, `SUBSET`, iteration). Justify any state you add or drop (e.g. a derived variable).
 
@@ -32,7 +32,7 @@ In outline (details in translation.md):
 - `Init` → `after_init`, keeping every allowed initial state. Helpers → `procedure`s or ghost definitions, since every `action` is a separately enabled step.
 - TLA+ updates are simultaneous, Veil statements sequential: settle which right-hand sides read old vs. new values before ordering assignments.
 - An omitted Veil assignment means `UNCHANGED`; an omitted primed TLA+ variable means "any value".
-- Properties stay invariants. Moving one into `assume` or `require` hides its violations.
+- Invariants stay invariants. Moving one into `assume` or `require` hides its violations.
 
 Start with the direct translation. Where a construct has several reasonable encodings, note the alternatives and why you chose one, labeling performance claims as measured or expected. Optimize only real bottlenecks, never by dropping nondeterminism or adding guards, and re-run the checks afterwards. Re-modeling, such as replacing quorums defined by cardinality with Veil's `Quorum` type, is a separate decision that needs its own argument.
 

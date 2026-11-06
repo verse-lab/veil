@@ -50,9 +50,16 @@ jobs:
         python3 scripts/tests/test-invariant-goal-incrementality.py --multi-module
         python3 scripts/tests/test-invariant-goal-incrementality.py --multi-module --deferred
       timeout-minutes: 10
+    - name: Test temporal proof incrementality through LSP
+      run: |
+        python3 scripts/tests/test-temporal-proof-incrementality.py
+        python3 scripts/tests/test-temporal-proof-incrementality.py --deferred
+        python3 scripts/tests/test-temporal-proof-incrementality.py --multi-module
+        python3 scripts/tests/test-temporal-proof-incrementality.py --multi-module --deferred
+      timeout-minutes: 10
     - name: Build examples
       run: lake build Examples
-      timeout-minutes: 15
+      timeout-minutes: 20
     - name: Test widget rendering
       run: |
         npm ci --prefix widget

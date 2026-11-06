@@ -22,6 +22,8 @@ inductive ResultKind where
   | modelCheck
   /-- `#simulate`, i.e. `SimulateResult.toDisplayJson`. -/
   | simulate
+  /-- `#temporal_check`, including a stem/loop counterexample. -/
+  | liveness
   /-- `sat trace` / `unsat trace`, i.e. a trace extracted from a VC. -/
   | symbolicTrace
 deriving Inhabited, BEq, ToJson, FromJson
@@ -188,11 +190,32 @@ private def formatSymbolicTraceResult (j : Json) : MessageData :=
   | "cancelled" => m!"⚠️ Cancelled"
   | r => fmtUnexpected r j
 
+private def formatLivenessResult (j : Json) : MessageData :=
+  match formatText (j.getObjValD "result") with
+  | "found_violation" =>
+      let lasso := j.getObjValD "lasso"
+      if lasso == .null then fmtViolation j
+      else
+        let renderStates := fun (states : List Json) =>
+          "\n".intercalate <| states.zipIdx.map fun (st, i) =>
+            s!"    State {i}:\n{formatFields st "      "}"
+        let states := fun (part : String) =>
+          match lasso.getObjValD part with
+          | .arr states => states.toList
+          | _ => []
+        -- `loop.tail` is the cycle: Lasso repeats its first state at the head of `loop`.
+        m!"{fmtViolation j}\n  Stem:\n{renderStates (states "stem")}\n  Loop (repeats):\n{renderStates (states "loop").tail}"
+  | "no_violation_found" =>
+      m!"✅ No liveness violation (checked {formatJson (j.getObjValD "properties_checked")} properties, explored {formatJson (j.getObjValD "explored_states")} product states)"
+  | "cancelled" => m!"⚠️ Cancelled"
+  | r => fmtUnexpected r j
+
 /-- Render a result for the infoview, using the renderer for the command that
 produced it. -/
 def formatResult : ResultKind → Json → MessageData
   | .modelCheck, j => formatModelCheckResult j
   | .simulate, j => formatSimulateResult j
+  | .liveness, j => formatLivenessResult j
   | .symbolicTrace, j => formatSymbolicTraceResult j
 
 end Veil.TraceDisplay

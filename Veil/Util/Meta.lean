@@ -324,6 +324,29 @@ def elabVeilCommand (stx : Syntax) : CommandElabM Unit := do
     trace[veil.desugar] "{stx}"
     elabCommand stx
 
+/-- Run `x` and keep what it does if it neither throws nor logs an error. Otherwise undo its changes to the
+environment (and so to environment extensions) and to the message log, and return its error messages, for
+the caller to report as it sees fit. Unlike `observing?`, this also counts the errors that `x` logged and
+recovered from, as elaborating a command does, and it works in `CommandElabM`, which has no
+`MonadBacktrack`. Info trees are not rolled back; interrupts are rethrown. -/
+def commitIfNoErrors (x : CommandElabM α) : CommandElabM (Except (Array Message) α) := do
+  let env ← getEnv
+  let saved ← modifyGet fun s => (s.messages, { s with messages := {} })
+  let result ← try some <$> x catch ex =>
+    if ex.isInterrupt then
+      modify fun s => { s with messages := saved ++ s.messages }
+      throw ex
+    logException ex
+    pure none
+  let msgs := (← get).messages
+  if let some a := result then
+    unless msgs.hasErrors do
+      modify fun s => { s with messages := saved ++ msgs }
+      return .ok a
+  setEnv env
+  modify fun s => { s with messages := saved }
+  return .error (msgs.toArray.filter (·.severity == .error))
+
 /-- Remove `let`/`have` bindings whose variable does not occur in their body.
 Bindings kept alive only by other dead bindings are removed as well, since
 `Core.transform` rewrites bottom-up. -/
@@ -356,8 +379,12 @@ def normalizeLevelParams (e : Expr) : Expr :=
 returns the set of `Decidable` instances needed to make it elaborate
 correctly. `decBodyTransform` is for simplifying the body of the
 propositions to decide (e.g., removing unnecessary arguments, or
-exposing types explicitly for certain dependently-typed terms). -/
-def getRequiredDecidableInstances (owner : Name) (stx : Term) (decBodyTransform : Expr → TermElabM Expr) : TermElabM (Array (Term × Expr) × Expr) := do
+exposing types explicitly for certain dependently-typed terms).
+
+If `alsoExtract` lists some classes, missing instances of these
+classes are returned as well. -/
+def getRequiredDecidableInstances (owner : Name) (stx : Term) (decBodyTransform : Expr → TermElabM Expr)
+    (alsoExtract : Array Name := #[]) : TermElabM (Array (Term × Expr) × Expr) := do
   /- We want to throw an error if anything fails or is missing during
   elaboration. -/
   Term.withoutErrToSorry $ do
@@ -369,7 +396,7 @@ def getRequiredDecidableInstances (owner : Name) (stx : Term) (decBodyTransform 
   let e ← Term.elabTerm stx none
   Term.synthesizeSyntheticMVars (postpone := .no) (ignoreStuckTC := true)
   let mvars ← (Array.map Expr.mvar) <$> Meta.getMVars e
-  let decInsts ← mvars.zipIdx.filterMapM fun (mv, idx) => simplifyMVarType idx mv isBodyDecidable
+  let decInsts ← mvars.zipIdx.filterMapM fun (mv, idx) => simplifyMVarType idx mv isBodyExtracted
   let canonicalized ← canonicalizeByDefEqType decInsts fun inst => Meta.inferType inst.2
   for (inst, representative) in decInsts.zip canonicalized.representatives do
     unless inst.2 == representative.2 do
@@ -377,8 +404,9 @@ def getRequiredDecidableInstances (owner : Name) (stx : Term) (decBodyTransform 
   let decInsts := canonicalized.unique
   return (decInsts, e)
 where
-  isBodyDecidable (body : Expr) : TermElabM Bool := do
-    return (← Meta.whnf body).getAppFn.constName? == some ``Decidable
+  isBodyExtracted (body : Expr) : TermElabM Bool := do
+    let cls := (← Meta.whnf body).getAppFn.constName?
+    return cls == some ``Decidable || cls.any alsoExtract.contains
   /-- `mv`'s type will include arguments which are not actually needed
   for the predicate. This method gets rid of those unnecessary
   arguments. Moreover, it only returns those `mv`ars whose final result

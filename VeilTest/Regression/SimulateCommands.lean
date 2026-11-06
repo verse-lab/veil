@@ -147,7 +147,7 @@ Seed: 1
 
 /--
 error: Tactic `native_decide` evaluated that the proposition
-  assumption_0 { leader := fun n => n == 0 || n == 1 }
+  (veil_term% assumption_0) { leader := fun n => n == 0 || n == 1 }
 is false
 ---
 error: ❌ Violation: assumption_failure (violates: assumption_0)

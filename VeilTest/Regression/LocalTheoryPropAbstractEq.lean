@@ -31,7 +31,7 @@ invariant [stateTheoryGhost] stateUsesTheory
 /--
 info: LocalTheoryPropAbstractEq.theoryPlain.local_abstract_eq {ρ node : Type} [node_dec_eq : DecidableEq node]
   [node_inhabited : Inhabited node] [ρ_sub : IsSubReaderOf (Theory node) ρ] (n : node)
-  (th : ρ := by veil_exact_theory) : theoryPlain n th = theoryPlain n (readFrom th)
+  (th : ρ := by veil_exact_theory) : (veil_term% theoryPlain) n th = (veil_term% theoryPlain) n (readFrom th)
 -/
 #guard_msgs in
 #check theoryPlain.local_abstract_eq
@@ -39,7 +39,7 @@ info: LocalTheoryPropAbstractEq.theoryPlain.local_abstract_eq {ρ node : Type} [
 /--
 info: LocalTheoryPropAbstractEq.theoryNested.local_abstract_eq {ρ node : Type} [node_dec_eq : DecidableEq node]
   [node_inhabited : Inhabited node] [ρ_sub : IsSubReaderOf (Theory node) ρ] (th : ρ := by veil_exact_theory) :
-  theoryNested th = theoryNested (readFrom th)
+  (veil_term% theoryNested) th = (veil_term% theoryNested) (readFrom th)
 -/
 #guard_msgs in
 #check theoryNested.local_abstract_eq
@@ -47,7 +47,7 @@ info: LocalTheoryPropAbstractEq.theoryNested.local_abstract_eq {ρ node : Type} 
 /--
 info: LocalTheoryPropAbstractEq.theoryTwice.local_abstract_eq {ρ node : Type} [node_dec_eq : DecidableEq node]
   [node_inhabited : Inhabited node] [ρ_sub : IsSubReaderOf (Theory node) ρ] (th : ρ := by veil_exact_theory) :
-  theoryTwice th = theoryTwice (readFrom th)
+  (veil_term% theoryTwice) th = (veil_term% theoryTwice) (readFrom th)
 -/
 #guard_msgs in
 #check theoryTwice.local_abstract_eq
@@ -56,7 +56,8 @@ info: LocalTheoryPropAbstractEq.theoryTwice.local_abstract_eq {ρ node : Type} [
 info: LocalTheoryPropAbstractEq.theoryDecidableForall.local_abstract_eq {ρ node : Type} [node_dec_eq : DecidableEq node]
   [node_inhabited : Inhabited node] [ρ_sub : IsSubReaderOf (Theory node) ρ]
   [(edge : node → node → Bool) → (x : node) → Decidable (∀ (m : node), edge x m = true)]
-  (th : ρ := by veil_exact_theory) : theoryDecidableForall th = theoryDecidableForall (readFrom th)
+  (th : ρ := by veil_exact_theory) :
+  (veil_term% theoryDecidableForall) th = (veil_term% theoryDecidableForall) (readFrom th)
 -/
 #guard_msgs in
 #check theoryDecidableForall.local_abstract_eq
@@ -74,8 +75,8 @@ info: LocalTheoryPropAbstractEq.stateUsesTheory.local_abstract_eq {ρ σ node : 
   [σ_sub : IsSubStateOf (State χ) σ] [ρ_sub : IsSubReaderOf (Theory node) ρ]
   [(edge : node → node → Bool) → (x : node) → Decidable (∀ (m : node), edge x m = true)]
   (th : ρ := by veil_exact_theory) (st : σ := by veil_exact_state) :
-  stateUsesTheory th st =
-    stateUsesTheory (readFrom th)
+  (veil_term% stateUsesTheory) th st =
+    (veil_term% stateUsesTheory) (readFrom th)
       (State.casesOn (getFrom st) fun touched_conc =>
         let touched := FieldRepresentation.get touched_conc;
         { touched := touched })
@@ -86,7 +87,7 @@ info: LocalTheoryPropAbstractEq.stateUsesTheory.local_abstract_eq {ρ σ node : 
 /--
 info: LocalTheoryPropAbstractEq.assumePlain.local_abstract_eq {ρ node : Type} [node_dec_eq : DecidableEq node]
   [node_inhabited : Inhabited node] [ρ_sub : IsSubReaderOf (Theory node) ρ] (th : ρ := by veil_exact_theory) :
-  assumePlain th = assumePlain (readFrom th)
+  (veil_term% assumePlain) th = (veil_term% assumePlain) (readFrom th)
 -/
 #guard_msgs in
 #check assumePlain.local_abstract_eq
@@ -94,7 +95,7 @@ info: LocalTheoryPropAbstractEq.assumePlain.local_abstract_eq {ρ node : Type} [
 /--
 info: LocalTheoryPropAbstractEq.assumeNested.local_abstract_eq {ρ node : Type} [node_dec_eq : DecidableEq node]
   [node_inhabited : Inhabited node] [ρ_sub : IsSubReaderOf (Theory node) ρ] (th : ρ := by veil_exact_theory) :
-  assumeNested th = assumeNested (readFrom th)
+  (veil_term% assumeNested) th = (veil_term% assumeNested) (readFrom th)
 -/
 #guard_msgs in
 #check assumeNested.local_abstract_eq
@@ -102,7 +103,7 @@ info: LocalTheoryPropAbstractEq.assumeNested.local_abstract_eq {ρ node : Type} 
 /--
 info: LocalTheoryPropAbstractEq.assumeDecidable.local_abstract_eq {ρ node : Type} [node_dec_eq : DecidableEq node]
   [node_inhabited : Inhabited node] [ρ_sub : IsSubReaderOf (Theory node) ρ] (th : ρ := by veil_exact_theory) :
-  assumeDecidable th = assumeDecidable (readFrom th)
+  (veil_term% assumeDecidable) th = (veil_term% assumeDecidable) (readFrom th)
 -/
 #guard_msgs in
 #check assumeDecidable.local_abstract_eq
@@ -111,7 +112,8 @@ info: LocalTheoryPropAbstractEq.assumeDecidable.local_abstract_eq {ρ node : Typ
 info: LocalTheoryPropAbstractEq.assumeDecidableForall.local_abstract_eq {ρ node : Type} [node_dec_eq : DecidableEq node]
   [node_inhabited : Inhabited node] [ρ_sub : IsSubReaderOf (Theory node) ρ]
   [(edge : node → node → Bool) → (x : node) → Decidable (∀ (m : node), edge x m = true)]
-  (th : ρ := by veil_exact_theory) : assumeDecidableForall th = assumeDecidableForall (readFrom th)
+  (th : ρ := by veil_exact_theory) :
+  (veil_term% assumeDecidableForall) th = (veil_term% assumeDecidableForall) (readFrom th)
 -/
 #guard_msgs in
 #check assumeDecidableForall.local_abstract_eq
@@ -129,8 +131,8 @@ info: LocalTheoryPropAbstractEq.stateTheoryGhost.local_abstract_eq {ρ σ node :
   [σ_sub : IsSubStateOf (State χ) σ] [ρ_sub : IsSubReaderOf (Theory node) ρ]
   [(edge : node → node → Bool) → (x : node) → Decidable (∀ (m : node), edge x m = true)]
   (th : ρ := by veil_exact_theory) (st : σ := by veil_exact_state) :
-  stateTheoryGhost th st =
-    stateTheoryGhost (readFrom th)
+  (veil_term% stateTheoryGhost) th st =
+    (veil_term% stateTheoryGhost) (readFrom th)
       (State.casesOn (getFrom st) fun touched_conc =>
         let touched := FieldRepresentation.get touched_conc;
         { touched := touched })
@@ -154,7 +156,7 @@ invariant true
 info: LocalTheoryPropAbstractEq.Assumptions.local_abstract_eq (ρ node : Type) [node_dec_eq : DecidableEq node]
   [node_inhabited : Inhabited node] [ρ_sub : IsSubReaderOf (Theory node) ρ]
   [theoryDecidableForall_dec_0 : (edge : node → node → Bool) → (x : node) → Decidable (∀ (m : node), edge x m = true)]
-  (rd : ρ) : Assumptions ρ node rd = Assumptions (Theory node) node (readFrom rd)
+  (rd : ρ) : veil_term% Assumptions = (veil_term% Assumptions) (readFrom rd)
 -/
 #guard_msgs in
 #check Assumptions.local_abstract_eq

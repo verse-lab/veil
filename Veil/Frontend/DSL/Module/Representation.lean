@@ -1,6 +1,7 @@
 module
 
 public meta import Lean
+public meta import Lentil.Basic
 public meta import Veil.Util.Meta
 
 public meta section
@@ -185,6 +186,7 @@ inductive DeclarationKind where
   | stateAssertion (k : StateAssertionKind)
   | procedure (info : ProcedureInfo)
   | derivedDefinition (k : DerivedDefinitionKind) (derivedFrom : Std.HashSet Name)
+  | temporalProperty
 deriving Inhabited
 
 instance : BEq DeclarationKind where
@@ -195,6 +197,7 @@ instance : BEq DeclarationKind where
     | .stateAssertion a, .stateAssertion b => a == b
     | .procedure a, .procedure b => a == b
     | .derivedDefinition a b, .derivedDefinition c d => a == c && b.all (fun x => d.contains x) && d.all (fun x => b.contains x)
+    | .temporalProperty, .temporalProperty => true
     | _, _ => false
 
 instance : Repr DeclarationKind where
@@ -205,6 +208,7 @@ instance : Repr DeclarationKind where
     | .stateAssertion a => s!"stateAssertion {repr a}"
     | .procedure a => s!"procedure {repr a}"
     | .derivedDefinition a b => s!"derivedDefinition {repr a} (derivedFrom: {repr b.toArray})"
+    | .temporalProperty => "temporalProperty"
 
 /-! ## Actual representations -/
 
@@ -281,6 +285,48 @@ structure StateAssertion where
 deriving Inhabited
 
 def StateAssertion.declarationKind (sa : StateAssertion) : DeclarationKind := .stateAssertion sa.kind
+
+
+/-- Which of `prove_temporal_by` and `#temporal_check` a temporal property is for. -/
+inductive TemporalTarget where
+  /-- Both proved and model checked. -/
+  | both
+  /-- Only proved, through its shallow definition (a `Lentil.pred`). -/
+  | verify
+  /-- Only model checked, through its deep definition (an `Lasso.Formula` syntax tree). -/
+  | check
+deriving Inhabited, BEq, Repr
+
+/-- Whether this target includes model checking, i.e. the deep definition `p.ast`. -/
+def TemporalTarget.needsCheck : TemporalTarget → Bool
+  | .verify => false
+  | _ => true
+
+/-- Whether this target includes proving, i.e. the shallow definition `p`. -/
+def TemporalTarget.needsVerify : TemporalTarget → Bool
+  | .check => false
+  | _ => true
+
+/-- A temporal property is a temporal formula over the system's execution traces. Its shallow definition
+`p`, a `Lentil.pred`, is what `prove_temporal_by` proves, and its deep definition `p.ast`, an
+`Lasso.Formula` syntax tree, is what `#temporal_check` checks. -/
+structure TemporalProperty where
+  name : Name
+  /-- The formula as written. The shallow definition elaborates it through Lentil's `[tlfml| …]`,
+  the deep one through `[ltl| …]`. -/
+  formula : TSyntax `tlfml
+  /-- Whether the property is proved, model checked, or both. A definition that fails to elaborate is
+  dropped from `.both` (see `Module.dropTemporalDefinition`). -/
+  target : TemporalTarget := .both
+  /-- Whether the deep definition is yet to be generated. -/
+  checkPending : Bool := false
+  /-- Whether the shallow definition is yet to be generated. -/
+  verifyPending : Bool := false
+  /-- Extra parameters needed to elaborate the shallow definition. -/
+  extraParams : Array Parameter := #[]
+  /-- The user-written syntax -/
+  userSyntax : Syntax
+deriving Inhabited
 
 /--
   A `procedure` is a chunk of imperative code that takes arguments and
@@ -377,6 +423,8 @@ structure Module where
   procedures : Array ProcedureSpecification
   /-- The assertions that this module makes -/
   assertions : Array StateAssertion
+  /-- Temporal properties declared in this module, to be proved, model checked, or both. -/
+  temporalProperties : Array TemporalProperty
 
   /-- Derived definitions that this module has. -/
   protected _derivedDefinitions : Std.HashMap Name DerivedDefinition
