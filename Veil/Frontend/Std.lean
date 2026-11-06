@@ -574,11 +574,11 @@ instance instTSetOrdList [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α
     sortedDiffNoDup_contains a s1.val s2.val s1.property s2.property
   toList_contains_iff := fun a s => sortedContains_iff a s.val s.property
   subsets_iff := by
-    intro ⟨l1, hl1⟩ ⟨l2, hl2⟩
-    simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, OrdList.mem_sublists]
+    intro s1 s2
+    simp [sortedContains_iff _ _ s1.property, sortedContains_iff _ _ s2.property, OrdList.mem_sublists]
     constructor
     · grind
-    · apply OrdList.mem_contains_then_is_sublist <;> assumption
+    · exact OrdList.mem_contains_then_is_sublist _ _ s1.property s2.property
 
 open OrdList OrdArray in
 instance instTSetOrdArray [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
@@ -650,14 +650,17 @@ instance instTSetOrdArray [Ord α] [TransOrd α] [LawfulEqOrd α] [DecidableEq �
     exact sortedDiffNoDup_contains a s1.val.toList s2.val.toList s1.property s2.property
   toList_contains_iff := fun a s => sortedContains_iff a s.val.toList s.property
   subsets_iff := by
-    intro ⟨l1, hl1⟩ ⟨l2, hl2⟩
-    simp [sortedContains_iff _ _ hl1, sortedContains_iff _ _ hl2, subarrays, toOrdList, ofOrdList, OrdList.mem_sublists]
+    intro s1 s2
+    simp [sortedContains_iff _ _ s1.property, sortedContains_iff _ _ s2.property, subarrays, OrdList.mem_sublists]
     constructor
-    · grind
+    · rintro ⟨s, hs, rfl⟩ a ha
+      simpa [toOrdList] using hs.subset (by simpa [ofOrdList] using ha)
     · intro h
-      refine ⟨⟨l1.toList, hl1⟩, ?_, by simp⟩
-      apply OrdList.mem_contains_then_is_sublist l1.toList l2.toList hl1 hl2
-      simpa using h
+      refine ⟨s1.toOrdList, ?_, ?_⟩
+      · apply OrdList.mem_contains_then_is_sublist _ _ s1.property s2.property
+        simpa [toOrdList] using h
+      · apply OrdArray.ext
+        simp [ofOrdList, toOrdList]
 
 class TMultiset (α : outParam (Type u)) (κ : Type v) where
   empty : κ

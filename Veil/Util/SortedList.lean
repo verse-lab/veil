@@ -17,7 +17,7 @@ abbrev OrdList.cmpLt [Ord α] (a b : α) : Prop := compare a b = Ordering.lt
 -- instance resolution does not see through it: the instances that show it are its own, not those of
 -- the subtype or the list (`veil_derive_wrapper_instances`).
 /-- A strictly sorted list, used as a set representation. -/
-@[implicit_reducible] def OrdList (α : Type u) [Ord α] : Type u :=
+def OrdList (α : Type u) [Ord α] : Type u :=
   { l : List α // l.Pairwise (OrdList.cmpLt (α := α)) }
 
 veil_derive_wrapper_instances OrdList
@@ -972,7 +972,9 @@ instance instEnumerationOrdList [TransOrd α] [LawfulEqOrd α] [DecidableEq α] 
     OrdList.ofList (Veil.Enumeration.allValues (α := α)) |>.sublists
   complete := by
     intro ⟨l, hl⟩
-    simp [OrdList.ofList, mem_sublists]
+    apply (mem_sublists (l := OrdList.ofList (Veil.Enumeration.allValues (α := α)))
+      (s := ⟨l, hl⟩)).2
+    simp [OrdList.ofList]
     have h_sorted : (ofList.inner (Veil.Enumeration.allValues (α := α))).Pairwise (cmpLt (α := α)) :=
       (ofList.inner_spec _).left
     apply mem_contains_then_is_sublist <;> try assumption

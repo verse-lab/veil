@@ -341,7 +341,7 @@ end Array
 /-! ## Type definition -/
 
 /-- A strictly sorted array, used as a set representation. -/
-@[implicit_reducible] def OrdArray (α : Type u) [Ord α] : Type u :=
+def OrdArray (α : Type u) [Ord α] : Type u :=
   { arr : Array α // arr.toList.Pairwise (OrdList.cmpLt (α := α)) }
 
 veil_derive_wrapper_instances OrdArray
@@ -1105,6 +1105,6 @@ instance instEnumerationOrdArray [TransOrd α] [LawfulEqOrd α] [DecidableEq α]
   complete := by
     intro a
     exact List.mem_map.mpr ⟨a.toOrdList, Veil.Enumeration.complete _, by
-      cases a; simp [ofOrdList, toOrdList]⟩
+      cases a; simp [ofOrdList, toOrdList]; rfl⟩
 
 end Instances
