@@ -4,6 +4,12 @@ Veil Verifier 0.N.x supports IDE protocol N of Veil: the version of what the ext
 Veil, such as its messages, code actions and model checker binaries (see "Install" in the README).
 The versions 0.0.x come from before the extension checked it.
 
+## 0.1.1
+
+- The lenses of a config file show while Lean builds its first model checker. The extension asks
+  Lean for the IDE protocol at the end of the imports, which Lean answers at once, rather than at
+  the first `#mc_config`, which Lean answers only once its build ends (since Lean 4.34).
+
 ## 0.1.0
 
 IDE protocol 1, for Veil from October 27, 2026 on.

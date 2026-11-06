@@ -682,7 +682,8 @@ private partial def runProgressUpdates (id : Nat) (token : RefreshToken) : CoreM
 def mkProgressWidget (instanceId : Nat) : CoreM Html := do
   mkRefreshComponentM (.text "Starting model checker...") (runProgressUpdates instanceId)
 
-/-- Display a streaming progress widget at the given syntax. -/
+/-- Display a streaming progress widget at the given syntax. The command elaborator publishes it
+with `withStreamingInfo`, since its final info tree is complete only once the run ends. -/
 def displayStreamingProgress (atStx : Syntax) (instanceId : Nat) : CommandElabM Unit := do
   let html ← liftCoreM (mkProgressWidget instanceId)
   displayWidget atStx html

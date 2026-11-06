@@ -100,6 +100,9 @@ private partial def runStreamingResults (theoremInsertPos : Lsp.Position)
   | .running => runStreamingResults theoremInsertPos optionInsertPos documentUri getter token
   | .done => pure ()
 
+/-- Display the results of verification conditions as they are discharged. The command elaborator
+publishes the widget with `withStreamingInfo`, since its final info tree is complete only once the
+conditions are. -/
 def displayStreamingResults (atStx : Syntax)
     (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus))
     (optionStx? : Option Syntax := none) : CommandElabM Unit := do

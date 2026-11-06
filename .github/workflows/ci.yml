@@ -57,6 +57,9 @@ jobs:
         python3 scripts/tests/test-temporal-proof-incrementality.py --multi-module
         python3 scripts/tests/test-temporal-proof-incrementality.py --multi-module --deferred
       timeout-minutes: 10
+    - name: Test streaming widgets through LSP
+      run: python3 scripts/tests/test-streaming-widgets.py
+      timeout-minutes: 15
     - name: Build examples
       run: lake build Examples
       timeout-minutes: 30

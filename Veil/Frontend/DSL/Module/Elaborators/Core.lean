@@ -7,6 +7,7 @@ public meta import Veil.Frontend.DSL.Module.Syntax
 public meta import Veil.Frontend.DSL.Infra.EnvExtensions
 public meta import Veil.Frontend.DSL.Module.Util
 public meta import Veil.Frontend.DSL.Module.Util.ExecutionWorkflow
+public meta import Veil.Util.StreamingInfo
 public meta import Veil.Frontend.DSL.Action.Elaborators
 public meta import Veil.Frontend.DSL.State.SubState
 public meta import Veil.Frontend.DSL.State.ConcreteRegistry
@@ -755,7 +756,7 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
     (kind : TraceDisplay.ResultKind) (elabConfig : Syntax → CommandElabM α)
     (assumptionsHoldByIndex : Nat)
     (mkCall : ExecutionCallCommandContext α → CommandElabM (Term × Option ModelChecker.ParallelConfig))
-    : CommandElab := fun stx => ExecutionWorkflow.withStreamingInfo stx do
+    : CommandElab := fun stx => withStreamingInfo stx do
   -- Use dynamic trace class name for detailed profiling
   withTraceNode traceClass (fun _ => return s!"#{cmdName}") do
     -- All commands through this interface use the same syntax layout for the first three arguments:
@@ -929,7 +930,7 @@ private def selectLivenessProperties (mod : Module) (selection : Array (TSyntax 
   return properties.filter (fun lp => wanted.contains lp.name)
 
 @[command_elab Veil.livenessCheck, incremental]
-def elabLivenessCheck : CommandElab := fun stx => ExecutionWorkflow.withStreamingInfo stx do
+def elabLivenessCheck : CommandElab := fun stx => withStreamingInfo stx do
   withTraceNode `veil.perf.elaborator.livenessCheck (fun _ => return "#temporal_check") do
     -- `stx[1]` is the bracketed property selection (possibly empty), `stx[2]` the optional mode,
     -- `stx[3]` the instantiation, `stx[4]` the optional theory, `stx[5]` the `optConfig`,

@@ -13,37 +13,6 @@ open Lean Elab Command Term
 
 namespace Veil.ExecutionWorkflow
 
-/-- Publish the execution command's info tree before its background tasks finish.
-Lean's async linters wait for those tasks and add their own holes to the final info tree;
-waiting for that tree would prevent the progress widget from appearing during the run.
-The command elaborator must be marked `@[incremental]` to supply the snapshot bundle. -/
-def withStreamingInfo (stx : Syntax) (act : CommandElabM Unit) : CommandElabM Unit := do
-  let snap? := (← read).snap?
-  -- We publish incrementally, but do not reuse a changed execution command.
-  if let some old := snap?.bind (·.old?) then old.val.cancelRec
-  try
-    -- Generated helper declarations must not consume the execution command's snapshot.
-    withReader (fun ctx => { ctx with snap? := none }) act
-  finally
-    if let some snap := snap? then
-      let s ← get
-      let scope := s.scopes.head!
-      let ctx : CommandContextInfo := {
-        env := s.env, cmdEnv? := some s.env, fileMap := ← getFileMap, mctx := {},
-        currNamespace := scope.currNamespace, openDecls := scope.openDecls,
-        options := scope.opts, ngen := s.ngen
-      }
-      let infoTask := (← getInfoState).substituteLazy.map (sync := true) fun info =>
-        let tree := InfoTree.context (.commandCtx ctx)
-          (.node (.ofCommandInfo { elaborator := `Veil.ExecutionWorkflow.withStreamingInfo, stx }) info.trees)
-        Language.SnapshotTree.mk { diagnostics := .empty, infoTree? := some tree } #[]
-      let tasks := (← get).snapshotTasks
-      -- Move the tasks into the published tree: keep cancellation and diagnostics without
-      -- reporting them twice. Its first child provides the widget independently of those tasks.
-      modify fun s => { s with snapshotTasks := #[] }
-      snap.new.resolve <| .ofTyped <| Language.SnapshotTree.mk { diagnostics := .empty }
-        (#[{ stx? := some stx, task := infoTask, cancelTk? := none }] ++ tasks)
-
 /-- Model checking mode: interpreted only, compiled only, or default (both with handoff). -/
 inductive ModelCheckingMode where
   | interpreted

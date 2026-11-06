@@ -16,6 +16,7 @@ public meta import Veil.Frontend.DSL.Infra.EnvExtensions
 public meta import ProofWidgets.Component.HtmlDisplay
 public meta import Veil.Core.UI.Widget.RefreshComponent
 public meta import Veil.Frontend.DSL.Module.Elaborators.Verification
+public meta import Veil.Util.StreamingInfo
 
 public meta section
 
@@ -341,9 +342,12 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
   if shouldHaveTrace isExpectedSat vcResult.status && traceJson?.isNone then
     logViolation "Could not extract trace JSON"; logDischargerErrors vcResult.timing.dischargers
 
+/-- Elaborate the trace command at the current ref. Its widget shows the result while the solver
+runs, through `withStreamingInfo`, so the elaborator that calls this is `@[incremental]`. -/
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident))
     (spec : TSyntax `traceSpec) (pf : Option (TSyntax `term)) : CommandElabM Unit := do
   let stx ← getRef
+  withStreamingInfo stx do
   let mod ← getCurrentModule (errMsg := "trace commands can only be used inside a Veil module")
   let mod ← mod.ensureVerificationSpec stx
 
@@ -414,7 +418,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     displayTraceStreamingResults stx managerId isExpectedSat vcName vcFilter
 
 
-elab_rules : command
+@[incremental] elab_rules : command
   | `(command| $r:expected_smt_result trace [ $name ] { $spec:traceSpec } $pf:term) => elabTraceSpec r (some name) spec (some pf)
   | `(command| $r:expected_smt_result trace [ $name ] { $spec:traceSpec }) => elabTraceSpec r (some name) spec none
   | `(command| $r:expected_smt_result trace { $spec:traceSpec } $pf:term) => elabTraceSpec r none spec (some pf)
