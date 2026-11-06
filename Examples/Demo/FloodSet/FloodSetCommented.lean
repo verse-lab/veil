@@ -422,10 +422,10 @@ prove_veil_invariant_goal crash crash_round_gap_or_current using wp by
   -- Round `r` remains crash-free: `n` crashes in the current round, which is not `r`.
   refine .inl ⟨r, hr_lt, fun m => ?_⟩
   by_cases hnm : n = m
-  · exact .inr (by rw [if_pos hnm]; omega)
+  · exact .inr (by rw [ite_eq_left hnm]; omega)
   · rcases hcrash_free m with h | h
     · exact .inl ⟨hnm, h⟩
-    · exact .inr (by rw [if_neg hnm]; exact h)
+    · exact .inr (by rw [ite_eq_right hnm]; exact h)
 
 #check_invariants
 
