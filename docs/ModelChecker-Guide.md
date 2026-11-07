@@ -150,6 +150,20 @@ Choices over sets enumerate only what they need: `{ x // x ∈ s }` ranges over
 the elements of `s`, and `{ t // TSet.isSubset t s }` over the subsets of `s`.
 Use these types with `pick` and `:|` instead of ranging over a whole type.
 
+A constrained choice can also retain a proof for a later operation. For
+example, with `messages : List (Option Nat)` and a `selected : Nat` field:
+
+```lean
+let m : { m // m ∈ messages } :| h : m.val.isSome
+selected := m.val.get h
+```
+
+This chooses from the collection and filters it by the predicate, as the
+form without `h` does. Traces show the chosen value under its source name,
+such as `m = some 7`; the proof is not an additional choice. See
+[Proof Bindings](DSL-Reference.md#proof-bindings) for the other forms and
+the scope of proofs about mutable state.
+
 ## Field Representations
 
 By default, relation fields are stored as `Std.ExtTreeSet`s and function fields

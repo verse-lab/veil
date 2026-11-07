@@ -286,13 +286,19 @@ generates the two-state relation equivalent for every imperative action.
 | `require P` | Precondition of the transition (see below) |
 | `assume P` | Assumption: executions violating `P` are discarded |
 | `assert P` | Must hold (verification condition); aborts the action at runtime if false |
+| `require h : P` | Like `require P`, also binding a proof `h : P` |
+| `assume h : P` | Like `assume P`, also binding a proof `h : P` |
+| `assert h : P` | Like `assert P`, also binding a proof `h : P` |
 | `let x := e` | Local binding |
-| `let x :\| P` | Non-deterministic choice satisfying `P` (Hilbert choice) |
+| `let x :\| P` | Non-deterministic choice satisfying `P`; no execution if no value satisfies it |
+| `let x :\| h : P` | Choose `x` satisfying `P` and bind its proof as `h` |
 | `let x <- pick T` | Pick arbitrary value of type `T` |
 | `x := e` | State update |
 | `x ← act` | Call `act` and store its result in `x` (see below) |
 | `x := *` | Non-deterministic (unconstrained) state update |
 | `if P then ... else ...` | Conditional |
+| `if x :\| P then ... else ...` | Choose a witness for `P` if one exists; otherwise run the else-branch |
+| `if x :\| h : P then ... else ...` | Also bind the proof `h` in the then-branch |
 | `return e` | Return value from procedure |
 
 `require P` is the recommended way to express preconditions. When the
@@ -312,6 +318,33 @@ its arguments are evaluated on the state *before* the call; then the target's
 index terms (e.g., `a` in `r a ← act`) are evaluated and the result is stored on the state *after* the
 call. For example, if `bump` increments `k` and returns a value, `r k ← bump`
 stores that value at the incremented index.
+
+#### Proof Bindings
+
+The `h :` forms bind a proof for use later in the current block, e.g. for
+list indexing, `List.head`, or `Option.get`. Binding a proof term does not
+change the semantics of the statement. For a Boolean condition, `h` proves
+that it equals `true`.
+
+For a list-valued state field `items`:
+
+```lean
+procedure read_at (i : Nat) {
+  let xs := items
+  require h : i < xs.length
+  return xs[i]
+}
+```
+
+A choice may specify the witness type (`let x : T :| h : P`) or use a flat
+tuple (`let (a, b) : A × B :| h : P`). The same forms work with existential
+`if`, where the witness and proof are scoped to the then-branch. Lean's
+native `if h : P` (`dite`) doesn't pick witness.
+
+**Caveat (current limitation):** To use a proof across statements, first save
+the relevant mutable value in a local, as `xs` above.
+Each statement reads fields afresh, so a proof about `items` may not typecheck
+against a later read, even if the field has not changed.
 
 ### 9. Properties
 

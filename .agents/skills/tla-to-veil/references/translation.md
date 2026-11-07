@@ -222,7 +222,15 @@ For `List`, `Append(s, x)` is `s ++ [x]`, `s \o t` is `s ++ t`, `[s EXCEPT ![i] 
 
 These costs can be negligible for short sequences. If they dominate runtime on long sequences or inside quantifiers, explain the bottleneck before introducing a new container.
 
-- `Head`/`Tail` of `<<>>` and an out-of-range `s[i]` are errors in TLC, while `head!`, `tail`, `[i]!`, and `dequeueD` return a value anyway. Keep the source's guard, or `assert` the condition where the source has none, so the error still shows.
+- `Head`/`Tail` of `<<>>` and an out-of-range `s[i]` are errors in TLC. Prefer proof-taking reads (`xs[i]'h`, `xs.head h`) to helpers that return a default out of range. Take `h` from `require h : P` or `assume h : P` for an existing source guard; where an unguarded read should error, use `assert h : P` so it becomes a Veil assertion failure. Do not add an assumption that merely disables the erroneous execution. For a source sequence read at a 1-based index `k : Int`:
+
+  ```lean
+  let xs := history
+  assert h : 1 ≤ k ∧ k ≤ xs.length
+  let value := xs[(k - 1).toNat]'(by omega)
+  ```
+
+  Use Lean's `if h : P` when the source branches on the condition, or `let x : T :| h : P` when its choice already constrains `x` by `P`. The proof can also justify a constructor-specific read such as `m.get h`. Save mutable data in a local before using its proof across statements (Veil's `docs/DSL-Reference.md`, "Proof Bindings"). In properties, include the needed range fact in the property and derive read proofs from it; do not shrink the source's quantifier range to omit invalid reads.
 - `fQueue` has no `DecidableEq`, and its `==` compares its internal front and back lists, so two queues with the same contents can differ. Compare and quantify over `q.toList` instead.
 
 ## Functions as relations
