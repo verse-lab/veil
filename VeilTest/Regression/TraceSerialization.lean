@@ -67,6 +67,10 @@ null
 function. -/
 veil module NonEnumerableTraceField
 function stored : Nat → Nat
+/--
+warning: Field `stored` uses a hybrid representation with default canonical `Hashable` or `BEq` instances, which can cause model checking to merge distinct states and miss reachable states. For meaningful hashing and equality, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation.
+-/
+#guard_msgs in
 #gen_state
 
 run_cmd do

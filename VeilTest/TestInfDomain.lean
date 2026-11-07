@@ -10,6 +10,12 @@ relation rel : Nat → Bool
 function f : Nat → Option Nat
 immutable function nodeToNat : node → Nat
 
+/--
+warning: Field `rel` uses a hybrid representation with default canonical `Hashable` or `BEq` instances, which can cause model checking to merge distinct states and miss reachable states. For meaningful hashing and equality, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation.
+---
+warning: Field `f` uses a hybrid representation with default canonical `Hashable` or `BEq` instances, which can cause model checking to merge distinct states and miss reachable states. For meaningful hashing and equality, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation.
+-/
+#guard_msgs in
 #gen_state
 
 after_init {

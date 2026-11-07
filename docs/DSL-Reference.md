@@ -149,6 +149,16 @@ function currentRound : node -> Nat
 immutable function nextNode : node -> node
 ```
 
+For mutable relations and functions, a domain without `Enumeration` selects a
+hybrid representation under the default configuration. Its canonical fallback
+has placeholder `Hashable` and `BEq` instances (constant hash and always-true
+equality). These can merge distinct states during model checking. Veil warns if
+either default is selected during state generation. For model-specific hashing
+and equality, define higher-priority instances for
+`Veil.CanonicalFieldWrapper [D₁, …, Dₙ] C` before `#gen_state` (or the first command
+that generates the state implicitly). The instances must handle all reachable
+field values correctly.
+
 #### Mutability
 
 - **Mutable** (default): Can be modified by actions
