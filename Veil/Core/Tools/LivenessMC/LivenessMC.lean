@@ -362,6 +362,8 @@ instance [Inhabited σ] {sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (
 
 /-- Run `route` on `p`. `patOnly` and `prune` fall back to `crossing` when a hoisted region mentions
 a `⟨…⟩` atom. -/
+-- With `route` in the specialization key, a call with a known route specializes only that route, not all six
+@[specialize route]
 def checkRoute [Inhabited σ] (route : Route)
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)

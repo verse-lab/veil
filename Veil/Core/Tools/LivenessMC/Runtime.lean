@@ -29,6 +29,8 @@ separately by `#model_check`.
 
 Cancellation and progress are honoured between properties only. Explored counts are product states summed over passed
 properties, including the prefix carried over at handoff. -/
+-- Specialize on `route` so that `checkRoute` receives it as a constant; otherwise every route is specialized
+@[specialize route]
 def checkAllWithProgress [ToJson ρ] [ToJson σ]
     (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l (Transitions l Int σ) th)
     (params : SearchParameters ρ σ) (properties : List (LivenessProperty ρ σ l))
