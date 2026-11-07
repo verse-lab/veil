@@ -104,21 +104,17 @@ xcode-select --install
 
 </details>
 
-### 2. Install Node.js and Lean
+### 2. Install Lean
 
 On both Linux and macOS, install [Lean 4](https://github.com/leanprover/lean4)
-through [Elan](https://github.com/leanprover/elan) and [Node.js
-24](https://nodejs.org/en/download/) (including `npm`) through nvm. Elan will
+through [Elan](https://github.com/leanprover/elan). Elan will
 install the Lean version specified in `lean-toolchain` when you first run
 `lake` in the repository:
 
 ```bash
 set -o pipefail &&
 (curl -fsSL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none) &&
-. "$HOME/.elan/env" &&
-(curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.7/install.sh | bash) &&
-. "$HOME/.nvm/nvm.sh" &&
-nvm install 24
+. "$HOME/.elan/env"
 ```
 
 ### 3. Clone and build Veil
@@ -131,10 +127,16 @@ cd veil
 lake build
 ```
 
+### Prebuilt releases
+
+For tagged releases, `lake build` automatically uses prebuilt artifacts for
+Linux x86-64 and macOS ARM64 when available, falling back to a source build
+otherwise. Dependencies may still need to compile.
+
 ### Troubleshooting
 
-**(NPM errors)** If you see an error about `npm`, make sure it's in your
-`PATH`; the installation command above installs both `node` and `npm`.
+**(NPM errors)** npm is only needed when building modified widgets; see
+[widget development](widget/README.md).
 
 **(cvc5 errors)** If you see an error about `cvc5`, run:
 

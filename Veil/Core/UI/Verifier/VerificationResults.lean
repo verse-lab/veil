@@ -35,7 +35,7 @@ deriving Server.RpcEncodable
 
 @[widget_module]
 def VerificationResultsViewer : Component VerificationResultsProps where
-  javascript := include_str ".." / ".." / ".." / ".." / ".lake" / "build" / "js" / "verificationResults.js"
+  javascript := include_str ".." / ".." / ".." / ".." / "widget" / "js" / "verificationResults.js"
 
 end ProofWidgets
 

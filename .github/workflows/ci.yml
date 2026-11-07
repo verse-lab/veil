@@ -4,7 +4,13 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -26,51 +32,136 @@ jobs:
         # - name: macOS-x86_64
         #   os: macos-13
     steps:
-    # https://github.com/abdoo8080/lean-cvc5/blob/main/.github/workflows/ci.yml#L31
-    - name: Install dependencies for cvc5
-      if: runner.os == 'Linux'
-      run: |
-        sudo apt-get install -y clang-15 lld-15 libc++-15-dev libc++abi-15-dev
-        sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-15 100
-    - name: Checkout repository
+    - name: Set up / Checkout
       uses: actions/checkout@v4
-    - name: Build and test Veil
+    - name: Dependencies / Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - name: Dependencies / Packages
+      run: |
+        if [[ "$RUNNER_OS" == Linux ]]; then
+          echo "::group::cvc5 dependencies"
+          sudo apt-get install -y clang-15 lld-15 libc++-15-dev libc++abi-15-dev
+          sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-15 100
+          echo "::endgroup::"
+        fi
+
+        echo "::group::npm dependencies"
+        npm ci --prefix widget
+        npm ci --prefix editors/vscode
+        echo "::endgroup::"
+
+        # Suppress Veil's own release fetch, allowing normal dependency downloads.
+        if [[ "$GITHUB_REF" == refs/tags/v* || "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+          mkdir -p .lake/build
+        fi
+    - name: Check committed Javascript
+      run: |
+        # Preserve lake.trace; the guarded Lean build checks its inputs next.
+        rm -rf widget/dist
+        rm -f widget/js/*.js
+        npm run build --prefix widget
+        widget_changes=$(git status --porcelain --untracked-files=all -- widget/js)
+        if [ -n "$widget_changes" ]; then
+          printf '%s\n' "$widget_changes"
+          exit 1
+        fi
+    # Save after the test suite and examples, not just after the library build.
+    - name: Set up / Restore cache
+      if: ${{ !startsWith(github.ref, 'refs/tags/v') && github.event_name != 'workflow_dispatch' }}
+      uses: actions/cache@v4
+      with:
+        path: ./.lake
+        key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
+        restore-keys: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+    - name: Build Veil
       uses: leanprover/lean-action@v1
       with:
-        use-github-cache: true
-    - name: Test VC manager incrementality through LSP
+        use-github-cache: false
+        test: false
+        build-args: '-R -KerrorOnBuild=stale-widget-bundles-run-lake-build-widgetJsAll'
+    - name: Build / Pack release archive
+      if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+      env:
+        LAKE_ARTIFACT_CACHE: 'false'
       run: |
+        # Pack before tests/examples add their artifacts to the build directory.
+        lake pack
+        lake clean veil
+        lake unpack
+        lake --no-cache --no-build build
+    - name: Tests / VeilTest
+      run: lake test
+    - name: Tests / LSP and Widgets
+      run: |
+        echo "::group::VC manager incrementality"
         python3 scripts/tests/test-vc-manager-incrementality.py
         python3 scripts/tests/test-vc-manager-incrementality.py --compact
-      timeout-minutes: 10
-    - name: Test invariant goal incrementality through LSP
-      run: |
+        echo "::endgroup::"
+
+        echo "::group::Invariant goal incrementality"
         python3 scripts/tests/test-invariant-goal-incrementality.py
         python3 scripts/tests/test-invariant-goal-incrementality.py --deferred
         python3 scripts/tests/test-invariant-goal-incrementality.py --multi-module
         python3 scripts/tests/test-invariant-goal-incrementality.py --multi-module --deferred
-      timeout-minutes: 10
-    - name: Test temporal proof incrementality through LSP
-      run: |
+        echo "::endgroup::"
+
+        echo "::group::Temporal proof incrementality"
         python3 scripts/tests/test-temporal-proof-incrementality.py
         python3 scripts/tests/test-temporal-proof-incrementality.py --deferred
         python3 scripts/tests/test-temporal-proof-incrementality.py --multi-module
         python3 scripts/tests/test-temporal-proof-incrementality.py --multi-module --deferred
-      timeout-minutes: 10
-    - name: Test streaming widgets through LSP
-      run: python3 scripts/tests/test-streaming-widgets.py
-      timeout-minutes: 15
-    - name: Build examples
+        echo "::endgroup::"
+
+        echo "::group::Streaming widgets"
+        python3 scripts/tests/test-streaming-widgets.py
+        echo "::endgroup::"
+
+        echo "::group::Widget rendering"
+        node widget/tests/veilUtils.test.cjs
+        echo "::endgroup::"
+      timeout-minutes: 45
+    # Against the Veil of this checkout, built above: this also checks that both report the same IDE protocol
+    - name: Tests / VS Code Extension
+      working-directory: editors/vscode
+      run: npm test
+      timeout-minutes: 20
+    - name: Examples
       run: lake build Examples
       timeout-minutes: 30
-    - name: Test widget rendering
+    - name: Release / Save archive
+      if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-${{ matrix.name }}
+        path: .lake/veil-*.tar.gz
+        compression-level: 0 # lake pack already produces a gzip-compressed archive.
+        include-hidden-files: true
+        if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+    - name: Download release archives
+      uses: actions/download-artifact@v4
+      with:
+        pattern: release-*
+        path: release
+        merge-multiple: true
+    - name: Publish release archives
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        RELEASE_TAG: ${{ github.ref_name }}
       run: |
-        npm ci --prefix widget
-        node widget/tests/veilUtils.test.cjs
-    # Against the Veil of this checkout, built above: this also checks that both report the same IDE protocol
-    - name: Test the VS Code extension
-      working-directory: editors/vscode
-      run: |
-        npm ci
-        npm test
-      timeout-minutes: 20
+        if ! gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --generate-notes
+        fi
+        gh release upload "$RELEASE_TAG" release/veil-*.tar.gz --clobber
+        gh release edit "$RELEASE_TAG" --draft=false
