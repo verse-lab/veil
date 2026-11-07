@@ -40,16 +40,23 @@ jobs:
         sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-15 100
     - name: Checkout repository
       uses: actions/checkout@v4
+    # Save after the test suite and examples, not just after the library build.
+    - name: Cache build artifacts
+      if: ${{ !startsWith(github.ref, 'refs/tags/v') && github.event_name != 'workflow_dispatch' }}
+      uses: actions/cache@v4
+      with:
+        path: ./.lake
+        key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
+        restore-keys: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
     # Suppress Veil's own release fetch, while allowing normal dependency downloads.
     - name: Prepare release build
       if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
       run: mkdir -p .lake/build
-    - name: Build and test Veil
+    - name: Build Veil
       uses: leanprover/lean-action@v1
       with:
-        use-github-cache: ${{ !startsWith(github.ref, 'refs/tags/v') && github.event_name != 'workflow_dispatch' }}
-        # Release archives must be packed before building the test driver.
-        test: ${{ (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && 'false' || 'default' }}
+        use-github-cache: false
+        test: false
         build-args: '-R -KerrorOnBuild=stale-widget-bundles-run-lake-build-widgetJsAll'
     - name: Check widget bundles were not rewritten
       run: |
@@ -67,8 +74,7 @@ jobs:
         lake clean veil
         lake unpack
         lake --no-cache --no-build build
-    - name: Test release build
-      if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    - name: Run test suite
       run: lake test
     - name: Test VC manager incrementality through LSP
       run: |
@@ -129,7 +135,7 @@ jobs:
       with:
         name: release-${{ matrix.name }}
         path: .lake/veil-*.tar.gz
-        compression-level: 0
+        compression-level: 0 # lake pack already produces a gzip-compressed archive.
         include-hidden-files: true
         if-no-files-found: error
 
