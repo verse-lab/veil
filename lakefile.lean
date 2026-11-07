@@ -14,8 +14,17 @@ require proofwidgets from git "https://github.com/leanprover-community/ProofWidg
 
 package veil where
   preferReleaseBuild := true
-  buildArchive? := .none
   releaseRepo := "https://github.com/verse-lab/veil"
+  extraDepTargets := #[`fetchRelease]
+
+/-- Lake fetches dependency releases automatically; do the same for a fresh root checkout. -/
+target fetchRelease pkg : Unit := do
+  let job ← if pkg.isRoot && (← getTryCache) && !(← pkg.buildDir.pathExists) then
+    pkg.optBuildCache.fetch
+  else
+    pure (Job.pure true)
+  -- Fetching a cache must not change module hashes between root/dependency builds.
+  job.mapM fun _ => setTrace nilTrace
 
 -- Widget build configuration (adapted from ProofWidgets)
 def widgetDir : FilePath := "widget"
@@ -47,12 +56,11 @@ input_file widgetPackageJson where
   path := widgetDir / "package.json"
   text := true
 
-/-- Target to update `package-lock.json` whenever `package.json` has changed. -/
-target widgetPackageLock pkg : FilePath := do
-  let packageFile ← widgetPackageJson.fetch
-  let packageLockFile := pkg.widgetDir / "package-lock.json"
-  buildFileAfterDep (text := true) packageLockFile packageFile fun _srcFile => do
-    pkg.runNpmCommand #["install"]
+/-- The committed lockfile is an input, not an npm-generated build artifact.
+This hashes its actual contents instead of trusting a generated `.hash` sidecar. -/
+input_file widgetPackageLock where
+  path := widgetDir / "package-lock.json"
+  text := true
 
 input_file widgetRollupConfig where
   path := widgetDir / "rollup.config.js"
@@ -73,25 +81,26 @@ def widgetJsAllTarget (pkg : Package) (isDev : Bool) : FetchM (Job Unit) := do
   let srcs ← widgetJsSrcs.fetch
   let rollupConfig ← widgetRollupConfig.fetch
   let tsconfig ← widgetTsconfig.fetch
+  let packageJson ← widgetPackageJson.fetch
   let widgetPackageLock ← widgetPackageLock.fetch
-  /- `widgetJsAll` is built via `needs`,
-  and Lake's default build order is `needs -> cloud release -> main build`.
-  We must instead ensure that the cloud release is fetched first
-  so that this target does not build from scratch unnecessarily.
-  `afterBuildCacheAsync` guarantees this. -/
-  pkg.afterBuildCacheAsync do
   srcs.bindM (sync := true) fun _ =>
   rollupConfig.bindM (sync := true) fun _ =>
   tsconfig.bindM (sync := true) fun _ =>
+  packageJson.bindM (sync := true) fun _ =>
   widgetPackageLock.mapM fun _ => do
-    let traceFile := pkg.buildDir / "js" / "lake.trace"
-    buildUnlessUpToDate traceFile (← getTrace) traceFile do
+    -- Commit the production JavaScript and its trace, as ProofWidgets does, so
+    -- unchanged widget sources never require npm, even without a release cache.
+    let depTrace := mixTrace (← getTrace) (.ofHash (.ofHashable isDev) "isDev")
+    let traceFile := pkg.widgetDir / "js" / "lake.trace"
+    buildUnlessUpToDate traceFile depTrace traceFile do
       if let some msg := get_config? errorOnBuild then
         error msg
-      /- Ensure that NPM modules are installed before building TypeScript,
-       *if* we are building Typescript.
-       This only runs when some TypeScript needs building. -/
+      -- Preserve the committed bundles if npm is missing or installation fails.
       pkg.runNpmCommand #["clean-install"]
+      -- Remove outputs of deleted modules and previous development builds.
+      for dir in #[pkg.widgetDir / "dist", pkg.widgetDir / "js"] do
+        if ← dir.pathExists then
+          IO.FS.removeDirAll dir
       pkg.runNpmCommand #["run", if isDev then "build-dev" else "build"]
 
 target widgetJsAll pkg : Unit :=
@@ -103,11 +112,17 @@ target widgetJsAllDev pkg : Unit :=
 @[default_target]
 lean_lib «Veil» {
   globs := #[`Veil, .submodules `Veil]
+  -- Library declarations do not depend on the build paths/bytes of native SMT
+  -- plugins. OS-dependent IO runs when users invoke commands, not when these
+  -- declarations are elaborated. Ignore native-library hashes for Lean artifacts;
+  -- source and imported Lean artifact hashes still invalidate them normally.
+  -- Keep this scoped to Veil: tests/examples execute commands during elaboration.
+  platformIndependent := some true
   -- precompileModules := true
   needs := #[widgetJsAll]
 }
 
-@[default_target, test_driver]
+@[test_driver]
 lean_lib VeilTest {
   globs := #[Glob.submodules `VeilTest]
   leanOptions := #[⟨`weak.veil.smt.trust, false⟩]

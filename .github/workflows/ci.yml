@@ -4,7 +4,13 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -34,10 +40,15 @@ jobs:
         sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-15 100
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
     - name: Build and test Veil
       uses: leanprover/lean-action@v1
       with:
         use-github-cache: true
+        build-args: '-KerrorOnBuild=stale-widget-bundles-run-lake-build-widgetJsAll'
+    - name: Test prebuilt widgets without Node or npm
+      run: python3 scripts/tests/test-prebuilt-widgets.py
     - name: Test VC manager incrementality through LSP
       run: |
         python3 scripts/tests/test-vc-manager-incrementality.py
@@ -63,10 +74,18 @@ jobs:
     - name: Build examples
       run: lake build Examples
       timeout-minutes: 30
+    - name: Set up Node for widget development checks
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
     - name: Test widget rendering
+      # Node is needed for development checks, not for using Veil.
+      # Keep these checks after the build that rejects widget recompilation.
       run: |
         npm ci --prefix widget
         node widget/tests/veilUtils.test.cjs
+    - name: Check committed widget bundles
+      run: python3 scripts/tests/check-widget-bundles.py
     # Against the Veil of this checkout, built above: this also checks that both report the same IDE protocol
     - name: Test the VS Code extension
       working-directory: editors/vscode
@@ -74,3 +93,45 @@ jobs:
         npm ci
         npm test
       timeout-minutes: 20
+    - name: Pack release archive
+      if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+      run: python3 scripts/pack-release.py
+    - name: Check release archive restores without rebuilding
+      if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+      run: |
+        python3 scripts/tests/test-release-reuse.py --archive .lake/releases/veil-*.tar.gz
+    - name: Save release archive
+      if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-${{ matrix.name }}
+        path: .lake/releases/veil-*.tar.gz
+        compression-level: 0
+        include-hidden-files: true
+        if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+    - name: Download release archives
+      uses: actions/download-artifact@v4
+      with:
+        pattern: release-*
+        path: release
+        merge-multiple: true
+    - name: Publish release archives
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        RELEASE_TAG: ${{ github.ref_name }}
+      run: |
+        if ! gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --generate-notes
+        fi
+        gh release upload "$RELEASE_TAG" release/veil-*.tar.gz --clobber
+        gh release edit "$RELEASE_TAG" --draft=false

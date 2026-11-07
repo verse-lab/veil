@@ -15,10 +15,10 @@
     "deep-equal": "^2.2.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-fast-compare": "^3.2.2",
     "recharts": "^2.5.0",
     "use-resize-observer": "^9.1.0",
-    "vscode-languageserver-protocol": "^3.17.2",
-    "react-fast-compare": "^3.2.2"
+    "vscode-languageserver-protocol": "^3.17.2"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.1",
@@ -28,7 +28,6 @@
     "@types/deep-equal": "^1.0.4",
     "@types/react": "^18.0.33",
     "@types/react-dom": "^18.0.11",
-    "glob": "^11.0.0",
     "rollup": "^4.17.2",
     "tslib": "^2.5.0",
     "typescript": "^5.0.3"

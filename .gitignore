@@ -11,6 +11,8 @@ states/
 # Widget build artifacts
 widget/dist/
 widget/node_modules/
+widget/*.hash
+widget/*.trace
 
 # Profiler output
 *.json

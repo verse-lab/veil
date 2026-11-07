@@ -1,4 +1,3 @@
-import { glob } from 'glob';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import replace from '@rollup/plugin-replace';
@@ -6,13 +5,14 @@ import terser from '@rollup/plugin-terser';
 
 /** @type {(_: any) => import('rollup').RollupOptions} */
 export default _cliArgs => {
-    const inputs = glob.sync('dist/*.js')
+    // These are the two entry points embedded in Lean; their imports are bundled inline.
+    const inputs = ['dist/traceDisplayInfoview.js', 'dist/verificationResults.js'];
 
     const isProduction = process.env.NODE_ENV && process.env.NODE_ENV === 'production';
     const configForInput = fname => ({
         input: fname,
         output: {
-            dir: '../.lake/build/js',
+            dir: 'js',
             format: 'es',
             // Setting `global` makes some CommonJS modules work
             intro: 'const global = window;',
