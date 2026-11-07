@@ -1,20 +1,73 @@
 module
 
 public import Veil
+public import VeilTest.ActionExecution
+public meta import VeilTest.ActionExecution
 
 /-! Warn once per mutable hybrid field that still uses a default canonical
 instance, including implicit state generation. Enumerable domains, explicitly
 configured canonical representations and custom wrapper instances stay quiet. -/
 
+open VeilTest.ActionExecution
+
+veil module HybridFieldWarningDisabledExplicit
+
+set_option veil.warnHybridFields false
+
+function f : Nat → Nat
+
+#guard_msgs in
+#gen_state
+
+procedure point_update { f 0 := 7 }
+procedure bulk_update { f I := I + 1 }
+
+def initial : State FieldConcreteType := default
+def canonical : State FieldConcreteType := ⟨.canonical ⟨fun n => n + 1⟩⟩
+
+-- Exercise the documented transitions with warnings deliberately disabled.
+#guard match initial.f with
+  | .concrete _ => true
+  | .canonical _ => false
+
+#guard exactlyOneSuccess (__veil_exec_action% {} {} initial point_update) fun _ state =>
+  match state.f with
+  | .concrete _ => true
+  | .canonical _ => false
+
+#guard exactlyOneSuccess (__veil_exec_action% {} {} initial bulk_update) fun _ state =>
+  match state.f with
+  | .canonical cf => cf.inner 1 == 2
+  | .concrete _ => false
+
+#guard exactlyOneSuccess (__veil_exec_action% {} {} canonical point_update) fun _ state =>
+  match state.f with
+  | .canonical cf => cf.inner 0 == 7 && cf.inner 1 == 2
+  | .concrete _ => false
+
+end HybridFieldWarningDisabledExplicit
+
+veil module HybridFieldWarningDisabledImplicit
+
+set_option veil.warnHybridFields false
+
+function stored : Nat → Bool
+
+#guard_msgs in
+after_init { stored 0 := false }
+
+end HybridFieldWarningDisabledImplicit
+
+-- The option set inside the preceding modules must not suppress this warning.
 veil module HybridFieldWarningExplicit
 
 relation present : Nat → Bool
 function coverage : Nat → Nat
 
 /--
-warning: Field `present` uses a hybrid representation with default canonical `Hashable` or `BEq` instances, which can cause model checking to merge distinct states and miss reachable states. For meaningful hashing and equality, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation.
+warning: Field `present` uses a hybrid representation. Updates over potentially unbounded domains (e.g. `f I := ...`) can switch it to the canonical case, where default `Hashable` or `BEq` instances can merge distinct states and miss reachable states during model checking. For meaningful hashing and equality in the canonical case, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation; see `docs/DSL-Reference.md#hybrid-field-representations`. If the field stays concrete, suppress this warning with `set_option veil.warnHybridFields false`. Alternatively, consider `TMap` if it better fits your model.
 ---
-warning: Field `coverage` uses a hybrid representation with default canonical `Hashable` or `BEq` instances, which can cause model checking to merge distinct states and miss reachable states. For meaningful hashing and equality, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation.
+warning: Field `coverage` uses a hybrid representation. Updates over potentially unbounded domains (e.g. `f I := ...`) can switch it to the canonical case, where default `Hashable` or `BEq` instances can merge distinct states and miss reachable states during model checking. For meaningful hashing and equality in the canonical case, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation; see `docs/DSL-Reference.md#hybrid-field-representations`. If the field stays concrete, suppress this warning with `set_option veil.warnHybridFields false`. Alternatively, consider `TMap` if it better fits your model.
 -/
 #guard_msgs in
 #gen_state
@@ -33,7 +86,7 @@ veil module HybridFieldWarningImplicit
 function coverage : Nat → Nat
 
 /--
-warning: Field `coverage` uses a hybrid representation with default canonical `Hashable` or `BEq` instances, which can cause model checking to merge distinct states and miss reachable states. For meaningful hashing and equality, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation.
+warning: Field `coverage` uses a hybrid representation. Updates over potentially unbounded domains (e.g. `f I := ...`) can switch it to the canonical case, where default `Hashable` or `BEq` instances can merge distinct states and miss reachable states during model checking. For meaningful hashing and equality in the canonical case, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation; see `docs/DSL-Reference.md#hybrid-field-representations`. If the field stays concrete, suppress this warning with `set_option veil.warnHybridFields false`. Alternatively, consider `TMap` if it better fits your model.
 -/
 #guard_msgs in
 after_init { coverage I := 0 }
@@ -76,7 +129,7 @@ function coverage : Fin 2 → Nat → Nat
 veil_set_field_representation relation Veil.CanonicalField
 
 /--
-warning: Field `coverage` uses a hybrid representation with default canonical `Hashable` or `BEq` instances, which can cause model checking to merge distinct states and miss reachable states. For meaningful hashing and equality, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation.
+warning: Field `coverage` uses a hybrid representation. Updates over potentially unbounded domains (e.g. `f I := ...`) can switch it to the canonical case, where default `Hashable` or `BEq` instances can merge distinct states and miss reachable states during model checking. For meaningful hashing and equality in the canonical case, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation; see `docs/DSL-Reference.md#hybrid-field-representations`. If the field stays concrete, suppress this warning with `set_option veil.warnHybridFields false`. Alternatively, consider `TMap` if it better fits your model.
 -/
 #guard_msgs in
 #gen_state
@@ -124,7 +177,7 @@ local instance (priority := high) : Hashable (Veil.CanonicalFieldWrapper [Nat] B
   hash a := hash (a.inner 0)
 
 /--
-warning: Field `stored` uses a hybrid representation with default canonical `Hashable` or `BEq` instances, which can cause model checking to merge distinct states and miss reachable states. For meaningful hashing and equality, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation.
+warning: Field `stored` uses a hybrid representation. Updates over potentially unbounded domains (e.g. `f I := ...`) can switch it to the canonical case, where default `Hashable` or `BEq` instances can merge distinct states and miss reachable states during model checking. For meaningful hashing and equality in the canonical case, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation; see `docs/DSL-Reference.md#hybrid-field-representations`. If the field stays concrete, suppress this warning with `set_option veil.warnHybridFields false`. Alternatively, consider `TMap` if it better fits your model.
 -/
 #guard_msgs in
 #gen_state
@@ -139,7 +192,7 @@ local instance (priority := high) : BEq (Veil.CanonicalFieldWrapper [Nat] Bool) 
   beq a b := a.inner 0 == b.inner 0
 
 /--
-warning: Field `stored` uses a hybrid representation with default canonical `Hashable` or `BEq` instances, which can cause model checking to merge distinct states and miss reachable states. For meaningful hashing and equality, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation.
+warning: Field `stored` uses a hybrid representation. Updates over potentially unbounded domains (e.g. `f I := ...`) can switch it to the canonical case, where default `Hashable` or `BEq` instances can merge distinct states and miss reachable states during model checking. For meaningful hashing and equality in the canonical case, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation; see `docs/DSL-Reference.md#hybrid-field-representations`. If the field stays concrete, suppress this warning with `set_option veil.warnHybridFields false`. Alternatively, consider `TMap` if it better fits your model.
 -/
 #guard_msgs in
 #gen_state
@@ -176,7 +229,7 @@ local instance (priority := high) : Hashable (Veil.CanonicalFieldWrapper [Nat] B
   Veil.instHashableCanonicalFieldWrapper
 
 /--
-warning: Field `stored` uses a hybrid representation with default canonical `Hashable` or `BEq` instances, which can cause model checking to merge distinct states and miss reachable states. For meaningful hashing and equality, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation.
+warning: Field `stored` uses a hybrid representation. Updates over potentially unbounded domains (e.g. `f I := ...`) can switch it to the canonical case, where default `Hashable` or `BEq` instances can merge distinct states and miss reachable states during model checking. For meaningful hashing and equality in the canonical case, define higher-priority instances for `Veil.CanonicalFieldWrapper` before state generation; see `docs/DSL-Reference.md#hybrid-field-representations`. If the field stays concrete, suppress this warning with `set_option veil.warnHybridFields false`. Alternatively, consider `TMap` if it better fits your model.
 -/
 #guard_msgs in
 #gen_state

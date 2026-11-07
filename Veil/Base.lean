@@ -86,6 +86,12 @@ register_option veil.violationIsError : Bool := {
   logged as errors. If false, they are logged as info messages."
 }
 
+register_option veil.warnHybridFields : Bool := {
+  defValue := true
+  descr := "Warn during state generation when a hybrid field's canonical fallback uses default \
+    `Hashable` or `BEq` instances. Disable this if the field is known to stay in the concrete case."
+}
+
 register_option veil.extract.shareValueLets : Bool := {
   defValue := true
   descr := "If true (the default), extraction keeps ordinary value `let`s shared \

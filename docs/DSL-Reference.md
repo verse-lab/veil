@@ -149,15 +149,44 @@ function currentRound : node -> Nat
 immutable function nextNode : node -> node
 ```
 
+#### Hybrid Field Representations
+
 For mutable relations and functions, a domain without `Enumeration` selects a
-hybrid representation under the default configuration. Its canonical fallback
-has placeholder `Hashable` and `BEq` instances (constant hash and always-true
-equality). These can merge distinct states during model checking. Veil warns if
-either default is selected during state generation. For model-specific hashing
-and equality, define higher-priority instances for
-`Veil.CanonicalFieldWrapper [D₁, …, Dₙ] C` before `#gen_state` (or the first command
-that generates the state implicitly). The instances must handle all reachable
-field values correctly.
+hybrid representation under the default configuration. It has two cases:
+
+- **Concrete:** stores a finite set or map. The generated default field uses this
+  case with an empty container: relations return `false` for every input, and
+  functions return the codomain's `default` value (from `Inhabited`) for every
+  input. After updates, inputs without a stored entry still return that fallback
+  value. Updates with a finite footprint keep the field concrete. For example, with
+  `function f : Nat → Nat`, a point update `f 0 := 1` stays concrete. Quantified
+  updates can also stay concrete when Veil can enumerate their finite update
+  footprint.
+- **Canonical:** stores the field as a function. An update without a finite
+  footprint switches a concrete field to this case. For example, `f I := I + 1`
+  assigns every `Nat` input and has no finite footprint because `Nat` has no
+  `Enumeration`. Once canonical, the field remains canonical through subsequent
+  updates, including point updates; there is no automatic conversion back.
+
+The **canonical case** has default placeholder `Hashable` and `BEq` instances
+(constant hash and always-true equality), which can cause model checking to
+merge distinct states and miss reachable states. The concrete case uses its
+underlying finite container's instances. Veil warns during state generation if
+either canonical placeholder is selected, before it knows which updates will
+run. If you know the field stays concrete, for example because all its updates
+have finite footprints, suppress the warning before explicit or implicit state
+generation:
+
+```lean
+set_option veil.warnHybridFields false
+```
+
+For meaningful hashing and equality in the canonical case, define higher-priority
+instances for `Veil.CanonicalFieldWrapper [D₁, …, Dₙ] C` before `#gen_state` (or the
+first command that generates the state implicitly).
+
+Alternatively, consider an `individual` with a carrier implementing `TMap`
+(or `TSet` for sets) if explicit finite-container operations fit your model.
 
 #### Mutability
 
