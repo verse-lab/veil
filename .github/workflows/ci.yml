@@ -34,11 +34,11 @@ jobs:
     steps:
     - name: Set up / Checkout
       uses: actions/checkout@v4
-    - name: Set up / Node.js
+    - name: Dependencies / Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '24'
-    - name: Set up / Dependencies and widget checks
+    - name: Dependencies / Packages
       run: |
         if [[ "$RUNNER_OS" == Linux ]]; then
           echo "::group::cvc5 dependencies"
@@ -52,7 +52,12 @@ jobs:
         npm ci --prefix editors/vscode
         echo "::endgroup::"
 
-        echo "::group::Committed widget bundles"
+        # Suppress Veil's own release fetch, allowing normal dependency downloads.
+        if [[ "$GITHUB_REF" == refs/tags/v* || "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+          mkdir -p .lake/build
+        fi
+    - name: Check committed Javascript
+      run: |
         # Preserve lake.trace; the guarded Lean build checks its inputs next.
         rm -rf widget/dist
         rm -f widget/js/*.js
@@ -62,14 +67,8 @@ jobs:
           printf '%s\n' "$widget_changes"
           exit 1
         fi
-        echo "::endgroup::"
-
-        # Suppress Veil's own release fetch, allowing normal dependency downloads.
-        if [[ "$GITHUB_REF" == refs/tags/v* || "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
-          mkdir -p .lake/build
-        fi
     # Save after the test suite and examples, not just after the library build.
-    - name: Set up / Build cache
+    - name: Set up / Restore cache
       if: ${{ !startsWith(github.ref, 'refs/tags/v') && github.event_name != 'workflow_dispatch' }}
       uses: actions/cache@v4
       with:
@@ -82,22 +81,16 @@ jobs:
         use-github-cache: false
         test: false
         build-args: '-R -KerrorOnBuild=stale-widget-bundles-run-lake-build-widgetJsAll'
-    - name: Build / Check outputs
+    - name: Build / Pack release archive
+      if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+      env:
+        LAKE_ARTIFACT_CACHE: 'false'
       run: |
-        widget_changes=$(git status --porcelain --untracked-files=all -- widget/js)
-        if [ -n "$widget_changes" ]; then
-          printf '%s\n' "$widget_changes"
-          exit 1
-        fi
         # Pack before tests/examples add their artifacts to the build directory.
-        if [[ "$GITHUB_REF" == refs/tags/v* || "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
-          echo "::group::Release archive"
-          lake pack
-          lake clean veil
-          lake unpack
-          LAKE_ARTIFACT_CACHE=false lake --no-cache --no-build build
-          echo "::endgroup::"
-        fi
+        lake pack
+        lake clean veil
+        lake unpack
+        lake --no-cache --no-build build
     - name: Tests / VeilTest
       run: lake test
     - name: Tests / LSP and Widgets
