@@ -115,8 +115,9 @@ We recommend giving type annotations when possible, e.g. `pick Nat`,
 as type inference failures might lead to confusing error messages. -/
 syntax (name := pickExpression) withPosition(kw_pick (lineEq term)?) : term
 
-/-- Binds a variable to a value that satisfies a predicate. -/
-scoped syntax (name := letPick) "let" term (":" term)? ":|" term : doElem
+/-- Binds a variable to a value that satisfies a predicate. `let x :| h : p`
+also binds the proof `h` that `x` satisfies it. -/
+scoped syntax (name := letPick) "let" term (":" term)? ":|" (atomic(ident " : "))? term : doElem
 
 /-- `require P` means that execution can only proceed if `P` holds. It
 is used to express pre-conditions.
@@ -126,23 +127,33 @@ behaves like an `assume`. When it is called by another action, this
 behaves like an `assert`: the caller must ensure that `P` holds.
 
 If you have inconsistent `require` statements, your action will not
-admit any executions. -/
-scoped syntax (name := requireDo) kw_require term : doElem
+admit any executions.
+
+`require h : P` also binds the proof `h : P` for the rest of the action. -/
+scoped syntax (name := requireDo) kw_require (atomic(ident " : "))? term : doElem
 
 /-- `assert P` means that `P` must hold on every execution that reaches
-this statement. If `P` does not hold, this execution fails. -/
-scoped syntax (name := assertDo) (priority := high) kw_assert term : doElem
+this statement. If `P` does not hold, this execution fails.
+
+`assert h : P` also binds the proof `h : P` for the rest of the action. -/
+scoped syntax (name := assertDo) (priority := high) kw_assert (atomic(ident " : "))? term : doElem
+
+/-- `assume h : P` is `assume P` that also binds the proof `h : P` for the
+rest of the action. -/
+scoped syntax (name := assumeWithProofDo) kw_assume atomic(ident " : ") term : doElem
 
 /--
 `if x :| p then … else …` is the conditional twin of `let x :| p`: if a
 witness satisfying `p` exists, bind it and run the then-branch; otherwise run
 the else-branch (defaulting to `pure ()`). Like `let x : τ :| p`, an explicit
 witness type is optional. The witness may be an identifier or a flat tuple of
-identifiers, e.g. `if (x, y) : α × β :| r x y then …`.
+identifiers, e.g. `if (x, y) : α × β :| r x y then …`. `if x :| h : p then …`
+also binds the proof `h` in the then-branch.
 -/
 scoped syntax (name := ifSomeDo)
   withPosition(ppRealGroup(
-    ppRealFill(ppIndent("if " term:max (" : " term)? " :| " term " then") ppSpace doSeq)
+    ppRealFill(ppIndent("if " term:max (" : " term)? " :| " (atomic(ident " : "))? term " then")
+      ppSpace doSeq)
     (colGe ppDedent(ppSpace "else " doSeq))?
   )) : doElem
 
@@ -167,7 +178,7 @@ def prependDoSeqItem? [Monad m] [MonadQuotation m]
   | _ => return none
 
 macro_rules
-  | `(doElem| if $witness:term $[: $type?:term]? :| $predicate:term then $thenSeq:doSeq $[else $elseSeq?:doSeq]?) => do
+  | `(doElem| if $witness:term $[: $type?:term]? :| $[$proof?:ident :]? $predicate:term then $thenSeq:doSeq $[else $elseSeq?:doSeq]?) => do
     let some ids := ifSomeBinderIdents? witness
       | Macro.throwErrorAt witness
           "unsupported witness pattern for Veil existential `if`; expected an identifier or flat tuple of identifiers"
@@ -186,9 +197,8 @@ macro_rules
             (MonadQuotation.addMacroScope `__veil_if_some_witness)
           let packed := mkIdent packedName
           `(term| ∃ $packed:ident : $type, let $witness:term := $packed; $predicate)
-    let pickItem ← match type? with
-      | none => `(Lean.Parser.Term.doSeqItem| let $witness:term :| $predicate)
-      | some type => `(Lean.Parser.Term.doSeqItem| let $witness:term : $type :| $predicate)
+    let pickItem ←
+      `(Lean.Parser.Term.doSeqItem| let $witness:term $[: $type?]? :| $[$proof?:ident :]? $predicate)
     let some thenSeq ← prependDoSeqItem? pickItem thenSeq | Macro.throwUnsupported
     let elseSeq ← elseSeq?.getDM `(Lean.Parser.Term.doSeq| pure PUnit.unit)
     `(doElem| if $existsGuard then $thenSeq else $elseSeq)
@@ -234,7 +244,8 @@ macro_rules
   | `(pick $(t)?) => do
     `($(mkIdent `MonadNonDet.pick) $(← t.getDM `(_)))
   | `(doElem| let $x:term $[: $ty:term]? :| $p) => do
-    let rhs ← `(doElem| $(mkIdent `VeilM.pickSuchThat):ident $(← ty.getDM `(_)) (fun $x => $p)
+    let ty ← ty.getDM `(_)
+    let rhs ← `(doElem| $(mkIdent `VeilM.pickSuchThat):ident $ty (fun $x => $p)
       (name := $(quote (pickName? x))))
     /- An identifier binder is bound directly. If spelled as a pattern, then Lean's
     `let`-arrow handler would bind a fresh `__x` and emit `let x := __x` as a

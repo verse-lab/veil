@@ -141,6 +141,18 @@ Veil action body (`require`, `let x :| P`, `if`, assignments, ...) extended
 with the statements below. Different roles are written with `if`, e.g.
 `if self = coordinator then ... else ...`.
 
+The [proof-binding forms](DSL-Reference.md#proof-bindings) are available in
+program steps too, including `require h : P`, `assume h : P`, `assert h : P`,
+and `let x :| h : P`. For example:
+
+```lean
+let other : node :| h : other = self
+have : other = self := h
+```
+
+`if x :| h : P then ... else ...` also binds the witness and its proof in
+the then-branch, with the same meaning as in an ordinary action.
+
 ## Statements
 
 | Statement | Meaning |

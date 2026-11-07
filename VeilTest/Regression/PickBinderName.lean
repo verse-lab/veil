@@ -38,8 +38,16 @@ action pickSuchThatAction (n : node) {
   require True
 }
 
+action pickSubtypeAction (n : node) {
+  let foobarino : node :| h : n = foobarino
+  have : n = foobarino := h
+  require True
+}
+
 end PickBinderName
 
 #guard_const_has_forall_binder PickBinderName.pickAction.ext.wp foobarino
 
 #guard_const_has_forall_binder PickBinderName.pickSuchThatAction.ext.wp foobarino
+
+#guard_const_has_forall_binder PickBinderName.pickSubtypeAction.ext.wp foobarino

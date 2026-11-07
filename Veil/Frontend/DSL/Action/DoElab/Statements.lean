@@ -22,33 +22,102 @@ namespace Action.DoElab
 def assertionControlInfo : ControlInfoHandler := fun _ =>
   return ControlInfo.pure
 
-private def elabAssertionStatement (operation : Name) (stx : DoElem)
-    (proposition : Term) (dec : DoElemCont) : DoElabM Expr := do
-  let ctx ← requireVeilDoBlock
-  openStateAround ctx.mod do
-    let assertionId ← mkNewAssertion ctx.proc stx
-    let term ← `($(mkIdent operation) $proposition $(Syntax.mkNatLit assertionId.toNat))
-    let elem ← `(doElem| $term:term)
-    Lean.Elab.Do.elabDoExpr elem (← dec.ensureUnitAt stx)
-
-@[doElem_elab requireDo, doElem_elab assertDo]
-def elabAssertion : DoElab := fun stx dec => do
-  match stx with
-  | `(doElem| require $p:term) =>
-    elabAssertionStatement ``VeilM.require stx p dec
-  | `(doElem| assert $p:term) =>
-    elabAssertionStatement ``VeilM.assert stx p dec
-  | _ => throwUnsupportedSyntax
-
-
-/-! ## Ordinary Lean statements: delegation and rejection -/
-
-
 private def warnComponentShadow (ctx : Context) (id : Ident) : DoElabM Unit := do
   if ← isUserShadowed id.getId then return
   let some field := ctx.mod.signature.find? (·.name == id.getId) | return
   let kind := if field.isMutable then "mutable state" else "immutable theory"
   logWarningAt id m!"local `{id.getId}` shadows {kind} component `{id.getId}`; references to this name resolve to the local"
+
+/- NOTE: `dec.ensureUnitAt stx` checks that the rest of the block expects no value from this
+statement, and reports a type mismatch otherwise. Few handlers call it. Inside a block, the
+continuation of every statement but the last already expects `PUnit`, so the check can fail only
+for the last statement of a block or branch. Lean's handlers for statements (`let`, `have`,
+`let x ← e`, `for`, …) make the check themselves, so the Veil handlers that delegate to them need
+not. An expression statement **must not make it**, since its value may be the result of the block;
+`elabDoExpr` elaborates it against the type the rest of the block expects instead.
+
+A statement that binds a variable produces no value either: `do let x ← e; rest` elaborates to
+`e >>= fun x => rest`, so the value of `e` goes to `x` and nothing is left for the statement.
+Lean's handler for `let x ← e` (`elabDoArrow` in `Lean/Elab/BuiltinDo/Let.lean`)
+accordingly has two continuations: the one `elabDoIdDecl` builds, whose result is `x`, and the
+statement's own `dec`, which it checks with `ensureUnitAt` and then continues with
+`continueWithUnit`, that is, with `()`.
+
+A `require` or `assert` produces no value, and both branches below elaborate the statement
+themselves. The first hands the generated `VeilM.require p 0` to `elabDoExpr` as an expression
+statement, and there the check is for the error message: without it, a `require` ending a branch
+that returns a value would still be rejected, but as a type mismatch of that generated term rather
+than of the statement. The second is a binding statement like `let x ← e`, with the proof bound to
+`h`, and is elaborated the same way. `continueWithUnit` makes the check as well, so there the
+explicit check only comes before the right-hand side is elaborated. -/
+
+private def elabAssertionStatement (operation : Name) (stx : DoElem) (proof? : Option Ident)
+    (proposition : Term) (dec : DoElemCont) : DoElabM Expr := do
+  let ctx ← requireVeilDoBlock
+  proof?.forM (warnComponentShadow ctx)
+  openStateAround ctx.mod do
+    let assertionId ← mkNewAssertion ctx.proc stx
+    let term ← `($(mkIdent operation) $proposition $(Syntax.mkNatLit assertionId.toNat))
+    match proof? with
+    | none =>
+      let elem ← `(doElem| $term:term)
+      Lean.Elab.Do.elabDoExpr elem (← dec.ensureUnitAt stx)
+    | some h =>
+      /- The assertion ID is allocated here. This statement's state opening is already in place, so the result is
+      bound directly and `h` is added as a `have`; a pattern `let ⟨_, h⟩ ← …` would pass its
+      destructuring `let` to Veil's `let` handler, which would open the state a second time. -/
+      let dec ← dec.ensureUnitAt stx
+      bindInternalResult stx `holds term fun holds => do
+        let proof ← Term.elabTerm (← `($(mkIdent holds).property)) none
+        let prop := (← instantiateMVars (← inferType proof)).headBeta
+        mapLetDecl h.getId prop proof (nondep := true) fun hFVar => do
+          Term.addLocalVarInfo h hFVar
+          dec.continueWithUnit
+
+@[doElem_elab requireDo, doElem_elab assertDo]
+def elabAssertion : DoElab := fun stx dec => do
+  match stx with
+  | `(doElem| require $[$h?:ident :]? $p:term) =>
+    let operation := if h?.isSome then ``VeilM.requireSubtype else ``VeilM.require
+    elabAssertionStatement operation stx h? p dec
+  | `(doElem| assert $[$h?:ident :]? $p:term) =>
+    let operation := if h?.isSome then ``VeilM.assertSubtype else ``VeilM.assert
+    elabAssertionStatement operation stx h? p dec
+  | _ => throwUnsupportedSyntax
+
+@[doElem_control_info assumeWithProofDo, doElem_control_info letPick]
+def proofBindingControlInfo : ControlInfoHandler := fun _ =>
+  return ControlInfo.pure
+
+/-- Bind and destructure a proof-producing operation under one state opening.
+Calling Lean's `let` handler directly avoids redispatching the generated
+destructuring as another Veil statement (and warning about its binders twice).
+Resolve the RHS's implicit theory/state arguments before matching its proof. -/
+private def elabProofBinding (stx : DoElem) (pattern rhs : Term)
+    (dec : DoElemCont) : DoElabM Expr := do
+  let ctx ← requireVeilDoBlock
+  (← getPatternVarsEx pattern).forM (warnComponentShadow ctx)
+  openStateAround ctx.mod do
+    let dec ← dec.ensureUnitAt stx
+    bindInternalResult stx `holds rhs fun holds => do
+      Term.synthesizeSyntheticMVarsNoPostponing
+      Lean.Elab.Do.elabDoLet (← `(doElem| let $pattern:term := $(mkIdent holds))) dec
+
+@[doElem_elab assumeWithProofDo]
+def elabAssumeWithProof : DoElab := fun stx dec => do
+  let `(doElem| assume $h:ident : $p:term) := stx | throwUnsupportedSyntax
+  elabProofBinding stx (← `(⟨_, $h:ident⟩)) (← `($(mkIdent ``VeilM.assumeSubtype) $p)) dec
+
+@[doElem_elab letPick]
+def elabPickWithProof : DoElab := fun stx dec => do
+  let `(doElem| let $x:term $[: $ty?:term]? :| $h:ident : $p:term) := stx
+    | throwUnsupportedSyntax
+  let rhs ← `($(mkIdent ``VeilM.pickSubtype) $(← ty?.getDM `(_)) (fun $x => $p)
+    (name := $(quote (pickName? x))))
+  elabProofBinding stx (← `(⟨$x:term, $h:ident⟩)) rhs dec
+
+
+/-! ## Ordinary Lean statements: delegation and rejection -/
 
 /-- The identifiers a binding statement introduces. Unrecognized shapes
 return `#[]` rather than throwing: an exception here would drop the whole

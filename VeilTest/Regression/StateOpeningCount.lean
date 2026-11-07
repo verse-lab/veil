@@ -101,6 +101,48 @@ procedure assert_stmt { assert x }
 /-- info: assert_stmt.do: 1 -/
 #guard_msgs in #count_gets assert_stmt.do
 
+/- Proof binders must stay under the same statement opening as the version
+without a proof. In particular, a generated subtype destructuring is not a
+second user statement. -/
+procedure require_proof { require h : x }
+/-- info: require_proof.do: 1 -/
+#guard_msgs in #count_gets require_proof.do
+
+procedure assert_proof { assert h : x }
+/-- info: assert_proof.do: 1 -/
+#guard_msgs in #count_gets assert_proof.do
+
+procedure assume_stmt { assume x }
+/-- info: assume_stmt.do: 1 -/
+#guard_msgs in #count_gets assume_stmt.do
+
+procedure assume_proof { assume h : x }
+/-- info: assume_proof.do: 1 -/
+#guard_msgs in #count_gets assume_proof.do
+
+procedure pick_proof { let v : Bool :| h : v = x }
+/-- info: pick_proof.do: 1 -/
+#guard_msgs in #count_gets pick_proof.do
+
+procedure pick_pair_proof { let (a, b) : Bool × Bool :| h : a = b }
+/-- info: pick_pair_proof.do: 1 -/
+#guard_msgs in #count_gets pick_pair_proof.do
+
+-- The guard, pick, assignment and generated `else pure ()` each open once.
+procedure conditional_pick {
+  if v : Bool :| v = x then
+    y := 1
+}
+/-- info: conditional_pick.do: 4 -/
+#guard_msgs in #count_gets conditional_pick.do
+
+procedure conditional_pick_proof {
+  if v : Bool :| h : v = x then
+    y := 1
+}
+/-- info: conditional_pick_proof.do: 4 -/
+#guard_msgs in #count_gets conditional_pick_proof.do
+
 procedure call_stmt { unit_act }
 /-- info: call_stmt.do: 1 -/
 #guard_msgs in #count_gets call_stmt.do

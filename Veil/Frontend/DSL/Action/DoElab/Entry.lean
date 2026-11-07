@@ -67,7 +67,7 @@ private def classifiedDoElemKinds : NameSet := .ofList [
   -- inserted by Lean's own doElem macro expansion (e.g. `if` without `else`)
   ``Lean.Parser.Term.InternalSyntax.doSkip,
   -- Veil's own statements
-  ``requireDo, ``assertDo, ``ifSomeDo, ``letPick, ``havocAssignment,
+  ``requireDo, ``assertDo, ``assumeWithProofDo, ``ifSomeDo, ``letPick, ``havocAssignment,
   ``veilLetDo, ``veilVarDo, ``stateAssignWrapper, ``internalExpr,
   ``theoryOpen,
   -- rejected with targeted diagnostics

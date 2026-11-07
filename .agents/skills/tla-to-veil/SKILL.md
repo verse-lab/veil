@@ -33,6 +33,7 @@ In outline (details in translation.md):
 - TLA+ updates are simultaneous, Veil statements sequential: settle which right-hand sides read old vs. new values before ordering assignments.
 - An omitted Veil assignment means `UNCHANGED`; an omitted primed TLA+ variable means "any value".
 - Invariants stay invariants. Moving one into `assume` or `require` hides its violations.
+- Use proof binders for partial reads, preserving the source's bounds and constructor checks; do not turn TLC errors into default values or disabled steps ([Sequences](references/translation.md#sequences)).
 - Temporal properties become `temporal (only := check)` properties, with the fairness of `SPECIFICATION` as their antecedent.
 
 Start with the direct translation. Then simplify unnecessary choices and helpers introduced by the translation, keeping the source definitions and behavior intact. Re-run validation afterwards; see [Choice](references/translation.md#choice).

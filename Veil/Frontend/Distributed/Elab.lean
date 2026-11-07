@@ -1210,10 +1210,11 @@ private partial def printDoSeq (indent : String) (seq : Syntax) : CoreM String :
       if e[5].getNumArgs == 2 then
         out := out ++ s!"\n{indent}else\n{← printDoSeq (indent ++ "  ") e[5][1]}"
       lines := lines.push out
-    else if e.isOfKind ``letPick then
+    else if let `(doElem| let $x:term $[: $ty:term]? :| $[$h:ident :]? $p) := e then
       -- `let x : T :| P` (the formatter prints it without spaces)
-      let ty ← if e[2].getNumArgs == 0 then pure "" else pure s!" : {← ppTerm' e[2][1]}"
-      lines := lines.push s!"{indent}let {← ppTerm' e[1]}{ty} :| {← ppTerm' e[4]}"
+      let ty ← if let some ty := ty then pure s!" : {← ppTerm' ty}" else pure ""
+      let hyp := if let some h := h then s!"{h.getId} : " else ""
+      lines := lines.push s!"{indent}let {← ppTerm' x}{ty} :| {hyp}{← ppTerm' p}"
     else
       let text := ((← PrettyPrinter.ppCategory `doElem e).pretty 100).trimAsciiStart.toString
       lines := lines.push (indentLines indent text)

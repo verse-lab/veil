@@ -2,9 +2,8 @@ module
 
 public import Veil
 
-/-! `#desugar_program` prints the plain Veil a `program` compiles to. The
-printed code elaborates as plain Veil (checked by hand in
-`Examples/Scratch/DesugarRoundTrip.lean`). -/
+/-! `#desugar_program` prints the plain Veil a `program` compiles to,
+preserving choice predicates and optional proof binders. -/
 
 veil module DistDesugar
 
@@ -32,10 +31,23 @@ program (self : node) {
     served := served + 1
     send (pong v) to src
 }
--- TODO: pin the printed code with `#guard_msgs` (needs a rebuild to capture it)
+/-- let other :| other ≠ self -/
+#guard_msgs(info, substring := true) in
 #desugar_program
 
 end DistDesugar
+
+veil module DistDesugarProofPick
+type node
+network
+program (self : node) {
+  let other : node :| h : other = self
+  have : other = self := h
+}
+/-- let other : node :| h : other = self -/
+#guard_msgs(info, substring := true) in
+#desugar_program
+end DistDesugarProofPick
 
 veil module DistDesugarNoProgram
 type node
