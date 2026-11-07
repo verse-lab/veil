@@ -2,6 +2,8 @@ module
 
 public import Veil.Core.Tools.LivenessMC.Interface
 public import Lasso.ModelCheck
+public import Lasso.InternNat
+import Lasso.InternNat.Correct
 
 public section
 
@@ -293,6 +295,50 @@ References:
 - [SLDP09] Sun, Liu, Dong, Pang. PAT: Towards Flexible Verification under Fairness. CAV 2009.
 -/
 
+/-- EXPERIMENT (`Lasso.InternNat`): `checkFair` with the prune run over state ids, compiled once in Lasso, so that a
+caller specializes only the id table. -/
+def checkFairInterned [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
+    Lasso.EmptinessResult (σ × Nat) :=
+  Lasso.InternNat.checkFair p.φ sys.initStates (sysStepOf sys p th) p.isEdgeAtom
+
+/-- Soundness of `checkFairInterned`, as `checkFair_empty_unsat`. -/
+theorem checkFairInterned_empty_unsat [Inhabited σ] [LawfulHashable σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
+    (sysFR : Lasso.FiniteReach sys.initStates
+      (Lasso.LSys.targets (sysStepsLabelled sys (edgeLabelling p))))
+    {n : Nat} (h : checkFairInterned sys p = .empty n) :
+    ∀ ρ' : Nat → Lasso.LSys.Edge Nat σ,
+      (Lasso.LSys.toSpec (sysStepsLabelled sys (edgeLabelling p)) sys.initStates
+        (sysLabelOf sys p th)).isRun ρ' →
+      Lasso.Formula.directSatisfies (Lasso.LSys.valuation (sysLabelOf sys p th) ρ') p.φ := by
+  rw [checkFairInterned] at h
+  have hx := Lasso.InternNat.checkFair_empty_unsat p.φ sys.initStates (sysStepOf sys p th) p.isEdgeAtom
+    (by simpa only [sysStepOf_eq] using sysFR) h
+  simpa only [sysStepOf_eq] using hx
+
+/-- Completeness of `checkFairInterned`, as `checkFair_nonEmpty_sat`. -/
+theorem checkFairInterned_nonEmpty_sat [Inhabited σ] [LawfulHashable σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l)
+    (sysFR : Lasso.FiniteReach sys.initStates
+      (Lasso.LSys.targets (sysStepsLabelled sys (edgeLabelling p))))
+    {stem loop : List (σ × Nat)}
+    (h : checkFairInterned sys p = .nonEmpty stem loop) :
+    ∃ ρ' : Nat → Lasso.LSys.Edge Nat σ,
+      (Lasso.LSys.toSpec (sysStepsLabelled sys (edgeLabelling p)) sys.initStates
+        (sysLabelOf sys p th)).isRun ρ' ∧
+      ¬ Lasso.Formula.directSatisfies (Lasso.LSys.valuation (sysLabelOf sys p th) ρ') p.φ ∧
+      ∀ i, Lasso.lassoAt (stem.map Prod.fst) (loop.tail.map Prod.fst) i = some (ρ' i).1 := by
+  rw [checkFairInterned] at h
+  have hc := Lasso.InternNat.checkFair_nonEmpty_sat p.φ sys.initStates (sysStepOf sys p th) p.isEdgeAtom
+    (by simpa only [sysStepOf_eq] using steps_edgeAtom sys p)
+    -- finiteness is owed only when the route falls back to the crossing
+    (fun _ => by simpa only [sysStepOf_eq] using sysFR) h
+  simpa only [sysStepOf_eq, Lasso.lassoAt_map] using hc
+
 /-- The search run by `#temporal_check`. -/
 inductive Route where
   | ndfs
@@ -301,6 +347,7 @@ inductive Route where
   | crossing
   | prune
   | fair
+  | interned
   deriving Repr, DecidableEq, Inhabited
 
 def Route.name : Route → String
@@ -310,6 +357,7 @@ def Route.name : Route → String
   | .crossing => "crossing"
   | .prune => "prune"
   | .fair => "fair"
+  | .interned => "interned"
 
 /-- Whether the route needs a `FiniteReach` certificate. -/
 def Route.needsFiniteReach : Route → Bool
@@ -359,6 +407,8 @@ instance [Inhabited σ] {sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (
     (Veil.Transitions l Int σ) th} : RouteCertificate .prune sys := ⟨trivial⟩
 instance [Inhabited σ] {sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
     (Veil.Transitions l Int σ) th} : RouteCertificate .fair sys := ⟨trivial⟩
+instance [Inhabited σ] {sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+    (Veil.Transitions l Int σ) th} : RouteCertificate .interned sys := ⟨trivial⟩
 
 /-- Run `route` on `p`. `patOnly` and `prune` fall back to `crossing` when a hoisted region mentions
 a `⟨…⟩` atom. -/
@@ -386,12 +436,20 @@ def checkRoute [Inhabited σ] (route : Route)
       projectStates Prod.fst (Lasso.modelCheckFairFNFPruneOfStep p.φ init step)
     else projectStates (fun q => q.1.1) (Lasso.modelCheckFairFNFCrossOfStep p.φ init step)
   | .fair, _ => projectStates Prod.fst (checkFair sys p)
+  | .interned, _ => projectStates Prod.fst (checkFairInterned sys p)
 
 /-- On `fair`, `checkRoute` is `checkFair` projected to system states. -/
 theorem checkRoute_fair [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
       (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
     checkRoute .fair sys p = Lasso.EmptinessResult.map Prod.fst (checkFair sys p) := by
+  unfold checkRoute projectStates; rfl
+
+/-- On `interned`, `checkRoute` is `checkFairInterned` projected to system states. -/
+theorem checkRoute_interned [Inhabited σ]
+    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
+      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
+    checkRoute .interned sys p = Lasso.EmptinessResult.map Prod.fst (checkFairInterned sys p) := by
   unfold checkRoute projectStates; rfl
 
 end Veil.LivenessMC

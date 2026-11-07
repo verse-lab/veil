@@ -546,7 +546,7 @@ declare_command_config_elab elabModelCheckCommandConfig ModelCheckCommandConfig 
 /-- Configuration options for the `#temporal_check` command. -/
 structure LivenessCheckConfig where
   /-- The search to run; see `Veil.LivenessMC.Route`. -/
-  route : LivenessMC.Route := .fair
+  route : LivenessMC.Route := .interned
   deriving Repr
 
 declare_command_config_elab elabLivenessCheckConfig LivenessCheckConfig
@@ -921,6 +921,7 @@ private def routeTerm (route : LivenessMC.Route) : Term :=
     | .crossing => ``LivenessMC.Route.crossing
     | .prune => ``LivenessMC.Route.prune
     | .fair => ``LivenessMC.Route.fair
+    | .interned => ``LivenessMC.Route.interned
 
 /-- Build a liveness call with the same continuation interface as the other runners. -/
 private def mkLivenessCheckerCall (em : ExecutableModule) (instTerm theoryTerm : Term)

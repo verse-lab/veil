@@ -34,7 +34,7 @@ properties, including the prefix carried over at handoff. -/
 def checkAllWithProgress [ToJson ρ] [ToJson σ]
     (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l (Transitions l Int σ) th)
     (params : SearchParameters ρ σ) (properties : List (LivenessProperty ρ σ l))
-    (instanceId : Nat) (cancelToken : IO.CancelToken) (route : Route := .fair)
+    (instanceId : Nat) (cancelToken : IO.CancelToken) (route : Route := .interned)
     [cert : RouteCertificate route (restrictSystemByStateConstraints sys params th)] :
     IO Json := do
   let properties ← match ← getPropertySelection with

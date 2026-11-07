@@ -84,6 +84,7 @@ def run : CoreM Unit := do
     mustBeClean "crossing  Lasso.modelCheckFairFNFCrossOfStep" [``Lasso.modelCheckFairFNFCrossOfStep],
     mustBeClean "dijkstra  Lasso.modelCheckDijkstraOfStep    " [``Lasso.modelCheckDijkstraOfStep],
     mustBeClean "ndfs      Lasso.modelCheckNDFSOfStep        " [``Lasso.modelCheckNDFSOfStep],
+    mustBeClean "interned  Veil.LivenessMC.checkFairInterned  " [``Veil.LivenessMC.checkFairInterned],
     mustBeDirty "CONTROL   Veil.LivenessMC.checkFairTimed     " [``Veil.LivenessMC.checkFairTimed],
     mustBeDirty "CONTROL   Veil.LivenessMC.checkDijkstraTimed " [``Veil.LivenessMC.checkDijkstraTimed]
   ].foldlM (fun acc m => do return acc.push (← m)) (#[] : Array Bool)
