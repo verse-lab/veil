@@ -127,9 +127,6 @@ cd veil
 lake build
 ```
 
-Veil commits its prebuilt widget JavaScript and build trace in `widget/js/`,
-so regular use does not require Node.js or npm.
-
 ### Prebuilt releases
 
 For tagged releases, `lake build` automatically uses prebuilt artifacts for
