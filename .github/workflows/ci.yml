@@ -40,12 +40,19 @@ jobs:
         sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-15 100
     - name: Checkout repository
       uses: actions/checkout@v4
+    # Release builds start with clean Veil outputs; retain only dependency caches.
+    - name: Cache release dependencies
+      if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+      uses: actions/cache@v4
       with:
-        fetch-depth: 0
+        path: .lake/packages
+        key: release-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}
     - name: Build and test Veil
       uses: leanprover/lean-action@v1
+      env:
+        LAKE_NO_CACHE: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
       with:
-        use-github-cache: true
+        use-github-cache: ${{ !startsWith(github.ref, 'refs/tags/v') && github.event_name != 'workflow_dispatch' }}
         build-args: '-KerrorOnBuild=stale-widget-bundles-run-lake-build-widgetJsAll'
     - name: Test prebuilt widgets without Node or npm
       run: python3 scripts/tests/test-prebuilt-widgets.py
@@ -93,19 +100,21 @@ jobs:
         npm ci
         npm test
       timeout-minutes: 20
-    - name: Pack release archive
+    - name: Pack and check release archive
       if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-      run: python3 scripts/pack-release.py
-    - name: Check release archive restores without rebuilding
-      if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+      env:
+        LAKE_ARTIFACT_CACHE: 'false'
       run: |
-        python3 scripts/tests/test-release-reuse.py --archive .lake/releases/veil-*.tar.gz
+        lake pack
+        lake clean veil
+        lake unpack
+        lake --no-cache --no-build build
     - name: Save release archive
       if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
       uses: actions/upload-artifact@v4
       with:
         name: release-${{ matrix.name }}
-        path: .lake/releases/veil-*.tar.gz
+        path: .lake/veil-*.tar.gz
         compression-level: 0
         include-hidden-files: true
         if-no-files-found: error
