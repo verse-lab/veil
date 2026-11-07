@@ -100,11 +100,29 @@ target widgetJsAll pkg : Unit :=
 target widgetJsAllDev pkg : Unit :=
   widgetJsAllTarget pkg (isDev := true)
 
+/-- The widget modules the Lean sources include (`include_str`), written as components that render
+nothing, without npm. Used in place of `widgetJsAll` when the option `widget` is `false`
+(`lake build -Kwidget=false`, or `require veil ... with NameMap.empty.insert `widget "false"` in a
+package that depends on Veil). Verification, model checking and the commands work as before, and
+only the infoview panels show nothing. -/
+target widgetStubs pkg : Unit := do
+  let dir := pkg.buildDir / "js"
+  IO.FS.createDirAll dir
+  for name in #["traceDisplayInfoview", "verificationResults"] do
+    let file := dir / s!"{name}.js"
+    unless ← file.pathExists do
+      IO.FS.writeFile file "export default function () { return null; }\n"
+  return Job.nil "widgetStubs"
+
+/-- Whether to build the VS Code widgets with npm: the default, unless the option `widget` is
+`false`. -/
+def widgetEnabled : Bool := (get_config? widget) != some "false"
+
 @[default_target]
 lean_lib «Veil» {
   globs := #[`Veil, .submodules `Veil]
   -- precompileModules := true
-  needs := #[widgetJsAll]
+  needs := if widgetEnabled then #[widgetJsAll] else #[widgetStubs]
 }
 
 @[default_target, test_driver]
