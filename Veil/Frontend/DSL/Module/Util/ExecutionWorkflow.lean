@@ -40,6 +40,8 @@ private structure ExecutionContext where
   /-- Where the actions and the properties of the module are, which the result gives the infoview,
   if known -/
   sources : Json := .null
+  visualizer : Option StateVisualizer := none
+  instantiation : Json := .null
 
 /-- Report compilation failures without stopping an interpreted run during handoff.
 Interruptions produce no diagnostic: a killed build returns `none`, and an interrupt raised
@@ -308,13 +310,15 @@ private def logModelCheckResult (kind : TraceDisplay.ResultKind) (stx : Syntax)
 /-- Allocate a model check context with progress tracking. -/
 private def allocExecutionContext (mod : Module) (stx : Syntax)
     (parallelCfg : Option ModelChecker.ParallelConfig)
-    (resultKind : TraceDisplay.ResultKind) (initialProgress : ModelChecker.Concrete.ProgressDetails) :
+    (resultKind : TraceDisplay.ResultKind) (initialProgress : ModelChecker.Concrete.ProgressDetails)
+    (instantiation : Json) :
     CommandElabM ExecutionContext := do
   let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance initialProgress
   let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
   let (actions, properties) ← getDeclSources mod
   let sources := infoviewSources actions properties (← IO.currentDir)
-  return { stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind, sources }
+  return { stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind, sources,
+           visualizer := ← getStateVisualizer? mod.name, instantiation }
 
 /-- Handle errors in model checking computations. -/
 private def handleModelCheckError (ctx : ExecutionContext) (e : Exception) : CommandElabM Unit := do
@@ -415,7 +419,7 @@ private def runInterpreted (ctx : ExecutionContext) (callExpr : Term) : CommandE
   ) ctx.cancelToken
   let mkTask ← BaseIO.asTask (computation ()) (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := ctx.cancelToken, task := mkTask }
-  ModelChecker.displayStreamingProgress ctx.stx ctx.instanceId
+  ModelChecker.displayStreamingProgress ctx.stx ctx.instanceId ctx.visualizer ctx.instantiation
 
 /-- Compile `callExpr`, then pass the build folder to `withBinary`, with the source file and the
 identity of the command in it. The build folder stays in use until `withBinary` returns. Compilation
@@ -455,7 +459,7 @@ private def runCompiled (command : ModelChecker.Compilation.CompiledCommandSpec)
     (fun buildFolder sourceFile commandId =>
       runBinaryAndLogResult ctx buildFolder sourceFile command commandId)
     (handleModelCheckError ctx)
-  ModelChecker.displayStreamingProgress ctx.stx ctx.instanceId
+  ModelChecker.displayStreamingProgress ctx.stx ctx.instanceId ctx.visualizer ctx.instantiation
 
 /-- Handle default mode: run interpreted + background compile with handoff. -/
 private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSpec)
@@ -553,7 +557,7 @@ private def runWithHandoff (command : ModelChecker.Compilation.CompiledCommandSp
   let compilationTask ← BaseIO.asTask (compilationComputation ()) (prio := .dedicated)
   Command.logSnapshotTask { stx? := none, cancelTk? := compilationCancelTk, task := compilationTask }
 
-  ModelChecker.displayStreamingProgress ctx.stx ctx.instanceId
+  ModelChecker.displayStreamingProgress ctx.stx ctx.instanceId ctx.visualizer ctx.instantiation
 
 /-- Directory of the binaries that `buildChecker` builds. They are copied there out of their build
 folders, which another check may prune before the binaries run. -/
@@ -657,11 +661,11 @@ def run (command : ModelChecker.Compilation.CompiledCommandSpec)
     (mode : ModelCheckingMode) (callExpr : Term)
     (initialProgress : ModelChecker.Concrete.ProgressDetails)
     (parallelCfg : Option ModelChecker.ParallelConfig := none)
-    (extractMs : Nat := 0) : CommandElabM Unit := do
+    (extractMs : Nat := 0) (instantiation : Json := .null) : CommandElabM Unit := do
   if veil.modelChecker.buildOnly.get (← getOptions) then
     return ← runBuildOnly command stx callExpr extractMs
   let mode := if (← liftIO isVeilOnlineEnv) then .interpreted else mode
-  let ctx ← allocExecutionContext mod stx parallelCfg kind initialProgress
+  let ctx ← allocExecutionContext mod stx parallelCfg kind initialProgress instantiation
   match mode with
   | .interpreted => runInterpreted ctx callExpr
   | .compiled => runCompiled command ctx callExpr

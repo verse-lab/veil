@@ -276,7 +276,7 @@ private def runFilteredInvariantCheck
     : CommandElabM Unit := do
   let managerId ← Verifier.runFilteredAsyncWithManagerId filter (logVerificationResults stx)
   Verifier.displayStreamingResults stx (← captureInvariantResults managerId filter)
-    mod.specFinalizedAtStx
+    mod.specFinalizedAtStx (← getStateVisualizer? mod.name)
 
 private def isInductionForAction (actionName : Name) : VCMetadata → Bool
   | .induction m => m.action == actionName

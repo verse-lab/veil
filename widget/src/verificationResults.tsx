@@ -1,6 +1,8 @@
 import * as React from 'react';
 import { EditorContext } from '@leanprover/infoview';
 import HtmlDisplay, { Html } from './htmlDisplay';
+import { StateViewProps, StateVisualizer, VisualizedState, useHasVisualizer } from './stateVisualization';
+import { VisualizationProvider } from './stateVisualizationInfoview';
 import {
   ChangeInfo,
   diffChanges,
@@ -121,6 +123,7 @@ interface InsertPosition {
 }
 
 interface VerificationResultsProps {
+  visualizer?: StateVisualizer | null;
   results: VerificationResults;
   /** Start of the outer verification command's line for inserting theorem stubs before it. */
   theoremInsertPos: InsertPosition;
@@ -178,7 +181,8 @@ const StatePanel: React.FC<{
   fields: Record<string, unknown>;
   changes?: Map<string, ChangeInfo>;
   statusIndicator?: React.ReactNode;
-}> = ({ title, fields, changes, statusIndicator }) => {
+  view?: StateViewProps;
+}> = ({ title, fields, changes, statusIndicator, view }) => {
   const entries = Object.entries(fields);
 
   return (
@@ -190,15 +194,17 @@ const StatePanel: React.FC<{
         )}
       </div>
       <div className="cex-state-body">
-        {entries.length === 0 ? (
-          <div className="cex-empty-state">No fields</div>
-        ) : (
-          <div className="cex-kv-table">
-            {entries.map(([k, v]) => (
-              <CexKVRow key={k} k={k} v={v} changeInfo={changes?.get(k)} />
-            ))}
-          </div>
-        )}
+        <VisualizedState view={view}>
+          {entries.length === 0 ? (
+            <div className="cex-empty-state">No fields</div>
+          ) : (
+            <div className="cex-kv-table">
+              {entries.map(([k, v]) => (
+                <CexKVRow key={k} k={k} v={v} changeInfo={changes?.get(k)} />
+              ))}
+            </div>
+          )}
+        </VisualizedState>
       </div>
     </div>
   );
@@ -254,6 +260,8 @@ const StructuredCexView: React.FC<{
   isInitializer?: boolean;
   headerRightContent?: React.ReactNode;
 }> = ({ data, property, isInitializer = false, headerRightContent }) => {
+  const hasVisualizer = useHasVisualizer();
+  const [showFields, setShowFields] = React.useState(false);
   const { label, instantiation, extraVals } = data;
   const theory = React.useMemo(() => fieldsObject(data.theory), [data.theory]);
   const preState = React.useMemo(() => fieldsObject(data.preState), [data.preState]);
@@ -336,6 +344,14 @@ const StructuredCexView: React.FC<{
     [theory, extraVals]
   );
 
+  const visualContext = {
+    theory: combinedTheory,
+    instantiation: instantiation ?? {},
+    showRemovals,
+    hiddenFields: Array.from(hiddenFields),
+  };
+  const showDiagram = hasVisualizer && !showFields;
+
   const toggleFieldVisibility = (fieldName: string) => {
     setHiddenFields(prev => {
       const next = new Set(prev);
@@ -382,6 +398,11 @@ const StructuredCexView: React.FC<{
       <div className="cex-header-row">
         <div className="cex-header-left">
           <span className="cex-header-label">Counterexample</span>
+          {hasVisualizer && (
+            <button className="cex-view-toggle" onClick={() => setShowFields(!showFields)}>
+              {showFields ? "Show diagram" : "Show fields"}
+            </button>
+          )}
           <button
             className={`cex-toolbar-btn ${hiddenFields.size > 0 ? 'cex-filter-active' : ''}`}
             onClick={(e) => { e.stopPropagation(); setShowFilterPanel(!showFilterPanel); }}
@@ -426,6 +447,7 @@ const StructuredCexView: React.FC<{
         <StatePanel
           title="Pre-State"
           fields={filteredPreState}
+          view={showDiagram ? { ...visualContext, fields: preState } : undefined}
           statusIndicator={
             isInitializer
               ? undefined
@@ -438,10 +460,13 @@ const StructuredCexView: React.FC<{
             <span className="cex-action-chip">{formatActionLabel(label)}</span>
           </div>
         )}
-        {filteredPostState && (
+        {filteredPostState && postState && (
           <StatePanel
             title="Post-State"
             fields={filteredPostState}
+            view={showDiagram ? {
+              ...visualContext, fields: postState, previous: preState, transition: label,
+            } : undefined}
             changes={filteredChanges}
             statusIndicator={<span className="cex-status-invalid">✗ Violates <span className="cex-property-name">{property}</span></span>}
           />
@@ -2354,4 +2379,8 @@ const VerificationResultsView: React.FC<VerificationResultsProps> = ({ results, 
   );
 };
 
-export default VerificationResultsView;
+export default function VerificationResultsInfoview(props: VerificationResultsProps) {
+  return <VisualizationProvider visualizer={props.visualizer}>
+    <VerificationResultsView {...props} />
+  </VisualizationProvider>;
+}

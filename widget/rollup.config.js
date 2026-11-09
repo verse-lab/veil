@@ -5,8 +5,9 @@ import terser from '@rollup/plugin-terser';
 
 /** @type {(_: any) => import('rollup').RollupOptions} */
 export default _cliArgs => {
-    // These are the two entry points embedded in Lean; their imports are bundled inline.
-    const inputs = ['dist/traceDisplayInfoview.js', 'dist/verificationResults.js'];
+    // Entry points embedded as Lean widgets; their imports are bundled inline.
+    const inputs = ['dist/traceDisplayInfoview.js', 'dist/verificationResults.js',
+        'dist/ringVisualizer.js', 'dist/dieHardVisualizer.js'];
 
     const isProduction = process.env.NODE_ENV && process.env.NODE_ENV === 'production';
     const configForInput = fname => ({

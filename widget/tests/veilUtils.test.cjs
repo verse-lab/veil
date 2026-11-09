@@ -33,6 +33,7 @@ const { renderValue, renderValueInline, diffChanges, formatActionLabel, formatCh
 const { previewValue, KVRow } = loadTsx('traceDisplay.tsx', '\nexport { previewValue, KVRow };',
   (name) => {
     if (name === './veilUtils') return utils;
+    if (name === './stateVisualization') return loadTsx('stateVisualization.tsx');
     if (name === './htmlDisplay') return { __esModule: true, default: () => null };
     return require(name);
   });

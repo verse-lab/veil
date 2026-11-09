@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { EditorContext } from '@leanprover/infoview';
 import ModelCheckerView from './traceDisplay';
+import { VisualizationProvider } from './stateVisualizationInfoview';
 import { OpenSource, OpenSourceContext } from './veilUtils';
 
 /** Where a declaration of the module is, as the results of the infoview give it */
@@ -28,7 +29,9 @@ export default function TraceDisplayInfoview(props: React.ComponentProps<typeof 
   }), [sources, editor]);
   return (
     <OpenSourceContext.Provider value={openSource}>
-      <ModelCheckerView {...props} />
+      <VisualizationProvider visualizer={props.visualizer}>
+        <ModelCheckerView {...props} />
+      </VisualizationProvider>
     </OpenSourceContext.Provider>
   );
 }

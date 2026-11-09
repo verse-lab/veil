@@ -55,6 +55,8 @@ The [docs/](docs/) directory documents the Veil DSL and its tools:
   checking with `#model_check`.
 - [TemporalChecker-Guide.md](docs/TemporalChecker-Guide.md) — model checking
   temporal properties with `#temporal_check`.
+- [State-Visualizations.md](docs/State-Visualizations.md) — custom diagrams for
+  traces and counterexamples.
 - [Synthesizer-Guide.md](docs/Synthesizer-Guide.md) — invariant synthesis
   with `#updr`.
 

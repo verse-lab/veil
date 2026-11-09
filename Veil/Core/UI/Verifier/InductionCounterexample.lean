@@ -24,7 +24,7 @@ An induction counterexample consists of:
 - A post-state (`st'`)
 - A transition label (action with parameters)
 - Background theory values
-- Sort instantiations
+- Instantiations of sorts and module parameters
 -/
 
 namespace Veil
@@ -38,18 +38,14 @@ structure VeilCTI where
   /-- Context for interpreting expressions -/
   ctx : Smt.ModelContext
 
-  /-- Expression for `Instantiation.mk sortArgs*`, i.e. a structure which
-  encodes the types used in this model. -/
+  /-- The module's instantiation reconstructed from the model. -/
   instExpr : Expr
   /-- Type expression for `Instantiation` -/
   instType : Expr
-  /-- Sort instantiation info: maps sort name to pretty-printed type name.
-  This is needed because `Type` fields in `Instantiation` are erased at runtime,
-  so we store the type names explicitly for JSON serialization. -/
-  sortInstInfo : Array (Name × String) := #[]
-  /-- Sort substitution: maps sort parameter fvars to their concrete types (e.g., `Fin 3`).
-  Used for substituting abstract types before JSON serialization. -/
-  sortSubst : Array (Expr × Expr) := #[]
+  /-- Display descriptions of the witness's types and known parameter values. -/
+  instantiation : Json := Json.mkObj []
+  /-- Replaces abstract sorts and module parameters when serializing extra model values. -/
+  instSubst : Array (Expr × Expr) := #[]
   /-- Enum sort adaptations used for converting SMT `Fin` values to enum constructors. -/
   enumAdapts : Array EnumSortAdaptation := #[]
 
@@ -85,9 +81,6 @@ structure VeilCTI where
   stored in the `VeilModel`. -/
 
 unsafe def VeilCTI.toJson (vm : VeilCTI) : MetaM Json := do
-  -- Build instantiation JSON from sortInstInfo (since Type fields are erased at runtime)
-  let instJson := Json.mkObj <| vm.sortInstInfo.toList.map fun (name, typeStr) =>
-    (name.toString, Json.str typeStr)
   let theoryJson ← evalExprToDisplay vm.theoryType vm.theoryExpr
   let preStateJson ← evalExprToDisplay vm.stateType vm.preStateExpr
   let postStateJson ← match vm.postStateExpr with
@@ -105,19 +98,18 @@ unsafe def VeilCTI.toJson (vm : VeilCTI) : MetaM Json := do
       let typeStr := (← Meta.ppExpr cardExpr).pretty
       return (nameStr, Json.str typeStr)
 
-  -- Build extraVals JSON: substitute abstract sorts with concrete types and Prop with Bool
-  let sortFVars := vm.sortSubst.map (·.1)
-  let sortTypes := vm.sortSubst.map (·.2)
+  -- Substitute the instantiation into extra values' types and use Bool for Prop.
+  let (abstractArgs, concreteArgs) := vm.instSubst.unzip
   let extraValsJson := Json.mkObj <| ← vm.extraVals.toList.mapM fun (nameExpr, valueExpr) => do
     (vm.ctx.toExprWithCtx nameExpr).runMetaM fun nameExpr => do
       let nameStr := (← Meta.ppExpr nameExpr).pretty
-      let concreteType := ((← Meta.inferType nameExpr).replaceFVars sortFVars sortTypes).replace
+      let concreteType := ((← Meta.inferType nameExpr).replaceFVars abstractArgs concreteArgs).replace
         fun e => if e.isProp then some (mkConst ``Bool) else none
       let adapted ← adaptSmtExprType valueExpr concreteType vm.enumAdapts
       return (nameStr, ← evalExprToDisplay (← Meta.inferType adapted) adapted)
 
   return Json.mkObj [
-    ("instantiation", instJson),
+    ("instantiation", vm.instantiation),
     ("theory", theoryJson),
     ("preState", preStateJson),
     ("label", labelJson),
@@ -259,6 +251,55 @@ def buildSortSubstFromSortArgs (model : Model) (mod : Module) (sortArgs : Array 
     if let some sortExpr := sortExprMap[p.name]? then
       sortSubst := sortSubst.push (sortExpr, sortArg)
   return sortSubst
+
+/-- The arguments of `Instantiation.mk` and the description shown for that witness. -/
+structure SmtWitnessInstantiation where
+  args : Array Expr
+  description : Json
+  subst : Array (Expr × Expr)
+  enumAdapts : Array EnumSortAdaptation
+
+/-- Reconstruct sorts and term parameters in declaration order. The constructor telescope
+gives each parameter's type after substituting the preceding arguments. An unconstrained
+parameter omitted by SMT uses an inhabitant for decoding, and has no reported assignment. -/
+def resolveSmtWitnessInstantiation (model : Model) (mod : Module) :
+    MetaM SmtWitnessInstantiation := do
+  let sortMap ← parseSortsFromModel model
+  let (sortArgs, enumAdapts) ← resolveSortArgsAndEnumAdapts model mod sortMap
+  let mut subst ← buildSortSubstFromSortArgs model mod sortArgs
+  let parameterNames := mod.parameters.filterMap fun p =>
+    if p.kind matches .userParameter then some p.name else none
+  let mut assignments : Std.HashMap Name (Expr × Expr) := {}
+  unless parameterNames.isEmpty do
+    for (nameExpr, valueExpr) in model.values do
+      if let some name ← getExprName model.ctx nameExpr then
+        if parameterNames.contains name then
+          assignments := assignments.insert name (nameExpr, valueExpr)
+  let mut ctorType ← inferType (mkConst (mod.name ++ `Instantiation ++ `mk))
+  let mut sortIdx := 0
+  let mut args := #[]
+  let mut fields := #[]
+  for p in mod.parameters do
+    unless p.kind matches .sort _ | .userParameter do continue
+    let .forallE _ fieldType rest _ ← whnf ctorType
+      | throwError "Unexpected instantiation constructor for {mod.name}"
+    let (arg, known) ← match p.kind with
+      | .sort _ =>
+        let arg := sortArgs[sortIdx]!
+        sortIdx := sortIdx + 1
+        pure (arg, true)
+      | _ =>
+        if let some (nameExpr, valueExpr) := assignments[p.name]? then
+          let arg ← adaptSmtExprType valueExpr fieldType enumAdapts
+          subst := subst.push (nameExpr, arg)
+          pure (arg, true)
+        else
+          pure (← mkAppOptM ``default #[some fieldType, none], false)
+    args := args.push arg
+    ctorType := rest.instantiate1 arg
+    if known then
+      fields := fields.push (p.name.toString, Json.str (← ppExpr (← whnf arg)).pretty)
+  return { args, description := Json.mkObj fields.toList, subst, enumAdapts }
 
 /-- Classify model values into state fields, theory fields, action params, and extras. -/
 def classifyModelValues (model : Model) (mod : Module) (actionName : Name)
@@ -414,14 +455,9 @@ def getSortArgs (mod : Module) (sortMap : Std.HashMap Name Expr) : MetaM (Array 
     ```
 -/
 def buildCounterexampleExprs (model : Model) (mod : Module) (actionName : Name) : MetaM VeilCTI := do
-  -- Parse sorts from model
-  let sortMap ← parseSortsFromModel model
-
-  -- Resolve sort arguments (including enum concretization when mappings are complete)
-  let (sortArgs, enumAdapts) ← resolveSortArgsAndEnumAdapts model mod sortMap
-
-  -- Build sort substitution map from resolved sort args
-  let sortSubst ← buildSortSubstFromSortArgs model mod sortArgs
+  let inst ← resolveSmtWitnessInstantiation model mod
+  let args := inst.args
+  let enumAdapts := inst.enumAdapts
 
   -- Separate extra sorts (those not part of module's Instantiation)
   let moduleSortNames := mod.sortParams.map (·.1.name) |>.toList
@@ -433,41 +469,37 @@ def buildCounterexampleExprs (model : Model) (mod : Module) (actionName : Name) 
     classifyModelValues model mod actionName
 
   -- Build Instantiation expression and type
-  let instExpr ← buildInstantiationExpr mod sortArgs
+  let instExpr ← buildInstantiationExpr mod args
   let instType := mkConst (mod.name ++ `Instantiation)
-  -- Build sort instantiation info (for JSON serialization, since Type is erased at runtime)
-  let sortInstInfo ← (mod.sortParams.zip sortArgs).mapM fun ((sp, _), cardExpr) => do
-    let typeStr ← Meta.ppExpr cardExpr
-    pure (sp.name, typeStr.pretty)
   -- dbg_trace "instExpr: {← ppExpr instExpr} | instType: {← ppExpr instType}"
 
   -- Build Theory expression and type
-  let theoryExpr ← buildTheoryExpr mod sortArgs theoryFields enumAdapts
-  let theoryType ← mkAppOptM (mod.name ++ `Theory) <| sortArgs.map (Option.some ·)
+  let theoryExpr ← buildTheoryExpr mod args theoryFields enumAdapts
+  let theoryType ← mkAppOptM (mod.name ++ `Theory) <| args.map (Option.some ·)
   -- dbg_trace "theoryExpr: {← ppExpr theoryExpr} | theoryType: {← ppExpr theoryType}"
 
   -- Build State expressions and type
-  let preStateExpr ← buildStateExpr mod sortArgs preStateFields enumAdapts
+  let preStateExpr ← buildStateExpr mod args preStateFields enumAdapts
   let fieldAbstractTypeName := mod.name ++ fieldAbstractDispatcherName
-  let dispatcher ← mkAppM fieldAbstractTypeName sortArgs
+  let dispatcher ← mkAppM fieldAbstractTypeName args
   let stateType ← mkAppM (mod.name ++ `State) #[dispatcher]
   -- dbg_trace "preStateExpr: {← ppExpr preStateExpr} | stateType: {← ppExpr stateType}"
 
   let postStateExpr ← if postStateFields.isEmpty then
     pure none
   else
-    some <$> buildStateExpr mod sortArgs postStateFields enumAdapts
+    some <$> buildStateExpr mod args postStateFields enumAdapts
   -- dbg_trace "postStateExpr: {← if postStateExpr.isSome then do ppExpr postStateExpr.get! else pure "none"} | postStateType: { ← ppExpr stateType}"
 
   -- Build Label expression and type (none for initializers)
-  let labelExpr ← buildLabelExpr mod sortArgs actionName actionParams enumAdapts
+  let labelExpr ← buildLabelExpr mod args actionName actionParams enumAdapts
   let labelType ← match labelExpr with
-    | some _ => some <$> mkAppM (mod.name ++ `Label) sortArgs
+    | some _ => some <$> mkAppM (mod.name ++ `Label) args
     | none => pure none
   -- dbg_trace "labelExpr: {← match labelExpr with | some e => ppExpr e | none => pure "none"} | labelType: {← match labelType with | some t => ppExpr t | none => pure "none"}"
 
   return {
-    instExpr, instType, sortInstInfo, sortSubst, enumAdapts
+    instExpr, instType, instantiation := inst.description, instSubst := inst.subst, enumAdapts
     theoryExpr, theoryType
     preStateExpr, stateType
     postStateExpr

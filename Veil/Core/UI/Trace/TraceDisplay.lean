@@ -4,6 +4,7 @@ public meta import Lean.Server.Rpc.Basic
 public meta import Lean.Elab.Command
 public meta import Veil.Core.Tools.ModelChecker.Interface
 public meta import Veil.Util.ValueDisplay
+public meta import Veil.Core.UI.Trace.StateVisualization
 
 public meta import ProofWidgets.Component.Basic
 public meta import ProofWidgets.Component.HtmlDisplay
@@ -45,6 +46,9 @@ structure TraceDisplayProps where
   /-- Which command produced `result`. The widget picks its renderer from this
   rather than from which keys happen to be present. -/
   kind : Veil.TraceDisplay.ResultKind := .modelCheck
+  visualizer : Option Veil.StateVisualizer := none
+  /-- Type and parameter descriptions for concrete witnesses; symbolic traces carry their own. -/
+  instantiation : Json := .null
 deriving RpcEncodable
 
 @[widget_module]

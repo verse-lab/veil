@@ -6,6 +6,7 @@ public meta import Lean.PrettyPrinter
 
 public meta import Veil.Base
 public meta import Veil.Util.ValueDisplay
+public meta import Veil.Core.UI.Trace.StateVisualization
 public meta import ProofWidgets.Component.Basic
 public meta import ProofWidgets.Component.HtmlDisplay
 public meta import Veil.Core.UI.Widget.RefreshComponent
@@ -30,6 +31,7 @@ structure VerificationResultsProps where
   optionInsertPos : Option Lsp.Position
   /-- Document URI for edit operations. -/
   documentUri : String
+  visualizer : Option StateVisualizer := none
 deriving Server.RpcEncodable
 
 
@@ -83,7 +85,7 @@ private def getOptionInsertPos? (atStx : Syntax) : CommandElabM (Option Lsp.Posi
   return some { line := pos.line - 1, character := 0 }
 
 private partial def runStreamingResults (theoremInsertPos : Lsp.Position)
-    (optionInsertPos : Option Lsp.Position) (documentUri : String)
+    (optionInsertPos : Option Lsp.Position) (documentUri : String) (visualizer : Option StateVisualizer)
     (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus))
     (token : RefreshToken) : CoreM Unit := do
   -- CAREFUL: do not sleep while holding the lock
@@ -93,11 +95,12 @@ private partial def runStreamingResults (theoremInsertPos : Lsp.Position)
     results,
     theoremInsertPos,
     optionInsertPos,
-    documentUri
+    documentUri,
+    visualizer
   } #[]
   token.update html
   match status with
-  | .running => runStreamingResults theoremInsertPos optionInsertPos documentUri getter token
+  | .running => runStreamingResults theoremInsertPos optionInsertPos documentUri visualizer getter token
   | .done => pure ()
 
 /-- Display the results of verification conditions as they are discharged. The command elaborator
@@ -105,11 +108,11 @@ publishes the widget with `withStreamingInfo`, since its final info tree is comp
 conditions are. -/
 def displayStreamingResults (atStx : Syntax)
     (getter : CoreM (VerificationResults VCMetadata SmtResult × StreamingStatus))
-    (optionStx? : Option Syntax := none) : CommandElabM Unit := do
+    (optionStx? : Option Syntax := none) (visualizer : Option StateVisualizer := none) : CommandElabM Unit := do
   let (theoremInsertPos, documentUri) ← getTheoremInsertInfo
   let optionInsertPos ← optionStx?.mapM getOptionInsertPos? <&> Option.join
   let html ← liftCoreM <| ProofWidgets.mkRefreshComponentM (.text "Loading...")
-    (runStreamingResults theoremInsertPos optionInsertPos documentUri getter)
+    (runStreamingResults theoremInsertPos optionInsertPos documentUri visualizer getter)
   displayWidget atStx (← Veil.keyedPerElaboration html)
 
 /-- Map VCStatus to emoji for text output. -/

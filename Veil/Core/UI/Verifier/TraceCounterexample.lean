@@ -24,7 +24,7 @@ A trace counterexample consists of:
 - A sequence of states (`st0`, `st1`, ..., `stn`)
 - Transition labels between consecutive states
 - Background theory values
-- Sort instantiations
+- Instantiations of sorts and module parameters
 
 The naming conventions from TraceLang.lean are:
 - States: `st0`, `st1`, `st2`, ..., `stn`
@@ -45,10 +45,10 @@ structure VeilTrace where
   /-- Context for interpreting expressions -/
   ctx : Smt.ModelContext
 
-  /-- Sort instantiation info: maps sort name to pretty-printed type name. -/
-  sortInstInfo : Array (Name × String) := #[]
-  /-- Sort substitution: maps sort parameter fvars to their concrete types. -/
-  sortSubst : Array (Expr × Expr) := #[]
+  /-- Display descriptions of the witness's types and known parameter values. -/
+  instantiation : Json := Json.mkObj []
+  /-- Replaces abstract sorts and module parameters when serializing extra model values. -/
+  instSubst : Array (Expr × Expr) := #[]
   /-- Enum sort adaptations used for converting SMT `Fin` values to enum constructors. -/
   enumAdapts : Array EnumSortAdaptation := #[]
 
@@ -242,14 +242,9 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
     : MetaM VeilTrace := do
   let numStates := numTransitions + 1
 
-  -- Parse sorts from model
-  let sortMap ← parseSortsFromModel model
-
-  -- Resolve sort arguments (including enum concretization when mappings are complete)
-  let (sortArgs, enumAdapts) ← resolveSortArgsAndEnumAdapts model mod sortMap
-
-  -- Build sort substitution map from resolved sort args
-  let sortSubst ← buildSortSubstFromSortArgs model mod sortArgs
+  let inst ← resolveSmtWitnessInstantiation model mod
+  let args := inst.args
+  let enumAdapts := inst.enumAdapts
 
   -- Separate extra sorts
   let moduleSortNames := mod.sortParams.map (·.1.name) |>.toList
@@ -260,26 +255,21 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
   let (stateFieldMaps, theoryFields, transitionTags, specificParams, anyActionParams, tagToAction, extraVals) ←
     classifyTraceModelValues model mod numStates
 
-  -- Build sort instantiation info
-  let sortInstInfo ← (mod.sortParams.zip sortArgs).mapM fun ((sp, _), cardExpr) => do
-    let typeStr ← Meta.ppExpr cardExpr
-    pure (sp.name, typeStr.pretty)
-
   -- Build Theory expression and type
-  let theoryExpr ← buildTheoryExpr mod sortArgs theoryFields enumAdapts
-  let theoryType ← mkAppOptM (mod.name ++ `Theory) <| sortArgs.map (Option.some ·)
+  let theoryExpr ← buildTheoryExpr mod args theoryFields enumAdapts
+  let theoryType ← mkAppOptM (mod.name ++ `Theory) <| args.map (Option.some ·)
 
   -- Build State type
   let fieldAbstractTypeName := mod.name ++ fieldAbstractDispatcherName
-  let dispatcher ← mkAppM fieldAbstractTypeName sortArgs
+  let dispatcher ← mkAppM fieldAbstractTypeName args
   let stateType ← mkAppM (mod.name ++ `State) #[dispatcher]
 
   -- Build State expressions for each state
   let stateExprs ← stateFieldMaps.mapM fun fieldMap => do
-    buildStateExpr mod sortArgs fieldMap enumAdapts
+    buildStateExpr mod args fieldMap enumAdapts
 
   -- Build Label type
-  let labelType ← mkAppM (mod.name ++ `Label) sortArgs
+  let labelType ← mkAppM (mod.name ++ `Label) args
 
   -- Build Label expressions for each transition
   let defaultLabel := mkAppOptM ``default #[some labelType, none]
@@ -287,12 +277,12 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
     let trIdx := i + 1  -- Tags are 1-indexed (_tr1_tag, _tr2_tag, ...)
     let some tagExpr := transitionTags[trIdx]? | defaultLabel
     let some (actionName, _tagValue) ← resolveActionFromTag model.ctx tagExpr tagToAction | defaultLabel
-    let some labelExpr ← buildLabelFromAction mod sortArgs actionName trIdx specificParams anyActionParams enumAdapts | defaultLabel
+    let some labelExpr ← buildLabelFromAction mod args actionName trIdx specificParams anyActionParams enumAdapts | defaultLabel
     pure labelExpr
 
   return {
     ctx := model.ctx
-    sortInstInfo, sortSubst, enumAdapts
+    instantiation := inst.description, instSubst := inst.subst, enumAdapts
     extraSorts
     theoryExpr, theoryType
     stateType, stateExprs
@@ -348,10 +338,6 @@ unsafe def VeilTrace.toJson (vt : VeilTrace)
         ("transition", labelJson)
       ]
 
-  -- Build instantiation JSON
-  let instJson := Json.mkObj <| vt.sortInstInfo.toList.map fun (name, typeStr) =>
-    (name.toString, Json.str typeStr)
-
   -- Build extra sorts JSON
   let extraSortsJson := Json.mkObj <| ← vt.extraSorts.toList.mapM fun (sortExpr, cardExpr) => do
     let ectx := vt.ctx.toExprWithCtx sortExpr
@@ -360,19 +346,18 @@ unsafe def VeilTrace.toJson (vt : VeilTrace)
       let typeStr := (← Meta.ppExpr cardExpr).pretty
       return (nameStr, Json.str typeStr)
 
-  -- Build extraVals JSON: substitute abstract sorts with concrete types and Prop with Bool
-  let sortFVars := vt.sortSubst.map (·.1)
-  let sortTypes := vt.sortSubst.map (·.2)
+  -- Substitute the instantiation into extra values' types and use Bool for Prop.
+  let (abstractArgs, concreteArgs) := vt.instSubst.unzip
   let extraValsJson := Json.mkObj <| ← vt.extraVals.toList.mapM fun (nameExpr, valueExpr) => do
     (vt.ctx.toExprWithCtx nameExpr).runMetaM fun nameExpr => do
       let nameStr := (← Meta.ppExpr nameExpr).pretty
-      let concreteType := ((← Meta.inferType nameExpr).replaceFVars sortFVars sortTypes).replace
+      let concreteType := ((← Meta.inferType nameExpr).replaceFVars abstractArgs concreteArgs).replace
         fun e => if e.isProp then some (mkConst ``Bool) else none
       let adapted ← adaptSmtExprType valueExpr concreteType vt.enumAdapts
       return (nameStr, ← encode (← Meta.inferType adapted) adapted)
 
   return Json.mkObj [
-    ("instantiation", instJson),
+    ("instantiation", vt.instantiation),
     ("theory", theoryJson),
     ("states", Json.arr statesArr),
     ("extraSorts", extraSortsJson),

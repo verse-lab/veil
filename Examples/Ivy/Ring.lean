@@ -2,6 +2,10 @@ module
 
 public import Veil
 
+@[widget_module]
+meta def RingVisualizer : ProofWidgets.Component Veil.StateViewProps where
+  javascript := include_str ".." / ".." / "widget" / "js" / "ringVisualizer.js"
+
 veil module Ring
 
 type node
@@ -14,6 +18,8 @@ relation leader : node → Bool
 relation pending : node → node → Bool
 
 #gen_state
+
+#set_visualizer RingVisualizer
 
 after_init {
   leader N := false

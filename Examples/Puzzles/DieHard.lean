@@ -10,12 +10,18 @@ Upstream MIT license: Benchmarks/TLA/TLAPlusExamples/LICENSE
 -/
 
 
+@[widget_module]
+meta def DieHardVisualizer : ProofWidgets.Component Veil.StateViewProps where
+  javascript := include_str ".." / ".." / "widget" / "js" / "dieHardVisualizer.js"
+
 veil module DieHard
 
 individual big : Nat
 individual small : Nat
 
 #gen_state
+
+#set_visualizer DieHardVisualizer
 
 after_init {
   big := 0

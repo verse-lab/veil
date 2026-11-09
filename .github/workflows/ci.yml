@@ -116,10 +116,11 @@ jobs:
 
         echo "::group::Streaming widgets"
         python3 scripts/tests/test-streaming-widgets.py
+        python3 scripts/tests/test-state-visualizations.py
         echo "::endgroup::"
 
         echo "::group::Widget rendering"
-        node widget/tests/veilUtils.test.cjs
+        node --test widget/tests/veilUtils.test.cjs widget/tests/stateVisualizers.test.mjs
         echo "::endgroup::"
       timeout-minutes: 45
     # Against the Veil of this checkout, built above: this also checks that both report the same IDE protocol

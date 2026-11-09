@@ -277,7 +277,7 @@ private def formatTraceStatus (isExpectedSat : Bool) (status : Option VCStatus) 
 private def traceLoadingMessage : String := "⏳ Verifying trace query..."
 
 private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (getManager : BaseIO (VCManager VCMetadata SmtResult)) (managerId : ManagerId) (isExpectedSat : Bool) (_vcName : Name)
-    (vcFilter : VCMetadata → Bool) (token : RefreshToken) : CoreM Unit := do
+    (vcFilter : VCMetadata → Bool) (visualizer : Option StateVisualizer) (token : RefreshToken) : CoreM Unit := do
   -- CAREFUL: do not sleep while holding the lock
   IO.sleep 100
   let mgr ← getManager
@@ -291,24 +291,24 @@ private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (getManag
   match result? with
   | none =>
     token.update (.text traceLoadingMessage)
-    runTraceRefreshStep owner getManager managerId isExpectedSat _vcName vcFilter token
+    runTraceRefreshStep owner getManager managerId isExpectedSat _vcName vcFilter visualizer token
   | some vcResult =>
     -- Show trace widget if we have JSON, otherwise show status message
     if let some (traceJson, rawHtml?) := extractTraceDataFromVC vcResult then
       let props : TraceDisplayProps :=
         { result := traceJson, layout := "vertical", rawHtml := rawHtml?,
-          kind := .symbolicTrace }
+          kind := .symbolicTrace, visualizer }
       token.update (Html.ofComponent TraceDisplayViewer props #[])
     else
       token.update (.text s!"{formatTraceStatus isExpectedSat vcResult.status}")
 
 /-- Display a streaming widget for trace verification that shows the TraceDisplayViewer when done. -/
 private def displayTraceStreamingResults (stx : Syntax) (managerId : ManagerId) (isExpectedSat : Bool)
-    (vcName : Name) (vcFilter : VCMetadata → Bool) : CommandElabM Unit := do
+    (vcName : Name) (vcFilter : VCMetadata → Bool) (visualizer : Option StateVisualizer) : CommandElabM Unit := do
   let owner ← Verifier.getVCManagerOwner
   let getManager ← Verifier.captureVCManager
   let html ← Veil.keyedPerElaboration (← liftCoreM <| mkRefreshComponentM (.text traceLoadingMessage)
-    (runTraceRefreshStep owner getManager managerId isExpectedSat vcName vcFilter))
+    (runTraceRefreshStep owner getManager managerId isExpectedSat vcName vcFilter visualizer))
   liftCoreM <| Widget.savePanelWidgetInfo
     (hash HtmlDisplayPanel.javascript)
     (return json% { html: $(← Server.rpcEncode html) })
@@ -415,7 +415,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     let managerId ← Verifier.runFilteredAsyncWithManagerId vcFilter (logTraceResults stx isExpectedSat vcName vcFilter)
 
     -- Display streaming widget (shows progress then trace widget)
-    displayTraceStreamingResults stx managerId isExpectedSat vcName vcFilter
+    displayTraceStreamingResults stx managerId isExpectedSat vcName vcFilter (← getStateVisualizer? mod.name)
 
 
 @[incremental] elab_rules : command

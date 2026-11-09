@@ -29,7 +29,7 @@ separately by `#model_check`.
 
 Cancellation and progress are honoured between properties only. Explored counts are product states summed over passed
 properties, including the prefix carried over at handoff. -/
-def checkAllWithProgress [ToJson ρ] [ToJson σ]
+def checkAllWithProgress [Display ρ] [Display σ]
     (sys : EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l (Transitions l Int σ) th)
     (params : SearchParameters ρ σ) (properties : List (LivenessProperty ρ σ l))
     (instanceId : Nat) (cancelToken : IO.CancelToken) (route : Route := .fair)
@@ -92,8 +92,8 @@ def checkAllWithProgress [ToJson ρ] [ToJson σ]
         updateLivenessProgress instanceId progress
         return Json.mkObj [("result", "found_violation"),
           ("violation", Json.mkObj [("kind", "liveness_failure"), ("violates", toJson [p.name])]),
-          ("theory", toJson th),
-          ("lasso", Json.mkObj [("stem", toJson stem), ("loop", toJson loop)]),
+          ("theory", Display.display th),
+          ("lasso", Json.mkObj [("stem", Display.display stem), ("loop", Display.display loop)]),
           ("timing", timingJson route searchNs perProperty)]
   updateLivenessProgress instanceId progress
   return Json.mkObj [("result", "no_violation_found"),

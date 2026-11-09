@@ -789,6 +789,24 @@ private structure ExecutionCallCommandContext (Config : Type) where
   instantiation : Term
   «theory» : Term
 
+/-- Describe the elaborated instantiation for the infoview. Type parameters are erased at runtime,
+so the display descriptions are captured here, without specializing the checker or its result. -/
+private def visualizationInstantiation (em : ExecutableModule) (instTerm : Term) :
+    CommandElabM Json := do
+  if (← getStateVisualizer? em.name).isNone then return .null
+  liftTermElabM <| withoutModifyingState do
+    try
+      let inst ← Term.withoutErrToSorry <| elabTerm instTerm none
+      Term.synthesizeSyntheticMVarsNoPostponing
+      let inst ← instantiateMVars inst
+      if inst.hasMVar || inst.hasSyntheticSorry then return .null
+      let fields ← em.instantiationFields.toList.mapM fun field => do
+        let proj ← Meta.mkAppM (em.name ++ instantiationTypeName ++ field) #[inst]
+        let value ← Meta.whnf proj
+        return (field.toString, Json.str (← Meta.ppExpr value).pretty)
+      return Json.mkObj fields
+    catch _ => return .null  -- The execution call reports any instantiation errors.
+
 /-- Shared elaboration for execution commands with command-specific configuration and calls. -/
 private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Name)
     (kind : TraceDisplay.ResultKind) (elabConfig : Syntax → CommandElabM α)
@@ -817,10 +835,11 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
     mod.ensureExecutableModelCheckerDefinitions
     let extractMs := (← IO.monoMsNow) - extractStartMs
     let executable ← mod.toExecutableModule
+    let instantiation ← `(__veil_instantiation% $instTerm)
     let (callExpr, parallelCfg) ← mkCall {
       executable
       config := cfg
-      instantiation := ← `(__veil_instantiation% $instTerm)
+      instantiation
       «theory» := theoryTerm
     }
     let initialProgress : ModelChecker.Concrete.ProgressDetails := match kind with
@@ -828,6 +847,7 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
       | _ => .modelCheck { allActionLabels := executable.actionLabels.toList }
     ExecutionWorkflow.run { name := cmdName, actionLabels := executable.actionLabels.toList } kind mod stx
       mode callExpr initialProgress parallelCfg extractMs
+      (← visualizationInstantiation executable instantiation)
 
 /-- Shared elaboration of the build commands, which build the binary of an execution command for
 module `modId`, typically from another file, without running it. -/
@@ -1002,5 +1022,6 @@ def elabLivenessCheck : CommandElab := fun stx => withStreamingInfo stx do
     let callExpr ← mkLivenessCheckerCall executable instantiation theoryTerm properties cfg.route finiteReachBy
     ExecutionWorkflow.run { name := "temporal_check", actionLabels := executable.actionLabels.toList }
       .liveness mod stx mode callExpr (.liveness { numProperties := properties.size }) (extractMs := extractMs)
+      (instantiation := ← visualizationInstantiation executable instantiation)
 
 end Veil

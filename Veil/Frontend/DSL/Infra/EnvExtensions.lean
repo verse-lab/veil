@@ -2,6 +2,7 @@ module
 
 public meta import Lean
 public meta import Veil.Base
+public meta import Veil.Core.UI.Trace.StateVisualization
 public meta import Veil.Frontend.DSL.Module.Representation
 public meta import Veil.Frontend.DSL.Infra.Assertions
 -- Not needed for compilation, but re-exported
@@ -44,6 +45,15 @@ def getCurrentModule [Monad m] [MonadEnv m] [MonadError m] (errMsg : MessageData
     return mod
   else
     throwError errMsg
+
+/-- Select a `@[widget_module]` of type `ProofWidgets.Component Veil.StateViewProps` for
+subsequent state displays in this Veil module. -/
+elab "#set_visualizer " widget:ident : command => do
+  let mod ← getCurrentModule (errMsg := "#set_visualizer must appear inside a Veil module")
+  let component ← Elab.Command.liftTermElabM <| unsafe Elab.Term.evalTerm
+    (ProofWidgets.Component StateViewProps)
+    (mkApp (mkConst ``ProofWidgets.Component) (mkConst ``StateViewProps)) widget
+  registerStateVisualizer mod.name component
 
 /-- The role of a binder of `Module.instantiationTemplate`. -/
 inductive InstantiationBinder where

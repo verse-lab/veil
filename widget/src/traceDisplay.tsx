@@ -26,11 +26,13 @@ import {
   InstantiationRow,
 } from './veilUtils';
 import HtmlDisplay, { Html } from './htmlDisplay';
+import { StateViewProps, StateVisualizer, VisualizedState, useHasVisualizer } from './stateVisualization';
 
 
 // ========== Types ==========
 interface ParsedState {
   index: number;
+  transition?: unknown;
   tag?: string; // Optional tag associated with this state (e.g. transition/action label)
   action?: string; // The name of the action of the transition, for a link to its source
   fields: Record<string, unknown>;
@@ -118,6 +120,8 @@ interface ModelCheckerViewProps {
   layout?: "vertical" | "horizontal";
   rawHtml?: Html;
   kind?: ResultKindTag;
+  visualizer?: StateVisualizer | null;
+  instantiation?: Record<string, unknown> | null;
 }
 
 /* ===================== Render ===================== */
@@ -320,6 +324,7 @@ const HoverInfo: React.FC<React.PropsWithChildren<{
 
 const StateCard: React.FC<{
   st: ParsedState;
+  view?: StateViewProps;
   highlighted?: boolean;
   changes?: Map<string, ChangeInfo>;
   showRemovals?: boolean;
@@ -327,7 +332,7 @@ const StateCard: React.FC<{
   hiddenFields?: Set<string>;
   onHideField?: (fieldName: string) => void;
   onResetForceOpen?: () => void;  // Called when user clicks header while forceOpen is active
-}> = ({ st, highlighted = false, changes, showRemovals = false, forceOpen = null, hiddenFields, onHideField, onResetForceOpen }) => {
+}> = ({ st, view, highlighted = false, changes, showRemovals = false, forceOpen = null, hiddenFields, onHideField, onResetForceOpen }) => {
   const isFailing = st.failing === true;
   const actionDescription = st.index === 0
     ? 'Initial state produced by the initializer (after_init).'
@@ -397,11 +402,13 @@ const StateCard: React.FC<{
               )}
             </div>
           )}
-          <div className="kv-table">
-            {entries.map(([k, v]) => (
-              <KVRow key={k} k={k} v={v} changeInfo={changes?.get(k)} showRemovals={showRemovals} onHideField={onHideField} />
-            ))}
-          </div>
+          <VisualizedState view={view}>
+            <div className="kv-table">
+              {entries.map(([k, v]) => (
+                <KVRow key={k} k={k} v={v} changeInfo={changes?.get(k)} showRemovals={showRemovals} onHideField={onHideField} />
+              ))}
+            </div>
+          </VisualizedState>
         </div>
       )}
     </div>
@@ -584,6 +591,7 @@ const ResultHeader: React.FC<{
 function traceDataToStates(traceData: TraceData): ParsedState[] {
   return traceData.states.map((st) => ({
     index: st.index,
+    transition: st.transition,
     tag: formatActionLabel(st.transition),
     action: actionName(st.transition),
     fields: fieldsObject(st.fields),
@@ -597,7 +605,10 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   layout = "vertical",
   rawHtml,
   kind = "modelCheck",
+  instantiation: concreteInstantiation,
 }) => {
+  const hasVisualizer = useHasVisualizer();
+  const [showFields, setShowFields] = React.useState(false);
   const isVertical = layout === "vertical";
   const [showRawJson, setShowRawJson] = React.useState(false);
   const [showRawModel, setShowRawModel] = React.useState(false);
@@ -1032,7 +1043,13 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     return mergeTheoryWithExtras(fieldsObject(traceData.theory), traceData.extraVals);
   }, [traceData]);
 
-  const instantiation = traceData?.instantiation;
+  const instantiation = traceData?.instantiation ?? concreteInstantiation ?? undefined;
+  const visualContext = {
+    theory: combinedTheory,
+    instantiation: instantiation ?? {},
+    showRemovals,
+    hiddenFields: Array.from(hiddenFields),
+  };
 
   return (
     <>
@@ -1055,6 +1072,11 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                 {showRemovals ? "Hide removals (R)" : "Show removals (R)"}
               </button>
             </>
+          )}
+          {hasVisualizer && trace.length > 0 && !showRawJson && !showRawModel && (
+            <button className="mc-toggle-link" onClick={() => setShowFields(!showFields)}>
+              {showFields ? "Show diagram" : "Show fields"}
+            </button>
           )}
           {rawHtml && (
             <button className="mc-toggle-link" onClick={() => setShowRawModel(!showRawModel)}>
@@ -1138,7 +1160,10 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
                             <span className="mc-lasso-rule" />
                           </div>
                         )}
-                        <StateCard st={s} changes={changes} showRemovals={showRemovals} forceOpen={allStatesOpen} hiddenFields={hiddenFields} onHideField={toggleFieldVisibility} onResetForceOpen={() => setAllStatesOpen(null)} />
+                        <StateCard st={s} view={hasVisualizer && !showFields ? {
+                          ...visualContext, fields: s.fields, previous: prev,
+                          transition: lasso ? undefined : s.transition,
+                        } : undefined} changes={changes} showRemovals={showRemovals} forceOpen={allStatesOpen} hiddenFields={hiddenFields} onHideField={toggleFieldVisibility} onResetForceOpen={() => setAllStatesOpen(null)} />
                       </React.Fragment>
                     );
                   })}
