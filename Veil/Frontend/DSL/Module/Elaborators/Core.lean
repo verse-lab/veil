@@ -789,24 +789,57 @@ private structure ExecutionCallCommandContext (Config : Type) where
   instantiation : Term
   «theory» : Term
 
-/-- Resolve the optional display instance in the same scope as the checker. Delay computing
-its fields until a witness is displayed. -/
-private def captureVisualizationTheory (inst : Expr) : MetaM (Thunk Json) := do
-  let noTheory := Thunk.mk fun _ => Json.null
+/-- Delay evaluating a display provider until a concrete witness is shown. -/
+private def captureStateViewTheory? (value : Expr) : MetaM (Option (Thunk Json)) := do
   try
-    let providerType ← Meta.mkAppM ``StateViewTheory #[inst]
-    let some provider ← Meta.synthInstance? providerType | return noTheory
-    let fields ← Meta.mkAppOptM ``StateViewTheory.fields #[none, some inst, some provider]
+    let providerType ← Meta.mkAppM ``StateViewTheory #[value]
+    let some provider ← Meta.synthInstance? providerType | return none
+    let fields ← Meta.mkAppOptM ``StateViewTheory.fields #[none, some value, some provider]
     let compute := Lean.mkLambda `_unit .default (mkConst ``Unit) fields
     let thunk ← Meta.mkAppM ``Thunk.mk #[compute]
-    unsafe Meta.evalExpr (Thunk Json) (← Meta.inferType thunk) thunk
-  catch _ => return noTheory
+    return some (← unsafe Meta.evalExpr (Thunk Json) (← Meta.inferType thunk) thunk)
+  catch _ => return none
+
+/-- Resolve named `instantiate` bindings after substituting the supplied instantiation.
+A missing instance is left as a metavariable so unrelated bindings can still contribute. -/
+private def captureBindingDisplays (mod : Module) (inst : Expr) :
+    TermElabM (Array (Name × Thunk Json)) := do
+  unless mod.parameters.any (fun p => p.kind matches .moduleTypeclass .userDefined) do
+    return #[]
+  let (template, binders) ← mod.instantiationTemplate
+  let mut remaining := template
+  let mut displays := #[]
+  for (role, _) in binders do
+    let .forallE name domain body _ ← Meta.whnf remaining | break
+    let value ← match role with
+      | .field field => Meta.whnfR (← Meta.mkProjection inst field)
+      | _ => do
+        let .some instanceValue ← Meta.trySynthInstance domain
+          | Meta.mkFreshExprMVar (some domain)
+        if role matches .constraint then
+          if let some fields ← captureStateViewTheory? instanceValue then
+            displays := displays.push (name.eraseMacroScopes, fields)
+        pure instanceValue
+    remaining := body.instantiate1 value
+  return displays
+
+private def captureVisualizationTheory (mod : Module) (inst : Expr) :
+    TermElabM (Thunk Json) := do
+  let bindings ← try Term.withoutErrToSorry (captureBindingDisplays mod inst) catch _ => pure #[]
+  let moduleFields ← captureStateViewTheory? inst
+  return Thunk.mk fun _ =>
+    let bindingFields := bindings.toList.flatMap fun (name, fields) =>
+      (fields.get.getObj?.toOption.map (·.toList)).getD [] |>.map fun (key, value) =>
+        (s!"{name}.{key}", value)
+    let fields := bindingFields ++
+      (moduleFields.bind fun fields => fields.get.getObj?.toOption.map (·.toList)).getD []
+    if fields.isEmpty then .null else Json.mkObj fields
 
 /-- Capture the elaborated instantiation and optional display theory before running the checker.
 Type parameters are erased at runtime, and visualization does not specialize the checker. -/
-private def captureConcreteVisualization (em : ExecutableModule) (instTerm : Term) :
+private def captureConcreteVisualization (mod : Module) (em : ExecutableModule) (instTerm : Term) :
     CommandElabM ConcreteVisualization := do
-  if (← getStateVisualizer? em.name).isNone then return {}
+  if (← getStateVisualizer? mod.name).isNone then return {}
   liftTermElabM <| withoutModifyingState do
     try
       let inst ← Term.withoutErrToSorry <| elabTerm instTerm none
@@ -817,7 +850,7 @@ private def captureConcreteVisualization (em : ExecutableModule) (instTerm : Ter
         let proj ← Meta.mkAppM (em.name ++ instantiationTypeName ++ field) #[inst]
         let value ← Meta.whnf proj
         return (field.toString, Json.str (← Meta.ppExpr value).pretty)
-      return { instantiation := Json.mkObj fields, extraTheory := ← captureVisualizationTheory inst }
+      return { instantiation := Json.mkObj fields, extraTheory := ← captureVisualizationTheory mod inst }
     catch _ => return {}  -- The execution call reports any instantiation errors.
 
 /-- Shared elaboration for execution commands with command-specific configuration and calls. -/
@@ -860,7 +893,7 @@ private def elabExecutionCommand {α : Type} (cmdName : String) (traceClass : Na
       | _ => .modelCheck { allActionLabels := executable.actionLabels.toList }
     ExecutionWorkflow.run { name := cmdName, actionLabels := executable.actionLabels.toList } kind mod stx
       mode callExpr initialProgress parallelCfg extractMs
-      (← captureConcreteVisualization executable instantiation)
+      (← captureConcreteVisualization mod executable instantiation)
 
 /-- Shared elaboration of the build commands, which build the binary of an execution command for
 module `modId`, typically from another file, without running it. -/
@@ -1035,6 +1068,6 @@ def elabLivenessCheck : CommandElab := fun stx => withStreamingInfo stx do
     let callExpr ← mkLivenessCheckerCall executable instantiation theoryTerm properties cfg.route finiteReachBy
     ExecutionWorkflow.run { name := "temporal_check", actionLabels := executable.actionLabels.toList }
       .liveness mod stx mode callExpr (.liveness { numProperties := properties.size }) (extractMs := extractMs)
-      (visualization := ← captureConcreteVisualization executable instantiation)
+      (visualization := ← captureConcreteVisualization mod executable instantiation)
 
 end Veil

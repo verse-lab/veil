@@ -329,6 +329,12 @@ Every other type shows its `Repr` as a string (`displayOfRepr`). So, unlike with
 class Display (α : Type u) where
   display : α → Lean.Json
 
+/-- Extra theory fields for concrete witnesses. For an `instantiate` binding, keys are
+qualified by its name. A provider for the module's `Instantiation` supplies unqualified
+keys and may override the fields from individual bindings. -/
+class StateViewTheory {ι : Type u} (inst : ι) where
+  fields : Lean.Json
+
 /-- `f` laid out on one line. Use `@[noinline]` here so the model checker can skip formatting
 candidates when `LogSwitch` is off. -/
 @[noinline] def ValueDisplay.oneLine (f : Std.Format) : String :=

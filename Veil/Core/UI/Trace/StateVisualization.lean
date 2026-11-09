@@ -20,11 +20,6 @@ structure StateViewProps where
   hiddenFields : Array String
   deriving Server.RpcEncodable
 
-/-- Optional display fields computed from the actual Lean instances of a concrete check.
-These supplement the displayed theory for the state visualizer. -/
-class StateViewTheory {ι : Type u} (inst : ι) where
-  fields : Json
-
 /-- Data captured at the checking command. The extra theory is only needed if it shows a witness. -/
 structure ConcreteVisualization where
   instantiation : Json := .null

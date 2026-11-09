@@ -229,6 +229,13 @@ def ordered_ring (node : Type) (rank : node → Nat) (rank_inj : ∀ n1 n2, n1 �
 instance between_fin_dec (n : Nat) : ∀ a b c, Decidable (Between.btw (node := Fin n) a b c) := by
   dsimp [Between.btw]; apply inferInstance
 
+/-- Expose a finite, decidable ring relation under the name of its `instantiate` binding. -/
+instance {node : Type} (order : Between node) [Enumeration node] [Display node]
+    [∀ a b c, Decidable (order.btw a b c)] : StateViewTheory order where
+  fields := Lean.Json.mkObj [("btw", finitePredicateJson
+    (fun (a, b, c) => .arr #[Display.display a, Display.display b, Display.display c])
+    (fun (a, b, c) => decide (order.btw a b c)))]
+
 /-! ## Quorums -/
 
 /-- Majority subsets of `α` (at least `⌊|α| / 2⌋ + 1` elements); any two intersect. -/

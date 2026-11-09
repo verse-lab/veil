@@ -53,12 +53,16 @@ infoview and does not become part of the solver or a compiled checker binary.
 The standalone Veil VS Code results panel has no Lean widget session and uses
 the standard view.
 
-For concrete checks, define a `meta instance (inst : Instantiation) … :
-Veil.StateViewTheory inst` to supply theory fields backed by Lean instances.
-Its `fields` method returns a JSON object keyed by field name. Lean resolves
-its instance arguments in the scope of the checking command. For example,
-Ring supplies `btwn.btw` using the selected `Between inst.node` instance,
-matching the key used by SMT witnesses.
+For concrete checks, Veil looks for a `Veil.StateViewTheory` provider for each
+named `instantiate` binding. The provider's `fields` returns a JSON object.
+Veil qualifies its keys with the binding name, just as it does for SMT
+witnesses. The standard library supplies a provider for finite, decidable
+`Between` instances, so Ring's `instantiate btwn : Between node` exposes
+`btwn.btw` in both kinds of witness.
+
+A module can also define a `meta instance (inst : Instantiation) … :
+Veil.StateViewTheory inst` to add or override fields for its visualizer.
+Lean resolves instance arguments in the scope of the checking command.
 
 [Ring](../Examples/Ivy/Ring.lean) and [DieHard](../Examples/Puzzles/DieHard.lean)
 are working examples. Their SVG geometry and theme styles come from the

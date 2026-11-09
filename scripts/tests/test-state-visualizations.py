@@ -16,13 +16,15 @@ meta def probeRenderer : ProofWidgets.Component Veil.StateViewProps where
 veil module VisualizationProbe
 param stepSize : Nat
 type node
+instantiate ringOrder : Between node
 individual x : Nat
 after_init { x := 0 }
 action step {
   require stepSize = 1
   x := stepSize
 }
-assumption [two_nodes] ∃ a b : node, a ≠ b ∧ ∀ c : node, c = a ∨ c = b
+assumption [three_nodes]
+  ∃ a b c : node, a ≠ b ∧ b ≠ c ∧ a ≠ c ∧ ∀ d : node, d = a ∨ d = b ∨ d = c
 invariant [zero] x = 0
 temporal (only := check) [never_reached] ◇ ⌜ x = 2 ⌝
 meta instance (inst : Instantiation) : StateViewTheory inst where
@@ -35,8 +37,8 @@ set_option veil.violationIsError false
 sat trace [takes_step] { step }
 #set_visualizer "../../widget/js/dieHardVisualizer.js"
 #check_invariants
-#model_check interpreted { stepSize := Nat.succ 0, node := Fin 2 }
-#temporal_check interpreted { stepSize := Nat.succ 0, node := Fin 2 }
+#model_check interpreted { stepSize := Nat.succ 0, node := Fin 3 }
+#temporal_check interpreted { stepSize := Nat.succ 0, node := Fin 3 }
 end VisualizationProbe
 '''
 
@@ -80,7 +82,7 @@ def main():
             "sat trace": "export default function probeRenderer() { return null; }",
             "#check_invariants": (ROOT / "widget/js/dieHardVisualizer.js").read_text(),
         }
-        instantiation = {"node": "Fin 2", "stepSize": "1"}
+        instantiation = {"node": "Fin 3", "stepSize": "1"}
         for prefix in ("sat trace", "#check_invariants", "#model_check", "#temporal_check"):
             pos = {"line": next(i for i, line in enumerate(SOURCE.splitlines()) if line.startswith(prefix)),
                    "character": 2}
@@ -99,7 +101,11 @@ def main():
             assert props["visualizer"] == visualizer, props
             if prefix in ("#model_check", "#temporal_check"):
                 assert props["instantiation"] == instantiation, props
-                assert props["visualizationTheory"] == {"configuredStep": 1}, props
+                theory = props["visualizationTheory"]
+                assert theory["configuredStep"] == 1, theory
+                between = theory["ringOrder.btw"]
+                assert between["$veil"] == "set", between
+                assert set(map(tuple, between["elements"])) == {(0, 1, 2), (1, 2, 0), (2, 0, 1)}, between
             elif prefix == "sat trace":
                 assert props["result"]["trace"]["instantiation"] == instantiation, props
             if prefix == "#temporal_check":
