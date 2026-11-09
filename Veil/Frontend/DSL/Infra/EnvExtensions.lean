@@ -46,10 +46,20 @@ def getCurrentModule [Monad m] [MonadEnv m] [MonadError m] (errMsg : MessageData
   else
     throwError errMsg
 
-/-- Select a `@[widget_module]` of type `ProofWidgets.Component Veil.StateViewProps` for
-subsequent state displays in this Veil module. -/
-elab "#set_visualizer " widget:ident : command => do
+/-- Select a state visualizer by its widget name or a JavaScript path relative to this file.
+A path registers the JavaScript as a Lean widget and uses its default export. -/
+elab "#set_visualizer " source:(ident <|> str) : command => do
   let mod ← getCurrentModule (errMsg := "#set_visualizer must appear inside a Veil module")
+  let widget : Ident ← if source.raw.isIdent then
+    pure ⟨source.raw⟩
+  else withRef source do
+    let path : TSyntax `str := ⟨source.raw⟩
+    let widget := mkIdent (← Elab.Command.liftCoreM (mkFreshUserName `stateVisualizer))
+    Elab.Command.elabCommand (← `(command|
+      @[widget_module]
+      private meta def $widget:ident : ProofWidgets.Component StateViewProps where
+        javascript := include_str $path:str))
+    pure widget
   let component ← Elab.Command.liftTermElabM <| unsafe Elab.Term.evalTerm
     (ProofWidgets.Component StateViewProps)
     (mkApp (mkConst ``ProofWidgets.Component) (mkConst ``StateViewProps)) widget

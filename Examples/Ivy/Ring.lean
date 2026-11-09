@@ -2,10 +2,6 @@ module
 
 public import Veil
 
-@[widget_module]
-meta def RingVisualizer : ProofWidgets.Component Veil.StateViewProps where
-  javascript := include_str ".." / ".." / "widget" / "js" / "ringVisualizer.js"
-
 veil module Ring
 
 type node
@@ -27,7 +23,7 @@ meta instance (inst : Instantiation) [Enumeration inst.node] [Display inst.node]
     (fun (a, b, c) => .arr #[Display.display a, Display.display b, Display.display c])
     (fun (a, b, c) => decide (btwn.btw a b c)))]
 
-#set_visualizer RingVisualizer
+#set_visualizer "../../widget/js/ringVisualizer.js"
 
 after_init {
   leader N := false

@@ -33,6 +33,7 @@ meta instance (inst : Instantiation) : StateViewTheory inst where
 
 set_option veil.violationIsError false
 sat trace [takes_step] { step }
+#set_visualizer "../../widget/js/dieHardVisualizer.js"
 #check_invariants
 #model_check interpreted { stepSize := Nat.succ 0, node := Fin 2 }
 #temporal_check interpreted { stepSize := Nat.succ 0, node := Fin 2 }
@@ -75,6 +76,10 @@ def main():
         assert not [d for d in diagnostics if d.get("severity") == 1], diagnostics
 
         visualizer = None
+        renderer_sources = {
+            "sat trace": "export default function probeRenderer() { return null; }",
+            "#check_invariants": (ROOT / "widget/js/dieHardVisualizer.js").read_text(),
+        }
         instantiation = {"node": "Fin 2", "stepSize": "1"}
         for prefix in ("sat trace", "#check_invariants", "#model_check", "#temporal_check"):
             pos = {"line": next(i for i, line in enumerate(SOURCE.splitlines()) if line.startswith(prefix)),
@@ -87,10 +92,10 @@ def main():
                 }, True)
 
             props = read_widget(rpc, pos)
-            if visualizer is None:
+            if prefix in renderer_sources:
                 visualizer = props["visualizer"]
                 widget = rpc("Lean.Widget.getWidgetSource", {"hash": visualizer["hash"], "pos": pos})
-                assert "export default function probeRenderer" in widget["sourcetext"], widget
+                assert widget["sourcetext"] == renderer_sources[prefix], widget
             assert props["visualizer"] == visualizer, props
             if prefix in ("#model_check", "#temporal_check"):
                 assert props["instantiation"] == instantiation, props

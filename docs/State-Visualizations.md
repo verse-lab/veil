@@ -1,24 +1,24 @@
 # State visualizations
 
-A Veil module can choose a diagram for its states. Register a Lean widget with
-`#set_visualizer MyStateView` inside the module, before the commands that should use
-it. The same widget then appears on satisfying traces, induction counterexamples,
-explicit model checker traces, and temporal counterexamples. It also works for
-`unsat trace` counterexamples and `#simulate` traces.
+Set a state visualizer inside the Veil module before the commands that should
+use it. A quoted path is resolved relative to the Lean source file.
 
 ```lean
-@[widget_module]
-meta def MyStateView : ProofWidgets.Component Veil.StateViewProps where
-  javascript := include_str "myStateView.js"
-
--- Inside the Veil module, before running any checks:
--- #set_visualizer MyStateView
+#set_visualizer "./myStateView.js"
 ```
 
-The JavaScript is a standard [Lean widget](https://github.com/leanprover-community/ProofWidgets4).
-Export a React component as the default export (or set the Lean component's
-`export` field to a named export). For example, a module with a numeric `counter`
-field could use this file:
+The file is a JavaScript module whose default export is a React component. The
+same widget appears on satisfying traces, induction counterexamples, explicit
+model checker traces, and temporal counterexamples. It also works for
+`unsat trace` counterexamples and `#simulate` traces.
+
+If you already have a `@[widget_module]` of type
+`ProofWidgets.Component Veil.StateViewProps`, select it by name with
+`#set_visualizer MyStateView`. A named widget can use the Lean component's
+`export` field to select a named JavaScript export. Both forms use the standard
+Lean widget loader. [ProofWidgets](https://github.com/leanprover-community/ProofWidgets4)
+
+For a module with a numeric `counter` field, `myStateView.js` could look like this.
 
 ```js
 import { createElement as h } from 'react';
