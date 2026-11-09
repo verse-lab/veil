@@ -6,7 +6,7 @@
    "/private/tmp/veil-trace-visualizations/widget> npm clean-install",
    "level": "trace"},
   {"message":
-   "stdout:\nadded 168 packages, and audited 169 packages in 567ms\n\n49 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities",
+   "stdout:\nadded 168 packages, and audited 169 packages in 728ms\n\n49 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities",
    "level": "trace"},
   {"message":
    "stderr:\nnpm warn install-scripts 1 package has install scripts not yet covered by allowScripts:\nnpm warn install-scripts   fsevents@2.3.3 (install: (install scripts present))\nnpm warn install-scripts\nnpm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.",
@@ -17,10 +17,10 @@
    "stdout:\n> @veil/widgets@0.1.0 build\n> npx tsc && rollup --environment NODE_ENV:production --config",
    "level": "trace"},
   {"message":
-   "stderr:\ndist/traceDisplayInfoview.js → js...\ncreated js in 111ms\n\ndist/verificationResults.js → js...\ncreated js in 110ms\n\ndist/ringVisualizer.js → js...\ncreated js in 56ms\n\ndist/dieHardVisualizer.js → js...\ncreated js in 37ms",
+   "stderr:\ndist/traceDisplayInfoview.js → js...\ncreated js in 117ms\n\ndist/verificationResults.js → js...\ncreated js in 109ms\n\ndist/ringVisualizer.js → js...\ncreated js in 54ms\n\ndist/dieHardVisualizer.js → js...\ncreated js in 36ms",
    "level": "trace"}],
  "inputs":
- [["/private/tmp/veil-trace-visualizations/widget/src", "08dbe31d3802ce8c"],
+ [["/private/tmp/veil-trace-visualizations/widget/src", "d61933d0e42a08d9"],
   ["/private/tmp/veil-trace-visualizations/widget/rollup.config.js",
    "67c1dbf4b8ce3a52"],
   ["/private/tmp/veil-trace-visualizations/widget/tsconfig.json",
@@ -30,4 +30,4 @@
   ["/private/tmp/veil-trace-visualizations/widget/package-lock.json",
    "d6f3467bcb187694"],
   ["isDev", "feefd2a0d3a1847e"]],
- "depHash": "aeeba11acaf099cf"}
+ "depHash": "fbbf82d33ed6c31e"}

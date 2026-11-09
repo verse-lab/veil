@@ -19,6 +19,14 @@ relation pending : node → node → Bool
 
 #gen_state
 
+-- Concrete checkers use a Lean typeclass for the topology. Expose its relation in the
+-- same format as the SMT model's `btwn.btw`, which the visualizer already understands.
+meta instance (inst : Instantiation) [Enumeration inst.node] [Display inst.node]
+    [btwn : Between inst.node] [∀ a b c, Decidable (btwn.btw a b c)] : StateViewTheory inst where
+  fields := Lean.Json.mkObj [("btwn.btw", finitePredicateJson
+    (fun (a, b, c) => .arr #[Display.display a, Display.display b, Display.display c])
+    (fun (a, b, c) => decide (btwn.btw a b c)))]
+
 #set_visualizer RingVisualizer
 
 after_init {

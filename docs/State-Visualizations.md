@@ -35,7 +35,7 @@ The component receives:
 | --- | --- |
 | `fields` | The current state's fields, keyed by name. |
 | `previous` | The preceding state's fields, when available. An induction counterexample may only contain one state. |
-| `theory` | The displayed background theory, including named SMT theory values when available. Concrete checking does not generally serialize typeclass instances. |
+| `theory` | The displayed background theory, including named SMT theory values or the fields supplied by a concrete display instance. |
 | `instantiation` | The types and parameter values of the witness as strings, such as `{ node: "Fin 4", limit: "3" }`. The explicit checkers use the supplied instantiation. SMT witnesses use the model and omit term parameters with no assignment. |
 | `transition` | The incoming action label, when known. A liveness witness projects states from the product graph without retaining action labels. |
 | `showRemovals`, `hiddenFields` | The panel's display settings. |
@@ -52,6 +52,13 @@ infoview's widget API. A visualizer is presentation code: it runs only in the
 infoview and does not become part of the solver or a compiled checker binary.
 The standalone Veil VS Code results panel has no Lean widget session and uses
 the standard view.
+
+For concrete checks, define a `meta instance (inst : Instantiation) … :
+Veil.StateViewTheory inst` to supply theory fields backed by Lean instances.
+Its `fields` method returns a JSON object keyed by field name. Lean resolves
+its instance arguments in the scope of the checking command. For example,
+Ring supplies `btwn.btw` using the selected `Between inst.node` instance,
+matching the key used by SMT witnesses.
 
 [Ring](../Examples/Ivy/Ring.lean) and [DieHard](../Examples/Puzzles/DieHard.lean)
 are working examples. Their SVG geometry and theme styles come from the

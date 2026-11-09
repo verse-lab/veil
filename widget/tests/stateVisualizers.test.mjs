@@ -55,3 +55,13 @@ test('DieHard hides a jug without showing a zero amount or its goal', () => {
   assert.match(html, /class="jug-amount"[^>]*>2<\/text>/);
   assert.doesNotMatch(html, /class="jug-label"[^>]*>Big<\/text>|<g class="goal-indicator"/);
 });
+
+test('Ring draws the supplied topology and leaves missing topology to the field view', () => {
+  const props = { ...defaults, instantiation: { node: 'Fin 3' }, fields: { leader: set(), pending: set() } };
+  const theory = { 'btwn.btw': set([0, 2, 1], [2, 1, 0], [1, 0, 2]) };
+  const svg = renderToStaticMarkup(createElement(Ring, { ...props, theory }));
+  // Node 0 is at the top. In the reversed ring its outgoing arrow points left to node 2.
+  const edge = svg.match(/<path d="M \S+ \S+ Q \S+ \S+ (\S+) \S+" class="ring-edge"/);
+  assert.ok(edge && Number(edge[1]) < 150, svg);
+  assert.equal(renderToStaticMarkup(createElement(Ring, props, 'State fields')), 'State fields');
+});

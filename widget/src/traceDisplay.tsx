@@ -122,6 +122,7 @@ interface ModelCheckerViewProps {
   kind?: ResultKindTag;
   visualizer?: StateVisualizer | null;
   instantiation?: Record<string, unknown> | null;
+  visualizationTheory?: Record<string, unknown> | null;
 }
 
 /* ===================== Render ===================== */
@@ -606,6 +607,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   rawHtml,
   kind = "modelCheck",
   instantiation: concreteInstantiation,
+  visualizationTheory,
 }) => {
   const hasVisualizer = useHasVisualizer();
   const [showFields, setShowFields] = React.useState(false);
@@ -1045,7 +1047,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
 
   const instantiation = traceData?.instantiation ?? concreteInstantiation ?? undefined;
   const visualContext = {
-    theory: combinedTheory,
+    theory: { ...combinedTheory, ...visualizationTheory },
     instantiation: instantiation ?? {},
     showRemovals,
     hiddenFields: Array.from(hiddenFields),

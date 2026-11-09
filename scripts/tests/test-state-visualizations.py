@@ -25,6 +25,9 @@ action step {
 assumption [two_nodes] ∃ a b : node, a ≠ b ∧ ∀ c : node, c = a ∨ c = b
 invariant [zero] x = 0
 temporal (only := check) [never_reached] ◇ ⌜ x = 2 ⌝
+meta instance (inst : Instantiation) : StateViewTheory inst where
+  fields := Lean.Json.mkObj [("configuredStep", Lean.toJson inst.stepSize)]
+
 #set_visualizer probeRenderer
 #gen_spec
 
@@ -91,6 +94,7 @@ def main():
             assert props["visualizer"] == visualizer, props
             if prefix in ("#model_check", "#temporal_check"):
                 assert props["instantiation"] == instantiation, props
+                assert props["visualizationTheory"] == {"configuredStep": 1}, props
             elif prefix == "sat trace":
                 assert props["result"]["trace"]["instantiation"] == instantiation, props
             if prefix == "#temporal_check":

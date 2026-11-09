@@ -200,28 +200,19 @@ export default function RingVisualizer({
   const maxRank = ranks.reduce((max, rank) => Math.max(max, rank), 0);
   const leaderSet = new Set(leaders);
   const successors = ringSuccessors(theory, nodes);
+  if (!successors) return children;
   const incoming = new Map<number, Curve>();
   const edges = nodes.map(from => {
-    const dest = successors?.[from] ?? (from + 1) % count;
+    const dest = successors[from];
     const curve = curveBetween(positions[from], positions[dest]);
     if (curve && !incoming.has(dest)) incoming.set(dest, curve);
     return curve;
   });
-  const theoryKeys = Object.keys(theory);
 
   return (
     <>
       <style>{styles}</style>
       <div className="ring-visualizer-container">
-        {!successors && (
-          <div className="ring-topology-warning">
-            <span className="warning-icon">⚠</span>
-            <span>{theoryKeys.length > 0
-              ? `Ring topology data unavailable. Theory keys: [${theoryKeys.join(', ')}]. Expected: btwn.btw or btw`
-              : 'Ring topology data unavailable - showing default sequential ordering (0→1→2→...)'}
-            </span>
-          </div>
-        )}
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="ring-svg">
           <defs>
             <marker id={markerId} viewBox="0 0 10 10" refX={9} refY={5} markerWidth={6} markerHeight={6} orient="auto-start-reverse">
@@ -263,22 +254,6 @@ const styles = `
 .ring-visualizer-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-.ring-topology-warning {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--vscode-inputValidation-warningBackground, #352a05);
-  border: 1px solid var(--vscode-inputValidation-warningBorder, #b89500);
-  border-radius: 4px;
-  color: var(--vscode-inputValidation-warningForeground, #cca700);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-}
-.ring-topology-warning .warning-icon {
-  font-size: 14px;
 }
 .ring-svg {
   max-width: 100%;

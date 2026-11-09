@@ -49,6 +49,8 @@ structure TraceDisplayProps where
   visualizer : Option Veil.StateVisualizer := none
   /-- Type and parameter descriptions for concrete witnesses; symbolic traces carry their own. -/
   instantiation : Json := .null
+  /-- Instance data requested by the visualizer for concrete witnesses. -/
+  visualizationTheory : Json := .null
 deriving RpcEncodable
 
 @[widget_module]

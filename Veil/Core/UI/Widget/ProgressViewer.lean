@@ -654,7 +654,7 @@ private def noResultData : Html :=
 
 /-- Create the final result display with both progress summary and result viewer. -/
 def mkFinalResultHtml (p : Progress) (resultJson : Option Json)
-    (visualizer : Option StateVisualizer := none) (instantiation : Json := .null) : Html :=
+    (visualizer : Option StateVisualizer := none) (visualization : ConcreteVisualization := {}) : Html :=
   <div className="model-checker-result">
     {progressToHtml p}
     {match resultJson with
@@ -663,33 +663,35 @@ def mkFinalResultHtml (p : Progress) (resultJson : Option Json)
        | some errorMsg => errorBox errorMsg
        | none =>
          if hasTraceData json then
+           let witness := !((json.getObjValD "trace").isNull && (json.getObjValD "lasso").isNull)
            Html.ofComponent TraceDisplayViewer
              { result := json, layout := "vertical", rawHtml := none,
-               kind := resultKindOf p, visualizer, instantiation } #[]
+               kind := resultKindOf p, visualizer, instantiation := visualization.instantiation,
+               visualizationTheory := if witness then visualization.extraTheory.get else .null } #[]
          else noResultData
      | none => noResultData}
   </div>
 
 private partial def runProgressUpdates (id : Nat) (visualizer : Option StateVisualizer)
-    (instantiation : Json) (token : RefreshToken) : CoreM Unit := do
+    (visualization : ConcreteVisualization) (token : RefreshToken) : CoreM Unit := do
   IO.sleep 100
   let progress ← getProgress id
   if progress.isRunning then
     token.update (progressToHtml progress (some id))
-    runProgressUpdates id visualizer instantiation token
+    runProgressUpdates id visualizer visualization token
   else
-    token.update (mkFinalResultHtml progress (← getResultJson id) visualizer instantiation)
+    token.update (mkFinalResultHtml progress (← getResultJson id) visualizer visualization)
 
 /-- Create a streaming progress widget that polls progress by instance ID. -/
 def mkProgressWidget (instanceId : Nat) (visualizer : Option StateVisualizer := none)
-    (instantiation : Json := .null) : CoreM Html := do
-  mkRefreshComponentM (.text "Starting model checker...") (runProgressUpdates instanceId visualizer instantiation)
+    (visualization : ConcreteVisualization := {}) : CoreM Html := do
+  mkRefreshComponentM (.text "Starting model checker...") (runProgressUpdates instanceId visualizer visualization)
 
 /-- Display a streaming progress widget at the given syntax. The command elaborator publishes it
 with `withStreamingInfo`, since its final info tree is complete only once the run ends. -/
 def displayStreamingProgress (atStx : Syntax) (instanceId : Nat)
-    (visualizer : Option StateVisualizer := none) (instantiation : Json := .null) : CommandElabM Unit := do
-  let html ← liftCoreM (mkProgressWidget instanceId visualizer instantiation)
+    (visualizer : Option StateVisualizer := none) (visualization : ConcreteVisualization := {}) : CommandElabM Unit := do
+  let html ← liftCoreM (mkProgressWidget instanceId visualizer visualization)
   displayWidget atStx (← Veil.keyedPerElaboration html)
 
 end Veil.ModelChecker
