@@ -3,6 +3,8 @@ module
 public meta import Lean.Compiler.LCNF.Main
 public meta import Lean.Compiler.LCNF.EmitC
 public meta import Lean.Compiler.LCNF.EmitUtil
+public meta import Lean.Compiler.IR.CompilerM
+public meta import Lean.Compiler.IR.Format
 public meta import Veil.Core.Tools.ModelChecker.CompiledRuntime
 public meta import Veil.Core.UI.Widget.ProgressViewer
 
@@ -53,6 +55,18 @@ def emitCWithRuntimeInitializers (entryPoint : Name) : CoreM String := do
   -- `emitCForDecls` indexes its argument, so it needs the whole dependency closure.
   let (used, _) ← Lean.Compiler.LCNF.collectUsedDecls (#[entryPoint] ++ initializers)
   Lean.Compiler.LCNF.emitCForDecls env.mainModule (used.map (·.name))
+
+/-- The compiler IR of a compiled entry point and of the declarations of the current file that it
+uses, in the order the C emitter gives them (`emitCForDecls`), separated by blank lines, and the
+number of these declarations. -/
+def formatIRForEntryPoint (entryPoint : Name) : CoreM (String × Nat) := do
+  let env ← getEnv
+  let (used, _) ← Lean.Compiler.LCNF.collectUsedDecls #[entryPoint]
+  let names := used.map (·.name)
+  let indexMap := Lean.Compiler.LCNF.getImpureDeclIndices env names
+  let names := names.qsort fun l r => indexMap[l]! < indexMap[r]!
+  let decls := names.filterMap (Lean.IR.findEnvDecl env ·)
+  return ("\n\n".intercalate (decls.map Lean.IR.declToString).toList ++ "\n", decls.size)
 
 private unsafe def evalJsonComputationUnsafe (expr : Expr) : TermElabM (IO Json) :=
   Meta.evalExpr (IO Json) (mkApp (mkConst ``IO) (mkConst ``Json)) expr

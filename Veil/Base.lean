@@ -217,4 +217,15 @@ register_option veil.modelChecker.buildOnly : Bool := {
   meant for the editor, where the synchronous build holds up the commands after it."
 }
 
+register_option veil.modelChecker.irOnly : Bool := {
+  defValue := false
+  descr := "Compile the entry point of `#model_check`, `#simulate`, and `#temporal_check` inside a module \
+  as a compiled check does, whatever mode the command names, but neither emit C, build, nor run it. \
+  Instead, write the compiler IR of the entry point and of the declarations of the current file \
+  that it uses, the specializations made for it included, to \
+  `.lake/model_checker_ir/<module>/<command>_<position>.ir`, and report it as an info message whose \
+  last line is `VEIL_IR_ONLY` followed by a JSON object. Takes precedence over \
+  `veil.modelChecker.buildOnly`."
+}
+
 end Veil
