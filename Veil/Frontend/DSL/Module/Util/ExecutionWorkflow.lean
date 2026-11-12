@@ -142,9 +142,10 @@ private def elabTermForExecution (term : Term) : TermElabM Expr := do
     -- A remaining hole does not prove it caused the failure; retain the original error as well.
     throw exception
 
-/-- Compile a temporary entry point in the current snapshot, then emit its C module
-with runtime initialization. -/
-private def generateCCode (command : ModelChecker.Compilation.CompiledCommandSpec) (callExpr : Term) : CommandElabM String := withoutModifyingEnv do
+/-- Compile a temporary entry point `main` in the current snapshot, then run `k` while it is in
+the environment. The environment is restored afterwards. -/
+private def withCompiledEntryPoint (command : ModelChecker.Compilation.CompiledCommandSpec)
+    (callExpr : Term) (k : CoreM α) : CommandElabM α := withoutModifyingEnv do
   -- In a `module` file, a plain `def main` is private. A Veil namespace exports
   -- generated definitions, so also leave exporting mode when looking for it.
   let env := (← getEnv).setExporting false
@@ -168,7 +169,13 @@ private def generateCCode (command : ModelChecker.Compilation.CompiledCommandSpe
         $callExpr pcfg progressInstanceId cancelToken (fun result => finish (Lean.toJson result))))
     let expr ← elabTermForExecution entry
     discard <| addVeilDefinition `main expr (addNamespace := false)
-  liftCoreM <| ModelChecker.Compilation.emitCWithRuntimeInitializers `main
+  liftCoreM k
+
+/-- Compile a temporary entry point in the current snapshot, then emit its C module
+with runtime initialization. -/
+private def generateCCode (command : ModelChecker.Compilation.CompiledCommandSpec) (callExpr : Term) :
+    CommandElabM String :=
+  withCompiledEntryPoint command callExpr (ModelChecker.Compilation.emitCWithRuntimeInitializers `main)
 
 /-- Create an error JSON object. -/
 private def errorJson (msg : String) : Json := Json.mkObj [("error", msg)]
@@ -646,6 +653,26 @@ private def runBuildOnly (command : ModelChecker.Compilation.CompiledCommandSpec
     logInfoAt stx m!"Built the compiled checker without running it (veil.modelChecker.buildOnly):\n\
       VEIL_BUILD_ONLY {report.compress}"
 
+/-- `veil.modelChecker.irOnly`: write the IR to `irFilePath` instead of
+emitting C, building and running the checker. -/
+private def runIROnly (command : ModelChecker.Compilation.CompiledCommandSpec) (stx : Syntax)
+    (callExpr : Term) : CommandElabM Unit := do
+  let commandId ← getCompiledCommandId command.name stx
+  let startMs ← IO.monoMsNow
+  let (ir, numDecls) ← withCompiledEntryPoint command callExpr
+    (ModelChecker.Compilation.formatIRForEntryPoint `main)
+  let compileMs := (← IO.monoMsNow) - startMs
+  let file := irFilePath (← getEnv).mainModule command.name commandId
+  if let some dir := file.parent then IO.FS.createDirAll dir
+  IO.FS.writeFile file ir
+  let report := Json.mkObj [("ir_file", toJson file.toString), ("decls", toJson numDecls), ("compile_ms", toJson compileMs)]
+  logInfoAt stx m!"VEIL_IR_ONLY {report.compress}"
+where
+  /-- Where `veil.modelChecker.irOnly` writes the IR of the invocation `commandId` of the command
+  named `commandName` in module `mod`, relative to the workspace. -/
+  irFilePath (mod : Name) (commandName commandId : String) : System.FilePath :=
+    ".lake" / "model_checker_ir" / mod.toString / s!"{commandName}_{commandId}.ir"
+
 /-- Shared execution workflow for safety checking, simulation, and liveness checking.
 `callExpr` takes parallel configuration, progress ID, cancellation token, and a result
 continuation, in that order. Its result must have a `ToJson` instance. `extractMs`, the time the
@@ -658,6 +685,8 @@ def run (command : ModelChecker.Compilation.CompiledCommandSpec)
     (initialProgress : ModelChecker.Concrete.ProgressDetails)
     (parallelCfg : Option ModelChecker.ParallelConfig := none)
     (extractMs : Nat := 0) : CommandElabM Unit := do
+  if veil.modelChecker.irOnly.get (← getOptions) then
+    return ← runIROnly command stx callExpr
   if veil.modelChecker.buildOnly.get (← getOptions) then
     return ← runBuildOnly command stx callExpr extractMs
   let mode := if (← liftIO isVeilOnlineEnv) then .interpreted else mode

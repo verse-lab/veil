@@ -273,5 +273,7 @@ assumption [quorum_intersection] ∀ (q1 q2 : quorum), ∃ a, a ∈ q1 ∧ a ∈
   `scripts/bench-model-check.py` does this for a set of specifications and
   times the binaries at several thread counts;
   `scripts/bench-model-check-report.py` tabulates the results.
+- To see the code that the compiled checker runs without building it, set
+  `veil.modelChecker.irOnly`. See its description for details.
 - If exhaustive search is out of reach, `#simulate` runs random walks instead
   (see [DSL-Reference.md](DSL-Reference.md)).
