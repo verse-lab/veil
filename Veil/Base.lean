@@ -171,11 +171,6 @@ register_option veil.temporal.moduleAtoms : Bool := {
   its actions, whose parameters left open (as `·`, or by leaving out the trailing arguments) stand for some value."
 }
 
-register_option veil.experimental.bmcCache : Bool := {
-  defValue := false
-  descr := "Precompute exact symbolic transition normal forms at specification setup and reuse them in veil_bmc. Set before #gen_spec; unmatched formulas use ordinary normalization."
-}
-
 register_option veil.deferVCGeneration : Bool := {
   defValue := false
   descr := "If true, procedures and actions declared while this option is set do not generate their verification definitions, \
