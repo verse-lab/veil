@@ -1408,13 +1408,12 @@ initialize registerTraceClass `veil.bmc.cache
 do not traverse/hoist its already-normalized result again. A miss uses precisely
 the ordinary two normalization passes, with proofs composed by transitivity. -/
 def bmcNormalizeClause : Lean.Meta.Simp.Simproc := fun e => do
-  if veil.experimental.bmcCache.get (← getOptions) then
-    let some ext ← getSimpExtension? `bmcNormalize
-      | throwError "missing BMC normal form simp extension"
-    let thms ← ext.getTheorems
-    if let some result ← Lean.Meta.Simp.rewrite? e thms.post thms.erased "bmc-cache" false then
-      trace[veil.bmc.cache] "hit"
-      return .done result
+  let some ext ← getSimpExtension? `bmcNormalize
+    | throwError "missing BMC normal form simp extension"
+  let thms ← ext.getTheorems
+  if let some result ← Lean.Meta.Simp.rewrite? e thms.post thms.erased "bmc-cache" false then
+    trace[veil.bmc.cache] "hit"
+    return .done result
   trace[veil.bmc.cache] "miss"
   let unfolded ← Veil.Simp.simp #[`nextSimp] { instances := true } e
   let hoisted ← if ← hasHOQuantification unfolded.expr then
@@ -1477,15 +1476,10 @@ def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
      $dsimpTac:tactic
      veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]
      $dsimpTac:tactic))
-  let normalize ← if veil.experimental.bmcCache.get (← getOptions) then
-      `(tactic| __veil_bmc_normalize)
-    else `(tactic|
-      (__veil_bmc_hyps simp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only [$(mkIdent `nextSimp):ident]
-       __veil_bmc_hyps simp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]))
   let localPath ← `(tactic|
     (__veil_bmc_split_trace
      $inferNonemptyTac:tactic
-     $normalize:tactic
+     __veil_bmc_normalize
      __veil_bmc_check_hints
      veil_destruct
      __veil_bmc_hyps dsimp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) [$[$dsimpLemmas:ident],*]

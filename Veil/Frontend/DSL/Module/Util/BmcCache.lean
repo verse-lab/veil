@@ -33,11 +33,10 @@ private def saveBmcNormalForm (name : Name)
 
 /-- Cache init, named transitions and the complete disjunction used by `any
  action`. Sharing the builders with TraceLang keeps action tags and dependent
- argument telescopes identical. Assertions and proof headers retain the ordinary
- normalization path. Disabled by default while the performance tradeoff is
- measured. -/
+ argument telescopes identical. Unmatched clauses and proof headers retain the
+ ordinary normalization path. Normal forms reflect the setup-time simplifier
+ environment; subsequent simp rule changes do not regenerate them. -/
 def Module.generateBmcNormalForms (mod : Module) : CommandElabM Unit := do
-  unless veil.experimental.bmcCache.get (← getOptions) do return
   liftTermElabM do
     let sorts ← mod.uninterpretedParamIdents
     let theoryT ← mod.theoryStx
