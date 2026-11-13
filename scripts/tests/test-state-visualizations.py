@@ -17,6 +17,7 @@ veil module VisualizationProbe
 param stepSize : Nat
 type node
 instantiate ringOrder : Between node
+instantiate tot : TotalOrder node
 individual x : Nat
 after_init { x := 0 }
 action step {
@@ -37,6 +38,20 @@ set_option veil.violationIsError false
 sat trace [takes_step] { step }
 #set_visualizer "../../widget/js/dieHardVisualizer.js"
 #check_invariants
+
+local instance (priority := high) reverseOrder : TotalOrder (Fin 3) :=
+  total_order_by_inj_on_nat (fun n => 2 - n.val) (by
+    intro a b h
+    apply Fin.ext
+    have ha := a.isLt
+    have hb := b.isLt
+    change 2 - a.val = 2 - b.val at h
+    omega)
+
+local instance reverseOrderDec (a b : Fin 3) : Decidable (TotalOrder.le a b) := by
+  dsimp [TotalOrder.le, reverseOrder, total_order_by_inj_on_nat]
+  infer_instance
+
 #model_check interpreted { stepSize := Nat.succ 0, node := Fin 3 }
 #temporal_check interpreted { stepSize := Nat.succ 0, node := Fin 3 }
 end VisualizationProbe
@@ -106,6 +121,9 @@ def main():
                 between = theory["ringOrder.btw"]
                 assert between["$veil"] == "set", between
                 assert set(map(tuple, between["elements"])) == {(0, 1, 2), (1, 2, 0), (2, 0, 1)}, between
+                order = theory["tot.le"]
+                assert order["$veil"] == "set", order
+                assert set(map(tuple, order["elements"])) == {(a, b) for a in range(3) for b in range(a + 1)}, order
             elif prefix == "sat trace":
                 assert props["result"]["trace"]["instantiation"] == instantiation, props
             if prefix == "#temporal_check":

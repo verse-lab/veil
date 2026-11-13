@@ -56,9 +56,9 @@ the standard view.
 For concrete checks, Veil looks for a `Veil.StateViewTheory` provider for each
 named `instantiate` binding. The provider's `fields` returns a JSON object.
 Veil qualifies its keys with the binding name, just as it does for SMT
-witnesses. The standard library supplies a provider for finite, decidable
-`Between` instances, so Ring's `instantiate btwn : Between node` exposes
-`btwn.btw` in both kinds of witness.
+witnesses. The standard library supplies providers for finite, decidable
+`Between` and `TotalOrder` instances. Ring uses the resulting `btwn.btw` to
+draw the edges and `tot.le` to size the nodes by rank.
 
 A module can also define a `meta instance (inst : Instantiation) … :
 Veil.StateViewTheory inst` to add or override fields for its visualizer.

@@ -100,6 +100,13 @@ instance total_order_fin_dec (n : Nat) : ∀ a b, Decidable (TotalOrder.le (t :=
 instance total_order_fin_enum_dec (t : Type) [Enumeration t] [DecidableEq t] : ∀ a b, Decidable (TotalOrder.le (t := t) a b) := by
   dsimp [TotalOrder.le]; apply inferInstance
 
+/-- Expose a finite, decidable total order under the name of its `instantiate` binding. -/
+instance {t : Type} (order : TotalOrder t) [Enumeration t] [Display t]
+    [∀ a b, Decidable (order.le a b)] : StateViewTheory order where
+  fields := Lean.Json.mkObj [("le", finitePredicateJson
+    (fun (a, b) => .arr #[Display.display a, Display.display b])
+    (fun (a, b) => decide (order.le a b)))]
+
 /-! ## Total order with zero -/
 
 class TotalOrderWithZero (t : Type) where
