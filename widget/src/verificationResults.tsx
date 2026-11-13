@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { EditorContext } from '@leanprover/infoview';
 import HtmlDisplay, { Html } from './htmlDisplay';
-import { StateViewProps, StateVisualizer, VisualizedState, useHasVisualizer } from './stateVisualization';
+import { StateViewProps, StateVisualizer, VisualizedState, isVisualizerShortcut, useHasVisualizer } from './stateVisualization';
 import { VisualizationProvider } from './stateVisualizationInfoview';
 import {
   ChangeInfo,
@@ -385,12 +385,15 @@ const StructuredCexView: React.FC<{
       } else if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
         setShowFilterPanel(prev => !prev);
+      } else if (hasVisualizer && isVisualizerShortcut(e)) {
+        e.preventDefault();
+        setShowFields(prev => !prev);
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [hasVisualizer]);
 
   return (
     <div className="cex-structured-view" ref={containerRef}>
@@ -399,8 +402,8 @@ const StructuredCexView: React.FC<{
         <div className="cex-header-left">
           <span className="cex-header-label">Counterexample</span>
           {hasVisualizer && (
-            <button className="cex-view-toggle" onClick={() => setShowFields(!showFields)}>
-              {showFields ? "Show diagram" : "Show fields"}
+            <button className="cex-view-toggle" onClick={() => setShowFields(prev => !prev)} title="Keyboard shortcut: V" aria-keyshortcuts="V">
+              {showFields ? "Show diagram (V)" : "Show fields (V)"}
             </button>
           )}
           <button

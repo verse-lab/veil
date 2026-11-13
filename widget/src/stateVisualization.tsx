@@ -24,6 +24,14 @@ export function useHasVisualizer(): boolean {
   return React.useContext(RendererContext) !== undefined;
 }
 
+/** The diagram toggle should leave typing and modified shortcuts such as paste alone. */
+export function isVisualizerShortcut(event: KeyboardEvent): boolean {
+  return (event.key === 'v' || event.key === 'V') &&
+    !event.ctrlKey && !event.metaKey && !event.altKey && !event.repeat &&
+    !event.isComposing && !event.defaultPrevented &&
+    !(event.target instanceof HTMLElement && event.target.isContentEditable);
+}
+
 // A faulty renderer must not hide the witness or interfere with its result.
 class VisualizerBoundary extends React.Component<React.PropsWithChildren<{fallback: React.ReactNode}>> {
   state = { failed: false };

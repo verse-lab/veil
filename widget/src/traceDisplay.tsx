@@ -26,7 +26,7 @@ import {
   InstantiationRow,
 } from './veilUtils';
 import HtmlDisplay, { Html } from './htmlDisplay';
-import { StateViewProps, StateVisualizer, VisualizedState, useHasVisualizer } from './stateVisualization';
+import { StateViewProps, StateVisualizer, VisualizedState, isVisualizerShortcut, useHasVisualizer } from './stateVisualization';
 
 
 // ========== Types ==========
@@ -630,6 +630,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       transition: index < lasso.stem.length ? 'stem' : 'loop',
     })),
   } : 'trace' in result ? result.trace : undefined, [result, lasso, lassoCycle]);
+  const canToggleVisualizer = hasVisualizer && !!traceData?.states.length && !showRawJson && !showRawModel;
   const allFieldNames = React.useMemo(() => {
     if (!traceData?.states) return [];
     const names = new Set<string>();
@@ -681,12 +682,15 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
       } else if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
         setShowFilterPanel(prev => !prev);
+      } else if (canToggleVisualizer && isVisualizerShortcut(e)) {
+        e.preventDefault();
+        setShowFields(prev => !prev);
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showRawJson]);
+  }, [showRawJson, canToggleVisualizer]);
 
   const styles = `
     .mc-root {
@@ -1075,9 +1079,9 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
               </button>
             </>
           )}
-          {hasVisualizer && trace.length > 0 && !showRawJson && !showRawModel && (
-            <button className="mc-toggle-link" onClick={() => setShowFields(!showFields)}>
-              {showFields ? "Show diagram" : "Show fields"}
+          {canToggleVisualizer && (
+            <button className="mc-toggle-link" onClick={() => setShowFields(prev => !prev)} title="Keyboard shortcut: V" aria-keyshortcuts="V">
+              {showFields ? "Show diagram (V)" : "Show fields (V)"}
             </button>
           )}
           {rawHtml && (
