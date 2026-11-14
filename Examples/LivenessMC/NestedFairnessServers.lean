@@ -3,8 +3,6 @@ module
 public import Veil
 public import Veil.Core.Tools.LivenessMC.LivenessMC
 public meta import Veil.Core.Tools.LivenessMC.LivenessMC
-public meta import Veil.Core.Tools.LivenessMC.Report
-public meta import Veil.Core.Tools.LivenessMC.Benchmarking
 import Lasso
 
 set_option veil.deferVCGeneration true

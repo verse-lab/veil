@@ -164,13 +164,6 @@ theorem sysStepOf_eq [BEq l] [Hashable l]
     rw [sysLabelOf, sysLabelOfTr]
     split <;> rfl
 
-/-- Run `Lasso.modelCheckDijkstra` for the property `p`. -/
-def checkDijkstra [Inhabited σ]
-    (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l
-      (Veil.Transitions l Int σ) th) (p : LivenessProperty ρ σ l) :
-    Lasso.EmptinessResult (σ × Nat) :=
-  Lasso.modelCheckTGBAOfStep p.φ sys.initStates (sysStepOf sys p th)
-
 /-- Run `Lasso.modelCheckNDFS`, nested DFS over the degeneralized automaton, for the property `p`. -/
 def checkNDFS [Inhabited σ]
     (sys : Veil.EnumerableTransitionSystem ρ (List ρ) σ (List σ) Int l

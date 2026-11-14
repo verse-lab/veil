@@ -1,7 +1,7 @@
 module
 
 import Veil
-import Veil.Core.Tools.LivenessMC.Benchmarking
+import VeilTest.TrustAuditControl
 
 meta section
 
@@ -16,7 +16,7 @@ This file checks that it stays gone. It walks every constant reachable from each
 types *and* values — and reports any that carries `@[implemented_by]` or is `unsafe`, ignoring Lean's own
 core (`Array.foldlM → Array.foldlMUnsafe` and friends, which every Lean program has).
 
-**The positive controls at the bottom are load-bearing.** Without them a passing run would be
+**The positive control at the bottom is load-bearing.** Without it a passing run would be
 indistinguishable from an audit that simply never finds anything. -/
 
 open Lean
@@ -76,7 +76,7 @@ def mustBeDirty (label : String) (roots : List Name) : CoreM Bool := do
     return true
 
 def run : CoreM Unit := do
-  IO.println "TrustAudit: the six shipped routes, and two instrumented controls"
+  IO.println "TrustAudit: the routes, and one instrumented control"
   let rs ← [
     mustBeClean "fair      Veil.LivenessMC.checkFair          " [``Veil.LivenessMC.checkFair],
     mustBeClean "prune     Lasso.modelCheckFairFNFPruneOfStep" [``Lasso.modelCheckFairFNFPruneOfStep],
@@ -85,8 +85,7 @@ def run : CoreM Unit := do
     mustBeClean "dijkstra  Lasso.modelCheckDijkstraOfStep    " [``Lasso.modelCheckDijkstraOfStep],
     mustBeClean "ndfs      Lasso.modelCheckNDFSOfStep        " [``Lasso.modelCheckNDFSOfStep],
     mustBeClean "interned  Veil.LivenessMC.checkFairInterned  " [``Veil.LivenessMC.checkFairInterned],
-    mustBeDirty "CONTROL   Veil.LivenessMC.checkFairTimed     " [``Veil.LivenessMC.checkFairTimed],
-    mustBeDirty "CONTROL   Veil.LivenessMC.checkDijkstraTimed " [``Veil.LivenessMC.checkDijkstraTimed]
+    mustBeDirty "CONTROL   VeilTest.TrustAudit.checkFairTraced" [``VeilTest.TrustAudit.checkFairTraced]
   ].foldlM (fun acc m => do return acc.push (← m)) (#[] : Array Bool)
   IO.println (if rs.all id then "PASS" else "FAIL")
   if !rs.all id then throwError "TrustAudit failed"
@@ -95,6 +94,7 @@ end VeilTest.TrustAudit
 
 -- Load private bodies too: ordinary module imports would make the audit stop at opaque definitions.
 #eval show Lean.CoreM Unit from do
-  let env ← Lean.importModules #[{ «module» := `Veil.Core.Tools.LivenessMC.Benchmarking }] {}
+  let env ← Lean.importModules
+    #[{ «module» := `Veil.Core.Tools.LivenessMC.LivenessMC }, { «module» := `VeilTest.TrustAuditControl }] {}
     (level := .private)
   Lean.withEnv env VeilTest.TrustAudit.run
