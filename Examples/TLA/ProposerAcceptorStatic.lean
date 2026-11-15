@@ -238,7 +238,7 @@ state_constraint [StateConstraint]
 
 -- The check below uses the instance of the TLC model
 -- `Benchmarks/TLA/ProposerAcceptorStatic/ProposerAcceptorStatic.cfg`, which TLC runs on
--- `MCProposerAcceptorStatic.tla`. It is commented out; uncomment it to run it.
+-- `BenchProposerAcceptorStatic.tla`. It is commented out; uncomment it to run it.
 --
 -- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
 -- * `proposer := Fin 2`: the proposers are `0`, `1` (cfg: `proposers = {p1, p2}`).
@@ -256,11 +256,13 @@ state_constraint [StateConstraint]
 --
 -- The other settings of the cfg:
 -- * `NULL = NULL`: a model value for a missing value. Here `none` stands for it.
--- * `CONSTRAINT StateConstraint`: the `state_constraint [StateConstraint]` above. Unlike TLC,
---   Veil does not check the invariants in the states that the constraint drops.
--- * `INVARIANT TypeOk ElectionSafetyFull ... CommittedNotTruncated`: `#model_check` checks every
---   `invariant` of the module, which here has the same names except `TypeOk`. Lean's types
---   ensure `TypeOk`.
+-- * `CONSTRAINT StateConstraint` and `NEXT ConstrainedNext`: the
+--   `state_constraint [StateConstraint]` above. `ConstrainedNext == Next /\ StateConstraint'`, in
+--   `BenchProposerAcceptorStatic.tla`, drops the successors that violate the constraint, so TLC,
+--   like Veil, checks no invariant in them.
+-- * `INVARIANT ElectionSafetyFull ... CommittedNotTruncated`: `#model_check` checks every
+--   `invariant` of the module, which here has the same names. The cfg does not check `TypeOk`,
+--   which Lean's types ensure.
 -- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
 --   deadlocks either.
 -- Options:

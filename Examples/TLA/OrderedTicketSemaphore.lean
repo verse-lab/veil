@@ -188,12 +188,13 @@ termination false
 -- is the spec's `ASSUME InitPermits >= ResizerClientMaxTickets`.
 --
 -- The other settings of the cfg:
--- * `CONSTRAINT BenchmarkBound`: the `state_constraint [TicketLimit]` above, as
---   `BenchmarkBound == permits + taken <= 9`. Unlike TLC, Veil does not check the invariants in
---   the states that the constraint drops.
--- * `INVARIANTS TypeOK TakenNonNegative ... AwakeBeforeNonAwake`: `#model_check` checks every
---   `invariant` of the module, which here has the same names except `TypeOK`. Lean's types
---   ensure `TypeOK`.
+-- * `CONSTRAINT BenchmarkBound` and `NEXT ConstrainedNext`: the `state_constraint [TicketLimit]`
+--   above, as `BenchmarkBound == permits + taken <= 9`.
+--   `ConstrainedNext == Next /\ BenchmarkBound'` drops the successors that violate it, so TLC,
+--   like Veil, checks no invariant in them.
+-- * `INVARIANTS TakenNonNegative ... AwakeBeforeNonAwake`: `#model_check` checks every
+--   `invariant` of the module, which here has the same names. The cfg does not check `TypeOK`,
+--   which Lean's types ensure.
 -- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
 --   above, Veil also reports every state without successors as a deadlock.
 -- Options:

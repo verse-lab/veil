@@ -4,4 +4,8 @@
 EXTENDS OrderedTicketSemaphore
 
 BenchmarkBound == permits + taken <= 9
+
+\* Next without the successors that violate BenchmarkBound. Unlike CONSTRAINT, which still
+\* checks the invariants in those successors, it drops them, as Veil's state_constraint does.
+ConstrainedNext == Next /\ BenchmarkBound'
 =============================================================================

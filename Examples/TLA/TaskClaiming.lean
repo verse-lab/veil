@@ -175,7 +175,8 @@ state_constraint [LockVersionBound] lockVersion ≤ maxLockVersion
 #gen_executable
 
 -- The check below uses the instance of the TLC model
--- `Benchmarks/TLA/TaskClaiming/TaskClaiming.cfg`. It is commented out; uncomment it to run it.
+-- `Benchmarks/TLA/TaskClaiming/TaskClaiming.cfg`, which TLC runs on `MCTaskClaiming.tla`.
+-- It is commented out; uncomment it to run it.
 --
 -- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
 -- * `worker := Fin 3`: the workers are `0`, `1`, `2` (cfg: `Workers = {w1, w2, w3}`).
@@ -191,11 +192,14 @@ state_constraint [LockVersionBound] lockVersion ≤ maxLockVersion
 -- the spec's `ASSUME MaxFailures >= 1`.
 --
 -- The other settings of the cfg:
--- * `CONSTRAINT LockVersionBound`: the `state_constraint [LockVersionBound]` above. Unlike TLC,
---   Veil does not check the invariants in the states that the constraint drops.
--- * `INVARIANTS TypeOK MutualExclusion ... NoOrphanExecution`: `#model_check` checks every
---   `invariant` of the module, which here has the same six names. The `TypeOK` here keeps the
---   numeric bounds of the spec's `TypeOK`; Lean's types ensure the rest.
+-- * `CONSTRAINT LockVersionBound` and `NEXT ConstrainedNext`: the
+--   `state_constraint [LockVersionBound]` above. `ConstrainedNext == Next /\ LockVersionBound'`, in
+--   `MCTaskClaiming.tla`, drops the successors that violate the constraint, so TLC, like Veil,
+--   checks no invariant in them.
+-- * `INVARIANTS TypeOKBounds MutualExclusion ... NoOrphanExecution`: `#model_check` checks
+--   every `invariant` of the module, which here has the same names, with `TypeOK` for the cfg's
+--   `TypeOKBounds`. Both keep the numeric bounds of the spec's `TypeOK`; Lean's types ensure the
+--   rest.
 -- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
 --   deadlocks either.
 -- Options:

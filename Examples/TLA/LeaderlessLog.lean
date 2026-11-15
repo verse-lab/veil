@@ -250,7 +250,8 @@ termination false
 #gen_executable
 
 -- The check below uses the instance of the TLC model
--- `Benchmarks/TLA/LeaderlessLog/LeaderlessLog.cfg`. It is commented out; uncomment it to run it.
+-- `Benchmarks/TLA/LeaderlessLog/LeaderlessLog.cfg`, which TLC runs on `BenchLeaderlessLog.tla`.
+-- It is commented out; uncomment it to run it.
 --
 -- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
 -- * `writer := Fin 2`: the writers are `0`, `1` (cfg: `Writers = {w1, w2}`, where `w1 = w1` and
@@ -267,8 +268,10 @@ termination false
 -- are the spec's `ASSUME`s.
 --
 -- The other settings of the cfg:
--- * `INVARIANTS TypeOK MonotonicOffsets ... SequentialCompactionSafety`: `#model_check` checks
---   every `invariant` of the module, which here has the same nine names.
+-- * `INVARIANTS TypeOKBounds MonotonicOffsets ... SequentialCompactionSafety`: `#model_check`
+--   checks every `invariant` of the module, which here has the same names, with `TypeOK` for the
+--   cfg's `TypeOKBounds`. Both keep the numeric bounds of the spec's `TypeOK`; Lean's types ensure
+--   the rest.
 -- * The cfg has no `CHECK_DEADLOCK`, so TLC checks for deadlocks. With `termination false`
 --   above, Veil also reports every state without successors as a deadlock.
 -- Options:

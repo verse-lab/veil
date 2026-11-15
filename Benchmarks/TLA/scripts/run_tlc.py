@@ -13,15 +13,29 @@ jars. The pinned jars are downloaded into jars/tlc-8f4bc8b next to this script w
 missing, and checked against their SHA-256; --fetch-jars only does that. Every run has the
 command line
   java -Xms<heap> -Xmx<heap> -XX:+UseParallelGC -XX:+IgnoreUnrecognizedVMOptions
-       -cp tla2tools.jar:CommunityModules-deps.jar -DTLA-Library= tlc2.TLC -tool -modelcheck
-       -coverage 1 -workers <N> -cleanup -config <cfg> -metadir <states> <spec>
+       -cp tla2tools.jar:CommunityModules-deps.jar -DTLA-Library= [-Dtlc2.TLCGlobals.coverage=1]
+       tlc2.TLC -tool -modelcheck [-coverage 1] -workers <N> -cleanup -config <cfg>
+       -metadir <states> <spec>
 in a fresh directory under --output, which also holds the <states> of TLC. Those are deleted as
 soon as TLC exits, however the run ends, and at the start of an invocation when an earlier one
 was killed (--cleanup-states only does that). TLC writes nothing next to the specs.
 
+--coverage chooses which statistics TLC collects besides the states, and thus which of the
+options in brackets the command line has:
+  none    The default, as in TLC: no statistics, and neither option.
+  action  For each action, the states it generates and how many of them are new
+          (-Dtlc2.TLCGlobals.coverage=1). Veil's checker keeps these two counts too, for each
+          action label. TLC does not print them; TLCGet("spec") gives them.
+  full    Also how often each subexpression is evaluated, how many elements TLC enumerates in
+          each set, and how many distinct values each variable takes (-coverage 1). TLC prints
+          all these counts in its log, about every two minutes and at the end.
+full makes TLC slower: at 14 workers, three of the benchmarks took 1.3 to 2 times as long as
+with none. action took no measurable time. Before this option, every run had -coverage 1.
+
 --output (default benchmark-results/tlc) holds:
-  plan.json                     the Java, heap, jars and machine of every result there; other
-                                settings need another --output
+  plan.json                     the command line (so --coverage too), Java, heap, jars and
+                                machine of every result there; other settings need another
+                                --output
   runs/<name>/w<N>/result.json  the result of a pair at N workers; attempts/ keeps the TLC log
                                 (tlc.log) and the result of every attempt
   results.csv                   one row per recorded result, rewritten after every run
@@ -93,6 +107,12 @@ JARS = {
 }
 # Deadlock, safety, liveness and assertion violations (tlc2.output.EC.ExitStatus)
 VIOLATION_EXIT_CODES = (11, 12, 13, 14)
+# The choices of --coverage, with the JVM options and the TLC options that each one adds
+COVERAGE = {
+    "none": ([], []),
+    "action": (["-Dtlc2.TLCGlobals.coverage=1"], []),
+    "full": ([], ["-coverage", "1"]),
+}
 # Modules TLC read from files; those read from its jars are followed by their jar URL.
 PARSED_FILE = re.compile(r"^Parsing file (.+\.tla)$", re.MULTILINE)
 # What is read from TLC's output; the final counts are the last ones it prints.
@@ -145,10 +165,16 @@ def redact(text):
     return text.replace(f"{HOME}{os.sep}", f"~{os.sep}") if HOME != Path(HOME.anchor) else text
 
 
-def tlc_command(java, heap, classpath, workers, cfg, metadir, spec):
+def tlc_command(java, heap, classpath, coverage, workers, cfg, metadir, spec):
+    jvm_options, tlc_options = COVERAGE[coverage]
     return [java, f"-Xms{heap}", f"-Xmx{heap}", "-XX:+UseParallelGC", "-XX:+IgnoreUnrecognizedVMOptions",
-            "-cp", classpath, "-DTLA-Library=", "tlc2.TLC", "-tool", "-modelcheck", "-coverage", "1",
+            "-cp", classpath, "-DTLA-Library=", *jvm_options, "tlc2.TLC", "-tool", "-modelcheck", *tlc_options,
             "-workers", str(workers), "-cleanup", "-config", str(cfg), "-metadir", str(metadir), str(spec)]
+
+
+def planned_command(coverage):
+    """The command line of the runs with --coverage `coverage`, as plan.json records it."""
+    return tlc_command("<java>", "<heap>", "<jars>", coverage, "<workers>", "<cfg>", "<states>", "<spec>")
 
 
 def parse_output(output):
@@ -300,7 +326,7 @@ def prepare(args, jars_sha256):
     """The settings of every result in --output, checked against its plan.json."""
     java = subprocess.run([args.java, "-version"], capture_output=True, text=True, timeout=10, check=True)
     plan = {
-        "command": tlc_command("<java>", "<heap>", "<jars>", "<workers>", "<cfg>", "<states>", "<spec>"),
+        "command": planned_command(args.coverage),
         "java_cmd": redact(args.java), "java_version": redact((java.stdout + java.stderr).strip()),
         "heap": args.heap, "jar_sha256": jars_sha256,
         "platform": platform.platform(), "cpu_count": os.cpu_count(),
@@ -310,7 +336,10 @@ def prepare(args, jars_sha256):
     previous = json.loads(plan_path.read_text()) if plan_path.exists() else plan
     changed = sorted(key for key in plan.keys() | previous.keys() if plan.get(key) != previous.get(key))
     if changed:
-        raise ValueError(f"Settings differ from {display(plan_path)}: {', '.join(changed)}. "
+        # If the recorded command line is that of another --coverage, say which one
+        modes = [mode for mode in COVERAGE if planned_command(mode) == previous.get("command")]
+        note = f" Its results were measured with --coverage {modes[0]}." if "command" in changed and modes else ""
+        raise ValueError(f"Settings differ from {display(plan_path)}: {', '.join(changed)}.{note} "
                          "Use a fresh --output directory.")
     return plan
 
@@ -459,7 +488,7 @@ def measure(pair, workers, args, plan, classpath):
     spec, cfg = located(pair["spec_file"]), located(pair["config_file"])
     # Hashed before TLC reads them; it finds the other modules in the directory of the spec.
     hashes = {path: digest(path.read_bytes()) for path in [cfg, *spec.parent.glob("*.tla")]}
-    command = tlc_command(args.java, args.heap, classpath, workers, cfg, attempt / "states", spec)
+    command = tlc_command(args.java, args.heap, classpath, args.coverage, workers, cfg, attempt / "states", spec)
     log_path = attempt / "tlc.log"
     print(f"{pair['name']} workers={workers} timeout={args.timeout:g}s", flush=True)
     start_time = datetime.now(timezone.utc).isoformat()
@@ -481,8 +510,8 @@ def measure(pair, workers, args, plan, classpath):
               "interrupted": interrupted, "start_time": start_time,
               "end_time": datetime.now(timezone.utc).isoformat(),
               "log": str(log_path.relative_to(args.output)),
-              "command": tlc_command(redact(args.java), args.heap, redact(classpath), workers, display(cfg),
-                                     (attempt / "states").relative_to(args.output), display(spec)),
+              "command": tlc_command(redact(args.java), args.heap, redact(classpath), args.coverage, workers,
+                                     display(cfg), (attempt / "states").relative_to(args.output), display(spec)),
               "inputs": {display(p): hashes.get(p) or digest(p.read_bytes()) for p in read if p.is_file()},
               "plan_sha256": digest(encoded(plan))}
     record["status"] = classify(record, args.timeout)
@@ -570,6 +599,10 @@ def main():
     parser.add_argument("--java", default="java", help="Java command (default: java)")
     parser.add_argument("--heap", default="20G", help="Fixed Xms/Xmx for every measurement (default: 20G)")
     parser.add_argument("--timeout", type=float, default=36000, help="Per-run timeout in seconds (default: 36000)")
+    parser.add_argument("--coverage", choices=list(COVERAGE), default="none",
+                        help="Statistics TLC collects besides the states (default: none): action, for each action, "
+                             "the states it generates and how many are new; full, also counts for every subexpression, "
+                             "set and variable, which slow TLC down")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true", help="Only list the runs to measure and the results to reuse")
     mode.add_argument("--cleanup-states", action="store_true", help="Only remove this output's TLC state directories; preserve logs and results")

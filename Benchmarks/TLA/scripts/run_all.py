@@ -4,9 +4,9 @@
 First downloads, with fetch_upstream.py, the models that the repository does not include and
 that are not there yet. Then runs run_tlc.py on the benchmarks below, the .tla and .cfg files in
 Benchmarks/TLA, each with every worker count; --workers gives other counts, and the other
-arguments go to run_tlc.py (see its --help), e.g. --dry-run, --heap or --output. As run_tlc.py
-skips the runs whose results it has recorded, repeating the command resumes an interrupted run.
-On macOS, the machine is kept from idle-sleeping meanwhile.
+arguments go to run_tlc.py (see its --help), e.g. --dry-run, --heap, --coverage or --output.
+As run_tlc.py skips the runs whose results it has recorded, repeating the command resumes an
+interrupted run. On macOS, the machine is kept from idle-sleeping meanwhile.
 
 From the repository root, with Java 11 or later and the packages in requirements.txt:
   python3 Benchmarks/TLA/scripts/run_all.py              # into benchmark-results/tlc
@@ -32,21 +32,21 @@ PAIRS = [
     ("MultiPaxos", "MCMultiPaxosUs.tla", "MultiPaxosUs.cfg"),
     ("Mutex", "MutexViolation.tla", "MutexViolation.cfg"),
     ("NOPaxos", "NOPaxos/MCNOPaxos.tla", "NOPaxos/NOPaxos.cfg"),
-    ("Paxos", "Paxos/Paxos.tla", "Paxos/Paxos.cfg"),
+    ("Paxos", "Paxos/BenchPaxos.tla", "Paxos/Paxos.cfg"),
     ("SimpAllocator", "TLAPlusExamples/SimpleAllocator.tla", "TLAPlusExamples/SimpleAllocator.cfg"),
     ("2PC", "TLAPlusExamples/TwoPhaseCommit.tla", "TLAPlusExamples/TwoPhaseCommit.cfg"),
     ("bcastByz", "TLAPlusExamples/bcastByz.tla", "TLAPlusExamples/bcastByz.cfg"),
     ("FileLease", "FileBasedLease/FileBasedLease.tla", "FileBasedLease/FileBasedLease.cfg"),
-    ("LeaderlessLog", "LeaderlessLog/LeaderlessLog.tla", "LeaderlessLog/LeaderlessLog.cfg"),
-    ("LeaseGuard", "LeaseGuard/mcLeaseGuard.tla", "LeaseGuard/LeaseGuard.cfg"),
+    ("LeaderlessLog", "LeaderlessLog/BenchLeaderlessLog.tla", "LeaderlessLog/LeaderlessLog.cfg"),
+    ("LeaseGuard", "LeaseGuard/BenchLeaseGuard.tla", "LeaseGuard/LeaseGuard.cfg"),
     ("TicketSem", "OrderedTicketSemaphore/MCOrderedTicketSemaphore.tla",
      "OrderedTicketSemaphore/OrderedTicketSemaphore.cfg"),
-    ("Oswald", "Oswald/Oswald.tla", "Oswald/Oswald.cfg"),
-    ("ParCommits", "ParallelCommits/ParallelCommits.tla", "ParallelCommits/ParallelCommits.cfg"),
+    ("Oswald", "Oswald/BenchOswald.tla", "Oswald/Oswald.cfg"),
+    ("ParCommits", "ParallelCommits/BenchParallelCommits.tla", "ParallelCommits/ParallelCommits.cfg"),
     ("Percolator", "Percolator/Percolator.tla", "Percolator/Percolator.cfg"),
-    ("PAStatic", "ProposerAcceptorStatic/MCProposerAcceptorStatic.tla",
+    ("PAStatic", "ProposerAcceptorStatic/BenchProposerAcceptorStatic.tla",
      "ProposerAcceptorStatic/ProposerAcceptorStatic.cfg"),
-    ("TaskClaiming", "TaskClaiming/TaskClaiming.tla", "TaskClaiming/TaskClaiming.cfg"),
+    ("TaskClaiming", "TaskClaiming/MCTaskClaiming.tla", "TaskClaiming/TaskClaiming.cfg"),
 ]
 
 
