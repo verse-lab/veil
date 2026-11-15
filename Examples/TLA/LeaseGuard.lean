@@ -255,7 +255,7 @@ state_constraint [StateConstraint]
 #gen_executable
 
 -- The check below uses the instance of the TLC model `Benchmarks/TLA/LeaseGuard/LeaseGuard.cfg`,
--- which TLC runs on `mcLeaseGuard.tla`. It is commented out; uncomment it to run it.
+-- which TLC runs on `BenchLeaseGuard.tla`. It is commented out; uncomment it to run it.
 --
 -- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
 -- * `server := Fin 3`: the servers are `0`, `1`, `2` (cfg: `Server = {n1, n2, n3}`).
@@ -273,11 +273,13 @@ state_constraint [StateConstraint]
 -- The other settings of the cfg:
 -- * `Follower = Follower`, `Leader = Leader`: model values for the server roles. Here they are
 --   the constructors of `Role`.
--- * `CONSTRAINT StateConstraint`: the `state_constraint [StateConstraint]` above. Unlike TLC,
---   Veil does not check the invariants in the states that the constraint drops.
--- * `INVARIANTS TypeOK EntryIndexes ... LinearizableReads`: `#model_check` checks every
---   `invariant` of the module, which here has the same names except `TypeOK`. Lean's types
---   ensure `TypeOK`.
+-- * `CONSTRAINT StateConstraint` and `NEXT ConstrainedNext`: the `state_constraint [StateConstraint]`
+--   above. `ConstrainedNext == Next /\ StateConstraint'`, in
+--   `BenchLeaseGuard.tla`, drops the successors that violate the constraint, so TLC, like Veil,
+--   checks no invariant in them.
+-- * `INVARIANTS EntryIndexes ... LinearizableReads`: `#model_check` checks every `invariant` of
+--   the module, which here has the same names. The cfg does not check `TypeOK`, which Lean's
+--   types ensure.
 -- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
 --   deadlocks either.
 -- Options:

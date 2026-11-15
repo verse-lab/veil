@@ -272,9 +272,9 @@ invariant [SnapshotIsolation] ∀ k : key, key_si k = true
 -- the spec's `ASSUME KEY # {}`.
 --
 -- The other settings of the cfg:
--- * `INVARIANT TypeInvariant WriteConsistency ... SnapshotIsolation`: `#model_check` checks every
---   `invariant` of the module, which here has the same names except `TypeInvariant`. Lean's
---   types ensure `TypeInvariant`.
+-- * `INVARIANT WriteConsistency ... SnapshotIsolation`: `#model_check` checks every `invariant`
+--   of the module, which here has the same names. The cfg does not check `TypeInvariant`, which
+--   Lean's types ensure.
 -- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
 --   deadlocks either.
 -- Options:

@@ -38,15 +38,15 @@ PAIRS = [
     ("bcastByz", "TLAPlusExamples/bcastByz.tla", "TLAPlusExamples/bcastByz.cfg"),
     ("FileLease", "FileBasedLease/FileBasedLease.tla", "FileBasedLease/FileBasedLease.cfg"),
     ("LeaderlessLog", "LeaderlessLog/LeaderlessLog.tla", "LeaderlessLog/LeaderlessLog.cfg"),
-    ("LeaseGuard", "LeaseGuard/mcLeaseGuard.tla", "LeaseGuard/LeaseGuard.cfg"),
+    ("LeaseGuard", "LeaseGuard/BenchLeaseGuard.tla", "LeaseGuard/LeaseGuard.cfg"),
     ("TicketSem", "OrderedTicketSemaphore/MCOrderedTicketSemaphore.tla",
      "OrderedTicketSemaphore/OrderedTicketSemaphore.cfg"),
     ("Oswald", "Oswald/Oswald.tla", "Oswald/Oswald.cfg"),
     ("ParCommits", "ParallelCommits/ParallelCommits.tla", "ParallelCommits/ParallelCommits.cfg"),
     ("Percolator", "Percolator/Percolator.tla", "Percolator/Percolator.cfg"),
-    ("PAStatic", "ProposerAcceptorStatic/MCProposerAcceptorStatic.tla",
+    ("PAStatic", "ProposerAcceptorStatic/BenchProposerAcceptorStatic.tla",
      "ProposerAcceptorStatic/ProposerAcceptorStatic.cfg"),
-    ("TaskClaiming", "TaskClaiming/TaskClaiming.tla", "TaskClaiming/TaskClaiming.cfg"),
+    ("TaskClaiming", "TaskClaiming/MCTaskClaiming.tla", "TaskClaiming/TaskClaiming.cfg"),
 ]
 
 

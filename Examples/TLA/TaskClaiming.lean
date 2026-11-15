@@ -191,8 +191,10 @@ state_constraint [LockVersionBound] lockVersion ≤ maxLockVersion
 -- the spec's `ASSUME MaxFailures >= 1`.
 --
 -- The other settings of the cfg:
--- * `CONSTRAINT LockVersionBound`: the `state_constraint [LockVersionBound]` above. Unlike TLC,
---   Veil does not check the invariants in the states that the constraint drops.
+-- * `CONSTRAINT LockVersionBound` and `NEXT ConstrainedNext`: the
+--   `state_constraint [LockVersionBound]` above. `ConstrainedNext == Next /\ LockVersionBound'`, in
+--   `MCTaskClaiming.tla`, drops the successors that violate the constraint, so TLC, like Veil,
+--   checks no invariant in them.
 -- * `INVARIANTS TypeOK MutualExclusion ... NoOrphanExecution`: `#model_check` checks every
 --   `invariant` of the module, which here has the same six names. The `TypeOK` here keeps the
 --   numeric bounds of the spec's `TypeOK`; Lean's types ensure the rest.
