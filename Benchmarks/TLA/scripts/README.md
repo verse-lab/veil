@@ -72,14 +72,19 @@ Every run has the command line
 
 ```sh
 java -Xms20G -Xmx20G -XX:+UseParallelGC -XX:+IgnoreUnrecognizedVMOptions \
-    -cp tla2tools.jar:CommunityModules-deps.jar -DTLA-Library= tlc2.TLC -tool -modelcheck \
-    -coverage 1 -workers N -cleanup -config CFG -metadir STATES SPEC
+    -cp tla2tools.jar:CommunityModules-deps.jar -DTLA-Library= [-Dtlc2.TLCGlobals.coverage=1] \
+    tlc2.TLC -tool -modelcheck [-coverage 1] -workers N -cleanup -config CFG -metadir STATES SPEC
 ```
 
 with the heap of `--heap` and a timeout of 36000 seconds by default (`--timeout`).
 `STATES`, where TLC keeps its states, is in the run's directory under the output
 directory, and is deleted as soon as TLC exits, however the run ends: at most
 one run's states take disk space at any time.
+
+`--coverage` controls the bracketed options above: `none` (default) disables
+coverage statistics, `action` collects per-action state counts, and `full`
+collects detailed coverage statistics and slows TLC down. See `run_tlc.py --help`
+for details. Use a separate `--output` directory for each coverage mode.
 
 # TLC and Veil comparison
 
@@ -102,7 +107,9 @@ sets the number of runs per Veil benchmark and thread count. Results go to
 `benchmark-results/comparison_time.pdf` and
 `benchmark-results/comparison_memory.pdf`. Veil times in the plots include
 compilation time. The full suite can take hours, and TLC uses a 20 GB heap by
-default (see [TLC runs](#tlc-runs)).
+default (see [TLC runs](#tlc-runs)). TLC runs with `--coverage none`, so it
+collects no statistics besides the states. Veil's checker always counts, for
+each action label, the states it generates and the new ones among them.
 
 Repeating the same command continues an interrupted evaluation by reusing
 recorded results. Run the script with `--help` for the reuse rules and options

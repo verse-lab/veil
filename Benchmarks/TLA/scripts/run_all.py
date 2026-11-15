@@ -4,9 +4,9 @@
 First downloads, with fetch_upstream.py, the models that the repository does not include and
 that are not there yet. Then runs run_tlc.py on the benchmarks below, the .tla and .cfg files in
 Benchmarks/TLA, each with every worker count; --workers gives other counts, and the other
-arguments go to run_tlc.py (see its --help), e.g. --dry-run, --heap or --output. As run_tlc.py
-skips the runs whose results it has recorded, repeating the command resumes an interrupted run.
-On macOS, the machine is kept from idle-sleeping meanwhile.
+arguments go to run_tlc.py (see its --help), e.g. --dry-run, --heap, --coverage or --output.
+As run_tlc.py skips the runs whose results it has recorded, repeating the command resumes an
+interrupted run. On macOS, the machine is kept from idle-sleeping meanwhile.
 
 From the repository root, with Java 11 or later and the packages in requirements.txt:
   python3 Benchmarks/TLA/scripts/run_all.py              # into benchmark-results/tlc
