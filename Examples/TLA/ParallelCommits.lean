@@ -323,8 +323,8 @@ invariant [AckImpliesCommit] commit_ack → Committed
 #gen_executable
 
 -- The check below uses the instance of the TLC model
--- `Benchmarks/TLA/ParallelCommits/ParallelCommits.cfg`. It is commented out; uncomment it to
--- run it.
+-- `Benchmarks/TLA/ParallelCommits/ParallelCommits.cfg`, which TLC runs on `BenchParallelCommits.tla`.
+-- It is commented out; uncomment it to run it.
 --
 -- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
 -- * `key := Fin 2`: the keys are `0`, `1` (cfg: `KEYS = {k1, k2}`).
@@ -340,9 +340,9 @@ invariant [AckImpliesCommit] commit_ack → Committed
 -- spec's `ASSUME`s.
 --
 -- The other settings of the cfg:
--- * `INVARIANTS TypeInvariants AckImpliesCommit`: `#model_check` checks every `invariant` of the
---   module, which here has the same two names. The `TypeInvariants` here keeps the numeric
---   bounds of the spec's `TypeInvariants`; Lean's types ensure the rest.
+-- * `INVARIANTS TypeOKBounds AckImpliesCommit`: `#model_check` checks every `invariant` of the
+--   module, here `TypeInvariants` and `AckImpliesCommit`. The `TypeInvariants` here is the cfg's
+--   `TypeOKBounds`: the numeric bounds of the spec's `TypeInvariants`; Lean's types ensure the rest.
 -- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
 --   deadlocks either.
 -- Options:

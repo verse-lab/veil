@@ -42,7 +42,7 @@ PAIRS = [
     ("TicketSem", "OrderedTicketSemaphore/MCOrderedTicketSemaphore.tla",
      "OrderedTicketSemaphore/OrderedTicketSemaphore.cfg"),
     ("Oswald", "Oswald/BenchOswald.tla", "Oswald/Oswald.cfg"),
-    ("ParCommits", "ParallelCommits/ParallelCommits.tla", "ParallelCommits/ParallelCommits.cfg"),
+    ("ParCommits", "ParallelCommits/BenchParallelCommits.tla", "ParallelCommits/ParallelCommits.cfg"),
     ("Percolator", "Percolator/Percolator.tla", "Percolator/Percolator.cfg"),
     ("PAStatic", "ProposerAcceptorStatic/BenchProposerAcceptorStatic.tla",
      "ProposerAcceptorStatic/ProposerAcceptorStatic.cfg"),
