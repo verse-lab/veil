@@ -229,8 +229,8 @@ invariant [ConsistentObservedSnapshots]
 #gen_spec
 #gen_executable
 
--- The check below uses the instance of the TLC model `Benchmarks/TLA/Oswald/Oswald.cfg`.
--- It is commented out; uncomment it to run it.
+-- The check below uses the instance of the TLC model `Benchmarks/TLA/Oswald/Oswald.cfg`, which
+-- TLC runs on `BenchOswald.tla`. It is commented out; uncomment it to run it.
 --
 -- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
 -- * `writer := Fin 2`: the writers are `0`, `1` (cfg: `Writers = {w1, w2}`).
@@ -249,9 +249,10 @@ invariant [ConsistentObservedSnapshots]
 -- * `SNAPSHOT_RECOVERY = SNAPSHOT_RECOVERY`, ..., `DELETE = DELETE`: model values for the
 --   writer and GC states. Here they are the constructors of `WriterState` and `GCState`.
 -- * `NIL = NIL`: a model value for a missing chunk. Here `none` stands for it.
--- * `INVARIANTS TypeOK ConsistentWriterSnapshots ConsistentObservedSnapshots`: `#model_check`
---   checks every `invariant` of the module, which here has the same three names. The `TypeOK`
---   here keeps the numeric bounds of the spec's `TypeOK`; Lean's types ensure the rest.
+-- * `INVARIANTS TypeOKBounds ConsistentWriterSnapshots ConsistentObservedSnapshots`:
+--   `#model_check` checks every `invariant` of the module, which here has the same names, with
+--   `TypeOK` for the cfg's `TypeOKBounds`. Both keep the numeric bounds of the spec's `TypeOK`;
+--   Lean's types ensure the rest.
 -- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
 --   deadlocks either.
 -- Options:

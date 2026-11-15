@@ -326,8 +326,8 @@ invariant [TypeOK] ∀ a, maxVBal a ≤ maxBal a
 #gen_spec
 #gen_executable
 
--- The check below uses the instance of the TLC model `Benchmarks/TLA/Paxos/Paxos.cfg`.
--- It is commented out; uncomment it to run it.
+-- The check below uses the instance of the TLC model `Benchmarks/TLA/Paxos/Paxos.cfg`, which
+-- TLC runs on `BenchPaxos.tla`. It is commented out; uncomment it to run it.
 --
 -- The instantiation (first `{ ... }` argument) sets the module's `type`s and `param`s:
 -- * `value := Fin 3`: the values are `0`, `1`, `2` (cfg: `Values = {v1, v2, v3}`).
@@ -345,9 +345,10 @@ invariant [TypeOK] ∀ a, maxVBal a ≤ maxBal a
 -- The other settings of the cfg:
 -- * `None = None`: a model value outside `Values`. Here `maxVal` has type `Option value`
 --   instead, where `none` stands for `None`.
--- * `INVARIANT TypeOK`, `INVARIANT Consistency`: `#model_check` checks every `invariant` of the
---   module, here `TypeOK` and `Consistency`. The `TypeOK` here checks the spec's last conjunct,
---   `\A a \in Acceptors : maxBal[a] >= maxVBal[a]`; Lean's types ensure the rest.
+-- * `INVARIANT TypeOKBounds`, `INVARIANT Consistency`: `#model_check` checks every `invariant` of
+--   the module, here `TypeOK` and `Consistency`. The `TypeOK` here is the cfg's `TypeOKBounds`:
+--   the last conjunct of the spec's `TypeOK`, `\A a \in Acceptors : maxBal[a] >= maxVBal[a]`.
+--   Lean's types ensure the rest.
 -- * `CHECK_DEADLOCK FALSE`: this module has no `termination` clause, so Veil reports no
 --   deadlocks either.
 -- Options:
