@@ -610,7 +610,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
   visualizationTheory,
 }) => {
   const hasVisualizer = useHasVisualizer();
-  const [showFields, setShowFields] = React.useState(false);
+  const [showFields, setShowFields] = React.useState(true);
   const isVertical = layout === "vertical";
   const [showRawJson, setShowRawJson] = React.useState(false);
   const [showRawModel, setShowRawModel] = React.useState(false);
@@ -870,6 +870,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     .action-chip { cursor: default; }
     .source-link { cursor: pointer; color: inherit; text-decoration: underline dotted; }
     .source-link:hover { text-decoration: underline; }
+    .action-chip .source-link { text-decoration: none; }
     .state-choices {
       margin-bottom: 10px;
       padding: 8px 10px;

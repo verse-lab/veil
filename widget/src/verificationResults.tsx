@@ -261,7 +261,7 @@ const StructuredCexView: React.FC<{
   headerRightContent?: React.ReactNode;
 }> = ({ data, property, isInitializer = false, headerRightContent }) => {
   const hasVisualizer = useHasVisualizer();
-  const [showFields, setShowFields] = React.useState(false);
+  const [showFields, setShowFields] = React.useState(true);
   const { label, instantiation, extraVals } = data;
   const theory = React.useMemo(() => fieldsObject(data.theory), [data.theory]);
   const preState = React.useMemo(() => fieldsObject(data.preState), [data.preState]);

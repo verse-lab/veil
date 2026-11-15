@@ -43,9 +43,9 @@ The component receives:
 
 Field and theory values use [Veil's display encoding](../Veil/Util/ValueDisplay.lean),
 including tagged sets, maps, records, and constructors. The surrounding panel
-owns the trace order, action links, loop markers, and raw results. Readers can
-switch back to fields at any time. A missing or failing widget leaves the field
-view available.
+owns the trace order, action links, loop markers, and raw results. The field
+view opens by default. Select **Show diagram** or press **V** in the infoview
+to switch views. A missing or failing widget leaves the field view available.
 
 Veil selects the widget at command elaboration and loads it through the Lean
 infoview's widget API. A visualizer is presentation code: it runs only in the
