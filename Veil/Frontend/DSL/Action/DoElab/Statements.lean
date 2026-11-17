@@ -22,15 +22,6 @@ namespace Action.DoElab
 def assertionControlInfo : ControlInfoHandler := fun _ =>
   return ControlInfo.pure
 
-private def warnComponentShadow (ctx : Context) (id : Ident) : DoElabM Unit := do
-  if id.getId.hasMacroScopes then return
-  if let some prior ← findUserLocal? id.getId then
-    if ctx.parameters.contains prior.fvarId then
-      warnLocalParameterShadow id id.getId
-    return
-  if let some field := ctx.mod.fieldShadowedBy? id.getId then
-    warnFieldShadow id "local" id.getId field
-
 /- NOTE: `dec.ensureUnitAt stx` checks that the rest of the block expects no value from this
 statement, and reports a type mismatch otherwise. Few handlers call it. Inside a block, the
 continuation of every statement but the last already expects `PUnit`, so the check can fail only
@@ -57,7 +48,6 @@ explicit check only comes before the right-hand side is elaborated. -/
 private def elabAssertionStatement (operation : Name) (stx : DoElem) (proof? : Option Ident)
     (proposition : Term) (dec : DoElemCont) : DoElabM Expr := do
   let ctx ← requireVeilDoBlock
-  proof?.forM (warnComponentShadow ctx)
   openStateAround ctx.mod do
     let assertionId ← mkNewAssertion ctx.proc stx
     let term ← `($(mkIdent operation) $proposition $(Syntax.mkNatLit assertionId.toNat))
@@ -99,7 +89,6 @@ Resolve the RHS's implicit theory/state arguments before matching its proof. -/
 private def elabProofBinding (stx : DoElem) (pattern rhs : Term)
     (dec : DoElemCont) : DoElabM Expr := do
   let ctx ← requireVeilDoBlock
-  (← getPatternVarsEx pattern).forM (warnComponentShadow ctx)
   openStateAround ctx.mod do
     let dec ← dec.ensureUnitAt stx
     bindInternalResult stx `holds rhs fun holds => do
@@ -122,32 +111,6 @@ def elabPickWithProof : DoElab := fun stx dec => do
 
 /-! ## Ordinary Lean statements: delegation and rejection -/
 
-/-- The identifiers a binding statement introduces. Unrecognized shapes
-return `#[]` rather than throwing: an exception here would drop the whole
-Veil handler — including the state opening — not just the shadow warning. -/
-private def boundIdents (stx : DoElem) : DoElabM (Array Ident) := do
-  match stx with
-  | `(doElem| let%$_ $[mut%$_]? $_:letConfig $decl:letDecl)
-  | `(doElem| have%$_ $_:letConfig $decl:letDecl) =>
-    getLetDeclVars decl
-  | `(doLetArrow| let%$_ $[mut%$_]? $_:letConfig $decl) =>
-    match decl with
-    | `(doIdDecl| $id:ident $[: $_]? ← $_) => return #[id]
-    | `(doPatDecl| _%$_ $pattern:term $[: $_]? ← $_)
-    | `(doPatDecl| $pattern:term $[: $_]? ← $_ $[| $_ $[$_]?]?) =>
-      getPatternVarsEx pattern
-    | _ => return #[]
-  | `(doLetElse| let $[mut%$_]? $_:letConfig $pattern:term := $_ | $_ $(_)? ) =>
-    getPatternVarsEx pattern
-  | `(doIf| if $h:ident : $_ then $_ $[else $_]?) => return #[h]
-  | `(doMatch| match $[(dependent := $_)]? $[(generalizing := $_)]? $(_)?
-      $_,* with $alts:matchAlt*) =>
-    Lean.Elab.Do.getAltsPatternVars alts
-  | _ => return #[]
-
-private def warnShadowingBinders (ctx : Context) (stx : DoElem) : DoElabM Unit := do
-  (← boundIdents stx).forM (warnComponentShadow ctx)
-
 private def delegate (builtin : DoElab)
     (before : Context → DoElem → DoElabM Unit := fun _ _ => pure ())
     (after : Context → Expr → DoElabM Expr := fun _ e => pure e) : DoElab := fun stx dec => do
@@ -164,11 +127,11 @@ def elabVeilNested : DoElab := delegate Lean.Elab.Do.elabDoNested
 
 @[doElem_elab Lean.Parser.Term.doLet]
 def elabVeilLet : DoElab :=
-  delegate Lean.Elab.Do.elabDoLet (before := warnShadowingBinders)
+  delegate Lean.Elab.Do.elabDoLet
 
 @[doElem_elab Lean.Parser.Term.doHave]
 def elabVeilHave : DoElab :=
-  delegate Lean.Elab.Do.elabDoHave (before := warnShadowingBinders)
+  delegate Lean.Elab.Do.elabDoHave
 
 /-- Keep a plain-expression RHS of `let x ← rhs` under the enclosing
 statement's state opening.
@@ -206,13 +169,12 @@ private def rhsUnderStatementOpening (ctx : Context) (stx : DoElem) : DoElabM Do
 def elabVeilLetArrow : DoElab := fun stx dec => do
   -- This looks like `delegate`, but needs processing of `stx`
   let ctx ← requireVeilDoBlock
-  warnShadowingBinders ctx stx
   let stx ← rhsUnderStatementOpening ctx stx
   openStateAround ctx.mod <| Lean.Elab.Do.elabDoLetArrow stx dec
 
 @[doElem_elab Lean.Parser.Term.doLetElse]
 def elabVeilLetElse : DoElab :=
-  delegate Lean.Elab.Do.elabDoLetElse (before := warnShadowingBinders)
+  delegate Lean.Elab.Do.elabDoLetElse
 
 /-- The pre-port existential `if` was spelled `if x : p`, which now parses
 as Lean's dependent `if`. The hypothesis binder is not in scope in its own
@@ -229,13 +191,10 @@ private def warnLegacyExistentialIf (_ctx : Context) (stx : DoElem) : DoElabM Un
 
 @[doElem_elab Lean.Parser.Term.doIf]
 def elabVeilIf : DoElab :=
-  delegate Lean.Elab.Do.elabDoIf (before := fun ctx stx => do
-    warnLegacyExistentialIf ctx stx
-    warnShadowingBinders ctx stx)
+  delegate Lean.Elab.Do.elabDoIf (before := warnLegacyExistentialIf)
 
 @[doElem_elab Lean.Parser.Term.doMatch]
 def elabVeilMatch : DoElab := delegate Lean.Elab.Do.elabDoMatch
-    (before := warnShadowingBinders)
     (after := fun ctx result => zetaFieldDerivedLets ctx.mod result)
 
 @[doElem_elab Lean.Parser.Term.doReturn]

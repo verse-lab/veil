@@ -114,3 +114,17 @@ example : updateSharedPrime.ext.tr background before after := by
   rfl
 
 end FieldAndLocalShadowing
+
+veil module InstanceFieldShadowing
+
+instantiate flag : Inhabited Bool
+individual flag : Bool
+
+#gen_state
+
+#guard_msgs in
+ghost relation hasFlag := flag = true
+
+example : hasFlag ({} : Theory) ({ flag := true } : State FieldConcreteType) := rfl
+
+end InstanceFieldShadowing

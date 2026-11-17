@@ -69,18 +69,15 @@ def Module.fieldShadowedBy? (mod : Module) (name : Name) (includeTheory := true)
     else none
     state <|> (if includeTheory then mod.immutableComponents.find? (·.name == name) else none)
 
-def shadowingMessage (msg : MessageData) : MessageData :=
-  .tagged `veil.shadowing msg
-
 def warnLocalParameterShadow [Monad m] [MonadLog m] [MonadOptions m] [AddMessageContext m]
     (ref : Syntax) (name : Name) : m Unit :=
-  logWarningAt ref <| shadowingMessage
+  logWarningAt ref
     m!"local `{name}` shadows parameter `{name}`; references to this name resolve to the local"
 
 def warnFieldShadow [Monad m] [MonadLog m] [MonadOptions m] [AddMessageContext m]
     (ref : Syntax) (binder : String) (name : Name) (field : StateComponent) : m Unit := do
   let kind := if field.isMutable then "mutable state" else "immutable theory"
-  logWarningAt ref <| shadowingMessage m!"{binder} `{name}` shadows {kind} component `{field.name}`; references to this name resolve to the {binder}"
+  logWarningAt ref m!"{binder} `{name}` shadows {kind} component `{field.name}`; references to this name resolve to the {binder}"
 
 def Module.warnExplicitParameterShadows (mod : Module)
     (params : Option (TSyntax `Lean.explicitBinders)) (includeState := true)
@@ -97,11 +94,10 @@ binders, and also lets us deduplicate binders elaborated more than once. -/
 def Module.warnTermShadows [Monad m] [MonadInfoTree m] [MonadLog m] [MonadOptions m]
     [AddMessageContext m] (mod : Module) (stx : Syntax) (firstTree : Nat)
     (includeTheory := true) (includeState := true) (primed := false)
-    (parameters : NameSet := {}) (skip : Std.HashSet (Nat × Nat) := {})
+    (parameters : NameSet := {})
     (ignore : Syntax → Bool := fun _ => false) : m Unit := do
   let some range := stx.getRange? | return
   let info ← getInfoState
-  let fileMap ← getFileMap
   let mut seen : Std.HashSet Syntax.Range := {}
   for i in [firstTree:info.trees.size] do
     let tree := info.trees[i]!.substitute info.assignment
@@ -111,13 +107,13 @@ def Module.warnTermShadows [Monad m] [MonadInfoTree m] [MonadLog m] [MonadOption
       let .original .. := term.stx.getHeadInfo | return seen
       let some span := term.stx.getRange? | return seen
       unless range.start ≤ span.start && span.stop ≤ range.stop && !seen.contains span do return seen
-      let pos := fileMap.toPosition span.start
-      if skip.contains (pos.line, pos.column) || ignore term.stx then return seen
+      if ignore term.stx then return seen
       let name := term.stx.getId
       if name.hasMacroScopes then return seen
       let some decl := term.lctx.findFVar? term.expr | return seen
       let shadowsParam := parameters.contains name && term.lctx.any fun prior =>
-        prior.index < decl.index && prior.userName == name && prior.kind != .implDetail
+        prior.index < decl.index && prior.userName == name && prior.kind != .implDetail &&
+          !prior.binderInfo.isInstImplicit
       if shadowsParam then
         warnLocalParameterShadow term.stx name
       else if let some field := mod.fieldShadowedBy? name includeTheory includeState primed then
@@ -224,9 +220,9 @@ elab_rules : term <= expectedType
     for (name, field) in (names.zip fields).reverse do
       if namesSeen.contains name.getId then continue
       namesSeen := namesSeen.insert name.getId
-      let shadowed := lctx.findDeclRev? fun decl =>
-        if decl.userName == name.getId && decl.kind != .implDetail then some decl else none
-      if shadowed.isSome then continue
+      -- Instance parameters remain available to typeclass search.
+      if lctx.any (fun decl => decl.userName == name.getId && decl.kind != .implDetail &&
+          !decl.binderInfo.isInstImplicit) then continue
       let value ← getFVarFromUserName field.getId
       views := (name.getId, ← inferType value, value) :: views
     bindFieldViews views #[] body expectedType
