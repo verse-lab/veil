@@ -1162,14 +1162,11 @@ where
 def elabProcedureBody (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : ActionSyntax) : TermElabM (Array Parameter × Expr) := do
   let body ← `(veil_do $(mkIdent pi.name) in $environmentTheory, $environmentState in $l)
   let firstTree := (← getInfoTrees).size
-  let before := (← Core.getMessageLog).toArray.size
   let result ← withSaveInfoContext <| elabProcedureCore vs pi br body
-  let alreadyWarned := (← Core.getMessageLog).toArray[before:].foldl (init := ({} : Std.HashSet (Nat × Nat)))
-    fun seen msg => if msg.data.kind == `veil.shadowing then seen.insert (msg.pos.line, msg.pos.column) else seen
   let mod ← getCurrentModule
   let params ← explicitBindersToParameters br pi.name
   let names := (mod.parameters ++ params).foldl (fun names p => names.insert p.name) ({} : NameSet)
-  mod.warnTermShadows l firstTree (parameters := names) (skip := alreadyWarned)
+  mod.warnTermShadows l firstTree (parameters := names)
     (ignore := fun ref => (Action.findOutsideQuotations? l.raw fun stx => do
       unless stx.isOfKind ``Lean.Parser.Term.doReassign ||
           stx.isOfKind ``Lean.Parser.Term.doReassignArrow do none

@@ -293,7 +293,8 @@ def certify (mod : Veil.Module) (property : Array Term) (clauses : Array Clause)
   definePredicate ctx invName conj
   definePredicate ctx propName property
   -- The proof of `ic3_safe`, over fresh binders that no name of the module can capture.
-  let (th, st) := (mkIdent `th, mkIdent `st)
+  let th := ctx.th
+  let st ← freshIdent `st
   let [has, s, s', lbl, htr, hinit, hInv] ←
       [`has, `s, `s', `lbl, `htr, `hinit, `hInv].mapM freshIdent
     | unreachable!
