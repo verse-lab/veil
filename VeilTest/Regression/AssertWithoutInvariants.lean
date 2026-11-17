@@ -59,3 +59,46 @@ The following set of actions must preserve the invariant and successfully termin
 #check_invariants
 
 end DeferredAssertWithoutInvariants
+
+veil module TransitionNoInvariants
+individual flag : Bool
+#gen_state
+after_init { flag := false }
+transition flip { flag' = !flag }
+
+/-- warning: you have not defined any invariants or temporal properties for this specification; did you forget? -/
+#guard_msgs in
+#gen_spec
+
+#check_invariants
+
+example : Veil.Transition.meetsSpecificationIfSuccessfulAssuming
+    (flip.ext.tr (ρ := Theory) (σ := State FieldAbstractType))
+    (Assumptions Theory)
+    (Invariants Theory (State FieldAbstractType) FieldAbstractType)
+    (fun _ _ => True) := by
+  veil_apply_local_tr
+
+end TransitionNoInvariants
+
+veil module DeferredTransitionNoInvariants
+set_option veil.deferVCGeneration true
+individual flag : Bool
+#gen_state
+after_init { flag := false }
+transition flip { flag' = !flag }
+
+/-- warning: you have not defined any invariants or temporal properties for this specification; did you forget? -/
+#guard_msgs in
+#gen_spec
+
+#check_invariants
+
+example : Veil.Transition.meetsSpecificationIfSuccessfulAssuming
+    (flip.ext.tr (ρ := Theory) (σ := State FieldAbstractType))
+    (Assumptions Theory)
+    (Invariants Theory (State FieldAbstractType) FieldAbstractType)
+    (fun _ _ => True) := by
+  veil_apply_local_tr
+
+end DeferredTransitionNoInvariants
