@@ -57,16 +57,8 @@ def ProcedureInfo.nameInMode (pi : ProcedureInfo) (mode? : Option Mode) : Name :
   | .none => toDoName pi.name
   | .some mode => toActName pi.name mode
 
-/-- `[unchanged|s| id1 id2 ...]` expands to
-`id1 = id1s ∧ id2 = id2s ∧ ...`, where `idxs` is the name `idx` with `s` appended. -/
-macro_rules
-  | `([unchanged|$s:str| $id:ident]) => `($id = $(mkIdent <| id.getId.appendAfter s.getString))
-  | `([unchanged|$s| $id $ids*]) => `([unchanged|$s| $id] ∧ [unchanged|$s| $ids*])
-  | `([unchanged|$_|]) => `(True)
-
-/-- `[unchanged_fields|s| id1 id2 ...]` does something similar to `unchanged`,
-but it also casts the fields to their canonical types using `id`. This is
-useful when synthesizing `DecidableEq` instances for fields. -/
+/-- `[unchanged_fields|s| id1 id2 ...]` equates each field with its suffixed
+counterpart, casting to the canonical field type for `DecidableEq` synthesis. -/
 elab_rules : term
   | `([unchanged_fields|$s:str| $ids:ident*]) => do
     let mod ← getCurrentModule
@@ -357,8 +349,8 @@ where
     let step3PostBody ← mod.withTheoryAndStateTermTemplate
       [(.theory, thIdent, false), (.state, stIdent, false)]
       (some (← `(Prop)))
-      (fun theoryFields stateFields => do
-        pure <| Syntax.mkApp (← `($localRPropTCArgIdent.$(mkIdent `core))) (theoryFields ++ stateFields))
+      (fun fields => do
+        pure <| Syntax.mkApp (← `($localRPropTCArgIdent.$(mkIdent `core))) fields)
       (stateSortTerm := some abstractStateSortTerm)
       (stateView := .abstract)
     `(fun $uIdent $thIdent $stIdent => $step3PostBody)

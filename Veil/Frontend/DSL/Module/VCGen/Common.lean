@@ -2,6 +2,7 @@ module
 
 public meta import Lean
 public meta import Veil.Backend.SMT.Result
+public meta import Veil.Frontend.DSL.Module.Names
 public meta import Veil.Frontend.DSL.Module.Representation
 public meta import Veil.Frontend.DSL.Infra.EnvExtensions
 public meta import Veil.Core.Tools.Verifier.Server
@@ -16,9 +17,29 @@ This module provides shared infrastructure for VC generation and discharging,
 used by both inductive VCs and trace VCs.
 -/
 
-open Lean Elab Term Command
+open Lean Elab Term Command Lean.Parser.Term
 
 namespace Veil
+
+/-! ## Symbolic Transition Binders -/
+
+/-- Quantify the action tag type and enumeration used by symbolic transitions. -/
+def mkActionTagBinders : TermElabM (Array (TSyntax ``bracketedBinder)) := do
+  return #[← `(bracketedBinder| ($actionTagType : Type)),
+    ← `(bracketedBinder| ($actionTagEnumInst : $(Ident.toEnumClass actionTagType) $actionTagType))]
+
+/-- Preserve the spelling used by the trace decoder while preventing captures in user terms. -/
+def mkTransitionTagBinder (i : Nat) : TermElabM (Ident × TSyntax ``bracketedBinder) := do
+  let tag ← Lean.mkIdent <$> mkFreshUserName (.mkSimple s!"_tr{i}_tag")
+  return (tag, ← `(bracketedBinder| ($tag : $actionTagType)))
+
+/-- Bind an action's arguments under the names expected by the trace decoder. -/
+def mkTransitionParamBinders (prefix_ : String) (params : Array Parameter) :
+    TermElabM (Array Ident × Array (TSyntax ``bracketedBinder)) := do
+  let args ← params.mapIdxM fun i p => do
+    let arg ← Lean.mkIdent <$> mkFreshUserName (.mkSimple s!"{prefix_}_arg{i}_{p.name}")
+    return (arg, ← `(bracketedBinder| ($arg : $(p.type))))
+  return args.unzip
 
 /-! ## SMT Channel Utilities -/
 

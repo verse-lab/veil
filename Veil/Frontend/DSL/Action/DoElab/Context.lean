@@ -137,9 +137,6 @@ def findUserLocal? (name : Name) : TermElabM (Option LocalDecl) := do
     else
       return none
 
-def isUserShadowed (name : Name) : TermElabM Bool :=
-  return (← findUserLocal? name).isSome
-
 /-- Fold over the user-visible (non-implementation-detail) local
 declarations. -/
 def foldUserLocals (init : α) (f : α → LocalDecl → α) : TermElabM α :=
@@ -229,30 +226,7 @@ private def bindStateFields (shadowed : NameSet) (fields : Array StateComponent)
   let views ← (fields.filter (!shadowed.contains ·.name)).mapM fun field => do
     let (ty, value) ← elabStateFieldView field
     return (field.name, ty, value)
-  bindAll views 0 #[]
-where
-  /-- Bind `views[i:]` as `let`s, then elaborate `k` and abstract all of
-  `fvars` with one `mkLetFVars`. -/
-  bindAll (views : Array (Name × Expr × Expr)) (i : Nat) (fvars : Array Expr) :
-      DoElabM Expr := do
-    if h : i < views.size then
-      let (name, ty, value) := views[i]
-      withLetDecl name ty value (kind := .implDetail) fun x =>
-        bindAll views (i + 1) (fvars.push x)
-    else
-      /- One `mkLetFVars` for all views, rather than one per view as nested
-      `mapLetDecl`s would do. `k` returns the rest of the action, and every
-      `mkLetFVars` traverses it twice: `elimMVarDeps` replaces each pending
-      metavariable whose local context contains the abstracted variables with
-      a new auxiliary metavariable connected by a delayed assignment, and
-      `abstractRange` turns the variables into bound ones. Abstracting the
-      views one at a time repeats both traversals once per view and chains one
-      delayed assignment per view onto every pending metavariable, which made
-      an opening cost (number of fields) × (size of the rest of the action).
-      Abstracting them together does each traversal once and yields the same
-      term. -/
-      mkLetFVars fvars (← k) (usedLetOnly := true) (generalizeNondepLet := false)
-  termination_by views.size - i
+  bindFieldViews views.toList k
 
 /-- Internal element used by openings so the generated `read`/`get` does not
 redispatch through the user-statement wrapper. The right-hand side of a Veil

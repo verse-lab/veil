@@ -46,7 +46,7 @@ def Module.declareLocalTheoryPropTC (mod : Module) : MetaM (List Command) := do
   let th ← Lean.mkIdent <$> mkFreshUserName `th
   let coreEqType ← do
     -- Fresh field names: a field named `core` would capture `core` here.
-    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th, true)] (some codomain) fun theoryFieldNames _ =>
+    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th, true)] (some codomain) fun theoryFieldNames =>
       pure <| Syntax.mkApp core theoryFieldNames
     `(term| ∀ ($th : $environmentTheory), $post $th = $body)
   let cmd1 ← do

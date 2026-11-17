@@ -126,7 +126,9 @@ def simpContextOf (tac : TSyntax `tactic) : TermElabM (Simp.Context × Simp.Simp
 `tr th st0 (Label.a args) st1` after the three `simp` passes of Veil's preprocessing; the theorem
 is proven by cases on the label from the proofs of those passes. -/
 def build (ctx : QueryCtx) (faultAt : Option String) : TermElabM Record := do
-  let (st0, st1, lbl) := (stateIdent 0, stateIdent 1, mkIdent `lbl)
+  let st0 ← Lean.mkIdent <$> mkFreshUserName `st0
+  let st1 ← Lean.mkIdent <$> mkFreshUserName `st1
+  let lbl ← Lean.mkIdent <$> mkFreshUserName `lbl
   let labelT ← `($(mkIdent labelTypeName) $(ctx.sorts)*)
   let binders ← (ctx.sortBinders ++ ctx.typeclassBinders).mapM bracketedBinderToFunBinder
   let fnStx ← `(fun $binders* ($(ctx.th) : $(ctx.theoryT)) ($st0 : $(ctx.stateT)) ($lbl : $labelT)
