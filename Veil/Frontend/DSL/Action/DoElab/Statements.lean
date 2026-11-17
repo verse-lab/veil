@@ -23,10 +23,13 @@ def assertionControlInfo : ControlInfoHandler := fun _ =>
   return ControlInfo.pure
 
 private def warnComponentShadow (ctx : Context) (id : Ident) : DoElabM Unit := do
-  if ← isUserShadowed id.getId then return
-  let some field := ctx.mod.signature.find? (·.name == id.getId) | return
-  let kind := if field.isMutable then "mutable state" else "immutable theory"
-  logWarningAt id m!"local `{id.getId}` shadows {kind} component `{id.getId}`; references to this name resolve to the local"
+  if id.getId.hasMacroScopes then return
+  if let some prior ← findUserLocal? id.getId then
+    if ctx.parameters.contains prior.fvarId then
+      warnLocalParameterShadow id id.getId
+    return
+  if let some field := ctx.mod.fieldShadowedBy? id.getId then
+    warnFieldShadow id "local" id.getId field
 
 /- NOTE: `dec.ensureUnitAt stx` checks that the rest of the block expects no value from this
 statement, and reports a type mismatch otherwise. Few handlers call it. Inside a block, the

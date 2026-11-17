@@ -502,6 +502,11 @@ def Module.verifiableTemporalProperties (mod : Module) : Array TemporalProperty 
 
 /-! ## Field Utilities -/
 
+/-- Resolve a component name in a scope that exposes both state and theory. -/
+def Module.findComponent? (mod : Module) (name : Name) : Option StateComponent :=
+  mod.signature.find? (fun sc => sc.name == name && sc.isMutable) <|>
+    mod.signature.find? (·.name == name)
+
 /-- Recursively get all fields that are available in this module
 (including fields from child modules). -/
 def Module.getFieldsRecursively [Monad m] [MonadEnv m] [MonadError m] (mod : Module) : m (Array Name) := do
@@ -531,14 +536,14 @@ def Module.throwIfImmutable [Monad m] [MonadQuotation m] [MonadExceptOf Exceptio
   -- NOTE: This code supports two modes of operation:
   -- (a) child modules' state is immutable in the parent
   -- (b) child modules' state mutability annotations are inherited in the parent
-  let .some sc := mod.signature.find? (·.name == nm.getRoot)
+  let .some sc := mod.findComponent? nm.getRoot
     | throwError "trying to assign to undeclared state component {nm}"
   if sc.kind == StateComponentKind.module && sc.isImmutable then -- (a)
     throwError "cannot assign to {nm}: child module's ({sc.name}) state is immutable in the parent ({mod.name})"
   else -- (b)
     let (modules, field, innerMostMod) ← getInnerMostModule mod nm
     trace[veil.debug] "{nm} ({sc}) → assigning to field {ppModules modules}.{field} (declared in module {innerMostMod.name})"
-    let .some sc' := innerMostMod.signature.find? (·.name == field)
+    let .some sc' := innerMostMod.findComponent? field
       | throwError "trying to assign to undeclared state component {nm} (fully qualified name: {ppModules modules}.{field})"
     if sc'.isImmutable then
       let msg := if isTransition then "the transition might modify" else "trying to assign to"
@@ -555,7 +560,7 @@ where
     while true do
       let scName :: path' := path
         | break
-      let .some _sc := curMod.signature.find? (·.name == scName)
+      let .some _sc := curMod.findComponent? scName
         | throwError "trying to assign to {nm}, but {scName} is not a declared field in {ppModules modules}"
       -- FIXME: Not fully sure how to obtain the child module name here.
       -- Maybe need to extend the definition of `StateComponent`?

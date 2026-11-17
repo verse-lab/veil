@@ -64,9 +64,8 @@ elaborated, `state_pred (fun st => t)` with the state fields bound in `t` as in 
   unless veil.temporal.moduleAtoms.get (← getOptions) do
     return ← elabTerm (← `($(mkIdent ``Lentil.state_pred) $t)) expectedType?
   let mod ← getCurrentModule
-  let st := mkVeilImplementationDetailIdent `st
-  let body ← mod.withTheoryAndStateTermTemplate [(.state .none "_conc", st, true)] (some (← `(Prop)))
-    (fun _ _ => `(uqc% ($t:term)))
+  let st ← Lean.mkIdent <$> mkFreshUserName `st
+  let body ← mod.withUserFieldNames [(.state, st, true)] (some (← `(Prop))) (← `(uqc% ($t:term)))
   elabTerm (← `($(mkIdent ``Lentil.state_pred) fun ($st : $environmentState) => $body)) expectedType?
 
 /-- Elaborate a temporal action relation on the proof side. In a module's temporal property, the
@@ -161,15 +160,16 @@ Tried before the plain reading of `[ltl| …]` (`Lasso.elabLtlAtom`), to which i
 @[term_elab Lasso.ltlFormula] def elabModuleLtlAtom : TermElab := fun stx expectedType? => do
   unless veil.temporal.moduleAtoms.get (← getOptions) do throwUnsupportedSyntax
   let mod ← getCurrentModule
-  let (th, st) := (mkIdent `th, mkIdent `st)
+  let th ← Lean.mkIdent <$> mkFreshUserName `th
+  let st ← Lean.mkIdent <$> mkFreshUserName `st
   let statePredicate (targets : List (TheoryAndStateTermTemplateArgKind × Term × Bool)) (t : Term) := do
-    let body ← mod.withTheoryAndStateTermTemplate targets (some (← `(Prop))) (fun _ _ => `(uqc% ($t:term)))
+    let body ← mod.withUserFieldNames targets (some (← `(Prop))) (← `(uqc% ($t:term)))
     -- The constructor does not take the field's default, so `name` is given explicitly
     `($(mkIdent ``LivenessMC.LivenessAtom.state) ($(mkIdent ``ModelChecker.SafetyProperty.mk)
         ($(mkIdent `name) := $(quote Name.anonymous))
         ($(mkIdent `property) := fun ($th : $environmentTheory) ($st : $environmentState) => $body)))
   let atom ← match stx with
-    | `([ltl| ⌜ $t:term ⌝]) => statePredicate [(.theory, th, true), (.state .none "_conc", st, true)] t
+    | `([ltl| ⌜ $t:term ⌝]) => statePredicate [(.theory, th, true), (.state, st, true)] t
     | `([ltl| ⌞ $t:term ⌟]) => statePredicate [(.theory, th, true)] t
     -- `Enabled a`/`⟨ a ⟩` are decided by a predicate on the action label, not on a state
     | `([ltl| Enabled $t:term]) =>
@@ -267,7 +267,7 @@ private def Module.defineTemporalVerify (mod : Module) (tp : TemporalProperty) :
   --   let send := fun x => @send.ext.tr <modArgs> x th
   -- For action `poll` (no params), generate:
   --   let poll := @poll.ext.tr <modArgs> th
-  let thIdent := mkVeilImplementationDetailIdent `th
+  let thIdent ← Lean.mkIdent <$> liftCoreM (mkFreshUserName `th)
   let mut letBindings : Array (Ident × Term) := #[]
   for act in mod.actions do
     let actTrName := mkIdent <| toTransitionName <| toExtName act.name
@@ -285,10 +285,7 @@ private def Module.defineTemporalVerify (mod : Module) (tp : TemporalProperty) :
     -- Expose immutable theory fields in temporal formulas, matching assertions and ghosts.
     let temporalPredType ← `($(mkIdent ``Lentil.pred) $environmentState)
     let bodyWithTheory ← liftTermElabM <|
-      mod.withTheoryAndStateTermTemplate
-        [(.theory, thIdent, true)]
-        (some temporalPredType)
-        (fun _ _ => pure body)
+      mod.withUserFieldNames [(.theory, thIdent, true)] (some temporalPredType) body
     `(fun ($thIdent : $environmentTheory) => $bodyWithTheory)
   -- Generate the definition
   -- NOTE: We might use `remove_unused_args%` to trim some unused arguments, but
@@ -355,8 +352,14 @@ def Module.generateTemporalDefinition (mod : Module) (tp : TemporalProperty) (si
   let sideName := if side.needsCheck then "check" else "verify"
   withTraceNode (`veil.perf.elaborator.temporal ++ tp.name) (fun _ => return s!"temporal {tp.name} ({sideName})") do
     let define := if side.needsCheck then mod.defineTemporalCheck tp else mod.defineTemporalVerify tp
+    let firstTree := (← getInfoTrees).size
     let mod ← match ← commitIfNoErrors define with
-      | .ok mod => pure mod
+      | .ok result =>
+        -- A property with both definitions has already been checked for shadowing on the deep side.
+        if side.needsCheck || !(← getEnv).contains (mod.name ++ toTemporalAstName tp.name) then
+          let params := mod.parameters.foldl (fun names p => names.insert p.name) ({} : NameSet)
+          mod.warnTermShadows tp.formula firstTree (parameters := params)
+        pure result
       | .error errs => mod.dropTemporalDefinition tp side errs
     return mod.modifyTemporalProperty tp.name (·.clearPending side)
 

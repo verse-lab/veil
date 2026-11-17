@@ -212,7 +212,8 @@ def proveObligation (mod : Veil.Module) (name : Name) (stmt : (plainTr : Bool) �
 /-- Define `name sorts [insts] : Theory → State → Prop` as the conjunction of the predicates. -/
 def definePredicate (ctx : QueryCtx) (name : Ident) (conjuncts : Array Term) :
     CommandElabM Unit := do
-  let (th, st) := (mkIdent `th, mkIdent `st)
+  let th ← freshIdent `th
+  let st ← freshIdent `st
   let body ← liftTermElabM do
     repeatedAnd (← conjuncts.mapM fun t ↦ do `($(← ctx.wrapPred t) $th $st))
   elabChecked (← `(command| def $name $(ctx.sortBinders ++ ctx.typeclassBinders)* :

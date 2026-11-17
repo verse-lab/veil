@@ -67,6 +67,7 @@ def Module.defineGhostDefinition (mod : Module) (name : Name) (params : Option (
     match retType with
     | some ty => pure (some ty)
     | none => pure none
+  mod.warnExplicitParameterShadows params (includeState := !justTheory)
   let veilTerm ← liftTermElabM $ mod.mkVeilTerm name kind? params term motiveType (justTheory := justTheory) (quantifyCapitals := isRelation)
   let (mod, extraParams) ← liftTermElabM $ mod.canonicalizeExtraParams veilTerm.extraParams
   let thstParams ← veilTerm.thstBinders.mapIdxM fun i x => do
