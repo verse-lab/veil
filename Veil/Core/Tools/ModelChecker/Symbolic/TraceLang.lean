@@ -207,12 +207,24 @@ private def processTransition (ctx : TraceElabCtx) (curr next : Ident) (trIdx : 
     return (disjunction, { params := paramBinders, tags := #[tagPair] })
   | _ => unreachable!
 
+scoped syntax "veil_trace_assertion% " term:max : term
+
+elab_rules : term <= expectedType
+  | `(veil_trace_assertion% $assertion) => do
+    let mod ← getCurrentModule
+    let firstTree := (← getInfoTrees).size
+    let value ← withSaveInfoContext <| elabTerm assertion expectedType
+    mod.warnTermShadows assertion firstTree
+    pure value
+
 /-- Process a user assertion (no state transition) -/
 private def processAssertion (ctx : TraceElabCtx) (currState : Ident) (t : Term) : TermElabM (TSyntax `term) := do
   let fieldRepInstance ← `(term| $instAbstractFieldRepresentation $(ctx.sorts)*)
   let stateSortTerm ← `(term| $fieldAbstractDispatcher $(ctx.sorts)*)
   let wrappedTerm ← withTheoryAndStateFn ctx.mod (← `(uqc% (($t:term):Prop))) (some $ ← `(term|Prop)) ctx.theoryT ctx.stateT fieldRepInstance stateSortTerm
-  `(term|($wrappedTerm $(ctx.theoryId) $currState))
+  let assertion ← `(term|($wrappedTerm $(ctx.theoryId) $currState))
+  let assertion := Syntax.inheritSourceSpanFrom assertion t
+  `(term|veil_trace_assertion% $assertion)
 
 /-- Expand anyNActions into individual anyAction entries -/
 private def expandTraceLine : TraceSpecLine → List TraceSpecLine
@@ -358,10 +370,11 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   let (assertion, numTransitions, vcName) ← Command.runTermElabM fun _ => do
     let expandedSpec := (← parseTraceSpec spec).flatMap expandTraceLine
     let numTransitions := expandedSpec.filter (!· matches .assertion _) |>.length
-    let stateIds := (List.range (numTransitions + 1)).map fun i => mkIdent (Name.mkSimple s!"st{i}")
+    let stateIds ← (List.range (numTransitions + 1)).mapM fun i =>
+      mkIdent <$> mkFreshUserName (Name.mkSimple s!"st{i}")
 
     let sorts ← mod.uninterpretedParamIdents
-    let theoryId := mkIdent `th
+    let theoryId ← mkIdent <$> mkFreshUserName `th
     let theoryT ← mod.theoryStx
     let stateT ← `(term| $(mkIdent stateName) ($fieldAbstractDispatcher $sorts*))
     let rtsExpr ← `(term| @$assembledRTS $sorts*)

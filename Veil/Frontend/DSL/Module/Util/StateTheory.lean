@@ -45,14 +45,22 @@ def Module.declareStateComponent (mod : Module) (sc : StateComponent) : CommandE
     throwErrorAt sc.userSyntax "declareStateComponent called with `module` kind or `inherit` mutability; use `declareChildModule` instead"
   if !sc.name.isAtomic then
     throwErrorAt sc.userSyntax s!"Invalid name: {sc.name} is not an atomic name."
-  mod.throwIfAlreadyDeclared sc.name
+  let otherField := mod.findComponent? sc.name
+  let shadows := otherField.any (·.mutability != sc.mutability) &&
+    !mod.signature.any (fun field => field.name == sc.name && field.mutability == sc.mutability)
+  unless shadows do mod.throwIfAlreadyDeclared sc.name
   let sig ← sc.getSimpleBinder
   let tp ← match sig with
   | `(Command.structSimpleBinder| $_:ident : $tp:term) => liftTermElabMWithBinders (← mod.uninterpretedParamBinders) (fun _ => do Meta.reduceAll $ ← elabTerm tp .none)
   | _ => throwErrorAt sc.userSyntax "Unsupported syntax for state component"
   if !(← isValidStateComponentType sc.kind tp) then
     failureMsg sig sc
-  let mod := { mod with signature := mod.signature.push sc, _declarations := mod._declarations.insert sc.name sc.declarationKind }
+  if shadows then
+    let stateField := if sc.isMutable then sc else otherField.getD sc
+    logWarningAt stateField.userSyntax
+      m!"mutable state component `{sc.name}` shadows immutable theory component `{sc.name}`; references to this name resolve to the state component"
+  let kind := if sc.isImmutable && shadows then (otherField.getD sc).declarationKind else sc.declarationKind
+  let mod := { mod with signature := mod.signature.push sc, _declarations := mod._declarations.insert sc.name kind }
   return mod
 where
   failureMsg (_sig : TSyntax `Lean.Parser.Command.structSimpleBinder) (comp : StateComponent) : CommandElabM Unit := do
@@ -68,8 +76,15 @@ def Module.immutableComponents (mod : Module) : Array StateComponent :=
 def Module.mutableComponents (mod : Module) : Array StateComponent :=
   mod.signature.filter fun sc => sc.mutability == Mutability.mutable
 
+/-- In generated terms that use both field values explicitly, hide only the
+theory binders that would otherwise be captured by a same-named state field. -/
+def Module.theoryFieldIdentsAlongsideState (mod : Module) : MetaM (Array Ident) :=
+  mod.immutableComponents.mapM fun sc => do
+    let name ← if mod.mutableComponents.any (·.name == sc.name) then mkFreshUserName sc.name else pure sc.name
+    return Lean.mkIdent name
+
 def Module.getStateComponentTypeStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (name : Name) : m Term := do
-  match mod.signature.find? (fun sc => sc.name == name) with
+  match mod.findComponent? name with
   | some sc => return ← sc.typeStx
   | none => throwErrorAt (← getRef) s!"State component {name} not found in module {mod.name}"
 

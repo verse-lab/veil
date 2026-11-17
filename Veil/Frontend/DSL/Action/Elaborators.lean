@@ -355,7 +355,7 @@ where
     return (step2Result.expr, proof)
   step3PostTerm (uIdent thIdent stIdent localRPropTCArgIdent : Ident) (abstractStateSortTerm : Term) : TermElabM Term := do
     let step3PostBody ← mod.withTheoryAndStateTermTemplate
-      [(.theory, thIdent, false), (.state .none .none, stIdent, false)]
+      [(.theory, thIdent, false), (.state, stIdent, false)]
       (some (← `(Prop)))
       (fun theoryFields stateFields => do
         pure <| Syntax.mkApp (← `($localRPropTCArgIdent.$(mkIdent `core))) (theoryFields ++ stateFields))
@@ -833,8 +833,8 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
       `(fun $auxr $auxs => ¬ ($(mkIdent ``readFrom) $auxr = $auxrr ∧ $absst = $auxss))
     let ty ← `(@$localRPropTC $paramArgs* Prop $post)
     let coreStx ← do
-      let theoryFieldIdents : Array Ident := mod.immutableComponents.map fun sc => mkIdent sc.name
-      let stateFieldIdents : Array Ident := mod.mutableComponents.map fun sc => mkIdent sc.name
+      let theoryFieldIdents ← mod.theoryFieldIdentsAlongsideState
+      let stateFieldIdents := mod.mutableComponents.map fun sc => Lean.mkIdent sc.name
       let fieldIdents : Array Ident := theoryFieldIdents ++ stateFieldIdents
       let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldIdents.mapM fun f =>
         `(Lean.Parser.Term.funBinder| $f)
@@ -1161,7 +1161,22 @@ where
 
 def elabProcedureBody (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : ActionSyntax) : TermElabM (Array Parameter × Expr) := do
   let body ← `(veil_do $(mkIdent pi.name) in $environmentTheory, $environmentState in $l)
-  elabProcedureCore vs pi br body
+  let firstTree := (← getInfoTrees).size
+  let before := (← Core.getMessageLog).toArray.size
+  let result ← withSaveInfoContext <| elabProcedureCore vs pi br body
+  let alreadyWarned := (← Core.getMessageLog).toArray[before:].foldl (init := ({} : Std.HashSet (Nat × Nat)))
+    fun seen msg => if msg.data.kind == `veil.shadowing then seen.insert (msg.pos.line, msg.pos.column) else seen
+  let mod ← getCurrentModule
+  let params ← explicitBindersToParameters br pi.name
+  let names := (mod.parameters ++ params).foldl (fun names p => names.insert p.name) ({} : NameSet)
+  mod.warnTermShadows l firstTree (parameters := names) (skip := alreadyWarned)
+    (ignore := fun ref => (Action.findOutsideQuotations? l.raw fun stx => do
+      unless stx.isOfKind ``Lean.Parser.Term.doReassign ||
+          stx.isOfKind ``Lean.Parser.Term.doReassignArrow do none
+      let some range := stx[0].getRange? | none
+      let some binder := ref.getRange? | none
+      if range.start ≤ binder.start && binder.stop ≤ range.stop then some stx else none).isSome)
+  return result
 
 def elabTransitionTerm (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (t : Term) : TermElabM (Array Parameter × Expr) := do
   let body ← `(@$(mkIdent ``id) ($(mkIdent ``Transition) $environmentTheory $environmentState) ($t))

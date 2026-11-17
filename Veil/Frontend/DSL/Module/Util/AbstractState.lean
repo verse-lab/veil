@@ -14,7 +14,7 @@ namespace Veil
 
 def Module.toAbstractStateBodyStx (mod : Module) (scrutinee abstractStateSortTerm : Term) : TermElabM Term := do
   mod.withTheoryAndStateTermTemplate
-    [(.state .none "_conc", scrutinee, false)]
+    [(.state, scrutinee, false)]
     (some (← `($stateIdent $abstractStateSortTerm)))
     (fun _ stateFields => `(⟨$[$stateFields],*⟩))
 
