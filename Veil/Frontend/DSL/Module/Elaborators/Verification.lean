@@ -100,12 +100,13 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
         liftTermElabM $ mod.simplifyLocalRPropCore assembledInvariantsName
       catch ex =>
         logWarningAt invariantCmd m!"unable to synthesize LocalRProp instance for {assembledInvariantsName}: {ex.toMessageData}"
+      -- Assertion checks also use the local WP helper when there are no invariants.
+      try
+        let localMeetsCmd ← liftTermElabM mod.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem
+        elabVeilCommand localMeetsCmd
+      catch ex =>
+        logWarningAt invariantCmd m!"unable to define {localMeetsSpecificationIfSuccessfulAssumingName}: {ex.toMessageData}"
       if !mod.invariants.isEmpty then
-        try
-          let localMeetsCmd ← liftTermElabM mod.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem
-          elabVeilCommand localMeetsCmd
-        catch ex =>
-          logWarningAt invariantCmd m!"unable to define {localMeetsSpecificationIfSuccessfulAssumingName}: {ex.toMessageData}"
         try
           let localTrMeetsCmd ← liftTermElabM mod.defineTransitionMeetsSpecificationIfSuccessfulAssumingLocalTheorem
           elabVeilCommand localTrMeetsCmd
