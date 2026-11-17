@@ -335,7 +335,7 @@ def hypTypesToIgnore : List Name := hypTypesToClear ++ [``Inhabited, ``Nonempty]
 /-- Hypotheses which should not be destructed by `veil_destruct`.
 Note: `Inhabited` is intentionally NOT here — we want to destruct it
 so that `Inhabited` instance in the goal gets replaced by a concrete variable. -/
-def hypTypesToSkipDestruct : List Name := hypTypesToClear ++ [``Nonempty]
+def hypTypesToSkipDestruct : List Name := hypTypesToClear ++ [``Nonempty, ``BitVec]
 
 /-- Get all the names of the propositions found in the context. This
 ignores some Veil-specific typeclasses that should not be sent to the
