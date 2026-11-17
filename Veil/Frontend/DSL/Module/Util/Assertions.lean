@@ -204,13 +204,18 @@ elab_rules : tactic
 already owns the name. The private field bindings remain available to generated code. -/
 scoped syntax "veil_field_views% " ("(" ident " := " ident ")")* " in " term : term
 
-private def bindFieldViews (views : List (Name × Expr × Expr)) (vars : Array Expr)
-    (body : Term) (expectedType : Option Expr) : TermElabM Expr := do
-  match views with
-  | [] => mkLetFVars vars (← elabTerm body expectedType) (generalizeNondepLet := false)
-  | (name, ty, value) :: rest =>
-    withLetDecl name ty value (kind := .implDetail) fun var =>
-      bindFieldViews rest (vars.push var) body expectedType
+/-- Bind the field views for `body`. Abstract the lets together so Lean traverses
+the body and updates its pending metavariable contexts only once per opening. -/
+def bindFieldViews [Monad m] [MonadControlT MetaM m] [MonadLiftT MetaM m]
+    (views : List (Name × Expr × Expr)) (body : m Expr) : m Expr :=
+  go views #[]
+where
+  go (views : List (Name × Expr × Expr)) (vars : Array Expr) : m Expr := do
+    match views with
+    | [] => mkLetFVars vars (← body) (generalizeNondepLet := false)
+    | (name, ty, value) :: rest =>
+      withLetDecl name ty value (kind := .implDetail) fun var =>
+        go rest (vars.push var)
 
 elab_rules : term <= expectedType
   | `(veil_field_views% $[($names:ident := $fields:ident)]* in $body) => do
@@ -225,7 +230,7 @@ elab_rules : term <= expectedType
           !decl.binderInfo.isInstImplicit) then continue
       let value ← getFVarFromUserName field.getId
       views := (name.getId, ← inferType value, value) :: views
-    bindFieldViews views #[] body expectedType
+    bindFieldViews views (elabTerm body expectedType)
 
 /-- Wrap a term in field destructors. The callback receives the binders in
 the order of `targets` (one array per opened structure). Generated terms can
@@ -287,16 +292,14 @@ def Module.withFieldBinders (mod : Module)
         @$(mkIdent casesOnState) $sortTerms*
         ($motive := $motiveBody) ($i) ($tmp))
 
-/-- Convenience for generated terms with a theory and at most one state. -/
+/-- Open fields for a generated term that takes them in target order. -/
 def Module.withTheoryAndStateTermTemplate (mod : Module)
     (targets : List (TheoryAndStateTermTemplateArgKind × Term × Bool))
-    (motiveType : Option Term) (body : Array Ident → Array Ident → MetaM Term)
+    (motiveType : Option Term) (body : Array Ident → MetaM Term)
     (fieldRepInstance : Term := fieldRepresentation) (stateSortTerm : Option Term := none)
     (stateView : StateFieldView := .concrete) : MetaM Term :=
-  mod.withFieldBinders targets motiveType (fun fields =>
-    match targets with
-    | (.theory, _, _) :: _ => body fields[0]! (fields[1]?.getD #[])
-    | _ => body #[] (fields[0]?.getD #[])) fieldRepInstance stateSortTerm stateView
+  mod.withFieldBinders targets motiveType (fun groups => body groups.flatten)
+    fieldRepInstance stateSortTerm stateView
 
 /-- Make the field binders visible to the user term. -/
 def openUserFieldNames (fields : Array Ident) (body : Term) : MetaM Term := do

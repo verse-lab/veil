@@ -143,9 +143,9 @@ private def currentParameters : TermElabM Parameters :=
 /-- Warn if parameters shadow state components. -/
 private def warnParameterShadows (mod : Module) (body : ActionSyntax)
     (parameters : Parameters) : TermElabM Unit :=
-  for field in mod.mutableComponents ++ mod.immutableComponents do
-    if parameters.names.contains field.name && mod.findComponent? field.name == some field then
-      warnFieldShadow body "parameter" field.name field
+  for name in parameters.names do
+    if let some field := mod.fieldShadowedBy? name then
+      warnFieldShadow body "parameter" name field
 
 def elabVeilDo (procName : Name) (readerType stateType : Term)
     (body : ActionSyntax) : TermElabM Expr := do

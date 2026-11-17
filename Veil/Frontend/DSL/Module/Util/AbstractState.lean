@@ -16,7 +16,7 @@ def Module.toAbstractStateBodyStx (mod : Module) (scrutinee abstractStateSortTer
   mod.withTheoryAndStateTermTemplate
     [(.state, scrutinee, false)]
     (some (← `($stateIdent $abstractStateSortTerm)))
-    (fun _ stateFields => `(⟨$[$stateFields],*⟩))
+    (fun stateFields => `(⟨$[$stateFields],*⟩))
 
 /-- A meta-level construction for turning a `x : State χ` into
 `State FieldAbstractType`. -/

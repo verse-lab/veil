@@ -135,3 +135,20 @@ safety [neverSet] ¬ th ∧ ¬ st0 ∧ ¬ st1 ∧ ¬ _tr1_tag ∧ ¬ _tr1_act_ke
 #updr (expect := invariant) certify
 
 end QueryBinderShadowing
+
+veil module NormalizationBinderShadowing
+
+type st0
+relation seen : st0 → Bool
+
+after_init { seen X := false }
+action keep { pure () }
+safety [clean] ∀ x : st0, ¬ seen x
+
+#gen_spec
+
+/-- transition relation normalized once -/
+#guard_msgs (substring := true) in
+#updr (expect := invariant)
+
+end NormalizationBinderShadowing

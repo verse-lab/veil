@@ -44,8 +44,8 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (List Command) := do
   let st ← Lean.mkIdent <$> mkFreshUserName `st
   let coreEqType ← do
     -- Fresh field names: a field named `core` would capture `core` here.
-    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th, true), (.state, st, true)] (some codomain) fun theoryFieldNames stateFieldNames =>
-      pure <| Syntax.mkApp core (theoryFieldNames ++ stateFieldNames)
+    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th, true), (.state, st, true)] (some codomain) fun fields =>
+      pure <| Syntax.mkApp core fields
     `(term| ∀ ($th : $environmentTheory) ($st : $environmentState),
     $post $th $st = $body)
   let cmd1 ← do
@@ -554,11 +554,11 @@ private def Module.mkLocalVCTheoremContext (mod : Module)
   let theoryStruct ← `(term| ⟨$[$theoryFieldArgs],*⟩)
   let theoryFieldPat ← `(rcasesPat| ⟨$[$theoryFieldArgs:ident],*⟩)
   let assuRhs ←
-    mod.withTheoryAndStateTermTemplate [(.theory, th, true)] (some prop) (fun theoryFields _ =>
+    mod.withTheoryAndStateTermTemplate [(.theory, th, true)] (some prop) (fun theoryFields =>
       `($assuCore $theoryFields*))
   let preRhs ←
-    mod.withTheoryAndStateTermTemplate [(.theory, th, true), (.state, st, true)] (some prop) (fun theoryFields stateFields =>
-      `($preCore $theoryFields* $stateFields*))
+    mod.withTheoryAndStateTermTemplate [(.theory, th, true), (.state, st, true)] (some prop) (fun fields =>
+      `($preCore $fields*))
   pure {
     params, binders, paramArgs, abstractStateSortTerm, abstractStateTypeTerm,
     theoryTy, assuCoreType, stateCoreType, theoryFieldBinders, theoryFieldArgs,
@@ -615,8 +615,7 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
     let body ← mod.withTheoryAndStateTermTemplate
       [(.theory, thAbs, false), (.state, stAbs, false)]
       (some (← `(term| Prop)))
-      (fun theoryFields stateFields =>
-        pure <| Syntax.mkApp postLocalCore (theoryFields ++ stateFields))
+      (fun fields => pure <| Syntax.mkApp postLocalCore fields)
       (stateSortTerm := some abstractStateSortTerm)
       (stateView := .abstract)
     `(term| fun $u $thAbs $stAbs => $body)

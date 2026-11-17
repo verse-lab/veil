@@ -54,3 +54,44 @@ def initial : State FieldConcreteType := { value := false }
 example : readsTheory background initial := rfl
 
 end TheoryFieldWithGeneratedName
+
+veil module TraceBindersWithGeneratedNames
+
+individual _tr1_tag : Bool
+individual _tr1_arg0_value : Bool
+individual _tr1_act_keep_arg0_value : Bool
+
+after_init {
+  _tr1_tag := false
+  _tr1_arg0_value := false
+  _tr1_act_keep_arg0_value := false
+}
+
+action keep (value : Bool) { require value }
+
+invariant True
+
+#gen_spec
+
+/-- info: ✅ Satisfying trace found -/
+#guard_msgs (substring := true) in
+sat trace {
+  keep
+  assert (¬ _tr1_tag)
+}
+
+/-- info: ✅ Satisfying trace found -/
+#guard_msgs (substring := true) in
+sat trace {
+  keep
+  assert (¬ _tr1_arg0_value)
+}
+
+/-- info: ✅ Satisfying trace found -/
+#guard_msgs (substring := true) in
+sat trace {
+  any action
+  assert (¬ _tr1_act_keep_arg0_value)
+}
+
+end TraceBindersWithGeneratedNames

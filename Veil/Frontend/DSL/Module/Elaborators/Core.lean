@@ -409,8 +409,7 @@ def elabTransition : CommandElab := fun stx => do
       let fields ← mod.getFieldsRecursively
       let mutableFieldNames := mod.mutableComponents.map (·.name)
       for f in fields.filter changedFn do
-        unless mutableFieldNames.contains f do
-          mod.throwIfImmutable f (isTransition := true)
+        mod.throwIfImmutable f (isTransition := true)
       -- Only mutable fields need "unchanged" constraints
       -- (immutable fields don't have primed versions in transitions)
       mod.warnExplicitParameterShadows br (primed := true)
