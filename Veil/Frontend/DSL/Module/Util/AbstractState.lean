@@ -110,8 +110,6 @@ def specializeArgsForStateAbstract (params : Array Parameter) (args : Array Expr
 compose it with simplification proofs instead of relying on a tactic side
 effect. -/
 def proveEqModuloDecidableInstances? (e1 e2 : Expr) : MetaM (Option Expr) := do
-  let e1 ← whnf e1
-  let e2 ← whnf e2
   let r1 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInst]) e1
   let r2 ← (Simp.simp #[``Veil.Util.neutralizeDecidableInst]) e2
   if ← withBackwardsCompatibility (isDefEq r1.expr r2.expr) then
