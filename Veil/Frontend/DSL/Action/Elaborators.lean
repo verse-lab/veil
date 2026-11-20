@@ -1051,11 +1051,14 @@ def Module.defineTransitionAbstractForNext (mod : Module) : TermElabM Unit := do
   let (actionTrPairs, actionTrAbstractProofs) := res.unzip
   let bigAndProof := actionTrAbstractProofs.foldr (β := Term) (init := mkIdent ``True.intro) fun pf acc =>
     Syntax.mkApp (mkIdent ``And.intro) #[pf, acc]
+  -- Long list literals can postpone elaboration of the pairs needed to type the proof.
   let body ←
     `(letI $r₀' := $absr₀
       letI $s₀' := $absst₀
       letI $s₁' := $absst₁
-      $(mkIdent ``IteratedPred.bigor_exists_implies) [$actionTrPairs,*] $bigAndProof $idxs)
+      let_mvar% ?pairs := [$actionTrPairs,*];
+      $(mkIdent ``IteratedPred.bigor_exists_implies) ?pairs
+        (wait_if_contains_mvar% ?pairs; $bigAndProof) $idxs)
   elabBinders allBinders fun vs => do
     let proof ← withoutErrToSorry <| elabTermAndSynthesize (← `(by classical exact $body)) none
     let proof ← Meta.mkLambdaFVars vs proof >>= instantiateMVars

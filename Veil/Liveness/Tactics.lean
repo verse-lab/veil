@@ -340,7 +340,10 @@ def elabLivenessNarrowAction : DesugarTacticM Unit := veilWithMainContext do
   let activeIdxs := Array.range actions.size |>.filter fun i => negActHyps.all (fun (_, idx) => idx != i)
   -- Construct `Fin` indices directly and disable `Fin.reduceFinMk` below so their values
   -- reduce by projection rather than relying on numeral-coercion simp lemmas.
-  let activeIdxsList ← activeIdxs.mapM fun i => `(term| ⟨$(Syntax.mkNatLit i), by decide⟩)
+  -- Each index needs its own type because long list literals elaborate in `let`-bound chunks.
+  let actionCount := Syntax.mkNatLit actions.size
+  let activeIdxsList ← activeIdxs.mapM fun i =>
+    `(term| (⟨$(Syntax.mkNatLit i), by decide⟩ : $(mkIdent ``Fin) $actionCount))
   let dsimps := #[``repeatedOrProp, ``List.map, ``List.reverse, ``List.reverseAux,
     ``List.foldr, ``IteratedPred.exists].map Lean.mkIdent
   -- Sometimes Lean has difficulty finding the theory argument, so need to provide it explicitly here
