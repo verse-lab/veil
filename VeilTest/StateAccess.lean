@@ -49,7 +49,7 @@ action try_assign_immutable {
 }
 
 /--
-error: individual b in module Test was declared immutable, but the transition might modify it (since it mentions its primed version b')!
+error: Error in action try_assign_immutable': individual b in module Test was declared immutable, but the transition might modify it (since it mentions its primed version b')!
 -/
 #guard_msgs in
 transition try_assign_immutable' (x : block) {

@@ -825,7 +825,7 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
       `(fun $auxr $auxs => ¬ ($(mkIdent ``readFrom) $auxr = $auxrr ∧ $absst = $auxss))
     let ty ← `(@$localRPropTC $paramArgs* Prop $post)
     let coreStx ← do
-      let theoryFieldIdents ← mod.theoryFieldIdentsAlongsideState
+      let theoryFieldIdents := mod.immutableComponents.map fun sc => Lean.mkIdent sc.name
       let stateFieldIdents := mod.mutableComponents.map fun sc => Lean.mkIdent sc.name
       let fieldIdents : Array Ident := theoryFieldIdents ++ stateFieldIdents
       let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldIdents.mapM fun f =>
@@ -1153,6 +1153,17 @@ where
   mvarToParam (inAction : Name) (i : Nat) (typeSyntax : Term) : TermElabM Parameter := do
     return { kind := .definitionParameter inAction .typeclass, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := typeSyntax, userSyntax := .missing }
 
+/-- Lean reports reassigned variables as binders in the info tree. Collect the
+target spans once, leaving any real binders on the RHS available for warnings. -/
+private partial def assignmentTargetRanges (stx : Syntax) (inQuotation := false)
+    (ranges : Array Syntax.Range := #[]) : Array Syntax.Range := Id.run do
+  let mut ranges := ranges
+  unless inQuotation do
+    if let some lhs := Action.DoElab.assignmentLhs? ⟨stx⟩ then
+      if let some span := lhs.raw.getRange? then ranges := ranges.push span
+  return stx.getArgs.foldl (fun acc child =>
+    assignmentTargetRanges child (Action.childrenAreQuoted stx inQuotation) acc) ranges
+
 def elabProcedureBody (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : ActionSyntax) : TermElabM (Array Parameter × Expr) := do
   let body ← `(veil_do $(mkIdent pi.name) in $environmentTheory, $environmentState in $l)
   let firstTree := (← getInfoTrees).size
@@ -1161,13 +1172,9 @@ def elabProcedureBody (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSynt
   let params ← explicitBindersToParameters br pi.name
   let names := (mod.parameters ++ params).foldl
     (fun names p => if p.isGeneratedFieldContext then names else names.insert p.name) ({} : NameSet)
-  mod.warnTermShadows l firstTree (parameters := names)
-    (ignore := fun ref => (Action.findOutsideQuotations? l.raw fun stx => do
-      unless stx.isOfKind ``Lean.Parser.Term.doReassign ||
-          stx.isOfKind ``Lean.Parser.Term.doReassignArrow do none
-      let some range := stx[0].getRange? | none
-      let some binder := ref.getRange? | none
-      if range.start ≤ binder.start && binder.stop ≤ range.stop then some stx else none).isSome)
+  let targets := assignmentTargetRanges l
+  mod.warnTermShadows l firstTree (parameters := names) (ignore := fun span =>
+    targets.any fun target => target.start ≤ span.start && span.stop ≤ target.stop)
   return result
 
 def elabTransitionTerm (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (t : Term) : TermElabM (Array Parameter × Expr) := do
@@ -1330,6 +1337,7 @@ def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TS
   let params ← explicitBindersToParameters br pi.name
   let firstTree := (← getInfoTrees).size
   let (extraParams, eTr) ← liftTermElabMWithBinders actionBinders $ fun vs => elabTransitionTerm vs pi br t
+  mod.warnExplicitParameterShadows br (primed := true)
   let names := (mod.parameters ++ params).foldl
     (fun names p => if p.isGeneratedFieldContext then names else names.insert p.name) ({} : NameSet)
   mod.warnTermShadows body firstTree (primed := true) (parameters := names)

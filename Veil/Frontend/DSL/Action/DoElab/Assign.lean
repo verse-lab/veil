@@ -98,6 +98,8 @@ counts as an assignment shape — pre-elaboration validation (`Entry.lean`) and
 control-info reporting below must never disagree about it. -/
 def assignmentLhs? (elem : DoElem) : Option Term :=
   match elem with
+  | `(doReassign| $lhs:ident $[: $_]? := $_) => some lhs
+  | `(doReassignArrow| $lhs:ident $[: $_]? ← $_) => some lhs
   | `(doReassign| $lhs:term $[: $_]? := $_) => some lhs
   | `(doReassignArrow| $lhs:term $[: $_]? ← $_ $[| $_ $[$_]?]?) => some lhs
   | `(doElem| $lhs:term := *) => some lhs
@@ -226,7 +228,7 @@ private def throwImmutableLocalTarget (target : Target) (mod : Module) : DoElabM
 /-- Resolve `target` to a state component, or fail with `onMissing`. -/
 private def resolveStateComponent (mod : Module) (target : Target)
     (onMissing : MessageData) : DoElabM StateComponent := do
-  let some component := mod.findComponent? target.componentName
+  let some component := mod.signature.find? (·.name == target.componentName)
     | throwErrorAt target.head onMissing
   unless component.isMutable do mod.throwIfImmutable component.name
   return component
@@ -253,7 +255,7 @@ private def implicitCapital? (ctx : Context) (arg : Term) : TermElabM (Option Na
     let category := if ctx.parameters.contains userDecl.fvarId then "parameter" else "local"
     logWarningAt id m!"capitalized index `{id.getId}` resolves to {category} `{id.getId}`; this is a point update, not a universal update"
     return none
-  if let some component := ctx.mod.findComponent? id.getId then
+  if let some component := ctx.mod.signature.find? (·.name == id.getId) then
     let category := if component.isMutable then "mutable state component" else "immutable theory component"
     logWarningAt id m!"capitalized index `{id.getId}` resolves to {category} `{id.getId}`; this is a point update, not a universal update"
     return none

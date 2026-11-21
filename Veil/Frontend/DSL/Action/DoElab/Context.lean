@@ -159,7 +159,7 @@ private def bindUserFacingField (shadowed : NameSet) (fieldName : Name)
 /-- The *concrete* value of mutable `field` in the current state: a projection
 of the current state binding introduced by `openStateAround`. -/
 def currentStateField (field : Name) : DoElabM Term := do
-  let some st := findFieldBinder? (← getLCtx) `actionState currentStateBindingName
+  let some st := findFieldBinder? (← getLCtx) .actionState currentStateBindingName
     | throwError "missing action state binding"
   `($(mkIdent st.userName).$(mkIdent field))
 
@@ -206,7 +206,7 @@ private def bindTheoryFields (shadowed : NameSet) (theoryName : Name)
     let ty ← Term.elabType (← field.typeStx)
     let valueStx ← `($(mkIdent theoryName).$(mkIdent field.name))
     let value ← Term.elabTermEnsuringType valueStx ty
-    let privateName ← mkPrivateFieldIdent `theory field.name
+    let privateName ← mkPrivateFieldIdent .theory field.name
     mapLetDecl privateName.getId ty value (kind := .implDetail) fun implementationValue =>
       bindUserFacingField shadowed field.name ty implementationValue rest
 
@@ -308,7 +308,7 @@ run the statement elaborator directly. -/
 def openStateAround (mod : Module) (k : DoElabM Expr) : DoElabM Expr := do
   let ref ← getRef
   let shadowed ← userLocalNames
-  let state ← mkPrivateFieldIdent `actionState currentStateBindingName
+  let state ← mkPrivateFieldIdent .actionState currentStateBindingName
   bindInternalResultAs ref state.getId (mkIdent ``get) <|
     bindStateFields shadowed mod.mutableComponents k
 
@@ -318,7 +318,7 @@ def zetaFieldDerivedLets (mod : Module) (e : Expr) : DoElabM Expr := do
   let isGeneratedFieldView (decl : LocalDecl) : Bool :=
     decl.kind == .implDetail && mod.signature.any fun field =>
       decl.userName == field.name ||
-      isPrivateFieldBinder decl.userName `theory field.name
+      isPrivateFieldBinder decl.userName .theory field.name
   let derived := (← getLCtx).foldl (init := #[]) fun (derived : Array FVarId) decl =>
     let dependsOnFieldView (value : Expr) : Bool :=
       (Lean.collectFVars {} value).fvarIds.any derived.contains

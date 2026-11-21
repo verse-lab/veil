@@ -58,4 +58,77 @@ warning: local `value'` shadows mutable state component `value`; references to t
 #guard_msgs in
 transition localShadowsPostState { let value' := true; value' = true }
 
+-- A shadowing binder leaves both fields framed. A real reference elsewhere
+-- in the same expression still allows the post-state value to change.
+def before : State FieldConcreteType := { value := false, value' := 0 }
+def after : State FieldConcreteType := { value := true, value' := 0 }
+
+example : shadowsPostState.ext.tr true ({} : Theory) before before := by
+  unfold shadowsPostState.ext.tr
+  rfl
+example : ¬ shadowsPostState.ext.tr true ({} : Theory) before after := by
+  change false ≠ true
+  decide
+example : ¬ localShadowsPostState.ext.tr ({} : Theory) before after := by
+  change false ≠ true
+  decide
+
+/-- warning: local `value'` shadows mutable state component `value` -/
+#guard_msgs (warning, substring := true) in
+transition mixedScopes { (let value' := true; value') ∧ value' = true }
+
+example : mixedScopes.ext.tr ({} : Theory) before after := by
+  unfold mixedScopes.ext.tr
+  rfl
+
+-- An explicit tautology intentionally leaves the post-state unconstrained.
+transition havocValue { value' = value' }
+example : havocValue.ext.tr ({} : Theory) before after := by
+  unfold havocValue.ext.tr
+  rfl
+
 end PrimedAliasWarning
+
+veil module ImmutablePrimedNames
+
+immutable individual limit : Bool
+immutable individual other : Bool
+individual other' : Bool
+individual result : Bool
+
+#gen_state
+
+transition fromParameter (limit' : Bool) { result' = limit' }
+transition fromLocal { let limit' := true; result' = limit' }
+transition fromField { result' = other' }
+
+def background : Theory := { limit := false, other := false }
+def before : State FieldConcreteType := { other' := true, result := false }
+def after : State FieldConcreteType := { other' := true, result := true }
+
+example : fromParameter.ext.tr true background before after := by unfold fromParameter.ext.tr; rfl
+example : fromLocal.ext.tr background before after := by unfold fromLocal.ext.tr; rfl
+example : fromField.ext.tr background before after := by unfold fromField.ext.tr; rfl
+
+end ImmutablePrimedNames
+
+veil module HygienicTransitionFrame
+
+individual x : Bool
+individual y : Bool
+
+#gen_state
+
+transition setBoth (True : Bool) { True = false ∧ x' = true ∧ y' = true }
+transition keepBoth (And : Bool) { And = false }
+
+def before : State FieldConcreteType := { x := false, y := false }
+def after : State FieldConcreteType := { x := true, y := true }
+
+example : setBoth.ext.tr false ({} : Theory) before after := by unfold setBoth.ext.tr; rfl
+example : keepBoth.ext.tr false ({} : Theory) before before := by unfold keepBoth.ext.tr; rfl
+example : ¬ keepBoth.ext.tr false ({} : Theory) before after := by
+  change false ≠ true
+  decide
+
+end HygienicTransitionFrame

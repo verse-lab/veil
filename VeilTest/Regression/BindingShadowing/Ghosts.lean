@@ -51,28 +51,34 @@ example : theoryFunction true background = true := rfl
 
 end GhostParameterShadowing
 
-veil module FieldAndLocalShadowing
+veil module UniqueFieldNames
 
-immutable individual shared : Nat
+immutable individual limit : Nat
+/-- limit is already declared -/
+#guard_msgs (error, substring := true) in
+individual limit : Bool
 
-/-- warning: mutable state component `shared` shadows immutable theory component `shared` -/
-#guard_msgs (warning, substring := true) in
-individual shared : Bool
+individual value : Bool
+/-- value is already declared -/
+#guard_msgs (error, substring := true) in
+immutable individual value : Nat
 
-individual result : Bool
+end UniqueFieldNames
+
+veil module LocalParameterShadowing
+
+individual value : Bool
 
 #gen_state
 
-theory ghost function readTheory : Nat := shared
-ghost relation readState := shared = true
-
-/--
-warning: parameter `shared` shadows mutable state component `shared`
--/
+/-- warning: parameter `value` shadows mutable state component `value` -/
 #guard_msgs (warning, substring := true) in
-ghost function readLocal (shared : Bool) : Bool :=
-  let shared := !shared
-  shared
+ghost function readLocal (value : Bool) : Bool :=
+  let value := !value
+  value
+
+example (input field : Bool) :
+    readLocal input ({} : Theory) ({ value := field } : State FieldConcreteType) = !input := rfl
 
 /-- warning: local `input` shadows parameter `input` -/
 #guard_msgs (warning, substring := true) in
@@ -87,33 +93,7 @@ procedure termLocalShadowsParameter (input : Bool) {
   return (fun input : Bool => !input) input
 }
 
-after_init {
-  shared := false
-  result := false
-}
-
-action updateShared {
-  shared := true
-}
-
-transition updateSharedPrime { shared' = true }
-
-invariant [readsState] readState ↔ shared
-
-#gen_spec
-
-def background : Theory := { shared := 5 }
-def before : State FieldConcreteType := { shared := false, result := false }
-def after : State FieldConcreteType := { shared := true, result := false }
-
-example : readTheory background = 5 := rfl
-example : readState background after := rfl
-example : readLocal false background before = true := rfl
-example : updateSharedPrime.ext.tr background before after := by
-  unfold updateSharedPrime.ext.tr
-  rfl
-
-end FieldAndLocalShadowing
+end LocalParameterShadowing
 
 veil module InstanceFieldShadowing
 

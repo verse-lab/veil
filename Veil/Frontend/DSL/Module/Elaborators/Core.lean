@@ -394,6 +394,38 @@ def elabProcedure : CommandElab := fun stx => do
     | _ => throwUnsupportedSyntax
     localEnv.modifyModule (fun _ => new_mod)
 
+/-- Elaborate the transition predicate while its user-visible field aliases are
+still free variables. A local or parameter that shadows a primed field has a
+different identity and therefore leaves the implicit frame in place. -/
+scoped syntax (name := transitionFrame) "veil_transition_frame% "
+  ("(" Lean.Parser.ident Lean.Parser.ident ")")* " in " term : term
+
+@[term_elab transitionFrame]
+def elabTransitionFrame : TermElab := fun stx _ => do
+  let `(veil_transition_frame% $[($pre:ident $post:ident)]* in $body) := stx
+    | throwUnsupportedSyntax
+  let prop ← try
+    instantiateMVars (← withSynthesize <| elabTermEnsuringType body (some (.sort .zero)))
+  catch ex =>
+    -- Give Veil's diagnostic only for an unresolved primed theory field.
+    -- A bound identifier with the same spelling is a legal Lean reference.
+    if let .error ref msg := ex then
+      if msg.hasTag (· == unknownIdentifierMessageTag) then
+        let mod ← getCurrentModule
+        if let some field := mod.immutableComponents.find? (fun f => f.name.appendAfter "'" == ref.getId) then
+          mod.throwIfImmutable field.name (isTransition := true)
+    throw ex
+  let used := (collectFVars {} prop).fvarSet
+  let lctx ← getLCtx
+  let mut equalities := #[]
+  for (pre, post) in pre.zip post do
+    let postVar ← Meta.getFVarFromUserName post.getId
+    if used.contains postVar.fvarId! then continue
+    if let some fieldView := lctx.findFromUserName? post.getId.eraseMacroScopes then
+      if fieldView.value? true == some postVar && used.contains fieldView.fvarId then continue
+    equalities := equalities.push (← Meta.mkEq (← Meta.getFVarFromUserName pre.getId) postVar)
+  return mkAnd (mkAndN equalities.toList) prop
+
 @[command_elab Veil.transitionDefinition]
 def elabTransition : CommandElab := fun stx => do
   let nm := extractDefinitionName stx
@@ -404,27 +436,15 @@ def elabTransition : CommandElab := fun stx => do
     mod.throwIfSpecAlreadyFinalized
     let new_mod ← match stx with
     | `(command|transition $nm:ident $br:explicitBinders ? { $t:term }) =>
-      -- check immutability of changed fields
-      let changedFn (f : Name) := t.raw.find? (·.getId == f.appendAfter "'") |>.isSome
-      let fields ← mod.getFieldsRecursively
-      let mutableFieldNames := mod.mutableComponents.map (·.name)
-      for f in fields.filter changedFn do
-        mod.throwIfImmutable f (isTransition := true)
-      -- Only mutable fields need "unchanged" constraints
-      -- (immutable fields don't have primed versions in transitions)
-      mod.warnExplicitParameterShadows br (primed := true)
       let trStx ← liftTermElabM do
         let th ← Lean.mkIdent <$> mkFreshUserName `th
         let st ← Lean.mkIdent <$> mkFreshUserName `st
         let st' ← Lean.mkIdent <$> mkFreshUserName `st'
         let tmp ← mod.withFieldBinders [(.theory, th, true), (.state, st, true), (.nextState, st', true)]
           (some (← `(Prop))) fun groups => do
-            let frame ← (mutableFieldNames.zip (groups[1]!.zip groups[2]!)).filterMapM fun (field, pre, post) => do
-              if changedFn field then return none
-              return some (← `($pre = $post))
-            let frame ← repeatedAnd frame
-            let body ← openUserFieldNames groups.flatten t
-            `($frame ∧ $body)
+            let (pre, post) := (groups[1]!, groups[2]!)
+            let body ← `(veil_transition_frame% $[($pre:ident $post:ident)]* in $t)
+            openUserFieldNames groups.flatten body
         -- NOTE: We wrap the transition in a `decide` to ensure the required `Decidable` instance
         -- becomes an instance argument and can be used in extraction
         `(term| (fun ($th : $environmentTheory) ($st $st' : $environmentState) => $(mkIdent ``decide) ($tmp) = $(mkIdent ``true)))
