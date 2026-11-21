@@ -11,6 +11,7 @@ public meta import Veil.Frontend.DSL.Infra.EnvExtensions
 public meta import Veil.Core.UI.Verifier.Model
 public meta import Veil.Core.UI.Verifier.InductionCounterexample
 public meta import Veil.Backend.SMT.Model
+public meta import Veil.Core.Tools.ModelChecker.Trace
 
 public meta section
 
@@ -62,16 +63,20 @@ structure VeilTrace where
 
   /-- Type expression for `State (FieldAbstractType sortArgs*)` -/
   stateType : Expr
-  /-- Array of state expressions, indexed 0..n (st0, st1, ..., stn) -/
-  stateExprs : Array Expr
+  initialState : Expr
 
   /-- Type expression for `Label sortArgs*` -/
   labelType : Expr
-  /-- Array of label expressions for transitions (one fewer than states) -/
-  labelExprs : Array Expr
+  steps : Array (ModelChecker.Step Expr Expr)
 
   /-- Values that couldn't be classified -/
   extraVals : Array (Expr × Expr)
+
+/-- Reconstruct the Lean trace used by both symbolic trace commands. -/
+def VeilTrace.toTraceExpr (w : VeilTrace) : MetaM Expr := do
+  let stepType ← mkAppM ``ModelChecker.Step #[w.stateType, w.labelType]
+  let steps ← w.steps.mapM fun s => mkAppM ``ModelChecker.Step.mk #[s.transitionLabel, s.nextState]
+  mkAppM ``ModelChecker.Trace.mk #[w.theoryExpr, w.initialState, ← mkArrayLit stepType steps.toList, ← mkNone stepType]
 
 /-! ## Main Construction -/
 
@@ -79,8 +84,6 @@ structure VeilTrace where
     `numTransitions` is the number of transitions in the trace (states = numTransitions + 1). -/
 def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
     : MetaM VeilTrace := do
-  let numStates := numTransitions + 1
-
   -- Parse sorts from model
   let sortMap ← parseSortsFromModel model
 
@@ -120,36 +123,34 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
   let dispatcher ← mkAppM fieldAbstractTypeName moduleArgs
   let stateType ← mkAppM (mod.name ++ `State) #[dispatcher]
 
-  -- Build State expressions for each state
-  let stateExprs ← (Array.range numStates).mapM fun i =>
-    buildStateExpr mod moduleArgs values enumAdapts (traceStateName i)
+  let stateAt := fun i => buildStateExpr mod moduleArgs values enumAdapts (traceStateName i)
 
   -- Build Label type
   let labelType ← mkAppM (mod.name ++ `Label) moduleArgs
 
   -- Build Label expressions for each transition
-  let defaultLabel := mkAppOptM ``default #[some labelType, none]
   let mut actionsByTag : Std.HashMap Nat (Nat × Name) := {}
   for (act, idx) in mod.actions.zipIdx do
     let some value := values[actionTagEnumInstName ++ act.name]? | continue
     let some tag ← extractFinValue model.ctx value | continue
+    if actionsByTag.contains tag then throwError "ambiguous action tag {tag}"
     actionsByTag := actionsByTag.insert tag (idx, act.name)
-  let labelExprs ← (Array.range numTransitions).mapM fun i => do
+  let steps ← (Array.range numTransitions).mapM fun i => do
     let step := i + 1
-    let some tagExpr := values[traceTagName step]? | defaultLabel
-    let some tag ← extractFinValue model.ctx tagExpr | defaultLabel
-    let some (idx, actionName) := actionsByTag[tag]? | defaultLabel
+    let some tagExpr := values[traceTagName step]? | throwError "missing action tag at step {step}"
+    let some tag ← extractFinValue model.ctx tagExpr | throwError "invalid action tag at step {step}"
+    let some (idx, actionName) := actionsByTag[tag]? | throwError "unknown action tag {tag} at step {step}"
     let some label ← buildLabelExpr mod moduleArgs actionName values enumAdapts
-        (traceArgumentName step idx) | defaultLabel
-    return label
+        (traceArgumentName step idx) | throwError "unknown action {actionName} at step {step}"
+    return ModelChecker.Step.mk label (← stateAt step)
 
   return {
     ctx := model.ctx
     sortInstInfo, sortSubst, enumAdapts
     extraSorts
     theoryExpr, theoryType
-    stateType, stateExprs
-    labelType, labelExprs
+    stateType, initialState := ← stateAt 0
+    labelType, steps
     extraVals
   }
 
@@ -175,31 +176,17 @@ unsafe def VeilTrace.toJson (vt : VeilTrace)
   let theoryJson ← encode vt.theoryType vt.theoryExpr
 
   -- Build states array
-  let mut statesArr : Array Json := #[]
-
-  -- First state (initial, after_init)
-  if h : 0 < vt.stateExprs.size then
-    let stateJson ← encode vt.stateType vt.stateExprs[0]
+  let mut statesArr := #[Json.mkObj [
+    ("index", Json.num 0),
+    ("fields", ← encode vt.stateType vt.initialState),
+    ("transition", Json.str "after_init")
+  ]]
+  for (step, i) in vt.steps.zipIdx do
     statesArr := statesArr.push <| Json.mkObj [
-      ("index", Json.num 0),
-      ("fields", stateJson),
-      ("transition", Json.str "after_init")
+      ("index", Lean.toJson (i + 1 : Nat)),
+      ("fields", ← encode vt.stateType step.nextState),
+      ("transition", ← encode vt.labelType step.transitionLabel)
     ]
-
-  -- Subsequent states with their transition labels
-  for i in [1:vt.stateExprs.size] do
-    if hi : i < vt.stateExprs.size then
-      let stateJson ← encode vt.stateType vt.stateExprs[i]
-      let labelIdx := i - 1
-      let labelJson ← if hl : labelIdx < vt.labelExprs.size then
-        encode vt.labelType vt.labelExprs[labelIdx]
-      else
-        pure (Json.str "unknown")
-      statesArr := statesArr.push <| Json.mkObj [
-        ("index", Json.num i),
-        ("fields", stateJson),
-        ("transition", labelJson)
-      ]
 
   -- Build instantiation JSON
   let instJson := Json.mkObj <| vt.sortInstInfo.toList.map fun (name, typeStr) =>

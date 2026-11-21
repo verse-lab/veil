@@ -114,10 +114,6 @@ partial def checkWPChoices (original : Expr) (actName : Name) (choices : Std.Has
     if choices.contains n && !(← isProp domain) then
       unless pending.contains n do throwError "ambiguous WP binder {n}"
       let value ← buildModelValue choices n domain enums
-      -- SMT models Nat as Int. A negative integer has no corresponding Lean pick.
-      let raw := choices[n]!
-      if (← whnf domain).isNat && (← whnf (← inferType raw)).isInt then
-        unless ← isDefEq (← mkAppM ``Int.ofNat #[value]) raw do throwError "invalid Nat assignment {n}"
       checkWitnessArg value domain
       return ← pin (mkApp h value) (body.instantiate1 value) (pending.erase n)
     withLocalDecl n info domain fun x => do

@@ -45,7 +45,7 @@ deriving Repr, Inhabited
 abbrev Steps (σ : Type) (l : Type) := Array (Step σ l)
 abbrev StepList (σ : Type) (l : Type) := List (Step σ l)
 
-@[grind =]
+@[simp, grind =]
 def StepList.validFrom (sys : RelationalTransitionSystem ρ σ l) (th : ρ) (st : σ) (steps : StepList σ l) : Prop :=
   match steps with
   | [] => True
@@ -146,6 +146,31 @@ structure Trace.isValid (trace : Trace ρ σ l) (sys : RelationalTransitionSyste
   theorySatisfiesAssumptions : sys.assumptions (trace.theory)
   initialStateSatisfiesInit : sys.init (trace.theory) (trace.initialState)
   stepsValid : Steps.validFrom trace.steps sys trace.theory trace.initialState
+
+@[simp] theorem Trace.isValid_iff (trace : Trace ρ σ l) (sys : RelationalTransitionSystem ρ σ l) :
+    trace.isValid sys ↔ sys.assumptions trace.theory ∧ sys.init trace.theory trace.initialState ∧
+      StepList.validFrom sys trace.theory trace.initialState trace.steps.toList :=
+  ⟨fun h => ⟨h.theorySatisfiesAssumptions, h.initialStateSatisfiesInit, h.stepsValid⟩,
+   fun ⟨a, i, s⟩ => ⟨a, i, s⟩⟩
+
+/-- A trace query either tests the current state or consumes a step with a matching label. -/
+inductive Trace.QueryLine (ρ σ l : Type) where
+  | assertion (holds : ρ → σ → Prop)
+  | action (matchesLabel : l → Prop)
+
+@[simp] def Trace.QueryLine.matchesFrom (th : ρ) :
+    List (QueryLine ρ σ l) → σ → List (Step σ l) → Prop
+  | [], _, steps => steps = []
+  | .assertion holds :: rest, st, steps => holds th st ∧ matchesFrom th rest st steps
+  | .action _ :: _, _, [] => False
+  | .action matchesLabel :: rest, _, step :: steps =>
+    matchesLabel step.transitionLabel ∧ matchesFrom th rest step.nextState steps
+
+/-- A complete execution matching the query, with every assertion at its specified state. -/
+@[simp] def Trace.isValidFor (trace : Trace ρ σ l) (sys : RelationalTransitionSystem ρ σ l)
+    (query : List (Trace.QueryLine ρ σ l)) : Prop :=
+  trace.isValid sys ∧ trace.failingStep = none ∧
+    QueryLine.matchesFrom trace.theory query trace.initialState trace.steps.toList
 
 @[grind .]
 theorem Trace.push_isValid (trace : Trace ρ σ l) (step : Step σ l) (sys : RelationalTransitionSystem ρ σ l) :

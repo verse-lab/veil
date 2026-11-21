@@ -111,6 +111,15 @@ private def convertEnumToSmt? (enumExpr enumType smtType : Expr)
     converted ← mkIte adapt.smtType cond idxExpr converted
   return some converted
 
+/-- SMT functions are commonly returned as tables of nested ifs. Check their integer
+outputs before converting to Nat, including when a symbolic input prevents reduction. -/
+private partial def checkNatOutput (value : Expr) (name : Name) : MetaM Unit := do
+  let value := value.headBeta
+  if ← Meta.isDefEq (← Meta.mkAppM ``Int.ofNat #[← Meta.mkAppM ``Int.toNat #[value]]) value then return
+  let_expr ite _ _ _ yes no := value | throwError "invalid Nat assignment {name}"
+  checkNatOutput yes name
+  checkNatOutput no name
+
 /-- Convert an SMT model function to match the expected Lean type.
 
   SMT models may convert types during embedding:
@@ -126,7 +135,7 @@ private def convertEnumToSmt? (enumExpr enumType smtType : Expr)
 
   TODO: upstream this to `lean-smt` -/
 def adaptSmtExprType (smtExpr : Expr) (expectedType : Expr)
-    (enumAdapts : Array EnumSortAdaptation := #[]) : MetaM Expr := do
+    (enumAdapts : Array EnumSortAdaptation := #[]) (name : Name := .anonymous) : MetaM Expr := do
   -- Reduce types for accurate comparison
   let expectedType ← Meta.reduceAll expectedType
   let smtType ← Meta.reduceAll (← Meta.inferType smtExpr)
@@ -164,9 +173,9 @@ def adaptSmtExprType (smtExpr : Expr) (expectedType : Expr)
       -- Prop → Bool: use `decide`
       if expectedRetTy.isBool && smtRetTy.isProp then
         Meta.mkAppOptM ``decide #[some app, none]
-      -- Int → Nat: use `Int.toNat` (returns 0 for negative values, but SMT model
-      -- should always return valid non-negative values for Nat-typed results)
-      else if expectedRetTy.isNat && smtRetTy.isInt then
+      -- Int → Nat requires a nonnegative result.
+      else if expectedRetTy.isNat && smtRetTy.isInt then do
+        checkNatOutput app name
         Meta.mkAppM ``Int.toNat #[app]
       -- SMT sort (typically `Fin n`) → enum concrete type
       else if let some converted ← convertSmtToEnum? app smtRetTy expectedRetTy enumAdapts then

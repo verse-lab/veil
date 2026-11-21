@@ -59,7 +59,7 @@ run_cmd do
           expectCheck "initial assertion" (← q.check w) .checked
           let (_, empty) ← mkTraceQuery mod (← `(traceSpec|))
           expectCheck "non-initial state" (← empty.check { w with
-            stateExprs := #[← Term.elabTermAndSynthesize (← `(⟨7⟩)) (some w.stateType)] }) .invalid
+            initialState := ← Term.elabTermAndSynthesize (← `(⟨7⟩)) (some w.stateType) }) .invalid
           expectCheck "trace theory" (← empty.check { w with
             theoryExpr := ← mkAppM ``Theory.mk #[mkConst ``Bool.false] }) .invalid
         else
@@ -73,14 +73,14 @@ run_cmd do
             any action))
           expectCheck "original trace" (← q.check w) .checked
           expectCheck "bad final edge" (← q.check { w with
-            stateExprs := w.stateExprs.set! 2 w.stateExprs[0]! }) .invalid
+            steps := w.steps.modify 1 fun s => { s with nextState := w.initialState } }) .invalid
           -- The twin has exactly the same effect, but the query requested advance.
-          let twinPath := { w with labelExprs := w.labelExprs.set! 0 (mkConst ``Label.twin) }
+          let twinPath := { w with steps := w.steps.modify 0 fun s => { s with transitionLabel := mkConst ``Label.twin } }
           let (_, anyTwo) ← mkTraceQuery mod (← `(traceSpec| any 2 actions))
           expectCheck "legal twin edge" (← anyTwo.check twinPath) .checked
           expectCheck "wrong named action" (← q.check twinPath) .invalid
           expectCheck "intermediate assertion" (← wrongCheckpoint.check w) .invalid
-          expectCheck "missing step" (← q.check { w with labelExprs := #[] }) .invalid
+          expectCheck "missing step" (← q.check { w with steps := #[] }) .invalid
     | .induction md =>
       unless md.style == .tr && md.property == `zero && [`advance, `initializer].contains md.action do continue
       let original ← mod.mkInvariantGoalVC (mkIdent md.action) (mkIdent md.property) .tr

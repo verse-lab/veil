@@ -27,8 +27,8 @@ namespace Veil
 
 /-! ## Trace-Specific Result Processing -/
 
-/-- The positive trace query, quantified over its module parameters, theory,
-states and labels. Both trace commands check the same proposition on SAT. -/
+/-- The positive trace query, quantified over its module parameters and a Lean trace.
+Both trace commands check the same proposition on SAT. -/
 structure TraceReplay where
   params : Array Parameter
   statement : Term
@@ -36,12 +36,10 @@ structure TraceReplay where
 
 def TraceReplay.check (query : TraceReplay) (w : VeilTrace) : TermElabM WitnessCheck :=
   checkWitness do
-    unless w.stateExprs.size == query.numTransitions + 1 && w.labelExprs.size == query.numTransitions do
-      return mkConst ``False
     let template ← elabTermAndSynthesize query.statement (some (.sort .zero))
     let body ← specializeWitnessModule template query.params w.theoryType w.stateType w.enumAdapts
       (← witnessAssignments w.ctx w.extraVals)
-    specializeWitness body (#[w.theoryExpr] ++ w.stateExprs ++ w.labelExprs)
+    specializeWitness body #[← w.toTraceExpr]
 
 /-- Process SMT outputs and build trace counterexamples on SAT.
     Unlike the standard `overallSmtResult`, this uses `buildTraceFromModel` for trace queries. -/

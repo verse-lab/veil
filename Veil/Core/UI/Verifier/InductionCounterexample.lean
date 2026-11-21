@@ -260,7 +260,7 @@ partial def buildModelValue (values : Std.HashMap Name Expr)
     (name : Name) (expectedType : Expr) (enumAdapts : Array EnumSortAdaptation)
     (fallback? : Option Expr := none) : MetaM Expr := do
   if let some value := values[name]? then
-    let value ← adaptSmtExprType value expectedType enumAdapts
+    let value ← adaptSmtExprType value expectedType enumAdapts name
     unless ← isDefEq (← inferType value) expectedType do
       throwError "counterexample parameter {name} does not have its declared type {expectedType}"
     return value
