@@ -349,16 +349,22 @@ def commitIfNoErrors (x : CommandElabM α) : CommandElabM (Except (Array Message
   modify fun s => { s with messages := saved }
   return .error (msgs.toArray.filter (·.severity == .error))
 
-/-- Remove `let`/`have` bindings whose variable does not occur in their body.
-Bindings kept alive only by other dead bindings are removed as well, since
-`Core.transform` rewrites bottom-up. -/
+/-- Remove a run of unused binders before descending into the remaining term.
+The first `dropped` loose indices cannot occur there, so we can adjust all
+references to outer binders in one pass. -/
+private def dropUnusedLets (e : Expr) (dropped : Nat := 0) : Expr := Id.run do
+  if let .letE _ _ _ body _ := e then
+    unless body.hasLooseBVar 0 do
+      return dropUnusedLets body (dropped + 1)
+  return if dropped == 0 then e else e.lowerLooseBVars dropped dropped
+
+/-- Remove unused `let`/`have` bindings. Prune unused prefixes before recursion
+so a run of dead field views does not consume one recursion level per view.
+Check again on the way out for bindings kept alive only by other dead bindings. -/
 def eraseUnusedLets [Monad m] [MonadLiftT CoreM m] [MonadControlT CoreM m]
     (e : Expr) : m Expr :=
-  Core.transform e (post := fun e => do
-    if let .letE _ _ _ b _ := e then
-      unless b.hasLooseBVar 0 do
-        return .done (b.lowerLooseBVars 1 1)
-    return .continue)
+  Core.transform e (pre := fun e => return .continue (some (dropUnusedLets e)))
+    (post := fun e => return .done (dropUnusedLets e))
 
 /-- Is this type a `Decidable` instance? -/
 def isDecidableInstance (type : Expr) : TermElabM Bool := do
