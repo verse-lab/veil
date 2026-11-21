@@ -205,7 +205,8 @@ def elabExactState : TacticM Unit := withMainContext do
       let some decl := lctx.findFromUserName? conc
         | throwError "state component {nm} is not available in the local context"
       pure (mkIdent decl.userName)
-  let constr ← `(term| (⟨$[$actualFields],*⟩ : $(← mod.stateStx)))
+  let χ ← publicParamRef fieldConcreteType
+  let constr ← `(term| (⟨$[$actualFields],*⟩ : $stateIdent $χ))
   trace[veil.debug] "state constr: {constr}"
   Tactic.evalTactic $ ← `(tactic| exact $constr)
 
@@ -218,7 +219,7 @@ elab_rules : tactic
 /-- Expose the fields under their DSL names, unless an enclosing user binder
 already owns the name. The private field bindings remain available to generated code. -/
 scoped syntax (name := veilFieldViews)
-  "veil_field_views% " ("(" ident " := " ident ")")* (" hiding " ident+)? " in " term : term
+  "veil_field_views% " ("(" ident " := " ident ")")* " in " term : term
 
 def Parameter.isGeneratedFieldContext (p : Parameter) : Bool :=
   p.kind matches .backgroundTheory | .environmentState
@@ -245,25 +246,21 @@ where
 
 @[term_elab veilFieldViews]
 def elabVeilFieldViews : TermElab := fun stx expectedType? => do
-  let `(veil_field_views% $[($names:ident := $fields:ident)]* $[hiding $generated:ident*]? in $body) := stx
+  let `(veil_field_views% $[($names:ident := $fields:ident)]* in $body) := stx
     | throwUnsupportedSyntax
-  let lctx := (generated.getD #[]).foldl (init := ← getLCtx) fun ctx id =>
-    if let some decl := ctx.findFromUserName? id.getId then
-      ctx.setKind decl.fvarId .implDetail
-    else ctx
-  withLCtx' lctx do
-    let mut namesSeen : NameSet := {}
-    let mut views := []
-    for (name, field) in (names.zip fields).reverse do
-      if namesSeen.contains name.getId then continue
-      namesSeen := namesSeen.insert name.getId
-      -- Instance parameters remain available to typeclass search.
-      if lctx.any (fun decl => decl.userName == name.getId && decl.kind != .implDetail &&
-          !decl.binderInfo.isInstImplicit) then continue
-      let value ← getFVarFromUserName field.getId
-      views := (name.getId, ← inferType value, value) :: views
-    -- The body can infer the result type of an unannotated ghost function.
-    bindFieldViews views (elabTerm body expectedType?)
+  let lctx ← getLCtx
+  let mut namesSeen : NameSet := {}
+  let mut views := []
+  for (name, field) in (names.zip fields).reverse do
+    if namesSeen.contains name.getId then continue
+    namesSeen := namesSeen.insert name.getId
+    -- Instance parameters remain available to typeclass search.
+    if lctx.any (fun decl => decl.userName == name.getId && decl.kind != .implDetail &&
+        !decl.binderInfo.isInstImplicit) then continue
+    let value ← getFVarFromUserName field.getId
+    views := (name.getId, ← inferType value, value) :: views
+  -- The body can infer the result type of an unannotated ghost function.
+  bindFieldViews views (elabTerm body expectedType?)
 
 /-- Wrap a term in field destructors. The callback receives the binders in
 the order of `targets` (one array per opened structure). Generated terms can
@@ -335,21 +332,16 @@ def Module.withTheoryAndStateTermTemplate (mod : Module)
     fieldRepInstance stateSortTerm stateView
 
 /-- Make the field binders visible to the user term. -/
-def openUserFieldNames (fields : Array Ident) (body : Term) (generated : Array Ident := #[]) : MetaM Term := do
+def openUserFieldNames (fields : Array Ident) (body : Term) : MetaM Term := do
   let names := fields.map fun field => mkIdent field.getId.eraseMacroScopes
-  if generated.isEmpty then
-    `(veil_field_views% $[($names:ident := $fields:ident)]* in $body)
-  else
-    `(veil_field_views% $[($names:ident := $fields:ident)]* hiding $generated:ident* in $body)
+  `(veil_field_views% $[($names:ident := $fields:ident)]* in $body)
 
 /-- Open theory and state fields under their declared names in a user term. -/
 def Module.withUserFieldNames (mod : Module)
     (targets : List (TheoryAndStateTermTemplateArgKind × Term × Bool))
     (motiveType : Option Term) (body : Term)
-    (fieldRepInstance : Term := fieldRepresentation) (stateSortTerm : Option Term := none)
-    (generated : Array Ident := #[]) :
-    MetaM Term :=
-  mod.withFieldBinders targets motiveType (fun groups => openUserFieldNames groups.flatten body generated)
+    (fieldRepInstance : Term := fieldRepresentation) (stateSortTerm : Option Term := none) : MetaM Term :=
+  mod.withFieldBinders targets motiveType (fun groups => openUserFieldNames groups.flatten body)
     fieldRepInstance stateSortTerm
 
 /-! ## Convenience Wrappers -/
@@ -478,7 +470,7 @@ def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind) (param
       throwError "mvar(s) exist in the elaborated assertion expression. Consider adding more type annotations."
     pure (insts, expr)
   trace[veil.debug] "insts: {insts.map (·.1)}"
-  let extraParams : Array Parameter := insts.mapIdx (fun i (decT, _) => { kind := .definitionParameter name .typeclass, name := Name.mkSimple s!"{name}_dec_{i}", «type» := decT, userSyntax := .missing })
+  let extraParams : Array Parameter := insts.mapIdx (fun i (decT, _) => { kind := .definitionParameter name .typeclass, name := publicBinderName (.mkSimple s!"{name}_dec_{i}"), «type» := decT, userSyntax := .missing })
   return {
     extraParams := extraParams
     thstBinders := thstBinders

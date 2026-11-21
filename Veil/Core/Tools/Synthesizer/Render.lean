@@ -32,6 +32,7 @@ open Lean Lean.Parser.Term
 
 /-- An expression in the surface syntax of a Veil module, as UPDR writes it. -/
 inductive Written where
+  | var (i : Nat)
   | ident (n : Name)
   | app (f : Name) (args : Array Written)
   /-- A numeral of a numeric sort; the term ascribes the sort. -/
@@ -46,19 +47,20 @@ inductive Written where
   /-- A disjunction of at least one formula. -/
   | or (parts : Array Written)
   | false
-  | forall (binders : Array (Name × SortName)) (body : Written)
+  | forall (binders : Array SortName) (body : Written)
 deriving Inhabited
 
 /-- The name of the `i`-th bound variable of a clause. -/
 def varName (i : Nat) : Name := .mkSimple s!"x{i}"
 
 /-- The identifier of the `i`-th bound variable of a clause. -/
-def varIdent (i : Nat) : Ident := mkIdent (varName i)
+def varIdent (i : Nat) : Ident := mkIdent (addMacroScope `Veil.clause (varName i) reservedMacroScope)
 
 namespace Written
 
 /-- The Lean term of a written expression. -/
 partial def toTerm [Monad m] [MonadQuotation m] : Written → m Term
+  | .var i => pure (varIdent i)
   | .ident n => pure (mkIdent n)
   | .app f args => do `($(mkIdent f) $(← args.mapM toTerm)*)
   | .numeral s n => do
@@ -72,7 +74,7 @@ partial def toTerm [Monad m] [MonadQuotation m] : Written → m Term
   | .or ps => fold (fun a b ↦ `($a ∨ $b)) ps
   | .false => `(False)
   | .forall bs body => do
-    let binders ← bs.mapM fun (x, s) ↦ `(bracketedBinder| ($(mkIdent x) : $(mkIdent s)))
+    let binders ← bs.mapIdxM fun i s ↦ `(bracketedBinder| ($(varIdent i) : $(mkIdent s)))
     `(∀ $binders*, $(← body.toTerm))
 where
   /-- Combine the terms of `ps` from the left with `op`. -/
@@ -80,26 +82,43 @@ where
     let ts ← ps.mapM toTerm
     ts[1:].foldlM op ts[0]!
 
+/-- Names which must still refer to the module after the clause is pasted as source. -/
+private partial def mentions (name : Name) : Written → Bool
+  | .ident n | .numeral n _ => n.getRoot == name
+  | .app f args => f.getRoot == name || args.any (mentions name)
+  | .sum xs | .or xs => xs.any (mentions name)
+  | .eq a b | .le a b => mentions name a || mentions name b
+  | .not t | .scale _ t => mentions name t
+  | .forall bs t => bs.contains name || mentions name t
+  | .var _ | .false => Bool.false
+
 /-- The text of a written expression. -/
-partial def toString : Written → String
+private partial def render (var : Nat → String) : Written → String
+  | .var i => var i
   | .ident n => n.toString
-  | .app f args => " ".intercalate (f.toString :: (args.map toString).toList)
+  | .app f args => " ".intercalate (f.toString :: (args.map (render var)).toList)
   | .numeral _ n => ToString.toString n
-  | .scale k t => s!"{k} * {t.toString}"
-  | .sum ps => " + ".intercalate (ps.map toString).toList
-  | .eq a b => s!"{a.toString} = {b.toString}"
-  | .le a b => s!"{a.toString} ≤ {b.toString}"
-  | .not a => s!"¬ {a.toString}"
-  | .or ps => " ∨ ".intercalate (ps.map toString).toList
+  | .scale k t => s!"{k} * {render var t}"
+  | .sum ps => " + ".intercalate (ps.map (render var)).toList
+  | .eq a b => s!"{render var a} = {render var b}"
+  | .le a b => s!"{render var a} ≤ {render var b}"
+  | .not a => s!"¬ {render var a}"
+  | .or ps => " ∨ ".intercalate (ps.map (render var)).toList
   | .false => "False"
   | .forall bs body =>
-    s!"∀ {" ".intercalate (bs.map fun (x, s) ↦ s!"({x} : {s})").toList}, {body.toString}"
+    s!"∀ {" ".intercalate (bs.mapIdx fun i s ↦ s!"({var i} : {s})").toList}, {render var body}"
+
+/-- Choose a spelling for each binder that keeps the printed clause pasteable. -/
+partial def toString (w : Written) : String :=
+  render (fun i => (unused (varName i)).toString) w
+where
+  unused (name : Name) : Name := if w.mentions name then unused (name.appendAfter "'") else name
 
 end Written
 
 /-- An argument as written: a variable `xᵢ` or a constructor. -/
 def Arg.written : Arg → Written
-  | .var v => .ident (varName v)
+  | .var v => .var v
   | .enumConst ctor _ => .ident ctor
 
 /-- A symbol applied to arguments, as written. -/
@@ -120,7 +139,7 @@ def Atom.written : Atom → Written
   | .rel sym args =>
     let args := args.map Arg.written
     if sym.isFunction && !args.isEmpty then .eq (sym.apply args.pop) args.back! else sym.apply args
-  | .eq a b => .eq (.ident (varName a)) (.ident (varName b))
+  | .eq a b => .eq (.var a) (.var b)
   | .lin terms c isEq =>
     let sort := (terms[0]?.map (·.2.sort)).getD `Int
     let lhs := linearSide sort (terms.filter (·.1 > 0)) c
@@ -134,7 +153,7 @@ def Literal.written (l : Literal) : Written :=
 /-- A clause as written. -/
 def Clause.written (c : Clause) : Written :=
   let body := if c.lits.isEmpty then .false else .or (c.lits.map Literal.written)
-  if c.vars.isEmpty then body else .forall (c.vars.mapIdx fun i s ↦ (varName i, s)) body
+  if c.vars.isEmpty then body else .forall c.vars body
 
 /-- A literal as a Lean term. -/
 def Literal.toTerm [Monad m] [MonadQuotation m] (l : Literal) : m Term := l.written.toTerm

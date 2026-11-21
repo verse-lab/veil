@@ -401,7 +401,7 @@ private def parsePattern (msgs : Array MessageKind) (reserved : NameSet) (p : Sy
         throwErrorAt a "`{a.getId}` is bound twice in this pattern"
       taken := taken.insert a.getId
   let src ← if p[1].getNumArgs == 0 then
-      pure (mkIdent (freshName taken `sender))
+      Lean.mkIdent <$> liftCoreM (mkFreshUserName (freshName taken `sender))
     else pure (⟨p[1][1]⟩ : Ident)
   if taken.contains src.getId then
     throwErrorAt src "`{src.getId}` is bound twice in this pattern"
@@ -414,7 +414,7 @@ private def parsePattern (msgs : Array MessageKind) (reserved : NameSet) (p : Sy
       let x := freshName taken f.getId
       taken := taken.insert x
       let sel := if a.isOfKind ``Lean.Parser.Term.hole then none else some (⟨a⟩ : Term)
-      args := args.push (mkIdentFrom a x, sel)
+      args := args.push (mkIdentFrom a (← liftCoreM (mkFreshUserName x)), sel)
   for (x, _) in args do
     if reserved.contains x.getId then
       throwErrorAt x "`{x.getId}` is a node variable (or the node itself), and cannot be bound by a pattern"
@@ -654,8 +654,7 @@ private partial def expandReceived (stx : Syntax) : M Syntax := do
   let args : Array Term ← args.mapM fun a => return ⟨← localize a⟩
   let ch := mkIdent (inChan k.name)
   if stx[2].getNumArgs == 0 then
-    let src := mkIdent `net_src
-    `((∃ $src:ident, $ch $src $(ctx.self) $args* = true))
+    `((∃ net_src, $ch net_src $(ctx.self) $args* = true))
   else
     let src : Term := ⟨← localize stx[2][1]⟩
     `(($ch $src $(ctx.self) $args* = true))
@@ -726,7 +725,7 @@ private def sendCode (sc : Scope) (msg : Syntax) (dst? : Option Syntax)
   if guard?.isSome && ctx.cfg.fifo then
     throwErrorAt msg "a guarded `broadcast` is not supported with `order := fifo`"
   let self := ctx.self
-  let allDst := mkIdent `DST
+  let allDst := mkIdent (Veil.privateBinderName `DST)
   let dst ← match dst? with
     | some d => userTerm sc d
     | none => pure allDst
@@ -735,17 +734,17 @@ private def sendCode (sc : Scope) (msg : Syntax) (dst? : Option Syntax)
     -- the message gets the channel's next sequence number
     let ch := mkIdent (netChan k.name)
     let sent := mkIdent seqSentName
-    let nxt := mkIdent `net_seq_next
+    let nxt ← Lean.mkIdent <$> liftCoreM (mkFreshUserName `net_seq_next)
     if dst?.isSome then
       let cur ← `($sent $self $dst)
       return #[(← `(doElem| let $nxt:ident :| $(seqOrd `next) $cur $nxt)).raw,
         ← assign (← `($ch $self $dst $cur $args*)) (← `(true)),
         ← assign cur nxt] ++ count
     else
-      let seqI := mkIdent `SEQ
+      let seqI := mkIdent (Veil.privateBinderName `SEQ)
       let seqT := mkIdent seqTypeName
       let entry ← `($ch $self $allDst $seqI $args*)
-      return #[(← `(doElem| let $nxt:ident : $(ctx.nodeT) → $seqT :| ∀ $(mkIdent `net_dst):ident, $(seqOrd `next) ($sent $self $(mkIdent `net_dst)) ($nxt $(mkIdent `net_dst)))).raw,
+      return #[(← `(doElem| let $nxt:ident : $(ctx.nodeT) → $seqT :| ∀ net_dst, $(seqOrd `next) ($sent $self net_dst) ($nxt net_dst))).raw,
         ← assign entry (← `(if $seqI = $sent $self $allDst then true else $entry)),
         ← assign (← `($sent $self $allDst)) (← `($nxt $allDst))] ++ count
   let ch := mkIdent (if ctx.cfg.synchrony == .sync then outChan k.name else netChan k.name)
@@ -843,7 +842,7 @@ private def mkForall (binders : Array (Ident × Term)) (body : Term) : CommandEl
   `(∀ $bs*, $body)
 
 private def capitals (n : Nat) : Array Ident :=
-  (Array.range n).map fun i => mkIdent (Name.mkSimple s!"A{i + 1}")
+  (Array.range n).map fun i => mkIdent (Veil.privateBinderName (.mkSimple s!"A{i + 1}"))
 
 private def mkAction (name : Name) (params : Array (Ident × Term)) (body : Array Syntax) :
     M (TSyntax `command) := do
@@ -882,14 +881,14 @@ private def resumeAction (r : Resume) (multiArm : Nat → Bool) : M (TSyntax `co
       (pat.args.zip k.fields).map fun ((x, _), (_, t)) => (x, t)
     if ctx.cfg.fifo then
       let recvd ← `($(mkIdent seqRecvName) $(pat.src) $self)
-      let nxt := mkIdent `net_seq_next
+      let nxt ← Lean.mkIdent <$> liftCoreM (mkFreshUserName `net_seq_next)
       if ctx.cfg.lossy then
         -- receive any later message: the ones skipped over are lost
-        let seqI := mkIdent (freshName (pat.binders.insert self.getId) `seq)
+        let seqI ← Lean.mkIdent <$> liftCoreM (mkFreshUserName (freshName (pat.binders.insert self.getId) `seq))
         params := params.push (seqI, mkIdent seqTypeName)
         code := code.push (← `(doElem| require $ch $(pat.src) $self $seqI $args* = true))
         code := code.push (← `(doElem| require $(seqOrd `le) $recvd $seqI))
-        let seqCap := mkIdent `SEQ
+        let seqCap := mkIdent (Veil.privateBinderName `SEQ)
         for k' in ctx.messages do
           let ch' := mkIdent (netChan k'.name)
           let entry ← `($ch' $(pat.src) $self $seqCap $(capitals k'.fields.size)*)
@@ -1015,7 +1014,7 @@ def elabProgram : CommandElab := fun stx => do
       #[nodeT, nodeT] ++ (if cfg.fifo then #[(seqT : Term)] else #[]) ++ k.fields.map (·.2)
     -- capitalised indices covering a whole channel, after sender and receiver
     let chanCaps (k : MessageKind) : Array Ident :=
-      (if cfg.fifo then #[mkIdent `SEQ] else #[]) ++ capitals k.fields.size
+      (if cfg.fifo then #[mkIdent (Veil.privateBinderName `SEQ)] else #[]) ++ capitals k.fields.size
     let chans (k : MessageKind) : Array Name :=
       if sync then #[outChan k.name, inChan k.name] else #[netChan k.name]
     let counted := !sync && cfg.multiset
@@ -1068,7 +1067,7 @@ def elabProgram : CommandElab := fun stx => do
     let mut empties : Array Term := #[]
     for k in msgs do
       let ch := mkIdent (if sync then outChan k.name else netChan k.name)
-      let (src, dst) := (mkIdent `S, mkIdent `D)
+      let (src, dst) := (mkIdent (Veil.privateBinderName `S), mkIdent (Veil.privateBinderName `D))
       let xs := chanCaps k
       let isEmpty ← if counted then `($ch $src $dst $xs* = 0) else `($ch $src $dst $xs* = false)
       empties := empties.push (← mkForall (#[src, dst] ++ xs |>.zip (chanDom k)) isEmpty)
@@ -1076,7 +1075,7 @@ def elabProgram : CommandElab := fun stx => do
     cmds := cmds.push (← `(command| ghost relation $(mkIdent emptyName):ident := $emptyDef))
 
     -- initial state
-    let (allN, allS, allD) := (mkIdent `N, mkIdent `S, mkIdent `D)
+    let (allN, allS, allD) := (mkIdent (Veil.privateBinderName `N), mkIdent (Veil.privateBinderName `S), mkIdent (Veil.privateBinderName `D))
     let mut init : Array Syntax := #[]
     init := init.push (← assign (← `($pc $allN)) startLabel)
     for v in decls.vars do
@@ -1088,7 +1087,7 @@ def elabProgram : CommandElab := fun stx => do
         init := init.push (← `(doElem| $lhs:term := *))
       | some (some e) =>
         let xs := capitals (splitArrows v.ty).1.size
-        let nself := mkIdent `NSELF
+        let nself := mkIdent (Veil.privateBinderName `NSELF)
         let mentionsSelf := (identsIn e).contains `self
         let val ← if mentionsSelf then `((let $(mkIdent `self) := $nself; $e))
           else if xs.isEmpty then pure e else `(($e))
@@ -1118,9 +1117,9 @@ def elabProgram : CommandElab := fun stx => do
     -- the network's actions, on a message of each kind
     for k in msgs do
       let fieldNames : NameSet := k.fields.foldl (·.insert ·.1.getId) {}
-      let src := mkIdent (freshName fieldNames `src)
-      let dst := mkIdent (freshName fieldNames `dst)
-      let seqI := mkIdent (freshName fieldNames `seq)
+      let src := mkIdent (Veil.publicBinderName (freshName fieldNames `src))
+      let dst := mkIdent (Veil.publicBinderName (freshName fieldNames `dst))
+      let seqI := mkIdent (Veil.publicBinderName (freshName fieldNames `seq))
       let xs : Array Term := k.fields.map (·.1)
       let params := #[(src, nodeT), (dst, nodeT)] ++ (if cfg.fifo then #[(seqI, (seqT : Term))] else #[]) ++ k.fields
       let ch := mkIdent (if sync then outChan k.name else netChan k.name)

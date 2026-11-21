@@ -20,13 +20,17 @@ private meta def stepCounterexamples (property : Name) : CommandElabM (Array Ann
       | throwError "missing structured {style} counterexample"
     return model
 
-private meta def traceInstantiation : CommandElabM Expr := do
+private meta def traceModel : CommandElabM AnnotatedSmtModel := do
   let results ← Verifier.waitFilteredSync VCMetadata.isTrace
   let some model := results.vcs.findSome? (fun vc =>
       vc.timing.dischargers.findSome? fun discharger => match discharger.result with
       | some (.proven _ (some (.sat models)) _) => models.findSome? id
       | _ => none)
     | throwError "missing structured satisfying trace"
+  return model
+
+private meta def traceInstantiation : CommandElabM Expr := do
+  let model ← traceModel
   let mod ← getCurrentModule
   liftTermElabM do
     let sortMap ← parseSortsFromModel model.raw
@@ -254,3 +258,95 @@ run_cmd do
       check cti.instExpr `DefaultedParameterCounterexample.Instantiation.unused 11
 
 end DefaultedParameterCounterexample
+
+veil module ScopedTraceBinders
+
+param _tr1_tag : Nat
+immutable individual start : Nat
+individual counter : Nat
+assumption start = 4 ∧ _tr1_tag = 9
+after_init { counter := start }
+action add (n : Fin 16) { counter := counter + n.val }
+action reset { counter := 0 }
+invariant True
+#gen_spec
+
+/-- info: ✅ Satisfying trace found -/
+#guard_msgs (substring := true) in
+sat trace {
+  add
+  assert (counter = 7)
+  any action
+  assert (counter = 12)
+}
+
+run_cmd do
+  let mod ← getCurrentModule
+  let model ← traceModel
+  let inst ← traceInstantiation
+  liftTermElabM do
+    let userTag ← mkAppM `ScopedTraceBinders.Instantiation._tr1_tag #[inst]
+    unless ← isDefEq userTag (mkNatLit 9) do throwError "incorrect module parameter"
+    let tr ← buildTraceFromModel model.raw mod 2
+    let start ← mkAppM `ScopedTraceBinders.Theory.start #[tr.theoryExpr]
+    unless ← isDefEq start (mkNatLit 4) do throwError "incorrect theory"
+    unless tr.stateExprs.size == 3 && tr.labelExprs.size == 2 do throwError "incomplete trace"
+    for (state, expected) in tr.stateExprs.zip #[4, 7, 12] do
+      let value ← mkAppM `ScopedTraceBinders.State.counter #[state]
+      unless ← isDefEq value (mkNatLit expected) do throwError "incorrect state {expected}"
+    for (label, expected) in tr.labelExprs.zip #[3, 5] do
+      let arg ← mkNumeral (mkApp (mkConst ``Fin) (mkNatLit 16)) expected
+      let target ← mkAppOptM `ScopedTraceBinders.Label.add #[some userTag, some arg]
+      unless ← isDefEq label target do throwError "incorrect action or argument at {label}"
+
+end ScopedTraceBinders
+
+veil module ScopedInductionBinders
+
+individual counter : Nat
+after_init { counter := 1 }
+action step (n : Fin 16) (j : Fin (n.val + 1)) {
+  require n.val = 3 ∧ j.val = 2
+  counter := n.val + j.val
+}
+invariant [atOne] ∀ n : Nat, n = 7 → counter = 1
+#gen_spec
+
+#guard_msgs (drop info, drop warning) in
+#check_invariants
+
+/-- info: ✅ Satisfying trace found -/
+#guard_msgs (substring := true) in
+sat trace {
+  step
+  assert (counter = 5)
+}
+
+run_cmd do
+  let mod ← getCurrentModule
+  let witness ← traceModel
+  let expected ← liftTermElabM do
+    let n ← mkNumeral (mkApp (mkConst ``Fin) (mkNatLit 16)) 3
+    let j ← mkNumeral (mkApp (mkConst ``Fin) (mkNatLit 4)) 2
+    mkAppM `ScopedInductionBinders.Label.step #[n, j]
+  liftTermElabM do
+    let tr ← buildTraceFromModel witness.raw mod 1
+    unless tr.labelExprs.size == 1 && (← isDefEq tr.labelExprs[0]! expected) do
+      throwError "incorrect dependent trace arguments"
+
+  for (model, style) in (← stepCounterexamples `atOne).zip #[VCStyle.wp, .tr] do
+    let values := model.structuredJson.getObjValD "extraVals"
+    unless values.getObjValD "n" == toJson 7 do
+      throwError "lost the quantified variable in {values}"
+    liftTermElabM do
+      let cti ← buildCounterexampleExprs model.raw mod `step
+      let some label := cti.labelExpr | throwError "missing action label"
+      unless ← isDefEq label expected do throwError "incorrect action argument in {label}"
+      let counter ← mkAppM `ScopedInductionBinders.State.counter #[cti.preStateExpr]
+      unless ← isDefEq counter (mkNatLit 1) do throwError "incorrect pre-state"
+      if style == .tr && cti.postStateExpr.isNone then throwError "missing transition post-state"
+      if let some post := cti.postStateExpr then
+        let counter ← mkAppM `ScopedInductionBinders.State.counter #[post]
+        unless ← isDefEq counter (mkNatLit 5) do throwError "incorrect post-state"
+
+end ScopedInductionBinders

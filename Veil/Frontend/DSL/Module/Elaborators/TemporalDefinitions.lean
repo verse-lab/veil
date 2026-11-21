@@ -44,11 +44,7 @@ module (`veil.temporal.moduleAtoms`), `t` is instead a proposition over the modu
 assertion: the theory fields are bound around the whole formula, and the state fields around each atom. -/
 
 private def temporalEnvironmentType (name : Name) : TermElabM Term := do
-  -- User-facing field views are lets. The generated types are parameters.
-  let some decl := (← getLCtx).findDeclRev? fun decl =>
-      if decl.userName == name && decl.kind == .implDetail && !decl.isLet then some decl else none
-    | throwError "missing temporal environment type {name}"
-  exprToSyntax decl.toExpr
+  exprToSyntax (← Meta.getFVarFromUserName name)
 
 /-- Internal: the atom `⌜ t ⌝` of a `[tlfml| …]` formula, see `elabTlfmlStateAtom`. -/
 syntax (name := tlfmlStateAtom) "veil_tlfml_state_atom% " term:max : term
@@ -131,7 +127,6 @@ fun lbl => match lbl with
 ``` -/
 private def mkActionLabelMatch (mod : Module) (actionName : Name) (args : Array (Option Term)) :
     TermElabM Term := do
-  let lbl := mkIdent `lbl
   let alts ← mod.actions.mapM fun (act : ProcedureSpecification) => do
     let ctor : Ident := Lean.mkIdent (labelTypeName ++ act.name)
     if act.name != actionName then
@@ -148,7 +143,7 @@ private def mkActionLabelMatch (mod : Module) (actionName : Name) (args : Array 
         pats := pats.push x
         eqs := eqs.push (← `($x = $arg))
       `(Lean.Parser.Term.matchAltExpr| | $(Syntax.mkApp ctor pats):term => decide ($(← repeatedAnd eqs)))
-  `(term| fun $lbl => match $lbl:ident with $alts:matchAlt*)
+  `(term| fun lbl => match lbl with $alts:matchAlt*)
 
 -- `∀ x, φ` and `∃ x, φ` become the conjunction and the disjunction of `φ` over the values that `Enumeration`
 -- lists for the type of `x`. For a sort, these are only known once `#temporal_check` instantiates the module.
@@ -250,7 +245,7 @@ private def Module.defineTemporalCheck (mod : Module) (tp : TemporalProperty) : 
       pure (insts, e)
     let _ ← addVeilDefinition defName (← Meta.letToHave e)
     return insts.mapIdx fun i (decT, _) =>
-      { kind := .definitionParameter defName .typeclass, name := Name.mkSimple s!"{tp.name}_dec_{i}",
+      { kind := .definitionParameter defName .typeclass, name := publicBinderName (.mkSimple s!"{tp.name}_dec_{i}"),
         «type» := decT, userSyntax := .missing : Parameter }
   let (mod, decParams) ← liftTermElabM <| mod.canonicalizeExtraParams decParams
   mod.registerDerivedDefinition
@@ -295,10 +290,8 @@ private def Module.defineTemporalVerify (mod : Module) (tp : TemporalProperty) :
     -- Expose immutable theory fields in temporal formulas, matching assertions and ghosts.
     let body ← `([tlfml| $(tp.formula)])
     let temporalPredType ← `($(mkIdent ``Lentil.pred) $environmentState)
-    let generated ← (baseParams.filter Parameter.isGeneratedFieldContext).mapM (·.ident)
     let bodyWithTheory ← liftTermElabM <|
       mod.withUserFieldNames [(.theory, thIdent, true)] (some temporalPredType) body
-        (generated := generated)
     let body ← letBindings.foldrM (init := bodyWithTheory) fun (bindName, bindVal) body =>
       `(let $bindName := $bindVal; $body)
     `(fun ($thIdent : $environmentTheory) => $body)
@@ -306,7 +299,8 @@ private def Module.defineTemporalVerify (mod : Module) (tp : TemporalProperty) :
   -- NOTE: We might use `remove_unused_args%` to trim some unused arguments, but
   -- that makes the later use of the temporal property in proofs more complicated,
   -- as we need to figure out which arguments got removed in building its syntax of application
-  let cmd ← `(noncomputable def $(mkIdent tp.name) $[$allBinders]* := $fullBody)
+  let binders ← allBinders.mapM bracketedBinderToFunBinder
+  let cmd ← `(noncomputable def $(mkIdent tp.name) := veil_public% (fun $binders* => $fullBody))
   -- The atoms are read against this module (`Veil.elabTlfmlStateAtom`)
   withScope (fun scope => { scope with opts := veil.temporal.moduleAtoms.set scope.opts true }) do
     elabVeilCommand cmd

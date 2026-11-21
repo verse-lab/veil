@@ -96,7 +96,7 @@ def BinderAccum.all (acc : BinderAccum) : Array (TSyntax ``Lean.Parser.Term.brac
 /-- Build the transition expression: `tag = tagMember ∧ rts.tr th st label st'` -/
 private def mkTransitionExpr (rtsExpr theoryId currState nextState : TSyntax `term)
     (tagId : Ident) (actionName : Name) (argIdents : Array Ident) : TermElabM (TSyntax `term) := do
-  let actionTagMember := mkIdent $ actionTagEnumInstName ++ actionName
+  let actionTagMember ← `($actionTagEnumInst.$(mkIdent actionName))
   let labelConstructor := mkIdent $ labelTypeName ++ actionName
   let labelExpr ← `(term| ($labelConstructor $argIdents*))
   let trExpr ← `(term| (($rtsExpr).$(mkIdent `tr) $theoryId $currState $labelExpr $nextState))
@@ -105,9 +105,9 @@ private def mkTransitionExpr (rtsExpr theoryId currState nextState : TSyntax `te
 /-- Build a disjunction representing any action transition with ActionTag constraint -/
 private def mkAnyActionDisjunction (mod : Module) (rtsExpr theoryId currState nextState : TSyntax `term)
     (tagId : Ident) (trIdx : Nat) : TermElabM (Term × Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) := do
-  let results ← mod.actions.mapM fun act => do
+  let results ← mod.actions.mapIdxM fun idx act => do
     let (_, specificParams) ← mod.declarationAllParams act.name act.declarationKind
-    let (argIdents, binders) ← mkTransitionParamBinders s!"_tr{trIdx}_act_{act.name}" specificParams
+    let (argIdents, binders) ← mkTransitionParamBinders trIdx idx specificParams.size
     return (← mkTransitionExpr rtsExpr theoryId currState nextState tagId act.name argIdents, binders)
   return (← repeatedOr (results.map (·.1)), results.flatMap (·.2))
 
@@ -151,12 +151,12 @@ structure TraceElabCtx where
 private def processTransition (ctx : TraceElabCtx) (curr next : Ident) (trIdx : Nat)
     : TraceSpecLine → TermElabM (TSyntax `term × BinderAccum)
   | .action actionName => do
-    let proc := ctx.mod.actions.find? (·.name == actionName)
-    let specificParams ← match proc with
-      | some p => pure (← ctx.mod.declarationAllParams p.name p.declarationKind).2
-      | none => throwError s!"action '{actionName}' not found. Available: {ctx.mod.actions.map (·.name)}"
+    let idx? := ctx.mod.actions.findIdx? (·.name == actionName)
+    let some idx := idx? | throwError s!"action '{actionName}' not found. Available: {ctx.mod.actions.map (·.name)}"
+    let act := ctx.mod.actions[idx]!
+    let (_, specificParams) ← ctx.mod.declarationAllParams act.name act.declarationKind
     let (tagId, tagBinder) ← mkTransitionTagBinder ctx.tagType trIdx
-    let (argIdents, paramBinders) ← mkTransitionParamBinders s!"_tr{trIdx}" specificParams
+    let (argIdents, paramBinders) ← mkTransitionParamBinders trIdx idx specificParams.size
     return (← mkTransitionExpr ctx.rtsExpr ctx.theoryId curr next tagId actionName argIdents,
             { params := paramBinders, tags := #[tagBinder] })
   | .anyAction => do
@@ -328,11 +328,11 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   let (assertion, numTransitions, vcName) ← Command.runTermElabM fun _ => do
     let expandedSpec := (← parseTraceSpec spec).flatMap expandTraceLine
     let numTransitions := expandedSpec.filter (!· matches .assertion _) |>.length
-    let stateIds ← (List.range (numTransitions + 1)).mapM fun i =>
-      mkIdent <$> mkFreshUserName (Name.mkSimple s!"st{i}")
+    let stateIds := (List.range (numTransitions + 1)).map fun i =>
+      mkIdent (modelBinderName (traceStateName i))
 
     let sorts ← mod.uninterpretedParamIdents
-    let theoryId ← mkIdent <$> mkFreshUserName `th
+    let theoryId := mkIdent (modelBinderName `th)
     let theoryT ← mod.theoryStx
     let stateT ← `(term| $(mkIdent stateName) ($fieldAbstractDispatcher $sorts*))
     let rtsExpr ← `(term| @$assembledRTS $sorts*)

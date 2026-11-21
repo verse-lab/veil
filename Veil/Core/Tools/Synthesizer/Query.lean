@@ -71,7 +71,7 @@ def QueryCtx.ofModule (mod : Veil.Module) : TermElabM QueryCtx := do
     mod, sorts
     sortBinders := ← mod.uninterpretedParamBinders
     typeclassBinders := ← typeclassParams.mapM (·.binder)
-    th := ← Lean.mkIdent <$> mkFreshUserName `th
+    th := Lean.mkIdent (modelBinderName `th)
     theoryT := ← mod.theoryStx
     stateT := ← `($(mkIdent stateName) ($fieldAbstractDispatcher $sorts*))
     rtsExpr := ← `(@$assembledRTS $sorts*)
@@ -133,15 +133,15 @@ def stepDisjunction (trNorm? : Option Name) (i : Nat) (tagType curr next : Ident
   let (tag, tagBinder) ← mkTransitionTagBinder tagType i
   let mut binders := #[tagBinder]
   let mut disjuncts := #[]
-  for act in ctx.mod.actions do
+  for (act, idx) in ctx.mod.actions.zipIdx do
     let (_, params) ← ctx.mod.declarationAllParams act.name act.declarationKind
-    let (args, argBinders) ← mkTransitionParamBinders s!"_tr{i}_act_{act.name}" params
+    let (args, argBinders) ← mkTransitionParamBinders i idx params.size
     binders := binders ++ argBinders
     let lbl ← `(($(mkIdent (labelTypeName ++ act.name)) $args*))
     let step ← match trNorm? with
       | some n => `($(mkIdent n) $(ctx.sorts)* $(ctx.th) $curr $lbl $next)
       | none => `(($(ctx.rtsExpr)).$(mkIdent `tr) $(ctx.th) $curr $lbl $next)
-    let tagValue := mkIdent (actionTagEnumInstName ++ act.name)
+    let tagValue ← `($actionTagEnumInst.$(mkIdent act.name))
     disjuncts := disjuncts.push (← `(($tag = $tagValue ∧ $step)))
   return (← repeatedOr disjuncts, binders)
 
@@ -151,8 +151,8 @@ and diagram variables, the theory and the states. -/
 def statement (trNorm? : Option Name) (q : Query) : TermElabM Term := do
   let rts := ctx.rtsExpr
   let tagType ← Lean.mkIdent <$> mkFreshUserName actionTagTypeName
-  let states ← (Array.range (q.steps + 1)).mapM fun i =>
-    Lean.mkIdent <$> mkFreshUserName (.mkSimple s!"st{i}")
+  let states := (Array.range (q.steps + 1)).map fun i =>
+    Lean.mkIdent (modelBinderName (traceStateName i))
   let mut conj := #[← `(($rts).$(mkIdent `assumptions) $(ctx.th))]
   if q.init then conj := conj.push (← `(($rts).$(mkIdent `init) $(ctx.th) $(states[0]!)))
   conj := conj ++ (← ctx.applyPreds q.frame states[0]! q.separate)

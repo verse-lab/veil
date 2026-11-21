@@ -312,9 +312,7 @@ def specializeAndExtractSingle (mod : Module) (pi : ProcedureInfo) (extractedNam
   -- `@&` on the binders of a lambda is honored by the compiler and survives
   -- specialization; see `specializeAndExtractExternalActions` for why actions borrow.
   let extractBody ← if borrowArgs then
-      let rd := mkIdent `__veil_rd
-      let st := mkIdent `__veil_st
-      `(fun ($rd : @& $environmentTheory) ($st : @& $environmentState) => ($extractBody) $rd $st)
+      `(fun (rd : @& $environmentTheory) (st : @& $environmentState) => ($extractBody) rd st)
     else pure extractBody
   let defBody ← buildingTermWithDefaultχSpecialized baseParams (extraParams ++ actualParams) injectedBinders extractBody mod
   let cmd ← if attrs.isEmpty
@@ -378,7 +376,7 @@ size. One definition per action turns that back into a sum of independent
 costs. It also stops `#extract` from re-elaborating an action's body inside
 `NextAct` after having already extracted it. -/
 def specializeAndExtractActions (mod : Module) (extractedActions : Array SpecializedTerm) : CommandElabM Unit := do
-  let lIdent := mkIdent `l
+  let lIdent ← Lean.mkIdent <$> MonadQuotation.addMacroScope `l
   let labelT ← mod.labelTypeStx
   let alts ← (mod.actions.zip extractedActions).mapM fun (a, extracted) => do
     let pi := a.info

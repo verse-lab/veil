@@ -459,9 +459,8 @@ theorem exists_mapped_candidate {f : α → β} {p : α → Prop} {q : β → Pr
     let allCompleteProof ← localInsts.foldrM (init := mkIdent ``True.intro) fun inst acc =>
       `(⟨$(mkIdent inst).$(mkIdent `complete), $acc⟩)
     if fieldNames.isEmpty then
-      let a := mkIdent `a
       `(by
-        intro $a:ident ; cases $a:ident
+        intro a; cases a
         exact @$(mkIdent ``IteratedProd.foldMap_complete) $(header.targetType) $ts $f $enums _ (fun _ _ => rfl)
           $allCompleteProof ())
     else

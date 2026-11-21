@@ -248,11 +248,6 @@ def instanceSymbols (sorts : Array SortName) (p : Veil.Parameter) :
   let free := syms.filterMap fun (field, sym) ↦ if constrained.contains field then none else sym.key
   return some ((p.name, className, sortArgs), syms.map (·.2), free, outside.map (p.name ++ ·))
 
-/-- Whether `n` has the shape of a clause variable, `x0`, `x1`, …. -/
-def isVarName (n : Name) : Bool :=
-  let s := n.toString
-  s.startsWith "x" && s.length > 1 && (s.drop 1).all Char.isDigit
-
 /-- The vocabulary of a module. Child modules, module parameters and classes outside
 `classFieldSpecs`' shape are errors. -/
 def ofModule (mod : Veil.Module) : MetaM Signature := do
@@ -287,11 +282,6 @@ def ofModule (mod : Veil.Module) : MetaM Signature := do
     | .definitionParameter .. | .theoryArg | .stateArg
     | .moduleTypeclass .backgroundTheory | .moduleTypeclass .environmentState
     | .moduleTypeclass .fieldRepresentation | .moduleTypeclass .lawfulFieldRepresentation => pure ()
-  -- A module name of the shape `x0` would be captured by the variables of a rendered clause.
-  let names := sorts ++ (stateSymbols ++ theorySymbols).map (·.name) ++
-    mod.parameters.map (·.name) ++ enums.flatMap (·.2)
-  if let some n := names.find? isVarName then
-    throwError "IC3: the name {n} clashes with clause variable names (x0, x1, …); rename it"
   let numericSorts := ((stateSymbols ++ theorySymbols).filter (·.isNumeric)).map (·.argSorts.back!)
     |>.toList.eraseDups.toArray
   let numerals := if numericSorts.isEmpty then #[] else

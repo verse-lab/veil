@@ -9,14 +9,19 @@ individual value : Bool
 
 #gen_state
 
+theory ghost function theoryTypeParameter (ρ : Bool) : Bool := ρ
+ghost function stateTypeParameter (σ : Bool) : Bool := σ
+
 theory ghost function theoryReceiver (th : Bool) : Bool := th
 ghost function stateReceiver (st : Bool) : Bool := st
 ghost function concreteBinder (value_conc : Bool) : Bool := value_conc
 
 def background : Theory := { limit := false }
-def initial : State FieldConcreteType := { value := false }
+def initial : State (χ := FieldConcreteType) := { value := false }
 
-example : theoryReceiver true background = true := rfl
+example : theoryTypeParameter (ρ := true) background = true := rfl
+example : stateTypeParameter true background initial = true := rfl
+example : theoryReceiver (ρ := Theory) true background = true := rfl
 example : stateReceiver true background initial = true := rfl
 example : concreteBinder true background initial = true := rfl
 
@@ -170,3 +175,33 @@ sat trace {
 }
 
 end TraceBindersWithGeneratedNames
+
+open Lean Elab Tactic in
+elab "scoped_arithmetic" : tactic => do
+  let privateX ← Lean.mkIdent <$> mkFreshUserName `x
+  let visibleX := Lean.mkIdent `x
+  evalTactic (← `(tactic| (intro $privateX:ident $visibleX:ident h; smt [h])))
+
+-- Lean checks the SMT proof with both locals present.
+theorem scopedArithmetic : ∀ before after : Int, before + 1 = after → before < after := by
+  scoped_arithmetic
+
+run_cmd do
+  unless (← Lean.collectAxioms ``scopedArithmetic).all ([``propext, ``Classical.choice, ``Quot.sound].contains ·) do
+    throwError "SMT failed to reconstruct the scoped proof"
+
+veil module ScopedActionParameters
+
+type node
+param node_dec_eq : Bool
+individual χ : Bool
+individual result : Bool
+after_init { result := false }
+action put (ρ σ __veil_post __veil_mode : Bool) {
+  result := ρ && σ && χ && __veil_post && __veil_mode && node_dec_eq
+}
+transition reset (ρ σ : Bool) { result' = (ρ && σ) }
+invariant True
+#gen_spec
+
+end ScopedActionParameters

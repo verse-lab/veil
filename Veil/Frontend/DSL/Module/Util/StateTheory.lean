@@ -17,8 +17,8 @@ def Module.declareUninterpretedSort [Monad m] [MonadQuotation m] [MonadExceptOf 
   let id := mkIdent name
   let dec_eq_type ← `(term|$(mkIdent ``DecidableEq).{1} $id)
   let dec_inhabited_type ← `(term|$(mkIdent ``Inhabited).{1} $id)
-  let dec_eq : Parameter := { kind := .moduleTypeclass .sortAssumption, name := Name.mkSimple s!"{name}_dec_eq", «type» := dec_eq_type, userSyntax := userStx }
-  let inhabited : Parameter := { kind := .moduleTypeclass .sortAssumption, name := Name.mkSimple s!"{name}_inhabited", «type» := dec_inhabited_type, userSyntax := userStx }
+  let dec_eq : Parameter := { kind := .moduleTypeclass .sortAssumption, name := publicBinderName (.mkSimple s!"{name}_dec_eq"), «type» := dec_eq_type, userSyntax := userStx }
+  let inhabited : Parameter := { kind := .moduleTypeclass .sortAssumption, name := publicBinderName (.mkSimple s!"{name}_inhabited"), «type» := dec_inhabited_type, userSyntax := userStx }
   let params := #[sortParam, dec_eq, inhabited]
   let newDecls := #[(name, DeclarationKind.moduleParameter)] ++ params.map (fun p => (p.name, DeclarationKind.moduleParameter))
   return { mod with parameters := mod.parameters.append params, _declarations := mod._declarations.insertMany newDecls }
@@ -74,13 +74,6 @@ def Module.immutableComponents (mod : Module) : Array StateComponent :=
 
 def Module.mutableComponents (mod : Module) : Array StateComponent :=
   mod.signature.filter fun sc => sc.mutability == Mutability.mutable
-
-/-- In generated terms that use both field values explicitly, hide only the
-theory binders that would otherwise be captured by a same-named state field. -/
-def Module.theoryFieldIdentsAlongsideState (mod : Module) : MetaM (Array Ident) :=
-  mod.immutableComponents.mapM fun sc => do
-    let name ← if mod.mutableComponents.any (·.name == sc.name) then mkFreshUserName sc.name else pure sc.name
-    return Lean.mkIdent name
 
 def Module.getStateComponentTypeStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (name : Name) : m Term := do
   match mod.findComponent? name with
@@ -198,10 +191,16 @@ private def structureDefinitionStx [Monad m] [MonadQuotation m] [MonadExceptOf E
 function from its label to a concrete representation type. -/
 private def Module.fieldsAbstractedStateDefinitionStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Array Syntax) := do
   let stateLabelTypeName := structureFieldLabelTypeName stateName
+  -- Lean publishes structure projections under their unscoped names. Scope the
+  -- field binders so even a field named χ leaves the structure parameter visible.
+  let dispatcher := mkIdent (publicParamName fieldConcreteTypeName)
+  let parameter ← Parameter.fieldConcreteType
+  let binder ← ({ parameter with name := dispatcher.getId } : Parameter).binder
   let fields ← mod.mutableComponents.mapM fun sc => do
-    let ty ← `($fieldConcreteType $(mkIdent <| stateLabelTypeName ++ sc.name):ident)
-    `(Command.structSimpleBinder| $(mkIdent sc.name):ident : $ty)
-  let defCmds ← structureDefinitionStx stateName (← mod.uninterpretedParamBindersForTheoryOrState true) (deriveInstances := false) fields
+    let field ← Lean.mkIdent <$> MonadQuotation.addMacroScope sc.name
+    let ty ← `($dispatcher $(mkIdent <| stateLabelTypeName ++ sc.name):ident)
+    `(Command.structSimpleBinder| $field:ident : $ty)
+  let defCmds ← structureDefinitionStx stateName #[binder] (deriveInstances := false) fields
   return defCmds ++ #[← mkInhabitedInstance, ← mkHashableInstance, ← mkBEqInstance, ← mkDecidableEqInstance] ++ (← mkToJsonInstances) ++ #[← mkDisplayInstance, ← `(command| veil_deriving $(mkIdent ``Repr) for $stateIdent), ← mkIsHigherOrderInstance]
 where
   /-- Generate an `IsHigherOrder` instance for `State χ`. -/
@@ -213,7 +212,7 @@ where
   /-- Generate binders of the form `(χ : State.Label → Type) [∀ f : State.Label, C (χ f)]` -/
   mkFieldConcreteTypeBinders (typeclass : Name) : m (Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) := do
     let χBinder ← Parameter.fieldConcreteType >>= Parameter.binder
-    let f := mkIdent `f
+    let f ← Lean.mkIdent <$> MonadQuotation.addMacroScope `f
     let stateLabelType := structureFieldLabelType stateName
     let constraint ← `(bracketedBinder| [∀ $f : $stateLabelType, $(mkIdent typeclass) ($fieldConcreteType $f)])
     return #[χBinder, constraint]
@@ -245,15 +244,16 @@ private def Module.stateIteEtaFieldsTheoremStx [Monad m] [MonadQuotation m] [Mon
   let sortIdents ← mod.uninterpretedParamIdents
   let fieldAbstractType ← `(term| $fieldAbstractDispatcher $sortIdents*)
   let stateTy ← `(term| $(mkIdent stateName) $fieldAbstractType)
-  let p := mkIdent `p
-  let s1 := mkIdent `s1
-  let s2 := mkIdent `s2
+  let p := mkIdent (publicBinderName `p)
+  let s1 := mkIdent (publicBinderName `s1)
+  let s2 := mkIdent (publicBinderName `s2)
   let rhsFields ← mod.mutableComponents.mapM (mkFieldIte p s1 s2)
   let rhs ← `(term| $(mkIdent <| stateName ++ `mk):ident $rhsFields*)
   let thm ← `(command|
     @[wpCompactStateSimp ↑]
-    theorem $(mkIdent stateIteEtaFieldsName):ident $paramBinders* {$p : Prop} [$(mkIdent ``Decidable) $p] ($s1 $s2 : $stateTy) :
-        (if $p then $s1 else $s2) = $rhs := by
+    theorem $(mkIdent stateIteEtaFieldsName):ident : veil_public% (∀ $paramBinders* {$p : Prop}
+        [$(mkIdent ``Decidable) $p] ($s1 $s2 : $stateTy), (if $p then $s1 else $s2) = $rhs) := by
+      intros
       split <;> rfl)
   return some thm
 where
@@ -377,9 +377,7 @@ where
     let instEnumerationForIteratedProdApplied ← `(($instEnumerationForIteratedProd $sorts*) $fieldLabelIdentBackup)
     let realEnumerationForIteratedProd ← do
       let domainGetter ← `(term|($(fieldLabelToDomain stateName):ident $sorts*) $fieldLabelIdentBackup:ident)
-      let optionBindProd ← do
-        let (a, b, bd, va, vb) := (mkIdent `a, mkIdent `b, mkIdent ``Option.bind, mkIdent `va, mkIdent `vb)
-        `(term| fun $a $b => $bd $(mkIdent `a.body) fun $va => $bd $b fun $vb => $(mkIdent ``Option.some) ($va, $vb))
+      let optionBindProd ← `(term| fun a b => Option.bind a.body fun va => Option.bind b fun vb => some (va, vb))
       `(@$(mkIdent ``Veil.IteratedProd.fold) ($(mkIdent ``List.map) $(mkIdent ``Veil.Enumeration) ($domainGetter))
         $(mkIdent ``Veil.OptionalTC) $(mkIdent ``Option) ($(mkIdent ``Option.some) $(mkIdent ``Unit.unit))
         $optionBindProd $instEnumerationForIteratedProdApplied)

@@ -39,7 +39,7 @@ binders for assertions, temporal properties, and assembled definitions.
 -/
 open Term in
 private def findAmbientTheoryIdent? : TermElabM (Option Ident) := do
-  let theoryTy ← instantiateMVars (← elabTerm (mkIdent environmentTheoryName) none)
+  let theoryTy ← instantiateMVars (← elabTerm (← publicParamRef environmentTheory) none)
   let mut candidates := #[]
   for ldecl in ← getLCtx do
     if ldecl.isImplementationDetail then
@@ -89,6 +89,9 @@ def elabVeilTerm : TermElab := fun stx expectedType => do
     | some found => pure found
     | none => throwError "veil_term%: declaration {name} was not found in module {mod.name}"
   let ((_, modArgs), _) ← mod.declarationSplitBindersArgs paramSourceName declarationKind
+  let modArgs ← modArgs.mapM fun arg => do
+    if arg.raw.isIdent then return ⟨(← publicParamRef ⟨arg.raw⟩).raw⟩
+    return arg
   elabVeilTermWithOptionalTheory id modArgs expectedType
 
 /-- Expand `veil_tr% act` to the ordinary `veil_term% act.ext.tr` form. -/
@@ -105,7 +108,7 @@ private def isAmbientTheoryArg (arg : Expr) : DelabM Bool := do
   let .fvar typeFVarId := argDecl.type
     | return false
   let typeDecl ← typeFVarId.getDecl
-  return typeDecl.userName == environmentTheoryName
+  return typeDecl.userName == environmentTheoryName || typeDecl.userName == publicParamName environmentTheoryName
 
 private def transitionActionName? : Name → Option Name
   | .str (.str act "ext") "tr" => some act

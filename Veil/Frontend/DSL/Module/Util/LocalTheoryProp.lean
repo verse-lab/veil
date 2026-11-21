@@ -60,7 +60,7 @@ def Module.declareLocalTheoryPropTC (mod : Module) : MetaM (List Command) := do
   let cmdTrue ← do
     let implBinders ← paramBinders.mapM mkImplicitBinder
     let args ← params.mapM (·.arg)
-    let fieldNames : Array Ident := mod.immutableComponents.map fun sc => mkIdent sc.name
+    let fieldNames ← mod.immutableComponents.mapM fun sc => Lean.mkIdent <$> mkFreshUserName sc.name
     let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f =>
       `(Lean.Parser.Term.funBinder| $f)
     let coreFn ← mkFunSyntax fieldBinders <| mkIdent ``True
@@ -75,7 +75,7 @@ def Module.declareLocalTheoryPropTC (mod : Module) : MetaM (List Command) := do
     let inst1 ← Lean.mkIdent <$> mkFreshUserName `inst1
     let inst2 ← Lean.mkIdent <$> mkFreshUserName `inst2
     let args ← params.mapM (·.arg)
-    let fieldNames : Array Ident := mod.immutableComponents.map fun sc => mkIdent sc.name
+    let fieldNames ← mod.immutableComponents.mapM fun sc => Lean.mkIdent <$> mkFreshUserName sc.name
     let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f =>
       `(Lean.Parser.Term.funBinder| $f)
     let fieldArgs : Array Term ← fieldNames.mapM fun f => `(term| $f)

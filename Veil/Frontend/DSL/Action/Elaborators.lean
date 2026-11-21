@@ -236,7 +236,7 @@ private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp wpAppAfter
 
   -- FIXME: this way of obtaining the arguments required by `LocalRPropTC` is hacky
   let vs' := vs.take mod.parameters.size
-  let localRPropTCArgName := mkVeilImplementationDetailName `localRPropTC
+  let localRPropTCArgName := (mkVeilImplementationDetailIdent `localRPropTC).getId
   let localRPropTCArgIdent := mkIdent localRPropTCArgName
   let localRPropTCFqn ← resolveGlobalConstNoOverloadCore localRPropTCName
   -- `post : RProp Unit ρ σ`; apply to `()` to get `SProp ρ σ` for the new `LocalRProp` typeclass
@@ -258,9 +258,9 @@ private def defineWpLocalEq (mod : Module) (nm : Name) (originalWpApp wpAppAfter
       let theoryType ← (inferType readFromArg >>= instantiateMVars)
       let stateType ← (inferType getFromArg >>= instantiateMVars)
 
-      let uName := mkVeilImplementationDetailName `u
-      let thName := mkVeilImplementationDetailName `th
-      let stName := mkVeilImplementationDetailName `st
+      let uName := (mkVeilImplementationDetailIdent `u).getId
+      let thName := (mkVeilImplementationDetailIdent `th).getId
+      let stName := (mkVeilImplementationDetailIdent `st).getId
       let uIdent := mkIdent uName
       let thIdent := mkIdent thName
       let stIdent := mkIdent stName
@@ -413,9 +413,9 @@ where
     -- the concrete `handler`, `LocalRProp.core` postcondition, `readFrom r`,
     -- and abstracted `getFrom s`.
     let postTy ← mkArrowN #[mkConst ``Unit, theoryType, abstractStateTypeExpr] (mkSort .zero)
-    let pName := mkVeilImplementationDetailName `post
-    let thName := mkVeilImplementationDetailName `th
-    let stName := mkVeilImplementationDetailName `st
+    let pName := (mkVeilImplementationDetailIdent `post).getId
+    let thName := (mkVeilImplementationDetailIdent `th).getId
+    let stName := (mkVeilImplementationDetailIdent `st).getId
     withLocalDeclsDND #[(pName, postTy), (thName, theoryType), (stName, abstractStateTypeExpr)] fun xs => do
       let genericTarget ← Tactic.classical <|
         mkAppOptM wpDef_fqn <| step3AllArgs ++ #[some handler] ++ xs.map some
@@ -824,8 +824,8 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
       `(fun $auxr $auxs => ¬ ($(mkIdent ``readFrom) $auxr = $auxrr ∧ $absst = $auxss))
     let ty ← `(@$localRPropTC $paramArgs* Prop $post)
     let coreStx ← do
-      let theoryFieldIdents ← mod.theoryFieldIdentsAlongsideState
-      let stateFieldIdents := mod.mutableComponents.map fun sc => Lean.mkIdent sc.name
+      let theoryFieldIdents ← mod.immutableComponents.mapM fun sc => Lean.mkIdent <$> mkFreshUserName sc.name
+      let stateFieldIdents ← mod.mutableComponents.mapM fun sc => Lean.mkIdent <$> mkFreshUserName sc.name
       let fieldIdents : Array Ident := theoryFieldIdents ++ stateFieldIdents
       let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldIdents.mapM fun f =>
         `(Lean.Parser.Term.funBinder| $f)
@@ -837,7 +837,7 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
     })
   -- Build the command
   let cmd ← do
-    let h := mkIdent `h
+    let h ← Lean.mkIdent <$> mkFreshUserName `h
     `(command|theorem $transitionWeakeningLemma $[$allBinders]* : $conclusion := by
       $declareLocalRPropInst:tactic
       repeat rw [← $trDerivedEq:ident]
@@ -937,8 +937,9 @@ where
     let modParams := mod.parameters
     let modArgs ← modParams.mapM (·.arg)
     let polyParams := modParams.filter isAbstractStateLocalParam
-    let polyArgs : Array Term := polyParams.map fun x => mkIdent <| x.name.appendAfter "_"
-    let polyFunBinders ← polyParams.mapM fun x => `(Lean.Parser.Term.funBinder| $(mkIdent <| x.name.appendAfter "_"):ident)
+    let polyIdents ← polyParams.mapM fun x => Lean.mkIdent <$> mkFreshUserName x.name.eraseMacroScopes
+    let polyArgs : Array Term := polyIdents.map fun id => (id : Term)
+    let polyFunBinders ← polyIdents.mapM fun x => `(Lean.Parser.Term.funBinder| $x:ident)
     let hole ← `(term| _)
     let specializedArgsForTrAndAct := Module.declareTransitionWeakeningLemma.specializeArgsForStateAbstractStx allParams allArgs
       (polyParams.findIdx? (·.kind == .backgroundTheory) |>.map (polyArgs[·]!) |>.getD hole)
@@ -960,13 +961,10 @@ where
     let wpLocalEqThm := toWpLocalEqName nm
     let wpEqThm := toWpEqName nm
     let wpEqLocalThm := toWpEqLocalName nm
-    let [tr, act, pred, trDerivedEq, wpLocalEq, wpEq] :=
-      [`tr, `act, `pred, `tr_derived_eq, `wp_local_eq, `wp_eq].map mkVeilImplementationDetailIdent
-      | unreachable!
     let rssIdents ← rss.mapM fun x => do
       let userName ← x.fvarId!.getUserName
       pure <| mkIdent userName
-    let h := mkIdent `h
+    let h ← Lean.mkIdent <$> mkFreshUserName `h
     -- `wp_eq` rewrites to the raw abstract-state `act.ext.wp`; connect that
     -- pointwise result to the pre-simplified `.wp_local_eq.pred` as well.
     let wpEqProof ← `(term| by intros ; rw [$(mkIdent wpEqThm):ident, $(mkIdent wpEqLocalThm):ident])
@@ -975,18 +973,16 @@ where
     let tac ← `(term| by
       classical
       have $h := @$transitionWeakeningLemma $modArgs* $rssIdents*
-        ($tr := $trStx)
-        ($act := $actStx)
-        ($pred := $predStx)
-        ($trDerivedEq := by intros; rw [$(mkIdent derivedEqThm):ident])
-        ($wpLocalEq := by intros; rw [$(mkIdent wpLocalEqThm):ident])
-        ($wpEq := $wpEqProof)
+        $trStx $actStx $predStx
+        (by intros; rw [$(mkIdent derivedEqThm):ident])
+        (by intros; rw [$(mkIdent wpLocalEqThm):ident])
+        $wpEqProof
       __veil_neutralize_decidable_inst at *
       exact $h
       )
     proveAndCheck tac goal nm "source → target (via transitionWeakeningLemma)"
   proveSourceImpliesTargetForNativeTransition (goal : Expr) (trFqn nm : Name) : TermElabM Expr := do
-    let h := mkIdent `h
+    let h ← Lean.mkIdent <$> mkFreshUserName `h
     -- Idea: the two sides should really equal modulo decidable instances
     let tac ← `(term| by
       intro $h:ident
@@ -1032,13 +1028,19 @@ def Module.defineTransitionAbstractForNext (mod : Module) : TermElabM Unit := do
     let (allModParams, actualParams) ← mod.declarationAllParams s.name s.declarationKind
     let allParams := allModParams ++ actualParams
     let allArgs ← allParams.mapM (·.arg)
-    let actualBinders ← actualParams.mapM fun x => x.binder >>= bracketedBinderToFunBinder
     let specializedArgs := Module.declareTransitionWeakeningLemma.specializeArgsForStateAbstractStx allParams allArgs theoryTy abstractStateTypeTerm abstractStateSortTerm hole
-    let lhs ← mkFunSyntax actualBinders <| ← `(term| @$tr $allArgs* $r₀ $s₀ $s₁)
-    let rhs ← mkFunSyntax actualBinders <| ← `(term| @$tr $specializedArgs* $r₀' $s₀' $s₁')
-    let placeholders := Array.replicate actualParams.size hole
-    let trPair ← `(⟨[$placeholders,*], ($lhs, $rhs)⟩)
-    let thm ← mkFunSyntax actualBinders <| ← `(@$(mkIdent <| toTransitionAbstractName <| toExtName s.name) $allArgs* $r₀ $s₀ $s₁)
+    let mut lhs ← `(@$tr $allArgs* $r₀ $s₀ $s₁)
+    let mut rhs ← `(@$tr $specializedArgs* $r₀' $s₀' $s₁')
+    let mut thm ← `(@$(mkIdent <| toTransitionAbstractName <| toExtName s.name) $allArgs* $r₀ $s₀ $s₁)
+    -- Bind the actual telescope on both sides. A list of argument types loses
+    -- dependencies such as (i : Nat) (j : Fin (i + 1)).
+    for parameter in actualParams.reverse do
+      let arg := mkIdent parameter.name
+      let ty := parameter.type
+      lhs ← `(∃ ($arg:ident : $ty), $lhs)
+      rhs ← `(∃ ($arg:ident : $ty), $rhs)
+      thm ← `(Exists.imp (fun ($arg : $ty) => $thm))
+    let trPair ← `(⟨[], ($lhs, $rhs)⟩)
     pure (trPair, thm)
   let (actionTrPairs, actionTrAbstractProofs) := res.unzip
   let bigAndProof := actionTrAbstractProofs.foldr (β := Term) (init := mkIdent ``True.intro) fun pf acc =>
@@ -1150,7 +1152,7 @@ def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSynt
     throwError "Error in action {pi.name}: {← ex.toMessageData.toString}"
 where
   mvarToParam (inAction : Name) (i : Nat) (typeSyntax : Term) : TermElabM Parameter := do
-    return { kind := .definitionParameter inAction .typeclass, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := typeSyntax, userSyntax := .missing }
+    return { kind := .definitionParameter inAction .typeclass, name := publicBinderName (.mkSimple s!"{inAction}_dec_{i}"), «type» := typeSyntax, userSyntax := .missing }
 
 def elabProcedureBody (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : ActionSyntax) : TermElabM (Array Parameter × Expr) := do
   let body ← `(veil_do $(mkIdent pi.name) in $environmentTheory, $environmentState in $l)

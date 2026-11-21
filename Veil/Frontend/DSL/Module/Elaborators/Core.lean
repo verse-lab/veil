@@ -676,12 +676,12 @@ private def mkSearchParameters (em : ExecutableModule) (config : ModelCheckerCon
   let mkAssumption (name : Name) : CommandElabM Term :=
     `($(mkIdent ``Veil.ModelChecker.TheoryProperty.mk)
         ($(mkIdent `name) := $(quote name))
-        ($(mkIdent `property) := fun $(mkIdent `th) => $(mkIdentWithModName em name) $(mkIdent `th)))
+        ($(mkIdent `property) := fun th => $(mkIdentWithModName em name) th))
   -- Build SafetyProperty.mk syntax for a state assertion
   let mkProp (name : Name) : CommandElabM Term :=
     `($(mkIdent ``Veil.ModelChecker.SafetyProperty.mk)
         ($(mkIdent `name) := $(quote name))
-        ($(mkIdent `property) := fun $(mkIdent `th) $(mkIdent `st) => $(mkIdentWithModName em name) $(mkIdent `th) $(mkIdent `st)))
+        ($(mkIdent `property) := fun th st => $(mkIdentWithModName em name) th st))
   let assumptionList ← `([$((← em.assumptions.mapM mkAssumption)),*])
   let safetyList ← `([$((← (if includeSafetyAndDeadlock then em.invariants else #[]).mapM mkProp)),*])
   -- FIXME: Only recognizing the first termination property might confuse users
@@ -713,14 +713,12 @@ def checkTheorySatisfiesAssumptions (mod : Module) (instTerm theoryTerm : Term)
   let userTac : TSyntax `tactic ← match tac with
     | some t => `(tactic| ($t:tacticSeq))
     | none => `(tactic| first | decide | native_decide)
-  -- Call `Assumptions` using the same named-argument pattern as in
-  -- `assembleRelationalTransitionSystem`: `Assumptions (ρ := TheoryType) sorts* th`
-  let ρArg := mkIdent `ρ
+  -- Supply the receiver type by position, even if a module parameter is named ρ.
   let theoryT ← `($theoryIdent $instSortArgs*)
   let proofCmd ← `(command|
     example : (let $inst : $instantiationType := __veil_instantiation% $instTerm
                let $th : $theoryIdent $instSortArgs* := $theoryTerm
-               $assembledAssumptions ($ρArg := $theoryT) $instSortArgs* $th) := by
+               $assembledAssumptions $theoryT $instSortArgs* $th) := by
       dsimp only [$assembledAssumptions:ident]
       $userTac:tactic)
   elabVeilCommand proofCmd

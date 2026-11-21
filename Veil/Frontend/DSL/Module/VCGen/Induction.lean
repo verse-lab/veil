@@ -89,8 +89,12 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
   -- Proof inlining only needs declarations, not mutable runtime handles.
   let env0 := Veil.Verifier.clearVerifierRuntime (← getEnv)
   let mod ← getCurrentModule
-  let modelParams := if veil.solver.get (← getOptions) matches .custom then #[] else mod.parameters
-  Discharger.fromTermWith term vcStatement dischargerId ch (modelParams := modelParams) fun smtCh data time => do
+  let modelNames := if veil.solver.get (← getOptions) matches .custom then #[] else Id.run do
+    let names := moduleModelNames mod.parameters
+    let args := (mod.procedures.find? (·.name == actName)).map (·.params) |>.getD #[]
+    return names ++ Array.replicate (vcStatement.params.size - names.size) none ++
+      args.mapIdx (fun i _ => some (modelValueName (.num `arg i)))
+  Discharger.fromTermWith term vcStatement dischargerId ch (modelNames := modelNames) fun smtCh data time => do
     let data : Witness ⊕ Exception ← match data with
       | .inl witness => do
         let witness ← inlineFreshProofs env0 witness
