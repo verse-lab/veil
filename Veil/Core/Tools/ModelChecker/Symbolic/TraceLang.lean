@@ -199,6 +199,26 @@ private def extractTraceDataFromVC (vcResult : VCResult VCMetadata SmtResult) : 
 private def shouldHaveTrace (isExpectedSat : Bool) (status : Option VCStatus) : Bool :=
   (isExpectedSat && status == some .proven) || (!isExpectedSat && status == some .disproven)
 
+/-- Use the same failure details in the command output and the streaming widget. -/
+private def traceFailureDetail? (vcResult : VCResult VCMetadata SmtResult) : Option MessageData := do
+  match vcResult.status with
+  | some .unknown =>
+    let reasons := vcResult.timing.dischargers.flatMap fun d =>
+      match d.result with
+      | some (.unknown (some (.unknown reasons)) _) => reasons
+      | _ => #[]
+    if reasons.isEmpty then none
+    else some m!"Solver returned unknown\n{"\n".intercalate reasons.toList}"
+  | some .error | some .timeout =>
+    vcResult.timing.dischargers.findSome? fun d =>
+      match d.result with
+      | some (.error exs _) =>
+        exs.findSome? fun (ex, _) =>
+          let message := ex.toMessageData
+          if message.hasTag (· == `veil.bmc.normalization) then some message else none
+      | _ => none
+  | _ => none
+
 /-- Format a trace result status as a simple message (for widget display without trace JSON). -/
 private def formatTraceStatus (isExpectedSat : Bool) (status : Option VCStatus) : String :=
   match status with
@@ -234,6 +254,8 @@ private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (getManag
         { result := traceJson, layout := "vertical", rawHtml := rawHtml?,
           kind := .symbolicTrace }
       token.update (Html.ofComponent TraceDisplayViewer props #[])
+    else if let some detail := traceFailureDetail? vcResult then
+      token.update (.text (← detail.toString))
     else
       token.update (.text s!"{formatTraceStatus isExpectedSat vcResult.status}")
 
@@ -269,9 +291,11 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
     else if let some traceJson := traceJson? then
       logViolation m!"Counterexample found\n{Veil.TraceDisplay.formatResult .symbolicTrace traceJson}"
     else logViolation "Counterexample found"
-  | some .unknown => logViolation "Solver returned unknown"
-  | some .error => logViolation "Verification error"; logDischargerErrors vcResult.timing.dischargers
-  | some .timeout => logViolation "Solver timed out"; logDischargerErrors vcResult.timing.dischargers
+  | some .unknown => logViolation ((traceFailureDetail? vcResult).getD "Solver returned unknown")
+  | some .error | some .timeout =>
+    if (traceFailureDetail? vcResult).isNone then
+      logViolation (formatTraceStatus isExpectedSat vcResult.status)
+    logDischargerErrors vcResult.timing.dischargers
   | none => logViolation "Verification did not complete"
 
   if shouldHaveTrace isExpectedSat vcResult.status && traceJson?.isNone then
