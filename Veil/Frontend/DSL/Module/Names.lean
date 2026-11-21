@@ -162,6 +162,19 @@ def assembledRTS : Ident := mkIdent assembledRTSName
 def exceptionName : Name := mkVeilImplementationDetailName `ex
 def exception : Ident := mkIdent exceptionName
 
+/-- A numeric name component keeps model binders distinct from source identifiers,
+even when Lean exposes shadowed names or appends structure projections. -/
+private def modelParameterPrefix : Name := .num `__veil_model_param 0
+
+def modelParameterName (source : Name) : Name :=
+  modelParameterPrefix ++ source
+
+def isModelParameterName (name : Name) : Bool :=
+  modelParameterPrefix.isPrefixOf name
+
+def modelParameterDisplayName (name : Name) : Name :=
+  name.replacePrefix modelParameterPrefix `param
+
 /-- Name of the ActionTag_Enum instance binder -/
 def actionTagEnumInstName : Name := mkVeilImplementationDetailName `tag
 def actionTagEnumInst : Ident := mkIdent actionTagEnumInstName

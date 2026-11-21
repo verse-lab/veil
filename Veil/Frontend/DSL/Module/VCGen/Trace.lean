@@ -88,7 +88,8 @@ def TraceDischarger.fromAssertion (numTransitions : Nat) (isExpectedSat : Bool)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
     (_cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
   let smtTactic ← `(term| by veil_bmc)
-  Discharger.fromTermWith smtTactic vcStatement dischargerId ch
+  let mod ← getCurrentModule
+  Discharger.fromTermWith smtTactic vcStatement dischargerId ch mod.uninterpretedParameters
     (traceLabel := "trace discharger") fun smtCh data time =>
     -- Trace queries don't require the elaborated witness to be complete — the
     -- SMT result is what matters — so the witness is dropped and only an
