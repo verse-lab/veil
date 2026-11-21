@@ -7,9 +7,9 @@ veil module ProveInvariantGoalSuggestion
 individual x : Nat
 after_init { x := 0 }
 action step { require x < 10; x := x + 1 }
-invariant [bounded] x ≤ 10
+invariant [bounded] x = 1
 
--- No custom solver is installed, so the arithmetic invariant VCs fail.
+-- The initializer and step both violate the invariant, so grind cannot close either VC.
 set_option veil.solver "custom"
 #gen_spec
 

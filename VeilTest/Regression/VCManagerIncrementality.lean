@@ -14,8 +14,6 @@ after_init { x := 0 }
 action step { require x < 10; x := x + 1 }
 invariant [bounded] x ≤ 10
 
--- Make the manual proof the only successful witness for the step invariant.
-set_option veil.solver "custom"
 #gen_spec
 
 @[veil]
@@ -52,6 +50,14 @@ theorem step_bounded (ρ : Type) (σ : Type) (χ : State.Label → Type)
   unveil
   grind
 -- END STEP PROOF
+
+-- Compare the manager checkpoint with this version of the file before
+-- theorem generation can supply an automatic proof.
+run_cmd do
+  let mgr ← Veil.Verifier.readVCManager
+  let some vc := mgr.nodes.valuesArray.find? (·.name == `step_bounded) | throwError "missing step VC"
+  unless vc.hasInteractiveDischarger == (← Lean.getEnv).contains `VCManagerIncrementality.step_bounded do
+    throwError "interactive step proof does not match the current environment"
 
 #gen_theorems
 
