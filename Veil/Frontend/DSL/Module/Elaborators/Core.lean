@@ -64,21 +64,22 @@ private def checkVeilIsPubliclyImported (stx : Syntax) : CommandElabM Unit := do
 @[command_elab Veil.moduleDeclaration]
 def elabModuleDeclaration : CommandElab := fun stx => do
   match stx with
-  | `(veil module $modName:ident) => do
+  | `(command| veil module $modName:ident) => do
     /- `veil module` elaborates the declarations it generates into the public scope, so every
     Veil name their signatures and bodies mention must be publicly visible as well. A plain
     `import Veil` only reaches the private scope; without this check that surfaces much later,
     as a wall of unknown-identifier errors from `#gen_state`. `setExporting` is a no-op outside
     the module system, so files without a `module` header are unaffected. -/
     checkVeilIsPubliclyImported stx
-    overrideLeanDefaults
     let genv ← globalEnv.get
     let name := modName.getId
     let lenv ← localEnv.get
     if let some mod := lenv.currentModule then
       throwError s!"Module {mod.name} is already open, but you are now trying to open module {name}. Nested modules are not supported!"
-    elabVeilCommand $ ← `(open Veil)
     elabVeilCommand $ ← `(namespace $modName)
+    elabVeilCommand $ ← `(open Veil)
+    elabVeilCommand $ ← `(open scoped Veil.Action.DoElab Veil.TermReduce)
+    overrideLeanDefaults
     -- Generated declarations form the reusable API of a Veil module. Scope these
     -- defaults to its namespace, so `end` restores the surrounding Lean defaults.
     let exposeAttr ← `(Parser.Term.attrInstance| expose)

@@ -14,14 +14,14 @@ open scoped Loom.Order
 namespace Veil
 open PartialCorrectness DemonicChoice
 
-variable (hd : ExId -> Prop) [IsHandler hd]
+variable (hd : Int -> Prop) [IsHandler hd]
 
 /- Languge constructs -/
 
-@[expose] def VeilExecM.assert (p : Prop) [Decidable p] (ex : ExId) : VeilExecM m ρ σ Unit := do
+@[expose] def VeilExecM.assert (p : Prop) [Decidable p] (ex : Int) : VeilExecM m ρ σ Unit := do
   if p then pure () else throw ex
 
-@[expose] def VeilM.assert (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
+@[expose] def VeilM.assert (p : Prop) [Decidable p] (ex : Int) : VeilM m ρ σ Unit := do
   liftM (@VeilExecM.assert m ρ σ p _ ex)
 
 /-- We require the predicate to be `Decidable`, even though `assume`
@@ -38,12 +38,12 @@ executions (see `MonadNonDet`). -/
     (name : Option String := none) : VeilM m ρ σ τ := do
   MonadNonDet.pickSuchThat τ p name
 
-@[expose] def VeilM.require (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
+@[expose] def VeilM.require (p : Prop) [Decidable p] (ex : Int) : VeilM m ρ σ Unit := do
   match m with
   | .internal => VeilM.assert p ex
   | .external => assume p
 
-@[expose] def VeilM.ensure (p : Prop) [Decidable p] (ex : ExId) : VeilM m ρ σ Unit := do
+@[expose] def VeilM.ensure (p : Prop) [Decidable p] (ex : Int) : VeilM m ρ σ Unit := do
   match m with
   | .internal => assume p
   | .external => VeilM.assert p ex
@@ -51,11 +51,11 @@ executions (see `MonadNonDet`). -/
 /-! The following variants also return the proof of the proposition (`assert h : p`,
 `require h : p`, `assume h : p` and `let x :| h : p`). -/
 
-@[expose] def VeilExecM.assertSubtype (p : Prop) [Decidable p] (ex : ExId) :
+@[expose] def VeilExecM.assertSubtype (p : Prop) [Decidable p] (ex : Int) :
     VeilExecM m ρ σ (NonDetT.Holds p) :=
   if h : p then pure ⟨.unit, h⟩ else throw ex
 
-@[expose] def VeilM.assertSubtype (p : Prop) [Decidable p] (ex : ExId) :
+@[expose] def VeilM.assertSubtype (p : Prop) [Decidable p] (ex : Int) :
     VeilM m ρ σ (NonDetT.Holds p) :=
   liftM (@VeilExecM.assertSubtype m ρ σ p _ ex)
 
@@ -69,7 +69,7 @@ executions (see `MonadNonDet`). -/
     VeilM m ρ σ {x // p x} :=
   MonadNonDet.pick {x // p x} name
 
-@[expose] def VeilM.requireSubtype (p : Prop) [Decidable p] (ex : ExId) :
+@[expose] def VeilM.requireSubtype (p : Prop) [Decidable p] (ex : Int) :
     VeilM m ρ σ (NonDetT.Holds p) :=
   match m with
   | .internal => VeilM.assertSubtype p ex
@@ -77,7 +77,7 @@ executions (see `MonadNonDet`). -/
 
 /-- `ens` takes the pre-state as an argument to be able to compute the
 frame (`unchanged`). -/
-@[reducible] def VeilM.spec (req : SProp ρ σ) (ens : σ → RProp ρ σ α) (pre_ex post_ex : ExId) [∀ rd st, Decidable (req rd st)] [∀ rd st st' ret, Decidable (ens rd st st' ret)] : VeilM m ρ σ α := do
+@[reducible] def VeilM.spec (req : SProp ρ σ) (ens : σ → RProp ρ σ α) (pre_ex post_ex : Int) [∀ rd st, Decidable (req rd st)] [∀ rd st st' ret, Decidable (ens rd st st' ret)] : VeilM m ρ σ α := do
   let (rd, st) := (← read, ← get)
   VeilM.require (req rd st) pre_ex
   let (ret, st') := (← pick α, ← pick σ)
@@ -91,7 +91,7 @@ frame (`unchanged`). -/
   return ()
 
 omit hd [IsHandler hd] in
-theorem VeilM.wp_returnUnit {hd' : ExId → Prop} {act : VeilM m ρ σ α} {q : VeilSpecM ρ σ α}
+theorem VeilM.wp_returnUnit {hd' : Int → Prop} {act : VeilM m ρ σ α} {q : VeilSpecM ρ σ α}
   (h : ∀ post_, [IgnoreEx hd'| wp act post_] = q post_) post :
   [IgnoreEx hd'| wp (VeilM.returnUnit act : VeilM m ρ σ Unit) post] = q (fun _ => post ()) := by
   simp only [wp_bind, wp_pure, h]
@@ -134,7 +134,7 @@ theorem VeilExecM.wp_assume (p : Prop) [Decidable p]
 
 /-- This formulation avoids a blowup in formula size by avoiding copies of `post`. -/
 @[wpSimp ↓]
-theorem VeilM.wp_require (p : Prop) [Decidable p] (ex : ExId)
+theorem VeilM.wp_require (p : Prop) [Decidable p] (ex : Int)
     (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
     wp (VeilM.require p ex : VeilM m ρ σ Unit) post r s =
       (letI wpI := fun _p [Decidable _p] _post =>
@@ -146,7 +146,7 @@ theorem VeilM.wp_require (p : Prop) [Decidable p] (ex : ExId)
 
 /-- This formulation avoids a blowup in formula size by avoiding copies of `post`. -/
 @[wpSimp ↓]
-theorem VeilM.wp_ensure (p : Prop) [Decidable p] (ex : ExId)
+theorem VeilM.wp_ensure (p : Prop) [Decidable p] (ex : Int)
     (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
     wp (VeilM.ensure p ex : VeilM m ρ σ Unit) post r s =
       (letI wpI := fun _p [Decidable _p] _post =>
@@ -157,7 +157,7 @@ theorem VeilM.wp_ensure (p : Prop) [Decidable p] (ex : ExId)
   cases m <;> rfl
 
 @[wpSimp ↓]
-theorem VeilExecM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId)
+theorem VeilExecM.wp_assert (p : Prop) {_ : Decidable p} (ex : Int)
     (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
     wp (@VeilExecM.assert m ρ σ p _ ex) post r s =
       if p then post () r s else hd ex := by
@@ -175,7 +175,7 @@ theorem VeilExecM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId)
 
 set_option backward.isDefEq.respectTransparency false in
 @[wpSimp ↓]
-theorem VeilM.wp_assert (p : Prop) {_ : Decidable p} (ex : ExId)
+theorem VeilM.wp_assert (p : Prop) {_ : Decidable p} (ex : Int)
     (post : RProp Unit ρ σ) (r : ρ) (s : σ) :
     wp (@VeilM.assert m ρ σ p _ ex) post r s =
       if p then post () r s else hd ex := by
@@ -189,7 +189,7 @@ theorem VeilM.wp_assumeSubtype (p : Prop) [Decidable p]
   simp [VeilM.assumeSubtype, MonadNonDet.wp_assumeSubtype, loomLogicSimp]
 
 @[wpSimp ↓]
-theorem VeilExecM.wp_assertSubtype (p : Prop) {_ : Decidable p} (ex : ExId)
+theorem VeilExecM.wp_assertSubtype (p : Prop) {_ : Decidable p} (ex : Int)
     (post : RProp (NonDetT.Holds p) ρ σ) (r : ρ) (s : σ) :
     wp (@VeilExecM.assertSubtype m ρ σ p _ ex) post r s =
       if h : p then post ⟨.unit, h⟩ r s else hd ex := by
@@ -204,7 +204,7 @@ theorem VeilExecM.wp_assertSubtype (p : Prop) {_ : Decidable p} (ex : ExId)
 
 set_option backward.isDefEq.respectTransparency false in
 @[wpSimp ↓]
-theorem VeilM.wp_assertSubtype (p : Prop) {_ : Decidable p} (ex : ExId)
+theorem VeilM.wp_assertSubtype (p : Prop) {_ : Decidable p} (ex : Int)
     (post : RProp (NonDetT.Holds p) ρ σ) (r : ρ) (s : σ) :
     wp (@VeilM.assertSubtype m ρ σ p _ ex) post r s =
       if h : p then post ⟨.unit, h⟩ r s else hd ex := by
@@ -212,7 +212,7 @@ theorem VeilM.wp_assertSubtype (p : Prop) {_ : Decidable p} (ex : ExId)
 
 /-- This formulation avoids a blowup in formula size by avoiding copies of `post`. -/
 @[wpSimp ↓]
-theorem VeilM.wp_requireSubtype (p : Prop) [Decidable p] (ex : ExId)
+theorem VeilM.wp_requireSubtype (p : Prop) [Decidable p] (ex : Int)
     (post : RProp (NonDetT.Holds p) ρ σ) (r : ρ) (s : σ) :
     wp (VeilM.requireSubtype p ex : VeilM m ρ σ (NonDetT.Holds p)) post r s =
       (letI wpI := fun _p [Decidable _p] (_post : RProp (NonDetT.Holds _p) ρ σ) =>

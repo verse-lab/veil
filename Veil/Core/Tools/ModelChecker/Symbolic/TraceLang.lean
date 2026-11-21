@@ -345,7 +345,7 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
 /-- Elaborate the trace command at the current ref. Its widget shows the result while the solver
 runs, through `withStreamingInfo`, so the elaborator that calls this is `@[incremental]`. -/
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident))
-    (spec : TSyntax `traceSpec) (pf : Option (TSyntax `term)) : CommandElabM Unit := do
+    (spec : TSyntax `Veil.traceSpec) (pf : Option (TSyntax `term)) : CommandElabM Unit := do
   let stx ← getRef
   withStreamingInfo stx do
   let mod ← getCurrentModule (errMsg := "trace commands can only be used inside a Veil module")

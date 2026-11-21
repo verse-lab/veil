@@ -60,36 +60,36 @@ theorem anyLT_eq_true {n : Nat} {f : (i : Nat) → i < n → Bool} :
     anyLT n f = true ↔ ∃ i, ∃ h : i < n, f i h = true := by
   simp only [anyLT, anyLT_go_eq_true, Nat.zero_le, true_and]
 
-@[macro_inline] instance (priority := high) decidableForallFin {n : Nat} (P : Fin n → Prop)
+@[macro_inline] scoped instance (priority := high) decidableForallFin {n : Nat} (P : Fin n → Prop)
     [DecidablePred P] : Decidable (∀ i, P i) :=
   decidable_of_iff (allLT n (fun i h => decide (P ⟨i, h⟩)) = true) <| by
     simp only [allLT_eq_true, decide_eq_true_eq]
     exact ⟨fun h i => h i.1 i.2, fun h i hi => h ⟨i, hi⟩⟩
 
-@[macro_inline] instance (priority := high) decidableExistsFin {n : Nat} (P : Fin n → Prop)
+@[macro_inline] scoped instance (priority := high) decidableExistsFin {n : Nat} (P : Fin n → Prop)
     [DecidablePred P] : Decidable (∃ i, P i) :=
   decidable_of_iff (anyLT n (fun i h => decide (P ⟨i, h⟩)) = true) <| by
     simp only [anyLT_eq_true, decide_eq_true_eq]
     exact ⟨fun ⟨i, h, hp⟩ => ⟨⟨i, h⟩, hp⟩, fun ⟨i, hp⟩ => ⟨i.1, i.2, hp⟩⟩
 
-@[macro_inline] instance (priority := high) decidableBallLT (n : Nat) (P : ∀ k, k < n → Prop)
+@[macro_inline] scoped instance (priority := high) decidableBallLT (n : Nat) (P : ∀ k, k < n → Prop)
     [∀ k h, Decidable (P k h)] : Decidable (∀ k h, P k h) :=
   decidable_of_iff (allLT n (fun k h => decide (P k h)) = true) <| by
     simp only [allLT_eq_true, decide_eq_true_eq]
 
-@[macro_inline] instance (priority := high) decidableBallLE (n : Nat) (P : ∀ k, k ≤ n → Prop)
+@[macro_inline] scoped instance (priority := high) decidableBallLE (n : Nat) (P : ∀ k, k ≤ n → Prop)
     [∀ k h, Decidable (P k h)] : Decidable (∀ k h, P k h) :=
   decidable_of_iff (allLT (n + 1) (fun k h => decide (P k (Nat.le_of_lt_succ h))) = true) <| by
     simp only [allLT_eq_true, decide_eq_true_eq]
     exact ⟨fun w k h => w k (Nat.lt_succ_of_le h), fun w k _ => w k _⟩
 
-@[macro_inline] instance (priority := high) decidableExistsLT {p : Nat → Prop} [DecidablePred p]
+@[macro_inline] scoped instance (priority := high) decidableExistsLT {p : Nat → Prop} [DecidablePred p]
     (n : Nat) : Decidable (∃ m, m < n ∧ p m) :=
   decidable_of_iff (anyLT n (fun m _ => decide (p m)) = true) <| by
     simp only [anyLT_eq_true, decide_eq_true_eq]
     exact ⟨fun ⟨m, h, hp⟩ => ⟨m, h, hp⟩, fun ⟨m, h, hp⟩ => ⟨m, h, hp⟩⟩
 
-@[macro_inline] instance (priority := high) decidableExistsLE {p : Nat → Prop} [DecidablePred p]
+@[macro_inline] scoped instance (priority := high) decidableExistsLE {p : Nat → Prop} [DecidablePred p]
     (n : Nat) : Decidable (∃ m, m ≤ n ∧ p m) :=
   decidable_of_iff (anyLT (n + 1) (fun m _ => decide (p m)) = true) <| by
     simp only [anyLT_eq_true, decide_eq_true_eq]

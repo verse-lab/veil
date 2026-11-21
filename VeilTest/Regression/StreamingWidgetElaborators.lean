@@ -7,6 +7,7 @@ meta import Lean
 which needs their elaborators to be `@[incremental]`. `scripts/tests/test-streaming-widgets.py`
 checks the rest through the language server, with elaborators of its own in front of these. -/
 
+open scoped Veil in
 open Lean Elab Command in
 run_cmd do
   let env ← getEnv

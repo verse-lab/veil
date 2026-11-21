@@ -38,7 +38,7 @@ beta reduction of subexpressions.
 
 In particular, `t` is elaborated, its metavariables are instantiated,
 and then `Lean.Expr.headBeta` is applied. -/
-syntax (name := betaStx) "beta% " term : term
+scoped syntax (name := betaStx) "beta% " term : term
 
 @[term_elab betaStx, inherit_doc betaStx]
 def elabBeta : TermElab := fun stx expectedType? =>
@@ -49,7 +49,7 @@ def elabBeta : TermElab := fun stx expectedType? =>
   | _ => throwUnsupportedSyntax
 
 /-- `delta% t` elaborates to a head-delta reduced version of `t`. -/
-syntax (name := deltaStx) "delta% " term : term
+scoped syntax (name := deltaStx) "delta% " term : term
 
 @[term_elab deltaStx, inherit_doc deltaStx]
 def elabDelta : TermElab := fun stx expectedType? =>

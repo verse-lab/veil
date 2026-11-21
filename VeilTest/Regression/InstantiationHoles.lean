@@ -13,6 +13,7 @@ class Collection (elem repr : Type) where
 @[default_instance] instance : Collection α (Array α) where
   empty := #[]
 
+open scoped Veil in
 @[veil_decl]
 structure Envelope (sender payload : Type) (bound : Nat) where
   source : sender

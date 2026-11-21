@@ -58,8 +58,10 @@ macro_rules
     let defs := defs.getElems
     `(tactic| first
       | decide
-      | (simp +instances [$[$defs:ident],*]
+      | (simp +instances [↓ Veil.funextEq, Veil.HO_forall_push_left, Veil.HO_exists_push_left,
+           $[$defs:ident],*]
          all_goals (intros; veil_enum_cases)
-         all_goals simp_all +instances [$[$defs:ident],*]))
+         all_goals simp_all +instances
+           [↓ Veil.funextEq, Veil.HO_forall_push_left, Veil.HO_exists_push_left, $[$defs:ident],*]))
 
 end Veil.Synthesizer

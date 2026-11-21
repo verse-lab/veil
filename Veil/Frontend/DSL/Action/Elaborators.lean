@@ -32,7 +32,7 @@ open Lean Elab Command Term
     `Unit` (the environment does not care about the return value)
 
   2. Then, from `act`/`act.ext`, we derive `act.wp`/`act.ext.wp`, their
-  WP parameterised by a set of exceptions IDs `ExId → Prop` which we
+  WP parameterised by a set of exceptions IDs `Int → Prop` which we
   DON'T care about (assertion failures are treated as exceptions, and
   each assertion has its unique ID).
 -/

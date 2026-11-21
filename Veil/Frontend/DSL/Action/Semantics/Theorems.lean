@@ -135,13 +135,13 @@ theorem VeilM.terminates_preservesInvariants (act : VeilM m ρ σ α) (inv : SPr
 --     cases act r s₀ <;> aesop
 
 theorem VeilExecM.not_raises_imp_terminates_wp (act : VeilExecM m ρ σ α)
-  (invEx : ExId -> RProp α ρ σ) :
+  (invEx : Int -> RProp α ρ σ) :
   ⨅ ex, [IgnoreEx (· ≠ ex)| wp act (invEx ex)] ≤ [DemonFail| wp act (iInf invEx)] := by
   intro r s; simp [VeilExecM.wp_eq, PartialCorrectness.DivM.wp_eq]
   cases (act r s) <;> aesop (add safe simp loomLogicSimp)
 
 theorem VeilM.not_raises_imp_terminates_wp (act : VeilM m ρ σ α)
-  (invEx : ExId -> RProp α ρ σ) :
+  (invEx : Int -> RProp α ρ σ) :
   ⨅ ex, [IgnoreEx (· ≠ ex)| wp act (invEx ex)] ≤ [DemonFail| wp act (iInf invEx)] := by
   dsimp; unhygienic induction act <;> simp [-le_iInf_iff]
   { apply le_trans; apply VeilExecM.not_raises_imp_terminates_wp;
@@ -154,8 +154,8 @@ theorem VeilM.not_raises_imp_terminates (act : VeilM m ρ σ α) (pre : SProp ρ
   (∀ ex, act.succeedsWhenIgnoring (· ≠ ex) pre) ->
   act.doesNotThrow pre := by
   unfold VeilM.succeedsWhenIgnoring VeilM.doesNotThrow triple
-  simp; rw [←le_iInf_iff (ι := ExId)]; intro h;
-  have : (⊤ : RProp α ρ σ) = iInf (fun (_ : ExId) => ⊤) := by simp
+  simp; rw [←le_iInf_iff (ι := Int)]; intro h;
+  have : (⊤ : RProp α ρ σ) = iInf (fun (_ : Int) => ⊤) := by simp
   rw [this]
   solve_by_elim [VeilM.not_raises_imp_terminates_wp, le_trans']
 
@@ -163,7 +163,7 @@ end PartialCorrectnessTheorems
 
 section DerivingSemanticsTheorems
 variable (act : VeilM m ρ σ α)
-  (genWp : (ExId -> Prop) -> VeilSpecM ρ σ α)
+  (genWp : (Int -> Prop) -> VeilSpecM ρ σ α)
   (genWp_sound : ∀ hd, genWp hd ≤ [IgnoreEx hd| wp act])
 
 include genWp_sound
@@ -399,7 +399,7 @@ open AngelicChoice TotalCorrectness in
 theorem VeilM.extract_list_eq_wp [LogSwitch] (s : VeilM m ρ σ α)
   (h : ExtractConstraint κ
     (VeilExecM m ρ σ)
-    (VeilMultiExecM κ ExId ρ σ) (fun p (ec : ExtCandidates Candidates κ p) => ec.core.find) s s')
+    (VeilMultiExecM κ Int ρ σ) (fun p (ec : ExtCandidates Candidates κ p) => ec.core.find) s s')
   (hd : Int → Prop) [IsHandler hd] :
   wp s post = wp s' post := by
   apply MultiExtractor.AngelicChoice.extract_list_eq_wp κ ; assumption
@@ -409,7 +409,7 @@ theorem important1 [LogSwitch]
   (act : VeilM m ρ σ α)
   (h : ExtractConstraint κ
     (VeilExecM m ρ σ)
-    (VeilMultiExecM κ ExId ρ σ) (fun p (ec : ExtCandidates Candidates κ p) => ec.core.find) act s') :
+    (VeilMultiExecM κ Int ρ σ) (fun p (ec : ExtCandidates Candidates κ p) => ec.core.find) act s') :
   letI res := s' r₀ s₀
   (∃ a log, (log, DivM.res (Except.ok a, s₁)) ∈ res) ↔
   act.toTransition r₀ s₀ s₁ := by
@@ -428,11 +428,11 @@ theorem important1 [LogSwitch]
 
 -- an exception is in the extraction result iff it can be raised
 theorem important2 [LogSwitch]
-  (e : ExId)
+  (e : Int)
   (act : VeilM m ρ σ α)
   (h : ExtractConstraint κ
     (VeilExecM m ρ σ)
-    (VeilMultiExecM κ ExId ρ σ) (fun p (ec : ExtCandidates Candidates κ p) => ec.core.find) act s') :
+    (VeilMultiExecM κ Int ρ σ) (fun p (ec : ExtCandidates Candidates κ p) => ec.core.find) act s') :
   let _ : IsHandler (· = e) := ⟨⟩
   letI res := s' r₀ s₀
   letI tmp := (open AngelicChoice TotalCorrectness in

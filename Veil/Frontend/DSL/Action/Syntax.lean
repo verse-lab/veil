@@ -106,14 +106,14 @@ end VeilActionKeywords
 /-- `assume P` ignores executions that do not satisfy `P`. BE CAREFUL
 when making assumptions, as inconsistent assumptions will eliminate ALL
 executions, making your specification vacuous. -/
-syntax (name := assumeStatement) kw_assume term : term
+scoped syntax (name := assumeStatement) kw_assume term : term
 
 /-- `pick` creates a non-deterministic, arbitrary value of the given
 type `ty`, which is optional. If no type is provided, it is inferred.
 
 We recommend giving type annotations when possible, e.g. `pick Nat`,
 as type inference failures might lead to confusing error messages. -/
-syntax (name := pickExpression) withPosition(kw_pick (lineEq term)?) : term
+scoped syntax (name := pickExpression) withPosition(kw_pick (lineEq term)?) : term
 
 /-- Binds a variable to a value that satisfies a predicate. `let x :| h : p`
 also binds the proof `h` that `x` satisfies it. -/
