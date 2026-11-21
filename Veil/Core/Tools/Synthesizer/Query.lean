@@ -151,8 +151,7 @@ and diagram variables, the theory and the states. -/
 def statement (trNorm? : Option Name) (q : Query) : TermElabM Term := do
   let rts := ctx.rtsExpr
   let tagType ← Lean.mkIdent <$> mkFreshUserName actionTagTypeName
-  let states ← (Array.range (q.steps + 1)).mapM fun i =>
-    Lean.mkIdent <$> mkFreshUserName (.mkSimple s!"st{i}")
+  let states ← (Array.range (q.steps + 1)).mapM mkTraceStateIdent
   let mut conj := #[← `(($rts).$(mkIdent `assumptions) $(ctx.th))]
   if q.init then conj := conj.push (← `(($rts).$(mkIdent `init) $(ctx.th) $(states[0]!)))
   conj := conj ++ (← ctx.applyPreds q.frame states[0]! q.separate)
