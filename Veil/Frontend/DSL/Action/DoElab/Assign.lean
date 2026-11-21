@@ -386,7 +386,7 @@ private def elabPinnedStateAssignment (mod : Module) (component : StateComponent
     (target.args.drop domainSize) (caps.take domainSize) rhs
   let pattern ← mkAssignmentPattern mod component domainArgs (caps.take domainSize)
 
-  let concrete := currentStateField component.name
+  let concrete ← currentStateField component.name
   let setTerm ←
     `(($fieldRepresentation _).$(mkIdent `setSingle) ($pattern) ($replacement) $concrete)
   let setValue ← Term.elabTerm setTerm none

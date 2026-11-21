@@ -24,14 +24,14 @@ namespace Veil
 /-! ## Symbolic Transition Binders -/
 
 /-- Quantify the action tag type and enumeration used by symbolic transitions. -/
-def mkActionTagBinders : TermElabM (Array (TSyntax ``bracketedBinder)) := do
-  return #[← `(bracketedBinder| ($actionTagType : Type)),
-    ← `(bracketedBinder| ($actionTagEnumInst : $(Ident.toEnumClass actionTagType) $actionTagType))]
+def mkActionTagBinders (tagType : Ident) : TermElabM (Array (TSyntax ``bracketedBinder)) := do
+  return #[← `(bracketedBinder| ($tagType : Type)),
+    ← `(bracketedBinder| ($actionTagEnumInst : $(Ident.toEnumClass actionTagType) $tagType))]
 
 /-- Preserve the spelling used by the trace decoder while preventing captures in user terms. -/
-def mkTransitionTagBinder (i : Nat) : TermElabM (Ident × TSyntax ``bracketedBinder) := do
+def mkTransitionTagBinder (tagType : Ident) (i : Nat) : TermElabM (Ident × TSyntax ``bracketedBinder) := do
   let tag ← Lean.mkIdent <$> mkFreshUserName (.mkSimple s!"_tr{i}_tag")
-  return (tag, ← `(bracketedBinder| ($tag : $actionTagType)))
+  return (tag, ← `(bracketedBinder| ($tag : $tagType)))
 
 /-- Bind an action's arguments under the names expected by the trace decoder. -/
 def mkTransitionParamBinders (prefix_ : String) (params : Array Parameter) :

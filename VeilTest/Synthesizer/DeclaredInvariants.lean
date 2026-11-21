@@ -106,6 +106,7 @@ end TakenNames
 
 veil module QueryBinderShadowing
 
+individual ActionTag : Bool
 individual th : Bool
 individual st0 : Bool
 individual st1 : Bool
@@ -115,6 +116,7 @@ individual _tr1_act_keep_arg0_value : Bool
 #gen_state
 
 after_init {
+  ActionTag := false
   th := false
   st0 := false
   st1 := false
@@ -126,7 +128,7 @@ action keep (value : Bool) {
   require value
 }
 
-safety [neverSet] ¬ th ∧ ¬ st0 ∧ ¬ st1 ∧ ¬ _tr1_tag ∧ ¬ _tr1_act_keep_arg0_value
+safety [neverSet] ¬ ActionTag ∧ ¬ th ∧ ¬ st0 ∧ ¬ st1 ∧ ¬ _tr1_tag ∧ ¬ _tr1_act_keep_arg0_value
 
 #gen_spec
 
@@ -152,3 +154,23 @@ safety [clean] ∀ x : st0, ¬ seen x
 #updr (expect := invariant)
 
 end NormalizationBinderShadowing
+
+veil module SameNamedTheoryAndState
+
+immutable individual shared : Bool
+/-- warning: mutable state component `shared` shadows immutable theory component `shared`; references to this name resolve to the state component -/
+#guard_msgs in
+individual shared : Bool
+
+assumption shared = true
+after_init { shared := false }
+action idle { pure () }
+safety [prop] shared = true
+
+#gen_spec
+
+/-- error: IC3: theory and state both declare `shared`. Rename one before running #updr. -/
+#guard_msgs in
+#updr (expect := unsafe) certify
+
+end SameNamedTheoryAndState

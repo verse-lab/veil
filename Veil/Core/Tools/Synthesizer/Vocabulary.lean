@@ -266,6 +266,9 @@ def ofModule (mod : Veil.Module) : MetaM Signature := do
     | .mutable => stateSymbols := stateSymbols.push (← componentSymbol sorts sc)
     | .immutable => theorySymbols := theorySymbols.push (← componentSymbol sorts sc)
     | .inherit => throwError "IC3: child modules ({sc.name}) are not supported yet"
+  -- Rendered clauses and certificates use bare component names.
+  if let some sym := theorySymbols.find? (fun th => stateSymbols.any (·.name == th.name)) then
+    throwError "IC3: theory and state both declare `{sym.name}`. Rename one before running #updr."
   -- The instance of an enum's class contributes nothing: its constants are the constructors.
   let enumInsts := enums.map (Name.toEnumInst ·.1)
   let mut sig : Signature := { sorts, enums, stateSymbols, theorySymbols, classSymbols := #[] }

@@ -140,6 +140,7 @@ def TraceElabState.advance (s : TraceElabState) : Option (Ident × Ident × Trac
 /-- Context for trace elaboration (immutable during processing) -/
 structure TraceElabCtx where
   mod : Module
+  tagType : Ident
   rtsExpr : TSyntax `term
   theoryId : TSyntax `term
   theoryT : TSyntax `term
@@ -154,12 +155,12 @@ private def processTransition (ctx : TraceElabCtx) (curr next : Ident) (trIdx : 
     let specificParams ← match proc with
       | some p => pure (← ctx.mod.declarationAllParams p.name p.declarationKind).2
       | none => throwError s!"action '{actionName}' not found. Available: {ctx.mod.actions.map (·.name)}"
-    let (tagId, tagBinder) ← mkTransitionTagBinder trIdx
+    let (tagId, tagBinder) ← mkTransitionTagBinder ctx.tagType trIdx
     let (argIdents, paramBinders) ← mkTransitionParamBinders s!"_tr{trIdx}" specificParams
     return (← mkTransitionExpr ctx.rtsExpr ctx.theoryId curr next tagId actionName argIdents,
             { params := paramBinders, tags := #[tagBinder] })
   | .anyAction => do
-    let (tagId, tagBinder) ← mkTransitionTagBinder trIdx
+    let (tagId, tagBinder) ← mkTransitionTagBinder ctx.tagType trIdx
     let (disjunction, paramBinders) ← mkAnyActionDisjunction ctx.mod ctx.rtsExpr ctx.theoryId curr next tagId trIdx
     return (disjunction, { params := paramBinders, tags := #[tagBinder] })
   | _ => unreachable!
@@ -335,7 +336,8 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     let theoryT ← mod.theoryStx
     let stateT ← `(term| $(mkIdent stateName) ($fieldAbstractDispatcher $sorts*))
     let rtsExpr ← `(term| @$assembledRTS $sorts*)
-    let ctx : TraceElabCtx := { mod, rtsExpr, theoryId, theoryT, stateT, sorts }
+    let tagType ← Lean.mkIdent <$> mkFreshUserName actionTagTypeName
+    let ctx : TraceElabCtx := { mod, tagType, rtsExpr, theoryId, theoryT, stateT, sorts }
 
     let initAssertion ← `(term|
       ($rtsExpr).$(mkIdent `assumptions) $theoryId ∧
@@ -345,7 +347,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
 
     let vcName ← match name with | some n => pure n.getId | none => mkFreshUserName `trace
     let conjunction ← repeatedAnd finalState.assertions
-    let actionTagBinders ← if mod.actions.isEmpty then pure #[] else mkActionTagBinders
+    let actionTagBinders ← if mod.actions.isEmpty then pure #[] else mkActionTagBinders tagType
     let allBinders := (← collectModuleBinders mod) ++ actionTagBinders ++ finalState.binders.all
     let stateNames := stateIds.toArray
     let assertion ← `(∀ $allBinders* ($theoryId:ident : $theoryT) ($stateNames* : $stateT), ¬ $conjunction)

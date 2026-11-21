@@ -1133,7 +1133,9 @@ def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSynt
     withVeilModeVar BinderInfo.default fun mode => do
     /- We want to throw an error if anything fails or is missing during elaboration. -/
     withoutErrToSorry $ do
-    let (decInstsMvars, e) ← elabTermDecidable pi.name stx (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
+    let mod ← getCurrentModule
+    let (decInstsMvars, e) ← withGeneratedFieldContext mod.parameters vs <|
+      elabTermDecidable pi.name stx (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
     /- The state/theory openings conservatively bind every field for every
     statement. This removes unused lets to keep the term as small as possible. -/
     let e ← eraseUnusedLets e

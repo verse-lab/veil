@@ -149,27 +149,27 @@ private def fieldBinderName (view : Name) (field : Name) : Name :=
 
 /-- Encode the field view in the macro scope, keeping the original name when
 Lean prints a type that depends on the field. -/
-private def mkPrivateFieldIdent (view : Name) (field : Name) : MetaM Ident := do
+def mkPrivateFieldIdent (view : Name) (field : Name) : MetaM Ident := do
   let name ← mkFreshUserName (fieldBinderName view field)
   let scope := extractMacroScopes name
   let ctx := scope.ctx ++ `Veil.fieldBinder ++ view
   return mkIdent ({ scope with ctx }.review)
 
+def isPrivateFieldBinder (name view field : Name) : Bool :=
+  let scope := extractMacroScopes name
+  (`Veil.fieldBinder ++ view).isSuffixOf scope.ctx && scope.name == fieldBinderName view field
+
 def findFieldBinder? (lctx : LocalContext) (view : Name) (field : Name) : Option LocalDecl :=
   lctx.findDeclRev? fun decl =>
-    let scope := extractMacroScopes decl.userName
-    if (`Veil.fieldBinder ++ view).isSuffixOf scope.ctx && scope.name == fieldBinderName view field then
-      some decl
-    else
-      none
+    if isPrivateFieldBinder decl.userName view field then some decl else none
 
 /-- Reconstruct a `Theory` term from the hypotheses in the context. -/
 def elabExactTheory : TacticM Unit := withMainContext do
   let mod ← getCurrentModule
   let lctx ← getLCtx
   let comp := mod.immutableComponents.map fun field =>
-    let decl? := findImplementationDetail? lctx (mkVeilImplementationDetailName field.name) <|>
-      findFieldBinder? lctx `theory field.name
+    let decl? := findFieldBinder? lctx `theory field.name <|>
+      findImplementationDetail? lctx (mkVeilImplementationDetailName field.name)
     Lean.mkIdent (decl?.map (·.userName) |>.getD field.name)
   let constr ← `(term| (⟨$[$comp],*⟩ : $(← mod.theoryStx)))
   trace[veil.debug] "theory constr: {constr}"
@@ -178,14 +178,23 @@ def elabExactTheory : TacticM Unit := withMainContext do
 def elabExactState : TacticM Unit := withMainContext do
   let mod ← getCurrentModule
   let lctx ← getLCtx
-  let currentState? := findImplementationDetail? lctx currentStateBindingName
+  let currentState? := findFieldBinder? lctx `actionState currentStateBindingName
   let actualFields : Array Term ← mod.mutableComponents.mapM fun field => do
     let nm := field.name
-    if let some st := currentState? then
-      `(term| $(mkIdent st.userName).$(mkIdent nm))
-    else if let some decl := findFieldBinder? lctx `stateConcrete nm then
+    if let some decl := findFieldBinder? lctx `stateConcrete nm then
       pure (mkIdent decl.userName)
-    else
+    else if let some st := currentState? then
+      `(term| $(← exprToSyntax st.toExpr).$(mkIdent nm))
+    else try
+      -- Hand-written Lean callers can provide a logical field as a projection.
+      let some value := (lctx.findFromUserName? nm).bind (·.value? true) | failure
+      let value := match_expr value with
+        | id _ v => v
+        | _ => value
+      match_expr value with
+      | Veil.FieldRepresentation.get _ _ _ _ concrete => exprToSyntax concrete
+      | _ => failure
+    catch _ =>
       let conc := nm.appendAfter "_conc"
       let some decl := lctx.findFromUserName? conc
         | throwError "state component {nm} is not available in the local context"
@@ -203,7 +212,17 @@ elab_rules : tactic
 /-- Expose the fields under their DSL names, unless an enclosing user binder
 already owns the name. The private field bindings remain available to generated code. -/
 scoped syntax (name := veilFieldViews)
-  "veil_field_views% " ("(" ident " := " ident ")")* " in " term : term
+  "veil_field_views% " ("(" ident " := " ident ")")* (" hiding " ident+)? " in " term : term
+
+def Parameter.isGeneratedFieldContext (p : Parameter) : Bool :=
+  p.kind matches .backgroundTheory | .environmentState
+
+/-- Mark the ambient parameters by identity before entering the user term. -/
+def withGeneratedFieldContext (params : Array Parameter) (vars : Array Expr) (body : TermElabM α) :
+    TermElabM α := do
+  let lctx := (params.zip vars).foldl (init := ← getLCtx) fun ctx (p, var) =>
+    if p.isGeneratedFieldContext then ctx.setKind var.fvarId! .implDetail else ctx
+  withLCtx' lctx body
 
 /-- Bind the field views for `body`. Abstract the lets together so Lean traverses
 the body and updates its pending metavariable contexts only once per opening. -/
@@ -220,21 +239,25 @@ where
 
 @[term_elab veilFieldViews]
 def elabVeilFieldViews : TermElab := fun stx expectedType? => do
-  let `(veil_field_views% $[($names:ident := $fields:ident)]* in $body) := stx
+  let `(veil_field_views% $[($names:ident := $fields:ident)]* $[hiding $generated:ident*]? in $body) := stx
     | throwUnsupportedSyntax
-  let lctx ← getLCtx
-  let mut namesSeen : NameSet := {}
-  let mut views := []
-  for (name, field) in (names.zip fields).reverse do
-    if namesSeen.contains name.getId then continue
-    namesSeen := namesSeen.insert name.getId
-    -- Instance parameters remain available to typeclass search.
-    if lctx.any (fun decl => decl.userName == name.getId && decl.kind != .implDetail &&
-        !decl.binderInfo.isInstImplicit) then continue
-    let value ← getFVarFromUserName field.getId
-    views := (name.getId, ← inferType value, value) :: views
-  -- The body can infer the result type of an unannotated ghost function.
-  bindFieldViews views (elabTerm body expectedType?)
+  let lctx := (generated.getD #[]).foldl (init := ← getLCtx) fun ctx id =>
+    if let some decl := ctx.findFromUserName? id.getId then
+      ctx.setKind decl.fvarId .implDetail
+    else ctx
+  withLCtx' lctx do
+    let mut namesSeen : NameSet := {}
+    let mut views := []
+    for (name, field) in (names.zip fields).reverse do
+      if namesSeen.contains name.getId then continue
+      namesSeen := namesSeen.insert name.getId
+      -- Instance parameters remain available to typeclass search.
+      if lctx.any (fun decl => decl.userName == name.getId && decl.kind != .implDetail &&
+          !decl.binderInfo.isInstImplicit) then continue
+      let value ← getFVarFromUserName field.getId
+      views := (name.getId, ← inferType value, value) :: views
+    -- The body can infer the result type of an unannotated ghost function.
+    bindFieldViews views (elabTerm body expectedType?)
 
 /-- Wrap a term in field destructors. The callback receives the binders in
 the order of `targets` (one array per opened structure). Generated terms can
@@ -306,17 +329,21 @@ def Module.withTheoryAndStateTermTemplate (mod : Module)
     fieldRepInstance stateSortTerm stateView
 
 /-- Make the field binders visible to the user term. -/
-def openUserFieldNames (fields : Array Ident) (body : Term) : MetaM Term := do
+def openUserFieldNames (fields : Array Ident) (body : Term) (generated : Array Ident := #[]) : MetaM Term := do
   let names := fields.map fun field => mkIdent field.getId.eraseMacroScopes
-  `(veil_field_views% $[($names:ident := $fields:ident)]* in $body)
+  if generated.isEmpty then
+    `(veil_field_views% $[($names:ident := $fields:ident)]* in $body)
+  else
+    `(veil_field_views% $[($names:ident := $fields:ident)]* hiding $generated:ident* in $body)
 
 /-- Open theory and state fields under their declared names in a user term. -/
 def Module.withUserFieldNames (mod : Module)
     (targets : List (TheoryAndStateTermTemplateArgKind × Term × Bool))
     (motiveType : Option Term) (body : Term)
-    (fieldRepInstance : Term := fieldRepresentation) (stateSortTerm : Option Term := none) :
+    (fieldRepInstance : Term := fieldRepresentation) (stateSortTerm : Option Term := none)
+    (generated : Array Ident := #[]) :
     MetaM Term :=
-  mod.withFieldBinders targets motiveType (fun groups => openUserFieldNames groups.flatten body)
+  mod.withFieldBinders targets motiveType (fun groups => openUserFieldNames groups.flatten body generated)
     fieldRepInstance stateSortTerm
 
 /-! ## Convenience Wrappers -/
@@ -418,7 +445,7 @@ def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind) (param
   let allBinders := binders ++ paramBinders ++ thstBinders
   let (insts, expr) ← elabBinders allBinders $ fun vs => do
     let firstTree := (← getInfoTrees).size
-    let (insts, expr) ← withSaveInfoContext <|
+    let (insts, expr) ← withSaveInfoContext <| withGeneratedFieldContext baseParams vs <|
       getRequiredDecidableInstances name term' (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
     let expr ← instantiateMVars expr
     -- Segment `vs`
