@@ -104,8 +104,6 @@ register_option veil.extract.shareValueLets : Bool := {
 
 inductive VeilSolver : Type where
   | smt
-  | grind
-  | grindAndSMT
   | custom
 
 instance : Inhabited VeilSolver := ⟨.smt⟩
@@ -113,16 +111,12 @@ instance : Inhabited VeilSolver := ⟨.smt⟩
 instance : ToString VeilSolver where
   toString
     | .smt => "smt"
-    | .grind => "grind"
-    | .grindAndSMT => "grindAndSMT"
     | .custom => "custom"
 
 instance : Lean.KVMap.Value VeilSolver where
   toDataValue s := toString s
   ofDataValue?
     | .ofString "smt" => some .smt
-    | .ofString "grind" => some .grind
-    | .ofString "grind+smt" => some .grindAndSMT
     | .ofString "custom" => some .custom
     | _ => none
 
@@ -130,9 +124,9 @@ register_option veil.solver : VeilSolver := {
   defValue := .smt
   descr := "Solver strategy used by `veil_solve`.
    - `smt` uses `veil_smt`
-   - `grind` uses Lean's `grind`
-   - `grind+smt` tries `grind` first, then falls back to `veil_smt`
    - `custom` uses a user-provided `veil_solve` tactic
+
+  Invariant, assertion, and trace VCs also try `grind` after an inconclusive result.
 
   For `custom`, define a macro such as
   ```lean

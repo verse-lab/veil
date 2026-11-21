@@ -29,7 +29,7 @@ public meta section
   ## Example usage:
 
   ```lean4
-  -- Automatic: registers with VCManager and runs SMT
+  -- Automatic: registers a VC and searches for a model with SMT
   sat trace [can_elect_leader] {
     any 3 actions
     send
@@ -41,12 +41,11 @@ public meta section
     assert ¬ (leader L → le N L)
   }
 
-  -- Manual: generates a theorem for debugging
-  sat trace [debug_trace] {
-    send
-    recv
-  } by { bmc_sat }
   ```
+
+  A trailing proof term generates a theorem. For `sat trace`, its goal is
+  existential over the module parameters, theory, action tags and arguments,
+  and states. For `unsat trace`, the goal rules out every such trace.
 -/
 
 namespace Veil
@@ -260,14 +259,10 @@ private def extractTraceJsonFromVC (vcResult : VCResult VCMetadata SmtResult) : 
 private def extractTraceDataFromVC (vcResult : VCResult VCMetadata SmtResult) : Option (Json × Option Html) :=
   vcResult.timing.dischargers.findSome? (extractTraceData? ·.result)
 
-/-- Check if we expect a trace based on query type and result. -/
-private def shouldHaveTrace (isExpectedSat : Bool) (status : Option VCStatus) : Bool :=
-  (isExpectedSat && status == some .proven) || (!isExpectedSat && status == some .disproven)
-
 /-- Format a trace result status as a simple message (for widget display without trace JSON). -/
 private def formatTraceStatus (isExpectedSat : Bool) (status : Option VCStatus) : String :=
   match status with
-  | some .proven => if isExpectedSat then "Found satisfying trace" else "No counterexample found (as expected)"
+  | some .proven => if isExpectedSat then "Proved that a satisfying trace exists" else "No counterexample found (as expected)"
   | some .disproven => if isExpectedSat then "No satisfying trace exists" else "Counterexample found"
   | some .unknown => "Solver returned unknown"
   | some .error => "Verification error"
@@ -328,7 +323,7 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
   | some .proven =>
     if isExpectedSat then
       if let some traceJson := traceJson? then logInfoAt stx m!"{Veil.TraceDisplay.formatResult .symbolicTrace traceJson}"
-      else logInfoAt stx "Found satisfying trace"
+      else logInfoAt stx "Proved that a satisfying trace exists"
   | some .disproven =>
     if isExpectedSat then logViolation "No satisfying trace exists"
     else if let some traceJson := traceJson? then
@@ -339,7 +334,11 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
   | some .timeout => logViolation "Solver timed out"; logDischargerErrors vcResult.timing.dischargers
   | none => logViolation "Verification did not complete"
 
-  if shouldHaveTrace isExpectedSat vcResult.status && traceJson?.isNone then
+  -- A Lean proof of existence carries no SMT model to render.
+  let hasSatResult := vcResult.timing.dischargers.any fun d => match d.result with
+    | some (.proven _ (some (.sat _)) _) | some (.disproven (some (.sat _)) _) => true
+    | _ => false
+  if hasSatResult && traceJson?.isNone then
     logViolation "Could not extract trace JSON"; logDischargerErrors vcResult.timing.dischargers
 
 /-- Elaborate the trace command at the current ref. Its widget shows the result while the solver
@@ -355,7 +354,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   let isExpectedSat := r.raw.isOfKind ``expected_sat
 
   -- Build the trace specification
-  let (assertion, numTransitions, vcName) ← Command.runTermElabM fun _ => do
+  let (assertion, smtQuery, numTransitions, vcName) ← Command.runTermElabM fun _ => do
     let expandedSpec := (← parseTraceSpec spec).flatMap expandTraceLine
     let numTransitions := expandedSpec.filter (!· matches .assertion _) |>.length
     let stateIds := (List.range (numTransitions + 1)).map fun i => mkIdent (Name.mkSimple s!"st{i}")
@@ -379,15 +378,15 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     let allBinders := (← collectModuleBinders mod) ++ actionTagBinders ++ finalState.binders.all
     let bracketedBinders := allBinders.map (·.1)
     let stateNames := stateIds.toArray
-    -- let explicitBinders := allBinders.map (·.2)
-    -- let binderNames := stateNames.map identToBinderIdent
+    -- SMT finds a trace as a countermodel to its universal negation.
+    let smtQuery ← `(∀ $[$bracketedBinders]* ($theoryId:ident : $theoryT) ($[$stateNames]* : $stateT), ¬ $conjunction)
+    let assertion ← if isExpectedSat then do
+      let explicitBinders := allBinders.map (·.2)
+      let binderNames := stateNames.map identToBinderIdent
+      `(∃ $[$explicitBinders]* ($theoryId:ident : $theoryT) ($[$binderNames]* : $stateT), $conjunction)
+    else pure smtQuery
 
-    let assertion ← --if r.raw.isOfKind ``expected_unsat then
-      `(∀ $[$bracketedBinders]* ($theoryId:ident : $theoryT) ($[$stateNames]* : $stateT), ¬ $conjunction)
-    -- else
-      -- `(∃ $[$explicitBinders]* ($theoryId:ident : $theoryT) ($[$binderNames]* : $stateT), $conjunction)
-
-    return (assertion, numTransitions, vcName)
+    return (assertion, smtQuery, numTransitions, vcName)
 
   match pf with
   | some proofTerm =>
@@ -405,10 +404,10 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
       let mgr ← ref.get
       if let some existingId := mgr.findVCByFilter vcFilter then
         return existingId
-      -- Add VC and discharger atomically
-      let (mgr', vcId) := mgr.addVC ⟨vcStatement, metadata⟩ {} #[]
-      let mgr'' ← mgr'.mkAddDischarger vcId (TraceDischarger.fromAssertion numTransitions isExpectedSat)
-      ref.set mgr''
+      let (mgr, vcId) := mgr.addVC ⟨vcStatement, metadata⟩ {} #[]
+      let mgr ← mgr.mkAddDischarger vcId (TraceDischarger.fromAssertion numTransitions isExpectedSat smtQuery)
+      let mgr ← mgr.addGrindDischarger vcId (← `(by veil_bmc using grind))
+      ref.set mgr
       return vcId
 
     -- Start async verification with logging callback
