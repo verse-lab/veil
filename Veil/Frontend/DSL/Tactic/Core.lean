@@ -1351,82 +1351,73 @@ private partial def introBmcDataPrefix (goal : MVarId) : MetaM MVarId := goal.wi
 elab "__veil_bmc_intro_data" : tactic => do
   liftMetaTactic1 fun goal => return some (← introBmcDataPrefix goal)
 
-/-- Expose the trace conjunction without distributing action alternatives. Every
-leaf is proved by projections from the original hypothesis; state variables and
-all quantifier scopes are unchanged. -/
-elab "__veil_bmc_split_trace" : tactic => withMainContext do
-  let goal ← getMainGoal
-  let target ← instantiateMVars (← goal.getType)
-  unless target.consumeMData.isAppOfArity ``Not 1 do
-    throwError "per-transition BMC normalization requires a negated trace"
-  let (root, goal) ← goal.intro1
-  let goal ← goal.withContext do
-    let mut pending := #[(← root.getType, mkFVar root)]
-    let mut leaves : Array Hypothesis := #[]
-    while !pending.isEmpty do
-      let (ty, proof) := pending.back!
-      pending := pending.pop
-      let ty := ty.consumeMData
-      if ty.isAppOfArity ``And 2 then
-        let a := ty.appFn!.appArg!
-        let b := ty.appArg!
-        pending := pending.push (b, mkApp3 (mkConst ``And.right) a b proof)
-        pending := pending.push (a, mkApp3 (mkConst ``And.left) a b proof)
-      else
-        let name := (← getLCtx).getUnusedName (Name.mkSimple s!"bmc_clause_{leaves.size}")
-        leaves := leaves.push ⟨name, ty, proof, .default, .default⟩
-    let (_, goal) ← goal.assertHypotheses leaves
-    goal.clear root
-  replaceMainGoal [goal]
-
-/-- Simplify each formula separately, sharing the simp configuration but never
-hoisting a witness across another transition. Use FVarIds, not printed names,
-and Lean's proof-producing context transport. The final passes also process
-proposition fields exposed when the state/theory structures are eliminated. -/
-elab "__veil_bmc_hyps " t:tactic : tactic => withBackwardsCompatibility <| veilWithMainContext do
-  let isDSimp := t.raw.isOfKind ``Lean.Parser.Tactic.dsimp
-  unless isDSimp || t.raw.isOfKind ``Lean.Parser.Tactic.simp do
-    throwError "expected simp or dsimp"
-  let { ctx, simprocs, dischargeWrapper, .. } ← mkSimpContext t
-    (eraseLocal := false) (kind := if isDSimp then .dsimp else .simp)
-  let mut ids := #[]
-  for decl in (← getLCtx) do
-    if !decl.isImplementationDetail && (← isProp decl.type) then
-      ids := ids.push decl.fvarId
-  let goal ← getMainGoal
-  if isDSimp then
-    let (result, _) ← dsimpGoal goal ctx simprocs (simplifyTarget := false) (fvarIdsToSimp := ids)
-    replaceMainGoal result.toList
-  else
-    let (result, _) ← dischargeWrapper.with fun discharge? =>
-      simpGoal goal ctx simprocs discharge? (simplifyTarget := false) (fvarIdsToSimp := ids)
-    replaceMainGoal (result.toList.map (·.2))
-
 initialize registerTraceClass `veil.bmc.cache
 
 /-- Apply a stored exact equality at the clause root and stop. In particular,
 do not traverse/hoist its already-normalized result again. A miss uses precisely
 the ordinary two normalization passes, with proofs composed by transitivity. -/
-def bmcNormalizeClause : Lean.Meta.Simp.Simproc := fun e => do
-  let some ext ← getSimpExtension? `bmcNormalize
-    | throwError "missing BMC normal form simp extension"
-  let thms ← ext.getTheorems
-  if let some result ← Lean.Meta.Simp.rewrite? e thms.post thms.erased "bmc-cache" false then
+private def bmcNormalizeClause (ctx : Lean.Meta.Simp.Context) (thms : SimpTheorems)
+    (e : Expr) : MetaM Lean.Meta.Simp.Result := do
+  let (result?, _) ← SimpM.run ctx {} {} <|
+    Lean.Meta.Simp.rewrite? e thms.post thms.erased "bmc-cache" false
+  if let some result := result? then
     trace[veil.bmc.cache] "hit"
-    return .done result
+    return result
   trace[veil.bmc.cache] "miss"
   let unfolded ← Veil.Simp.simp #[`nextSimp] { instances := true } e
   let hoisted ← if ← hasHOQuantification unfolded.expr then
       Veil.Simp.simp #[`existsQuantifierSimp] {} unfolded.expr
     else pure { expr := unfolded.expr }
-  return .done (← unfolded.mkEqTrans hoisted)
+  unfolded.mkEqTrans hoisted
 
-simproc_decl bmcNormalizeClauseProc (_) := bmcNormalizeClause
+/-- Eliminate exposed existential witnesses on the positive side of the trace.
+A dependent witness stays inside the scope of its predecessors. -/
+private partial def withBmcWitnesses (p hp : Expr) (xs : Array Expr)
+    (k : Expr → Expr → Array Expr → MetaM (Expr × MVarId)) : MetaM (Expr × MVarId) := do
+  let_expr Exists α pred := p.consumeMData | return ← k p hp xs
+  let pred := pred.consumeMData
+  let name := match pred with
+    | .lam name .. => name
+    | _ => `witness
+  withLocalDeclD name α fun x => do
+    let body := pred.beta #[x]
+    withLocalDeclD `h body fun h => do
+      let (proof, subgoal) ← withBmcWitnesses body h (xs.push x) k
+      let proof ← mkAppM ``Exists.elim #[hp, ← mkLambdaFVars #[x, h] proof]
+      return (proof, subgoal)
 
-elab "__veil_bmc_normalize" : tactic => do
-  evalTactic (← `(tactic| __veil_bmc_hyps simp +$(mkIdent `instances)
-    ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only
-    [↓ $(mkIdent ``bmcNormalizeClauseProc):ident]))
+/-- Keep the original conjunction tree. Normalize its leaves independently and
+collect their witnesses, then pass one negated trace to SMT after the ordinary
+background hints. Making each leaf an SMT hint reverses the transition order. -/
+private partial def withNormalizedTrace (normalize : Expr → MetaM Lean.Meta.Simp.Result)
+    (p hp : Expr) (xs : Array Expr)
+    (k : Expr → Expr → Array Expr → MetaM (Expr × MVarId)) : MetaM (Expr × MVarId) := do
+  let_expr And a b := p.consumeMData | do
+    let r ← normalize p
+    let h ← r.mkEqMP hp
+    if r.expr.consumeMData.isAppOfArity ``Exists 2 && (← hasHOQuantification r.expr) then
+      return ← withBmcWitnesses r.expr h xs k
+    return ← k r.expr h xs
+  let ha := mkApp3 (mkConst ``And.left) a b hp
+  let hb := mkApp3 (mkConst ``And.right) a b hp
+  withNormalizedTrace normalize a ha xs fun a' ha' xs =>
+    withNormalizedTrace normalize b hb xs fun b' hb' xs =>
+      k (mkAnd a' b') (mkApp4 (mkConst ``And.intro) a' b' ha' hb') xs
+
+elab "__veil_bmc_normalize" : tactic => liftMetaTactic1 fun goal => goal.withContext do
+  let target ← instantiateMVars (← goal.getType)
+  let_expr Not traceProp := target.consumeMData | throwError "expected a negated trace"
+  let some ext ← getSimpExtension? `bmcNormalize | throwError "missing BMC normal form simp extension"
+  let normalize := bmcNormalizeClause (← Veil.Simp.mkVeilSimpCtx #[] { instances := true })
+    (← ext.getTheorems)
+  let (proof, subgoal) ← withLocalDeclD `hTrace traceProp fun h => do
+    let (body, subgoal) ← withNormalizedTrace normalize traceProp h #[] fun p hp xs => do
+      let ty ← mkForallFVars xs (mkNot p)
+      let subgoal ← goal.withContext <| mkFreshExprSyntheticOpaqueMVar ty (← goal.getTag)
+      return (mkApp (mkAppN subgoal xs) hp, subgoal.mvarId!)
+    return (← mkLambdaFVars #[h] body, subgoal)
+  goal.assign proof
+  return some subgoal
 
 /-- `veil_smt` selects hypotheses by user name. Make those names injective before
 selection, then check that every visible non-instance proposition is selected.
@@ -1477,17 +1468,21 @@ def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
      veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]
      $dsimpTac:tactic))
   let localPath ← `(tactic|
-    (__veil_bmc_split_trace
-     $inferNonemptyTac:tactic
+    ($inferNonemptyTac:tactic
      __veil_bmc_normalize
+     __veil_bmc_intro_data
      __veil_bmc_check_hints
      veil_destruct
-     __veil_bmc_hyps dsimp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) [$[$dsimpLemmas:ident],*]
-     __veil_bmc_hyps simp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) only [$(mkIdent `smtSimp):ident]
-     __veil_bmc_hyps dsimp +$(mkIdent `instances) ($(mkIdent `failIfUnchanged):ident := $(mkIdent ``false)) [$[$dsimpLemmas:ident],*]
+     $dsimpTac:tactic
+     veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]
+     $dsimpTac:tactic
      __veil_bmc_check_hints))
-  veilEvalTactic (← `(tactic| __veil_bmc_intro_data))
-  veilEvalTactic (← `(tactic| __veil_bmc_if_local $localPath:tactic else $conservative:tactic))
+  tryCatchRuntimeEx (do
+    veilEvalTactic (← `(tactic| __veil_bmc_intro_data))
+    veilEvalTactic (← `(tactic| __veil_bmc_if_local $localPath:tactic else $conservative:tactic))
+  ) fun ex =>
+    let message := m!"BMC normalization failed before SMT\n{ex.toMessageData}"
+    throw (.error ex.getRef (.tagged `veil.bmc.normalization message))
   if !(← getGoals).isEmpty then
     veilEvalTactic (← `(tactic| veil_smt))
 
