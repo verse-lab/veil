@@ -146,4 +146,12 @@ def initial : State FieldConcreteType := { history := [(1, 7), (3, 9)] }
 example : selectedValue ({} : Theory) initial = 7 := rfl
 example : widenedOffset ({} : Theory) initial 3 = 5 := rfl
 
+-- Lean callers can supply the implicit state through an ordinary field view.
+example (state : State FieldConcreteType) :
+    (let χ := FieldConcreteType
+     let history := (instFieldRepresentation State.Label.history).get (show State χ from state).history
+     selectedValue ({} : Theory)) = selectedValue ({} : Theory) state := by
+  cases state
+  rfl
+
 end GhostFieldTypeInference
