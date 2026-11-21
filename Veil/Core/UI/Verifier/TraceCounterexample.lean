@@ -251,19 +251,11 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
   -- Resolve the complete structural parameter list and its dependent substitution.
   let (moduleArgs, sortSubst) ← resolveModuleArgs model mod sortArgs enumAdapts
 
-  -- Separate extra sorts
-  let moduleSortNames := mod.sortParams.map (·.1.name) |>.toList
-  let extraSorts ← model.sorts.filterM fun (sortExpr, _) => do
-    return !(← getExprName model.ctx sortExpr).any moduleSortNames.contains
+  let (sortInstInfo, extraSorts) ← classifyModelSorts model mod sortArgs
 
   -- Classify model values
   let (stateFieldMaps, theoryFields, transitionTags, specificParams, anyActionParams, tagToAction, extraVals) ←
     classifyTraceModelValues model mod numStates
-
-  -- Build sort instantiation info
-  let sortInstInfo ← (mod.sortParams.zip sortArgs).mapM fun ((sp, _), cardExpr) => do
-    let typeStr ← Meta.ppExpr cardExpr
-    pure (sp.name, typeStr.pretty)
 
   -- Build Theory expression and type
   let theoryExpr ← buildTheoryExpr mod moduleArgs theoryFields enumAdapts

@@ -20,13 +20,17 @@ private meta def stepCounterexamples (property : Name) : CommandElabM (Array Ann
       | throwError "missing structured {style} counterexample"
     return model
 
-private meta def traceInstantiation : CommandElabM Expr := do
+private meta def traceModel : CommandElabM AnnotatedSmtModel := do
   let results ← Verifier.waitFilteredSync VCMetadata.isTrace
   let some model := results.vcs.findSome? (fun vc =>
       vc.timing.dischargers.findSome? fun discharger => match discharger.result with
       | some (.proven _ (some (.sat models)) _) => models.findSome? id
       | _ => none)
     | throwError "missing structured satisfying trace"
+  return model
+
+private meta def traceInstantiation : CommandElabM Expr := do
+  let model ← traceModel
   let mod ← getCurrentModule
   liftTermElabM do
     let sortMap ← parseSortsFromModel model.raw
@@ -254,3 +258,111 @@ run_cmd do
       check cti.instExpr `DefaultedParameterCounterexample.Instantiation.unused 11
 
 end DefaultedParameterCounterexample
+
+public structure CounterexampleCarrier where
+  carrier : Type
+  amount : Nat
+  deriving Inhabited, Repr
+
+veil module TypeParameterCounterexample
+
+param α : Type
+param config : CounterexampleCarrier
+individual x : Nat
+
+assumption [carriers]
+  (∃ a b : α, a ≠ b ∧ ∀ z, z = a ∨ z = b) ∧
+  (∃ a b : config.carrier, a ≠ b ∧ ∀ z, z = a ∨ z = b) ∧ config.amount = 7
+after_init { x := 0 }
+action step { x := config.amount }
+invariant [is_zero] x = 0
+#gen_spec
+
+#guard_msgs (drop info, drop warning) in
+#check_invariants
+
+/-- info: ✅ Satisfying trace found -/
+#guard_msgs (substring := true) in
+sat trace {
+  step
+  assert (x = 7)
+}
+
+run_cmd do
+  let mod ← getCurrentModule
+  let traceExample ← traceModel
+  let counterexamples ← stepCounterexamples `is_zero
+  liftTermElabM do
+    let check (raw : Smt.Model) (inst : Expr) (info : Array (Name × String))
+        (extraSorts : Array (Expr × Expr)) : MetaM Unit := do
+      let α ← mkAppM `TypeParameterCounterexample.Instantiation.α #[inst]
+      let config ← mkAppM `TypeParameterCounterexample.Instantiation.config #[inst]
+      let carrier ← mkAppM ``CounterexampleCarrier.carrier #[config]
+      let amount ← mkAppM ``CounterexampleCarrier.amount #[config]
+      unless ← isDefEq amount (mkNatLit 7) do
+        throwError "lost config.amount while reconstructing config.carrier"
+      let sorts ← parseSortsFromModel raw
+      for (name, recovered) in #[(`α, α), (`config.carrier, carrier)] do
+        let tagged := modelParameterName name
+        let some assignment := sorts[tagged]? | throwError "missing solver sort {name}"
+        unless ← isDefEq assignment (mkApp (mkConst ``Fin) (mkNatLit 2)) do
+          throwError "expected two inhabitants of {name} in the solver model"
+        unless ← isDefEq recovered assignment do
+          throwError "reconstructed {name} disagrees with its solver sort"
+        unless info.contains (modelParameterDisplayName tagged, (← ppExpr assignment).pretty) do
+          throwError "{name} is missing from the displayed instantiation"
+        if ← extraSorts.anyM fun (key, _) => return (← getExprName raw.ctx key) == some tagged then
+          throwError "{name} was classified as an extra sort"
+    for model in counterexamples do
+      let cti ← buildCounterexampleExprs model.raw mod `step
+      check model.raw cti.instExpr cti.sortInstInfo cti.extraSorts
+    let decoded ← buildTraceFromModel traceExample.raw mod 1
+    let inst ← buildInstantiationExpr mod decoded.theoryType.getAppArgs
+    check traceExample.raw inst decoded.sortInstInfo decoded.extraSorts
+
+end TypeParameterCounterexample
+
+public structure CounterexampleRange where
+  lower : Nat
+  upper : Nat
+  ordered : lower ≤ upper
+  deriving Repr
+
+public instance : Inhabited CounterexampleRange := ⟨⟨0, 0, Nat.le_refl _⟩⟩
+
+veil module PartialProofParameterCounterexample
+
+param cfg : CounterexampleRange
+individual x : Nat
+after_init { x := 0 }
+action step { x := cfg.lower }
+invariant [is_zero] x = 0
+#gen_spec
+
+-- Supply only selected field assignments, as a solver may omit others.
+private meta def partialRange (field : Name) (value : Expr) : CommandElabM Expr := do
+  let mod ← getCurrentModule
+  liftTermElabM do
+    withLocalDeclD (modelParameterName `cfg ++ field) (mkConst ``Nat) fun key => do
+      let raw : Smt.Model := { ctx := ← Smt.ModelContext.save, sorts := #[], values := #[(key, value)] }
+      return (← buildCounterexampleExprs raw mod `step).instExpr
+
+run_cmd do
+  let inst ← partialRange `upper (mkNatLit 9)
+  liftTermElabM do
+    discard <| ofExceptKernelException (Kernel.check (← getEnv) {} inst)
+    let cfg ← mkAppM `PartialProofParameterCounterexample.Instantiation.cfg #[inst]
+    unless ← isDefEq (← mkAppM ``CounterexampleRange.upper #[cfg]) (mkNatLit 9) do
+      throwError "lost the solver-assigned upper bound"
+
+/-- error: incomplete SMT model: cannot reconstruct proof param.cfg.ordered -/
+#guard_msgs (substring := true) in
+run_cmd discard <| partialRange `lower (mkNatLit 7)
+
+public opaque unknownBound : Nat
+
+/-- error: incomplete SMT model: cannot reconstruct proof param.cfg.ordered -/
+#guard_msgs (substring := true) in
+run_cmd discard <| partialRange `lower (mkConst ``unknownBound)
+
+end PartialProofParameterCounterexample

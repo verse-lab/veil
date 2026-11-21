@@ -286,7 +286,14 @@ private partial def buildModelParameter (values : Std.HashMap Name Expr)
     if let some value := fallback? then
       return value
     if ← isProp expectedType then
-      return ← mkDecideProof expectedType
+      -- Applying the lemma with an explicit proposition checks that its decision
+      -- reduces to true. A partially assigned structure may violate its invariant.
+      let some proof ← observing? (do
+          let inst ← synthInstance (mkApp (mkConst ``Decidable) expectedType)
+          let refl ← mkEqRefl (mkConst ``Bool.true)
+          mkAppOptM ``of_decide_eq_true #[some expectedType, some inst, some refl])
+        | throwError "incomplete SMT model: cannot reconstruct proof {modelParameterDisplayName name} : {expectedType}"
+      return proof
     return ← mkAppOptM ``default #[some expectedType, none]
   let typeExpr ← whnf expectedType
   let .const typeName levels := typeExpr.getAppFn
@@ -324,9 +331,15 @@ def resolveModuleArgs (model : Model) (mod : Module) (sortArgs : Array Expr)
     let some name ← getExprName model.ctx nameExpr | continue
     unless isModelParameterName name do continue
     values := values.insert name value
+  -- The solver records type-valued parameters and projections as sort assignments.
+  let mut subst := sortSubst
+  for (sortExpr, value) in model.sorts do
+    let some name ← getExprName model.ctx sortExpr | continue
+    unless isModelParameterName name do continue
+    values := values.insert name value
+    subst := subst.push (sortExpr, value)
   let mut ctorType ← inferType (mkConst (mod.name ++ `Instantiation.mk))
   let mut args : Array Expr := #[]
-  let mut subst := sortSubst
   let mut sortIndex := 0
   for p in params do
     let .forallE _ paramType body _ ← whnf ctorType
@@ -345,11 +358,29 @@ def resolveModuleArgs (model : Model) (mod : Module) (sortArgs : Array Expr)
         let name := modelParameterName p.name
         let value ← buildModelParameter values name paramType enumAdapts
         if let some decl := model.ctx.lctx.findFromUserName? name then
-          subst := subst.push (decl.toExpr, value)
+          unless subst.any (·.1 == decl.toExpr) do
+            subst := subst.push (decl.toExpr, value)
         pure value
     args := args.push value
     ctorType := body.instantiate1 value
   return (args, subst)
+
+/-- Collect the displayed instantiation of declared sorts and type-valued
+parameters, keeping any other solver sorts available as extras. -/
+def classifyModelSorts (model : Model) (mod : Module) (sortArgs : Array Expr)
+    : MetaM (Array (Name × String) × Array (Expr × Expr)) := do
+  let mut instInfo ← (mod.sortParams.zip sortArgs).mapM fun ((p, _), arg) => do
+    return (p.name, (← ppExpr arg).pretty)
+  let mut extras := #[]
+  for (sortExpr, value) in model.sorts do
+    let name? ← getExprName model.ctx sortExpr
+    if let some name := name? then
+      if isModelParameterName name then
+        instInfo := instInfo.push (modelParameterDisplayName name, (← ppExpr value).pretty)
+        continue
+      if mod.sortParams.any (·.1.name == name) then continue
+    extras := extras.push (sortExpr, value)
+  return (instInfo, extras)
 
 /-- Classify model values into state fields, theory fields, action params, and extras. -/
 def classifyModelValues (model : Model) (mod : Module) (actionName : Name)
@@ -514,10 +545,7 @@ def buildCounterexampleExprs (model : Model) (mod : Module) (actionName : Name) 
   -- Resolve the complete structural parameter list and its dependent substitution.
   let (moduleArgs, sortSubst) ← resolveModuleArgs model mod sortArgs enumAdapts
 
-  -- Separate extra sorts (those not part of module's Instantiation)
-  let moduleSortNames := mod.sortParams.map (·.1.name) |>.toList
-  let extraSorts ← model.sorts.filterM fun (sortExpr, _) => do
-    return !(← getExprName model.ctx sortExpr).any moduleSortNames.contains
+  let (sortInstInfo, extraSorts) ← classifyModelSorts model mod sortArgs
 
   -- Classify model values
   let (preStateFields, postStateFields, theoryFields, actionParams, extraVals) ←
@@ -526,11 +554,6 @@ def buildCounterexampleExprs (model : Model) (mod : Module) (actionName : Name) 
   -- Build Instantiation expression and type
   let instExpr ← buildInstantiationExpr mod moduleArgs
   let instType := mkConst (mod.name ++ `Instantiation)
-  -- Build sort instantiation info (for JSON serialization, since Type is erased at runtime)
-  let sortInstInfo ← (mod.sortParams.zip sortArgs).mapM fun ((sp, _), cardExpr) => do
-    let typeStr ← Meta.ppExpr cardExpr
-    pure (sp.name, typeStr.pretty)
-  -- dbg_trace "instExpr: {← ppExpr instExpr} | instType: {← ppExpr instType}"
 
   -- Build Theory expression and type
   let theoryExpr ← buildTheoryExpr mod moduleArgs theoryFields enumAdapts
