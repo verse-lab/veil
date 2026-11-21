@@ -76,8 +76,8 @@ private def registerFinishedTheoremDischarger
     let mgr ← ref.get
     if mgr._managerId != managerId then
       return Except.error "verification manager was reset during theorem validation"
-    let registrations := (interactiveRegistrationsExt.getState (← getEnv))[managerId]?.getD #[]
-    let vcIds := findMatchingVCs mgr declName
+    let cp ← getVCCheckpoint mgr._managerId
+    let vcIds := findMatchingVCs (mgr.withVisibleCommandVCs cp.visibleCommands) declName
     if vcIds.isEmpty then
       return Except.error s!"`@[veil]` could not find a verification condition named `{declName}`"
     else if vcIds.size = 1 then
@@ -85,11 +85,11 @@ private def registerFinishedTheoremDischarger
       let some vc := mgr.nodes[vcId]?
         | return Except.error s!"`@[veil]` found verification condition {vcId}, but it is no longer registered"
       let discharger ← mkFinishedTheoremDischarger managerId vc declName result
-      let registrations := match registrations.findIdx? (fun (d, _) =>
+      let registrations := match cp.interactive.findIdx? (fun (d, _) =>
           d.id.vcId == discharger.id.vcId && d.id.name == discharger.id.name) with
-        | some i => registrations.set! i (discharger, result)
-        | none => registrations.push (discharger, result)
-      modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.insert managerId registrations)
+        | some i => cp.interactive.set! i (discharger, result)
+        | none => cp.interactive.push (discharger, result)
+      modifyVCCheckpoint managerId fun cp => { cp with interactive := registrations }
       return Except.ok ()
     else
       return Except.error s!"`@[veil]` is ambiguous for `{declName}`; matched {vcIds.size} verification conditions"
@@ -109,7 +109,8 @@ private def registerTheoremDischarger (declName : Name) : AttrM Unit := do
   let res ← do
     let owner ← getVCManagerOwner
     let mgr ← owner.manager.atomically fun ref => ref.get
-    let vcIds := findMatchingVCs mgr declName
+    let cp ← getVCCheckpoint mgr._managerId
+    let vcIds := findMatchingVCs (mgr.withVisibleCommandVCs cp.visibleCommands) declName
     if vcIds.isEmpty then
       pure <| Except.error s!"`@[veil]` could not find a verification condition named `{declName}`"
     else if vcIds.size = 1 then

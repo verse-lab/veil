@@ -16,6 +16,13 @@ abbrev VCId := Nat
 abbrev ManagerId := Nat
 abbrev DischargerId := Nat
 
+/-- Identity of an independent VC registered for one command elaboration.
+A manager reset can reuse a numeric VC id in a different generation. -/
+structure CommandVC where
+  managerId : ManagerId
+  vcId : VCId
+  deriving Inhabited, BEq
+
 structure VCIdentifier where
   /-- A unique ID for this VC. -/
   uid : VCId
@@ -300,6 +307,9 @@ structure VCManager (VCMetaT ResultT: Type) where
   If a primary VC fails, its alternative VCs become enabled. -/
   enabledVCs : HashSet VCId := HashSet.emptyWithCapacity
 
+  /-- Independent nodes whose visibility follows their command's environment checkpoint. -/
+  protected commandVCs : HashSet VCId := {}
+
   protected _nextVcId : VCId := 0
   /-- Number of distinct accepted discharger results. -/
   protected _totalDischarged : Nat := 0
@@ -335,15 +345,22 @@ def VCManager.new (ch : Std.Channel (ManagerNotification VCMetaT ResultT)) (curr
     ch := ch,
   }
 
+/-- Edges in the specification graph can only connect registered, specification-owned nodes.
+Command-owned nodes may be retired while that graph is still in use. -/
+private def VCManager.checkGraphParent (mgr : VCManager VCMetaT ResultT) (id : VCId) : Except String Unit := do
+  unless mgr.nodes.contains id do throw s!"unknown verification condition {id}"
+  if mgr.commandVCs.contains id then throw s!"command-owned verification condition {id} cannot own graph edges"
+
 /-- Adds a new verification condition (VC) to the VCManager, along with its
 upstream dependencies. Returns the updated VCManager and the new VC.
 If `isDormant` is true, the VC will not be started automatically by `readyTasks`. -/
-def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger ResultT) := #[]) (isDormant : Bool := false) : (VCManager VCMetaT ResultT × VCId) := Id.run do
+def VCManager.tryAddVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId) (initialDischargers : Array (Discharger ResultT) := #[]) (isDormant : Bool := false) : Except String (VCManager VCMetaT ResultT × VCId) := do
   let uid := mgr._nextVcId
   let vc := {vc with uid := uid, dischargers := initialDischargers, successful := none}
   -- Add ourselves downstream of all our dependencies
   let mut downstream := mgr.downstream
   for parent in dependsOn do
+    mgr.checkGraphParent parent
     downstream := downstream.insert parent ((downstream[parent]? |>.getD {}).insert uid)
   let mut mgr' := { mgr with
     nodes := (mgr.nodes.insert uid vc),
@@ -355,18 +372,67 @@ def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dep
   -- Mark as dormant if requested (e.g., for alternative VCs)
   if isDormant then
     mgr' := { mgr' with dormantVCs := mgr'.dormantVCs.insert uid }
-  (mgr', uid)
+  return (mgr', uid)
+
+private def VCManager.expectRegistration (mgr : VCManager VCMetaT ResultT)
+    (result : Except String (VCManager VCMetaT ResultT × VCId)) : VCManager VCMetaT ResultT × VCId :=
+  match result with
+  | .ok added => added
+  | .error err =>
+    letI : Inhabited (VCManager VCMetaT ResultT × VCId) := ⟨(mgr, mgr._nextVcId)⟩
+    panic! err
+
+/-- Add a VC whose dependency IDs are known specification nodes. -/
+def VCManager.addVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (dependsOn : HashSet VCId)
+    (initialDischargers : Array (Discharger ResultT) := #[]) (isDormant := false) : VCManager VCMetaT ResultT × VCId :=
+  mgr.expectRegistration (mgr.tryAddVC vc dependsOn initialDischargers isDormant)
+
+/-- Register a node whose workers and results belong to one command elaboration.
+Command-owned nodes are independent of the specification dependency and alternative graph. -/
+def VCManager.addCommandVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) :
+    VCManager VCMetaT ResultT × CommandVC :=
+  let (mgr, id) := mgr.addVC vc {}
+  ({ mgr with commandVCs := mgr.commandVCs.insert id }, ⟨mgr._managerId, id⟩)
+
+private def VCManager.eraseCommandVC (mgr : VCManager VCMetaT ResultT) (id : VCId) :
+    VCManager VCMetaT ResultT := Id.run do
+  let some vc := mgr.nodes[id]? | return mgr
+  let results := vc.dischargers.foldl (init := mgr._dischargerResults) fun rs d =>
+    rs.erase (id, d.id.dischargerId)
+  return { mgr with
+    commandVCs := mgr.commandVCs.erase id
+    nodes := mgr.nodes.erase id, upstream := mgr.upstream.erase id, inDegree := mgr.inDegree.erase id
+    enabledVCs := mgr.enabledVCs.erase id, _doneWith := mgr._doneWith.erase id
+    _dischargerResults := results
+    _totalDischarged := mgr._totalDischarged - (mgr._dischargerResults.size - results.size)
+    _totalSolved := mgr._totalSolved - (if vc.successful.isSome then 1 else 0) }
+
+/-- Build an immutable checkpoint view without canceling other checkpoints' work. -/
+def VCManager.withVisibleCommandVCs (mgr : VCManager VCMetaT ResultT) (visible : HashSet VCId) :
+    VCManager VCMetaT ResultT :=
+  if mgr.commandVCs.isEmpty then mgr else
+  mgr.commandVCs.fold (init := mgr) fun view id =>
+    if visible.contains id then view else view.eraseCommandVC id
+
+/-- Retire a command registration. Already-released and old-generation handles are harmless. -/
+def VCManager.releaseCommandVC (mgr : VCManager VCMetaT ResultT) (handle : CommandVC) :
+    BaseIO (VCManager VCMetaT ResultT) := do
+  unless mgr._managerId == handle.managerId && mgr.commandVCs.contains handle.vcId do return mgr
+  if let some vc := mgr.nodes[handle.vcId]? then
+    for d in vc.dischargers do d.cancelTk.set
+  return mgr.eraseCommandVC handle.vcId
 
 /-- Add an alternative VC associated with a primary VC. It starts dormant
 unless the primary already has an accepted terminal automatic failure. -/
-def VCManager.addAlternativeVC (mgr : VCManager VCMetaT ResultT)
+def VCManager.tryAddAlternativeVC (mgr : VCManager VCMetaT ResultT)
     (vc : VCData VCMetaT)
     (primaryVCId : VCId)
     (initialDischargers : Array (Discharger ResultT) := #[])
-    : (VCManager VCMetaT ResultT × VCId) := Id.run do
+    : Except String (VCManager VCMetaT ResultT × VCId) := do
+  mgr.checkGraphParent primaryVCId
   -- Use the same dependencies as the primary VC
   let primaryDeps := mgr.upstream[primaryVCId]?.getD {}
-  let (mgr', altId) := mgr.addVC vc primaryDeps initialDischargers (isDormant := true)
+  let (mgr', altId) ← mgr.tryAddVC vc primaryDeps initialDischargers (isDormant := true)
   -- Register the association: primary -> alternative
   let alts := mgr'.alternativeVCs[primaryVCId]?.getD #[]
   let mgr'' := { mgr' with
@@ -377,7 +443,12 @@ def VCManager.addAlternativeVC (mgr : VCManager VCMetaT ResultT)
     return ({ mgr'' with
       dormantVCs := mgr''.dormantVCs.erase altId
       enabledVCs := mgr''.enabledVCs.insert altId }, altId)
-  (mgr'', altId)
+  return (mgr'', altId)
+
+/-- Add an alternative for a known specification node. -/
+def VCManager.addAlternativeVC (mgr : VCManager VCMetaT ResultT) (vc : VCData VCMetaT) (primaryVCId : VCId)
+    (initialDischargers : Array (Discharger ResultT) := #[]) : VCManager VCMetaT ResultT × VCId :=
+  mgr.expectRegistration (mgr.tryAddAlternativeVC vc primaryVCId initialDischargers)
 
 private def VCManager.mkDischargerIdentifier (mgr : VCManager VCMetaT ResultT)
     (vc : VerificationCondition VCMetaT ResultT) : DischargerIdentifier :=
@@ -696,8 +767,7 @@ def VCManager.statusEmoji (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Stri
   | some vcStatus => vcStatus.emoji
   | none => "❓❓❓"
 
-/-- Find a VC matching the given filter, returning its ID if found.
-Used to avoid creating duplicate VCs for the same trace query. -/
+/-- Find a VC matching the given filter, returning its ID if found. -/
 def VCManager.findVCByFilter (mgr : VCManager VCMetaT ResultT) (filter : VCMetaT → Bool)
     : Option VCId :=
   mgr.nodes.toArray.findSome? fun (vcId, vc) =>

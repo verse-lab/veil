@@ -10,7 +10,7 @@ initialize workerContextGates : IO.Ref (Option (IO.Promise Unit × IO.Promise Un
 elab "worker_context_probe" : tactic => do
   unless (Veil.Verifier.vcManagerExt.getState (← getEnv)).isEmpty do
     throwError "worker captured mutable manager handles"
-  unless (Veil.Verifier.interactiveRegistrationsExt.getState (← getEnv)).isEmpty do
+  unless (Veil.Verifier.vcCheckpointsExt.getState (← getEnv)).isEmpty do
     throwError "worker captured checkpoint proof registrations"
   unless (← getEnv).contains ``workerAvailable do
     throwError "worker lost ordinary theorem environment"
