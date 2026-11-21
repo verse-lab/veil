@@ -202,7 +202,8 @@ elab_rules : tactic
 
 /-- Expose the fields under their DSL names, unless an enclosing user binder
 already owns the name. The private field bindings remain available to generated code. -/
-scoped syntax "veil_field_views% " ("(" ident " := " ident ")")* " in " term : term
+scoped syntax (name := veilFieldViews)
+  "veil_field_views% " ("(" ident " := " ident ")")* " in " term : term
 
 /-- Bind the field views for `body`. Abstract the lets together so Lean traverses
 the body and updates its pending metavariable contexts only once per opening. -/
@@ -217,20 +218,23 @@ where
       withLetDecl name ty value (kind := .implDetail) fun var =>
         go rest (vars.push var)
 
-elab_rules : term <= expectedType
-  | `(veil_field_views% $[($names:ident := $fields:ident)]* in $body) => do
-    let lctx ← getLCtx
-    let mut namesSeen : NameSet := {}
-    let mut views := []
-    for (name, field) in (names.zip fields).reverse do
-      if namesSeen.contains name.getId then continue
-      namesSeen := namesSeen.insert name.getId
-      -- Instance parameters remain available to typeclass search.
-      if lctx.any (fun decl => decl.userName == name.getId && decl.kind != .implDetail &&
-          !decl.binderInfo.isInstImplicit) then continue
-      let value ← getFVarFromUserName field.getId
-      views := (name.getId, ← inferType value, value) :: views
-    bindFieldViews views (elabTerm body expectedType)
+@[term_elab veilFieldViews]
+def elabVeilFieldViews : TermElab := fun stx expectedType? => do
+  let `(veil_field_views% $[($names:ident := $fields:ident)]* in $body) := stx
+    | throwUnsupportedSyntax
+  let lctx ← getLCtx
+  let mut namesSeen : NameSet := {}
+  let mut views := []
+  for (name, field) in (names.zip fields).reverse do
+    if namesSeen.contains name.getId then continue
+    namesSeen := namesSeen.insert name.getId
+    -- Instance parameters remain available to typeclass search.
+    if lctx.any (fun decl => decl.userName == name.getId && decl.kind != .implDetail &&
+        !decl.binderInfo.isInstImplicit) then continue
+    let value ← getFVarFromUserName field.getId
+    views := (name.getId, ← inferType value, value) :: views
+  -- The body can infer the result type of an unannotated ghost function.
+  bindFieldViews views (elabTerm body expectedType?)
 
 /-- Wrap a term in field destructors. The callback receives the binders in
 the order of `targets` (one array per opened structure). Generated terms can
