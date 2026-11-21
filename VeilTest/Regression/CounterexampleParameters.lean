@@ -20,6 +20,20 @@ private meta def stepCounterexamples (property : Name) : CommandElabM (Array Ann
       | throwError "missing structured {style} counterexample"
     return model
 
+private meta def traceInstantiation : CommandElabM Expr := do
+  let results ← Verifier.waitFilteredSync VCMetadata.isTrace
+  let some model := results.vcs.findSome? (fun vc =>
+      vc.timing.dischargers.findSome? fun discharger => match discharger.result with
+      | some (.proven _ (some (.sat models)) _) => models.findSome? id
+      | _ => none)
+    | throwError "missing structured satisfying trace"
+  let mod ← getCurrentModule
+  liftTermElabM do
+    let sortMap ← parseSortsFromModel model.raw
+    let (sortArgs, enumAdapts) ← resolveSortArgsAndEnumAdapts model.raw mod sortMap
+    let (moduleArgs, _) ← resolveModuleArgs model.raw mod sortArgs enumAdapts
+    buildInstantiationExpr mod moduleArgs
+
 veil module FunctionParameterCounterexample
 
 type proc
@@ -90,7 +104,7 @@ param n : Nat
 param chosen : Fin (n + 1)
 individual x : Nat
 
-assumption [chosen_value] chosen.val = 1
+assumption [chosen_value] n = 2 ∧ chosen.val = 1
 after_init { x := 0 }
 action step { x := chosen.val }
 invariant [bound] x ≤ 1
@@ -102,6 +116,17 @@ sat trace {
   step
   assert (x = 1)
 }
+
+run_cmd do
+  let inst ← traceInstantiation
+  liftTermElabM do
+    let n ← mkAppM `DependentParameterTrace.Instantiation.n #[inst]
+    let chosen ← mkAppM `DependentParameterTrace.Instantiation.chosen #[inst]
+    let chosenVal ← mkAppM ``Fin.val #[chosen]
+    unless ← isDefEq n (mkNatLit 2) do
+      throwError "trace reconstructed the wrong bound"
+    unless ← isDefEq chosenVal (mkNatLit 1) do
+      throwError "trace reconstructed the wrong Fin value"
 
 end DependentParameterTrace
 
@@ -145,3 +170,87 @@ run_cmd do
         throwError "reconstructed dictionary lost its amount"
 
 end DictionaryParameterCounterexample
+
+veil module NestedParameterCounterexample
+
+param bound : ULift.{0} (Nat × Nat)
+-- This also exposes the pair type to the recursive case splitter.
+param unusedPair : Nat × Nat
+individual x : Nat
+
+assumption [bound_value] bound.down.1 = 7
+after_init { x := 0 }
+action step { x := bound.down.1 }
+invariant [is_zero] x = 0
+#gen_spec
+
+#guard_msgs (drop info, drop warning) in
+#check_invariants
+
+run_cmd do
+  let mod ← getCurrentModule
+  for model in ← stepCounterexamples `is_zero do
+    liftTermElabM do
+      let cti ← buildCounterexampleExprs model.raw mod `step
+      let bound ← mkAppM `NestedParameterCounterexample.Instantiation.bound #[cti.instExpr]
+      let pair ← mkAppM ``ULift.down #[bound]
+      let fst ← mkAppM ``Prod.fst #[pair]
+      unless ← isDefEq fst (mkNatLit 7) do
+        throwError "reconstructed bound.down.1 contradicts the solver assignment"
+
+end NestedParameterCounterexample
+
+public inductive ConfigurationMode where
+  | manual
+  | automatic
+  deriving Repr
+
+public structure CounterexampleConfiguration where
+  mode : ConfigurationMode
+  amount : Nat
+  deriving Repr
+
+public instance : Inhabited CounterexampleConfiguration := ⟨⟨.automatic, 11⟩⟩
+
+veil module DefaultedParameterCounterexample
+
+param unused : CounterexampleConfiguration
+param config : CounterexampleConfiguration
+individual x : Nat
+
+assumption [amount] config.amount = 7
+after_init { x := 0 }
+action step { x := config.amount }
+invariant [is_zero] x = 0
+#gen_spec
+
+#guard_msgs (drop info, drop warning) in
+#check_invariants
+
+/-- info: ✅ Satisfying trace found -/
+#guard_msgs (substring := true) in
+sat trace {
+  step
+  assert (x = 7)
+}
+
+run_cmd do
+  let mod ← getCurrentModule
+  let traceInst ← traceInstantiation
+  let counterexamples ← stepCounterexamples `is_zero
+  liftTermElabM do
+    let check (inst : Expr) (name : Name) (amount : Nat) : MetaM Unit := do
+      let config ← mkAppM name #[inst]
+      let configMode ← mkAppM ``CounterexampleConfiguration.mode #[config]
+      let configAmount ← mkAppM ``CounterexampleConfiguration.amount #[config]
+      unless ← isDefEq configMode (mkConst ``ConfigurationMode.automatic) do
+        throwError "reconstructed {name} lost its default mode"
+      unless ← isDefEq configAmount (mkNatLit amount) do
+        throwError "reconstructed {name} has the wrong amount"
+    check traceInst `DefaultedParameterCounterexample.Instantiation.config 7
+    for model in counterexamples do
+      let cti ← buildCounterexampleExprs model.raw mod `step
+      check cti.instExpr `DefaultedParameterCounterexample.Instantiation.config 7
+      check cti.instExpr `DefaultedParameterCounterexample.Instantiation.unused 11
+
+end DefaultedParameterCounterexample

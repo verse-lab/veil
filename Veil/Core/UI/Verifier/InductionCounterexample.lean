@@ -269,43 +269,45 @@ def buildSortSubstFromSortArgs (model : Model) (mod : Module) (sortArgs : Array 
       sortSubst := sortSubst.push (sortExpr, sortArg)
   return sortSubst
 
-/-- Reconstruct an ordinary module parameter from the solver assignment. Structures
-(in particular class-valued parameters) are rebuilt from their assigned projections;
-instance synthesis would select a different dictionary from the one in the model. -/
-private partial def buildModelParameter (values sourceTypes : Std.HashMap Name Expr)
-    (name : Name) (expectedType : Expr) (enumAdapts : Array EnumSortAdaptation) : MetaM Expr := do
+/-- Recover a module argument from its value or its canonical projection names.
+For a missing field of a partially assigned structure, prefer the corresponding
+projection of an inhabitant of the whole structure when its type still matches. -/
+private partial def buildModelParameter (values : Std.HashMap Name Expr)
+    (name : Name) (expectedType : Expr) (enumAdapts : Array EnumSortAdaptation)
+    (fallback? : Option Expr := none) : MetaM Expr := do
   if let some value := values[name]? then
     let value ← adaptSmtExprType value expectedType enumAdapts
-    if ← isDefEq (← inferType value) expectedType then
+    unless ← isDefEq (← inferType value) expectedType do
+      throwError "counterexample parameter {name} does not have its declared type {expectedType}"
+    return value
+  let fallback? ← fallback?.filterM fun value => do
+    isDefEq (← inferType value) expectedType
+  unless values.any (fun key _ => name.isPrefixOf key) do
+    if let some value := fallback? then
       return value
-  if ← isProp expectedType then
-    return ← mkDecideProof expectedType
+    if ← isProp expectedType then
+      return ← mkDecideProof expectedType
+    return ← mkAppOptM ``default #[some expectedType, none]
   let typeExpr ← whnf expectedType
-  if let .const typeName levels := typeExpr.getAppFn then
-    if let some structureInfo := getStructureInfo? (← getEnv) typeName then
-      if values.contains name &&
-          (structureInfo.fieldNames.size != 1 ||
-            (sourceTypes[name]?.bind (·.getAppFn.constName?)) == some typeName) then
-        throwError "cannot reconstruct counterexample parameter {name} from an abstract structure value"
-      let info ← getConstInfoInduct typeName
-      let ctor := mkConst info.ctors.head! levels
-      let mut value := mkAppN ctor (typeExpr.getAppArgs.extract 0 info.numParams)
-      let mut ctorType ← inferType value
-      while true do
-        let .forallE field fieldType body _ ← whnf ctorType | break
-        -- `veil_cases_type` keeps the original name when it destructs a
-        -- one-field structure. `veil_destruct` instead uses `name.field`.
-        let fieldName := if structureInfo.fieldNames.size == 1 && values.contains name then
-          name else name ++ field
-        let fieldValue ← buildModelParameter values sourceTypes fieldName fieldType enumAdapts
-        value := mkApp value fieldValue
-        ctorType := body.instantiate1 fieldValue
-      return value
-  if values.contains name then
-    throwError "counterexample parameter {name} does not have its declared type {expectedType}"
-  -- An omitted parameter is unconstrained by this model. Complete it at its
-  -- already-specialized type, just as omitted state fields are completed.
-  mkAppOptM ``default #[some expectedType, none]
+  let .const typeName levels := typeExpr.getAppFn
+    | throwError "cannot rebuild projections of counterexample parameter {name} : {expectedType}"
+  let some structureInfo := getStructureInfo? (← getEnv) typeName
+    | throwError "cannot rebuild projections of counterexample parameter {name} : {expectedType}"
+  let fallback? ← if fallback?.isSome then pure fallback?
+    else observing? (mkAppOptM ``default #[some expectedType, none])
+  let info ← getConstInfoInduct typeName
+  let ctor := mkConst info.ctors.head! levels
+  let mut value := mkAppN ctor (typeExpr.getAppArgs.extract 0 info.numParams)
+  let mut ctorType ← inferType value
+  for idx in [:structureInfo.fieldNames.size] do
+    let field := structureInfo.fieldNames[idx]!
+    let .forallE _ fieldType body _ ← whnf ctorType
+      | throwError "counterexample parameter {name} has no constructor argument for {field}"
+    let fieldFallback? := fallback?.map (mkProj typeName idx)
+    let fieldValue ← buildModelParameter values (name ++ field) fieldType enumAdapts fieldFallback?
+    value := mkApp value fieldValue
+    ctorType := body.instantiate1 fieldValue
+  return value
 
 /-- The generated structural declarations take every sort and ordinary parameter,
 in declaration order. Reconstruct that complete argument list, including dependent
@@ -318,13 +320,10 @@ def resolveModuleArgs (model : Model) (mod : Module) (sortArgs : Array Expr)
   unless params.any (·.kind matches .userParameter) do
     return (sortArgs, sortSubst)
   let mut values : Std.HashMap Name Expr := {}
-  let mut sourceTypes : Std.HashMap Name Expr := {}
   for (nameExpr, value) in model.values do
     let some name ← getExprName model.ctx nameExpr | continue
     unless isModelParameterName name do continue
     values := values.insert name value
-    let sourceType ← (model.ctx.toExprWithCtx nameExpr).runMetaM fun e => do whnf (← inferType e)
-    sourceTypes := sourceTypes.insert name sourceType
   let mut ctorType ← inferType (mkConst (mod.name ++ `Instantiation.mk))
   let mut args : Array Expr := #[]
   let mut subst := sortSubst
@@ -344,14 +343,9 @@ def resolveModuleArgs (model : Model) (mod : Module) (sortArgs : Array Expr)
         pure value
       | _ =>
         let name := modelParameterName p.name
-        let value ← buildModelParameter values sourceTypes name paramType enumAdapts
+        let value ← buildModelParameter values name paramType enumAdapts
         if let some decl := model.ctx.lctx.findFromUserName? name then
-          let declType := decl.type.replaceFVars (subst.map (·.1)) (subst.map (·.2))
-          -- A destructed one-field class may reuse the binder name for its
-          -- projection, which cannot be replaced by the full class value.
-          unless declType.hasFVar do
-            if ← isDefEq declType paramType then
-              subst := subst.push (decl.toExpr, value)
+          subst := subst.push (decl.toExpr, value)
         pure value
     args := args.push value
     ctorType := body.instantiate1 value
