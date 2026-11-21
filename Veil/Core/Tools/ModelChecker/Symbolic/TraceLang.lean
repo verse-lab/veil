@@ -380,11 +380,12 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     let stateNames := stateIds.toArray
     -- SMT finds a trace as a countermodel to its universal negation.
     let smtQuery ← `(∀ $[$bracketedBinders]* ($theoryId:ident : $theoryT) ($[$stateNames]* : $stateT), ¬ $conjunction)
-    let assertion ← if isExpectedSat then do
+    let assertion ← if r.raw.isOfKind ``expected_unsat then
+      pure smtQuery
+    else do
       let explicitBinders := allBinders.map (·.2)
       let binderNames := stateNames.map identToBinderIdent
       `(∃ $[$explicitBinders]* ($theoryId:ident : $theoryT) ($[$binderNames]* : $stateT), $conjunction)
-    else pure smtQuery
 
     return (assertion, smtQuery, numTransitions, vcName)
 
