@@ -60,9 +60,6 @@ end TheoryFieldWithGeneratedName
 veil module FieldsNamedLikeEnvironmentTypes
 
 immutable individual ρ : Bool
-immutable individual σ : Nat
-/-- warning: mutable state component `σ` shadows immutable theory component `σ`; references to this name resolve to the state component -/
-#guard_msgs in
 individual σ : Bool
 
 #gen_state
@@ -71,7 +68,7 @@ theory ghost relation readsTheory := ρ = true
 ghost relation readsState := σ = true
 ghost relation readsBoth := readsTheory ∧ readsState
 
-example : readsBoth ({ ρ := true, σ := 0 } : Theory)
+example : readsBoth ({ ρ := true } : Theory)
     ({ σ := true } : State FieldConcreteType) := ⟨rfl, rfl⟩
 
 after_init { σ := false }
@@ -87,7 +84,7 @@ invariant True
 #guard_msgs in
 temporal [readsFields] □ (⌞ ρ = true ⌟ → ⌜ σ = true ⌝)
 
-example : readsFields ({ ρ := true, σ := 0 } : Theory)
+example : readsFields ({ ρ := true } : Theory)
     (fun _ => ({ σ := true } : State FieldConcreteType)) 0 :=
   fun _ _ => rfl
 

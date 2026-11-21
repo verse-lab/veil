@@ -27,7 +27,7 @@ A trace counterexample consists of:
 - Sort instantiations
 
 The naming conventions from TraceLang.lean are:
-- States: `st0`, `st1`, `st2`, ..., `stn`
+- State binders: atomic numeric Lean names indexed from 0 to n
 - Tags: `_tr1_tag`, `_tr2_tag`, etc.
 - Params (specific action): `_tr{trIdx}_arg{argIdx}_{paramName}`
 - Params (any action): `_tr{trIdx}_act_{actionName}_arg{argIdx}_{paramName}`
@@ -79,16 +79,10 @@ structure VeilTrace where
 private def parseNat? (s : String.Slice) : Option Nat :=
   s.toNat?
 
-/-- Check if a name matches the pattern "st{n}.fieldName" and return (n, fieldName).
-    For example: `st0.leader` → `some (0, leader)`, `st3.msgs` → `some (3, msgs)` -/
+/-- Read the state index assigned by `mkTraceStateIdent` from a destructured state field. -/
 def isIndexedStateField (name : Name) : Option (Nat × Name) :=
   match name with
-  | .str (.str .anonymous stN) fieldName =>
-    if stN.startsWith "st" then
-      match parseNat? (stN.drop 2) with
-      | some n => some (n, .mkSimple fieldName)
-      | none => none
-    else none
+  | .str (.num .anonymous i) field => some (i, .mkSimple field)
   | _ => none
 
 /-- Check if a name matches the pattern "_tr{n}_tag" and return n.
@@ -181,7 +175,7 @@ def classifyTraceModelValues (model : Model) (mod : Module) (numStates : Nat)
       if let some actionName := isVeilTagEntry name then
         if let some tagValue ← extractFinValue model.ctx valueExpr then
           tagToAction := tagToAction.insert tagValue actionName
-      -- Check if it's an indexed state field (st{n}.fieldName)
+      -- Check the numeric parent of a destructured trace state field
       else if let some (stateIdx, fieldName) := isIndexedStateField name then
         if stateIdx < numStates && stateFieldNames.contains fieldName then
           stateFields := stateFields.modify stateIdx (·.insert fieldName valueExpr)

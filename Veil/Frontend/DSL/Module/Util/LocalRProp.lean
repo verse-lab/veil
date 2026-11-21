@@ -64,8 +64,7 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (List Command) := do
     let p ← Lean.mkIdent <$> mkFreshUserName `p ; let q ← Lean.mkIdent <$> mkFreshUserName `q
     let inst1 ← Lean.mkIdent <$> mkFreshUserName `inst1 ; let inst2 ← Lean.mkIdent <$> mkFreshUserName `inst2
     let args ← params.mapM (·.arg)
-    let theoryFields ← mod.theoryFieldIdentsAlongsideState
-    let fieldNames := theoryFields ++ mod.mutableComponents.map (fun sc => Lean.mkIdent sc.name)
+    let fieldNames := (mod.immutableComponents ++ mod.mutableComponents).map fun sc => Lean.mkIdent sc.name
     let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f => `(Lean.Parser.Term.funBinder| $f)
     let fieldArgs : Array Term ← fieldNames.mapM fun f => `(term| $f)
     let coreFn ← mkFunSyntax fieldBinders (← `(term| $inst1.$(mkIdent `core) $fieldArgs* ∧ $inst2.$(mkIdent `core) $fieldArgs*))
@@ -206,7 +205,7 @@ private def mkLocalRPropCoreAppOnLCtxFields (mod : Module) (inst : Expr) : SimpM
   let lctx ← getLCtx
   let fieldVars ← (mod.immutableComponents ++ mod.mutableComponents).mapM fun sc => do
     let nm := sc.name
-    let view := if sc.isMutable then `state else `theory
+    let view : FieldBinderRole := if sc.isMutable then .state else .theory
     let some ldecl := findFieldBinder? lctx view nm <|> lctx.findFromUserName? nm
       | throwError "unable to find local field {nm}"
     pure ldecl.toExpr
@@ -548,7 +547,7 @@ private def Module.mkLocalVCTheoremContext (mod : Module)
   let stateFieldTypes ← mod.mutableComponents.mapM (·.typeStx)
   let assuCoreType ← mkArrowStx theoryFieldTypes.toList (some prop)
   let stateCoreType ← mkArrowStx (theoryFieldTypes ++ stateFieldTypes).toList (some prop)
-  let theoryFieldArgs ← mod.theoryFieldIdentsAlongsideState
+  let theoryFieldArgs := mod.immutableComponents.map fun sc => Lean.mkIdent sc.name
   let theoryFieldBinders ← (theoryFieldArgs.zip theoryFieldTypes).mapM fun (arg, ty) =>
     `(bracketedBinder| ($arg : $ty))
   let theoryStruct ← `(term| ⟨$[$theoryFieldArgs],*⟩)

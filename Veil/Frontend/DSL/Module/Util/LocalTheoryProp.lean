@@ -173,7 +173,7 @@ private def mkLocalTheoryPropCoreAppOnLCtxFields (mod : Module) (inst : Expr) : 
   let coreFn ← Meta.mkProjection inst `core
   let lctx ← getLCtx
   let fieldVars ← mod.immutableComponents.mapM fun sc => do
-    let some ldecl := findFieldBinder? lctx `theory sc.name <|> lctx.findFromUserName? sc.name
+    let some ldecl := findFieldBinder? lctx .theory sc.name <|> lctx.findFromUserName? sc.name
       | throwError "unable to find local theory field {sc.name}"
     pure ldecl.toExpr
   pure <| mkAppN coreFn fieldVars

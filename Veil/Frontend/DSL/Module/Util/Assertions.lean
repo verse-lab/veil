@@ -96,7 +96,7 @@ def Module.warnTermShadows [Monad m] [MonadInfoTree m] [MonadLog m] [MonadOption
     [AddMessageContext m] (mod : Module) (stx : Syntax) (firstTree : Nat)
     (includeState : Syntax.Range → Bool := fun _ => true) (primed := false)
     (parameters : NameSet := {})
-    (ignore : Syntax → Bool := fun _ => false) : m Unit := do
+    (ignore : Syntax.Range → Bool := fun _ => false) : m Unit := do
   let some range := stx.getRange? | return
   let info ← getInfoState
   let mut binders : Array (TermInfo × LocalDecl × Syntax.Range) := #[]
@@ -114,7 +114,7 @@ def Module.warnTermShadows [Monad m] [MonadInfoTree m] [MonadLog m] [MonadOption
   let mut seen : Std.HashSet Syntax.Range := {}
   for (term, decl, span) in binders do
     let name := term.stx.getId
-    if name.hasMacroScopes || seen.contains span || ignore term.stx then continue
+    if name.hasMacroScopes || seen.contains span || ignore span then continue
     seen := seen.insert span
     let prior := term.lctx.findDeclRev? fun prior =>
       if prior.index < decl.index && prior.userName == name &&
@@ -145,36 +145,40 @@ private def findImplementationDetail? (lctx : LocalContext)
     else
       none
 
-/-- Names for the fields used by generated terms, including implicit ghost arguments.
-The macro scope keeps these independent of the corresponding user-visible names. -/
-private def fieldBinderName (view : Name) (field : Name) : Name :=
-  if view == `stateConcrete then field.appendAfter "_conc"
-  else if view == `nextState then field.appendAfter "'"
-  else if view == `nextStateConcrete then field.appendAfter "_conc'"
-  else field
+/-- Private names distinguish logical fields, concrete representations and the
+current action state. Only the base name is visible in pretty-printed terms. -/
+inductive FieldBinderRole where
+  | theory | state | stateConcrete | nextState | nextStateConcrete | actionState
 
-/-- Encode the field view in the macro scope, keeping the original name when
-Lean prints a type that depends on the field. -/
-def mkPrivateFieldIdent (view : Name) (field : Name) : MetaM Ident := do
-  let name ← mkFreshUserName (fieldBinderName view field)
+private def FieldBinderRole.names (role : FieldBinderRole) (field : Name) : Name × Name :=
+  match role with
+  | .theory            => (`Veil.fieldBinder.theory, field)
+  | .state             => (`Veil.fieldBinder.state, field)
+  | .stateConcrete     => (`Veil.fieldBinder.stateConcrete, field.appendAfter "_conc")
+  | .nextState         => (`Veil.fieldBinder.nextState, field.appendAfter "'")
+  | .nextStateConcrete => (`Veil.fieldBinder.nextStateConcrete, field.appendAfter "_conc'")
+  | .actionState       => (`Veil.fieldBinder.actionState, field)
+
+def mkPrivateFieldIdent (role : FieldBinderRole) (field : Name) : MetaM Ident := do
+  let (tag, base) := role.names field
+  let scope := extractMacroScopes (← mkFreshUserName base)
+  return mkIdent ({ scope with ctx := scope.ctx ++ tag }.review)
+
+def isPrivateFieldBinder (name : Name) (role : FieldBinderRole) (field : Name) : Bool :=
+  let (tag, base) := role.names field
   let scope := extractMacroScopes name
-  let ctx := scope.ctx ++ `Veil.fieldBinder ++ view
-  return mkIdent ({ scope with ctx }.review)
+  tag.isSuffixOf scope.ctx && scope.name == base
 
-def isPrivateFieldBinder (name view field : Name) : Bool :=
-  let scope := extractMacroScopes name
-  (`Veil.fieldBinder ++ view).isSuffixOf scope.ctx && scope.name == fieldBinderName view field
-
-def findFieldBinder? (lctx : LocalContext) (view : Name) (field : Name) : Option LocalDecl :=
+def findFieldBinder? (lctx : LocalContext) (role : FieldBinderRole) (field : Name) : Option LocalDecl :=
   lctx.findDeclRev? fun decl =>
-    if isPrivateFieldBinder decl.userName view field then some decl else none
+    if isPrivateFieldBinder decl.userName role field then some decl else none
 
 /-- Reconstruct a `Theory` term from the hypotheses in the context. -/
 def elabExactTheory : TacticM Unit := withMainContext do
   let mod ← getCurrentModule
   let lctx ← getLCtx
   let comp := mod.immutableComponents.map fun field =>
-    let decl? := findFieldBinder? lctx `theory field.name <|>
+    let decl? := findFieldBinder? lctx .theory field.name <|>
       findImplementationDetail? lctx (mkVeilImplementationDetailName field.name)
     Lean.mkIdent (decl?.map (·.userName) |>.getD field.name)
   let constr ← `(term| (⟨$[$comp],*⟩ : $(← mod.theoryStx)))
@@ -184,10 +188,10 @@ def elabExactTheory : TacticM Unit := withMainContext do
 def elabExactState : TacticM Unit := withMainContext do
   let mod ← getCurrentModule
   let lctx ← getLCtx
-  let currentState? := findFieldBinder? lctx `actionState currentStateBindingName
+  let currentState? := findFieldBinder? lctx .actionState currentStateBindingName
   let actualFields : Array Term ← mod.mutableComponents.mapM fun field => do
     let nm := field.name
-    if let some decl := findFieldBinder? lctx `stateConcrete nm then
+    if let some decl := findFieldBinder? lctx .stateConcrete nm then
       pure (mkIdent decl.userName)
     else if let some st := currentState? then
       `(term| $(← exprToSyntax st.toExpr).$(mkIdent nm))
@@ -267,7 +271,7 @@ def elabVeilFieldViews : TermElab := fun stx expectedType? => do
 
 /-- Wrap a term in field destructors. The callback receives the binders in
 the order of `targets` (one array per opened structure). Generated terms can
-refer directly to these binders, including when two structures share a name. -/
+refer directly to these binders, even when a user binder shadows a field. -/
 def Module.withFieldBinders (mod : Module)
     (targets : List (TheoryAndStateTermTemplateArgKind × Term × Bool))
     (motiveType : Option Term) (body : Array (Array Ident) → MetaM Term)
@@ -281,13 +285,13 @@ def Module.withFieldBinders (mod : Module)
   let casesOnTheory := theoryName ++ `casesOn
   let casesOnState := stateName ++ `casesOn
   let openings ← targets.toArray.mapM fun (kind, receiver, wrap?) => do
-    let privateNames (name : Name) (view : Name) := do
+    let privateNames (name : Name) (view : FieldBinderRole) := do
       let fields ← getFieldIdentsForStruct name
       fields.mapM fun f => mkPrivateFieldIdent view f.getId
     let (fields, concrete) ← match kind with
-      | .theory => pure (← privateNames theoryName `theory, #[])
-      | .state => pure (← privateNames stateName `state, ← privateNames stateName `stateConcrete)
-      | .nextState => pure (← privateNames stateName `nextState, ← privateNames stateName `nextStateConcrete)
+      | .theory => pure (← privateNames theoryName .theory, #[])
+      | .state => pure (← privateNames stateName .state, ← privateNames stateName .stateConcrete)
+      | .nextState => pure (← privateNames stateName .nextState, ← privateNames stateName .nextStateConcrete)
     pure (kind, receiver, wrap?, fields, concrete)
   let body ← body (openings.map fun (_, _, _, fields, _) => fields)
   openings.foldrM (init := body) fun (kind, i, wrap?, fields, concrete) body => do
