@@ -262,7 +262,7 @@ This first probes the local-TR path (`veil_apply_local_tr` followed by
 `__veil_solve_trlo`).  If the bridge theorem does not apply, it falls back to
 the conservative route: introduce with `veil_intros`, simplify with
 `invSimp`/`actSimp`/`ifSimp`, destruct conjunctions/existentials, split
-conditionals, concretize the transition, and finish with `veil_fol; veil_solve`. -/
+conditionals, concretize the transition, and finish with `veil_fol; veil_smt`. -/
 syntax (name := veil_solve_tr) "veil_solve_tr" : tactic
 
 syntax (name := __veil_solve_trlo) "__veil_solve_trlo" : tactic
@@ -880,11 +880,7 @@ def elabGhostRelationSSA (hyp : Option Ident) : DesugarTacticM Unit := veilWithM
   veilEvalTactic $ ← `(tactic| expose_names ; veil_dsimp +$(mkIdent `instances) only [$[$simps:ident],*])
 
 def elabVeilSolve : DesugarTacticM Unit := withBackwardsCompatibility <| veilWithMainContext do
-  let solver := veil.solver.get (← getOptions)
-  let tac ← match solver with
-    | .smt => `(tactic| veil_smt)
-    | .custom => `(tactic| fail "Custom solver is not specified")
-  veilEvalTactic tac
+  veilEvalTactic $ ← `(tactic| veil_smt)
 
 @[inherit_doc veil_destruct_goal]
 def elabVeilDestructGoal : DesugarTacticM Unit := veilWithMainContext do
@@ -1263,20 +1259,13 @@ def elabVeilSolveWplo : DesugarTacticM Unit := veilWithMainContext do
     open $(mkIdent `Classical):ident in veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]
     veil_intro_ho
     veil_fol !
-    veil_solve
+    veil_smt
     )
   veilEvalTactic tac
 
 def elabVeilSolveTrlo : DesugarTacticM Unit := veilWithMainContext do
-  -- When we want to resort to SMT solver, we might have to do some destruction
-  -- to avoid higher-order quantification
-  let solver := veil.solver.get (← getOptions)
-  let solveTac ← match solver with
-    -- FIXME: `veil_destruct' ; (unhygienic intros)` is like a wachy `veil_fol !`,
-    -- but somehow we need to avoid `subst` here, otherwise the counterexample
-    -- printing might miss some substituted variables
-    | .smt => `(tactic| (repeat' (first | veil_cases_type* $(mkIdent ``Exists) $(mkIdent ``And) without [$(mkIdent `hinv)] | split_ifs at *)) <;> (expose_names ; veil_destruct' ; (unhygienic intros) ; veil_solve) )
-    | .custom => `(tactic| (veil_destruct' ; veil_solve) )
+  -- Eliminate higher-order quantification while keeping variables for counterexamples.
+  let solveTac ← `(tactic| (repeat' (first | veil_cases_type* $(mkIdent ``Exists) $(mkIdent ``And) without [$(mkIdent `hinv)] | split_ifs at *)) <;> (expose_names ; veil_destruct' ; (unhygienic intros) ; veil_smt) )
   -- NOTE: For `tr` case, usually `smtSimp` will call `State.ext_iff`
   -- and this will incur `@Eq (FieldAbstractType ...)` which can make
   -- `veil_smt` fail. So we do the dsimproc after `smtSimp`.
@@ -1291,7 +1280,7 @@ def elabVeilSolveTrlo : DesugarTacticM Unit := veilWithMainContext do
 
 /-- The conservative WP solver (the original approach without wp_local_eq). -/
 def elabVeilSolveWpConservative : DesugarTacticM Unit := veilWithMainContext do
-  let tac ← `(tactic| veil_wp; veil_concretize_wp; veil_fol; veil_solve)
+  let tac ← `(tactic| veil_wp; veil_concretize_wp; veil_fol; veil_smt)
   veilEvalTactic tac
 
 def elabVeilSolveWpDoesNotThrow : DesugarTacticM Unit := veilWithMainContext do
@@ -1321,7 +1310,7 @@ def elabVeilSolveTrConservative : DesugarTacticM Unit := veilWithMainContext do
   -- NOTE: `veil_fol !` seems to sometimes remove variables from the context
   -- if they're not used. This is undesirable when the variable is an action
   -- parameter, because we need to keep it in the context for model extraction.
-  let tac ← `(tactic| veil_simp +$(mkIdent `instances) only [$(mkIdent `invSimp):ident, $(mkIdent `actSimp):ident] at *; veil_simp +$(mkIdent `instances) only [$(mkIdent `ifSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_solve))
+  let tac ← `(tactic| veil_simp +$(mkIdent `instances) only [$(mkIdent `invSimp):ident, $(mkIdent `actSimp):ident] at *; veil_simp +$(mkIdent `instances) only [$(mkIdent `ifSimp):ident] at *; veil_destruct only [$(mkIdent ``Exists), $(mkIdent ``And)]; veil_split_ifs ; all_goals (veil_concretize_tr; veil_fol ; veil_smt))
   veilEvalTactic tac
 
 /-- Try the local-TR path first; if applying the local bridge theorem fails,

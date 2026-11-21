@@ -102,39 +102,6 @@ register_option veil.extract.shareValueLets : Bool := {
   sequential branches and no later pass can undo it."
 }
 
-inductive VeilSolver : Type where
-  | smt
-  | custom
-
-instance : Inhabited VeilSolver := ⟨.smt⟩
-
-instance : ToString VeilSolver where
-  toString
-    | .smt => "smt"
-    | .custom => "custom"
-
-instance : Lean.KVMap.Value VeilSolver where
-  toDataValue s := toString s
-  ofDataValue?
-    | .ofString "smt" => some .smt
-    | .ofString "custom" => some .custom
-    | _ => none
-
-register_option veil.solver : VeilSolver := {
-  defValue := .smt
-  descr := "Solver strategy used by `veil_solve`.
-   - `smt` uses `veil_smt`
-   - `custom` uses a user-provided `veil_solve` tactic
-
-  Invariant, assertion, and trace VCs also try `grind` after an inconclusive result.
-
-  For `custom`, define a macro such as
-  ```lean
-  macro_rules
-  | `(tactic| veil_solve) => `(tactic| <your tactic here>)
-  ```"
-}
-
 register_option veil.smt.finiteModelFind : Bool := {
   defValue := true
   descr := "If true, the SMT solver will use finite model finding mode (finite-model-find). \

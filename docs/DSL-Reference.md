@@ -489,6 +489,34 @@ proof stub into the editor, where you can prove it interactively using Lean
 tactics. The resulting theorem is registered with `@[veil]`, which makes
 `#check_invariants` use it to discharge that verification condition.
 
+Veil's built-in dischargers are `smt` and `grind`, tried in that order.
+In this example, `arithmetic` is a user-chosen name for a custom discharger
+that runs `unveil <;> omega`. To try it first for induction VCs, register
+and order it before VC generation (usually before `#gen_spec`).
+
+```lean
+veil_discharger arithmetic for induction := by
+  unveil <;> omega
+
+veil_discharger_order [arithmetic, smt, grind]
+```
+
+A new discharger goes at the end of the list. The order command moves the
+listed names to the front and preserves the order of the remaining entries.
+Both commands are available inside a `veil module` or after `open scoped Veil`.
+Their settings apply in the current file and Lean scope. Use `for induction` for
+invariants and assertion checks, `for trace` for SAT and UNSAT traces, or
+omit the filter for both. The tactic receives the generated proposition,
+including the existential goal of a `sat trace`. An unsuccessful tactic lets
+the manager try the next discharger. The tactic resolves names and options when the VC is generated. A custom discharger must produce a Lean
+proof without `sorry`. The built-in `smt` entry handles trusted SMT answers
+and counterexamples.
+
+With `veil.deferVCGeneration`, the first command that needs verification
+(including a trace) creates the induction VCs using the order active there.
+Each trace uses the order at its own command. To apply the same order to
+the whole specification, set it before `#gen_spec` and keep it in scope.
+
 For induction VCs, inserted stubs use a compact proof command:
 
 ```lean
