@@ -1,5 +1,6 @@
 module
 
+public meta import Veil.Frontend.DSL.Module.Util.TraceTemplates
 public meta import Veil.Frontend.DSL.Infra.TraceSyntax
 public meta import Lean
 public meta import Lean.Parser
@@ -82,22 +83,6 @@ def parseTraceSpec [Monad m] [MonadError m] (stx : Syntax) : m TraceSpec := do
     return ts.toList
   | _ => throwUnsupportedSyntax
 
-open Lean.Parser.Term in
-/-- Convert a bracketed binder to an explicit binder for use in existential quantification -/
-private def toExplicitBindersForExists (stx : TSyntax `Lean.Parser.Term.bracketedBinder)
-    : TermElabM (TSyntax `Lean.bracketedExplicitBinders) := do
-  match stx with
-  | `(bracketedBinder| ($id:ident : $tp)) | `(bracketedBinder| {$id:ident : $tp})
-  | `(bracketedBinder| [$id:ident : $tp]) =>
-    `(bracketedExplicitBinders| ($(identToBinderIdent id) : $tp))
-  | `(bracketedBinder| [$tp]) =>
-    let freshId := mkIdent (← mkFreshUserName `inst)
-    `(bracketedExplicitBinders| ($(identToBinderIdent freshId) : $tp))
-  | _ => throwError s!"toExplicitBindersForExists: unexpected syntax: {stx}"
-
-/-- A pair of bracketed and explicit binders that are always created together -/
-abbrev BinderPair := TSyntax `Lean.Parser.Term.bracketedBinder × TSyntax `Lean.bracketedExplicitBinders
-
 /-- Accumulated binders during trace spec elaboration -/
 structure BinderAccum where
   params : Array BinderPair := #[]
@@ -108,60 +93,10 @@ instance : Append BinderAccum where
 
 def BinderAccum.all (acc : BinderAccum) : Array BinderPair := acc.tags ++ acc.params
 
-/-- Create both bracketed and explicit binders for an identifier with type -/
-private def mkBinderPair (id : Ident) (ty : Term) : TermElabM BinderPair := do
-  return (← `(bracketedBinder| ($id : $ty)),
-          ← `(bracketedExplicitBinders| ($(identToBinderIdent id) : $ty)))
-
 /-- Create a tag binder for a transition -/
 private def mkTagBinder (trIdx : Nat) : TermElabM (Ident × BinderPair) := do
   let tagId := mkIdent $ Name.mkSimple s!"_tr{trIdx}_tag"
   return (tagId, ← mkBinderPair tagId actionTagType)
-
-/-- Create parameter binders with unique names for a transition -/
-private def mkParamBinders (params : Array Parameter) (prefix_ : String)
-    : TermElabM (Array Ident × Array BinderPair) := do
-  let results ← params.mapIdxM fun idx p => do
-    let uniqueId := mkIdent $ Name.mkSimple s!"{prefix_}_arg{idx}_{p.name}"
-    return (uniqueId, ← mkBinderPair uniqueId p.type)
-  return (results.map (·.1), results.map (·.2))
-
-/-- Build the transition expression: `tag = tagMember ∧ rts.tr th st label st'` -/
-private def mkTransitionExpr (rtsExpr theoryId currState nextState : TSyntax `term)
-    (tagId : Ident) (actionName : Name) (argIdents : Array Ident) : TermElabM (TSyntax `term) := do
-  let actionTagMember := mkIdent $ actionTagEnumInstName ++ actionName
-  let labelConstructor := mkIdent $ labelTypeName ++ actionName
-  let labelExpr ← `(term| ($labelConstructor $argIdents*))
-  let trExpr ← `(term| (($rtsExpr).$(mkIdent `tr) $theoryId $currState $labelExpr $nextState))
-  `(term| ($tagId = $actionTagMember ∧ $trExpr))
-
-/-- Build a disjunction representing any action transition with ActionTag constraint -/
-private def mkAnyActionDisjunction (mod : Module) (rtsExpr theoryId currState nextState : TSyntax `term)
-    (tagId : Ident) (trIdx : Nat) : TermElabM (TSyntax `term × Array BinderPair) := do
-  let results ← mod.actions.mapM fun act => do
-    let (_, specificParams) ← mod.declarationAllParams act.name act.declarationKind
-    let (argIdents, binders) ← mkParamBinders specificParams s!"_tr{trIdx}_act_{act.name}"
-    return (← mkTransitionExpr rtsExpr theoryId currState nextState tagId act.name argIdents, binders)
-  return (← repeatedOr (results.map (·.1)), results.flatMap (·.2))
-
-/-- Collect module-level binders (sorts, user parameters, sort assumptions, user-defined typeclasses) -/
-private def collectModuleBinders (mod : Module) : TermElabM (Array BinderPair) := do
-  let sortBinders ← mod.uninterpretedParamBinders
-  let typeclassParams := mod.parameters.filter fun p =>
-    match p.kind with
-    | .moduleTypeclass .sortAssumption | .moduleTypeclass .userDefined => true
-    | _ => false
-  let typeclassBinders ← typeclassParams.mapM (·.binder)
-  let allBinders := sortBinders ++ typeclassBinders
-  allBinders.mapM fun b => do return (b, ← toExplicitBindersForExists b)
-
-/-- Create ActionTag type and enum binders -/
-private def mkActionTagBinders : TermElabM (Array BinderPair) := do
-  let typePair ← mkBinderPair actionTagType (← `(term| Type))
-  let actionTagEnumClass := Ident.toEnumClass actionTagType
-  let enumBinder ← `(bracketedBinder| ($actionTagEnumInst : $actionTagEnumClass $actionTagType))
-  let enumExplicit ← `(bracketedExplicitBinders| ($(identToBinderIdent actionTagEnumInst) : $actionTagEnumClass $actionTagType))
-  return #[typePair, (enumBinder, enumExplicit)]
 
 /-- State threaded through trace spec elaboration -/
 structure TraceElabState where
@@ -264,6 +199,26 @@ private def extractTraceDataFromVC (vcResult : VCResult VCMetadata SmtResult) : 
 private def shouldHaveTrace (isExpectedSat : Bool) (status : Option VCStatus) : Bool :=
   (isExpectedSat && status == some .proven) || (!isExpectedSat && status == some .disproven)
 
+/-- Use the same failure details in the command output and the streaming widget. -/
+private def traceFailureDetail? (vcResult : VCResult VCMetadata SmtResult) : Option MessageData := do
+  match vcResult.status with
+  | some .unknown =>
+    let reasons := vcResult.timing.dischargers.flatMap fun d =>
+      match d.result with
+      | some (.unknown (some (.unknown reasons)) _) => reasons
+      | _ => #[]
+    if reasons.isEmpty then none
+    else some m!"Solver returned unknown\n{"\n".intercalate reasons.toList}"
+  | some .error | some .timeout =>
+    vcResult.timing.dischargers.findSome? fun d =>
+      match d.result with
+      | some (.error exs _) =>
+        exs.findSome? fun (ex, _) =>
+          let message := ex.toMessageData
+          if message.hasTag (· == `veil.bmc.normalization) then some message else none
+      | _ => none
+  | _ => none
+
 /-- Format a trace result status as a simple message (for widget display without trace JSON). -/
 private def formatTraceStatus (isExpectedSat : Bool) (status : Option VCStatus) : String :=
   match status with
@@ -299,6 +254,8 @@ private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (getManag
         { result := traceJson, layout := "vertical", rawHtml := rawHtml?,
           kind := .symbolicTrace }
       token.update (Html.ofComponent TraceDisplayViewer props #[])
+    else if let some detail := traceFailureDetail? vcResult then
+      token.update (.text (← detail.toString))
     else
       token.update (.text s!"{formatTraceStatus isExpectedSat vcResult.status}")
 
@@ -334,9 +291,11 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
     else if let some traceJson := traceJson? then
       logViolation m!"Counterexample found\n{Veil.TraceDisplay.formatResult .symbolicTrace traceJson}"
     else logViolation "Counterexample found"
-  | some .unknown => logViolation "Solver returned unknown"
-  | some .error => logViolation "Verification error"; logDischargerErrors vcResult.timing.dischargers
-  | some .timeout => logViolation "Solver timed out"; logDischargerErrors vcResult.timing.dischargers
+  | some .unknown => logViolation ((traceFailureDetail? vcResult).getD "Solver returned unknown")
+  | some .error | some .timeout =>
+    if (traceFailureDetail? vcResult).isNone then
+      logViolation (formatTraceStatus isExpectedSat vcResult.status)
+    logDischargerErrors vcResult.timing.dischargers
   | none => logViolation "Verification did not complete"
 
   if shouldHaveTrace isExpectedSat vcResult.status && traceJson?.isNone then
