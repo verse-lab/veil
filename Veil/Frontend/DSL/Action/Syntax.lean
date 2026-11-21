@@ -305,7 +305,6 @@ scoped syntax (name := prePostSpec) (priority := high) kw_requires term colGe kw
 
 scoped syntax atomic(kw_with kw_unchanged) "[" ident,* "]" : unchanged_decl
 scoped syntax spec (colGe unchanged_decl)? : term
-scoped syntax atomic("[" kw_unchanged "|") str "|" ident* "]" : term
 scoped syntax atomic("[" kw_unchanged_fields "|") str "|" ident* "]" : term
 
 end Veil

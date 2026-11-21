@@ -35,13 +35,13 @@ relation r3 : t → t → Bool
 
 #gen_state
 
-/-- info: local declarations: 10
+/-- info: local declarations: 8
+---
+info: local declarations: 9
+---
+info: local declarations: 10
 ---
 info: local declarations: 11
----
-info: local declarations: 12
----
-info: local declarations: 13
 -/
 #guard_msgs(info, drop warning) in
 action pure_local_lets {

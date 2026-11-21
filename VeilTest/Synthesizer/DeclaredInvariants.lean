@@ -103,3 +103,54 @@ Insert the strengthening invariants before #gen_spec:
 #updr (expect := invariant)
 
 end TakenNames
+
+veil module QueryBinderShadowing
+
+individual ActionTag : Bool
+individual th : Bool
+individual st0 : Bool
+individual st1 : Bool
+individual _tr1_tag : Bool
+individual _tr1_act_keep_arg0_value : Bool
+
+#gen_state
+
+after_init {
+  ActionTag := false
+  th := false
+  st0 := false
+  st1 := false
+  _tr1_tag := false
+  _tr1_act_keep_arg0_value := false
+}
+
+action keep (value : Bool) {
+  require value
+}
+
+safety [neverSet] ¬ ActionTag ∧ ¬ th ∧ ¬ st0 ∧ ¬ st1 ∧ ¬ _tr1_tag ∧ ¬ _tr1_act_keep_arg0_value
+
+#gen_spec
+
+/-- Certified: theorem QueryBinderShadowing.ic3_safe -/
+#guard_msgs (info, substring := true) in
+#updr (expect := invariant) certify
+
+end QueryBinderShadowing
+
+veil module NormalizationBinderShadowing
+
+type st0
+relation seen : st0 → Bool
+
+after_init { seen X := false }
+action keep { pure () }
+safety [clean] ∀ x : st0, ¬ seen x
+
+#gen_spec
+
+/-- transition relation normalized once -/
+#guard_msgs (substring := true) in
+#updr (expect := invariant)
+
+end NormalizationBinderShadowing

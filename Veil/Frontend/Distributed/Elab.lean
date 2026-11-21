@@ -1056,7 +1056,7 @@ def elabProgram : CommandElab := fun stx => do
     cmds := cmds.push (← `(command| #gen_state))
 
     -- ghost relations for specifications
-    let n := mkIdent `n
+    let n ← Lean.mkIdent <$> liftCoreM (mkFreshUserName `n)
     cmds := cmds.push (← `(command| ghost relation $(mkIdent haltedName):ident ($n:ident : $nodeT) := $pc $n = $doneLabel))
     let correctDef ← match cfg.faults with
       | .none => `(True)
