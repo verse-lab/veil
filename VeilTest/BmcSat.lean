@@ -24,6 +24,7 @@ invariant ¬ flag
 info: ✅ Satisfying trace found
   State 0 (via init):
     flag = false
+Lean checked the reconstructed states and actions
 -/
 #guard_msgs in
 sat trace { }

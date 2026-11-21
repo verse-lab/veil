@@ -16,6 +16,7 @@ import {
   generateInstantiationCSS,
   mergeTheoryWithExtras,
   InstantiationRow,
+  type WitnessCheck,
 } from './veilUtils';
 
 // ========== Types ==========
@@ -40,6 +41,7 @@ interface VCMetadata {
 }
 
 interface StructuredJson {
+  witnessCheck?: WitnessCheck;
   theory: unknown; // A record; `fieldsObject` reads its fields in declaration order
   preState: unknown; // A record, as `theory`
   postState: unknown | null; // A record, as `theory`
@@ -255,6 +257,7 @@ const StructuredCexView: React.FC<{
   headerRightContent?: React.ReactNode;
 }> = ({ data, property, isInitializer = false, headerRightContent }) => {
   const { label, instantiation, extraVals } = data;
+  const showInvariantStatus = !data.witnessCheck || data.witnessCheck.status === 'checked';
   const theory = React.useMemo(() => fieldsObject(data.theory), [data.theory]);
   const preState = React.useMemo(() => fieldsObject(data.preState), [data.preState]);
   const postState = React.useMemo(
@@ -427,7 +430,7 @@ const StructuredCexView: React.FC<{
           title="Pre-State"
           fields={filteredPreState}
           statusIndicator={
-            isInitializer
+            isInitializer || !showInvariantStatus
               ? undefined
               : <span className="cex-status-valid">✓ Satisfies all invariants </span>
           }
@@ -443,7 +446,7 @@ const StructuredCexView: React.FC<{
             title="Post-State"
             fields={filteredPostState}
             changes={filteredChanges}
-            statusIndicator={<span className="cex-status-invalid">✗ Violates <span className="cex-property-name">{property}</span></span>}
+            statusIndicator={showInvariantStatus && <span className="cex-status-invalid">✗ Violates <span className="cex-property-name">{property}</span></span>}
           />
         )}
       </div>
@@ -1171,6 +1174,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
       )}
       {expanded && activeCounterexample && (
         <div className="counterexample-container">
+          {activeCounterexample.structuredJson?.witnessCheck && <p>{activeCounterexample.structuredJson.witnessCheck.message}</p>}
           {activeCounterexample.structuredJson && !showRawHtml ? (
             <StructuredCexView
               data={activeCounterexample.structuredJson}

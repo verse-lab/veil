@@ -103,6 +103,7 @@ error: Initialization must establish the invariant:
   doesNotThrow ... ✅
   inv_0 ... ❌
       Counterexample (WP):
+        Lean checked the reconstructed states and actions
         Theory:
           enum EnumA = {nop}
           enum EnumB = {a, b}
@@ -110,6 +111,7 @@ error: Initialization must establish the invariant:
           req = {nop ↦ a}
         Action: initializer
       Counterexample (TR):
+        Lean checked the reconstructed states and actions
         Theory:
           enum EnumA = {nop}
           enum EnumB = {a, b}
@@ -123,6 +125,7 @@ The following set of actions must preserve the invariant and successfully termin
     doesNotThrow ... ✅
     inv_0 ... ❌
       Counterexample (WP):
+        Lean checked the reconstructed states and actions
         Theory:
           enum EnumA = {nop}
           enum EnumB = {a, b}
@@ -130,6 +133,7 @@ The following set of actions must preserve the invariant and successfully termin
           req = {nop ↦ b}
         Action: foo
       Counterexample (TR):
+        Lean checked the reconstructed states and actions
         Theory:
           enum EnumA = {nop}
           enum EnumB = {a, b}

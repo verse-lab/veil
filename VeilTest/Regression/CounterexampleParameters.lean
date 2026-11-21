@@ -122,6 +122,9 @@ sat trace {
 }
 
 run_cmd do
+  let model ← traceModel
+  unless model.structuredJson.getObjValD "witnessCheck" == toJson WitnessCheck.checked do
+    throwError "dependent trace parameters failed replay"
   let inst ← traceInstantiation
   liftTermElabM do
     let n ← mkAppM `DependentParameterTrace.Instantiation.n #[inst]
@@ -290,11 +293,11 @@ run_cmd do
     let tr ← buildTraceFromModel model.raw mod 2
     let start ← mkAppM `ScopedTraceBinders.Theory.start #[tr.theoryExpr]
     unless ← isDefEq start (mkNatLit 4) do throwError "incorrect theory"
-    unless tr.stateExprs.size == 3 && tr.labelExprs.size == 2 do throwError "incomplete trace"
-    for (state, expected) in tr.stateExprs.zip #[4, 7, 12] do
+    unless tr.steps.size == 2 do throwError "incomplete trace"
+    for (state, expected) in (#[tr.initialState] ++ tr.steps.map (·.nextState)).zip #[4, 7, 12] do
       let value ← mkAppM `ScopedTraceBinders.State.counter #[state]
       unless ← isDefEq value (mkNatLit expected) do throwError "incorrect state {expected}"
-    for (label, expected) in tr.labelExprs.zip #[3, 5] do
+    for (label, expected) in (tr.steps.map (·.transitionLabel)).zip #[3, 5] do
       let arg ← mkNumeral (mkApp (mkConst ``Fin) (mkNatLit 16)) expected
       let target ← mkAppOptM `ScopedTraceBinders.Label.add #[some userTag, some arg]
       unless ← isDefEq label target do throwError "incorrect action or argument at {label}"
@@ -331,7 +334,7 @@ run_cmd do
     mkAppM `ScopedInductionBinders.Label.step #[n, j]
   liftTermElabM do
     let tr ← buildTraceFromModel witness.raw mod 1
-    unless tr.labelExprs.size == 1 && (← isDefEq tr.labelExprs[0]! expected) do
+    unless tr.steps.size == 1 && (← isDefEq tr.steps[0]!.transitionLabel expected) do
       throwError "incorrect dependent trace arguments"
 
   for (model, style) in (← stepCounterexamples `atOne).zip #[VCStyle.wp, .tr] do

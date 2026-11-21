@@ -83,6 +83,8 @@ other variables, which may have the same source name. -/
 def modelValueDisplayName (expr : Expr) : MetaM String := do
   if let .fvar id := expr then
     let name ← id.getUserName
+    if modelBinderKey? name == some `exception then return exceptionName.eraseMacroScopes.toString
+    if let some key := modelInstanceKey? name then return key.toString
     if isModelParameterName name then
       return (modelParameterDisplayName name).toString
   return (← Meta.ppExpr expr).pretty
@@ -165,12 +167,13 @@ def parseSortExprsFromModel (model : Model) : IO (Std.HashMap Name Expr) := do
   return sortExprMap
 
 /-- Collect enum assignments from model entries named `<Sort>_Enum.<ctor>`. -/
-def parseEnumAssignmentsFromModel (model : Model)
+def parseEnumAssignmentsFromModel (model : Model) (legacyNames : Bool)
     : IO (Std.HashMap Name (Std.HashMap Name Nat)) := do
   let mut enumAssignments : Std.HashMap Name (Std.HashMap Name Nat) := {}
   for (nameExpr, valueExpr) in model.values do
     let some name ← getExprName model.ctx nameExpr | continue
-    let .str enumInst ctorName := name | continue
+    let some key := modelInstanceKey? name <|> (if legacyNames then some name else none) | continue
+    let .str enumInst ctorName := key | continue
     let some idx ← extractFinValue model.ctx valueExpr | continue
     let ctorMap := enumAssignments[enumInst]?.getD {}
     enumAssignments := enumAssignments.insert enumInst (ctorMap.insert (.mkSimple ctorName) idx)
@@ -220,8 +223,8 @@ private def resolveEnumSortArg? (modName paramName : Name) (smtType : Expr)
 /-- Resolve module sort arguments and enum adaptations from model data.
     For enum sorts, uses concrete enum types only when model mappings are complete. -/
 def resolveSortArgsAndEnumAdapts (model : Model) (mod : Module) (sortMap : Std.HashMap Name Expr)
-    : MetaM (Array Expr × Array EnumSortAdaptation) := do
-  let enumAssignments ← parseEnumAssignmentsFromModel model
+    (legacyNames : Bool := false) : MetaM (Array Expr × Array EnumSortAdaptation) := do
+  let enumAssignments ← parseEnumAssignmentsFromModel model legacyNames
   let mut sortArgs : Array Expr := #[]
   let mut enumAdapts : Array EnumSortAdaptation := #[]
 
@@ -257,7 +260,7 @@ partial def buildModelValue (values : Std.HashMap Name Expr)
     (name : Name) (expectedType : Expr) (enumAdapts : Array EnumSortAdaptation)
     (fallback? : Option Expr := none) : MetaM Expr := do
   if let some value := values[name]? then
-    let value ← adaptSmtExprType value expectedType enumAdapts
+    let value ← adaptSmtExprType value expectedType enumAdapts name
     unless ← isDefEq (← inferType value) expectedType do
       throwError "counterexample parameter {name} does not have its declared type {expectedType}"
     return value
@@ -449,7 +452,8 @@ def buildCounterexampleExprs (model : Model) (mod : Module) (actionName : Name) 
   let sortMap ← parseSortsFromModel model
 
   -- Resolve sort arguments (including enum concretization when mappings are complete)
-  let (sortArgs, enumAdapts) ← resolveSortArgsAndEnumAdapts model mod sortMap
+  let legacyNames := veil.solver.get (← getOptions) matches .custom
+  let (sortArgs, enumAdapts) ← resolveSortArgsAndEnumAdapts model mod sortMap legacyNames
 
   -- Resolve the complete structural parameter list and its dependent substitution.
   let (moduleArgs, sortSubst) ← resolveModuleArgs model mod sortArgs enumAdapts
@@ -461,7 +465,7 @@ def buildCounterexampleExprs (model : Model) (mod : Module) (actionName : Name) 
 
   -- Classify model values
   let (preStateFields, postStateFields, theoryFields, actionParams, extraVals) ←
-    classifyModelValues model mod actionName (veil.solver.get (← getOptions) matches .custom)
+    classifyModelValues model mod actionName legacyNames
 
   -- Build Instantiation expression and type
   let instExpr ← buildInstantiationExpr mod moduleArgs

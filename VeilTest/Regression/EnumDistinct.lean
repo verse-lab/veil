@@ -30,12 +30,14 @@ The following set of actions must preserve the invariant and successfully termin
     doesNotThrow ... ✅
     inv_0 ... ❌
       Counterexample (WP):
+        Lean checked the reconstructed states and actions
         Theory:
           enum msg_req_rsp_type = {erply, espec, idle_r_r, nack, rdex, rdsh, srply, sspec, upack, upgrd, wack, wb, wbbak}
         Pre-state:
           net_req_rsp_kind = {0 ↦ idle_r_r}
         Action: p_req(p=0)
       Counterexample (TR):
+        Lean checked the reconstructed states and actions
         Theory:
           enum msg_req_rsp_type = {erply, espec, idle_r_r, nack, rdex, rdsh, srply, sspec, upack, upgrd, wack, wb, wbbak}
         Pre-state:

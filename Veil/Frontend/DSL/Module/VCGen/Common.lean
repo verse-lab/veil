@@ -122,7 +122,10 @@ def nameModelBinders (type : Expr) (names : List (Option Name)) : Expr :=
   | _ => type
 
 def moduleModelNames (params : Array Parameter) : Array (Option Name) :=
-  params.map fun p => if p.kind == .userParameter then some (modelParameterName p.name) else none
+  params.map fun p => match p.kind with
+    | .userParameter => some (modelParameterName p.name)
+    | .moduleTypeclass .userDefined => some (modelInstanceName p.name)
+    | _ => none
 
 /-- Create a discharger that elaborates `term` against the VC statement's type
     and builds its result via `mkResult`.

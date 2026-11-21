@@ -998,9 +998,8 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
         -- the handler at the syntax level might not be reliable, if through delaboration
         let lctx ← getLCtx
         let some exDecl := lctx.findFVar? ex | throwError "veil_apply_local_wp: could not find a local declaration for the exception{indentExpr ex}"
-        let exBinder := mkIdent <| exDecl.userName.appendAfter "'"    -- avoid name clashing
         pure (theoryType, stateType, act, pre,
-          ← `(term| fun $exBinder:funBinder => $exBinder:ident ≠ $(mkIdent exDecl.userName):term),
+          ← `(term| fun thrown => thrown ≠ $(mkIdent exDecl.userName):term),
           true)
       | _ =>
         throwError "veil_apply_local_wp: expected a VeilM.meetsSpecificationIfSuccessfulAssuming or VeilM.doesNotThrowAssuming_ex goal, got{indentExpr target}"

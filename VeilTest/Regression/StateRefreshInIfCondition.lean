@@ -118,6 +118,7 @@ info: ✅ Satisfying trace found
   State 1 (via call_in_if_condition):
     x = true
     y = true
+Lean checked the reconstructed states and actions
 -/
 #guard_msgs(info, drop warning) in
 sat trace {

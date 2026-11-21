@@ -34,6 +34,7 @@ The following set of actions must preserve the invariant and successfully termin
     doesNotThrow ... ✅
     held ... ❌
       Counterexample (WP):
+        Lean checked the reconstructed states and actions
         Theory:
           leader = 1
           peer = {(0, 0), (0, 1), (1, 0), (1, 1)}
@@ -41,6 +42,7 @@ The following set of actions must preserve the invariant and successfully termin
           holder = 1
         Action: pass(n=0)
       Counterexample (TR):
+        Lean checked the reconstructed states and actions
         Theory:
           leader = 1
           peer = {(0, 0), (0, 1), (1, 0), (1, 1)}

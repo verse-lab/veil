@@ -25,12 +25,14 @@ error: Initialization must establish the invariant:
   doesNotThrow ... ✅
   inv ... ❌
       Counterexample (WP):
+        Lean checked the reconstructed states and actions
         Theory:
 
         Pre-state:
           r = {0}
         Action: initializer
       Counterexample (TR):
+        Lean checked the reconstructed states and actions
         Theory:
 
         Pre-state:
@@ -43,12 +45,14 @@ The following set of actions must preserve the invariant and successfully termin
     doesNotThrow ... ✅
     inv ... ❌
       Counterexample (WP):
+        Lean checked the reconstructed states and actions
         Theory:
 
         Pre-state:
           r = {0, 1}
         Action: act
       Counterexample (TR):
+        Lean checked the reconstructed states and actions
         Theory:
 
         Pre-state:

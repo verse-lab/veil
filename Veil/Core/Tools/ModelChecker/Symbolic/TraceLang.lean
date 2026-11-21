@@ -7,7 +7,7 @@ public meta import Veil.Util.Meta
 public meta import Veil.Frontend.DSL.Module.Util.Assertions
 public meta import Veil.Frontend.DSL.Module.Names
 public meta import Veil.Frontend.DSL.Util
-public meta import Veil.Core.Tools.ModelChecker.TransitionSystem
+public meta import Veil.Core.Tools.ModelChecker.Trace
 public meta import Veil.Core.Tools.Verifier.Server
 public meta import Veil.Core.Tools.Verifier.Results
 public meta import Veil.Frontend.DSL.Module.VCGen
@@ -102,23 +102,35 @@ private def mkTransitionExpr (rtsExpr theoryId currState nextState : TSyntax `te
   let trExpr ← `(term| (($rtsExpr).$(mkIdent `tr) $theoryId $currState $labelExpr $nextState))
   `(term| ($tagId = $actionTagMember ∧ $trExpr))
 
-/-- Build a disjunction representing any action transition with ActionTag constraint -/
-private def mkAnyActionDisjunction (mod : Module) (rtsExpr theoryId currState nextState : TSyntax `term)
-    (tagId : Ident) (trIdx : Nat) : TermElabM (Term × Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) := do
-  let results ← mod.actions.mapIdxM fun idx act => do
-    let (_, specificParams) ← mod.declarationAllParams act.name act.declarationKind
-    let (argIdents, binders) ← mkTransitionParamBinders trIdx idx specificParams.size
-    return (← mkTransitionExpr rtsExpr theoryId currState nextState tagId act.name argIdents, binders)
-  return (← repeatedOr (results.map (·.1)), results.flatMap (·.2))
-
 /-- Collect module-level binders (sorts, user parameters, sort assumptions, user-defined typeclasses) -/
-private def collectModuleBinders (mod : Module) : TermElabM (Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) := do
-  let sortBinders ← mod.uninterpretedParamBinders
+def traceModuleParams (mod : Module) : Array Parameter := Id.run do
   let typeclassParams := mod.parameters.filter fun p =>
     match p.kind with
     | .moduleTypeclass .sortAssumption | .moduleTypeclass .userDefined => true
     | _ => false
-  return sortBinders ++ (← typeclassParams.mapM (·.binder))
+  return mod.uninterpretedParameters ++ typeclassParams
+
+/-- Build a disjunction representing any action transition with ActionTag constraint -/
+private def mkAnyActionDisjunction (mod : Module) (rtsExpr theoryId currState nextState : TSyntax `term)
+    (tagId : Ident) (trIdx : Nat) : TermElabM (Term × Array (TSyntax ``Lean.Parser.Term.bracketedBinder)) := do
+  let moduleBinders ← (traceModuleParams mod).mapM (·.binder)
+  let sorts ← mod.uninterpretedParamIdents
+  Term.elabBinders moduleBinders fun _ => do
+  let results ← mod.actions.mapIdxM fun idx act => do
+    let (_, specificParams) ← mod.declarationAllParams act.name act.declarationKind
+    let (argIdents, binders) ← mkTransitionParamBinders trIdx idx specificParams.size
+    let edge ← mkTransitionExpr rtsExpr theoryId currState nextState tagId act.name argIdents
+    unless binders.isEmpty do
+      -- Hoisting across a disjunction needs inhabitants for the unselected branches.
+      let ctor ← elabTerm (← `(@$(mkIdent (labelTypeName ++ act.name)) $sorts*)) none
+      let mut ty ← inferType ctor
+      for _ in argIdents do
+        let .forallE _ domain body _ ← whnf ty | throwError "missing parameter in {ctor}"
+        let some inhabited ← synthInstance? (← mkAppM ``Nonempty #[domain])
+          | return (← `(∃ $[$argIdents:ident]*, $edge), #[])
+        ty := body.instantiate1 (← mkAppM ``Classical.choice #[inhabited])
+    return (edge, binders)
+  return (← repeatedOr (results.map (·.1)), results.flatMap (·.2))
 
 /-- State threaded through trace spec elaboration -/
 structure TraceElabState where
@@ -128,6 +140,8 @@ structure TraceElabState where
   trIdx : Nat := 1
   /-- Accumulated assertions -/
   assertions : Array (TSyntax `term) := #[]
+  /-- Query-specific constraints on the decoded states and labels. -/
+  replayLines : Array Term := #[]
   /-- Accumulated binders -/
   binders : BinderAccum := {}
 
@@ -165,40 +179,46 @@ private def processTransition (ctx : TraceElabCtx) (curr next : Ident) (trIdx : 
     return (disjunction, { params := paramBinders, tags := #[tagBinder] })
   | _ => unreachable!
 
-scoped syntax "veil_trace_assertion% " term:max : term
-
-elab_rules : term <= expectedType
-  | `(veil_trace_assertion% $assertion) => do
-    let mod ← getCurrentModule
-    let firstTree := (← getInfoTrees).size
-    let value ← withSaveInfoContext <| elabTerm assertion expectedType
-    mod.warnTermShadows assertion firstTree
-    pure value
-
-/-- Process a user assertion (no state transition) -/
-private def processAssertion (ctx : TraceElabCtx) (currState : Ident) (t : Term) : TermElabM (TSyntax `term) := do
+/-- Elaborate a checkpoint in its own module context. Both uses unfold the same predicate. -/
+private def processAssertion (ctx : TraceElabCtx) (t : Term) : TermElabM Term := do
   let fieldRepInstance ← `(term| $instAbstractFieldRepresentation $(ctx.sorts)*)
   let stateSortTerm ← `(term| $fieldAbstractDispatcher $(ctx.sorts)*)
   let wrappedTerm ← withTheoryAndStateFn ctx.mod (← `(uqc% (($t:term):Prop))) (some $ ← `(term|Prop)) ctx.theoryT ctx.stateT fieldRepInstance stateSortTerm
-  let assertion ← `(term|($wrappedTerm $(ctx.theoryId) $currState))
-  let assertion := Syntax.inheritSourceSpanFrom assertion t
-  `(term|veil_trace_assertion% $assertion)
+  let params := traceModuleParams ctx.mod
+  let binders ← params.mapM fun p => p.binder >>= bracketedBinderToFunBinder
+  let predicate ← mkFunSyntax binders wrappedTerm
+  let firstTree := (← getInfoTrees).size
+  let value ← withSaveInfoContext <| withoutErrToSorry <| elabTermAndSynthesize predicate none
+  ctx.mod.warnTermShadows t firstTree
+  let name ← addVeilDefinition (← mkFreshUserName `traceCheckpoint) value (compile := false)
+  let args ← params.mapM (·.arg)
+  `(delta% @$(mkIdent name) $args*)
 
 /-- Expand anyNActions into individual anyAction entries -/
 private def expandTraceLine : TraceSpecLine → List TraceSpecLine
   | .anyNActions k => List.replicate k .anyAction
   | other => [other]
 
+open Lean.Parser.Term in
 /-- Process a single trace spec line, returning updated state -/
 private def processLine (ctx : TraceElabCtx) (s : TraceElabState) : TraceSpecLine → TermElabM TraceElabState
   | .assertion t => do
-    let curr := s.states.head!
-    let assertion ← processAssertion ctx curr t
-    return { s with assertions := s.assertions.push assertion }
-  | line => do  -- .action or .anyAction
+    let predicate ← processAssertion ctx t
+    let assertion ← `($predicate $(ctx.theoryId) $(s.states.head!))
+    let line ← `(ModelChecker.Trace.QueryLine.assertion $predicate)
+    return { s with assertions := s.assertions.push assertion, replayLines := s.replayLines.push line }
+  | line => do
     let (curr, next, s') ← s.advance.getDM (throwError "insufficient states for transition")
     let (assertion, newBinders) ← processTransition ctx curr next s.trIdx line
-    return { s' with assertions := s'.assertions.push assertion, binders := s'.binders ++ newBinders }
+    let matchesLabel ← match line with
+      | .action name =>
+        if ctx.mod.actions.size == 1 then `(fun _ => True)
+        else `(fun label => (label matches $(mkIdent (labelTypeName ++ name)):ident ..) = true)
+      | _ => `(fun _ => True)
+    let line ← `(ModelChecker.Trace.QueryLine.action $matchesLabel)
+    return { s' with
+      assertions := s'.assertions.push assertion, binders := s'.binders ++ newBinders
+      replayLines := s'.replayLines.push line }
 
 /-- Extract structured JSON trace from a discharger result (if SAT). -/
 private def extractTraceJson? (result : Option (DischargerResult SmtResult)) : Option Json :=
@@ -312,6 +332,40 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
   if shouldHaveTrace isExpectedSat vcResult.status && traceJson?.isNone then
     logViolation "Could not extract trace JSON"; logDischargerErrors vcResult.timing.dischargers
 
+/-- Elaborate the SMT query and the positive predicate replayed on decoded labels and states. -/
+def mkTraceQuery (mod : Module) (spec : TSyntax `traceSpec) : TermElabM (Term × TraceReplay) := do
+  let expandedSpec := (← parseTraceSpec spec).flatMap expandTraceLine
+  let numTransitions := expandedSpec.filter (!· matches .assertion _) |>.length
+  let stateIds := (List.range (numTransitions + 1)).map fun i =>
+    mkIdent (modelBinderName (traceStateName i))
+
+  let sorts ← mod.uninterpretedParamIdents
+  let theoryId := mkIdent (modelBinderName `th)
+  let theoryT ← mod.theoryStx
+  let stateT ← `(term| $(mkIdent stateName) ($fieldAbstractDispatcher $sorts*))
+  let rtsExpr ← `(term| $assembledRTS $sorts*)
+  let tagType ← Lean.mkIdent <$> mkFreshUserName actionTagTypeName
+  let ctx : TraceElabCtx := { mod, tagType, rtsExpr, theoryId, theoryT, stateT, sorts }
+
+  let initAssertion ← `(term|
+    ($rtsExpr).$(mkIdent `assumptions) $theoryId ∧
+    (($rtsExpr).$(mkIdent `init) $theoryId $(stateIds.head!)))
+  let initState : TraceElabState := {
+    states := stateIds, assertions := #[initAssertion] }
+  let finalState ← expandedSpec.foldlM (processLine ctx) initState
+
+  let conjunction ← repeatedAnd finalState.assertions
+  let actionTagBinders ← if mod.actions.isEmpty then pure #[] else mkActionTagBinders tagType
+  let params := traceModuleParams mod
+  let moduleBinders ← params.mapM (·.binder)
+  let allBinders := moduleBinders ++ actionTagBinders ++ finalState.binders.all
+  let stateNames := stateIds.toArray
+  let assertion ← `(∀ $allBinders* ($theoryId:ident : $theoryT) ($stateNames* : $stateT), ¬ $conjunction)
+
+  let query ← `(∀ $moduleBinders* (path : ModelChecker.Trace $theoryT $stateT ($labelType $sorts*)),
+    ModelChecker.Trace.isValidFor path $rtsExpr [$(finalState.replayLines),*])
+  return (assertion, { params, statement := query, numTransitions })
+
 /-- Elaborate the trace command at the current ref. Its widget shows the result while the solver
 runs, through `withStreamingInfo`, so the elaborator that calls this is `@[incremental]`. -/
 def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `ident))
@@ -324,35 +378,8 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   -- Determine if this is a sat or unsat trace query
   let isExpectedSat := r.raw.isOfKind ``expected_sat
 
-  -- Build the trace specification
-  let (assertion, numTransitions, vcName) ← Command.runTermElabM fun _ => do
-    let expandedSpec := (← parseTraceSpec spec).flatMap expandTraceLine
-    let numTransitions := expandedSpec.filter (!· matches .assertion _) |>.length
-    let stateIds := (List.range (numTransitions + 1)).map fun i =>
-      mkIdent (modelBinderName (traceStateName i))
-
-    let sorts ← mod.uninterpretedParamIdents
-    let theoryId := mkIdent (modelBinderName `th)
-    let theoryT ← mod.theoryStx
-    let stateT ← `(term| $(mkIdent stateName) ($fieldAbstractDispatcher $sorts*))
-    let rtsExpr ← `(term| @$assembledRTS $sorts*)
-    let tagType ← Lean.mkIdent <$> mkFreshUserName actionTagTypeName
-    let ctx : TraceElabCtx := { mod, tagType, rtsExpr, theoryId, theoryT, stateT, sorts }
-
-    let initAssertion ← `(term|
-      ($rtsExpr).$(mkIdent `assumptions) $theoryId ∧
-      (($rtsExpr).$(mkIdent `init) $theoryId $(stateIds.head!)))
-    let initState : TraceElabState := { states := stateIds, assertions := #[initAssertion] }
-    let finalState ← expandedSpec.foldlM (processLine ctx) initState
-
-    let vcName ← match name with | some n => pure n.getId | none => mkFreshUserName `trace
-    let conjunction ← repeatedAnd finalState.assertions
-    let actionTagBinders ← if mod.actions.isEmpty then pure #[] else mkActionTagBinders tagType
-    let allBinders := (← collectModuleBinders mod) ++ actionTagBinders ++ finalState.binders.all
-    let stateNames := stateIds.toArray
-    let assertion ← `(∀ $allBinders* ($theoryId:ident : $theoryT) ($stateNames* : $stateT), ¬ $conjunction)
-
-    return (assertion, numTransitions, vcName)
+  let vcName ← match name with | some n => pure n.getId | none => liftCoreM (mkFreshUserName `trace)
+  let (assertion, replay) ← Command.runTermElabM fun _ => mkTraceQuery mod spec
 
   match pf with
   | some proofTerm =>
@@ -362,7 +389,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   | none =>
     -- Use VCManager with automatic discharger
     let vcStatement ← mkTraceVCStatement mod vcName assertion
-    let metadata := mkTraceVCMetadata isExpectedSat numTransitions (some vcName) (some assertion)
+    let metadata := mkTraceVCMetadata isExpectedSat replay.numTransitions (some vcName) (some assertion)
     -- Filter for matching trace VCs
     let vcFilter := (· == metadata)
     -- Check if a VC with this name already exists (avoid duplicate work)
@@ -372,7 +399,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
         return existingId
       -- Add VC and discharger atomically
       let (mgr', vcId) := mgr.addVC ⟨vcStatement, metadata⟩ {} #[]
-      let mgr'' ← mgr'.mkAddDischarger vcId (TraceDischarger.fromAssertion numTransitions isExpectedSat)
+      let mgr'' ← mgr'.mkAddDischarger vcId (TraceDischarger.fromAssertion replay isExpectedSat)
       ref.set mgr''
       return vcId
 

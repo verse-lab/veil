@@ -1,6 +1,7 @@
 module
 
 public meta import Veil.Core.Tools.Synthesizer.Progress
+public meta import Veil.Core.Tools.Synthesizer.Tactic
 
 public meta import Veil.DSL
 public meta import Veil.Core.Tools.Synthesizer.Solver
@@ -41,9 +42,6 @@ public meta section
 
 namespace Veil.Synthesizer
 open Lean Elab Command Term Meta Veil Lean.Parser.Term
-
-/-- The axioms a fully checked development rests on. -/
-def standardAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
 
 /-- The theorem a certificate added. -/
 structure CertificateResult where

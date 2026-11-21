@@ -235,6 +235,7 @@ info: ✅ Satisfying trace found
     visited = {}
   State 1 (via visit(n=0)):
     visited = {0}
+Lean checked the reconstructed states and actions
 -/
 #guard_msgs in
 sat trace {
@@ -287,6 +288,7 @@ The following set of actions must preserve the invariant and successfully termin
     doesNotThrow ... ✅
     never ... ❌
       Counterexample (WP):
+        Lean checked the reconstructed states and actions
         Theory:
 
         Pre-state:
@@ -294,6 +296,7 @@ The following set of actions must preserve the invariant and successfully termin
           alpha = false
         Action: step(z=0, a=0)
       Counterexample (TR):
+        Lean checked the reconstructed states and actions
         Theory:
 
         Pre-state:
