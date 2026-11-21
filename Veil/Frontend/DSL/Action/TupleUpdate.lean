@@ -10,7 +10,7 @@ namespace Veil
 
 /-- Syntax for assigning only a sub-part of a relation / function, e.g.
 `r N x ↦ True`. -/
-syntax term "_[" (term),* " ↦ " term "]_" : term
+scoped syntax term "_[" (term),* " ↦ " term "]_" : term
 declare_syntax_cat veil_tupl
 scoped syntax (term:max)* : veil_tupl
 scoped syntax (name := veil_tupl) "_[veil_tupl|" veil_tupl "]_" : term

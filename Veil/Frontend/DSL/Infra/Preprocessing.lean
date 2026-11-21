@@ -12,7 +12,7 @@ open Lean Meta Elab Tactic
 
 namespace Veil
 
-theorem funextEq' {α β : Type} (f g : α → β) :
+theorem funextEq' {α : Sort u} {β : Sort v} (f g : α → β) :
   (f = g) = ∀ x, f x = g x := by
   apply propext
   constructor
@@ -22,7 +22,7 @@ theorem funextEq' {α β : Type} (f g : α → β) :
 open Lean Expr Lean.Meta in
 
 /-- Applies functional extensionality to all equalities between functions. -/
-simproc ↓ funextEq (_ = _) :=
+simproc_decl funextEq (_ = _) :=
   fun e => do
   let_expr Eq _ lhs rhs := e | return .continue
   let lhsT ← whnf (← inferType lhs)

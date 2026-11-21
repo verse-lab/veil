@@ -166,7 +166,7 @@ private def mkDoesNotThrowVC [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exce
     : m (VCData VCMetadata) := do
   mkVCForSpecTheorem mod actName actKind (propertyName := `doesNotThrow)
     ``VeilM.doesNotThrowAssuming_ex (Name.mkSimple s!"{actName}_doesNotThrow") vcKind
-    (extraBinders := #[← `(bracketedBinder| ($exception:ident : ExId))])
+    (extraBinders := #[← `(bracketedBinder| ($exception:ident : Int))])
     (extraTerms := #[← `(term| $exception:ident)])
 
 private def mkMeetsSpecificationIfSuccessfulClauseVC [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadEnv m] [MonadRecDepth m] [MonadResolveName m]

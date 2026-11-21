@@ -10,6 +10,8 @@ public meta import Veil.Frontend.DSL.Module.Names
 
 namespace Veil
 
+open scoped Veil.TermReduce
+
 /-! ## Utilities -/
 
 abbrev Nat.bitLength (n : Nat) : Nat := Nat.log2 (n - 1) + 1

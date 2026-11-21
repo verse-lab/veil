@@ -258,7 +258,7 @@ where
 redispatch through the user-statement wrapper. The right-hand side of a Veil
 `let x ← rhs`, and the operation of `require h : p` and `assert h : p`, are
 marked the same way, to stay under the statement's opening. -/
-syntax (name := internalExpr) "veil_do_internal_expr% " term : doElem
+scoped syntax (name := internalExpr) "veil_do_internal_expr% " term : doElem
 
 /- Behaves like a plain `doExpr`. Registered because an internal element can
 now stand in for the right-hand side of `let x ← rhs`, a position that Lean's
@@ -315,7 +315,7 @@ def bindInternalResult (ref : Syntax) (hint : Name) (rhs : Term)
   let name ← mkFreshUserName (mkVeilImplementationDetailName hint)
   bindInternalResultAs ref name rhs (k name)
 
-syntax (name := theoryOpen) "veil_do_open_theory%" : doElem
+scoped syntax (name := theoryOpen) "veil_do_open_theory%" : doElem
 
 @[doElem_control_info theoryOpen]
 def theoryOpenControlInfo : ControlInfoHandler := fun _ =>

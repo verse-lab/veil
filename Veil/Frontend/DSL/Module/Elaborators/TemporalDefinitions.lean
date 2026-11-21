@@ -142,14 +142,6 @@ private def mkActionLabelMatch (mod : Module) (actionName : Name) (args : Array 
       `(Lean.Parser.Term.matchAltExpr| | $(Syntax.mkApp ctor pats):term => decide ($(← repeatedAnd eqs)))
   `(term| fun $lbl => match $lbl:ident with $alts:matchAlt*)
 
--- `∀ x, φ` and `∃ x, φ` become the conjunction and the disjunction of `φ` over the values that `Enumeration`
--- lists for the type of `x`. For a sort, these are only known once `#temporal_check` instantiates the module.
-macro_rules
-  | `([ltl| ∀ $x:ident, $f]) => `($(mkIdent ``LivenessMC.forallEnum) fun $x => [ltl| $f])
-  | `([ltl| ∀ $x:ident : $t, $f]) => `($(mkIdent ``LivenessMC.forallEnum) fun ($x : $t) => [ltl| $f])
-  | `([ltl| ∃ $x:ident, $f]) => `($(mkIdent ``LivenessMC.existsEnum) fun $x => [ltl| $f])
-  | `([ltl| ∃ $x:ident : $t, $f]) => `($(mkIdent ``LivenessMC.existsEnum) fun ($x : $t) => [ltl| $f])
-
 /-- The atoms of `[ltl| …]`, read against the current module while Veil elaborates one of its temporal
 formulas (`veil.temporal.moduleAtoms`). `⌜ t ⌝` is a state predicate and `⌞ t ⌟` a theory predicate,
 which see the module's fields as an assertion does; `Enabled a …`/`⟨ a … ⟩` name one of its actions, and
@@ -169,6 +161,15 @@ Tried before the plain reading of `[ltl| …]` (`Lasso.elabLtlAtom`), to which i
         ($(mkIdent `name) := $(quote Name.anonymous))
         ($(mkIdent `property) := fun ($th : $environmentTheory) ($st : $environmentState) => $body)))
   let atom ← match stx with
+    -- Model checking instantiates each quantifier over the module's enumeration of its domain.
+    | `([ltl| ∀ $x:ident, $f]) =>
+      return ← elabTerm (← `($(mkIdent ``LivenessMC.forallEnum) fun $x => [ltl| $f])) expectedType?
+    | `([ltl| ∀ $x:ident : $t, $f]) =>
+      return ← elabTerm (← `($(mkIdent ``LivenessMC.forallEnum) fun ($x : $t) => [ltl| $f])) expectedType?
+    | `([ltl| ∃ $x:ident, $f]) =>
+      return ← elabTerm (← `($(mkIdent ``LivenessMC.existsEnum) fun $x => [ltl| $f])) expectedType?
+    | `([ltl| ∃ $x:ident : $t, $f]) =>
+      return ← elabTerm (← `($(mkIdent ``LivenessMC.existsEnum) fun ($x : $t) => [ltl| $f])) expectedType?
     | `([ltl| ⌜ $t:term ⌝]) => statePredicate [(.theory, th, true), (.state .none "_conc", st, true)] t
     | `([ltl| ⌞ $t:term ⌟]) => statePredicate [(.theory, th, true)] t
     -- `Enabled a`/`⟨ a ⟩` are decided by a predicate on the action label, not on a state

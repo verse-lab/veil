@@ -31,6 +31,8 @@ is to keep the logic well-encapsulated.
 
 namespace Veil
 
+open scoped Veil.TermReduce
+
 /-! ## Type Instances & Basic Conversions -/
 
 instance : ToString Mutability where

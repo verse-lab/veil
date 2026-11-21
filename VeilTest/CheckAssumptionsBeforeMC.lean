@@ -89,3 +89,44 @@ assumptions_hold_by
   constructor <;> decide
 
 end CheckAssumptionsCustomProof
+
+/-! ## Proof clauses with an omitted empty theory -/
+
+veil module CheckAssumptionsOmittedTheory
+
+individual flag : Bool
+assumption True
+after_init { flag := false }
+action keep { flag := false }
+invariant ¬ flag
+temporal (only := check) [alwaysClear] □ ⌜ ¬ flag ⌝
+#gen_spec
+
+/-- info: ✅ No violation (explored 1 states) -/
+#guard_msgs in
+#model_check interpreted {} assumptions_hold_by decide
+
+/-- info: ✅ No violation in -/
+#guard_msgs (substring := true) in
+#simulate interpreted {} assumptions_hold_by decide
+
+/-- info: ✅ No liveness violation (checked 1 properties, explored 1 product states) -/
+#guard_msgs in
+#temporal_check interpreted {} assumptions_hold_by decide
+
+-- The same bare name can still denote the theory when no tactic follows.
+def assumptions_hold_by : Theory := {}
+
+/-- info: ✅ No violation (explored 1 states) -/
+#guard_msgs in
+#model_check interpreted {} assumptions_hold_by
+
+-- The theory name can also appear immediately before the proof clause.
+/-- info: ✅ No violation (explored 1 states) -/
+#guard_msgs in
+#model_check interpreted {} assumptions_hold_by assumptions_hold_by decide
+
+end CheckAssumptionsOmittedTheory
+
+def assumptions_hold_by : Nat := 1
+#guard assumptions_hold_by == 1

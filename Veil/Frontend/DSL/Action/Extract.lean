@@ -13,6 +13,8 @@ open Lean Elab Command Term Meta Lean.Parser
 
 namespace Veil.Extract
 
+open scoped Veil.TermReduce
+
 meta section FrontendExtraction
 
 syntax injectBindersStx := "injection_begin" bracketedBinder* "injection_end"
@@ -276,7 +278,7 @@ where
     $[$extraDsimpsForSpecialize:ident],*]
     (delta% $fullyAppliedAction))
  buildExtractBody (body bodyBeforeSimp : Term) : m Term := do
-  let multiExecMonadType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState)
+  let multiExecMonadType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) Int $environmentTheory $environmentState)
   let extractor := mkIdent <| (if useWeak then ``MultiExtractor.NonDetT.extractPartialList else ``MultiExtractor.NonDetT.extractList)
   -- HACK: when not `intoMonadicActions`, `targetType` is actually partial
   let targetType ← if intoMonadicActions then `($multiExecMonadType Unit)
@@ -387,7 +389,7 @@ def specializeAndExtractActions (mod : Module) (extractedActions : Array Special
     let args ← actualParams.mapM (·.arg)
     mkFunSyntax args call
   let finalBody ← do
-    let multiExecType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) ExId $environmentTheory $environmentState $(mkIdent ``Unit))
+    let multiExecType ← `(term| $(mkIdent ``VeilMultiExecM) ($κ) Int $environmentTheory $environmentState $(mkIdent ``Unit))
     -- Need this annotation to avoid the `failed to elaborate eliminator, expected type is not available` error
     `(fun ($lIdent : $labelT) => (($lIdent.$(mkIdent `casesOn) $alts*) : $multiExecType))
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
@@ -486,18 +488,18 @@ instance : NamedRep Choice where
 
 section
 
-variable {κ ρ σ : Type} [inst4 : MonadPersistentLog κ (VeilMultiExecM κ ExId ρ σ)]
+variable {κ ρ σ : Type} [inst4 : MonadPersistentLog κ (VeilMultiExecM κ Int ρ σ)]
 
 def ConstrainedExtractResult.pickSuchThat_VeilM (p : τ → Prop) [∀ x, Decidable (p x)] {name : Option String} [instec : ExtCandidates Candidates κ p] [NamedRep κ] :
-  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ ExId ρ σ)
+  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ Int ρ σ)
   (findOfCandidates _) (VeilM.pickSuchThat τ p name) := ConstrainedExtractResult.pickList _ _ _ _ p (instec := instec)
 
 def ConstrainedExtractResult.assume_VeilM {m} (p : Prop) [decp : Decidable p] :
-  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ ExId ρ σ)
+  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ Int ρ σ)
   (findOfCandidates _) (@VeilM.assume m ρ σ p decp) := ConstrainedExtractResult.assume _ _ _ _ p (decp := decp)
 
 def ConstrainedExtractResult.require_VeilM {m ex} (p : Prop) [decp : Decidable p] :
-  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ ExId ρ σ)
+  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ Int ρ σ)
   (findOfCandidates _) (@VeilM.require m ρ σ p decp ex) :=
   match m with
   | .external => ConstrainedExtractResult.assume_VeilM p (decp := decp)
@@ -505,17 +507,17 @@ def ConstrainedExtractResult.require_VeilM {m ex} (p : Prop) [decp : Decidable p
 
 def ConstrainedExtractResult.pickSubtype_VeilM (p : τ → Prop) [∀ x, Decidable (p x)]
     {name : Option String} [instec : ExtCandidates Candidates κ p] [NamedRep κ] :
-  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ ExId ρ σ)
+  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ Int ρ σ)
   (findOfCandidates _) (VeilM.pickSubtype τ p name) :=
   ConstrainedExtractResult.pickSubtype _ _ _ p (instec := instec.named name)
 
 def ConstrainedExtractResult.assumeSubtype_VeilM {m} (p : Prop) [decp : Decidable p] :
-  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ ExId ρ σ)
+  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ Int ρ σ)
   (findOfCandidates _) (@VeilM.assumeSubtype m ρ σ p decp) :=
   ConstrainedExtractResult.assumeSubtype _ _ _ _ p (decp := decp)
 
 def ConstrainedExtractResult.requireSubtype_VeilM {m ex} (p : Prop) [decp : Decidable p] :
-  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ ExId ρ σ)
+  ConstrainedExtractResult κ (VeilExecM m ρ σ) (VeilMultiExecM κ Int ρ σ)
   (findOfCandidates _) (@VeilM.requireSubtype m ρ σ p decp ex) :=
   match m with
   | .external => ConstrainedExtractResult.assumeSubtype_VeilM p (decp := decp)
@@ -559,7 +561,7 @@ where beta does not duplicate.
 The `IsSubStateOf` and `IsSubReaderOf` assumptions are those of the actions themselves: their
 `get`, `read` and `modifyGet` are elaborated through Veil's sub-state and sub-reader instances
 (`SubState.lean`), `dsimp` matches the left-hand sides syntactically, and `getFrom`, `setIn` and
-`readFrom` come from the same classes. `VeilExecM` fixes its exception type to `ExId`, so the
+`readFrom` come from the same classes. `VeilExecM` fixes its exception type to `Int`, so the
 `go` rules do too. -/
 
 section PreSimplifiedContinuationFacingPrimitives
@@ -588,20 +590,20 @@ def modifyGetThen [IsSubStateOf τ σ] (f : τ → β × τ)
     | (a, x') => k a r (setIn x' s)
 
 @[multiExtractSimp] theorem go_get_bind [IsSubStateOf τ σ]
-    (k : τ → VeilMultiExecM κ ExId ρ σ α) :
-    (MonadFlatMapGo.go (m := VeilExecM mode ρ σ) (n := VeilMultiExecM κ ExId ρ σ)
+    (k : τ → VeilMultiExecM κ Int ρ σ α) :
+    (MonadFlatMapGo.go (m := VeilExecM mode ρ σ) (n := VeilMultiExecM κ Int ρ σ)
         (MonadStateOf.get : VeilExecM mode ρ σ τ) >>= k)
       = getThen k := rfl
 
 @[multiExtractSimp] theorem go_read_bind [IsSubReaderOf ρ' ρ]
-    (k : ρ' → VeilMultiExecM κ ExId ρ σ α) :
-    (MonadFlatMapGo.go (m := VeilExecM mode ρ σ) (n := VeilMultiExecM κ ExId ρ σ)
+    (k : ρ' → VeilMultiExecM κ Int ρ σ α) :
+    (MonadFlatMapGo.go (m := VeilExecM mode ρ σ) (n := VeilMultiExecM κ Int ρ σ)
         (MonadReader.read : VeilExecM mode ρ σ ρ') >>= k)
       = readThen k := rfl
 
 @[multiExtractSimp] theorem go_modifyGet_bind [IsSubStateOf τ σ]
-    (f : τ → β × τ) (k : β → VeilMultiExecM κ ExId ρ σ α) :
-    (MonadFlatMapGo.go (m := VeilExecM mode ρ σ) (n := VeilMultiExecM κ ExId ρ σ)
+    (f : τ → β × τ) (k : β → VeilMultiExecM κ Int ρ σ α) :
+    (MonadFlatMapGo.go (m := VeilExecM mode ρ σ) (n := VeilMultiExecM κ Int ρ σ)
         (MonadState.modifyGet f : VeilExecM mode ρ σ β) >>= k)
       = modifyGetThen f k := rfl
 
@@ -656,7 +658,7 @@ them before the generic `bind`, which matches the same goals. -/
 
 section PicksAndTrailingPure
 
-variable {κ ρ σ τ β : Type} {mode : Mode} [inst4 : MonadPersistentLog κ (VeilMultiExecM κ ExId ρ σ)]
+variable {κ ρ σ τ β : Type} {mode : Mode} [inst4 : MonadPersistentLog κ (VeilMultiExecM κ Int ρ σ)]
 
 open MultiExtractor
 
@@ -666,8 +668,8 @@ def ConstrainedExtractResult.pickSuchThat_bind_VeilM (p : τ → Prop) [∀ x, D
     {name : Option String}
     [instec : ExtCandidates Candidates κ p] [NamedRep κ] {f : τ → VeilM mode ρ σ β}
     (hf : ∀ x, ConstrainedExtractResult κ (VeilExecM mode ρ σ)
-      (VeilMultiExecM κ ExId ρ σ) (findOfCandidates _) (f x)) :
-    ConstrainedExtractResult κ (VeilExecM mode ρ σ) (VeilMultiExecM κ ExId ρ σ)
+      (VeilMultiExecM κ Int ρ σ) (findOfCandidates _) (f x)) :
+    ConstrainedExtractResult κ (VeilExecM mode ρ σ) (VeilMultiExecM κ Int ρ σ)
       (findOfCandidates _) (VeilM.pickSuchThat τ p name >>= f) :=
   ConstrainedExtractResult.pickList_bind _ _ _ _ p (instec := instec) hf
 
@@ -677,8 +679,8 @@ def ConstrainedExtractResult.pickSubtype_bind_VeilM (p : τ → Prop) [∀ x, De
     {name : Option String} [instec : ExtCandidates Candidates κ p] [NamedRep κ]
     {f : {x // p x} → VeilM mode ρ σ β}
     (hf : ∀ x, ConstrainedExtractResult κ (VeilExecM mode ρ σ)
-      (VeilMultiExecM κ ExId ρ σ) (findOfCandidates _) (f x)) :
-    ConstrainedExtractResult κ (VeilExecM mode ρ σ) (VeilMultiExecM κ ExId ρ σ)
+      (VeilMultiExecM κ Int ρ σ) (findOfCandidates _) (f x)) :
+    ConstrainedExtractResult κ (VeilExecM mode ρ σ) (VeilMultiExecM κ Int ρ σ)
       (findOfCandidates _) (VeilM.pickSubtype τ p name >>= f) :=
   ConstrainedExtractResult.pickSubtype_bind _ _ _ p (instec := instec.named name) hf
 

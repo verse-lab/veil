@@ -17,6 +17,8 @@ public import Std.Data.ExtTreeSet.Lemmas
 
 namespace Veil
 
+open scoped Veil.TermReduce
+
 section IteratedProd
 
 /-- This always has a `Unit` at the end. -/
@@ -404,20 +406,20 @@ These are `@[macro_inline]` for the same reason as the instances in
 with the predicate compiled in, instead of calling `List.decidableBAll` with a closure.
 -/
 
-@[macro_inline] instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred p] :
+@[macro_inline] scoped instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred p] :
     Decidable (∀ a, p a) :=
   decidable_of_iff (inst.allValues.all (fun a => decide (p a)) = true) <| by
     simp only [List.all_eq_true, decide_eq_true_eq]
     exact ⟨fun h a => h a (inst.complete a), fun h a _ => h a⟩
 
-@[macro_inline] instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred p] :
+@[macro_inline] scoped instance {α : Type u} [inst : Enumeration α] {p : α → Prop} [DecidablePred p] :
     Decidable (∃ a, p a) :=
   decidable_of_iff (inst.allValues.any (fun a => decide (p a)) = true) <| by
     simp only [List.any_eq_true, decide_eq_true_eq]
     exact ⟨fun ⟨a, _, h⟩ => ⟨a, h⟩, fun ⟨a, h⟩ => ⟨a, inst.complete a, h⟩⟩
 
 /-- Decide equality of finite functions by checking their complete domain enumeration. -/
-instance [Enumeration α] {β : α → Type v} [∀ a, DecidableEq (β a)] :
+scoped instance [Enumeration α] {β : α → Type v} [∀ a, DecidableEq (β a)] :
     DecidableEq (∀ a, β a) := fun f g =>
   decidable_of_iff (∀ a, f a = g a) ⟨funext, fun h a => congrFun h a⟩
 

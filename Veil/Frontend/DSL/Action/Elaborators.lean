@@ -32,7 +32,7 @@ open Lean Elab Command Term
     `Unit` (the environment does not care about the return value)
 
   2. Then, from `act`/`act.ext`, we derive `act.wp`/`act.ext.wp`, their
-  WP parameterised by a set of exceptions IDs `ExId → Prop` which we
+  WP parameterised by a set of exceptions IDs `Int → Prop` which we
   DON'T care about (assertion failures are treated as exceptions, and
   each assertion has its unique ID).
 -/
@@ -403,8 +403,9 @@ where
         -- |>.andThen localRPropSimp
         |>.andThen (evalOpenClassical ∘ getSetSimp)
     let step3SimpResult ← step3Simp source
-    -- unless ← isDefEq step3SimpResult.expr step3Target do
-    let some decidableNeutralizationPf ← isDefEqModuloDecidableInstances step3SimpResult.expr step3Target
+    -- Expose decisions inside the generated WP while preserving a leading conditional.
+    let targetBody := (← delta? step3Target (· == wpDef_fqn)).getD step3Target
+    let some decidableNeutralizationPf ← isDefEqModuloDecidableInstances step3SimpResult.expr targetBody
       | throwError m!"wp_local_eq step 3 (eliminate field rep) failed for {nm}\n  step3SimpResult: {step3SimpResult.expr}\n  step3Target: {step3Target}"
     let subproof ← do
       -- `pf1 : source = step3SimpResult.expr`

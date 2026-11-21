@@ -22,10 +22,10 @@ e.g., debugging, when we hope to store the complete information of a state `σ�
 instance (priority := high) instBEqInt : BEq Int := instBEqOfDecidableEq
 
 -- Unlike Std's instances, these compare stored keys using `BEq` rather than `Ord`.
-instance [Ord α] [BEq α]: BEq (Std.TreeSet α) where
+scoped instance [Ord α] [BEq α]: BEq (Std.TreeSet α) where
   beq s1 s2 := s1.toArray == s2.toArray
 
-instance [Ord α] [BEq α] [BEq β]: BEq (Std.TreeMap α β) where
+scoped instance [Ord α] [BEq α] [BEq β]: BEq (Std.TreeMap α β) where
   beq s1 s2 := s1.toArray == s2.toArray
 
 -- FIXME: provide more reasonable `BEq` instances; same below
@@ -38,29 +38,32 @@ instance : BEq (CanonicalFieldWrapper FieldDomain FieldCodomain) where
 We always need `Hashable` instance. When we run the model checker,
 we always store the hashable value of state representation `σᵣ` in `HashSet`.
 -/
-instance instHashableOfTreeSet [Hashable α] [Ord α]: Hashable (Std.TreeSet α) where
+scoped instance instHashableOfTreeSet [Hashable α] [Ord α]: Hashable (Std.TreeSet α) where
   hash s := s.foldl (fun r a => mixHash r (hash a)) 7
 
-instance instHashableOfTreeMap [Ord α] [Hashable α] [Hashable β] : Hashable (Std.TreeMap α β) where
+scoped instance instHashableOfTreeMap [Ord α] [Hashable α] [Hashable β] : Hashable (Std.TreeMap α β) where
   hash s := s.foldl (fun r a b => mixHash r (mixHash (hash a) (hash b))) 7
 
-instance instHashableOfExtTreeSet [Ord α] [Hashable α] [Std.TransOrd α]: Hashable (Std.ExtTreeSet α) where
+scoped instance instHashableOfExtTreeSet [Ord α] [Hashable α] [Std.TransOrd α]: Hashable (Std.ExtTreeSet α) where
   hash s := s.foldl (fun r a => mixHash r (hash a)) 7
 
-instance instHashableOfExtTreeMap [Ord α] [Hashable α] [Hashable β] [Std.TransOrd α]
+scoped instance instHashableOfExtTreeMap [Ord α] [Hashable α] [Hashable β] [Std.TransOrd α]
   : Hashable (Std.ExtTreeMap α β) where
   hash s := s.foldl (fun r a b => mixHash r (mixHash (hash a) (hash b))) 7
 
 instance : Hashable (CanonicalFieldWrapper FieldDomain FieldCodomain) where
   hash _ := 13
 
-instance instHashableForFiniteFunction {α : Type u} {β : Type v}
+scoped instance instHashableForFiniteFunction {α : Type u} {β : Type v}
   [Veil.Enumeration α] [Hashable β] : Hashable (α → β) where
   hash f :=
     let l := Veil.Enumeration.allValues (α := α)
     l.foldl (fun r a => mixHash r (hash (f a))) 7
 
-deriving instance Hashable for Sum
+scoped instance [Hashable α] [Hashable β] : Hashable (Sum α β) where
+  hash
+    | .inl a => mixHash 0 (hash a)
+    | .inr b => mixHash 1 (hash b)
 
 /-!
 `Ord` instances
@@ -69,18 +72,18 @@ If we want to use `symmetric reduction` in model checking, we need `Ord` instanc
 to make the states comparable.
  -/
 
-attribute [instance] lexOrd
+attribute [scoped instance] lexOrd
 
-instance [Ord α] : Ord (Std.TreeSet α) where
+scoped instance [Ord α] : Ord (Std.TreeSet α) where
   compare s1 s2 := compare s1.toArray s2.toArray
 
-instance [Ord α] [Ord β] : Ord (Std.TreeMap α β) where
+scoped instance [Ord α] [Ord β] : Ord (Std.TreeMap α β) where
   compare s1 s2 := compare s1.toArray s2.toArray
 
-instance [Ord α] [Std.TransOrd α] : Ord (Std.ExtTreeSet α) where
+scoped instance [Ord α] [Std.TransOrd α] : Ord (Std.ExtTreeSet α) where
   compare s1 s2 := compare s1.toList s2.toList
 
-instance instOrdExtTreeMap [Ord α] [Ord β] [Std.TransOrd α]
+scoped instance instOrdExtTreeMap [Ord α] [Ord β] [Std.TransOrd α]
 : Ord (Std.ExtTreeMap α β) where
   compare m1 m2 := compare m1.toList m2.toList
 
@@ -88,13 +91,13 @@ instance instOrdExtTreeMap [Ord α] [Ord β] [Std.TransOrd α]
 `DecidableEq` instances
 -/
 
-instance instDecidableMemList [DecidableEq α] (a : α) (l : List α) : Decidable (List.Mem a l) := List.instDecidableMemOfLawfulBEq a l
+scoped instance instDecidableMemList [DecidableEq α] (a : α) (l : List α) : Decidable (List.Mem a l) := List.instDecidableMemOfLawfulBEq a l
 
-instance instDecidableEqExtTreeSet [Ord α] [DecidableEq α] [Std.TransOrd α]
+scoped instance instDecidableEqExtTreeSet [Ord α] [DecidableEq α] [Std.TransOrd α]
   : DecidableEq (Std.ExtTreeSet α) := fun t₁ t₂ =>
   decidable_of_iff (t₁.toList = t₂.toList) Std.ExtTreeSet.toList_inj
 
-instance instDecidableEqExtTreeMap [Ord α] [DecidableEq α] [DecidableEq β]
+scoped instance instDecidableEqExtTreeMap [Ord α] [DecidableEq α] [DecidableEq β]
   [Std.TransOrd α] : DecidableEq (Std.ExtTreeMap α β) := fun m1 m2 =>
   decidable_of_iff (m1.toList = m2.toList) Std.ExtTreeMap.toList_inj
 
@@ -102,7 +105,7 @@ instance instDecidableEqExtTreeMap [Ord α] [DecidableEq α] [DecidableEq β]
 `Std.TransOrd` and `Std.LawfulEqOrd` instances
 -/
 
-instance instTransOrdExtTreeSet [Ord α] [Std.TransOrd α]
+scoped instance instTransOrdExtTreeSet [Ord α] [Std.TransOrd α]
   : Std.TransOrd (Std.ExtTreeSet α) where
   eq_swap := by
     intro s1 s2
@@ -113,7 +116,7 @@ instance instTransOrdExtTreeSet [Ord α] [Std.TransOrd α]
     dsimp [compare] at *
     apply Std.TransCmp.isLE_trans h1 h2
 
-instance instTransOrdExtTreeMap [Ord α] [Ord β] [Std.TransOrd α] [Std.TransOrd β]
+scoped instance instTransOrdExtTreeMap [Ord α] [Ord β] [Std.TransOrd α] [Std.TransOrd β]
   : Std.TransOrd (Std.ExtTreeMap α β) where
   eq_swap := by
     intro m1 m2
@@ -130,7 +133,7 @@ instance instTransOrdExtTreeMap [Ord α] [Ord β] [Std.TransOrd α] [Std.TransOr
     exact Std.TransCmp.isLE_trans h1' h2'
 
 
-instance instLawfulOrdExtTreeSet [Ord α] [Std.TransOrd α] [Std.LawfulEqOrd α]
+scoped instance instLawfulOrdExtTreeSet [Ord α] [Std.TransOrd α] [Std.LawfulEqOrd α]
   : Std.LawfulEqOrd (Std.ExtTreeSet α) where
   compare_self := by
     intro s
@@ -250,23 +253,23 @@ instance [Inhabited β] : Inhabited (Veil.CanonicalField α β) where
 
 -- We make these high priority so typeclass inference doesn't get into strange
 -- loops trying to figure them out via the lifting of `ToJson` for fields
-attribute [instance high] instToJsonBool
-attribute [instance high] instToJsonNat
-attribute [instance high] instToJsonInt
-attribute [instance high] instToJsonString
+attribute [scoped instance high] instToJsonBool
+attribute [scoped instance high] instToJsonNat
+attribute [scoped instance high] instToJsonInt
+attribute [scoped instance high] instToJsonString
 
-instance : ToJson (Fin n) where
+scoped instance : ToJson (Fin n) where
   toJson := fun f => toJson f.val
 
-instance (priority := low) reprOfUnrepresentable : Repr α where
+scoped instance (priority := low) reprOfUnrepresentable : Repr α where
   reprPrec _ _ := "<unrepresentable>"
 
-instance (priority := low) jsonOfRepr [Repr α] : ToJson α where
+scoped instance (priority := low) jsonOfRepr [Repr α] : ToJson α where
   toJson := fun a => Json.str (toString (repr a))
 
 -- NOTE: Mathlib has this but Veil's dependencies do not
 /-- A subtype displays as its value, e.g. a quorum as the set it is. -/
-instance [ToJson α] {P : α → Prop} : ToJson (Subtype P) where
+scoped instance [ToJson α] {P : α → Prop} : ToJson (Subtype P) where
   toJson x := toJson x.val
 
 /-! The concrete field representations below display their logical contents (the entries of the
@@ -326,19 +329,19 @@ def finitePredicateJson {α : Type u} [Enumeration α]
     (Enumeration.allValues (α := α)).foldl (fun out a => if f a then out.push a else out) #[]
 
 /-- ToJson for curried finite functions: uncurry and use the product instance. -/
-instance (priority := high) finFunctionToJsonCurry (α₁ : Type u) (α₂ : Type v) (β : Type w)
+scoped instance (priority := high) finFunctionToJsonCurry (α₁ : Type u) (α₂ : Type v) (β : Type w)
     [ToJson α₁] [Enumeration α₁] [ToJson α₂] [Enumeration α₂] [ToJson β]
     [inst : ToJson (α₁ × α₂ → β)] : ToJson (α₁ → α₂ → β) where
   toJson := fun f => inst.toJson (fun (x, y) => f x y)
 
 /-- ToJson for finite functions: the map of all input/output pairs. A function of several arguments
 is uncurried by `finFunctionToJsonCurry`, so its keys are tuples. -/
-instance (priority := low) finFunctionToJson (α : Type u) (β : Type v)
+scoped instance (priority := low) finFunctionToJson (α : Type u) (β : Type v)
     [ToJson α] [Enumeration α] [ToJson β] : ToJson (α → β) where
   toJson := finiteFunctionJson toJson toJson
 
 /-- ToJson for boolean predicates: the set of the elements where the predicate is true. -/
-instance (priority := high) essentiallyFinSetToJson (α : Type u)
+scoped instance (priority := high) essentiallyFinSetToJson (α : Type u)
     [ToJson α] [Enumeration α] : ToJson (α → Bool) where
   toJson := finitePredicateJson toJson
 
@@ -356,22 +359,22 @@ instance (priority := high) essentiallyFinSetDisplay (α : Type u)
     [Display α] [Enumeration α] : Display (α → Bool) where
   display := finitePredicateJson Display.display
 
-instance jsonOfTreeSet [Ord α] [ToJson α] : ToJson (Std.TreeSet α) where
+scoped instance jsonOfTreeSet [Ord α] [ToJson α] : ToJson (Std.TreeSet α) where
   toJson s := ValueDisplay.setJson toJson s.toArray
 
-instance jsonOfTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Std.TreeMap α β) where
+scoped instance jsonOfTreeMap [Ord α] [ToJson α] [ToJson β] : ToJson (Std.TreeMap α β) where
   toJson m := ValueDisplay.mapJson toJson toJson m.toArray
 
-instance jsonOfExtTreeSet [Ord α] [ToJson α] [Std.TransOrd α] : ToJson (Std.ExtTreeSet α) where
+scoped instance jsonOfExtTreeSet [Ord α] [ToJson α] [Std.TransOrd α] : ToJson (Std.ExtTreeSet α) where
   toJson s := ValueDisplay.setJson toJson s.toArray
 
-instance jsonOfExtTreeMap [Ord α] [ToJson α] [ToJson β] [Std.TransOrd α] : ToJson (Std.ExtTreeMap α β) where
+scoped instance jsonOfExtTreeMap [Ord α] [ToJson α] [ToJson β] [Std.TransOrd α] : ToJson (Std.ExtTreeMap α β) where
   toJson m := ValueDisplay.mapJson toJson toJson m.toArray
 
-instance jsonOfHashSet [BEq α] [Hashable α] [ToJson α] : ToJson (Std.HashSet α) where
+scoped instance jsonOfHashSet [BEq α] [Hashable α] [ToJson α] : ToJson (Std.HashSet α) where
   toJson s := ValueDisplay.setJson toJson s.toArray
 
-instance jsonOfHashMap [BEq α] [Hashable α] [ToJson α] [ToJson β] : ToJson (Std.HashMap α β) where
+scoped instance jsonOfHashMap [BEq α] [Hashable α] [ToJson α] [ToJson β] : ToJson (Std.HashMap α β) where
   toJson m := ValueDisplay.mapJson toJson toJson m.toArray
 
 instance [Ord α] [Display α] : Display (Std.TreeSet α) where

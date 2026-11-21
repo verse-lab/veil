@@ -424,7 +424,6 @@ end fQueue
 
 namespace Std.HashSet
 
-@[grind ←]
 theorem mem_of_mem_insert'' {α : Type} [BEq α] [Hashable α] [LawfulBEq α]
   (s : Std.HashSet α) (x y : α) (h : x ∈ s) : x ∈ s.insert y := by
   simp
@@ -437,7 +436,6 @@ theorem mem_insert_self' {α : Type} [BEq α] [Hashable α] [LawfulBEq α]
   unfold Membership.mem HashSet.insert
   apply HashMap.mem_insertIfNew_self
 
-@[grind ←]
 theorem mem_union {α : Type} [BEq α] [Hashable α] [LawfulBEq α]
   (s₁ s₂ : Std.HashSet α) (x : α) :
   x ∈ s₁.union s₂ ↔ x ∈ s₁ ∨ x ∈ s₂ := by
@@ -460,7 +458,6 @@ theorem mem_union {α : Type} [BEq α] [Hashable α] [LawfulBEq α]
     | inl h_in_s1 => exact Std.HashSet.mem_union_of_left h_in_s1
     | inr h_in_s2 => exact Std.HashSet.mem_union_of_right h_in_s2
 
-@[grind ←]
 theorem mem_list_of_mem_insertMany {β : Type} [BEq β] [Hashable β] [LawfulBEq β]
     {l : List β} {a : β}
     (h : a ∈ Std.HashSet.insertMany Std.HashSet.emptyWithCapacity l) : a ∈ l := by
@@ -477,6 +474,12 @@ theorem mem_insertMany_of_mem_list [BEq β] [Hashable β] [LawfulBEq β]
 
 end Std.HashSet
 
+namespace Veil
+
+attribute [scoped grind ←] Std.HashSet.mem_of_mem_insert''
+  Std.HashSet.mem_union Std.HashSet.mem_list_of_mem_insertMany
+
+end Veil
 
 namespace Std.HashMap
 
