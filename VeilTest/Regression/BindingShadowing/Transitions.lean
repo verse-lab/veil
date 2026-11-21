@@ -36,3 +36,26 @@ example : fromTheoryParameter.ext.tr true background before after := by
   rfl
 
 end TransitionParameterShadowing
+
+veil module PrimedAliasWarning
+
+individual value' : Nat
+individual value : Bool
+
+#gen_state
+
+transition readsPostState { value' = true }
+
+/--
+warning: parameter `value'` shadows mutable state component `value`; references to this name resolve to the parameter
+-/
+#guard_msgs in
+transition shadowsPostState (value' : Bool) { value' = true }
+
+/--
+warning: local `value'` shadows mutable state component `value`; references to this name resolve to the local
+-/
+#guard_msgs in
+transition localShadowsPostState { let value' := true; value' = true }
+
+end PrimedAliasWarning

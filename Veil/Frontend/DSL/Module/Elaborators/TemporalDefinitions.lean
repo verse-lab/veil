@@ -361,6 +361,26 @@ private def TemporalProperty.clearPending (tp : TemporalProperty) (side : Tempor
     checkPending := tp.checkPending && !side.needsCheck
     verifyPending := tp.verifyPending && !side.needsVerify }
 
+open Batteries.ExtendedBinder in
+/-- Mutable fields are visible in state atoms. A temporal binder can shadow
+one in any state atom within the scope of its body. -/
+private partial def temporalStateScopes (formula : TSyntax `tlfml) : Array Syntax.Range :=
+  let withBinder (binder : Syntax) (body : TSyntax `tlfml) :=
+    let scopes := temporalStateScopes body
+    if scopes.isEmpty then scopes else scopes ++ binder.getRange?.toArray
+  match formula with
+  | `(tlfml| ⌜ $_:term ⌝) => formula.raw.getRange?.toArray
+  | `(tlfml| ⌞ $_:term ⌟)
+  | `(tlfml| Enabled $_:term)
+  | `(tlfml| ⟨ $_:term ⟩)
+  | `(tlfml| 𝒲ℱ $_:term)
+  | `(tlfml| 𝒮ℱ $_:term)
+  | `(tlfml| $_:term) => #[]
+  | `(tlfml| ∀ $binder:extBinder, $body:tlfml)
+  | `(tlfml| ∃ $binder:extBinder, $body:tlfml) => withBinder binder body
+  | `(tlfml| $_:tlfml_bigop $binder:binderIdent ∈ $_:term, $body:tlfml) => withBinder binder body
+  | _ => formula.raw.getArgs.flatMap fun child => temporalStateScopes ⟨child⟩
+
 /-- Generate the definition of `tp` for `side`, handling failures through `Module.dropTemporalDefinition`
 and clearing its pending flag. -/
 def Module.generateTemporalDefinition (mod : Module) (tp : TemporalProperty) (side : TemporalTarget) :
@@ -373,8 +393,12 @@ def Module.generateTemporalDefinition (mod : Module) (tp : TemporalProperty) (si
       | .ok result =>
         -- A property with both definitions has already been checked for shadowing on the deep side.
         if side.needsCheck || !(← getEnv).contains (mod.name ++ toTemporalAstName tp.name) then
-          let params := mod.parameters.foldl (fun names p => names.insert p.name) ({} : NameSet)
+          let params := mod.parameters.foldl
+            (fun names p => if p.isGeneratedFieldContext then names else names.insert p.name) ({} : NameSet)
+          let scopes := temporalStateScopes tp.formula
           mod.warnTermShadows tp.formula firstTree (parameters := params)
+            (includeState := fun span => scopes.any fun scope =>
+              scope.start ≤ span.start && span.stop ≤ scope.stop)
         pure result
       | .error errs => mod.dropTemporalDefinition tp side errs
     return mod.modifyTemporalProperty tp.name (·.clearPending side)

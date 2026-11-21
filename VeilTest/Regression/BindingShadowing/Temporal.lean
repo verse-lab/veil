@@ -26,6 +26,13 @@ temporal [theoryFieldInStateAtom] ∀ limit : Bool, □ ⌜ limit = false ⌝
 #guard_msgs (warning, substring := true) in
 temporal [theoryFieldInPureAtom] ∀ limit : Bool, □ ⌞ limit = false ⌟
 
+-- A state atom elsewhere in the formula does not put fields in scope here.
+#guard_msgs in
+temporal [pureQuantifier] (∀ value : Bool, □ ⌞ value = false ⌟) ∧ □ ⌜ value = false ⌝
+
+#guard_msgs in
+temporal [pureLocal] □ ⌞ let value := false; value = false ⌟ ∧ □ ⌜ value = false ⌝
+
 -- The true quantifier instance violates each property even though both fields stay false.
 /-- error: ❌ Violation: liveness_failure (violates: stateField) -/
 #guard_msgs (substring := true) in

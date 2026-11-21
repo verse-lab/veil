@@ -52,6 +52,28 @@ procedure local_shadows_theory {
   return bias
 }
 
+/--
+warning: local `bias` shadows immutable theory component `bias`; references to this name resolve to the local
+-/
+#guard_msgs(warning) in
+procedure repeated_local_shadows_theory_once {
+  let bias := 11
+  let bias := bias + 1
+  return bias
+}
+
+/--
+warning: parameter `bias` shadows immutable theory component `bias`; references to this name resolve to the parameter
+---
+warning: local `bias` shadows parameter `bias`; references to this name resolve to the local
+-/
+#guard_msgs(warning) in
+procedure repeated_local_shadows_parameter_once (bias : Nat) {
+  let bias := bias + 1
+  let bias := bias + 1
+  return bias
+}
+
 /- The shadowing parameter is deliberately inconsistent with the ghost
 relation.  Ghost defaults must use the actual theory/state bindings rather
 than accidentally reconstructing them from the same-named parameter. -/
