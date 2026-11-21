@@ -4,7 +4,7 @@ public import Veil
 
 /-! Regression for #182. Opening 64 fields for each of 64 assignments produces
 long runs of unused field views. Cleanup must handle them at the default
-recursion limit and retain the field read by the final assignment. -/
+recursion limit in both an initializer and an action, retaining the live field reads. -/
 
 veil module WideInitializer
 
@@ -142,16 +142,82 @@ after_init {
   b63 := b0
 }
 
-action step { b0 := false }
+action step {
+  b0 := false
+  b1 := true
+  b2 := true
+  b3 := true
+  b4 := true
+  b5 := true
+  b6 := true
+  b7 := true
+  b8 := true
+  b9 := true
+  b10 := true
+  b11 := true
+  b12 := true
+  b13 := true
+  b14 := true
+  b15 := true
+  b16 := true
+  b17 := true
+  b18 := true
+  b19 := true
+  b20 := true
+  b21 := true
+  b22 := true
+  b23 := true
+  b24 := true
+  b25 := true
+  b26 := true
+  b27 := true
+  b28 := true
+  b29 := true
+  b30 := true
+  b31 := true
+  b32 := true
+  b33 := true
+  b34 := true
+  b35 := true
+  b36 := true
+  b37 := true
+  b38 := true
+  b39 := true
+  b40 := true
+  b41 := true
+  b42 := true
+  b43 := true
+  b44 := true
+  b45 := true
+  b46 := true
+  b47 := true
+  b48 := true
+  b49 := true
+  b50 := true
+  b51 := true
+  b52 := true
+  b53 := true
+  b54 := true
+  b55 := true
+  b56 := true
+  b57 := true
+  b58 := true
+  b59 := true
+  b60 := true
+  b61 := true
+  b62 := true
+  b63 := b0
+}
 
-invariant [lastField] b63
+invariant [lastFieldCopiesFirst] b63 = b0
 
 #gen_spec
 
 #guard_msgs (drop info) in
-sat trace [copySurvives] {
+sat trace [copyAfterEachWrite] {
+  assert (b0 && !b62 && b63)
   step
-  assert (!b0 && b63)
+  assert (!b0 && b62 && !b63)
 }
 
 end WideInitializer
