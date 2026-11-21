@@ -2,8 +2,6 @@ module
 
 public import Veil
 
-attribute [instance] leOfOrd
-
 veil module RingNat
 
 immutable individual allNodes : List Nat
