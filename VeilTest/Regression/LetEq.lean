@@ -104,6 +104,10 @@ end LetEqWP
 
 #print LetEqWP.step.ext.wp
 
+run_cmd do
+  unless (← getEnv).contains `LetEqWP.step.ext.wp_local_eq do
+    throwError "missing local WP equality theorem for LetEqWP.step.ext"
+
 #guard_const_has_forall_binder LetEqWP.step.ext.wp dd
 #guard_const_has_forall_binder LetEqWP.step.ext.wp ee
 #guard_const_contains LetEqWP.step.ext.wp Veil.letEq
