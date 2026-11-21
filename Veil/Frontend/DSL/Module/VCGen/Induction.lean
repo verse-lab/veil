@@ -30,9 +30,15 @@ namespace Veil
 
 /-- Process SMT outputs and build counterexamples for inductive VCs. -/
 private def overallSmtResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m]
-    [MonadLiftT MetaM m] (actName : Name) (outputs : Array SmtOutput) : m (Option SmtResult) := do
+    [MonadLiftT MetaM m] [MonadOptions m] (actName : Name) (outputs : Array SmtOutput) :
+    m (Option SmtResult) := do
   let mod ← getCurrentModule
+  let customSolver := veil.solver.get (← getOptions) matches .custom
   buildSmtResult outputs (fun sat => do
+    -- Custom tactics still see the original binder names. A solver model from
+    -- such a tactic does not identify its module parameters for reconstruction.
+    if customSolver && mod.parameters.any (·.kind matches .userParameter) then
+      return sat.map (fun _ => none)
     sat.filterMapM (fun ce => return ← ce.mapM (fun ce => do
       try
         let veilModel ← buildCounterexampleExprs ce mod actName
@@ -44,7 +50,7 @@ private def overallSmtResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT B
 
 /-- Create a DischargerResult from SMT outputs for inductive VCs. -/
 private def mkDischargerResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m]
-    [MonadLiftT (EIO Std.CloseableChannel.Error) m] [MonadLiftT MetaM m]
+    [MonadLiftT (EIO Std.CloseableChannel.Error) m] [MonadLiftT MetaM m] [MonadOptions m]
     (expectedName : Name) (actName : Name)
     (ch : Std.CloseableChannel ((Name × Nat) × Smt.AsyncOutput))
     (data : Witness ⊕ Exception) (time : Nat) : m (DischargerResult SmtResult) := do
@@ -82,7 +88,9 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
     else { dischargerId with name := Name.mkSimple s!"{dischargerId.name.getString!}{nameSuffix}" }
   -- Proof inlining only needs declarations, not mutable runtime handles.
   let env0 := Veil.Verifier.clearVerifierRuntime (← getEnv)
-  Discharger.fromTermWith term vcStatement dischargerId ch fun smtCh data time => do
+  let mod ← getCurrentModule
+  let modelParams := if veil.solver.get (← getOptions) matches .custom then #[] else mod.parameters
+  Discharger.fromTermWith term vcStatement dischargerId ch (modelParams := modelParams) fun smtCh data time => do
     let data : Witness ⊕ Exception ← match data with
       | .inl witness => do
         let witness ← inlineFreshProofs env0 witness

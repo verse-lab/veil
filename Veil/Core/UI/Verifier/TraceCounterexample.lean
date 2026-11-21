@@ -47,7 +47,7 @@ structure VeilTrace where
 
   /-- Sort instantiation info: maps sort name to pretty-printed type name. -/
   sortInstInfo : Array (Name × String) := #[]
-  /-- Sort substitution: maps sort parameter fvars to their concrete types. -/
+  /-- Substitution of original sort and value parameters by their concrete model arguments. -/
   sortSubst : Array (Expr × Expr) := #[]
   /-- Enum sort adaptations used for converting SMT `Fin` values to enum constructors. -/
   enumAdapts : Array EnumSortAdaptation := #[]
@@ -217,13 +217,13 @@ def resolveActionFromTag (ctx : ModelContext) (tagExpr : Expr)
 /-- Build a Label constructor expression from action name and parameter values.
     Uses the transition index and action name to look up parameters.
     First tries specific params (trIdx, argIdx), then any-action params (trIdx, actionName, argIdx). -/
-def buildLabelFromAction (mod : Module) (sortArgs : Array Expr)
+def buildLabelFromAction (mod : Module) (moduleArgs : Array Expr)
     (actionName : Name) (trIdx : Nat)
     (specificParams : Std.HashMap (Nat × Nat) Expr)
     (anyActionParams : Std.HashMap (Nat × Name × Nat) Expr)
     (enumAdapts : Array EnumSortAdaptation := #[])
     : MetaM (Option Expr) :=
-  buildLabelExprCore mod sortArgs actionName (fun idx =>
+  buildLabelExprCore mod moduleArgs actionName (fun idx =>
     -- First try specific params, then fall back to any-action params
     specificParams[(trIdx, idx)]? <|> anyActionParams[(trIdx, actionName, idx)]?
   ) enumAdapts
@@ -242,38 +242,30 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
   -- Resolve sort arguments (including enum concretization when mappings are complete)
   let (sortArgs, enumAdapts) ← resolveSortArgsAndEnumAdapts model mod sortMap
 
-  -- Build sort substitution map from resolved sort args
-  let sortSubst ← buildSortSubstFromSortArgs model mod sortArgs
+  -- Resolve the complete structural parameter list and its dependent substitution.
+  let (moduleArgs, sortSubst) ← resolveModuleArgs model mod sortArgs enumAdapts
 
-  -- Separate extra sorts
-  let moduleSortNames := mod.sortParams.map (·.1.name) |>.toList
-  let extraSorts ← model.sorts.filterM fun (sortExpr, _) => do
-    return !(← getExprName model.ctx sortExpr).any moduleSortNames.contains
+  let (sortInstInfo, extraSorts) ← classifyModelSorts model mod sortArgs
 
   -- Classify model values
   let (stateFieldMaps, theoryFields, transitionTags, specificParams, anyActionParams, tagToAction, extraVals) ←
     classifyTraceModelValues model mod numStates
 
-  -- Build sort instantiation info
-  let sortInstInfo ← (mod.sortParams.zip sortArgs).mapM fun ((sp, _), cardExpr) => do
-    let typeStr ← Meta.ppExpr cardExpr
-    pure (sp.name, typeStr.pretty)
-
   -- Build Theory expression and type
-  let theoryExpr ← buildTheoryExpr mod sortArgs theoryFields enumAdapts
-  let theoryType ← mkAppOptM (mod.name ++ `Theory) <| sortArgs.map (Option.some ·)
+  let theoryExpr ← buildTheoryExpr mod moduleArgs theoryFields enumAdapts
+  let theoryType ← mkAppOptM (mod.name ++ `Theory) <| moduleArgs.map (Option.some ·)
 
   -- Build State type
   let fieldAbstractTypeName := mod.name ++ fieldAbstractDispatcherName
-  let dispatcher ← mkAppM fieldAbstractTypeName sortArgs
+  let dispatcher ← mkAppM fieldAbstractTypeName moduleArgs
   let stateType ← mkAppM (mod.name ++ `State) #[dispatcher]
 
   -- Build State expressions for each state
   let stateExprs ← stateFieldMaps.mapM fun fieldMap => do
-    buildStateExpr mod sortArgs fieldMap enumAdapts
+    buildStateExpr mod moduleArgs fieldMap enumAdapts
 
   -- Build Label type
-  let labelType ← mkAppM (mod.name ++ `Label) sortArgs
+  let labelType ← mkAppM (mod.name ++ `Label) moduleArgs
 
   -- Build Label expressions for each transition
   let defaultLabel := mkAppOptM ``default #[some labelType, none]
@@ -281,7 +273,7 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
     let trIdx := i + 1  -- Tags are 1-indexed (_tr1_tag, _tr2_tag, ...)
     let some tagExpr := transitionTags[trIdx]? | defaultLabel
     let some (actionName, _tagValue) ← resolveActionFromTag model.ctx tagExpr tagToAction | defaultLabel
-    let some labelExpr ← buildLabelFromAction mod sortArgs actionName trIdx specificParams anyActionParams enumAdapts | defaultLabel
+    let some labelExpr ← buildLabelFromAction mod moduleArgs actionName trIdx specificParams anyActionParams enumAdapts | defaultLabel
     pure labelExpr
 
   return {
@@ -359,7 +351,7 @@ unsafe def VeilTrace.toJson (vt : VeilTrace)
   let sortTypes := vt.sortSubst.map (·.2)
   let extraValsJson := Json.mkObj <| ← vt.extraVals.toList.mapM fun (nameExpr, valueExpr) => do
     (vt.ctx.toExprWithCtx nameExpr).runMetaM fun nameExpr => do
-      let nameStr := (← Meta.ppExpr nameExpr).pretty
+      let nameStr ← modelValueDisplayName nameExpr
       let concreteType := ((← Meta.inferType nameExpr).replaceFVars sortFVars sortTypes).replace
         fun e => if e.isProp then some (mkConst ``Bool) else none
       let adapted ← adaptSmtExprType valueExpr concreteType vt.enumAdapts

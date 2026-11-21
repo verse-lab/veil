@@ -118,6 +118,18 @@ def buildSmtResult [Monad m] [MonadError m] [MonadLiftT BaseIO m]
   -- the SMT solver wasn't involved in proving this goal
   return .none
 
+/-- The supplied parameters give the roles of the leading binders. Rename
+those binders only after elaboration, when changing their names cannot capture
+a reference in the VC or change its meaning. -/
+private def nameModelParameters (type : Expr) (params : List Parameter) : Expr :=
+  match type, params with
+  | .forallE name domain body info, param :: rest =>
+    let name := match param.kind with
+      | .userParameter => modelParameterName param.name
+      | _ => name
+    .forallE name domain (nameModelParameters body rest) info
+  | _, _ => type
+
 /-- Create a discharger that elaborates `term` against the VC statement's type
     and builds its result via `mkResult`.
 
@@ -129,7 +141,8 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
     (mkResult : Std.CloseableChannel ((Name × Nat) × Smt.AsyncOutput) →
       Witness ⊕ Exception → Nat → TermElabM (DischargerResult SmtResult))
-    (traceLabel : String := "discharger") : CommandElabM (Discharger SmtResult) := do
+    (traceLabel : String := "discharger") (modelParams : Array Parameter := #[]) :
+    CommandElabM (Discharger SmtResult) := do
   let cancelTk ← IO.CancelToken.new
   let smtCh ← Std.CloseableChannel.new
   -- Create promises to track start time and result
@@ -167,7 +180,11 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
               liftTermElabM $ do
                 let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
                 let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
-                  withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
+                  withoutErrToSorry do
+                    let goalType ← vcStatement.type
+                    let goalType := if modelParams.any (·.kind matches .userParameter) then
+                      nameModelParameters goalType modelParams.toList else goalType
+                    elabTermEnsuringType term goalType
                 let endTime ← IO.monoMsNow
                 mkResult smtCh (.inl witness) (endTime - startTime)
           catch ex =>
