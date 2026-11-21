@@ -328,8 +328,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
   let (assertion, numTransitions, vcName) ← Command.runTermElabM fun _ => do
     let expandedSpec := (← parseTraceSpec spec).flatMap expandTraceLine
     let numTransitions := expandedSpec.filter (!· matches .assertion _) |>.length
-    let stateIds ← (List.range (numTransitions + 1)).mapM fun i =>
-      mkIdent <$> mkFreshUserName (Name.mkSimple s!"st{i}")
+    let stateIds ← (List.range (numTransitions + 1)).mapM mkTraceStateIdent
 
     let sorts ← mod.uninterpretedParamIdents
     let theoryId ← mkIdent <$> mkFreshUserName `th

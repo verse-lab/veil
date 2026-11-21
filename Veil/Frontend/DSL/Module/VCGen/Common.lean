@@ -23,6 +23,13 @@ namespace Veil
 
 /-! ## Symbolic Transition Binders -/
 
+/-- Bind trace state `i` under an atomic numeric Lean name. A source identifier (even `«0»`)
+    has a string name, so erasing macro scopes during solver preprocessing cannot make it
+    collide with a state. Lean requires binder identifiers to be atomic. After `veil_destruct`
+    the decoder recovers the index from the numeric parent of each field name. -/
+def mkTraceStateIdent (i : Nat) : TermElabM Ident :=
+  Lean.mkIdent <$> mkFreshUserName (.num .anonymous i)
+
 /-- Quantify the action tag type and enumeration used by symbolic transitions. -/
 def mkActionTagBinders (tagType : Ident) : TermElabM (Array (TSyntax ``bracketedBinder)) := do
   return #[← `(bracketedBinder| ($tagType : Type)),
