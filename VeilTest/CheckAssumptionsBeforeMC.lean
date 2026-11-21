@@ -114,6 +114,18 @@ temporal (only := check) [alwaysClear] □ ⌜ ¬ flag ⌝
 #guard_msgs in
 #temporal_check interpreted {} assumptions_hold_by decide
 
+-- The same bare name can still denote the theory when no tactic follows.
+def assumptions_hold_by : Theory := {}
+
+/-- info: ✅ No violation (explored 1 states) -/
+#guard_msgs in
+#model_check interpreted {} assumptions_hold_by
+
+-- The theory name can also appear immediately before the proof clause.
+/-- info: ✅ No violation (explored 1 states) -/
+#guard_msgs in
+#model_check interpreted {} assumptions_hold_by assumptions_hold_by decide
+
 end CheckAssumptionsOmittedTheory
 
 def assumptions_hold_by : Nat := 1

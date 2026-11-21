@@ -501,12 +501,13 @@ evaluates assumptions at runtime before state exploration; this clause can be
 used when a separate elaboration-time proof is desired. `Assumptions` is
 automatically unfolded via `dsimp` first; if no tactic is given,
 `first | decide | native_decide` is used. -/
--- NOTE: The commands using this alias are scoped, so the keyword is reserved
--- only in the Veil scope. Using `&` here would let the optional theory parser
--- consume `assumptions_hold_by` as an identifier when the theory is omitted.
-syntax assumptionsHoldBy := "assumptions_hold_by " tacticSeq
+-- NOTE: Keep the keyword non-reserved so it remains usable as a name with
+-- `open Veil`. The optional theory parser checks for the full clause so it
+-- can still accept a bare theory named `assumptions_hold_by`.
+syntax assumptionsHoldBy := &"assumptions_hold_by " tacticSeq
 
-scoped syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
+scoped syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max
+  (notFollowedBy(assumptionsHoldBy) term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
 
 /-- Build the model checker that `#model_check compiled` would run for module `X` with the given
 instantiation, theory and options, *without running it*. Use it outside module `X`, typically in a
@@ -564,7 +565,8 @@ Properties named in brackets are checked alone, in declaration order.
 #temporal_check compiled { node := Fin 3 } {} (route := .ndfs) finite_reach_by native_decide
 ```
 -/
-scoped syntax (name := livenessCheck) "#temporal_check " (propertyName)* (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (finiteReachBy)? (assumptionsHoldBy)? : command
+scoped syntax (name := livenessCheck) "#temporal_check " (propertyName)* (modelCheckMode)? term:max
+  (notFollowedBy(assumptionsHoldBy) term:max)? Parser.Tactic.optConfig (finiteReachBy)? (assumptionsHoldBy)? : command
 
 /-- Execute a concrete Veil action/procedure term using the same nondeterministic
 extraction machinery as `#model_check`, and print every possible return value
@@ -637,6 +639,7 @@ For a module without abstract types or immutable fields:
 #simulate compiled {} {} (numTraces := 100) (maxSteps := 1000) (seed := 42)
 ```
 -/
-scoped syntax (name := simulate) "#simulate " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
+scoped syntax (name := simulate) "#simulate " (modelCheckMode)? term:max
+  (notFollowedBy(assumptionsHoldBy) term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
 
 end Veil
