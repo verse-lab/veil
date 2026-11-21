@@ -25,7 +25,7 @@ action send (n next : node) {
 
 invariant true
 
-/-- error: This assertion might fail when called from send -/
+/-- warning: This assertion might fail when called from send -/
 #guard_msgs in
 #gen_spec
 

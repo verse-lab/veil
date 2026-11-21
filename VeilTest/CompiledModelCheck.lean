@@ -51,7 +51,7 @@ action fail {
 
 invariant true
 
-/-- error: This assertion might fail when called from fail -/
+/-- warning: This assertion might fail when called from fail -/
 #guard_msgs in
 #gen_spec
 
