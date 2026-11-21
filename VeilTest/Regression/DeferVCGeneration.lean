@@ -107,7 +107,7 @@ set_option veil.printCounterexamples false
 
 -- A trace that triggers deferred verification only warns about the assertion.
 /--
-warning: This assertion might fail when called from fail
+warning: This assertion can fail even if the module's invariants hold when `fail` starts.
 ---
 info: ✅ Satisfying trace found
   State 0 (via init):
@@ -140,7 +140,7 @@ action fail { assert false }
 invariant true
 set_option veil.deferVCGeneration false
 
-/-- warning: This assertion might fail when called from fail -/
+/-- warning: This assertion can fail even if the module's invariants hold when `fail` starts. -/
 #guard_msgs in
 #gen_spec
 end DeferThenCheck

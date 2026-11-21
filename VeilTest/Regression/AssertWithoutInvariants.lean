@@ -47,7 +47,7 @@ action fail { assert false }
 #gen_spec
 
 /--
-error: This assertion might fail when called from fail
+warning: This assertion can fail when `fail` runs.
 ---
 error: Initialization must establish the invariant:
   doesNotThrow ... ✅

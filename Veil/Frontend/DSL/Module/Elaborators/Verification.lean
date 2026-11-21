@@ -64,7 +64,7 @@ private def Module.prepareVerification (mod : Module) (stx : Syntax) : CommandEl
   Verifier.runManager
   mod.generateDoesNotThrowVCs
   -- Warn at the assertion site. Explicit invariant checks report failed VCs at the command.
-  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowWarnings
+  Verifier.runFilteredAsync Verifier.isDoesNotThrow (logDoesNotThrowWarnings (!mod.invariants.isEmpty))
   mod.generateInvariantVCs
   -- Invariant VCs are generated here; verifier commands decide when to start them.
   return mod

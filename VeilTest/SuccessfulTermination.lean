@@ -41,9 +41,9 @@ invariant pending S D ∧ btw S N D → le N S
 invariant pending L L → le N L
 
 /--
-warning: This assertion might fail when called from fail
+warning: This assertion can fail even if the module's invariants hold when `fail` starts.
 ---
-warning: This assertion might fail when called from call_fail_req
+warning: This assertion can fail even if the module's invariants hold when `call_fail_req` starts.
 -/
 #guard_msgs in
 #gen_spec
