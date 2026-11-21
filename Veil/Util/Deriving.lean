@@ -600,22 +600,6 @@ def mkReprInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info ind
 
 end
 
-syntax "veil_deriving " ident "for" ident (&"with_name" ident)? (&"with_priority" prio)? : command
-
-elab_rules : command
-| `(veil_deriving $idt:ident for $decl:ident $[with_name $target?:ident]? $[with_priority $priority?:prio]?) => do
-  let declName := decl.getId
-  let className ← resolveGlobalConstNoOverload idt
-  let _ ← match className with
-  | ``BEq         => mkBEqInstCmd declName target? priority?
-  | ``DecidableEq => mkDecidableEqInstCmd declName target? priority?
-  | ``Hashable    => mkHashableInstCmd declName target? priority?
-  | ``Inhabited   => mkInhabitedInstCmd declName target? priority?
-  | ``ToJson      => mkToJsonInstCmd declName target? priority?
-  | ``Display     => mkDisplayInstCmd declName target? priority?
-  | ``Repr        => mkReprInstCmd declName target? priority?
-  | _             => throwError "Unsupported class {className}"
-
 end ForStructure
 
 /-! # Deriving Wrapper Instances for Single-Payload Structures and Subtypes
@@ -722,3 +706,24 @@ elab_rules : command
 end DerivingInstanceForStructure
 
 end Veil.Deriving
+
+namespace Veil
+
+scoped syntax "veil_deriving " ident "for" ident (&"with_name" ident)? (&"with_priority" prio)? : command
+
+open Deriving.ForStructure in
+elab_rules : command
+| `(veil_deriving $idt:ident for $decl:ident $[with_name $target?:ident]? $[with_priority $priority?:prio]?) => do
+  let declName := decl.getId
+  let className ← resolveGlobalConstNoOverload idt
+  let _ ← match className with
+  | ``BEq         => mkBEqInstCmd declName target? priority?
+  | ``DecidableEq => mkDecidableEqInstCmd declName target? priority?
+  | ``Hashable    => mkHashableInstCmd declName target? priority?
+  | ``Inhabited   => mkInhabitedInstCmd declName target? priority?
+  | ``ToJson      => mkToJsonInstCmd declName target? priority?
+  | ``Display     => mkDisplayInstCmd declName target? priority?
+  | ``Repr        => mkReprInstCmd declName target? priority?
+  | _             => throwError "Unsupported class {className}"
+
+end Veil

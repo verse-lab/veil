@@ -57,6 +57,21 @@ def IgnoreExn : Nat := 1
 def TotalOrder : Nat := 8
 #guard TotalOrder == 8
 
+def veil_deriving : Nat := 9
+#guard veil_deriving == 9
+
+namespace StandaloneDeriving
+
+public structure Payload where
+  value : Nat
+
+open scoped Veil in
+veil_deriving Repr for Payload with_name reprPayload with_priority low
+
+example : Repr Payload := reprPayload
+
+end StandaloneDeriving
+
 example {α : Type u} (f : α → α) : f = f := by simp
 
 example (p : Nat → Fin 3 → Prop) (h : ∀ n i, p n i) :
