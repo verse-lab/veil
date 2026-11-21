@@ -600,7 +600,7 @@ def mkReprInstCmd : CommandElabM Bool := mkInstCmdTemplate declName fun info ind
 
 end
 
-syntax "veil_deriving " ident "for" ident ("with_name" ident)? ("with_priority" prio)? : command
+syntax "veil_deriving " ident "for" ident (&"with_name" ident)? (&"with_priority" prio)? : command
 
 elab_rules : command
 | `(veil_deriving $idt:ident for $decl:ident $[with_name $target?:ident]? $[with_priority $priority?:prio]?) => do

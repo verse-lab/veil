@@ -2,6 +2,8 @@ module
 
 public import Veil.Frontend.DSL.Tactic
 
+open scoped Veil
+
 structure Theory (α : Type) where
   a : α
   b : α

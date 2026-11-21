@@ -128,7 +128,7 @@ private def probeTactic (tac : TSyntax `tactic) : DesugarTacticM Bool :=
 
 def stateSimpHypName : Name := `hStateSimp
 
-instance : BEq LocalDecl := ⟨fun a b => a.userName == b.userName⟩
+scoped instance : BEq LocalDecl := ⟨fun a b => a.userName == b.userName⟩
 
 
 syntax renameArg := term " => " ident
@@ -142,12 +142,14 @@ syntax (name := veil_rename_hyp) "veil_rename_hyp " renameArg,+ : tactic
 /-- Clear the given hypotheses, as well as all Veil-specific hypotheses
 which are not needed for proofs. -/
 syntax (name := veil_clear) "veil_clear" (colGt ident)* : tactic
+
 /-- Destruct the given structures into their fields. If no arguments
 are given, this destructs all structures in the context into their
 respective fields, recursively.
 
 Use `only [Foo, Bar]` to only destruct structures with those names. -/
-syntax (name := veil_destruct) "veil_destruct" (colGt ident)* ("only" "[" ident,* "]")? ("without" "[" ident,* "]")? : tactic
+scoped syntax (name := veil_destruct) "veil_destruct" (colGt ident)*
+  ("only" "[" ident,* "]")? ("without" "[" ident,* "]")? : tactic
 /-- A different implementation of `veil_destruct` that simply collects
 certain `structure`/`class` types to destruct and then pass them to `cases_type*`. -/
 syntax (name := veil_destruct') "veil_destruct'" : tactic
@@ -155,7 +157,8 @@ syntax (name := veil_destruct') "veil_destruct'" : tactic
 
 Use `without [h₁, h₂]` to leave those hypotheses untouched while recursively
 destructing the rest. -/
-syntax (name := veil_cases_type) "veil_cases_type" ("*")? (ppSpace colGt ident)+ ("without" "[" ident,* "]")? : tactic
+scoped syntax (name := veil_cases_type) "veil_cases_type" ("*")? (ppSpace colGt ident)+
+  ("without" "[" ident,* "]")? : tactic
 /-- Split the goal into sub-goals. -/
 syntax (name := veil_destruct_goal) "veil_destruct_goal" : tactic
 

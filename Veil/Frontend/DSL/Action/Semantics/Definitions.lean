@@ -40,9 +40,10 @@ inductive Mode where
   | external : Mode
 deriving BEq
 
--- abbrev ExId := Int
--- workaround for [lean-smt#185](https://github.com/ufmg-smite/lean-smt/issues/185)
-macro "ExId" : term => `($(Lean.mkIdent ``Int))
+/-- The identifier of an assertion failure. The semantics and generated
+verification conditions spell its type `Int` directly so the SMT translator
+recognizes the types of assertion ID literals. -/
+abbrev ExId := Int
 
 /-- A predicate on the theory and the mutable state. -/
 abbrev SProp (ρ σ : Type) := ρ -> σ -> Prop
@@ -52,7 +53,7 @@ abbrev RProp (α ρ σ : Type) := α -> SProp ρ σ
 /-! Our language is parametric over the mutable state, immutable state, and return type. -/
 set_option linter.unusedVariables false in
 /-- Executable semantics of _deterministic_ Veil actions. -/
-abbrev VeilExecM (m : Mode) (ρ σ α : Type) := ReaderT ρ (ExceptT ExId (StateT σ DivM)) α
+abbrev VeilExecM (m : Mode) (ρ σ α : Type) := ReaderT ρ (ExceptT Int (StateT σ DivM)) α
 /-- Denotation of _non-deterministic_ Veil actions. -/
 abbrev VeilM (m : Mode) (ρ σ α : Type) := NonDetT (VeilExecM m ρ σ) α
 /-- Executable semantics of _non-deterministic_ Veil actions, which works by
@@ -153,7 +154,7 @@ section Theory
   post-state. That's what `PartialCorrectness DemonicChoice
   ExceptionAsSuccess` encodes.
 -/
-macro "[DemonSucc|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoice ExceptionAsSuccess in $t)
+scoped macro "[DemonSucc|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoice ExceptionAsSuccess in $t)
 
 /--
   Of course, the actual thing we want to verify is that:
@@ -164,7 +165,7 @@ macro "[DemonSucc|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoic
   we don't check this directly, but rather obtain it by a combination
   of `DemonSucc` and `IgnoreEx`, i.e. we check (a) and (b) separately.
 -/
-macro "[DemonFail|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoice ExceptionAsFailure in $t)
+scoped macro "[DemonFail|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoice ExceptionAsFailure in $t)
 
 /--
   `AngelFail` corresponds to the "transition" semantics of `action`s,
@@ -172,11 +173,11 @@ macro "[DemonFail|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoic
   non-deterministic choices such that the action terminates without
   exceptions being thrown.
 -/
-macro "[AngelFail|" t:term "]" : term =>  `(open TotalCorrectness AngelicChoice ExceptionAsFailure in $t)
+scoped macro "[AngelFail|" t:term "]" : term =>  `(open TotalCorrectness AngelicChoice ExceptionAsFailure in $t)
 
 /--
   Our most general semantics is `IgnoreEx`, which is parametrised by a
-  set of exceptions `ExId → Prop` which the program can throw WITHOUT
+  set of exceptions `Int → Prop` which the program can throw WITHOUT
   that implying a failure (i.e. ignore).
 
   Exception as success: `λ _ => ⊤`
@@ -193,7 +194,7 @@ macro "[AngelFail|" t:term "]" : term =>  `(open TotalCorrectness AngelicChoice 
   `DemonFail` and `DemonSucc`) or by double-negating `DemonSucc` (to
   obtain `AngelFail`).
 -/
-macro "[IgnoreEx" ex:term "|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoice in let _ : IsHandler (ε := ExId) $ex := ⟨⟩; $t)
+scoped macro "[IgnoreEx" ex:term "|" t:term "]" : term =>  `(open PartialCorrectness DemonicChoice in let _ : IsHandler (ε := Int) $ex := ⟨⟩; $t)
 
 variable {m : Mode} {ρ σ α : Type}
 
@@ -216,7 +217,7 @@ def VeilM.doesNotThrow (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
 `VeilM.doesNotThrow` that can be used to retrieve _which_ specific exception
 can be thrown. -/
 @[reducible]
-def VeilM.doesNotThrow_ex (act : VeilM m ρ σ α) (pre : SProp ρ σ) (ex : ExId) : Prop :=
+def VeilM.doesNotThrow_ex (act : VeilM m ρ σ α) (pre : SProp ρ σ) (ex : Int) : Prop :=
   [IgnoreEx (· ≠ ex)| triple pre act ⊤]
 
 /-- There is no code path that throws an exception, assuming the assumptions
@@ -230,7 +231,7 @@ def VeilM.doesNotThrowAssuming (act : VeilM m ρ σ α) (assu : ρ → Prop) (pr
 `VeilM.doesNotThrowAssuming` that can be used to retrieve _which_ specific exception
 can be thrown. -/
 @[reducible]
-def VeilM.doesNotThrowAssuming_ex (act : VeilM m ρ σ α) (assu : ρ → Prop) (pre : SProp ρ σ) (ex : ExId) : Prop :=
+def VeilM.doesNotThrowAssuming_ex (act : VeilM m ρ σ α) (assu : ρ → Prop) (pre : SProp ρ σ) (ex : Int) : Prop :=
   [IgnoreEx (· ≠ ex)| triple (fun th st => assu th ∧ pre th st) act ⊤]
 
 @[reducible]
@@ -314,7 +315,7 @@ end TransitionSemantics
 
 section ExecutableSemantics
 
-def VeilExecM.operational (act : VeilExecM m ρ σ α) (r₀ : ρ) (s₀ : σ) (s₁ : σ) (res : Except ExId α) : Prop :=
+def VeilExecM.operational (act : VeilExecM m ρ σ α) (r₀ : ρ) (s₀ : σ) (s₁ : σ) (res : Except Int α) : Prop :=
   match act r₀ s₀ with
   | .div => False
   | .res (.error i, s) => res = .error i ∧ s = s₁
@@ -341,7 +342,7 @@ section DerivingSemantics
 
 /-- Does `act` terminate successfully if the set `ex` of exceptions is
 ignored / allowed to be thrown? -/
-def VeilM.succeedsWhenIgnoring (ex : ExId → Prop) (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
+def VeilM.succeedsWhenIgnoring (ex : Int → Prop) (act : VeilM m ρ σ α) (pre : SProp ρ σ) : Prop :=
   [IgnoreEx ex| triple pre act (fun _ => ⊤)]
 
 def VeilSpecM.toTransitionDerived (spec : VeilSpecM ρ σ α) : Transition ρ σ :=

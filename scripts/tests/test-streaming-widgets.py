@@ -156,7 +156,8 @@ CASES = {
         '#check_action flip', 'must preserve the invariant'),
     # The trace commands have no named syntax kind: gate them by their syntax instead
     'trace': Case(
-        '''@[incremental] elab_rules : command
+        '''open scoped Veil in
+@[incremental] elab_rules : command
   | `(command| $r:expected_smt_result trace [ $name ] { $spec:traceSpec }) => do
     gate
     Veil.elabTraceSpec r (some name) spec none

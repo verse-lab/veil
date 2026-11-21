@@ -174,7 +174,7 @@ def elabVeilDo (procName : Name) (readerType stateType : Term)
 
 end Action.DoElab
 
-elab (name := VeilDo) "veil_do" name:ident "in" readerType:term ","
+scoped elab (name := VeilDo) "veil_do" name:ident "in" readerType:term ","
     stateType:term "in" body:doSeq : term =>
   Action.DoElab.elabVeilDo name.getId readerType stateType body
 

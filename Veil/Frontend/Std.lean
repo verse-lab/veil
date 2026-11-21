@@ -23,6 +23,7 @@ def List.insertOrdered [inst : Ord α] (a : α) : List α → List α
 def Fin.pos_then_inhabited {n : Nat} (h : 0 < n) : Inhabited (Fin n) where
   default := Fin.mk 0 h
 
+namespace Veil
 
 /-! ## Total order -/
 
@@ -410,11 +411,11 @@ class TSet (α : outParam (Type u)) (κ : Type v) where
     s1 ∈ subsets s2 ↔ (∀ elem, contains elem s1 = true → contains elem s2 = true)
 
 @[inline]
-instance [TSet α κ] : Membership α κ where
+scoped instance [TSet α κ] : Membership α κ where
   mem s a := TSet.contains a s = true
 
 @[inline]
-instance [TSet α κ] (a : α) (k : κ) : Decidable (a ∈ k) := instDecidableEqBool _ _
+scoped instance [TSet α κ] (a : α) (k : κ) : Decidable (a ∈ k) := instDecidableEqBool _ _
 
 instance instEnumerationTSetContains [TSet α κ] (k : κ) : Veil.Enumeration ({ a : α // TSet.contains a k }) where
   allValues := TSet.toList k |>.attachWith _ (fun x => TSet.toList_contains_iff _ _ |>.mpr)
@@ -690,7 +691,7 @@ class TMultiset (α : outParam (Type u)) (κ : Type v) where
   -- size_remove (elem : α) (s : κ) :
   --   size (remove elem s) = if contains elem s then size s - 1 else size s
 
-instance [TMultiset α κ] : Membership α κ where
+scoped instance [TMultiset α κ] : Membership α κ where
   mem s a := TMultiset.contains a s = true
 
 instance instEnumerationTMultisetContains [TMultiset α κ] (k : κ) : Veil.Enumeration ({ a : α // TMultiset.contains a k }) where
@@ -788,3 +789,5 @@ instance instTMapExtTreeMap [BEq α] [BEq β] [Ord α] [TransOrd α] [LawfulEqOr
   values := fun m => m.toList.map Prod.snd
   filter := fun m p => ⟨m.inner.filter p⟩
   equal := fun m1 m2 => m1.toList == m2.toList
+
+end Veil

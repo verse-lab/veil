@@ -81,7 +81,7 @@ def HO_forall_push_left_impl : Simp.Simproc := fun e => do
       return .continue
   | _ => return .continue
 
-simproc HO_forall_push_left (∀_ _, _) := HO_forall_push_left_impl
+simproc_decl HO_forall_push_left (∀_ _, _) := HO_forall_push_left_impl
 attribute [forallQuantifierSimp] HO_forall_push_left
 attribute [forallQuantifierSimp] forall_const
 
@@ -174,7 +174,7 @@ where
   dependsOn (child : Expr) (deps : Array Expr) : Bool :=
     child.find? (fun e => deps.contains e) != none
 
-simproc HO_exists_push_left (∃ _ _, _) := HO_exists_push_left_impl
+simproc_decl HO_exists_push_left (∃ _ _, _) := HO_exists_push_left_impl
 attribute [existsQuantifierSimp] HO_exists_push_left
 
 attribute [existsQuantifierSimp] exists_const exists_eq exists_eq'

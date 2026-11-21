@@ -21,13 +21,12 @@ See
 [Naming conflict when defining a new syntax](https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/.E2.9C.94.20Naming.20conflict.20when.20defining.20a.20new.20syntax)
 thread on Zulip for more details, particularly
 [this comment](https://leanprover.zulipchat.com/#narrow/channel/270676-lean4/topic/.E2.9C.94.20Naming.20conflict.20when.20defining.20a.20new.20syntax/near/502658016).
-Unfortunately, this means all our keywords (`veil`, `module,` `type`, etc.) are
-reserved symbols, so users of Veil can't use them in their code. -/
+Scope these keywords so they remain usable as identifiers in ordinary Lean
+code. -/
 
 
 declare_syntax_cat veilKeyword
-syntax (name := kw_veil) "veil" : veilKeyword
-syntax (name := kw_module) "module" : veilKeyword
+scoped syntax (name := kw_module) "module" : veilKeyword
 
 scoped syntax (name := kw_type) "type" : veilKeyword
 scoped syntax (name := kw_enum) "enum" : veilKeyword
@@ -102,7 +101,8 @@ veil module MyModule
 end MyModule
 ```
 -/
-syntax (name := moduleDeclaration) atomic(kw_veil kw_module) ident : command
+@[command_parser] def moduleDeclaration := leading_parser
+  atomic (nonReservedSymbol "veil " (includeIdent := true) >> nonReservedSymbol "module ") >> ident
 
 
 /-- Declare an uninterpreted type.
@@ -373,7 +373,7 @@ temporal [allReceived] (∀ dst, 𝒲ℱ (deliver · dst)) → ∀ dst, □ ◇ 
 temporal [eventuallyChosen] 𝒲ℱ choose → ◇ ⌜ ∃ v, chosen v ⌝
 ```
 -/
-syntax (name := temporalDeclaration)
+scoped syntax (name := temporalDeclaration)
   kw_temporal (atomic("(" &"only") " := " ident ")")? (propertyName)? tlfml : command
 
 /-- Prove a previously declared temporal property `p` using tactics.
@@ -385,7 +385,7 @@ The tactics run after `tstart hInit hNext hInv` and `tdsimp only [p]`:
 the proof-mode hypotheses `hInit`, `hNext` and `hInv` are the conjuncts
 `⌜ Init ⌝`, `□ ⟨ NextStep ⟩` and `□ ⌜ Invariants ⌝` of the behavior, and `p` is
 unfolded in the goal. -/
-syntax (name := proveTemporalBy) kw_prove_temporal_by (propertyName)? tacticSeq : command
+scoped syntax (name := proveTemporalBy) kw_prove_temporal_by (propertyName)? tacticSeq : command
 
 /-- Assemble the specification. -/
 scoped syntax (name := genSpec) kw_gen_spec : command
@@ -501,7 +501,7 @@ evaluates assumptions at runtime before state exploration; this clause can be
 used when a separate elaboration-time proof is desired. `Assumptions` is
 automatically unfolded via `dsimp` first; if no tactic is given,
 `first | decide | native_decide` is used. -/
-syntax assumptionsHoldBy := "assumptions_hold_by " tacticSeq
+syntax assumptionsHoldBy := &"assumptions_hold_by " tacticSeq
 
 scoped syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
 
@@ -530,7 +530,7 @@ The `veil.modelChecker.maxStoredCheckers` most recent copies are kept. -/
 syntax (name := modelCheckBuild) "#mc_config " ident ppSpace term:max (ppSpace atomic(term:max))? Parser.Tactic.optConfig : command
 
 /-- Proves the `FiniteReach` certificate of `(route := .ndfs)`. -/
-syntax finiteReachBy := "finite_reach_by " tacticSeq
+syntax finiteReachBy := &"finite_reach_by " tacticSeq
 
 /-- Check all declared `temporal` properties that are model checked (not `only := verify`) on the
 instantiated system.

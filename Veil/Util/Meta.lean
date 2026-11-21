@@ -80,6 +80,8 @@ def Lean.Elab.Attribute.mkStx [Monad m] [MonadQuotation m] (attr : Attribute) : 
 
 namespace Veil
 
+open scoped Veil.TermReduce
+
 /--
 Run Veil-controlled rewriting or unification with backwards compatible behaviour.
 
@@ -667,12 +669,12 @@ private partial def withAutoBoundCont
 private partial def withAutoBoundCapitals (k : TermElabM α) : TermElabM α := do
   withAutoBoundCont k (fun n => return isCapital n) (fun ex n => do throwErrorAt ex.getRef "Unbound uncapitalized variable: {n}")
 
-@[inline] macro "exists?" br:explicitBinders ? "," t:term : term =>
+@[inline] scoped macro "exists?" br:explicitBinders ? "," t:term : term =>
   match br with
   | some br => `(exists $br, $t)
   | none => `($t)
 
-@[inline] macro "forall?" br:bracketedBinder* "," t:term : term =>
+@[inline] scoped macro "forall?" br:bracketedBinder* "," t:term : term =>
   if br.size > 0 then
     `(∀ $br*, $t)
   else
@@ -685,7 +687,7 @@ def expandTermMacro [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] 
 
 /-- All capitalized variables inside `uqc%` will be automatically
 universally quantified. Example: `uqc% (Nat.le N M)` becomes `∀ N M, Nat.le N M`. -/
-syntax (name := univerallyQuantifyCapitalsStx) "uqc% " term : term
+scoped syntax (name := univerallyQuantifyCapitalsStx) "uqc% " term : term
 
 @[term_elab univerallyQuantifyCapitalsStx]
 def elabUniverallyQuantifyCapitals : Term.TermElab := fun stx expectedType? => do
@@ -734,7 +736,7 @@ def repeatedOr  [Monad m] [MonadQuotation m] (operands : Array (TSyntax `term)) 
 Similar to the `distinct` keyword in SMT-LIB, this generates inequality
 conditions for multiple terms. Example: `distinct a b c d`=
 -/
-syntax "distinct" (term:max)* : term
+scoped syntax "distinct" (term:max)* : term
 macro_rules
   | `(term|distinct $[$ids:term]*) => do
     let mut inequalities := #[]
@@ -797,7 +799,7 @@ open Meta Elab Term in
 matches on `val` of type `Option α` for some `α`. If `val = some v`, it evaluates
 `t1 v` (an application); if `val = none`, it evaluates `t2`. This is useful
 in tactics where `t1` and/or `t2` might be ill-typed. -/
-elab "meta_match_option" val:term "=>" t1:term "=>" t2:term : term <= expectedType => do
+scoped elab "meta_match_option" val:term "=>" t1:term "=>" t2:term : term <= expectedType => do
   let valExpr ← elabTerm val none
   let valExpr ← whnf valExpr
   let ty ← inferType valExpr
@@ -819,7 +821,7 @@ open Meta Elab Term in
 /-- Given a term `val` of function type, `remove_unused_args% val`
 produces a new term where any arguments that are not used in the body
 are removed. -/
-elab "remove_unused_args% " val:term : term => do
+scoped elab "remove_unused_args% " val:term : term => do
   let valExpr ← elabTerm val none
   let valExpr ← instantiateMVars valExpr
   lambdaTelescope valExpr fun xs body => do
@@ -829,7 +831,7 @@ open Meta Elab Term in
 /-- Given a set of binders a term `val`, `remove_unused_binders% binders => val`
 produces a new term where any binder in `binders` that are not used in
 the body are removed (i.e., they will not become arguments). -/
-elab "remove_unused_binders% " binders:bracketedBinder* "=>" val:term : term => do
+scoped elab "remove_unused_binders% " binders:bracketedBinder* "=>" val:term : term => do
   elabBinders binders fun vs => do
     let valExpr ← elabTerm val none
     -- NOTE: This is very important!!! If we have mvars in the body, then

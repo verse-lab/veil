@@ -69,11 +69,11 @@ register_simp_attr multiExtractSimp
 register_simp_attr loomLogicSimpForVeil
 
 /-- To enable `assumption`s to be used as predicates. -/
-instance funOneArgBoolToProp : Coe (α → Bool) (α → Prop) where
+scoped instance funOneArgBoolToProp : Coe (α → Bool) (α → Prop) where
   coe f a := f a = true
 
 /-- To enable `invariant`s to be used as predicates. -/
-instance funTwoArgsBoolToProp : Coe (α → β → Bool) (α → β → Prop) where
+scoped instance funTwoArgsBoolToProp : Coe (α → β → Bool) (α → β → Prop) where
   coe f a b := f a b = true
 
 /-- Used to hoist higher-order quantification to the top of the goal. -/
