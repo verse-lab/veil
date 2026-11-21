@@ -192,6 +192,14 @@ def modelBinderKey? (name : Name) : Option Name := do
   guard (modelBinderPrefix.isPrefixOf key)
   return key.replacePrefix modelBinderPrefix .anonymous
 
+/-- Preserve the dictionary binder as well as its projection path in the model. -/
+def modelInstanceName (source : Name) : Name := modelValueName (`inst ++ source)
+
+def modelInstanceKey? (name : Name) : Option Name := do
+  let key ← modelBinderKey? name
+  guard (key.getRoot == `inst)
+  return key.replacePrefix `inst .anonymous
+
 def traceStateName (i : Nat) : Name := .mkSimple s!"st{i}"
 def traceTagName (i : Nat) : Name := .mkSimple s!"_tr{i}_tag"
 def traceArgumentName (step action argument : Nat) : Name :=

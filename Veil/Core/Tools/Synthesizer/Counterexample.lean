@@ -172,16 +172,11 @@ def fieldValue (className field : Name) (rows : Array (Array Nat)) : FieldSpec �
   | .function argSorts s => do
     let rows ← rows.mapM fun row ↦ return (row.pop, ← c.elementTerm s (row.back?.getD 0))
     c.functionTerm argSorts rows (← `(default))
-  | .axiom _ => `(by first | decide | (intros; simp_all; done) | (intros; grind))
+  | .axiom _ => modelLaw
   | .other => throwError "IC3: field {field} of {className} is neither a relation, a constant, a \
       function between sorts nor an axiom; the counterexample certificate cannot build the instance"
 
 end CexCtx
-
-/-- `{ f₁ := v₁, … }`. -/
-def structInstance (fields : Array (Name × Term)) : CommandElabM Term := do
-  let items ← fields.mapM fun (f, v) ↦ `(structInstField| $(mkIdent f):ident := $v)
-  `({ $items:structInstField,* })
 
 /-- Build and check the counterexample certificate. `property` are the conjuncts of `P`. -/
 def certifyUnsafe (mod : Veil.Module) (property : Array Term) (path : DecodedTrace)

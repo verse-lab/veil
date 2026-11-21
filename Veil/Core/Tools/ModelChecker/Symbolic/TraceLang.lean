@@ -112,7 +112,7 @@ private def mkAnyActionDisjunction (mod : Module) (rtsExpr theoryId currState ne
   return (← repeatedOr (results.map (·.1)), results.flatMap (·.2))
 
 /-- Collect module-level binders (sorts, user parameters, sort assumptions, user-defined typeclasses) -/
-private def traceModuleParams (mod : Module) : Array Parameter := Id.run do
+def traceModuleParams (mod : Module) : Array Parameter := Id.run do
   let typeclassParams := mod.parameters.filter fun p =>
     match p.kind with
     | .moduleTypeclass .sortAssumption | .moduleTypeclass .userDefined => true

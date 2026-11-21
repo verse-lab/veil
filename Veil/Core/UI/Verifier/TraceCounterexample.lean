@@ -101,9 +101,10 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
   let mut extraVals := #[]
   for (e, value) in model.values do
     if let some key := (← getExprName model.ctx e).bind modelBinderKey? then
-      values := values.insert key value
-    else
-      extraVals := extraVals.push (e, value)
+      if key.getRoot != `inst then
+        values := values.insert key value
+        continue
+    extraVals := extraVals.push (e, value)
 
   -- Build sort instantiation info
   let sortInstInfo ← (mod.sortParams.zip sortArgs).mapM fun ((sp, _), cardExpr) => do

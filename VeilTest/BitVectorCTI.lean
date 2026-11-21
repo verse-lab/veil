@@ -29,6 +29,7 @@ error: Initialization must establish the invariant:
   inv_0 ... ✅
   inv_1 ... ❌
       Counterexample (WP):
+        Lean checked the reconstructed states and actions
         Theory:
 
         Pre-state:

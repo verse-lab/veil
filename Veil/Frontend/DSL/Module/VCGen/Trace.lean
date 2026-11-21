@@ -40,6 +40,7 @@ def TraceReplay.check (query : TraceReplay) (w : VeilTrace) : TermElabM WitnessC
       return mkConst ``False
     let template ← elabTermAndSynthesize query.statement (some (.sort .zero))
     let body ← specializeWitnessModule template query.params w.theoryType w.stateType w.enumAdapts
+      (← witnessAssignments w.ctx w.extraVals)
     specializeWitness body (#[w.theoryExpr] ++ w.stateExprs ++ w.labelExprs)
 
 /-- Process SMT outputs and build trace counterexamples on SAT.
@@ -101,9 +102,8 @@ def TraceDischarger.fromAssertion (query : TraceReplay) (isExpectedSat : Bool)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
     (_cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
   let smtTactic ← `(term| by veil_bmc)
-  let mod ← getCurrentModule
   Discharger.fromTermWith smtTactic vcStatement dischargerId ch
-    (traceLabel := "trace discharger") (modelNames := moduleModelNames mod.uninterpretedParameters) fun smtCh data time =>
+    (traceLabel := "trace discharger") (modelNames := moduleModelNames query.params) fun smtCh data time =>
     -- Trace queries don't require the elaborated witness to be complete — the
     -- SMT result is what matters — so the witness is dropped and only an
     -- elaboration exception is surfaced.

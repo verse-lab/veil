@@ -288,6 +288,7 @@ The following set of actions must preserve the invariant and successfully termin
     doesNotThrow ... ✅
     never ... ❌
       Counterexample (WP):
+        Lean checked the reconstructed states and actions
         Theory:
 
         Pre-state:

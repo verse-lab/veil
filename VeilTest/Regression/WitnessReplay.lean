@@ -86,7 +86,7 @@ run_cmd do
       let original ← mod.mkInvariantGoalVC (mkIdent md.action) (mkIdent md.property) .tr
       liftTermElabM do
         let w ← buildCounterexampleExprs model.raw mod md.action
-        let check := checkTRWitness mod original.toVCStatement md
+        let check := checkInductionWitness mod original.toVCStatement md
         expectCheck "unmodified post" (← check w) .checked
         if md.action == `initializer then
           -- Induction starts the initializer from an arbitrary pre-state.

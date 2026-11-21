@@ -29,6 +29,16 @@ open Lean Elab Meta Tactic
 /-- The axioms allowed in a concrete certificate. -/
 def standardAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
 
+open Lean.Parser.Term in
+/-- Assemble named model fields, allowing the expected class to determine dependent field types. -/
+def structInstance [Monad m] [MonadQuotation m] (fields : Array (Name × Term)) : m Term := do
+  let items ← fields.mapM fun (f, v) ↦ `(structInstField| $(mkIdent f):ident := $v)
+  `({ $items:structInstField,* })
+
+/-- Re-prove each class law against the reconstructed data fields. -/
+def modelLaw [Monad m] [MonadQuotation m] : m Term :=
+  `(by first | decide | (intros; simp_all; done) | (intros; grind))
+
 /-- Whether `ty` is an enumeration type with at least two constructors. -/
 def isSplittableEnum (ty : Expr) : MetaM Bool := do
   let .const n _ := (← whnf ty).getAppFn | return false
