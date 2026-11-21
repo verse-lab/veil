@@ -246,8 +246,8 @@ def Module.mkInvariantGoalVC (mod : Module) (actionId propertyId : Ident)
 
 private def addInductionDischargers (mgr : VCManager VCMetadata SmtResult) (vcId : VCId)
     (tacticTerm : Term) (actName : Name) (suffix : String) : CommandElabM (VCManager VCMetadata SmtResult) := do
-  let mgr ← mgr.mkAddDischarger vcId (VCDischarger.fromTerm tacticTerm actName (nameSuffix := suffix))
-  mgr.addGrindDischarger vcId (← `(by unveil <;> grind))
+  mgr.addAutomaticDischargers vcId (← `(by unveil <;> grind))
+    (VCDischarger.fromTerm tacticTerm actName (nameSuffix := suffix))
 
 /-- Generate doesNotThrow VCs for all actions.
     These VCs check that actions don't throw exceptions assuming the invariants hold. -/

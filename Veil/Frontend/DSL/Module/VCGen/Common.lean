@@ -1,6 +1,7 @@
 module
 
 public meta import Lean
+meta import Batteries.Linter.UnreachableTactic
 public meta import Veil.Util.Meta
 public meta import Veil.Backend.SMT.Result
 public meta import Veil.Frontend.DSL.Module.Representation
@@ -153,9 +154,9 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
               return .error #[← safeExceptionEntry ex, ← safeExceptionEntry ex2]
                 (endTime - startTime)
         )
-        -- A proof search that gave up has no diagnostic to report. Its tactic
-        -- errors would otherwise escape through the worker's editor snapshot.
-        if quietOnUnknown && (res matches .unknown none _) then
+        -- Proof-search failures are discharger results. Do not also publish them
+        -- as command errors when a later discharger may still prove the VC.
+        if quietOnUnknown && (res matches .unknown ..) then
           modify fun st => { st with messages := {}, snapshotTasks := #[] }
         publishDischargerResult resultPromise ch dischargerId res
       ) cancelTk
@@ -194,19 +195,95 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
     mkTask := mkTask
   }
 
-/-- Register a proof-only fallback after the VC's primary discharger. -/
-def VCManager.addGrindDischarger (mgr : VCManager VCMetadata SmtResult) (vcId : VCId)
-    (term : Term) : CommandElabM (VCManager VCMetadata SmtResult) := do
+private inductive AutomaticDischarger where
+  | smt
+  | grind
+  | custom (name : Name) (appliesTo : VCMetadata → Bool) (term : Term)
+  deriving Inhabited
+
+private def AutomaticDischarger.name : AutomaticDischarger → Name
+  | .smt => `smt
+  | .grind => `grind
+  | .custom name .. => name
+
+private initialize automaticDischargers :
+    SimpleScopedEnvExtension (Array AutomaticDischarger) (Array AutomaticDischarger) ←
+  registerSimpleScopedEnvExtension {
+    initial := #[.smt, .grind]
+    addEntry := fun _ entries => entries
+  }
+
+/-- Append a proof tactic for subsequently generated VCs in this Lean scope.
+    Omit `for induction` or `for trace` to target both kinds. -/
+scoped syntax (name := veilDischarger) "veil_discharger " rawIdent (" for " rawIdent)? " := " term : command
+
+-- The tactic is intentionally elaborated later, once per applicable VC.
+initialize
+  Batteries.Linter.UnreachableTactic.addIgnoreTacticKind ``veilDischarger
+  Lean.Linter.Extra.UnreachableTactic.addIgnoreTacticKind ``veilDischarger
+
+elab_rules : command
+| `(veil_discharger $id:ident $[for $target:ident]? := $proof:term) => do
+  let name := id.getId.eraseMacroScopes
+  let entries ← automaticDischargers.get
+  if entries.any (·.name == name) then
+    throwErrorAt id "discharger '{name}' is already registered"
+  let appliesTo : VCMetadata → Bool ← match target with
+    | none => pure (fun _ => true)
+    | some t => match t.getId.eraseMacroScopes with
+      | `induction => pure VCMetadata.isInduction
+      | `trace => pure VCMetadata.isTrace
+      | _ => throwErrorAt t "expected discharger target 'induction' or 'trace'"
+  automaticDischargers.modify (·.push (.custom name appliesTo proof))
+
+/-- Try the listed dischargers first. The remaining entries keep their relative order. -/
+scoped elab "veil_discharger_order " "[" ids:rawIdent,* "]" : command => do
+  let entries ← automaticDischargers.get
+  let mut front := #[]
+  for id in ids.getElems do
+    let name := id.getId.eraseMacroScopes
+    let some entry := entries.find? (·.name == name)
+      | throwErrorAt id "unknown discharger '{name}'"
+    if front.any (·.name == name) then
+      throwErrorAt id "duplicate discharger '{name}' in order"
+    front := front.push entry
+  let rest := entries.filter fun e => !front.any (·.name == e.name)
+  automaticDischargers.modify fun _ => front ++ rest
+
+private def VCManager.addProofDischarger (mgr : VCManager VCMetadata SmtResult) (vcId : VCId)
+    (label : Name) (term : Term) (reportFailure : Bool := false) : CommandElabM (VCManager VCMetadata SmtResult) := do
   let env ← Verifier.clearVerifierRuntime <$> getEnv
   mgr.mkAddDischarger vcId fun stmt id ch => do
-    let id := { id with name := Name.mkSimple s!"{id.name}_GRIND" }
+    let id := { id with name := Name.mkSimple s!"{id.name}_{label}" }
     Discharger.fromTermWith term stmt id ch (quietOnUnknown := true) fun _ data time => do
-      -- Failure to find a proof is inconclusive. Preserve the primary
-      -- discharger's timeout, unknown reason, or error in the overall status.
-      let .inl witness := data | return .unknown none time
-      let witness ← inlineFreshProofs env witness (rec := true)
-      if witness.hasMVar || witness.hasFVar || witness.hasSorry then
-        return .unknown none time
-      return .proven (some witness) none time
+      -- An incomplete proof lets the manager continue to the next discharger.
+      match data with
+      | .inr ex =>
+        unless reportFailure do return .unknown none time
+        return .unknown (some (.unknown #[← ex.toMessageData.toString])) time
+      | .inl witness =>
+        let witness ← inlineFreshProofs env witness (rec := true)
+        if witness.hasMVar || witness.hasFVar || witness.hasSorry then
+          unless reportFailure do return .unknown none time
+          let errors := (← Core.getMessageLog).toArray.filter (·.severity == .error)
+          let reasons ← errors.mapM (·.data.toString)
+          return .unknown (some (.unknown (if reasons.isEmpty then #["tactic did not produce a complete proof"] else reasons))) time
+        return .proven (some witness) none time
+
+/-- Attach the applicable automatic dischargers in the order active at VC generation. -/
+def VCManager.addAutomaticDischargers (mgr : VCManager VCMetadata SmtResult) (vcId : VCId)
+    (grindTerm : Term)
+    (smt : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VCMetadata SmtResult) →
+      CommandElabM (Discharger SmtResult)) : CommandElabM (VCManager VCMetadata SmtResult) := do
+  let some vc := mgr.nodes[vcId]? | return mgr
+  let mut mgr := mgr
+  for entry in ← automaticDischargers.get do
+    match entry with
+    | .smt => mgr ← mgr.mkAddDischarger vcId smt
+    | .grind => mgr ← mgr.addProofDischarger vcId `GRIND grindTerm
+    | .custom name appliesTo term =>
+      if appliesTo vc.metadata then
+        mgr ← mgr.addProofDischarger vcId name term (reportFailure := true)
+  return mgr
 
 end Veil

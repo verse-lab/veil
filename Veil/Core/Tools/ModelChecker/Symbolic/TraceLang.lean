@@ -400,8 +400,8 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     let vcStatement ← mkTraceVCStatement mod vcName assertion
     let metadata := mkTraceVCMetadata isExpectedSat numTransitions (some vcName) (some assertion)
     let attach := fun (mgr : VCManager VCMetadata SmtResult) vcId => do
-      let mgr ← mgr.mkAddDischarger vcId (TraceDischarger.fromAssertion numTransitions isExpectedSat smtQuery)
-      mgr.addGrindDischarger vcId (← `(by veil_bmc using grind))
+      mgr.addAutomaticDischargers vcId (← `(by veil_bmc using grind))
+        (TraceDischarger.fromAssertion numTransitions isExpectedSat smtQuery)
     Verifier.withCommandVC ⟨vcStatement, metadata⟩ attach fun handle => do
       let vcFilter := (· == metadata)
       let generation ← Verifier.runFilteredAsyncWithManagerId vcFilter

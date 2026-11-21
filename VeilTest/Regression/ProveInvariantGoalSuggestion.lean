@@ -9,9 +9,17 @@ after_init { x := 0 }
 action step { require x < 10; x := x + 1 }
 invariant [bounded] x = 1
 
--- The initializer and step both violate the invariant, so grind cannot close either VC.
-set_option veil.solver "custom"
 #gen_spec
+
+-- Exercise the insertion UI with a controlled result for every style of the invariant.
+run_cmd do
+  Veil.Verifier.withVCManager fun ref => do
+    let mut mgr ← ref.get
+    for vc in mgr.nodes.valuesArray do
+      if vc.metadata.propertyName? == some `bounded then
+        for d in vc.dischargers do
+          mgr ← mgr.recordDischargerResult d.id (.unknown none 0)
+    ref.set mgr
 
 -- Ignore the expected solver errors and check the complete insertion suggestion.
 /--
