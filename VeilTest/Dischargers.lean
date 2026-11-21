@@ -9,12 +9,16 @@ example : True := by
 
 open Lean in
 run_cmd do
-  for src in ["veil_discharger exampleTac := by trivial", "veil_discharger_order [frame]"] do
+  for src in ["veil_discharger exampleTac := by trivial", "veil_discharger_order [grind]"] do
     if (Parser.runParserCategory (← getEnv) `command src).isOk then
       throwError "command available outside the Veil scope: {src}"
 
 section
 open scoped Veil
+
+/-- error: discharger 'grind' is already registered -/
+#guard_msgs in
+veil_discharger grind := by trivial
 
 /-- error: discharger 'frame' is already registered -/
 #guard_msgs in
@@ -50,7 +54,7 @@ veil_discharger traceOnly for trace := by fail "trace only"
 veil_discharger arithmetic for induction := by
   unveil <;> omega
 
-veil_discharger_order [arithmetic, smt, frame]
+veil_discharger_order [arithmetic, smt, frame, grind]
 #check_invariants
 
 run_cmd do
@@ -63,8 +67,8 @@ run_cmd do
   for vc in mgr.nodes.valuesArray do
     let labels := vc.dischargers.map (·.id.name.toString)
     let expected := if Veil.Verifier.isDoesNotThrow vc.metadata then #["arithmetic", "WP"]
-      else if vc.name.toString.endsWith "_tr" then #["arithmetic", "TR"]
-      else #["arithmetic", "WP", "FRAME"]
+      else if vc.name.toString.endsWith "_tr" then #["arithmetic", "TR", "GRIND"]
+      else #["arithmetic", "WP", "FRAME", "GRIND"]
     unless labels.map (fun n => (n.splitOn "_").getLast!) == expected do
       throwError "unexpected induction dischargers: {labels}"
 
@@ -126,16 +130,42 @@ invariant [bounded] counter ≤ 10
 invariant [emptyLog] history = 0
 
 veil_discharger miss for induction := by fail "try next"
-veil_discharger_order [miss, frame]
+veil_discharger_order [miss, frame, grind, smt]
 #gen_spec
 
 open Veil in
 run_cmd do
   let results ← Verifier.waitFilteredSync VCMetadata.isInduction
-  let some vc := results.vcs.find? (·.name == `lower_emptyLog) | throwError "missing frame VC"
-  let attempts := vc.timing.dischargers.filter (·.result.isSome)
-  let names := attempts.map (fun d => (d.name.toString.splitOn "_").getLast!)
-  unless names == #["miss", "FRAME"] && attempts.back!.result.any (·.isSuccessful) && !vc.proofHasSorry do
-    throwError "expected frame to prove the goal after the custom miss, got {names}"
+  for (name, expected) in [(`lower_emptyLog, #["miss", "FRAME"]), (`lower_bounded, #["miss", "FRAME", "GRIND"])] do
+    let some vc := results.vcs.find? (·.name == name) | throwError "missing {name}"
+    let attempts := vc.timing.dischargers.filter (·.result.isSome)
+    unless attempts.map (fun d => (d.name.toString.splitOn "_").getLast!) == expected &&
+        attempts.back!.result.any (·.isSuccessful) && !vc.proofHasSorry do
+      throwError "unexpected attempts for {name}: {attempts.map (fun d => (d.name, d.result.map (·.kindString)))}, sorry={vc.proofHasSorry}"
 
 end FrameAfterMiss
+
+veil module GrindOptOut
+
+individual x : Nat
+after_init { x := 0 }
+action step { x := 0 }
+invariant [zero] x = 0
+
+veil_discharger mySolver for induction := by unveil <;> grind
+veil_discharger_order [frame, smt, grind]
+veil_discharger_order [mySolver]
+#gen_spec
+
+open Veil in
+run_cmd do
+  let results ← Verifier.waitFilteredSync VCMetadata.isInduction
+  for vc in results.vcs do
+    if vc.timing.dischargers.any (·.name.toString.endsWith "_GRIND") then
+      throwError "omitting grind from the active order registered an extra worker for {vc.name}"
+  let some step := results.vcs.find? (·.name == `step_zero) | throwError "missing step VC"
+  unless step.timing.dischargers[0]!.name.toString.endsWith "_mySolver" &&
+      step.timing.dischargers[0]!.result.any (·.isSuccessful) do
+    throwError "custom solver did not discharge step_zero"
+
+end GrindOptOut
