@@ -1431,6 +1431,7 @@ def elabVeilTactics : Tactic := fun stx => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_cases_type") $
       Veil.Util.elabCasesType heads (recursive := recursive?.isSome) (allowSplit := true)
         (skipNames := skipIds.elim #[] (fun ids => ids.getElems.map (·.getId)))
+        (keepProjectionNames := isModelParameterName)
   | `(tactic| veil_clear $ids:ident*) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_clear") $ elabVeilClearHyps ids
   | `(tactic| veil_destruct_goal) => do

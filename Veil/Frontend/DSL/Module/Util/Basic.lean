@@ -317,18 +317,18 @@ def Module.sortParams (mod : Module) : Array (Parameter × SortKind) := mod.sort
 
 /-! ## Uninterpreted Parameter Utilities (sorts + user parameters) -/
 
-/-- Filters and maps over uninterpreted parameters, including sorts and user-declared
-parameters. These parameterize `State`, `Theory`, `Label`, etc. -/
-private def Module.uninterpretedParamFilterMapFn [Monad m] (mod : Module) (f : Parameter → m α) : m (Array α) := do
-  mod.parameters.filterMapM fun p => do match p.kind with
-  | .sort _ | .userParameter => f p
-  | _ => pure .none
+/-- Sorts and user-declared parameters in declaration order. These parameterize
+`State`, `Theory`, `Label`, and other structural declarations. -/
+def Module.uninterpretedParameters (mod : Module) : Array Parameter :=
+  mod.parameters.filter fun p => match p.kind with
+    | .sort _ | .userParameter => true
+    | _ => false
 
 def Module.uninterpretedParamBinders [Monad m] [MonadQuotation m] (mod : Module) : m (Array (TSyntax `Lean.Parser.Term.bracketedBinder)) :=
-  mod.uninterpretedParamFilterMapFn (·.binder)
+  mod.uninterpretedParameters.mapM (·.binder)
 
 def Module.uninterpretedParamIdents [Monad m] [MonadQuotation m] (mod : Module) : m (Array Ident) := do
-  mod.uninterpretedParamFilterMapFn (·.ident)
+  mod.uninterpretedParameters.mapM (·.ident)
 
 /-- Almost the same as `Module.uninterpretedParamBinders`, but this is _only_ for uninterpreted parameters
 of theory or states, or their related definitions (e.g., `casesOn` functions). -/
@@ -347,7 +347,7 @@ def Module.uninterpretedParamIdentsForTheoryOrState [Monad m] [MonadQuotation m]
 def Module.declarationBaseParams [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) (k : DeclarationKind) : m (Array Parameter) := do
   match k with
   | .moduleParameter => throwError "[Module.declarationBaseParams]: moduleParameter has no base parameters"
-  | .stateComponent _ _ => mod.uninterpretedParamFilterMapFn (pure ·)
+  | .stateComponent _ _ => pure mod.uninterpretedParameters
   | .stateAssertion .assumption => pure (theoryParameters mod)
   | .stateAssertion .invariant | .stateAssertion .safety | .stateAssertion .trustedInvariant => pure mod.parameters
   | .stateAssertion .termination | .stateAssertion .stateConstraint => pure mod.parameters -- the same as `invariant`
@@ -365,7 +365,7 @@ where
     | _ => .some p
   derivedDefinitionBaseParams (mod : Module) (k : DerivedDefinitionKind) : m (Array Parameter) := do
     match k with
-    | .stateLike => mod.uninterpretedParamFilterMapFn (pure ·)
+    | .stateLike => pure mod.uninterpretedParameters
     | .assumptionLike | .theoryGhost _ => pure (theoryParameters mod)
     | .invariantLike | .actionLike | .theoremLike | .ghost _ => pure mod.parameters
     | .actionDoLike => pure $ #[← Parameter.mode] ++ mod.parameters
