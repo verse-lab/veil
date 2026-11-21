@@ -145,3 +145,26 @@ run_cmd do
     for state in #[staleDone, staleDormant] do
       check (!state.isDone && !state.isDoneFiltered (fun _ => true)) "extraneous ID certified missing node"
   finally release #[primary]
+
+-- A dependency or fallback cannot outlive the command whose VC it uses.
+run_cmd do
+  let (mgr, cmd) := (manager #[]).addCommandVC default
+  for state in #[mgr, ← mgr.releaseCommandVC cmd] do
+    check (!(state.tryAddVC default {cmd.vcId}).isOk) "accepted a command VC as a dependency"
+    check (!(state.tryAddAlternativeVC default cmd.vcId).isOk) "accepted a command VC as an alternative primary"
+    check (state.tryAddVC default {0}).isOk "rejected a specification dependency"
+    check (state.tryAddAlternativeVC default 0).isOk "rejected a specification primary"
+
+run_cmd do
+  let (mgr, cmd) := (manager #[]).addCommandVC default
+  let d ← worker cmd.vcId 0
+  try
+    let mgr ← (mgr.addDischarger cmd.vcId d).recordDischargerResult d.id (.proven none none 0)
+    check (mgr._totalDischarged == 1 && mgr._totalSolved == 1) "missing command result fixture"
+    let retired ← mgr.releaseCommandVC cmd
+    let late ← retired.recordDischargerResult d.id (.proven none none 0)
+    for state in #[retired, late] do
+      check (state._dischargerResults.isEmpty && state._totalDischarged == 0 && state._totalSolved == 0)
+        "retired command still contributes verification results"
+    check (← d.cancelTk.isSet) "retired command kept its worker alive"
+  finally release #[d]
