@@ -1,6 +1,6 @@
 module
 
-public meta import Veil.DSL
+public meta import Lean
 
 /-!
 # Tactics for concrete certificates
@@ -25,6 +25,9 @@ public meta section
 
 namespace Veil.Synthesizer
 open Lean Elab Meta Tactic
+
+/-- The axioms allowed in a concrete certificate. -/
+def standardAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
 
 /-- Whether `ty` is an enumeration type with at least two constructors. -/
 def isSplittableEnum (ty : Expr) : MetaM Bool := do

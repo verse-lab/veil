@@ -11,7 +11,7 @@ public meta import Veil.Frontend.DSL.Tactic
 -- FIXME: it really doesn't make sense to import this here
 public meta import Veil.Core.UI.Verifier.Model
 public meta import Veil.Core.UI.Verifier.InductionCounterexample
-public meta import Veil.Frontend.DSL.Module.VCGen.Common
+public meta import Veil.Frontend.DSL.Module.VCGen.Replay
 
 public meta section
 
@@ -28,10 +28,33 @@ namespace Veil
 
 /-! ## Induction-Specific Result Processing -/
 
+/-- Refute the original TR verification condition at precisely the displayed
+action arguments, theory and states. This also preserves the initializer's precondition. -/
+def checkTRWitness (mod : Module) (vc : VCStatement) (md : InductionVCMetadata)
+    (w : VeilCTI) : TermElabM WitnessCheck := checkWitness do
+  let some after := w.postStateExpr | throwError "missing post-state"
+  let mut args := #[]
+  let some proc := mod.procedures.find? (·.name == md.action) | throwError "unknown action"
+  if proc.info != .initializer then
+    let some label := w.labelExpr | throwError "missing action label"
+    let label ← Meta.whnf label
+    let labelType := mkAppN (mkConst (mod.name ++ labelTypeName)) w.theoryType.getAppArgs
+    unless ← Meta.isDefEq (← Meta.inferType label) labelType do throwError "wrong label type"
+    let some ctor ← Meta.isConstructorApp? label | throwError "unresolved action label"
+    unless ctor.name == mod.name ++ labelTypeName ++ md.action do return mkConst ``False
+    args := label.getAppArgs.extract ctor.numParams label.getAppNumArgs
+  else if w.labelExpr.isSome then return mkConst ``False
+  unless args.size == proc.params.size do throwError "missing action arguments"
+  let body ← specializeWitnessModule (← vc.type) (md.baseParams ++ md.extraParams)
+    w.theoryType w.stateType w.enumAdapts
+  let triple ← specializeWitness body args
+  unless triple.isAppOf ``Transition.meetsSpecificationIfSuccessfulAssuming do
+    throwError "expected a TR preservation obligation"
+  return mkNot (← specializeWitness triple #[w.theoryExpr, w.preStateExpr, after])
+
 /-- Process SMT outputs and build counterexamples for inductive VCs. -/
-private def overallSmtResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m]
-    [MonadLiftT MetaM m] [MonadOptions m] (actName : Name) (outputs : Array SmtOutput) :
-    m (Option SmtResult) := do
+private def overallSmtResult (actName : Name) (outputs : Array SmtOutput)
+    (replay : Option (VeilCTI → TermElabM WitnessCheck)) : TermElabM (Option SmtResult) := do
   let mod ← getCurrentModule
   let customSolver := veil.solver.get (← getOptions) matches .custom
   buildSmtResult outputs (fun sat => do
@@ -43,19 +66,21 @@ private def overallSmtResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT B
       try
         let veilModel ← buildCounterexampleExprs ce mod actName
         let structuredJson : Json ← unsafe veilModel.toJson
+        let structuredJson ← match replay with
+          | some check => pure <| structuredJson.setObjVal! "witnessCheck" (toJson (← check veilModel))
+          | none => pure structuredJson
         return .some { raw := ce, rawHtml := ← renderSmtModel ce, structuredJson := structuredJson }
       catch ex =>
         dbg_trace "Failed to build counterexample; exception: {← ex.toMessageData.toString}"
         return none)))
 
 /-- Create a DischargerResult from SMT outputs for inductive VCs. -/
-private def mkDischargerResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m]
-    [MonadLiftT (EIO Std.CloseableChannel.Error) m] [MonadLiftT MetaM m] [MonadOptions m]
+private def mkDischargerResult (replay : Option (VeilCTI → TermElabM WitnessCheck))
     (expectedName : Name) (actName : Name)
     (ch : Std.CloseableChannel ((Name × Nat) × Smt.AsyncOutput))
-    (data : Witness ⊕ Exception) (time : Nat) : m (DischargerResult SmtResult) := do
+    (data : Witness ⊕ Exception) (time : Nat) : TermElabM (DischargerResult SmtResult) := do
   let outputs ← collectSmtOutputs ch expectedName
-  let result ← overallSmtResult actName outputs
+  let result ← overallSmtResult actName outputs replay
   match result with
   | .some result => match result with
     | .error exs => return .error exs time
@@ -80,7 +105,7 @@ private def mkDischargerResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT
 /-- Create a discharger for inductive verification conditions. -/
 def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatement)
     (dischargerId : DischargerIdentifier)
-    (nameSuffix : String := "")
+    (nameSuffix : String := "") (metadata : Option VCMetadata := none)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
     (_cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
   let dischargerId :=
@@ -106,7 +131,10 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
           throwError "unsolved goals"
         pure (.inl witness)
       | .inr ex => pure (.inr ex)
-    mkDischargerResult dischargerId.name actName smtCh data time
+    let replay := match metadata with
+      | some (.induction md) => if md.style != .tr then none else some (checkTRWitness mod vcStatement md)
+      | _ => none
+    mkDischargerResult replay dischargerId.name actName smtCh data time
 
 /-! ## VC Statement Building -/
 
@@ -300,7 +328,7 @@ def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
           -- native two-state form first.  The WP VC still exists as the
           -- fallback, but it no longer drives the normal path for these actions.
           let (mgr, trVCId) := mgr.addVC trVC {} #[]
-          let mgr ← mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
+          let mgr ← mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR") (metadata := trVC.metadata))
           let (mgr, wpVCId) := mgr.addAlternativeVC wpVC trVCId #[]
           mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
         else do
@@ -309,7 +337,7 @@ def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
           let (mgr, wpVCId) := mgr.addVC wpVC {} #[]
           let mgr ← mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
           let (mgr, trVCId) := mgr.addAlternativeVC trVC wpVCId #[]
-          mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
+          mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR") (metadata := trVC.metadata))
       ref.set mgr
 
 /-- Generate all VCs (both doesNotThrow and invariant preservation). -/

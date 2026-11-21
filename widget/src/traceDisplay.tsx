@@ -24,6 +24,7 @@ import {
   generateInstantiationCSS,
   mergeTheoryWithExtras,
   InstantiationRow,
+  type WitnessCheck,
 } from './veilUtils';
 import HtmlDisplay, { Html } from './htmlDisplay';
 
@@ -114,7 +115,7 @@ type ModelCheckingResult =
 type ResultKindTag = "modelCheck" | "simulate" | "liveness" | "symbolicTrace";
 
 interface ModelCheckerViewProps {
-  result: ModelCheckingResult;
+  result: ModelCheckingResult & { witnessCheck?: WitnessCheck };
   layout?: "vertical" | "horizontal";
   rawHtml?: Html;
   kind?: ResultKindTag;
@@ -1038,6 +1039,7 @@ const ModelCheckerView: React.FC<ModelCheckerViewProps> = ({
     <>
       <style>{styles}</style>
       <div className="mc-root">
+        {result.witnessCheck && <p>{result.witnessCheck.message}</p>}
         <div className="mc-toolbar">
           {!showRawJson && !showRawModel && (
             <>

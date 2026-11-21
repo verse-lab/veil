@@ -10,7 +10,7 @@ public meta import Veil.Core.Tools.Verifier.Server
 public meta import Veil.Frontend.DSL.Tactic
 public meta import Veil.Core.UI.Verifier.Model
 public meta import Veil.Core.UI.Verifier.TraceCounterexample
-public meta import Veil.Frontend.DSL.Module.VCGen.Common
+public meta import Veil.Frontend.DSL.Module.VCGen.Replay
 
 public meta section
 
@@ -27,19 +27,34 @@ namespace Veil
 
 /-! ## Trace-Specific Result Processing -/
 
+/-- The positive trace query, quantified over its module parameters, theory,
+states and labels. Both trace commands check the same proposition on SAT. -/
+structure TraceReplay where
+  params : Array Parameter
+  statement : Term
+  numTransitions : Nat
+
+def TraceReplay.check (query : TraceReplay) (w : VeilTrace) : TermElabM WitnessCheck :=
+  checkWitness do
+    unless w.stateExprs.size == query.numTransitions + 1 && w.labelExprs.size == query.numTransitions do
+      return mkConst ``False
+    let template ← elabTermAndSynthesize query.statement (some (.sort .zero))
+    let body ← specializeWitnessModule template query.params w.theoryType w.stateType w.enumAdapts
+    specializeWitness body (#[w.theoryExpr] ++ w.stateExprs ++ w.labelExprs)
+
 /-- Process SMT outputs and build trace counterexamples on SAT.
     Unlike the standard `overallSmtResult`, this uses `buildTraceFromModel` for trace queries. -/
-private def overallSmtResultForTrace [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m]
-    [MonadLiftT MetaM m] (numTransitions : Nat) (isExpectedSat : Bool)
-    (outputs : Array SmtOutput) : m (Option SmtResult) := do
+private def overallSmtResultForTrace (query : TraceReplay) (isExpectedSat : Bool)
+    (outputs : Array SmtOutput) : TermElabM (Option SmtResult) := do
   let mod ← getCurrentModule
   buildSmtResult outputs (fun sat => do
     sat.filterMapM (fun ce => return ← ce.mapM (fun ce => do
       try
         -- Build trace from model instead of single-step counterexample
-        let veilTrace ← buildTraceFromModel ce mod numTransitions
+        let veilTrace ← buildTraceFromModel ce mod query.numTransitions
         -- Convert to ModelCheckingResult-like JSON for TraceDisplayViewer
         let structuredJson : Json ← unsafe veilTrace.toModelCheckingResultJson isExpectedSat
+        let structuredJson := structuredJson.setObjVal! "witnessCheck" (toJson (← query.check veilTrace))
         return .some { raw := ce, rawHtml := ← renderSmtModel ce, structuredJson := structuredJson }
       catch ex =>
         dbg_trace "Failed to build trace counterexample; exception: {← ex.toMessageData.toString}"
@@ -51,13 +66,11 @@ private def overallSmtResultForTrace [Monad m] [MonadEnv m] [MonadError m] [Mona
     - `sat trace`: expects SAT (trace exists), UNSAT means no such trace
     - `unsat trace`: expects UNSAT (no such trace), SAT is a counterexample
     If `ex?` is provided and no SMT result is available, returns an error with the exception. -/
-private def mkTraceDischargerResult [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m]
-    [MonadLiftT (EIO Std.CloseableChannel.Error) m] [MonadLiftT MetaM m]
-    (expectedName : Name) (numTransitions : Nat) (isExpectedSat : Bool)
+private def mkTraceDischargerResult (expectedName : Name) (query : TraceReplay) (isExpectedSat : Bool)
     (ch : Std.CloseableChannel ((Name × Nat) × Smt.AsyncOutput))
-    (time : Nat) (ex? : Option Exception := none) : m (DischargerResult SmtResult) := do
+    (time : Nat) (ex? : Option Exception := none) : TermElabM (DischargerResult SmtResult) := do
   let outputs ← collectSmtOutputs ch expectedName
-  let result ← overallSmtResultForTrace numTransitions isExpectedSat outputs
+  let result ← overallSmtResultForTrace query isExpectedSat outputs
   match result with
   | .none => match ex? with
     | some ex =>
@@ -76,14 +89,14 @@ private def mkTraceDischargerResult [Monad m] [MonadEnv m] [MonadError m] [Monad
     The tactic simplifies the goal and calls SMT. Results are collected from the async channel.
 
     Parameters:
-    - `numTransitions`: Number of transitions in the trace
+    - `query`: The positive query used to replay a decoded trace
     - `isExpectedSat`: True for `sat trace`, false for `unsat trace`
     - `vcStatement`: The VC statement to check
     - `dischargerId`: Identifier for this discharger
     - `ch`: Channel to communicate with VCManager
     - `cancelTk?`: Optional cancellation token
 -/
-def TraceDischarger.fromAssertion (numTransitions : Nat) (isExpectedSat : Bool)
+def TraceDischarger.fromAssertion (query : TraceReplay) (isExpectedSat : Bool)
     (vcStatement : VCStatement) (dischargerId : DischargerIdentifier)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
     (_cancelTk? : Option IO.CancelToken := none) : CommandElabM (Discharger SmtResult) := do
@@ -94,7 +107,7 @@ def TraceDischarger.fromAssertion (numTransitions : Nat) (isExpectedSat : Bool)
     -- Trace queries don't require the elaborated witness to be complete — the
     -- SMT result is what matters — so the witness is dropped and only an
     -- elaboration exception is surfaced.
-    mkTraceDischargerResult dischargerId.name numTransitions isExpectedSat smtCh
+    mkTraceDischargerResult dischargerId.name query isExpectedSat smtCh
       time (ex? := data.getRight?)
 
 /-! ## Trace VC Statement Building -/

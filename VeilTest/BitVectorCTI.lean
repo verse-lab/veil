@@ -35,6 +35,7 @@ error: Initialization must establish the invariant:
           foo = {}
         Action: initializer
       Counterexample (TR):
+        Lean checked the reconstructed states and actions
         Theory:
 
         Pre-state:

@@ -3,6 +3,11 @@ import * as React from 'react';
 
 // ========== Types ==========
 
+export interface WitnessCheck {
+  status: "checked" | "invalid" | "unverified";
+  message: string;
+}
+
 /** Merged element for sequence or logical-container diff display */
 export interface MergedElement {
   element: unknown;

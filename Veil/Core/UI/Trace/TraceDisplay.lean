@@ -216,6 +216,8 @@ def formatResult : ResultKind → Json → MessageData
   | .modelCheck, j => formatModelCheckResult j
   | .simulate, j => formatSimulateResult j
   | .liveness, j => formatLivenessResult j
-  | .symbolicTrace, j => formatSymbolicTraceResult j
+  | .symbolicTrace, j =>
+    let result := formatSymbolicTraceResult j
+    if let .str check := (j.getObjValD "witnessCheck").getObjValD "message" then m!"{result}\n{check}" else result
 
 end Veil.TraceDisplay

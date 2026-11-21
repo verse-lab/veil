@@ -122,6 +122,9 @@ sat trace {
 }
 
 run_cmd do
+  let model ← traceModel
+  unless model.structuredJson.getObjValD "witnessCheck" == toJson WitnessCheck.checked do
+    throwError "dependent trace parameters failed replay"
   let inst ← traceInstantiation
   liftTermElabM do
     let n ← mkAppM `DependentParameterTrace.Instantiation.n #[inst]

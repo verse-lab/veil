@@ -219,6 +219,8 @@ private def formatCounterexampleJson (json : Json) (style : String) : MessageDat
   let postState := json.getObjValD "postState"
   let label := json.getObjValD "label"
   let mut msg := m!"      Counterexample ({style}):\n"
+  if let .str check := (json.getObjValD "witnessCheck").getObjValD "message" then
+    msg := msg ++ m!"        {check}\n"
   msg := msg ++ m!"        Theory:\n{formatTheoryEntries theory "          "}\n"
   msg := msg ++ m!"        Pre-state:\n{formatFields preState "          "}\n"
   msg := msg ++ m!"{formatAction "        Action: " label}\n"
@@ -234,14 +236,16 @@ private def formatCounterexamples (vc : VCResult VCMetadata SmtResult)
 
   -- WP-style counterexample from the primary VC
   if let some json := extractCounterexampleJson vc then
-    msg := msg ++ formatCounterexampleJson json "WP"
+    let style := match vc.metadata with | .induction md => (toString md.style).toUpper | _ => "WP"
+    msg := msg ++ formatCounterexampleJson json style
     hasAny := true
 
   -- TR-style counterexample from the alternative VC (if any)
   let trVC? := allVCs.find? fun altVC => altVC.alternativeFor == some vc.id
   if let some trVC := trVC? then
     if let some json := extractCounterexampleJson trVC then
-      msg := msg ++ formatCounterexampleJson json "TR"
+      let style := match trVC.metadata with | .induction md => (toString md.style).toUpper | _ => "TR"
+      msg := msg ++ formatCounterexampleJson json style
       hasAny := true
 
   if hasAny then some msg else none
