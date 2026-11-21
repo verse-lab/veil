@@ -20,7 +20,7 @@ run_cmd do
 @[veil] public theorem workerCheckpoint : True := True.intro
 
 run_cmd do
-  unless !(interactiveRegistrationsExt.getState (← getEnv)).isEmpty do
+  unless !(vcCheckpointsExt.getState (← getEnv)).isEmpty do
     throwError "missing caller proof checkpoint fixture"
   let owner ← getVCManagerOwner
   let mgr ← readVCManager
@@ -39,7 +39,7 @@ run_cmd do
   let d ← Discharger.fromTermWith term stmt id vcManagerCh fun _ outcome time => do
     unless (Veil.Verifier.vcManagerExt.getState (← getEnv)).isEmpty do
       throwError "mkResult captured manager handles"
-    unless (Veil.Verifier.interactiveRegistrationsExt.getState (← getEnv)).isEmpty do
+    unless (Veil.Verifier.vcCheckpointsExt.getState (← getEnv)).isEmpty do
       throwError "mkResult captured checkpoint proof registrations"
     unless (← getEnv).contains ``workerAvailable do throwError "mkResult lost theorem environment"
     match outcome with
@@ -55,7 +55,7 @@ run_cmd do
     unless after.ngen.idx != before.ngen.idx || after.ngen.namePrefix != before.ngen.namePrefix do
       throwError "capture discarded fresh name-generator advances"
     unless (← readVCManager)._managerId == mgr._managerId do throwError "construction changed caller owner"
-    unless !(interactiveRegistrationsExt.getState (← getEnv)).isEmpty do
+    unless !(vcCheckpointsExt.getState (← getEnv)).isEmpty do
       throwError "capture erased caller proof checkpoint"
     unless !(← d.startTimePromise.isResolved) do throwError "queued worker started during capture"
     withVCManager fun ref => do

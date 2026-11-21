@@ -66,10 +66,10 @@ run_cmd do
   let some b := (vcManagerExt.getState (← getEnv))[`OwnedB]?
     | throwError "missing B owner"
   let bId ← b.manager.atomically fun ref => return (← ref.get)._managerId
-  unless (interactiveRegistrationsExt.getState (← getEnv)).contains bId do
+  unless (vcCheckpointsExt.getState (← getEnv)).contains bId do
     throwError "missing B interactive checkpoint"
   reset bId
-  unless (interactiveRegistrationsExt.getState (← getEnv)).contains bId do
+  unless (vcCheckpointsExt.getState (← getEnv)).contains bId do
     throwError "foreign-owner reset erased B interactive checkpoint"
 end OwnedA
 
@@ -77,6 +77,24 @@ veil module OwnedB
 run_cmd do
   unless (← readVCManager)._doneWith[0]? == some .proven do
     throwError "foreign-owner reset changed B effective proof"
+
+-- An observer may elaborate another command and then resume observing its own VC.
+run_cmd do
+  let vc : VCData VCMetadata := { name := `nested, params := #[], statement := ← `(True), metadata := default }
+  let attach := fun (mgr : VCManager VCMetadata SmtResult) (_ : VCId) => pure mgr
+  let (outer, inner) ← withCommandVC vc attach fun outer => do
+    let inner ← withCommandVC vc attach fun inner => do
+      let view ← readVCManager
+      unless view.nodes.contains inner.vcId && !view.nodes.contains outer.vcId do
+        throwError "nested command observed its parent's VC"
+      return inner
+    let view ← readVCManager
+    unless view.nodes.contains outer.vcId && !view.nodes.contains inner.vcId do
+      throwError "nested command did not restore its parent's observer"
+    return (outer, inner)
+  let view ← readVCManager
+  unless view.nodes.contains outer.vcId && view.nodes.contains inner.vcId do
+    throwError "completed command lost a nested registration"
 end OwnedB
 
 veil module UnpreparedC

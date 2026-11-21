@@ -185,3 +185,44 @@ run_cmd do
       if let some marker := task.cancelTk? then marker.set
     numCoresCache.set previousCores
   IO.println "dropping a supplied token cancels and releases queued work with live source metadata: PASS"
+
+-- Leave the observer running while an exception or snapshot finalization retires its VC.
+private def abandonFocusedVC (fail : Bool) (called : IO.Ref Bool) :
+    CommandElabM (CommandVC × Language.SnapshotTask Language.SnapshotTree) := do
+  let before ← get
+  let fixture ← IO.mkRef none
+  let vc : VCData VCMetadata := { name := `focus, params := #[], statement := ← `(True), metadata := default }
+  try
+    withCommandVC vc (fun mgr _ => pure mgr) fun handle => do
+      runFilteredAsync (fun _ => true) fun _ => called.set true
+      fixture.set (some (handle, (← get).snapshotTasks.back!))
+      if fail then throwError "abandon verification command"
+  catch err =>
+    unless fail && (← err.toMessageData.toString) == "abandon verification command" do throw err
+  let some (handle, observer) ← fixture.get | throwError "missing observer fixture"
+  modify fun st => { st with snapshotTasks := before.snapshotTasks }
+  if fail then
+    let cp ← getVCCheckpoint handle.managerId
+    unless cp.observing?.isNone && !cp.commandVCs.contains handle.vcId do
+      throwError "failed command left a registration in its checkpoint"
+  else
+    unless (← readVCManager).nodes.contains handle.vcId do throwError "dropping only snapshot tasks retired a live VC"
+  modify fun st => { st with infoState := before.infoState, env := before.env }
+  return (handle, observer)
+
+run_cmd do
+  runManager
+  let owner ← getVCManagerOwner
+  for fail in #[false, true] do
+    let called ← IO.mkRef false
+    let (handle, observer) ← abandonFocusedVC fail called
+    try
+      await "command registration retires" <| owner.manager.atomically fun ref =>
+        return !(← ref.get).nodes.contains handle.vcId
+      await "retired VC observer exits" (IO.hasFinished observer.task)
+      let errors := observer.task.get.element.diagnostics.msgLog.toArray.filter (·.severity == .error)
+      let expected := s!"verification interrupted: command-owned VC {handle.vcId} was retired"
+      unless ← errors.anyM (fun err => return (← err.data.toString).contains expected) do
+        throwError "retiring a focused VC lost its interruption diagnostic"
+      if ← called.get then throwError "retired VC observer delivered results"
+    finally observer.cancelRec
