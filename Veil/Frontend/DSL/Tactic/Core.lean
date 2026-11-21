@@ -1348,7 +1348,8 @@ def elabVeilBmc : DesugarTacticM Unit := veilWithMainContext do
   -- hack, we just dsimp them here
   let dsimpLemmas := #[mkIdent ``Inhabited.default, fieldAbstractDispatcher, fieldLabelToDomain stateName, fieldLabelToCodomain stateName]
   let dsimpTac←  `(tactic| try dsimp +$(mkIdent `instances) [$[$dsimpLemmas:ident],*])
-  let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
+  -- Quantifier simplification needs the domain instance even for trusted traces.
+  let inferNonemptyTac ← `(tactic| veil_infer_nonempty)
   let tac ← `(tacticSeq| $inferNonemptyTac:tactic; veil_simp +$(mkIdent `instances) only [$(mkIdent `nextSimp):ident]; veil_simp +$(mkIdent `instances) only [↓ $(mkIdent ``existsQuantifierSimpGuarded):ident]; veil_intros; $inferNonemptyTac:tactic; veil_destruct; $dsimpTac; veil_simp +$(mkIdent `instances) only [$(mkIdent `smtSimp):ident]; $dsimpTac; veil_smt)
   veilEvalTactic tac
 
