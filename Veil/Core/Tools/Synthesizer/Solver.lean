@@ -244,7 +244,7 @@ def runStatementOnce (mod : Veil.Module) (stmt : Term) (steps coreLits : Nat) (w
   let ty? ← elabStatement stmt
   notePhase (fun p dt ↦ { p with elabMs := p.elabMs + dt }) tElab
   let ty ← match ty? with
-    | .ok ty => pure ty
+    | .ok ty => pure (nameModelBinders ty (moduleModelNames mod.uninterpretedParameters).toList)
     | .error e => return (.error s!"statement failed to elaborate: {e.take 300}", none)
   if fault == some ("throw", steps) then throwError (injectedQueryFailure "throw" steps)
   let mv ← mkFreshExprMVar ty

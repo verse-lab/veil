@@ -60,14 +60,14 @@ veil module TakenNames
 type client
 
 relation waiting : client → Bool
-relation holds : client → Bool
+relation x0 : client → Bool
 individual lock_free : Bool
 
 #gen_state
 
 after_init {
   waiting C := false
-  holds C := false
+  x0 C := false
   lock_free := true
 }
 
@@ -79,28 +79,28 @@ action grant (c : client) {
   require lock_free
   require waiting c
   waiting c := false
-  holds c := true
+  x0 c := true
   lock_free := false
 }
 
 action release (c : client) {
-  require holds c
-  holds c := false
+  require x0 c
+  x0 c := false
   lock_free := true
 }
 
-safety [mutex] holds C ∧ holds D → C = D
-invariant [ic3_0] holds C → holds C
+safety [mutex] x0 C ∧ x0 D → C = D
+invariant [ic3_0] x0 C → x0 C
 
 #gen_spec
 
 /--
 Insert the strengthening invariants before #gen_spec:
 
-  [apply] invariant [ic3_1] ∀ (x0 : client), ¬ holds x0 ∨ ¬ lock_free
+  [apply] invariant [ic3_1] ∀ (x0' : client), ¬ x0 x0' ∨ ¬ lock_free
 -/
 #guard_msgs(info, substring := true) in
-#updr (expect := invariant)
+#updr (expect := invariant) certify
 
 end TakenNames
 

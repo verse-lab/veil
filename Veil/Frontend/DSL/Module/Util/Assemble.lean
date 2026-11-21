@@ -123,7 +123,8 @@ private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadExceptO
   -- `Invariants`. Note that for this to work, the definition must return
   -- `Prop` rather than `Bool`. TODO: a Bool-specific weakening?
   let attrs ← #[`derivedInvSimp, `invSimp, `nextSimp, `reducible].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
-  let cmd ← `(command|@[$attrs,*] def $(mkIdent assembledName) $[$(binders)]* $specificBinders* : Prop := $body)
+  let funBinders ← (binders ++ specificBinders).mapM bracketedBinderToFunBinder
+  let cmd ← `(command|@[$attrs,*] def $(mkIdent assembledName) := veil_public% (fun $funBinders* => ($body : Prop)))
   let derivedDef : DerivedDefinition := { name := assembledName, kind := kind, params := #[], extraParams := extraParams, derivedFrom := conjunctsSet, stx := cmd }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (cmd, mod)
@@ -134,15 +135,15 @@ private def Module.assembleAssertions [Monad m] [MonadQuotation m] [MonadExceptO
 `trusted invariant` clauses. This modifies the `Module` to record which
 parameters are necessary for this definition. -/
 def Module.assembleInvariants [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Command × Module) := do
-  let binders := #[← `(bracketedBinder| ($(mkIdent `rd) : $environmentTheory)), ← `(bracketedBinder| ($(mkIdent `st) : $environmentState))]
+  let binders := #[← `(bracketedBinder| ($(mkIdent (publicBinderName `rd)) : $environmentTheory)), ← `(bracketedBinder| ($(mkIdent (publicBinderName `st)) : $environmentState))]
   mod.assembleAssertions .invariantLike assembledInvariantsName binders
 
 def Module.assembleAssumptions [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Command × Module) := do
-  let binders := #[← `(bracketedBinder| ($(mkIdent `rd) : $environmentTheory))]
+  let binders := #[← `(bracketedBinder| ($(mkIdent (publicBinderName `rd)) : $environmentTheory))]
   mod.assembleAssertions .assumptionLike assembledAssumptionsName binders
 
 def Module.assembleSafeties [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Command × Module) := do
-  let binders := #[← `(bracketedBinder| ($(mkIdent `rd) : $environmentTheory)), ← `(bracketedBinder| ($(mkIdent `st) : $environmentState))]
+  let binders := #[← `(bracketedBinder| ($(mkIdent (publicBinderName `rd)) : $environmentTheory)), ← `(bracketedBinder| ($(mkIdent (publicBinderName `st)) : $environmentState))]
   mod.assembleAssertions .invariantLike assembledSafetiesName binders (onlySafety := true)
 
 /-! ## Label Type Utilities -/
@@ -171,7 +172,7 @@ private def Module.assembleLabelDef [Monad m] [MonadQuotation m] [MonadExceptOf 
 
 private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (mod : Module) : m (Command × Module) := do
   mod.throwIfAlreadyDeclared labelCasesName
-  let P := mkIdent `P
+  let P := mkIdent (publicBinderName `P)
   let labelT ← mod.labelTypeStx
   let exs ← mod.actions.mapM (fun a => do
     let constructor := Lean.mkIdent $ labelTypeName ++ a.name
@@ -180,14 +181,15 @@ private def Module.assembleLabelCasesLemma [Monad m] [MonadQuotation m] [MonadEx
     | params =>
       let br ← parametersToExplicitBinders params
       `(term| (∃ $br, $P ($constructor $(← explicitBindersToTerms br)*))))
-  let label := mkIdent `label
+  let label ← Lean.mkIdent <$> MonadQuotation.addMacroScope `label
   let casesLemma ← `(command|set_option linter.unusedSectionVars false in
-    theorem $labelCases ($P : $labelT -> Prop) :
+    theorem $labelCases : veil_public% (∀ ($P : $labelT -> Prop),
       (∃ $label:ident : $labelT, $P $label) ↔
-      $(← repeatedOr exs) :=
+      $(← repeatedOr exs)) :=
     by
+      intro
       constructor
-      { rintro ⟨$(mkIdent `l), $(mkIdent `r)⟩; rcases $(mkIdent `l):ident <;> (try solve | grind | aesop) }
+      { rintro ⟨l, r⟩; rcases l <;> (try solve | grind | aesop) }
       { (try solve | grind | aesop) })
   let derivedDef : DerivedDefinition := { name := labelCasesName, kind := .stateLike, params := #[], extraParams := #[], derivedFrom := {labelTypeName}, stx := casesLemma }
   let mod ← mod.registerDerivedDefinition derivedDef
@@ -235,7 +237,7 @@ def Module.assembleNext (mod : Module) : CommandElabM (Command × Module) := do
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
   -- The union binds each canonicalized instance once; per-action by-name references resolve against it.
   let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
-  let binders ← (baseParams ++ extraParams).mapM (·.binder)
+  let binders ← (baseParams ++ extraParams).mapM fun p => p.binder >>= bracketedBinderToFunBinder
   let acts ← mod.actions.mapM (fun s => do
     let name := Lean.mkIdent $ toExtName s.name
     let (params, _) ← mod.declarationAllParams s.name s.declarationKind
@@ -243,10 +245,10 @@ def Module.assembleNext (mod : Module) : CommandElabM (Command × Module) := do
     `(@$name $args*))
   let labelT ← mod.labelTypeStx
   let nextT ← `(term|$labelT → $(mkIdent ``VeilM) $(mkIdent ``Mode.external) $environmentTheory $environmentState $(mkIdent ``Unit))
-  let label := mkIdent `label
+  let label := mkIdent (publicBinderName `label)
   let casesOn := mkIdent $ Name.append label.getId `casesOn
   let attrs ← #[`nextSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
-  let nextDef ← `(command|@[$attrs,*] def $assembledNextAct $[$(binders)]* : $nextT := fun ($label : $labelT) => $casesOn $acts*)
+  let nextDef ← `(command|@[$attrs,*] def $assembledNextAct := veil_public% (fun $binders* => (fun ($label : $labelT) => $casesOn $acts* : $nextT)))
   let nextParam := { kind := .definitionParameter assembledNextActName .explicit, name := label.getId, «type» := labelT, userSyntax := .missing }
   let derivedDef : DerivedDefinition := { name := assembledNextActName, kind := .actionLike, params := #[nextParam], extraParams := extraParams, derivedFrom := actionNames, stx := nextDef }
   let mod ← mod.registerDerivedDefinition derivedDef
@@ -262,17 +264,18 @@ def Module.assembleNextTransition (mod : Module) : CommandElabM (Command × Modu
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
   let (baseParams, extraParams, _) ←
     mod.declarationSplitParams assembledNextActName (.derivedDefinition .actionLike actionNames)
-  let binders ← (baseParams ++ extraParams).mapM (·.binder)
+  let binders ← (baseParams ++ extraParams).mapM fun p => p.binder >>= bracketedBinderToFunBinder
   let labelT ← mod.labelTypeStx
   let nextTrT ← `(term| $environmentTheory → $environmentState → $labelT → $environmentState → Prop)
-  let (rd, st, st', label) := (mkIdent `rd, mkIdent `st, mkIdent `st', mkIdent `label)
+  let (rd, st, st', label) := (mkIdent (publicBinderName `rd), mkIdent (publicBinderName `st),
+    mkIdent (publicBinderName `st'), mkIdent (publicBinderName `label))
   let (nextActParams, _) ← mod.declarationAllParams assembledNextActName (.derivedDefinition .actionLike actionNames)
   let nextActArgs ← nextActParams.mapM (·.arg)
   let body ← `(term| (@$assembledNextAct $nextActArgs* $label).toTransitionDerived $rd $st $st')
   let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let nextTrDef ← `(command|
-    @[$attrs,*] def $assembledNext $[$(binders)]* : $nextTrT :=
-      fun ($rd : $environmentTheory) ($st : $environmentState) ($label : $labelT) ($st' : $environmentState) => $body)
+    @[$attrs,*] def $assembledNext := veil_public% (fun $binders* => (
+      fun ($rd : $environmentTheory) ($st : $environmentState) ($label : $labelT) ($st' : $environmentState) => $body : $nextTrT)))
   let derivedDef : DerivedDefinition := { name := assembledNextName, kind := .actionLike, params := #[], extraParams := extraParams, derivedFrom := {assembledNextActName}, stx := nextTrDef }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (nextTrDef, mod)
@@ -286,10 +289,11 @@ def Module.assembleNextTrAndStep (mod : Module) : CommandElabM (Array Command ×
   mod.throwIfAlreadyDeclared assembledNextStepName
   let actionNames := Std.HashSet.ofArray $ mod.actions.map (·.name)
   let (baseParams, extraParams) ← mod.mkDerivedDefinitionsParamsMapFn (pure ·) (.derivedDefinition .actionLike actionNames)
-  let binders ← (baseParams ++ extraParams).mapM (·.binder)
+  let binders ← (baseParams ++ extraParams).mapM fun p => p.binder >>= bracketedBinderToFunBinder
   let labelT ← mod.labelTypeStx
   let nextTrT ← `(term| $environmentTheory → $environmentState → $labelT → $environmentState → Prop)
-  let (rd, st, st', label) := (mkIdent `rd, mkIdent `st, mkIdent `st', mkIdent `label)
+  let (rd, st, st', label) := (mkIdent (publicBinderName `rd), mkIdent (publicBinderName `st),
+    mkIdent (publicBinderName `st'), mkIdent (publicBinderName `label))
   let branches ← mod.actions.mapM fun s => do
     let name := Lean.mkIdent <| toTransitionName <| toExtName s.name
     let (params, actualParams) ← mod.declarationAllParams s.name s.declarationKind
@@ -299,16 +303,16 @@ def Module.assembleNextTrAndStep (mod : Module) : CommandElabM (Array Command ×
     mkFunSyntax actualBinders <| ← `(@$name $args* $rd $st $st')
   let body ← `($label.$(mkIdent `casesOn) $branches*)
   let nextTrDef ← `(command|
-    def $assembledNextTr $[$(binders)]* : $nextTrT :=
-      fun ($rd : $environmentTheory) ($st : $environmentState) ($label : $labelT) ($st' : $environmentState) => $body)
+    def $assembledNextTr := veil_public% (fun $binders* => (
+      fun ($rd : $environmentTheory) ($st : $environmentState) ($label : $labelT) ($st' : $environmentState) => $body : $nextTrT)))
   let nextTrDerivedDef : DerivedDefinition := { name := assembledNextTrName, kind := .actionLike, params := #[], extraParams := extraParams, derivedFrom := actionNames, stx := nextTrDef }
   let mod ← mod.registerDerivedDefinition nextTrDerivedDef
   let nextStepT ← `(term| $environmentTheory → $environmentState → $environmentState → Prop)
   let nextTrArgs ← (baseParams ++ extraParams).mapM (·.arg)
   let nextStepDef ← `(command|
-    def $assembledNextStep $[$(binders)]* : $nextStepT :=
+    def $assembledNextStep := veil_public% (fun $binders* => (
       fun ($rd : $environmentTheory) ($st : $environmentState) ($st' : $environmentState) =>
-        ∃ $label:ident : $labelT, @$assembledNextTr $nextTrArgs* $rd $st $label:ident $st')
+        ∃ $label:ident : $labelT, @$assembledNextTr $nextTrArgs* $rd $st $label:ident $st' : $nextStepT)))
   let nextStepDerivedDef : DerivedDefinition := { name := assembledNextStepName, kind := .actionLike, params := #[], extraParams := extraParams, derivedFrom := {assembledNextTrName}, stx := nextStepDef }
   let mod ← mod.registerDerivedDefinition nextStepDerivedDef
   return (#[nextTrDef, nextStepDef], mod)
@@ -331,17 +335,17 @@ def Module.assembleInit (mod : Module) : CommandElabM (Command × Module) := do
   let baseParams ← mod.declarationBaseParams (.derivedDefinition .actionLike actionNames)
   -- We need `Inhabited σ` since we use `default` as the pre-state
   let inhType ← `(term| $(mkIdent ``Inhabited).{1} $environmentState)
-  let inhParam : Parameter := { kind := .definitionParameter assembledInitName .typeclass, name := `σ_inhabited, «type» := inhType, userSyntax := .missing }
+  let inhParam : Parameter := { kind := .definitionParameter assembledInitName .typeclass, name := publicBinderName `σ_inhabited, «type» := inhType, userSyntax := .missing }
   let initExtraParams := initExtraParams.push inhParam
-  let binders ← (baseParams ++ initExtraParams).mapM (·.binder)
+  let binders ← (baseParams ++ initExtraParams).mapM fun p => p.binder >>= bracketedBinderToFunBinder
   let initT ← `(term| $environmentTheory → $environmentState → Prop)
-  let (rd, st) := (mkIdent `rd, mkIdent `st)
+  let (rd, st) := (mkIdent (publicBinderName `rd), mkIdent (publicBinderName `st))
   -- We use `default` as the pre-state; this matches the behaviour in the explicit model checker
   let body ← `(term| @$initTrName $initArgs* $rd $(mkIdent ``default) $st)
   let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let initDef ← `(command|
-    @[$attrs,*] def $assembledInit $[$(binders)]* : $initT :=
-      fun ($rd : $environmentTheory) ($st : $environmentState) => $body)
+    @[$attrs,*] def $assembledInit := veil_public% (fun $binders* => (
+      fun ($rd : $environmentTheory) ($st : $environmentState) => $body : $initT)))
   let derivedDef : DerivedDefinition := { name := assembledInitName, kind := .actionLike, params := #[], extraParams := initExtraParams, derivedFrom := {initializerName}, stx := initDef }
   let mod ← mod.registerDerivedDefinition derivedDef
   return (initDef, mod)
@@ -371,10 +375,9 @@ def Module.assembleRelationalTransitionSystem [Monad m] [MonadQuotation m] [Mona
   -- Construct the RTS type
   let rtsType ← `(term| $(mkIdent ``RelationalTransitionSystem) $theoryT $stateT $labelT)
   -- Construct field values with explicit type annotations
-  let (ρArg, σArg, χArg) := (mkIdent `ρ, mkIdent `σ, mkIdent `χ)
-  let assumptionsVal ← `(term| $assembledAssumptions ($ρArg := $theoryT) $sorts*)
-  let initVal ← `(term| $assembledInit ($ρArg := $theoryT) ($σArg := $stateT) ($χArg := $fieldAbstractDispatcher $sorts*) $sorts*)
-  let nextVal ← `(term| $assembledNext ($ρArg := $theoryT) ($σArg := $stateT) ($χArg := $fieldAbstractDispatcher $sorts*) $sorts*)
+  let assumptionsVal ← `(term| $assembledAssumptions $theoryT $sorts*)
+  let initVal ← `(term| $assembledInit $theoryT $stateT $sorts* ($fieldAbstractDispatcher $sorts*))
+  let nextVal ← `(term| $assembledNext $theoryT $stateT $sorts* ($fieldAbstractDispatcher $sorts*))
   -- Generate the definition
   let attrs ← #[`actSimp, `nextSimp].mapM (fun attr => `(attrInstance| $(Lean.mkIdent attr):ident))
   let rtsDef ← `(command|

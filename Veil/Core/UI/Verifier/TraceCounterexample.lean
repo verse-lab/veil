@@ -73,167 +73,6 @@ structure VeilTrace where
   /-- Values that couldn't be classified -/
   extraVals : Array (Expr × Expr)
 
-/-! ## Name Pattern Matchers -/
-
-/-- Parse a natural number from a string, returning none if it's not a valid number. -/
-private def parseNat? (s : String.Slice) : Option Nat :=
-  s.toNat?
-
-/-- Check if a name matches the pattern "st{n}.fieldName" and return (n, fieldName).
-    For example: `st0.leader` → `some (0, leader)`, `st3.msgs` → `some (3, msgs)` -/
-def isIndexedStateField (name : Name) : Option (Nat × Name) :=
-  match name with
-  | .str (.str .anonymous stN) fieldName =>
-    if stN.startsWith "st" then
-      match parseNat? (stN.drop 2) with
-      | some n => some (n, .mkSimple fieldName)
-      | none => none
-    else none
-  | _ => none
-
-/-- Check if a name matches the pattern "_tr{n}_tag" and return n.
-    For example: `_tr1_tag` → `some 1`, `_tr3_tag` → `some 3` -/
-def isTransitionTag (name : Name) : Option Nat :=
-  match name with
-  | .str .anonymous s =>
-    if s.startsWith "_tr" && s.endsWith "_tag" then
-      let middle := (s.drop 3).dropEnd 4  -- Remove "_tr" prefix and "_tag" suffix
-      parseNat? middle
-    else none
-  | _ => none
-
-/-- Parse "{m}_{param}" into (argIdx, paramName). -/
-private def parseArgParam (s : String) : Option (Nat × Name) := do
-  let parts := s.splitOn "_"
-  guard (parts.length ≥ 2)
-  let argIdx ← parseNat? parts.head!
-  let paramName := "_".intercalate parts.tail!
-  return (argIdx, .mkSimple paramName)
-
-/-- Check if a name matches the pattern "_tr{n}_arg{m}_{param}" and return (trIdx, argIdx, paramName).
-    For example: `_tr1_arg0_sender` → `some (1, 0, sender)` -/
-def isSpecificActionParam (name : Name) : Option (Nat × Nat × Name) := do
-  let .str .anonymous s := name | none
-  let afterTr ← (s.dropPrefix? "_tr").map (·.toString)
-  let [trIdxStr, rest] := afterTr.splitOn "_arg" | none
-  let trIdx ← parseNat? trIdxStr
-  let (argIdx, paramName) ← parseArgParam rest
-  return (trIdx, argIdx, paramName)
-
-/-- Check if a name matches the pattern "_tr{n}_act_{actionName}_arg{m}_{param}" and return (trIdx, actionName, argIdx, paramName).
-    For example: `_tr1_act_send_arg0_sender` → `some (1, send, 0, sender)` -/
-def isAnyActionParam (name : Name) : Option (Nat × Name × Nat × Name) := do
-  let .str .anonymous s := name | none
-  let afterTr ← (s.dropPrefix? "_tr").map (·.toString)
-  let [trIdxStr, rest] := afterTr.splitOn "_act_" | none
-  let trIdx ← parseNat? trIdxStr
-  let [actNameStr, argRest] := rest.splitOn "_arg" | none
-  let (argIdx, paramName) ← parseArgParam argRest
-  return (trIdx, .mkSimple actNameStr, argIdx, paramName)
-
-/-- Check if a name matches the pattern `actionTagEnumInstName.actionName` and return actionName.
-    For example: `__veil_tag.send` → `some send` -/
-def isVeilTagEntry (name : Name) : Option Name :=
-  match name with
-  | .str parent actionName =>
-    if parent == Veil.actionTagEnumInstName then some (.mkSimple actionName) else none
-  | _ => none
-
-/-! ## Model Classification -/
-
-/-- Classify model values into indexed state fields, theory fields, transition tags,
-    action parameters, and extras.
-
-    Returns:
-    - `stateFields`: Array of hashmaps, one per state index, mapping field names to values
-    - `theoryFields`: HashMap of theory field names to values
-    - `transitionTags`: HashMap of transition index to tag value expression
-    - `specificActionParams`: HashMap of (trIdx, argIdx) to parameter value expression
-    - `anyActionParams`: HashMap of (trIdx, actionName, argIdx) to parameter value expression
-    - `tagToAction`: HashMap of tag value (Nat) to action name
-    - `extraVals`: Array of unclassified (name, value) pairs
--/
-def classifyTraceModelValues (model : Model) (mod : Module) (numStates : Nat)
-    : IO (Array (Std.HashMap Name Expr)
-        × Std.HashMap Name Expr
-        × Std.HashMap Nat Expr
-        × Std.HashMap (Nat × Nat) Expr
-        × Std.HashMap (Nat × Name × Nat) Expr
-        × Std.HashMap Nat Name
-        × Array (Expr × Expr)) := do
-  let stateFieldNames := mod.mutableComponents.map (·.name) |>.toList
-  let theoryFieldNames := mod.immutableComponents.map (·.name) |>.toList
-
-  -- Initialize state field maps (one per state)
-  let mut stateFields : Array (Std.HashMap Name Expr) := Array.replicate numStates {}
-  let mut theoryFields : Std.HashMap Name Expr := {}
-  let mut transitionTags : Std.HashMap Nat Expr := {}
-  let mut specificActionParams : Std.HashMap (Nat × Nat) Expr := {}
-  let mut anyActionParams : Std.HashMap (Nat × Name × Nat) Expr := {}
-  let mut tagToAction : Std.HashMap Nat Name := {}
-  let mut extraVals : Array (Expr × Expr) := #[]
-
-  for (nameExpr, valueExpr) in model.values do
-    let name? ← getExprName model.ctx nameExpr
-    match name? with
-    | some name =>
-      -- Check if it's a veil tag entry (__veil_tag.actionName = tagValue)
-      if let some actionName := isVeilTagEntry name then
-        if let some tagValue ← extractFinValue model.ctx valueExpr then
-          tagToAction := tagToAction.insert tagValue actionName
-      -- Check if it's an indexed state field (st{n}.fieldName)
-      else if let some (stateIdx, fieldName) := isIndexedStateField name then
-        if stateIdx < numStates && stateFieldNames.contains fieldName then
-          stateFields := stateFields.modify stateIdx (·.insert fieldName valueExpr)
-        else
-          extraVals := extraVals.push (nameExpr, valueExpr)
-      -- Check if it's a theory field (th.fieldName)
-      else if let some fieldName := isTheoryField name then
-        if theoryFieldNames.contains fieldName then
-          theoryFields := theoryFields.insert fieldName valueExpr
-        else
-          extraVals := extraVals.push (nameExpr, valueExpr)
-      -- Check if it's a transition tag (_tr{n}_tag)
-      else if let some trIdx := isTransitionTag name then
-        transitionTags := transitionTags.insert trIdx valueExpr
-      -- Check if it's a specific action parameter (_tr{n}_arg{m}_{param})
-      else if let some (trIdx, argIdx, _paramName) := isSpecificActionParam name then
-        specificActionParams := specificActionParams.insert (trIdx, argIdx) valueExpr
-      -- Check if it's an any-action parameter (_tr{n}_act_{actionName}_arg{m}_{param})
-      else if let some (trIdx, actName, argIdx, _paramName) := isAnyActionParam name then
-        anyActionParams := anyActionParams.insert (trIdx, actName, argIdx) valueExpr
-      else
-        extraVals := extraVals.push (nameExpr, valueExpr)
-    | none =>
-      extraVals := extraVals.push (nameExpr, valueExpr)
-
-  return (stateFields, theoryFields, transitionTags, specificActionParams, anyActionParams, tagToAction, extraVals)
-
-/-! ## Label Construction -/
-
-/-- Resolve the action name from a tag expression using the tag-to-action mapping.
-    The tag is a Fin value, and we use the mapping built from `__veil_tag.*` entries.
-    Returns (actionName, tagValue) if resolved, or none otherwise. -/
-def resolveActionFromTag (ctx : ModelContext) (tagExpr : Expr)
-    (tagToAction : Std.HashMap Nat Name) : IO (Option (Name × Nat)) := do
-  let some tagValue ← extractFinValue ctx tagExpr | return none
-  let some actionName := tagToAction[tagValue]? | return none
-  return some (actionName, tagValue)
-
-/-- Build a Label constructor expression from action name and parameter values.
-    Uses the transition index and action name to look up parameters.
-    First tries specific params (trIdx, argIdx), then any-action params (trIdx, actionName, argIdx). -/
-def buildLabelFromAction (mod : Module) (moduleArgs : Array Expr)
-    (actionName : Name) (trIdx : Nat)
-    (specificParams : Std.HashMap (Nat × Nat) Expr)
-    (anyActionParams : Std.HashMap (Nat × Name × Nat) Expr)
-    (enumAdapts : Array EnumSortAdaptation := #[])
-    : MetaM (Option Expr) :=
-  buildLabelExprCore mod moduleArgs actionName (fun idx =>
-    -- First try specific params, then fall back to any-action params
-    specificParams[(trIdx, idx)]? <|> anyActionParams[(trIdx, actionName, idx)]?
-  ) enumAdapts
-
 /-! ## Main Construction -/
 
 /-- Build a VeilTrace from an SMT Model.
@@ -256,9 +95,15 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
   let extraSorts ← model.sorts.filterM fun (sortExpr, _) => do
     return !(← getExprName model.ctx sortExpr).any moduleSortNames.contains
 
-  -- Classify model values
-  let (stateFieldMaps, theoryFields, transitionTags, specificParams, anyActionParams, tagToAction, extraVals) ←
-    classifyTraceModelValues model mod numStates
+  -- Only Veil's marked binders participate in reconstruction. Keep the full
+  -- projection path when a tactic has split a structure before calling SMT.
+  let mut values : Std.HashMap Name Expr := {}
+  let mut extraVals := #[]
+  for (e, value) in model.values do
+    if let some key := (← getExprName model.ctx e).bind modelBinderKey? then
+      values := values.insert key value
+    else
+      extraVals := extraVals.push (e, value)
 
   -- Build sort instantiation info
   let sortInstInfo ← (mod.sortParams.zip sortArgs).mapM fun ((sp, _), cardExpr) => do
@@ -266,7 +111,7 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
     pure (sp.name, typeStr.pretty)
 
   -- Build Theory expression and type
-  let theoryExpr ← buildTheoryExpr mod moduleArgs theoryFields enumAdapts
+  let theoryExpr ← buildTheoryExpr mod moduleArgs values enumAdapts `th
   let theoryType ← mkAppOptM (mod.name ++ `Theory) <| moduleArgs.map (Option.some ·)
 
   -- Build State type
@@ -275,20 +120,27 @@ def buildTraceFromModel (model : Model) (mod : Module) (numTransitions : Nat)
   let stateType ← mkAppM (mod.name ++ `State) #[dispatcher]
 
   -- Build State expressions for each state
-  let stateExprs ← stateFieldMaps.mapM fun fieldMap => do
-    buildStateExpr mod moduleArgs fieldMap enumAdapts
+  let stateExprs ← (Array.range numStates).mapM fun i =>
+    buildStateExpr mod moduleArgs values enumAdapts (traceStateName i)
 
   -- Build Label type
   let labelType ← mkAppM (mod.name ++ `Label) moduleArgs
 
   -- Build Label expressions for each transition
   let defaultLabel := mkAppOptM ``default #[some labelType, none]
+  let mut actionsByTag : Std.HashMap Nat (Nat × Name) := {}
+  for (act, idx) in mod.actions.zipIdx do
+    let some value := values[actionTagEnumInstName ++ act.name]? | continue
+    let some tag ← extractFinValue model.ctx value | continue
+    actionsByTag := actionsByTag.insert tag (idx, act.name)
   let labelExprs ← (Array.range numTransitions).mapM fun i => do
-    let trIdx := i + 1  -- Tags are 1-indexed (_tr1_tag, _tr2_tag, ...)
-    let some tagExpr := transitionTags[trIdx]? | defaultLabel
-    let some (actionName, _tagValue) ← resolveActionFromTag model.ctx tagExpr tagToAction | defaultLabel
-    let some labelExpr ← buildLabelFromAction mod moduleArgs actionName trIdx specificParams anyActionParams enumAdapts | defaultLabel
-    pure labelExpr
+    let step := i + 1
+    let some tagExpr := values[traceTagName step]? | defaultLabel
+    let some tag ← extractFinValue model.ctx tagExpr | defaultLabel
+    let some (idx, actionName) := actionsByTag[tag]? | defaultLabel
+    let some label ← buildLabelExpr mod moduleArgs actionName values enumAdapts
+        (traceArgumentName step idx) | defaultLabel
+    return label
 
   return {
     ctx := model.ctx

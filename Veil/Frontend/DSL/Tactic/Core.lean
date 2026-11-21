@@ -1,6 +1,7 @@
 module
 
 public meta import Lean
+public meta import Smt.Tactic.Smt
 public meta import Veil.Base
 public meta import Veil.Frontend.DSL.State.SubState
 public meta import Veil.Frontend.DSL.Module.Util
@@ -437,6 +438,13 @@ where
       | _ => pure false
     return isStateχ || ofBadType
 
+/-- Interactive tactics expose fields to the proof script. The verifier's SMT
+worker instead keeps the field's role through `expose_names` and case splits. -/
+private def solverFieldName [Monad m] [MonadEnv m] [MonadOptions m] (name : Name) : m Name := do
+  if (Smt.asyncState.getState (← getEnv)).ch.isSome && !(veil.solver.get (← getOptions) matches .custom) then
+    return modelValueName name
+  return name
+
 mutual
 
 /-- Destruct a structure into its fields. If `onlyStructs` is non-empty, only destructs
@@ -453,7 +461,11 @@ partial def elabVeilDestructSpecificHyp (ids : Array (TSyntax `ident)) (onlyStru
     if excludedStructs.contains sn || (!onlyStructs.isEmpty && !onlyStructs.contains sn) then
       continue
     let .some _sinfo := getStructureInfo? (← getEnv) sn | throwError "veil_destruct: {id} ({sn} is not a structure)"
-    let newFieldNames := _sinfo.fieldNames.map (mkIdent $ Name.append name ·)
+    let root ← if (← localEnv.get).currentModule.any (fun mod =>
+        (sn == mod.name ++ theoryName && [`th, `r₀].contains name) ||
+        (sn == mod.name ++ stateName && [`st, `s₀, `s₁, `st'].contains name)) then
+      solverFieldName name else pure name
+    let newFieldNames := _sinfo.fieldNames.map (mkIdent $ root ++ ·)
     let s ← `(rcasesPat| ⟨ $[$newFieldNames],* ⟩)
     veilEvalTactic $ ← `(tactic| unhygienic rcases $(mkIdent ld.userName):ident with $s)
     -- Simplify FieldAbstractType in new field hypotheses
@@ -524,13 +536,14 @@ inductive GenericStateKind
 
 /-- Get all abstract state hypotheses (variables of type `σ` or `ρ`). -/
 def getAbstractStateHyps : TacticM (Array (GenericStateKind × LocalDecl)) := veilWithMainContext do
+  let lctx ← getLCtx
+  let state := (lctx.findFromUserName? (← publicParamRef environmentState).getId).map (·.toExpr)
+  let theoryType := (lctx.findFromUserName? (← publicParamRef environmentTheory).getId).map (·.toExpr)
   let mut abstractStateHyps := #[]
-  for hyp in (← getLCtx) do
-    let `(term|$x:ident) ← delabVeilExpr hyp.type
-      | continue
-    if x.getId == environmentStateName then
+  for hyp in lctx do
+    if some hyp.type == state then
       abstractStateHyps := abstractStateHyps.push (.environmentState, hyp)
-    else if x.getId == environmentTheoryName then
+    else if some hyp.type == theoryType then
       abstractStateHyps := abstractStateHyps.push (.backgroundTheory, hyp)
   return abstractStateHyps
 
@@ -538,7 +551,7 @@ def concretizeStateByGeneralization : TacticM (Array (TSyntax `Lean.Parser.Tacti
   let mut tacticsToExecute := #[]
   for (k, hyp) in (← getAbstractStateHyps) do
     let existingName := mkIdent hyp.userName
-    let concreteState := mkIdent $ mkVeilImplementationDetailName existingName.getId
+    let concreteState ← Lean.mkIdent <$> mkFreshUserName existingName.getId
     let getter := match k with
     | .environmentState => mkIdent ``getFrom
     | .backgroundTheory => mkIdent ``readFrom
@@ -622,8 +635,8 @@ def elabVeilConcretizeFieldsWp (fast : Bool) : DesugarTacticM Unit := veilWithMa
     let st := mkIdent stHyp.userName
     for f in fields do
       let f : Ident := f
-      let fDestructed := mkIdent <| Name.append st.getId f.getId -- Name.mkSimple s!"{st.getId}_{f.getId}"
-      let tmpField := mkIdent <| mkVeilImplementationDetailName f.getId
+      let fDestructed := mkIdent ((← solverFieldName st.getId) ++ f.getId)
+      let tmpField ← Lean.mkIdent <$> liftM (m := CoreM) (mkFreshUserName f.getId)
       tacs := tacs.push <| ← `(tacticSeq| generalize (($rep _).$(mkIdent `get)) $st.$f = $tmpField at * ; dsimp +$(mkIdent `instances) [$[$localSimpTerms:ident],*] at $tmpField:ident ; veil_rename_hyp $tmpField:ident => $fDestructed:ident)
     -- Clear the original state hypothesis
     tacs := tacs.push <| ← `(tacticSeq| try clear $st:ident)
@@ -642,7 +655,7 @@ def elabVeilConcretizeFieldsTr : DesugarTacticM Unit := veilWithMainContext do
 
   let lctx ← getLCtx
   -- Find the χ fvar (field concrete type) in the local context
-  let some χFvarId := (lctx.findFromUserName? fieldConcreteTypeName).map LocalDecl.fvarId | return
+  let some χFvarId := (lctx.findFromUserName? (← publicParamRef fieldConcreteType).getId).map LocalDecl.fvarId | return
 
   -- Step 1: Identify hypotheses where the equality's type involves a field label.
   -- These are equalities like:
@@ -666,7 +679,7 @@ def elabVeilConcretizeFieldsTr : DesugarTacticM Unit := veilWithMainContext do
   -- Apply `congrArg (χ_rep _).get` to each identified hypothesis
   -- to "view" the equality through the field representation
   for hyp in hypsToTransform do
-    let tac ← `(tactic| replace $hyp:ident := $(mkIdent ``congrArg) ($(fieldRepresentation) _).$(mkIdent `get) $hyp:ident)
+    let tac ← `(tactic| replace $hyp:ident := $(mkIdent ``congrArg) ($(← publicParamRef fieldRepresentation) _).$(mkIdent `get) $hyp:ident)
     veilEvalTactic tac
 
   -- Step 2: Concretize fields using the standard procedure
@@ -1017,15 +1030,18 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
     else pure none
   let hWpTac ← do
     let tm ← match truePostInst? with
-      | some inst => `($(mkIdent wpLocalEqName):ident ($(mkVeilImplementationDetailIdent `localRPropTC) := $inst:term))
+      | some inst => do
+        -- The final three binders are the locality instance, reader, and state.
+        let prefixArgs := Array.replicate ((← getConstInfo wpLocalEqName).type.getNumHeadForalls - 3) (← `(_))
+        `(@$(mkIdent wpLocalEqName):ident $prefixArgs* $inst:term)
       | none => `($(mkIdent wpLocalEqName):ident)
     `(tactic| (unhygienic intro $(mkIdent `handler) $(mkIdent `th) $(mkIdent `st) ; rw [$tm:term]))
   let refineTac ← do
     let tm ← match truePostInst? with
-      | some inst => `($localMeetsSpecificationIfSuccessfulAssuming:ident
-        ($(mkVeilImplementationDetailIdent `post):ident := $truePostTerm:term)
-        ($(mkVeilImplementationDetailIdent `localRPropTC):ident := $inst:term)
-        $handlerTerm:term ?_ ?_ ?_ ?_ ?_ ?_)
+      | some inst => do
+        let moduleArgs := Array.replicate mod.parameters.size (← `(_))
+        `(@$localMeetsSpecificationIfSuccessfulAssuming:ident $moduleArgs* _ _ _ _
+          $truePostTerm $inst _ $handlerTerm:term ?_ ?_ ?_ ?_ ?_ ?_)
       | none => `($localMeetsSpecificationIfSuccessfulAssuming:ident
         $handlerTerm:term ?_ ?_ ?_ ?_ ?_ ?_)
     `(tactic| refine' $tm:term <;>
@@ -1046,9 +1062,9 @@ def elabVeilApplyLocalWp : DesugarTacticM Unit := veilWithMainContext do
   -- names expected by the local WP solver.
   let introNames :=
     (mod.immutableComponents.map (fun sc => Name.append `th sc.name)) ++
-    (mod.mutableComponents.map (fun sc => Name.append `st sc.name)) ++
-    #[`has, `hinv]
-  let introIdents := introNames.map Lean.mkIdent
+    (mod.mutableComponents.map (fun sc => Name.append `st sc.name))
+  let fields ← introNames.mapM solverFieldName
+  let introIdents : Array Ident := (fields ++ #[`has, `hinv]).map Lean.mkIdent
   veilEvalTactic $ ← `(tactic| unhygienic intro $introIdents*)
   -- Finally, do some cleanup; now this is somehow like `unveil`
   -- NOTE:  We directly unfold `.wp_local_eq.pred` now; `whnf` might be too aggressive
@@ -1120,9 +1136,9 @@ def elabVeilApplyLocalTr : DesugarTacticM Unit := veilWithMainContext do
     (mod.immutableComponents.map (fun sc => Name.append `th sc.name)) ++
     (mod.mutableComponents.map (fun sc => Name.append `st sc.name)) ++
     -- FIXME: Use better name than `s₁`
-    (mod.mutableComponents.map (fun sc => Name.append `s₁ sc.name)) ++
-    #[`has, `hinv, `htr]
-  let introIdents := introNames.map Lean.mkIdent
+    (mod.mutableComponents.map (fun sc => Name.append `s₁ sc.name))
+  let fields ← introNames.mapM solverFieldName
+  let introIdents : Array Ident := (fields ++ #[`has, `hinv, `htr]).map Lean.mkIdent
   veilEvalTactic $ ← `(tactic| unhygienic intro $introIdents*)
   let has := mkIdent `has ; let hinv := mkIdent `hinv ; let htr := mkIdent `htr
   let tac ← `(tacticSeq|
@@ -1431,7 +1447,7 @@ def elabVeilTactics : Tactic := fun stx => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_cases_type") $
       Veil.Util.elabCasesType heads (recursive := recursive?.isSome) (allowSplit := true)
         (skipNames := skipIds.elim #[] (fun ids => ids.getElems.map (·.getId)))
-        (keepProjectionNames := isModelParameterName)
+        (keepProjectionNames := fun n => isModelParameterName n || (modelBinderKey? n).isSome)
   | `(tactic| veil_clear $ids:ident*) => do
     withTraceNode `veil.perf.tactic (fun _ => return "veil_clear") $ elabVeilClearHyps ids
   | `(tactic| veil_destruct_goal) => do

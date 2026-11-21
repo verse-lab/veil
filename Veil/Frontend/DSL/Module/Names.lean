@@ -8,23 +8,21 @@ open Lean
 
 namespace Veil
 
-/-- The name used to parametrise the `mode` of the `VeilM` monad. This
-is intentionally a non-hygienic name, since we bind it when we
-elaborate the syntax expanded by `elabVeilDo`. -/
-def veilModeVar : Ident := mkIdent $ mkVeilImplementationDetailName `mode
-
+/-- Mode shared by the action wrapper and the `veil_do` elaborator. -/
+def veilModeVar : Ident := mkIdent (privateBinderName (mkVeilImplementationDetailName `mode))
 
 /-- Name of the generic/environment background theory (i.e. `Reader` monad state)
 variable. -/
-def environmentTheoryName : Name := `ρ
+def environmentTheoryName : Name := publicBinderName `ρ
 def environmentTheory : Ident := mkIdent environmentTheoryName
-def environmentSubTheoryName : Name := `ρ_sub
+def environmentSubTheoryName : Name := publicBinderName `ρ_sub
 def environmentSubTheory : Ident := mkIdent environmentSubTheoryName
 
 /-- Name of the environment state (for the `State` monad) variable. -/
-def environmentStateName : Name := `σ
+def environmentStateName : Name := publicBinderName `σ
 def environmentState : Ident := mkIdent environmentStateName
-def environmentSubStateName : Name := `σ_sub
+
+def environmentSubStateName : Name := publicBinderName `σ_sub
 def environmentSubState : Ident := mkIdent environmentSubStateName
 
 def stateName : Name := `State
@@ -82,7 +80,7 @@ def assembledNextStep : Ident := mkIdent assembledNextStepName
 def nextActSimplifiedName : Name := `NextAct'
 def nextActSimplified : Ident := mkIdent nextActSimplifiedName
 
-def fieldConcreteTypeName : Name := `χ
+def fieldConcreteTypeName : Name := publicBinderName `χ
 def fieldConcreteType : Ident := mkIdent fieldConcreteTypeName
 
 def fieldConcreteDispatcherName : Name := `FieldConcreteType
@@ -91,9 +89,9 @@ def fieldConcreteDispatcher : Ident := mkIdent fieldConcreteDispatcherName
 def fieldAbstractDispatcherName : Name := `FieldAbstractType
 def fieldAbstractDispatcher : Ident := mkIdent fieldAbstractDispatcherName
 
-def fieldRepresentationName : Name := `χ_rep
+def fieldRepresentationName : Name := publicBinderName `χ_rep
 def fieldRepresentation : Ident := mkIdent fieldRepresentationName
-def lawfulFieldRepresentationName : Name := `χ_rep_lawful
+def lawfulFieldRepresentationName : Name := publicBinderName `χ_rep_lawful
 def lawfulFieldRepresentation : Ident := mkIdent lawfulFieldRepresentationName
 
 def instEnumerationForIteratedProdName : Name := `instEnumerationForIteratedProd
@@ -159,7 +157,7 @@ def assembledInit : Ident := mkIdent assembledInitName
 def assembledRTSName : Name := `relationalTransitionSystem
 def assembledRTS : Ident := mkIdent assembledRTSName
 
-def exceptionName : Name := mkVeilImplementationDetailName `ex
+def exceptionName : Name := privateBinderName (mkVeilImplementationDetailName `ex)
 def exception : Ident := mkIdent exceptionName
 
 /-- A numeric name component keeps model binders distinct from source identifiers,
@@ -175,9 +173,33 @@ def isModelParameterName (name : Name) : Bool :=
 def modelParameterDisplayName (name : Name) : Name :=
   name.replacePrefix modelParameterPrefix `param
 
+/-- Tactics such as `expose_names` can remove scopes before SMT sees a binder.
+Keep the model role in a numeric name component too, including on projections. -/
+private def modelBinderPrefix : Name := .num `__veil_model 0
+
+def modelValueName (name : Name) : Name := modelBinderPrefix ++ name
+
+def modelBinderName (name : Name) : Name :=
+  addMacroScope `Veil.model name reservedMacroScope
+
+/-- Encode the role in the elaborated VC, where binder names need no longer be atomic. -/
+def persistModelBinderName (name : Name) : Name :=
+  let scope := extractMacroScopes name
+  if scope.ctx == `Veil.model then modelValueName scope.name else name
+
+def modelBinderKey? (name : Name) : Option Name := do
+  let key := name.eraseMacroScopes
+  guard (modelBinderPrefix.isPrefixOf key)
+  return key.replacePrefix modelBinderPrefix .anonymous
+
+def traceStateName (i : Nat) : Name := .mkSimple s!"st{i}"
+def traceTagName (i : Nat) : Name := .mkSimple s!"_tr{i}_tag"
+def traceArgumentName (step action argument : Nat) : Name :=
+  .mkSimple s!"_tr{step}_act{action}_arg{argument}"
+
 /-- Name of the ActionTag_Enum instance binder -/
 def actionTagEnumInstName : Name := mkVeilImplementationDetailName `tag
-def actionTagEnumInst : Ident := mkIdent actionTagEnumInstName
+def actionTagEnumInst : Ident := mkIdent (modelBinderName actionTagEnumInstName)
 
 def transitionWeakeningLemmaName : Name := `_transitionWeakeningLemma
 def transitionWeakeningLemma : Ident := mkIdent transitionWeakeningLemmaName

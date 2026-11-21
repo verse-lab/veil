@@ -166,19 +166,58 @@ def withTiming {m α} [Monad m] [MonadTrace m] [MonadOptions m] [MonadRef m] [Mo
 
 /-- Syntax for `∀ a₀ a₁ .. aₙ, Decidable (P a₀ a₁ .. aₙ)`. -/
 def decidableNStx [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m] (n : Nat) (relName : Name) : m Term := do
-  let idents := (Array.range n).map fun i => mkIdent $ Name.mkSimple s!"a{i}"
+  let idents ← (Array.range n).mapM fun i => mkIdent <$> MonadQuotation.addMacroScope (.mkSimple s!"a{i}")
   if n == 0 then
     `(term| $(mkIdent ``Decidable) ($(mkIdent relName)))
   else
     `(term| ∀ $idents*, $(mkIdent ``Decidable) ($(mkIdent relName) $idents*))
 
+/-- Private references shared by generated fragments within a Veil declaration.
+The surrounding declaration supplies the corresponding free variables. -/
+def privateBinderName (name : Name) : Name :=
+  addMacroScope `Veil.binder name reservedMacroScope
+
+/-- A binder elaborated privately whose spelling is part of a declaration's named arguments. -/
+def publicBinderName (name : Name) : Name :=
+  addMacroScope `Veil.parameter name reservedMacroScope
+
+/-- Recover the source-facing name of a generated API parameter. Other macro
+scopes, including those on user syntax, belong to their original elaborator. -/
+def publicParamName (name : Name) : Name :=
+  let scope := extractMacroScopes name
+  if scope.ctx == `Veil.parameter then scope.name else name
+
+/-- Interactive proofs can supply the published binder under its ordinary name. -/
+def publicParamRef (id : Ident) : MetaM Ident := do
+  if (← getLCtx).usesUserName id.getId then return id
+  return mkIdent (publicParamName id.getId)
+
+/-- Restore named arguments only after references have become de Bruijn indices. -/
+def exposePublicBinders (e : Expr) : Expr :=
+  let rec binderNames (e : Expr) (names : NameSet) := match e with
+    | .forallE n _ body _ | .lam n _ body _ => binderNames body (names.insert n)
+    | _ => names
+  let names := binderNames e {}
+  -- A source parameter takes priority if both would publish the same name.
+  let publish (n : Name) := if names.contains (publicParamName n) then n else publicParamName n
+  let rec visit : Expr → Expr
+    | .forallE n ty body bi => .forallE (publish n) ty (visit body) bi
+    | .lam n ty body bi => .lam (publish n) ty (visit body) bi
+    | e => e
+  visit e
+
+/-- Publish named arguments after elaborating a generated definition or theorem type. -/
+scoped elab "veil_public% " t:term : term <= expectedType? => do
+  return exposePublicBinders (← Term.elabTerm t expectedType?)
+
 def mkVeilImplementationDetailName (n : Name) : Name :=
   Name.mkSimple s!"__veil_{n}"
 
 def mkVeilImplementationDetailIdent (n : Name) : Ident :=
-  mkIdent $ mkVeilImplementationDetailName n
+  mkIdent (privateBinderName (mkVeilImplementationDetailName n))
 
 def isVeilImplementationDetailName (n : Name) : Bool :=
+  let n := n.eraseMacroScopes
   n.isStr && n.toString.startsWith "__veil_"
 
 /-- **If** `derivedStx` doesn't have an informative source span, inherit the
@@ -259,7 +298,7 @@ def addVeilDefinitionAsync (n : Name) (e : Expr) (compile := true)
   let fullName ← if addNamespace then pure $ (← getCurrNamespace).append n else pure n
   -- Extraction and proofs in importing modules unfold generated definitions.
   let decl := Declaration.defnDecl <|
-    mkDefinitionValEx fullName levels type e red (DefinitionSafety.safe) []
+    mkDefinitionValEx fullName levels (exposePublicBinders type) e red (DefinitionSafety.safe) []
   addDecl decl (forceExpose := true)
   if compile then compileDecl decl
   trace[veil.desugar] "{← stxForVeilDefinition red attr n type e}"
@@ -283,7 +322,7 @@ def addVeilTheorem (n : Name) (statement : Expr) (proof : Expr) (attr : Array At
   -- Use dynamic trace class name so each theorem appears separately in the profiler
   withTraceNode (`veil.perf.definition ++ n) (fun _ => return s!"thm {n}") do
     let fullName ← if addNamespace then pure $ (← getCurrNamespace).append n else pure n
-    let decl := Declaration.thmDecl (mkTheoremValEx fullName [] statement proof [])
+    let decl := Declaration.thmDecl (mkTheoremValEx fullName [] (exposePublicBinders statement) proof [])
     addDecl decl
     enableRealizationsForConst fullName
     Term.applyAttributes fullName attr

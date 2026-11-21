@@ -229,7 +229,7 @@ def elabLivenessNarrowAssumptions : DesugarTacticM Unit := veilWithMainContext d
 def elabLivenessNarrowLocalRProp : DesugarTacticM Unit := veilWithMainContext do
   let mod ← getCurrentModule (errMsg := "liveness_narrow_localrprop: not inside a Veil module")
   let coreEq ← Lean.mkIdent <$> resolveGlobalConstNoOverloadCore (localRPropTCName ++ `core_eq)
-  let paramIds : Array Ident := mod.parameters.map fun p => mkIdent p.name
+  let paramIds ← mod.parameters.mapM fun p => publicParamRef (mkIdent p.name)
   let term ← `(@$coreEq $paramIds*)
   veilEvalTactic (← `(tactic| veil_simp only [$term:term] at *))
 
@@ -280,7 +280,7 @@ def elabLivenessNarrowInit : DesugarTacticM Unit := veilWithMainContext do
   let initId ← Lean.mkIdent <$> resolveGlobalConstNoOverloadCore assembledInitName
   -- unfold Init at h ; cases σ_inhabited ; expose_names
   -- FIXME: Need better heuristic to find σ_inhabited
-  let σ_inh := mkIdent `σ_inhabited
+  let σ_inh ← publicParamRef (mkIdent (publicBinderName `σ_inhabited))
   veilEvalTactic (← `(tactic| unfold $initId at $hypId:ident ; cases $σ_inh:ident ; expose_names))
   -- apply initializer.ext.tr_abstract at h ; veil_dsimp only at h
   -- (After cases, the hypothesis name may have changed; re-find it)
@@ -351,11 +351,9 @@ def elabLivenessNarrowAction : DesugarTacticM Unit := veilWithMainContext do
   veilWithMainContext do
     veilEvalTactic (← `(tactic|
       replace $(mkIdent nextHyp.userName):ident := $(mkIdent <| toTransitionAbstractName assembledNextName)
-        ($environmentTheory := $environmentTheory)
-        ($environmentState := $environmentState)
-        ($(mkVeilImplementationDetailIdent `idxs) := [$activeIdxsList,*])
-        ($(mkVeilImplementationDetailIdent `r₀) := $(mkIdent `th))
-        _ _ $(mkIdent nextHyp.userName):ident ; dsimp [$[$dsimps:ident],*, -$(mkIdent ``Fin.reduceFinMk):ident] at $(mkIdent nextHyp.userName):ident))
+        ($environmentTheory := $(← publicParamRef environmentTheory))
+        ($environmentState := $(← publicParamRef environmentState))
+        $(mkIdent `th) _ _ [$activeIdxsList,*] $(mkIdent nextHyp.userName):ident ; dsimp [$[$dsimps:ident],*, -$(mkIdent ``Fin.reduceFinMk):ident] at $(mkIdent nextHyp.userName):ident))
 
 /-! ## Common pipeline -/
 

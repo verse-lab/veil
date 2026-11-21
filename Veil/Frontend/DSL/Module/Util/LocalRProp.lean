@@ -64,8 +64,9 @@ def Module.declareLocalRPropTC (mod : Module) : MetaM (List Command) := do
     let p ← Lean.mkIdent <$> mkFreshUserName `p ; let q ← Lean.mkIdent <$> mkFreshUserName `q
     let inst1 ← Lean.mkIdent <$> mkFreshUserName `inst1 ; let inst2 ← Lean.mkIdent <$> mkFreshUserName `inst2
     let args ← params.mapM (·.arg)
-    let theoryFields ← mod.theoryFieldIdentsAlongsideState
-    let fieldNames := theoryFields ++ mod.mutableComponents.map (fun sc => Lean.mkIdent sc.name)
+    let theoryFields ← mod.immutableComponents.mapM fun sc => Lean.mkIdent <$> mkFreshUserName sc.name
+    let stateFields ← mod.mutableComponents.mapM fun sc => Lean.mkIdent <$> mkFreshUserName sc.name
+    let fieldNames := theoryFields ++ stateFields
     let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldNames.mapM fun f => `(Lean.Parser.Term.funBinder| $f)
     let fieldArgs : Array Term ← fieldNames.mapM fun f => `(term| $f)
     let coreFn ← mkFunSyntax fieldBinders (← `(term| $inst1.$(mkIdent `core) $fieldArgs* ∧ $inst2.$(mkIdent `core) $fieldArgs*))
@@ -509,13 +510,13 @@ private structure LocalVCTheoremContext where
 `coreArgs` canonicalizes those concrete fields with `FieldRepresentation.get`. -/
 private def Module.mkLocalVCStateFieldView (mod : Module)
     (binderSuffix concSuffix : String) : TermElabM LocalVCStateFieldView := do
-  let binders ← mod.mutableComponents.mapM fun (sc : StateComponent) => do
-    `(bracketedBinder| ($(Lean.mkIdent (appendNameSuffix sc.name binderSuffix)) : $(← sc.typeStx)))
-  let args := mod.mutableComponents.map fun (sc : StateComponent) =>
-    Lean.mkIdent (appendNameSuffix sc.name binderSuffix)
+  let args ← mod.mutableComponents.mapM fun sc =>
+    Lean.mkIdent <$> mkFreshUserName (appendNameSuffix sc.name binderSuffix)
+  let binders ← (args.zip mod.mutableComponents).mapM fun (arg, sc) => do
+    `(bracketedBinder| ($arg : $(← sc.typeStx)))
   let struct ← `(term| ⟨$[$args],*⟩)
-  let concArgs := mod.mutableComponents.map fun sc =>
-    Lean.mkIdent (appendNameSuffix sc.name concSuffix)
+  let concArgs ← mod.mutableComponents.mapM fun sc =>
+    Lean.mkIdent <$> mkFreshUserName (appendNameSuffix sc.name concSuffix)
   let pat ← `(rcasesPat| ⟨$[$concArgs:ident],*⟩)
   let coreArgs ← concArgs.mapM fun f =>
     `(term| ($fieldRepresentation _).$(mkIdent `get) $f:ident)
@@ -548,7 +549,7 @@ private def Module.mkLocalVCTheoremContext (mod : Module)
   let stateFieldTypes ← mod.mutableComponents.mapM (·.typeStx)
   let assuCoreType ← mkArrowStx theoryFieldTypes.toList (some prop)
   let stateCoreType ← mkArrowStx (theoryFieldTypes ++ stateFieldTypes).toList (some prop)
-  let theoryFieldArgs ← mod.theoryFieldIdentsAlongsideState
+  let theoryFieldArgs ← mod.immutableComponents.mapM fun sc => Lean.mkIdent <$> mkFreshUserName sc.name
   let theoryFieldBinders ← (theoryFieldArgs.zip theoryFieldTypes).mapM fun (arg, ty) =>
     `(bracketedBinder| ($arg : $ty))
   let theoryStruct ← `(term| ⟨$[$theoryFieldArgs],*⟩)

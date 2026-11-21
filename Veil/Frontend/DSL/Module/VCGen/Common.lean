@@ -30,15 +30,16 @@ def mkActionTagBinders (tagType : Ident) : TermElabM (Array (TSyntax ``bracketed
 
 /-- Preserve the spelling used by the trace decoder while preventing captures in user terms. -/
 def mkTransitionTagBinder (tagType : Ident) (i : Nat) : TermElabM (Ident × TSyntax ``bracketedBinder) := do
-  let tag ← Lean.mkIdent <$> mkFreshUserName (.mkSimple s!"_tr{i}_tag")
+  let tag := Lean.mkIdent <| modelBinderName (traceTagName i)
   return (tag, ← `(bracketedBinder| ($tag : $tagType)))
 
-/-- Bind an action's arguments under the names expected by the trace decoder. -/
-def mkTransitionParamBinders (prefix_ : String) (params : Array Parameter) :
+/-- The label constructor determines each argument type, including dependencies
+on earlier arguments. Source parameter names are out of scope in this query. -/
+def mkTransitionParamBinders (step action arity : Nat) :
     TermElabM (Array Ident × Array (TSyntax ``bracketedBinder)) := do
-  let args ← params.mapIdxM fun i p => do
-    let arg ← Lean.mkIdent <$> mkFreshUserName (.mkSimple s!"{prefix_}_arg{i}_{p.name}")
-    return (arg, ← `(bracketedBinder| ($arg : $(p.type))))
+  let args ← (Array.range arity).mapM fun i => do
+    let arg := Lean.mkIdent <| modelBinderName (traceArgumentName step action i)
+    return (arg, ← `(bracketedBinder| ($arg : _)))
   return args.unzip
 
 /-! ## SMT Channel Utilities -/
@@ -111,17 +112,17 @@ def buildSmtResult [Monad m] [MonadError m] [MonadLiftT BaseIO m]
   -- the SMT solver wasn't involved in proving this goal
   return .none
 
-/-- The supplied parameters give the roles of the leading binders. Rename
-those binders only after elaboration, when changing their names cannot capture
-a reference in the VC or change its meaning. -/
-private def nameModelParameters (type : Expr) (params : List Parameter) : Expr :=
-  match type, params with
-  | .forallE name domain body info, param :: rest =>
-    let name := match param.kind with
-      | .userParameter => modelParameterName param.name
-      | _ => name
-    .forallE name domain (nameModelParameters body rest) info
-  | _, _ => type
+/-- Model names are assigned after elaboration. Changing a forall binder's
+name here preserves every reference in its domain and body. -/
+def nameModelBinders (type : Expr) (names : List (Option Name)) : Expr :=
+  match type with
+  | .forallE name domain body info =>
+    .forallE (names.head?.join.getD (persistModelBinderName name))
+      domain (nameModelBinders body (names.drop 1)) info
+  | _ => type
+
+def moduleModelNames (params : Array Parameter) : Array (Option Name) :=
+  params.map fun p => if p.kind == .userParameter then some (modelParameterName p.name) else none
 
 /-- Create a discharger that elaborates `term` against the VC statement's type
     and builds its result via `mkResult`.
@@ -134,7 +135,7 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
     (mkResult : Std.CloseableChannel ((Name × Nat) × Smt.AsyncOutput) →
       Witness ⊕ Exception → Nat → TermElabM (DischargerResult SmtResult))
-    (traceLabel : String := "discharger") (modelParams : Array Parameter := #[]) :
+    (traceLabel : String := "discharger") (modelNames : Array (Option Name) := #[]) :
     CommandElabM (Discharger SmtResult) := do
   let cancelTk ← IO.CancelToken.new
   let smtCh ← Std.CloseableChannel.new
@@ -175,8 +176,7 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
                 let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
                   withoutErrToSorry do
                     let goalType ← vcStatement.type
-                    let goalType := if modelParams.any (·.kind matches .userParameter) then
-                      nameModelParameters goalType modelParams.toList else goalType
+                    let goalType := nameModelBinders goalType modelNames.toList
                     elabTermEnsuringType term goalType
                 let endTime ← IO.monoMsNow
                 mkResult smtCh (.inl witness) (endTime - startTime)

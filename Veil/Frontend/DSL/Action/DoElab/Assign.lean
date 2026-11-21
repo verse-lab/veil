@@ -394,10 +394,9 @@ private def elabPinnedStateAssignment (mod : Module) (component : StateComponent
   let bindName ← mkFreshUserName
     (mkVeilImplementationDetailName <| Name.mkSimple s!"bind_{component.name}")
   mapLetDecl bindName setType setValue (kind := .implDetail) fun _ => do
-    let st := mkIdent `st
     let updateTerm ← withRef ref
-      `($(mkIdent ``modify) (fun $st:ident =>
-        {$st:ident with $(mkIdentFrom target.head component.name):ident := $(mkIdent bindName)}))
+      `($(mkIdent ``modify) (fun st =>
+        {st with $(mkIdentFrom target.head component.name):ident := $(mkIdent bindName)}))
     let updateElem ← `(doElem| $updateTerm:term)
     Lean.Elab.Do.elabDoExpr updateElem (← dec.ensureUnitAt ref)
 
