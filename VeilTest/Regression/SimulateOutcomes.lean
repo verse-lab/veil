@@ -98,7 +98,7 @@ action send (n next : node) {
 
 invariant true
 
-/-- error: This assertion might fail when called from send -/
+/-- warning: This assertion can fail even if the module's invariants hold when `send` starts. -/
 #guard_msgs in
 #gen_spec
 

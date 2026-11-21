@@ -103,10 +103,20 @@ error: ❌ Violation: assertion_failure
 #guard_msgs in
 #model_check interpreted {} {} (sequential := true)
 
-set_option veil.printCounterexamples false in
+set_option veil.printCounterexamples false
+
+-- A trace that triggers deferred verification only warns about the assertion.
 /--
-error: This assertion might fail when called from fail
+warning: This assertion can fail even if the module's invariants hold when `fail` starts.
 ---
+info: ✅ Satisfying trace found
+  State 0 (via init):
+    active = false
+-/
+#guard_msgs in
+sat trace { }
+
+/--
 error: Initialization must establish the invariant:
   doesNotThrow ... ✅
   inv_0 ... ✅
@@ -130,7 +140,7 @@ action fail { assert false }
 invariant true
 set_option veil.deferVCGeneration false
 
-/-- error: This assertion might fail when called from fail -/
+/-- warning: This assertion can fail even if the module's invariants hold when `fail` starts. -/
 #guard_msgs in
 #gen_spec
 end DeferThenCheck

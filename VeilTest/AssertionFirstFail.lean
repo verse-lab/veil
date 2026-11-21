@@ -25,7 +25,7 @@ action send (n next : node) {
 
 invariant true
 
-/-- error: This assertion might fail when called from send -/
+/-- warning: This assertion can fail even if the module's invariants hold when `send` starts. -/
 #guard_msgs in
 #gen_spec
 
@@ -41,3 +41,19 @@ error: ❌ Violation: assertion_failure
 #model_check interpreted { node := Fin 2 } {}
 
 end Ring
+
+veil module InitAssertion
+
+individual ready : Bool
+after_init {
+  ready := false
+  assert ready
+}
+action reset { ready := true }
+invariant ready
+
+/-- warning: This assertion can fail during initialization. -/
+#guard_msgs in
+#gen_spec
+
+end InitAssertion

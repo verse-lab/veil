@@ -149,7 +149,7 @@ def callFailure := __veil_exec_action% {} {} zero call_unchecked.ext
 invariant [n_pos] n > 0
 invariant [k_bounded] k < n
 
-/-- error: This assertion might fail when called from call_unchecked -/
+/-- warning: This assertion can fail even if the module's invariants hold when `call_unchecked` starts. -/
 #guard_msgs in
 #gen_spec
 
