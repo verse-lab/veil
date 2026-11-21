@@ -128,3 +128,22 @@ ghost relation hasFlag := flag = true
 example : hasFlag ({} : Theory) ({ flag := true } : State FieldConcreteType) := rfl
 
 end InstanceFieldShadowing
+
+veil module GhostFieldTypeInference
+
+individual history : List (Nat × Nat)
+
+#gen_state
+
+ghost function selectedValue :=
+  history.foldl (fun latest pair => if pair.1 < 2 then pair.2 else latest) (0 : Nat)
+
+ghost function widenedOffset : Nat → Int :=
+  fun offset : Nat => offset + history.length
+
+def initial : State FieldConcreteType := { history := [(1, 7), (3, 9)] }
+
+example : selectedValue ({} : Theory) initial = 7 := rfl
+example : widenedOffset ({} : Theory) initial 3 = 5 := rfl
+
+end GhostFieldTypeInference
