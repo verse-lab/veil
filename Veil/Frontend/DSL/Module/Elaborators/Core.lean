@@ -427,12 +427,7 @@ def elabTransition : CommandElab := fun stx => do
         -- NOTE: We wrap the transition in a `decide` to ensure the required `Decidable` instance
         -- becomes an instance argument and can be used in extraction
         `(term| (fun ($th : $environmentTheory) ($st $st' : $environmentState) => $(mkIdent ``decide) ($tmp) = $(mkIdent ``true)))
-      let firstTree := (← getInfoTrees).size
-      let updated ← mod.defineTransition (ProcedureInfo.action nm.getId (definedViaTransition := true)) br trStx stx
-      let params ← explicitBindersToParameters br nm.getId
-      let params := (mod.parameters ++ params).foldl (fun names p => names.insert p.name) ({} : NameSet)
-      mod.warnTermShadows t firstTree (primed := true) (parameters := params)
-      pure updated
+      mod.defineTransition (ProcedureInfo.action nm.getId (definedViaTransition := true)) br t trStx stx
       -- FIXME: Is this required?
       -- -- warn if this is not first-order
       -- Command.liftTermElabM $ warnIfNotFirstOrder nm.getId

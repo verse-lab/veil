@@ -1158,7 +1158,8 @@ def elabProcedureBody (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSynt
   let result ← withSaveInfoContext <| elabProcedureCore vs pi br body
   let mod ← getCurrentModule
   let params ← explicitBindersToParameters br pi.name
-  let names := (mod.parameters ++ params).foldl (fun names p => names.insert p.name) ({} : NameSet)
+  let names := (mod.parameters ++ params).foldl
+    (fun names p => if p.isGeneratedFieldContext then names else names.insert p.name) ({} : NameSet)
   mod.warnTermShadows l firstTree (parameters := names)
     (ignore := fun ref => (Action.findOutsideQuotations? l.raw fun stx => do
       unless stx.isOfKind ``Lean.Parser.Term.doReassign ||
@@ -1321,10 +1322,16 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
 /-- When `act` is given in the transition form, `act.ext.tr` will be defined
 based on its syntax, and `act.do`, `act` and `act.ext` will be defined
 using `Transition.toVeilM`. -/
-def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax `Lean.explicitBinders)) (t : Term) (stx : Syntax) : CommandElabM Module := do
+def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax `Lean.explicitBinders))
+    (body t : Term) (stx : Syntax) : CommandElabM Module := do
   -- Obtain `extraParams` so we can register the action
   let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
+  let params ← explicitBindersToParameters br pi.name
+  let firstTree := (← getInfoTrees).size
   let (extraParams, eTr) ← liftTermElabMWithBinders actionBinders $ fun vs => elabTransitionTerm vs pi br t
+  let names := (mod.parameters ++ params).foldl
+    (fun names p => if p.isGeneratedFieldContext then names else names.insert p.name) ({} : NameSet)
+  mod.warnTermShadows body firstTree (primed := true) (parameters := names)
   let (mod, extraParams) ← liftTermElabM $ mod.canonicalizeExtraParams extraParams
   let eDo ← liftTermElabM do
     let tmp ← withVeilModeVar BinderInfo.implicit fun mode => do
@@ -1339,7 +1346,7 @@ def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TS
         Meta.mkLambdaFVars (#[mode] ++ xs) body.expr
     instantiateMVars tmp
   -- FIXME: How to define the `l` in `ps`? Might need to change the definition of `ProcedureSpecification`
-  let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams .none /- this is not correct -/ ⟨t.raw⟩ stx
+  let ps := ProcedureSpecification.mk pi params extraParams .none /- this is not correct -/ ⟨t.raw⟩ stx
   let _nmTr_fullyQualified ← liftTermElabM $ addVeilDefinition (toTransitionName <| toActName pi.name .external) eTr
   mod.defineProcedureCore pi eDo ps false
 

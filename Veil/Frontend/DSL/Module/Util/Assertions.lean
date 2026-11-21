@@ -64,10 +64,11 @@ def Module.fieldShadowedBy? (mod : Module) (name : Name) (includeTheory := true)
     (includeState := true) (primed := false) : Option StateComponent :=
   if name.hasMacroScopes then none
   else
-    let state := if includeState then mod.mutableComponents.findSome? fun field =>
-      if field.name == name || (primed && field.name.appendAfter "'" == name) then some field else none
+    let post := if includeState && primed then
+      mod.mutableComponents.find? (fun field => field.name.appendAfter "'" == name)
     else none
-    state <|> (if includeTheory then mod.immutableComponents.find? (·.name == name) else none)
+    post <|> (if includeState then mod.mutableComponents.find? (·.name == name) else none) <|>
+      (if includeTheory then mod.immutableComponents.find? (·.name == name) else none)
 
 def warnLocalParameterShadow [Monad m] [MonadLog m] [MonadOptions m] [AddMessageContext m]
     (ref : Syntax) (name : Name) : m Unit :=
@@ -93,32 +94,37 @@ quantifiers, and other term syntax. The source span excludes generated
 binders, and also lets us deduplicate binders elaborated more than once. -/
 def Module.warnTermShadows [Monad m] [MonadInfoTree m] [MonadLog m] [MonadOptions m]
     [AddMessageContext m] (mod : Module) (stx : Syntax) (firstTree : Nat)
-    (includeTheory := true) (includeState := true) (primed := false)
+    (includeState : Syntax.Range → Bool := fun _ => true) (primed := false)
     (parameters : NameSet := {})
     (ignore : Syntax → Bool := fun _ => false) : m Unit := do
   let some range := stx.getRange? | return
   let info ← getInfoState
-  let mut seen : Std.HashSet Syntax.Range := {}
+  let mut binders : Array (TermInfo × LocalDecl × Syntax.Range) := #[]
   for i in [firstTree:info.trees.size] do
     let tree := info.trees[i]!.substitute info.assignment
-    seen ← tree.foldInfoM (init := seen) fun _ node seen => do
-      let .ofTermInfo term := node | return seen
-      unless term.isBinder && term.stx.isIdent do return seen
-      let .original .. := term.stx.getHeadInfo | return seen
-      let some span := term.stx.getRange? | return seen
-      unless range.start ≤ span.start && span.stop ≤ range.stop && !seen.contains span do return seen
-      if ignore term.stx then return seen
-      let name := term.stx.getId
-      if name.hasMacroScopes then return seen
-      let some decl := term.lctx.findFVar? term.expr | return seen
-      let shadowsParam := parameters.contains name && term.lctx.any fun prior =>
-        prior.index < decl.index && prior.userName == name && prior.kind != .implDetail &&
-          !prior.binderInfo.isInstImplicit
-      if shadowsParam then
-        warnLocalParameterShadow term.stx name
-      else if let some field := mod.fieldShadowedBy? name includeTheory includeState primed then
-        warnFieldShadow term.stx "local" name field
-      return seen.insert span
+    binders ← tree.foldInfoM (init := binders) fun _ node binders => do
+      let .ofTermInfo term := node | return binders
+      unless term.isBinder && term.stx.isIdent do return binders
+      let .original .. := term.stx.getHeadInfo | return binders
+      let some span := term.stx.getRange? | return binders
+      unless range.start ≤ span.start && span.stop ≤ range.stop do return binders
+      let some decl := term.lctx.findFVar? term.expr | return binders
+      return binders.push (term, decl, span)
+  let locals := binders.foldl (fun ids (_, decl, _) => ids.insert decl.fvarId) ({} : FVarIdSet)
+  let mut seen : Std.HashSet Syntax.Range := {}
+  for (term, decl, span) in binders do
+    let name := term.stx.getId
+    if name.hasMacroScopes || seen.contains span || ignore term.stx then continue
+    seen := seen.insert span
+    let prior := term.lctx.findDeclRev? fun prior =>
+      if prior.index < decl.index && prior.userName == name &&
+          (locals.contains prior.fvarId || (parameters.contains name &&
+            prior.kind != .implDetail && !prior.binderInfo.isInstImplicit))
+      then some prior else none
+    if let some prior := prior then
+      unless locals.contains prior.fvarId do warnLocalParameterShadow term.stx name
+    else if let some field := mod.fieldShadowedBy? name (includeState := includeState span) (primed := primed) then
+      warnFieldShadow term.stx "local" name field
 
 /-! ## Tactic Infrastructure -/
 
@@ -452,9 +458,11 @@ def Module.mkVeilTerm (mod : Module) (name : Name) (dk : DeclarationKind) (param
     let baseFVars := vs.extract 0 binders.size
     let paramFVars := vs.extract binders.size (binders.size + paramBinders.size)
     let thstFVars := vs.extract (binders.size + paramBinders.size) vs.size
-    let parameters ← (baseFVars ++ paramFVars).foldlM (init := ({} : NameSet)) fun names var => do
+    let userBaseFVars := (baseParams.zip baseFVars).filterMap fun (p, v) =>
+      if p.isGeneratedFieldContext then none else some v
+    let parameters ← (userBaseFVars ++ paramFVars).foldlM (init := ({} : NameSet)) fun names var => do
       return names.insert (← var.fvarId!.getUserName)
-    mod.warnTermShadows term firstTree (includeState := !justTheory) (parameters := parameters)
+    mod.warnTermShadows term firstTree (includeState := fun _ => !justTheory) (parameters := parameters)
     let decMVars := insts.map (·.2)
     -- Binder infos are intentionally mixed here:
     -- * module-level base parameters should be implicit,

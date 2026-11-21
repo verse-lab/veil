@@ -56,8 +56,7 @@ def Module.declareStateComponent (mod : Module) (sc : StateComponent) : CommandE
   if !(← isValidStateComponentType sc.kind tp) then
     failureMsg sig sc
   if shadows then
-    let stateField := if sc.isMutable then sc else otherField.getD sc
-    logWarningAt stateField.userSyntax
+    logWarningAt sc.userSyntax
       m!"mutable state component `{sc.name}` shadows immutable theory component `{sc.name}`; references to this name resolve to the state component"
   let kind := if sc.isImmutable && shadows then (otherField.getD sc).declarationKind else sc.declarationKind
   let mod := { mod with signature := mod.signature.push sc, _declarations := mod._declarations.insert sc.name kind }
