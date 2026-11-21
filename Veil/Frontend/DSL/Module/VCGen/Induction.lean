@@ -90,7 +90,7 @@ def VCDischarger.fromTerm (term : Term) (actName : Name) (vcStatement : VCStatem
   let env0 := Veil.Verifier.clearVerifierRuntime (← getEnv)
   let mod ← getCurrentModule
   let modelParams := if veil.solver.get (← getOptions) matches .custom then #[] else mod.parameters
-  Discharger.fromTermWith term vcStatement dischargerId ch modelParams fun smtCh data time => do
+  Discharger.fromTermWith term vcStatement dischargerId ch (modelParams := modelParams) fun smtCh data time => do
     let data : Witness ⊕ Exception ← match data with
       | .inl witness => do
         let witness ← inlineFreshProofs env0 witness

@@ -132,10 +132,10 @@ private def nameModelParameters (type : Expr) (params : List Parameter) : Expr :
 def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
     (dischargerId : DischargerIdentifier)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
-    (modelParams : Array Parameter)
     (mkResult : Std.CloseableChannel ((Name × Nat) × Smt.AsyncOutput) →
       Witness ⊕ Exception → Nat → TermElabM (DischargerResult SmtResult))
-    (traceLabel : String := "discharger") : CommandElabM (Discharger SmtResult) := do
+    (traceLabel : String := "discharger") (modelParams : Array Parameter := #[]) :
+    CommandElabM (Discharger SmtResult) := do
   let cancelTk ← IO.CancelToken.new
   let smtCh ← Std.CloseableChannel.new
   -- Create promises to track start time and result
