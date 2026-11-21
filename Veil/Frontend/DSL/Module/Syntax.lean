@@ -501,7 +501,10 @@ evaluates assumptions at runtime before state exploration; this clause can be
 used when a separate elaboration-time proof is desired. `Assumptions` is
 automatically unfolded via `dsimp` first; if no tactic is given,
 `first | decide | native_decide` is used. -/
-syntax assumptionsHoldBy := &"assumptions_hold_by " tacticSeq
+-- NOTE: The commands using this alias are scoped, so the keyword is reserved
+-- only in the Veil scope. Using `&` here would let the optional theory parser
+-- consume `assumptions_hold_by` as an identifier when the theory is omitted.
+syntax assumptionsHoldBy := "assumptions_hold_by " tacticSeq
 
 scoped syntax (name := modelCheck) "#model_check " (modelCheckMode)? term:max (term:max)? Parser.Tactic.optConfig (assumptionsHoldBy)? : command
 
