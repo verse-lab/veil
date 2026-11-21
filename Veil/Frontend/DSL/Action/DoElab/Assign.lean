@@ -226,7 +226,7 @@ private def throwImmutableLocalTarget (target : Target) (mod : Module) : DoElabM
 /-- Resolve `target` to a state component, or fail with `onMissing`. -/
 private def resolveStateComponent (mod : Module) (target : Target)
     (onMissing : MessageData) : DoElabM StateComponent := do
-  let some component := mod.signature.find? (·.name == target.componentName)
+  let some component := mod.findComponent? target.componentName
     | throwErrorAt target.head onMissing
   unless component.isMutable do mod.throwIfImmutable component.name
   return component
@@ -253,7 +253,7 @@ private def implicitCapital? (ctx : Context) (arg : Term) : TermElabM (Option Na
     let category := if ctx.parameters.contains userDecl.fvarId then "parameter" else "local"
     logWarningAt id m!"capitalized index `{id.getId}` resolves to {category} `{id.getId}`; this is a point update, not a universal update"
     return none
-  if let some component := ctx.mod.signature.find? (·.name == id.getId) then
+  if let some component := ctx.mod.findComponent? id.getId then
     let category := if component.isMutable then "mutable state component" else "immutable theory component"
     logWarningAt id m!"capitalized index `{id.getId}` resolves to {category} `{id.getId}`; this is a point update, not a universal update"
     return none
@@ -386,7 +386,7 @@ private def elabPinnedStateAssignment (mod : Module) (component : StateComponent
     (target.args.drop domainSize) (caps.take domainSize) rhs
   let pattern ← mkAssignmentPattern mod component domainArgs (caps.take domainSize)
 
-  let concrete := currentStateField component.name
+  let concrete ← currentStateField component.name
   let setTerm ←
     `(($fieldRepresentation _).$(mkIdent `setSingle) ($pattern) ($replacement) $concrete)
   let setValue ← Term.elabTerm setTerm none

@@ -71,15 +71,12 @@ def QueryCtx.ofModule (mod : Veil.Module) : TermElabM QueryCtx := do
     mod, sorts
     sortBinders := ← mod.uninterpretedParamBinders
     typeclassBinders := ← typeclassParams.mapM (·.binder)
-    th := mkIdent `th
+    th := ← Lean.mkIdent <$> mkFreshUserName `th
     theoryT := ← mod.theoryStx
     stateT := ← `($(mkIdent stateName) ($fieldAbstractDispatcher $sorts*))
     rtsExpr := ← `(@$assembledRTS $sorts*)
     fieldRepInstance := ← `($instAbstractFieldRepresentation $sorts*)
     stateSortTerm := ← `($fieldAbstractDispatcher $sorts*) }
-
-/-- The identifier of the `i`-th state of a query. -/
-def stateIdent (i : Nat) : Ident := mkIdent (.mkSimple s!"st{i}")
 
 /-- What a query asserts of its last state. -/
 inductive Goal where
@@ -130,18 +127,16 @@ def applyPreds (ts : Array Term) (st : Ident) (separate : Bool := false) :
 /-- `⋁ₐ (tag = a ∧ tr th curr (Label.a args) next)` for transition `i`, with the binders of its
 tag and arguments. The step is written with the normalized transition relation `trNorm?` when
 given. A module without actions has no transitions. -/
-def stepDisjunction (trNorm? : Option Name) (i : Nat) (curr next : Ident) :
+def stepDisjunction (trNorm? : Option Name) (i : Nat) (tagType curr next : Ident) :
     TermElabM (Term × Array (TSyntax ``bracketedBinder)) := do
   if ctx.mod.actions.isEmpty then return (← `(False), #[])
-  let tag := mkIdent (.mkSimple s!"_tr{i}_tag")
-  let mut binders := #[← `(bracketedBinder| ($tag : $actionTagType))]
+  let (tag, tagBinder) ← mkTransitionTagBinder tagType i
+  let mut binders := #[tagBinder]
   let mut disjuncts := #[]
   for act in ctx.mod.actions do
     let (_, params) ← ctx.mod.declarationAllParams act.name act.declarationKind
-    let args := params.mapIdx fun j p ↦
-      mkIdent (.mkSimple s!"_tr{i}_act_{act.name}_arg{j}_{p.name}")
-    for (a, p) in args.zip params do
-      binders := binders.push (← `(bracketedBinder| ($a : $(p.type))))
+    let (args, argBinders) ← mkTransitionParamBinders s!"_tr{i}_act_{act.name}" params
+    binders := binders ++ argBinders
     let lbl ← `(($(mkIdent (labelTypeName ++ act.name)) $args*))
     let step ← match trNorm? with
       | some n => `($(mkIdent n) $(ctx.sorts)* $(ctx.th) $curr $lbl $next)
@@ -155,28 +150,26 @@ module's sorts and instances, the `ActionTag` type when there are transitions, t
 and diagram variables, the theory and the states. -/
 def statement (trNorm? : Option Name) (q : Query) : TermElabM Term := do
   let rts := ctx.rtsExpr
+  let tagType ← Lean.mkIdent <$> mkFreshUserName actionTagTypeName
+  let states ← (Array.range (q.steps + 1)).mapM fun i =>
+    Lean.mkIdent <$> mkFreshUserName (.mkSimple s!"st{i}")
   let mut conj := #[← `(($rts).$(mkIdent `assumptions) $(ctx.th))]
-  if q.init then conj := conj.push (← `(($rts).$(mkIdent `init) $(ctx.th) $(stateIdent 0)))
-  conj := conj ++ (← ctx.applyPreds q.frame (stateIdent 0) q.separate)
+  if q.init then conj := conj.push (← `(($rts).$(mkIdent `init) $(ctx.th) $(states[0]!)))
+  conj := conj ++ (← ctx.applyPreds q.frame states[0]! q.separate)
   let mut binders := #[]
   for i in [:q.steps] do
-    let (tr, bs) ← ctx.stepDisjunction trNorm? (i + 1) (stateIdent i) (stateIdent (i + 1))
+    let (tr, bs) ← ctx.stepDisjunction trNorm? (i + 1) tagType states[i]! states[i + 1]!
     conj := conj.push tr
     binders := binders ++ bs
-  let last := stateIdent q.steps
+  let last := states[q.steps]!
   match q.goal with
   | .violates p => conj := conj.push (← `(¬ $(← ctx.applyPred p last)))
   | .diagram vars lits =>
     conj := conj ++ (← ctx.applyPreds lits last)
     binders := binders ++
       (← vars.mapIdxM fun i s ↦ `(bracketedBinder| ($(varIdent i) : $(mkIdent s))))
-  let tagBinders ← if q.steps > 0 && !ctx.mod.actions.isEmpty then
-      pure #[← `(bracketedBinder| ($actionTagType : Type)),
-        ← `(bracketedBinder|
-          ($actionTagEnumInst : $(Ident.toEnumClass actionTagType) $actionTagType))]
-    else pure #[]
+  let tagBinders ← if q.steps > 0 && !ctx.mod.actions.isEmpty then mkActionTagBinders tagType else pure #[]
   let allBinders := ctx.sortBinders ++ ctx.typeclassBinders ++ tagBinders ++ binders
-  let states := (Array.range (q.steps + 1)).map stateIdent
   `(∀ $allBinders* ($(ctx.th) : $(ctx.theoryT)) ($states* : $(ctx.stateT)), ¬ $(← repeatedAnd conj))
 
 end QueryCtx

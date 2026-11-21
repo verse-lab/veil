@@ -406,23 +406,28 @@ def elabTransition : CommandElab := fun stx => do
       -- check immutability of changed fields
       let changedFn (f : Name) := t.raw.find? (·.getId == f.appendAfter "'") |>.isSome
       let fields ← mod.getFieldsRecursively
+      let mutableFieldNames := mod.mutableComponents.map (·.name)
       for f in fields.filter changedFn do
         mod.throwIfImmutable f (isTransition := true)
       -- Only mutable fields need "unchanged" constraints
       -- (immutable fields don't have primed versions in transitions)
-      let mutableFieldNames := mod.mutableComponents.map (·.name)
-      let unchangedFields := mutableFieldNames.filter (!changedFn ·)
-      -- obtain the "real" transition term
-      let trStx ← do
-        let (th, st, st') := (mkIdent `th, mkIdent `st, mkIdent `st')
-        let unchangedFields := unchangedFields.map Lean.mkIdent
-        let tmp ← liftTermElabM <| mod.withTheoryAndStateTermTemplate [(.theory, th, true), (.state .none "conc", st, true), (.state "'" "conc'", st', true)]
-          (some $ ← `(term|Prop))
-          (fun _ _ => `([unchanged|"'"| $unchangedFields*] ∧ ($t)))
+      mod.warnExplicitParameterShadows br (primed := true)
+      let trStx ← liftTermElabM do
+        let th ← Lean.mkIdent <$> mkFreshUserName `th
+        let st ← Lean.mkIdent <$> mkFreshUserName `st
+        let st' ← Lean.mkIdent <$> mkFreshUserName `st'
+        let tmp ← mod.withFieldBinders [(.theory, th, true), (.state, st, true), (.nextState, st', true)]
+          (some (← `(Prop))) fun groups => do
+            let frame ← (mutableFieldNames.zip (groups[1]!.zip groups[2]!)).filterMapM fun (field, pre, post) => do
+              if changedFn field then return none
+              return some (← `($pre = $post))
+            let frame ← repeatedAnd frame
+            let body ← openUserFieldNames groups.flatten t
+            `($frame ∧ $body)
         -- NOTE: We wrap the transition in a `decide` to ensure the required `Decidable` instance
         -- becomes an instance argument and can be used in extraction
         `(term| (fun ($th : $environmentTheory) ($st $st' : $environmentState) => $(mkIdent ``decide) ($tmp) = $(mkIdent ``true)))
-      mod.defineTransition (ProcedureInfo.action nm.getId (definedViaTransition := true)) br trStx stx
+      mod.defineTransition (ProcedureInfo.action nm.getId (definedViaTransition := true)) br t trStx stx
       -- FIXME: Is this required?
       -- -- warn if this is not first-order
       -- Command.liftTermElabM $ warnIfNotFirstOrder nm.getId

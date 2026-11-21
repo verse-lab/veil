@@ -38,10 +38,8 @@ action act1 (x y z u v w : t) {
 
 invariant true
 
-/- The quantifier shadows the state field `pivot`. Inside an invariant, the
-field view `pivot` is an ordinary `let` of `get pivot_conc`, so `veil_exact_state`,
-which supplies the default state argument of `g`, finds the quantified `pivot`
-by name and must fall back to `pivot_conc`. -/
+/- The quantifier shadows the state field `pivot`. The default state argument
+of `g` must still use the private concrete field binder. -/
 invariant [ghost_under_shadowing_binder] ∀ pivot : t, g pivot → rel pivot pivot
 
 #gen_spec

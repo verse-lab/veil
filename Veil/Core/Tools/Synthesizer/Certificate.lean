@@ -86,9 +86,6 @@ def elabChecked (c : TSyntax `command) : CommandElabM Unit := do
   if (← errors) > before then
     throwError "IC3 certificate: a generated declaration failed to elaborate (see the errors above)"
 
-/-- An identifier no name of the module can capture. -/
-def freshIdent (n : Name) : CommandElabM Ident := return mkIdent (← liftCoreM (mkFreshUserName n))
-
 /-! ### Proof terms -/
 
 /-- A proof of disjunct `k` of a right-nested disjunction of `n` from a proof `h` of it. -/
@@ -212,7 +209,8 @@ def proveObligation (mod : Veil.Module) (name : Name) (stmt : (plainTr : Bool) �
 /-- Define `name sorts [insts] : Theory → State → Prop` as the conjunction of the predicates. -/
 def definePredicate (ctx : QueryCtx) (name : Ident) (conjuncts : Array Term) :
     CommandElabM Unit := do
-  let (th, st) := (mkIdent `th, mkIdent `st)
+  let th ← Lean.mkIdent <$> liftCoreM (mkFreshUserName `th)
+  let st ← Lean.mkIdent <$> liftCoreM (mkFreshUserName `st)
   let body ← liftTermElabM do
     repeatedAnd (← conjuncts.mapM fun t ↦ do `($(← ctx.wrapPred t) $th $st))
   elabChecked (← `(command| def $name $(ctx.sortBinders ++ ctx.typeclassBinders)* :
@@ -234,7 +232,8 @@ def consecutionProof (mod : Veil.Module) (ctx : QueryCtx) (consNames : Array Nam
   if mod.actions.isEmpty then return ← `(nomatch $lbl)
   let hInvs ← liftTermElabM <| (Array.range n).mapM (andProj hInv · n)
   let alts ← mod.actions.mapIdxM fun k act ↦ do
-    let args ← (Array.range arities[k]!).mapM (freshIdent <| .mkSimple s!"a{·}")
+    let args ← (Array.range arities[k]!).mapM fun i ↦
+      Lean.mkIdent <$> liftCoreM (mkFreshUserName (.mkSimple s!"a{i}"))
     let ctor := mkIdent (labelTypeName ++ act.name)
     liftTermElabM do
       -- The queries quantify over the arguments of every action: this action's fill its slots,
@@ -292,9 +291,11 @@ def certify (mod : Veil.Module) (property : Array Term) (clauses : Array Clause)
   definePredicate ctx invName conj
   definePredicate ctx propName property
   -- The proof of `ic3_safe`, over fresh binders that no name of the module can capture.
-  let (th, st) := (mkIdent `th, mkIdent `st)
+  let th := ctx.th
+  let st ← Lean.mkIdent <$> liftCoreM (mkFreshUserName `st)
   let [has, s, s', lbl, htr, hinit, hInv] ←
-      [`has, `s, `s', `lbl, `htr, `hinit, `hInv].mapM freshIdent
+      [`has, `s, `s', `lbl, `htr, `hinit, `hInv].mapM fun name ↦
+        Lean.mkIdent <$> liftCoreM (mkFreshUserName name)
     | unreachable!
   let sorts := ctx.sorts
   let initProof ← liftTermElabM do

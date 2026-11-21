@@ -46,7 +46,7 @@ def Module.declareLocalTheoryPropTC (mod : Module) : MetaM (List Command) := do
   let th ← Lean.mkIdent <$> mkFreshUserName `th
   let coreEqType ← do
     -- Fresh field names: a field named `core` would capture `core` here.
-    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th, true)] (some codomain) (freshFieldNames := true) fun theoryFieldNames _ =>
+    let body ← mod.withTheoryAndStateTermTemplate [(.theory, th, true)] (some codomain) fun theoryFieldNames =>
       pure <| Syntax.mkApp core theoryFieldNames
     `(term| ∀ ($th : $environmentTheory), $post $th = $body)
   let cmd1 ← do
@@ -173,7 +173,7 @@ private def mkLocalTheoryPropCoreAppOnLCtxFields (mod : Module) (inst : Expr) : 
   let coreFn ← Meta.mkProjection inst `core
   let lctx ← getLCtx
   let fieldVars ← mod.immutableComponents.mapM fun sc => do
-    let some ldecl := lctx.findFromUserName? sc.name
+    let some ldecl := findFieldBinder? lctx `theory sc.name <|> lctx.findFromUserName? sc.name
       | throwError "unable to find local theory field {sc.name}"
     pure ldecl.toExpr
   pure <| mkAppN coreFn fieldVars
