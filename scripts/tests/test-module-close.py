@@ -10,12 +10,12 @@ def main():
     try:
         server.initialize()
         server.open(uri, source)
-        for version, closer in enumerate(["", "end Editing.Helper\n", "#exit\n", "end Helper\nend Editing\n"], 1):
+        for version, closer in enumerate(["", "end Editing.Helper\n", "#exit\n", "end Helper\n", "end Helper\nend Editing\n"], 1):
             if version > 1:
                 server.change(uri, version, source + closer)
             diagnostics = server.diagnostics(uri, version, f"edit {version}")
             errors = [d for d in diagnostics if d["severity"] == 1]
-            if closer in ("", "#exit\n"):
+            if closer in ("", "#exit\n", "end Helper\n"):
                 assert len(errors) == 1, diagnostics
                 assert "Close it with `end Editing`" in errors[0]["message"], errors
                 assert errors[0]["range"]["start"]["line"] == 2, errors
@@ -35,7 +35,7 @@ action other { flag := false }
 invariant [off] flag = false
 #gen_spec
 """
-        for version, actions in enumerate([["keep"], ["other"], [], ["keep", "other"]], 5):
+        for version, actions in enumerate([["keep"], ["other"], [], ["keep", "other"]], 6):
             checks = "".join(f"#check_action {action}\n" for action in actions)
             publication = "end Editing\nrun_meta do\n  let env ← Lean.getEnv\n"
             for action in ("keep", "other"):

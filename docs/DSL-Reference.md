@@ -558,8 +558,7 @@ Close each `veil module M` with `end M`. The close waits for the checks requeste
 in this module and adds their proven verification conditions to Lean's environment.
 For example, after `#check_action keep`, its proved obligations are available
 after `end M` as theorems in namespace `M`. Use `#gen_theorems` if you need the
-same theorems earlier in the module. Both commands also import pending synthesis
-certificates. A module with no requests can close immediately.
+same theorems earlier in the module.
 
 If you need a theorem without using `#check_invariants`, run
 `#updr certify` followed by `#gen_theorems`. For this option, the other
