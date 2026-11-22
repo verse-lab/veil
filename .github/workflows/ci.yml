@@ -98,6 +98,8 @@ jobs:
         echo "::group::VC manager incrementality"
         python3 scripts/tests/test-vc-manager-incrementality.py
         python3 scripts/tests/test-vc-manager-incrementality.py --compact
+        python3 scripts/tests/test-invariant-request-options.py
+        python3 scripts/tests/test-trace-request-options.py
         echo "::endgroup::"
 
         echo "::group::Invariant goal incrementality"
