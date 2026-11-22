@@ -63,8 +63,8 @@ run_cmd do
   for vc in mgr.nodes.valuesArray do
     let labels := vc.dischargers.map (·.id.name.toString)
     let expected := if Veil.Verifier.isDoesNotThrow vc.metadata then #["arithmetic", "WP"]
-      else if vc.name == `step_constant then #["arithmetic", "WP", "FRAME"]
-      else #["arithmetic", if vc.name.toString.endsWith "_tr" then "TR" else "WP"]
+      else if vc.name.toString.endsWith "_tr" then #["arithmetic", "TR"]
+      else #["arithmetic", "WP", "FRAME"]
     unless labels.map (fun n => (n.splitOn "_").getLast!) == expected do
       throwError "unexpected induction dischargers: {labels}"
 
