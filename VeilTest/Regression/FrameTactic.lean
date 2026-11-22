@@ -1,6 +1,12 @@
 module
 public import Veil
 
+-- Importing Veil alone must not register the tactic in ordinary Lean code.
+open Lean Elab Command in
+run_cmd do
+  if (Parser.runParserCategory (← getEnv) `tactic "veil_frame").isOk then
+    throwError "veil_frame is visible outside the Veil scope"
+
 veil module FrameTactic
 
 type node
@@ -32,7 +38,7 @@ invariant [logZeros] ∀ (counter : Nat), counter ∈ history → counter = 0
 
 -- Run the tactic on the same unsimplified public statements as a discharger.
 -- Every positive example is separately accepted as a theorem by Lean.
-open Lean Elab Command Veil in
+open Lean Elab Command in
 run_cmd do
   let mod ← getCurrentModule
   for (act, inv) in [(`write, `bound), (`write, `nested.zero), (`write, `emptyLog),

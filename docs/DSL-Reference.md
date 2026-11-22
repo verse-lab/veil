@@ -514,7 +514,8 @@ On a raw weakest-precondition preservation statement, `by veil_frame` can prove
 that an action preserves a clause by carrying it over from the pre-state.
 It recognizes extracted WPs consisting of choices or guards followed by one
 post-state whose fields are copied or updated. It checks that the action copies
-every field the clause uses. Run it before `unveil`. The tactic needs no SMT or
+every field the clause uses. Run it before `unveil`. The tactic syntax is in the
+`Veil` scope, which `veil module` opens automatically. The tactic needs no SMT or
 `grind` and fails immediately on an unsupported WP shape.
 
 WP invariant VCs try framing before the configured solver (SMT by default).
