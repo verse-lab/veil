@@ -96,6 +96,7 @@ jobs:
     - name: Tests / LSP and Widgets
       run: |
         echo "::group::VC manager incrementality"
+        python3 scripts/tests/test-module-close.py
         python3 scripts/tests/test-vc-manager-incrementality.py
         python3 scripts/tests/test-vc-manager-incrementality.py --compact
         echo "::endgroup::"

@@ -52,3 +52,5 @@ action pick_with_lhs_type_2 {
 /-- info: true -/
 #guard_msgs in
 #eval isElaboratedCorrectly ``pick_with_lhs_type_2
+
+end Test

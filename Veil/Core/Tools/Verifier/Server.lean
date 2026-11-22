@@ -35,8 +35,11 @@ worker captures without changing Lean declaration realization. -/
 def clearVerifierRuntime (env : Environment) : Environment :=
   interactiveRegistrationsExt.setState (vcManagerExt.setState env {}) {}
 
+private def managerKey [Monad m] [MonadEnv m] : m Name := do
+  return ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
+
 def getVCManagerOwner [Monad m] [MonadEnv m] [MonadError m] : m VCManagerEnvironment := do
-  let key := ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
+  let key ← managerKey
   let some owner := (vcManagerExt.getState (← getEnv))[key]?
     | throwError "verification manager has not been prepared"
   return owner
@@ -53,16 +56,19 @@ def withVCManager (f : IO.Ref (VCManager VCMetadata SmtResult) → CommandElabM 
       throwError ownerCanceledMessage
     f ref
 
-/-- Capture the caller's proof checkpoint once, while allowing shared automatic
-results to advance. Safe for CoreM/widget refreshes in a different context. -/
-def captureVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m] :
+private def captureOwner [Monad m] [MonadEnv m] [MonadLiftT BaseIO m] (owner : VCManagerEnvironment) :
     m (BaseIO (VCManager VCMetadata SmtResult)) := do
-  let owner ← getVCManagerOwner
   let id ← liftM <| owner.manager.atomically (m := BaseIO) fun ref => return (← ref.get)._managerId
   let registrations := (interactiveRegistrationsExt.getState (← getEnv))[id]?.getD #[]
   return do
     let mgr ← owner.manager.atomically (m := BaseIO) fun ref => ref.get
     mgr.withInteractiveResults registrations
+
+/-- Capture the caller's proof checkpoint once, while allowing shared automatic
+results to advance. Safe for CoreM/widget refreshes in a different context. -/
+def captureVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m] :
+    m (BaseIO (VCManager VCMetadata SmtResult)) := do
+  captureOwner (← getVCManagerOwner)
 
 def readVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m] :
     m (VCManager VCMetadata SmtResult) := do
@@ -185,14 +191,26 @@ def reset (managerId : ManagerId) : CommandElabM Unit := do
   let currentId ← currentManagerId
   applyCurrentRequest (.reset managerId)
   if currentId == managerId then
-    modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.erase managerId)
+    let key ← managerKey
+    modifyEnv fun env => vcManagerExt.modifyState (interactiveRegistrationsExt.modifyState env (·.erase managerId))
+      (·.modify key ({ · with publication? := none }))
 
 def startAll : CommandElabM Unit := do
   let managerId ← currentManagerId
   applyCurrentRequest (.startAll managerId)
 
-private def requestFiltered (filter : VCMetadata → Bool) : CommandElabM ManagerId := do
-  let managerId ← currentManagerId
+private def requestFiltered (filter : VCMetadata → Bool) (publish := false) : CommandElabM ManagerId := do
+  let owner ← getVCManagerOwner
+  let managerId ← owner.manager.atomically fun ref => do
+    let mgr ← ref.get
+    if publish then
+      let previous := owner.publication?.filter (·.1 == mgr._managerId)
+      let ids := mgr.nodes.fold (init := previous.map Prod.snd |>.getD {}) fun ids id vc =>
+        if filter vc.metadata then ids.insert id else ids
+      let key ← managerKey
+      modifyEnv fun env => vcManagerExt.modifyState env
+        (·.insert key { owner with publication? := some (mgr._managerId, ids) })
+    return mgr._managerId
   applyCurrentRequest (.startFiltered managerId filter)
   return managerId
 
@@ -216,7 +234,7 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
   let cancelTk ← IO.CancelToken.new
   let mgr ← liftM <| dispatcher.atomically newManagerLocked
   let owner := { manager := ← Std.Mutex.new mgr, errors := ← IO.mkRef #[], cancelTk : VCManagerEnvironment }
-  let key := ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
+  let key ← managerKey
   if let some previous := (vcManagerExt.getState (← getEnv))[key]? then
     let previousId ← previous.manager.atomically fun ref => return (← ref.get)._managerId
     modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.erase previousId)
@@ -282,13 +300,11 @@ def logPendingDischargerTasks (mgr : VCManager VCMetadata SmtResult)
         registered := registered.insert discharger.id
   return registered
 
-/-- Poll for discharger tasks from the manager and register them with `logSnapshotTask`.
-    Waits until all VCs matching the filter are done, then returns the results.
-    Fails if the captured manager generation has been replaced.
-    This enables profiler trace propagation by registering tasks on the calling thread. -/
-private def awaitFilteredWithLogging (managerId : ManagerId) (filter : VCMetadata → Bool)
-    : CommandElabM (VerificationResults VCMetadata SmtResult) := do
-  let owner ← getVCManagerOwner
+/-- Observe an existing request in its original generation and proof checkpoint. -/
+private def awaitFilteredManager (owner : VCManagerEnvironment) (managerId : ManagerId)
+    (filter : VCMetadata → Bool) (includeId : VCId → Bool := fun _ => true) (logTasks := false) :
+    CommandElabM (VCManager VCMetadata SmtResult) := do
+  let getManager ← captureOwner owner
   let mut registered := HashSet.emptyWithCapacity
   while true do
     liftCoreM Core.checkInterrupted
@@ -297,23 +313,27 @@ private def awaitFilteredWithLogging (managerId : ManagerId) (filter : VCMetadat
       throwError ownerCanceledMessage
     -- Surface manager-loop errors where the user is looking; the loop itself
     -- cannot log to the editor (it is not registered with `logSnapshotTask`).
-    for err in ← (← getVCManagerOwner).errors.modifyGet fun errs => (errs, #[]) do
+    for err in ← owner.errors.modifyGet fun errs => (errs, #[]) do
       logWarning m!"VC manager loop error: {err}"
     -- Snapshot under the lock, render outside it (`toResults` pretty-prints).
-    let mgr ← readVCManager
+    let mgr ← getManager
     if mgr._managerId != managerId then
       -- Owner cleanup replaces the generation. Cancellation may have raced
       -- the check above while we were acquiring the manager snapshot.
       if ← owner.cancelTk.isSet then
         throwError ownerCanceledMessage
       throwError "verification interrupted: VC manager generation {managerId} was replaced by {mgr._managerId}"
-    registered ← logPendingDischargerTasks mgr filter registered
-    if mgr.isDoneFiltered filter then
-      let results ← liftCoreM (mgr.toResults filter)
-      liftCoreM Core.checkInterrupted
-      return results
+    if logTasks then registered ← logPendingDischargerTasks mgr filter registered
+    if mgr.isDoneFiltered filter includeId then return mgr
     IO.sleep 10
   panic! "unreachable"
+
+private def awaitFilteredWithLogging (managerId : ManagerId) (filter : VCMetadata → Bool) :
+    CommandElabM (VerificationResults VCMetadata SmtResult) := do
+  let mgr ← awaitFilteredManager (← getVCManagerOwner) managerId filter (logTasks := true)
+  let results ← liftCoreM (mgr.toResults filter)
+  liftCoreM Core.checkInterrupted
+  return results
 
 /-- Start VCs matching the filter and run the callback asynchronously when done.
 Uses `wrapAsyncAsSnapshot` so that errors from the callback are reported to the user.
@@ -323,8 +343,8 @@ Returns the requested generation so widget consumers use the same generation as
 the observer, even if the manager is reset before widget construction.
 Note: Widget display does not work in the callback since it runs in an async context. -/
 def runFilteredAsyncWithManagerId (filter : VCMetadata → Bool)
-    (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) : CommandElabM ManagerId := do
-  let managerId ← requestFiltered filter
+    (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) (publish := true) : CommandElabM ManagerId := do
+  let managerId ← requestFiltered filter publish
   let cancelTk ← IO.CancelToken.new
   let wrappedTask ← Command.wrapAsyncAsSnapshot (fun () => do
     let results ← awaitFilteredWithLogging managerId filter
@@ -336,8 +356,8 @@ def runFilteredAsyncWithManagerId (filter : VCMetadata → Bool)
 
 /-- Start asynchronous verification without retaining its requested generation. -/
 def runFilteredAsync (filter : VCMetadata → Bool)
-    (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) : CommandElabM Unit := do
-  discard <| runFilteredAsyncWithManagerId filter callback
+    (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) (publish := true) : CommandElabM Unit := do
+  discard <| runFilteredAsyncWithManagerId filter callback publish
 
 /-- Start VCs matching the filter and wait synchronously for completion.
 Returns the results on the main thread, allowing widget display.
@@ -355,28 +375,44 @@ private def ensureExistingTheoremMatches (fullName : Name) (statement : Expr) : 
     throwError "cannot generate VC theorem `{fullName}` because a declaration with that name already exists with a different type"
 
 private def addProvenVCTheorem (vc : VerificationCondition VCMetadata SmtResult)
-    (witness : Witness) : CommandElabM Unit := do
-  liftTermElabM do
-    let fullName := (← getCurrNamespace).append vc.name
-    let statement ← vc.toVCStatement.type
-    if (← getEnv).contains fullName then
-      ensureExistingTheoremMatches fullName statement
-      return
-    let witness ← instantiateMVars witness
-    let _ ← addVeilTheorem vc.name statement witness
-    return ()
+    (witness : Witness) : TermElabM (Option Name) := do
+  let fullName := (← getCurrNamespace).append vc.name
+  let statement ← vc.toVCStatement.type
+  if (← getEnv).contains fullName then
+    ensureExistingTheoremMatches fullName statement
+    return none
+  let witness ← instantiateMVars witness
+  let name ← withOptions (warn.sorry.set · false) <| addVeilTheorem vc.name statement witness
+  return if statement.hasSorry || witness.hasSorry then some name else none
 
-/-- Add theorem declarations for all already-proven VCs matching `filter`.
+/-- Install each witness independently and group the warnings about `sorryAx`. -/
+private def publishWitnesses (mgr : VCManager VCMetadata SmtResult) (ordered : Array VCId) :
+    CommandElabM Unit := do
+  let mut affected := #[]
+  for id in ordered do
+    if let some (vc, witness) := mgr.provenWitness? id then
+      try
+        if let some name ← liftTermElabM (addProvenVCTheorem vc witness) then
+          affected := affected.push name
+      catch ex =>
+        if ex.isInterrupt then throw ex
+        logException ex
+  if warn.sorry.get (← getOptions) && !affected.isEmpty then
+    let lines := (affected.qsort Name.lt).toList.map (MessageData.ofConstName · (fullNames := true))
+    logWarning <| .tagged `hasSorry m!"Published VC theorems using `sorryAx`{indentD (MessageData.joinSep lines Format.line)}"
 
-This must run on the command elaboration thread, not in the manager task: it
-mutates the current Lean environment by adding theorem constants whose proofs
-are the witnesses returned by successful dischargers. Declarations are added in
-the manager DAG's dependency order so downstream proof terms can refer to
-upstream VC theorem constants. -/
 def addProvenTheoremsInDependencyOrder (filter : VCMetadata → Bool) : CommandElabM Unit := do
   let mgr ← readVCManager
-  for vcId in mgr.vcIdsInDependencyOrder filter do
-    if let some (vc, witness) := mgr.provenWitness? vcId then
-      addProvenVCTheorem vc witness
+  publishWitnesses mgr (mgr.vcIdsInDependencyOrder filter)
+
+/-- Publish only the requests captured in this module's checkpoint. The commands
+that requested them already enabled and observed the work. -/
+def publishRequestedTheorems (moduleName : Name) : CommandElabM Unit := do
+  let some owner := (vcManagerExt.getState (← getEnv))[moduleName]? | return
+  let some (generation, ids) := owner.publication? | return
+  modifyEnv fun env => vcManagerExt.modifyState env (·.insert moduleName { owner with publication? := none })
+  let mgr ← awaitFilteredManager owner generation (fun _ => true) ids.contains
+  liftCoreM Core.checkInterrupted
+  publishWitnesses mgr (mgr.vcIdsInDependencyOrder (includeId := ids.contains))
 
 end Veil.Verifier

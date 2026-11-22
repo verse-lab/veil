@@ -106,3 +106,5 @@ temporal (only := check) [TerminationHypothesis]
 
 --#model_check compiled { MaxBeanCount := 100 } {}
 --#temporal_check compiled { MaxBeanCount := 100 } {}
+
+end CoffeeCan

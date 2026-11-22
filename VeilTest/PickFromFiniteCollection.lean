@@ -69,3 +69,5 @@ invariant pickedBlock ≠ natToBlock 6
 #model_check interpreted { block := Nat
                            blockSet := Std.ExtTreeSet Nat
                            blockMultiset := TMapMultiset Nat } { natToBlock := id }
+
+end Test

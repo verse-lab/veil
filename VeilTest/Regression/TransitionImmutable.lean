@@ -24,3 +24,5 @@ transition crash (n : node) {
   ∧ (∀ N, crashed' N = if N == n then true else crashed N)
   ∧ (numCrashed' = numCrashed + 1)
 }
+
+end FloodSet
