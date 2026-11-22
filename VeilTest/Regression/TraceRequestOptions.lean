@@ -21,6 +21,7 @@ meta def observeTraceSolver : Tactic := fun stx => do
     -- A bounded gate allows the driver to edit a query while its worker runs.
     let gate := log.withExtension s!"block-{timeout}"
     if ← gate.pathExists then
+      IO.FS.withFile log .append fun h => h.putStrLn s!"blocked-{timeout}"
       for _ in [:1500] do
         unless ← gate.pathExists do break
         IO.sleep 20

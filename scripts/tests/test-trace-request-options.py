@@ -68,7 +68,7 @@ run_cmd retryExistingTrace `initialTrue
         try:
             before = len(doc.executions())
             doc.send(repeated(sat, unsat, flip=True))
-            doc.wait_for(str(gate_id), since=before)
+            doc.wait_for(f"blocked-{gate_id}", since=before)
             doc.send(repeated(sat + 2, unsat + 2))
             doc.wait_for(str(gate_id + 2), since=before)
         finally:
