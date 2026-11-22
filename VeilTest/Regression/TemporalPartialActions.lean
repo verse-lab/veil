@@ -45,6 +45,25 @@ temporal (only := check) [wholeFair] 𝒲ℱ hop → □ ◇ ⌜ loc = 1 ⌝
 -- HOLDS. The quantified variable has the name of the parameter, which the label predicate must not capture.
 temporal [allIntoFair] (∀ dst, 𝒲ℱ (hop · dst)) → ∀ dst, □ ◇ ⌜ loc = dst ⌝
 
+-- Leaving out the trailing arguments is the same as writing `·` for them, on both sides
+temporal [fairOmitted] 𝒲ℱ (hop 0)
+temporal [fairDotted] 𝒲ℱ (hop 0 ·)
+temporal [fairAllDotted] 𝒮ℱ (hop · ·)
+temporal [fairUnapplied] 𝒮ℱ hop
+
+-- The proof reads an open parameter as an existential, which commutes with `Enabled` and `⟨ … ⟩`
+temporal [enabledOpenFirstProved] Enabled (hop · 1) ↔ ∃ s, Enabled (hop s 1)
+temporal [takenOpenLastProved] ⟨ hop 0 · ⟩ ↔ ∃ d, ⟨ hop 0 d ⟩
+
+temporal (only := check) [tooManyArguments] 𝒲ℱ (hop 0 1 2)
+temporal (only := verify) [tooManyArgumentsVerify] 𝒲ℱ (hop · 1 2)
+
+/--
+error: action `hop` takes 2 parameter(s), but 3 were given; write `·` for a parameter that can take any value
+---
+error: action `hop` takes 2 parameter(s), but 3 were given; write `·` for a parameter that can take any value
+-/
+#guard_msgs in
 #gen_spec
 
 /-- info: ✅ No liveness violation (checked 6 properties, explored 18 product states) -/
@@ -70,11 +89,6 @@ temporal [allIntoFair] (∀ dst, 𝒲ℱ (hop · dst)) → ∀ dst, □ ◇ ⌜ 
 #guard_msgs in
 #temporal_check [allIntoFair] interpreted {}
 
--- Leaving out the trailing arguments is the same as writing `·` for them, on both sides
-temporal [fairOmitted] 𝒲ℱ (hop 0)
-temporal [fairDotted] 𝒲ℱ (hop 0 ·)
-temporal [fairAllDotted] 𝒮ℱ (hop · ·)
-temporal [fairUnapplied] 𝒮ℱ hop
 example : @fairOmitted = @fairDotted := rfl
 example : @fairAllDotted = @fairUnapplied := rfl
 -- `p.ast` also holds the name of `p`, so only the formulas are compared
@@ -88,10 +102,6 @@ run_meta do
     unless (← formulaOf a) == (← formulaOf b) do
       throwError "{a} and {b} have different formulas"
 
--- The proof reads an open parameter as an existential, which commutes with `Enabled` and `⟨ … ⟩`
-temporal [enabledOpenFirstProved] Enabled (hop · 1) ↔ ∃ s, Enabled (hop s 1)
-temporal [takenOpenLastProved] ⟨ hop 0 · ⟩ ↔ ∃ d, ⟨ hop 0 d ⟩
-
 prove_temporal_by [enabledOpenFirstProved]
   tclear hInit hNext hInv
   tfinite_window
@@ -102,18 +112,6 @@ prove_temporal_by [takenOpenLastProved]
   tclear hInit hNext hInv
   tfinite_window
   exact Iff.rfl
-
-/--
-error: action `hop` takes 2 parameter(s), but 3 were given; write `·` for a parameter that can take any value
--/
-#guard_msgs in
-temporal (only := check) [tooManyArguments] 𝒲ℱ (hop 0 1 2)
-
-/--
-error: action `hop` takes 2 parameter(s), but 3 were given; write `·` for a parameter that can take any value
--/
-#guard_msgs in
-temporal (only := verify) [tooManyArgumentsVerify] 𝒲ℱ (hop · 1 2)
 
 end TemporalPartialActions
 

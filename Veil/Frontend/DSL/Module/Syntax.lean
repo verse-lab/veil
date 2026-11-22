@@ -329,8 +329,8 @@ Veil defines it twice: `p`, a `Lentil.pred` that `prove_temporal_by [p]` proves,
 one of them. Without `(only := …)`, a definition that fails to elaborate is dropped with a warning, e.g.
 `p.ast` when the formula uses `⟨ r ⟩` for a relation `r` that is not one of the module's actions.
 
-Declared before `#gen_spec`, the definitions are generated once the spec is finalized; declared after,
-right away. Inside `⌜ … ⌝`, the module's theory and state fields and its ghosts are in scope, as in an
+Declare temporal properties before `#gen_spec`, alongside the module's invariants. Finalization
+generates their definitions, deferring proof-side definitions when `veil.deferVCGeneration` is set. Inside `⌜ … ⌝`, the module's theory and state fields and its ghosts are in scope, as in an
 assertion.
 
 The module's actions appear in `Enabled a`, `⟨ a ⟩`, `𝒲ℱ a` and `𝒮ℱ a`, applied to all, some or none of

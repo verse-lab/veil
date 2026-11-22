@@ -39,6 +39,31 @@ temporal (only := check) [strongHoldsByHand]
 -- FAILS: it is strongly fair to `toLeaf` as a whole, since it takes `toLeaf 2` at every visit of the hub
 temporal (only := check) [strongWholeFails] 𝒮ℱ toLeaf ∧ 𝒲ℱ toHub → ◇ ⌜ loc = (1 : Loc) ⌝
 
+temporal (only := check) [unknownAction] 𝒮ℱ toLeave
+temporal (only := check) [tooManyArguments] 𝒲ℱ (toLeaf 1 2)
+temporal (only := check) [notAnAction] 𝒲ℱ (fun s s' => s ≠ s')
+-- The proof reads an action as the model checker does.
+temporal (only := verify) [tooManyArgumentsVerify] 𝒲ℱ (toLeaf 1 2)
+
+-- Without `(only := …)`, a fairness condition gets both definitions.
+temporal [strongBoth] 𝒮ℱ (toLeaf 1) ∧ 𝒲ℱ toHub → ◇ ⌜ loc = (1 : Loc) ⌝
+
+-- An unapplied action stands for some label in the model checker and the union
+-- of its instantiations in the proof.
+temporal [strongWholeBoth] 𝒮ℱ toLeaf ∧ 𝒲ℱ toHub → ◇ ⌜ loc = (1 : Loc) ⌝
+temporal [strongWholeParens] 𝒮ℱ (toLeaf) ∧ 𝒲ℱ toHub → ◇ ⌜ loc = (1 : Loc) ⌝
+temporal [someLeafEnabled] Enabled toLeaf ↔ ∃ l : Loc, Enabled (toLeaf l)
+
+/--
+error: unknown action `toLeave`; the module's actions are [toLeaf, toHub, stay]
+---
+error: action `toLeaf` takes 1 parameter(s), but 2 were given; write `·` for a parameter that can take any value
+---
+error: expected an action of this module, applied to arguments or not; the module's actions are [toLeaf, toHub, stay]
+---
+error: action `toLeaf` takes 1 parameter(s), but 2 were given; write `·` for a parameter that can take any value
+-/
+#guard_msgs in
 #gen_spec
 
 -- The abbreviations elaborate to the formulas written out
@@ -72,40 +97,7 @@ run_meta do
 #guard_msgs (substring := true) in
 #temporal_check [strongWholeFails] interpreted {}
 
-/-- error: unknown action `toLeave`; the module's actions are [toLeaf, toHub, stay] -/
-#guard_msgs in
-temporal (only := check) [unknownAction] 𝒮ℱ toLeave
-
-/--
-error: action `toLeaf` takes 1 parameter(s), but 2 were given; write `·` for a parameter that can take any value
--/
-#guard_msgs in
-temporal (only := check) [tooManyArguments] 𝒲ℱ (toLeaf 1 2)
-
--- The proof reads an action as the model checker does
-/--
-error: action `toLeaf` takes 1 parameter(s), but 2 were given; write `·` for a parameter that can take any value
--/
-#guard_msgs in
-temporal (only := verify) [tooManyArgumentsVerify] 𝒲ℱ (toLeaf 1 2)
-
-/-- error: expected an action of this module, applied to arguments or not; the module's actions are [toLeaf, toHub, stay] -/
-#guard_msgs in
-temporal (only := check) [notAnAction] 𝒲ℱ (fun s s' => s ≠ s')
-
--- Without `(only := …)`, a fairness condition gets both definitions
-#guard_msgs in
-temporal [strongBoth] 𝒮ℱ (toLeaf 1) ∧ 𝒲ℱ toHub → ◇ ⌜ loc = (1 : Loc) ⌝
-
--- An action that is not applied stands for some instantiation of it on both sides: for the model checker
--- some label of it, and for the proof the union of its instantiations
-#guard_msgs in
-temporal [strongWholeBoth] 𝒮ℱ toLeaf ∧ 𝒲ℱ toHub → ◇ ⌜ loc = (1 : Loc) ⌝
--- Also in parentheses
-#guard_msgs in
-temporal [strongWholeParens] 𝒮ℱ (toLeaf) ∧ 𝒲ℱ toHub → ◇ ⌜ loc = (1 : Loc) ⌝
 example : @strongWholeParens = @strongWholeBoth := rfl
-temporal [someLeafEnabled] Enabled toLeaf ↔ ∃ l : Loc, Enabled (toLeaf l)
 
 /-- info: ✅ No liveness violation (checked 1 properties, explored 1 product states) -/
 #guard_msgs in
