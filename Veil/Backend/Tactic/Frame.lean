@@ -46,11 +46,6 @@ public meta section
 namespace Veil
 open Lean Meta Elab Tactic
 
-register_option veil.frame : Bool := {
-  defValue := true
-  descr := "Use structural frame proofs first for supported invariant preservation VCs."
-}
-
 /-! ## Recognizing when the clause is unchanged -/
 
 /-- What proof construction needs from the WP. Both guards and choices introduce

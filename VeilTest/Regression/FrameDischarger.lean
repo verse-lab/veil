@@ -36,34 +36,37 @@ run_cmd do
     let actual := vc.dischargers.map fun d => (d.id.name.toString.splitOn "_").getLast!
     unless actual == order do throwError "unexpected order {actual} for {name}"
 
--- Compile the actual closed worker witnesses as theorems. Check their types
--- against the independently elaborated public VC statements.
+-- Exercise the public export path. A successful status alone does not require
+-- a witness, and a kernel-accepted declaration can still depend on sorryAx.
+#gen_theorems
+
 open Lean Elab Command Veil in
 run_cmd do
-  let results ← Verifier.waitFilteredSync VCMetadata.isInduction
-  for (name, expected) in [(`write_zero, "proven"), (`write_emptyLog, "proven"),
-      (`reset_emptyLog, "proven"), (`reset_zero, "disproven"), (`write_noLive, "disproven")] do
+  let mgr ← Verifier.readVCManager
+  let results ← liftCoreM (mgr.toResults VCMetadata.isInduction)
+  for (name, expected) in [(`write_bound, "proven"), (`write_zero, "proven"),
+      (`write_emptyLog, "proven"), (`reset_noLive, "proven"), (`reset_emptyLog, "proven"),
+      (`reset_zero, "disproven"), (`write_noLive, "disproven")] do
     let some vc := results.vcs.find? (·.name == name) | throwError "missing {name}"
     unless vc.status.any (·.kindString == expected) do throwError "unexpected result {vc.status.map (·.kindString)} for {name}"
+    let fullName := (← getCurrNamespace) ++ name
     let attempts := vc.timing.dischargers.filter (·.result.isSome)
     if expected == "disproven" then
       unless attempts.size == 2 && attempts[0]!.result.any (·.kindString == "unknown") &&
           attempts[1]!.result.any (·.kindString == "disproven") do
         throwError "expected framing to decline and SMT to find a counterexample for {name}"
+      if (← getEnv).contains fullName then throwError "exported a disproven VC: {fullName}"
     else
-      unless attempts.size == 1 do throwError "unexpected fallback after framing {name}"
-      unless vc.timing.dischargers[0]!.result.any (·.isSuccessful) && !vc.proofHasSorry do
-        throwError "missing closed frame witness for {name}"
-      let some (.proven (some proof) ..) := vc.timing.dischargers[0]!.result | throwError "missing proof"
-      let mgr ← Verifier.readVCManager
+      let #[frame] := attempts | throwError "expected exactly one attempt for {name}"
+      unless frame.name.toString.endsWith "_FRAME" do throwError "expected framing to prove {name}"
+      let some (.proven (some proof) ..) := frame.result | throwError "missing frame witness for {name}"
+      let .thmInfo thm ← getConstInfo fullName | throwError "expected a theorem for {fullName}"
+      unless thm.value == proof do throwError "exported a different witness for {fullName}"
       let statement ← liftTermElabM mgr.nodes[vc.id]!.toVCStatement.type
-      let decl : TheoremVal := {
-        name := (← getCurrNamespace) ++ name
-        levelParams := []
-        «type» := statement
-        value := proof
-      }
-      liftCoreM <| addDecl (.thmDecl decl)
+      unless ← liftTermElabM (Meta.isDefEq thm.type statement) do
+        throwError "exported theorem has the wrong statement for {fullName}"
+      if (← collectAxioms fullName).contains ``sorryAx then
+        throwError "exported theorem depends on sorryAx: {fullName}"
 
 end FrameDischarger
 
