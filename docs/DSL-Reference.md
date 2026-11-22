@@ -489,6 +489,36 @@ proof stub into the editor, where you can prove it interactively using Lean
 tactics. The resulting theorem is registered with `@[veil]`, which makes
 `#check_invariants` use it to discharge that verification condition.
 
+The default order for invariant VCs is `frame` followed by `smt`.
+The manager skips `frame` on ineligible VCs. Assertion checks and traces
+use `smt` and any applicable custom dischargers.
+In this example, `arithmetic` is a user-chosen name for a custom discharger
+that runs `unveil <;> omega`. To try it first for induction VCs, register
+and order it before VC generation (usually before `#gen_spec`).
+
+```lean
+veil_discharger arithmetic for induction := by
+  unveil <;> omega
+
+veil_discharger_order [arithmetic, frame, smt]
+```
+
+A new discharger goes at the end of the list. The order command moves the
+listed names to the front and preserves the order of the remaining entries.
+Both commands are available inside a `veil module` or after `open scoped Veil`.
+Their settings apply in the current file and Lean scope. Use `for induction` for
+invariants and assertion checks, `for trace` for SAT and UNSAT traces, or
+omit the filter for both. The tactic receives the generated proposition,
+including the existential goal of a `sat trace`. An unsuccessful tactic lets
+the manager try the next discharger. The tactic resolves names and options when the VC is generated. A custom discharger must produce a Lean
+proof without `sorry`. The built-in `smt` entry handles trusted SMT answers
+and counterexamples.
+
+With `veil.deferVCGeneration`, the first command that needs verification
+(including a trace) creates the induction VCs using the order active there.
+Each trace uses the order at its own command. To apply the same order to
+the whole specification, set it before `#gen_spec` and keep it in scope.
+
 For induction VCs, inserted stubs use a compact proof command:
 
 ```lean
@@ -518,11 +548,11 @@ every field the clause uses. Run it before `unveil`. The tactic syntax is in the
 `Veil` scope, which `veil module` opens automatically. The tactic needs no SMT or
 `grind` and fails immediately on an unsupported WP shape.
 
-WP invariant VCs try framing before the configured solver (SMT by default).
-The frame worker declines initialization goals and preservation goals that
-read an updated field. Transition-relation VCs go directly to their solver.
+WP invariant VCs try framing before SMT by default. A module can reorder the
+dischargers. Frame declines initializers and clauses that read an updated field.
+TR goals use the configured dischargers applicable to TR, starting with SMT by default.
 Use `set_option veil.frame false` before VC generation to disable automatic
-framing. Assertion-freedom VCs and symbolic traces use their primary discharger.
+framing. The built-in frame worker applies only to invariant clauses.
 
 To check a single action, use `#check_action <name>`.
 

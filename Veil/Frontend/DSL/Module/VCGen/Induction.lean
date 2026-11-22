@@ -258,21 +258,22 @@ def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
     for (act, vc) in vcData do
       let mgr ← ref.get
       let (mgr, vcId) := mgr.addVC vc {} #[]
-      let mgr ← mgr.mkAddDischarger vcId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
+      let mgr ← mgr.addAutomaticDischargers vcId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
       ref.set mgr
 
-/-- WP clauses try framing first. TR clauses go directly to the TR solver. -/
+/-- Only WP invariant clauses supply a frame worker to the configured discharger order. -/
 private def addInvariantDischargers (mgr : VCManager VCMetadata SmtResult) (id : VCId)
     (vc : VCData VCMetadata) (frame : FrameDischarger) : CommandElabM (VCManager VCMetadata SmtResult) := do
   let .induction info := vc.metadata | throwError "expected an induction VC"
   match info.style with
   | .wp =>
-    let mgr ← if veil.frame.get (← getOptions) then
-      mgr.addProofDischarger id (← `(by veil_frame)) "FRAME" (some (frame.proveInvariant vc))
-    else pure mgr
-    mgr.mkAddDischarger id (VCDischarger.fromTerm (← `(by veil_solve_wp)) info.action (nameSuffix := "_WP"))
+    let frame? ← if veil.frame.get (← getOptions) then
+      pure (some (← `(by veil_frame), frame.proveInvariant vc))
+    else pure none
+    mgr.addAutomaticDischargers id (VCDischarger.fromTerm (← `(by veil_solve_wp)) info.action (nameSuffix := "_WP"))
+      (frame? := frame?)
   | .tr =>
-    mgr.mkAddDischarger id (VCDischarger.fromTerm (← `(by veil_solve_tr)) info.action (nameSuffix := "_TR"))
+    mgr.addAutomaticDischargers id (VCDischarger.fromTerm (← `(by veil_solve_tr)) info.action (nameSuffix := "_TR"))
 
 /-- Generate invariant preservation VCs for all actions × invariant clauses.
     These VCs check that each action preserves each invariant clause. -/
