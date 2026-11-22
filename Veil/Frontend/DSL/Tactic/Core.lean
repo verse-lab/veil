@@ -1280,7 +1280,12 @@ def elabVeilSolveTrlo : DesugarTacticM Unit := veilWithMainContext do
     -- FIXME: `veil_destruct' ; (unhygienic intros)` is like a wachy `veil_fol !`,
     -- but somehow we need to avoid `subst` here, otherwise the counterexample
     -- printing might miss some substituted variables
-    | .smt | .grindAndSMT => `(tactic| (repeat' (first | veil_cases_type* $(mkIdent ``Exists) $(mkIdent ``And) without [$(mkIdent `hinv)] | split_ifs at *)) <;> (expose_names ; veil_destruct' ; (unhygienic intros) ; veil_solve) )
+    | .smt | .grindAndSMT => do
+      -- Preserve a Nonempty instance before veil_destruct' replaces Inhabited with its witness.
+      let inferNonemptyTac ← mkInferNonemptyIfUntrustedTactic
+      `(tactic|
+        (repeat' (first | veil_cases_type* $(mkIdent ``Exists) $(mkIdent ``And) without [$(mkIdent `hinv)] | split_ifs at *)) <;>
+          (expose_names; $inferNonemptyTac:tactic; veil_destruct'; (unhygienic intros); veil_solve))
     | _ => `(tactic| (veil_destruct' ; veil_solve) )
   -- NOTE: For `tr` case, usually `smtSimp` will call `State.ext_iff`
   -- and this will incur `@Eq (FieldAbstractType ...)` which can make

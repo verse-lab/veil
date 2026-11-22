@@ -103,4 +103,10 @@ theorem byz_inv_0_tr (ρ : Type) (σ : Type) (address : Type) [address_dec_eq : 
       (@inv_0 ρ σ address address_dec_eq address_inhabited χ χ_rep χ_rep_lawful σ_sub ρ_sub) :=
   by veil_solve_tr
 
+-- Reconstructing the existential invariant after a transition needs a Nonempty instance.
+set_option veil.smt.trust false in
+example (α : Type) [Inhabited α] (p q : α → Prop)
+    (hinv : ∃ x, p x) (htr : ∀ x, p x → q x) : ∃ x, q x := by
+  __veil_solve_trlo
+
 end TwoStateTransitionTest
