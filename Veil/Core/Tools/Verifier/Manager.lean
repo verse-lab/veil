@@ -274,6 +274,10 @@ structure VCManager (VCMetaT ResultT: Type) where
   /-- All VCs, indexed by their ID. -/
   nodes : HashMap VCId (VerificationCondition VCMetaT ResultT)
 
+  /-- DSL checks elaborate their automatic tactic in the scope of the requesting command. -/
+  requestDischargers : HashMap VCId (VCStatement → DischargerIdentifier →
+    Std.Channel (ManagerNotification VCMetaT ResultT) → Lean.Elab.Command.CommandElabM (Discharger ResultT)) := {}
+
   /-- Dependencies of each VC, i.e. VCs that must be proven before this
   VC can be proven. -/
   upstream : HashMap VCId (HashSet VCId)
@@ -398,6 +402,13 @@ def VCManager.addDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId)
   if vc.successful.isNone then
     mgr := { mgr with _doneWith := mgr._doneWith.erase vcId }
   return mgr
+
+/-- Keep the recipe with the spec. The requesting command supplies the Lean scope
+when it turns this recipe into a worker. Used for independent induction and trace goals. -/
+def VCManager.onRequest (mgr : VCManager VCMetaT ResultT) (id : VCId)
+    (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VCMetaT ResultT) →
+      Lean.Elab.Command.CommandElabM (Discharger ResultT)) : VCManager VCMetaT ResultT :=
+  { mgr with requestDischargers := mgr.requestDischargers.insert id mk }
 
 open Lean.Elab.Command in
 def VCManager.mkAddDischarger (mgr : VCManager VCMetaT ResultT) (vcId : VCId) (mk : VCStatement → DischargerIdentifier → Std.Channel (ManagerNotification VCMetaT ResultT) → CommandElabM (Discharger ResultT)) : CommandElabM (VCManager VCMetaT ResultT) := do

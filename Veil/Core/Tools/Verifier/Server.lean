@@ -29,11 +29,41 @@ abbrev InteractiveRegistrations := Array (Discharger SmtResult × DischargerResu
 initialize interactiveRegistrationsExt : EnvExtension (HashMap ManagerId InteractiveRegistrations) ←
   registerEnvExtension (pure {}) (asyncMode := .local)
 
+/-- Each command owns its solver attempts. Checkpoints share completed or running work
+only for the IDs still selected under the same options. IDs are those of the spec graph. -/
+private structure RequestBatch where
+  options : Options
+  ids : HashSet VCId
+  manager : Std.Mutex (VCManager VCMetadata SmtResult)
+
+private initialize requestsExt : EnvExtension (HashMap ManagerId (Array RequestBatch)) ←
+  registerEnvExtension (pure {}) (asyncMode := .local)
+
+private def withRequestResults (graph : VCManager VCMetadata SmtResult) (batches : Array RequestBatch) :
+    BaseIO (VCManager VCMetadata SmtResult) := do
+  let mut graph := graph
+  for batch in batches do
+    let attempt ← batch.manager.atomically fun ref => ref.get
+    for id in batch.ids do
+      let some vc := attempt.nodes[id]? | continue
+      graph := { graph with
+        nodes := graph.nodes.insert id vc
+        enabledVCs := graph.enabledVCs.insert id
+        dormantVCs := if attempt.dormantVCs.contains id then graph.dormantVCs.insert id else graph.dormantVCs.erase id }
+      graph := { graph with _doneWith := match attempt._doneWith[id]? with
+        | some result => graph._doneWith.insert id result
+        | none => graph._doneWith.erase id }
+      for d in vc.dischargers do
+        let key := (id, d.id.dischargerId)
+        if let some result := attempt._dischargerResults[key]? then
+          graph := { graph with _dischargerResults := graph._dischargerResults.insert key result }
+  return graph
+
 /-- Remove direct runtime access from detached workers. Historical realization
 contexts can still retain owners; source-snapshot cleanup releases abandoned
 worker captures without changing Lean declaration realization. -/
 def clearVerifierRuntime (env : Environment) : Environment :=
-  interactiveRegistrationsExt.setState (vcManagerExt.setState env {}) {}
+  requestsExt.setState (interactiveRegistrationsExt.setState (vcManagerExt.setState env {}) {}) {}
 
 def getVCManagerOwner [Monad m] [MonadEnv m] [MonadError m] : m VCManagerEnvironment := do
   let key := ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
@@ -60,8 +90,11 @@ def captureVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m]
   let owner ← getVCManagerOwner
   let id ← liftM <| owner.manager.atomically (m := BaseIO) fun ref => return (← ref.get)._managerId
   let registrations := (interactiveRegistrationsExt.getState (← getEnv))[id]?.getD #[]
+  let batches := (requestsExt.getState (← getEnv))[id]?.getD #[]
   return do
     let mgr ← owner.manager.atomically (m := BaseIO) fun ref => ref.get
+    if mgr._managerId != id then return mgr
+    let mgr ← withRequestResults mgr batches
     mgr.withInteractiveResults registrations
 
 def readVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m] :
@@ -185,19 +218,8 @@ def reset (managerId : ManagerId) : CommandElabM Unit := do
   let currentId ← currentManagerId
   applyCurrentRequest (.reset managerId)
   if currentId == managerId then
-    modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.erase managerId)
-
-def startAll : CommandElabM Unit := do
-  let managerId ← currentManagerId
-  applyCurrentRequest (.startAll managerId)
-
-private def requestFiltered (filter : VCMetadata → Bool) : CommandElabM ManagerId := do
-  let managerId ← currentManagerId
-  applyCurrentRequest (.startFiltered managerId filter)
-  return managerId
-
-def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := do
-  discard <| requestFiltered filter
+    modifyEnv fun env => requestsExt.modifyState
+      (interactiveRegistrationsExt.modifyState env (·.erase managerId)) (·.erase managerId)
 
 def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
 
@@ -212,15 +234,10 @@ private structure ManagerLifetimeInfo where
 /-- Prepare an independent owner tied to the creating command's snapshots.
 The frontend's `Context.cancelTk?` also cancels parsing of later commands, so it
 does not own the lifetime of this command's reusable environment. -/
-def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
+private def newOwner (cancelTk? : Option IO.CancelToken := none) : CommandElabM VCManagerEnvironment := do
   let cancelTk ← IO.CancelToken.new
   let mgr ← liftM <| dispatcher.atomically newManagerLocked
   let owner := { manager := ← Std.Mutex.new mgr, errors := ← IO.mkRef #[], cancelTk : VCManagerEnvironment }
-  let key := ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
-  if let some previous := (vcManagerExt.getState (← getEnv))[key]? then
-    let previousId ← previous.manager.atomically fun ref => return (← ref.get)._managerId
-    modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.erase previousId)
-  modifyEnv fun env => vcManagerExt.modifyState env (·.insert key owner)
   let lifetime ← IO.CancelToken.new
   let cleanupOnce ← IO.CancelToken.new
   cleanupOnce.onSet do
@@ -252,6 +269,71 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
   let info := Info.ofCustomInfo { stx := .missing, value := .mk { token := lifetime : ManagerLifetimeInfo } }
   modifyInfoState fun st => { st with trees := st.trees.push (.node info {}) }
   startDispatcher
+  return owner
+
+def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
+  let owner ← newOwner cancelTk?
+  let key := ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
+  if let some previous := (vcManagerExt.getState (← getEnv))[key]? then
+    let previousId ← previous.manager.atomically fun ref => return (← ref.get)._managerId
+    modifyEnv fun env => requestsExt.modifyState
+      (interactiveRegistrationsExt.modifyState env (·.erase previousId)) (·.erase previousId)
+  modifyEnv fun env => vcManagerExt.modifyState env (·.insert key owner)
+
+/-- Register a fresh batch before enabling it. Restoring the preceding Lean checkpoint
+also restores its request map, so an edited command cannot see its abandoned results. -/
+private def prepareRequest (owner : VCManagerEnvironment) (filter : VCMetadata → Bool)
+    (keepPrevious : Bool) : CommandElabM ManagerId := do
+  let graph ← owner.manager.atomically fun ref => ref.get
+  let generation := graph._managerId
+  let previous := (requestsExt.getState (← getEnv))[generation]?.getD #[]
+  let options ← getOptions
+  let mut ids : HashSet VCId := {}
+  for (id, _) in graph.requestDischargers do
+    if filter graph.nodes[id]!.metadata &&
+        !previous.any (fun b => (keepPrevious || b.options == options) && b.ids.contains id) then
+      ids := ids.insert id
+  unless ids.isEmpty do
+    let attempt ← newOwner
+    let attemptId ← attempt.manager.atomically fun ref => do
+      let mut batch ← ref.get
+      batch := { batch with
+        _nextVcId := graph._nextVcId
+        alternativeVCs := graph.alternativeVCs
+        dormantVCs := graph.dormantVCs }
+      let mut fixedProofs := #[]
+      for id in ids do
+        let vc := graph.nodes[id]!
+        batch := { batch with
+          nodes := batch.nodes.insert id { vc with dischargers := #[], successful := none }
+          inDegree := batch.inDegree.insert id 0 }
+        batch ← batch.mkAddDischarger id graph.requestDischargers[id]!
+        for d in vc.dischargers do
+          if d.isInteractive then
+            if let some proof := graph._dischargerResults[(id, d.id.dischargerId)]? then
+              fixedProofs := fixedProofs.push ({ d with id.managerId := batch._managerId }, proof)
+      batch ← batch.withInteractiveResults fixedProofs
+      ref.set batch
+      return batch._managerId
+    let batches := previous.filterMap fun b =>
+      let remaining := b.ids.filter (!ids.contains ·)
+      if remaining.isEmpty then none else some { b with ids := remaining }
+    modifyEnv fun env => requestsExt.modifyState env
+      (·.insert generation (batches.push ⟨options, ids, attempt.manager⟩))
+    let manual := (interactiveRegistrationsExt.getState (← getEnv))[generation]?.getD #[]
+    let proofs := manual.map fun (d, r) => ({ d with id.managerId := attemptId }, r)
+    applyFrontendRequest attempt (.startAll attemptId) proofs
+  return generation
+
+private def requestFiltered (filter : VCMetadata → Bool) (keepPrevious := false) : CommandElabM ManagerId := do
+  let managerId ← prepareRequest (← getVCManagerOwner) filter keepPrevious
+  applyCurrentRequest (.startFiltered managerId filter)
+  return managerId
+
+def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := do
+  discard <| requestFiltered filter
+
+def startAll : CommandElabM Unit := startFiltered (fun _ => true)
 
 /-- Preserve diagnostics, traces, and asynchronous children without granting an
 observer cancellation ownership. `SnapshotTask.cancelRec` traverses children
@@ -344,8 +426,8 @@ Returns the results on the main thread, allowing widget display.
 This also polls for discharger tasks from the manager and registers them with
 `logSnapshotTask`, enabling profiler trace propagation.
 Warning: This blocks the elaborator until all matching VCs complete. -/
-def waitFilteredSync (filter : VCMetadata → Bool) : CommandElabM (VerificationResults VCMetadata SmtResult) := do
-  let managerId ← requestFiltered filter
+def waitFilteredSync (filter : VCMetadata → Bool) (keepPrevious := false) : CommandElabM (VerificationResults VCMetadata SmtResult) := do
+  let managerId ← requestFiltered filter keepPrevious
   awaitFilteredWithLogging managerId filter
 
 private def ensureExistingTheoremMatches (fullName : Name) (statement : Expr) : TermElabM Unit := do

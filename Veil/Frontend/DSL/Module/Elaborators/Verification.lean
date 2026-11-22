@@ -343,7 +343,7 @@ def elabGenTheorems : CommandElab := fun stx => do
     let _ ← mod.ensureVerificationSpec stx
     -- Include every VC kind, including the `doesNotThrow` checks started by
     -- `#gen_spec`, and wait for their proof witnesses.
-    let _ ← Verifier.waitFilteredSync (fun _ => true)
+    let _ ← Verifier.waitFilteredSync (fun _ => true) (keepPrevious := true)
     -- Add declarations on the command elaboration thread, in dependency order
     -- so each proof can refer to theorem constants for its upstream VCs.
     Verifier.addProvenTheoremsInDependencyOrder (fun _ => true)

@@ -476,6 +476,12 @@ states and is preserved by every action:
 #check_invariants
 ```
 
+Solver options follow ordinary Lean scope at the command that requests a check.
+For example, `set_option veil.smt.trust false in #check_invariants` requests
+proof reconstruction for that check. You can change the option and retry the
+same VC before publishing its theorem with `#gen_theorems`. The same scoping
+applies to `#check_action`, `sat trace`, and `unsat trace`.
+
 Results are streamed into an InfoView widget. For clauses that are not
 preserved, clicking on the clause reveals a _counterexample to induction_
 (CTI): a pre-state satisfying the invariant, a transition, and a post-state

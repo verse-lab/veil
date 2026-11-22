@@ -257,7 +257,7 @@ def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
     for (act, vc) in vcData do
       let mgr ← ref.get
       let (mgr, vcId) := mgr.addVC vc {} #[]
-      let mgr ← mgr.mkAddDischarger vcId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
+      let mgr := mgr.onRequest vcId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
       ref.set mgr
 
 /-- Generate invariant preservation VCs for all actions × invariant clauses.
@@ -288,16 +288,16 @@ def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
           -- native two-state form first.  The WP VC still exists as the
           -- fallback, but it no longer drives the normal path for these actions.
           let (mgr, trVCId) := mgr.addVC trVC {} #[]
-          let mgr ← mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
+          let mgr := mgr.onRequest trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
           let (mgr, wpVCId) := mgr.addAlternativeVC wpVC trVCId #[]
-          mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
+          pure <| mgr.onRequest wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
         else do
           -- Ordinary actions keep the existing WP-first behavior.  TR remains a
           -- fallback counterexample/proof route if the WP VC fails.
           let (mgr, wpVCId) := mgr.addVC wpVC {} #[]
-          let mgr ← mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
+          let mgr := mgr.onRequest wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
           let (mgr, trVCId) := mgr.addAlternativeVC trVC wpVCId #[]
-          mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
+          pure <| mgr.onRequest trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
       ref.set mgr
 
 /-- Generate all VCs (both doesNotThrow and invariant preservation). -/
