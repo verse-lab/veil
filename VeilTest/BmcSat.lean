@@ -26,7 +26,7 @@ info: ✅ Satisfying trace found
     flag = false
 -/
 #guard_msgs in
-sat trace { }
+sat trace [possible] { }
 
 #guard_msgs(drop warning, drop info) in
 sat trace {
@@ -44,5 +44,24 @@ sat trace {
 sat trace {
   any 3 actions
 }
+
+-- A manual SAT proof supplies a concrete trace, including its action tag.
+sat trace [manualSat] { set_flag } by
+  refine ⟨ActionTag_IndT, inferInstance, ActionTag_IndT.set_flag, ⟨⟩, ⟨false⟩, ⟨true⟩, ?_⟩
+  simp [nextSimp, smtSimp]
+  rfl
+
+#guard_msgs in
+unsat trace [impossibleUnsat] { assert flag }
+
+run_cmd do
+  let mgr ← Veil.Verifier.readVCManager
+  for name in [`possible, `impossibleUnsat] do
+    let some vc := mgr.nodes.valuesArray.find? (·.name == name) | throwError "missing {name}"
+    unless vc.dischargers.size == 1 do throwError "unexpected trace fallback for {name}"
+  let some vc := mgr.nodes.valuesArray.find? (·.name == `possible) | throwError "missing SAT query"
+  Lean.Elab.Command.liftTermElabM do
+    let goal ← vc.toVCStatement.type
+    unless goal.isAppOf ``Exists do throwError "sat trace goal is not existential"
 
 end BmcSat
