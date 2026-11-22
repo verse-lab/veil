@@ -17,7 +17,7 @@ run_cmd do
     let errors := (← get).messages.toArray.filter (·.severity == .error)
     unless ← errors.anyM (fun msg => return (← msg.data.toString).contains "reset during theorem validation") do
       throwError "stale witness was not rejected"
-    unless (interactiveRegistrationsExt.getState (← getEnv)).isEmpty do
+    unless (vcCheckpointsExt.getState (← getEnv)).isEmpty do
       throwError "reset validation committed an obsolete registration"
     IO.println "actual attribute reset during witness validation rejects old registration: PASS"
   finally

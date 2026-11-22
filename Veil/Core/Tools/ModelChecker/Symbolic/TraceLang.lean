@@ -271,7 +271,7 @@ private def formatTraceStatus (isExpectedSat : Bool) (status : Option VCStatus) 
 
 private def traceLoadingMessage : String := "⏳ Verifying trace query..."
 
-private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (getManager : BaseIO (VCManager VCMetadata SmtResult)) (managerId : ManagerId) (isExpectedSat : Bool) (_vcName : Name)
+private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (getManager : BaseIO (VCManager VCMetadata SmtResult)) (managerId : ManagerId) (isExpectedSat : Bool) (vcName : Name)
     (vcFilter : VCMetadata → Bool) (token : RefreshToken) : CoreM Unit := do
   -- CAREFUL: do not sleep while holding the lock
   IO.sleep 100
@@ -280,13 +280,15 @@ private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (getManag
     throwError "verification interrupted: specification owner was canceled or reset"
   let result? ←
     if mgr.isDoneFiltered vcFilter then
-      pure ((← mgr.toResults vcFilter).vcs.find? (vcFilter ·.metadata))
+      let some result := (← mgr.toResults vcFilter).vcs.find? (vcFilter ·.metadata)
+        | throwError "verification interrupted: trace [{vcName}] is no longer registered"
+      pure (some result)
     else
       pure none
   match result? with
   | none =>
     token.update (.text traceLoadingMessage)
-    runTraceRefreshStep owner getManager managerId isExpectedSat _vcName vcFilter token
+    runTraceRefreshStep owner getManager managerId isExpectedSat vcName vcFilter token
   | some vcResult =>
     -- Show trace widget if we have JSON, otherwise show status message
     if let some (traceJson, rawHtml?) := extractTraceDataFromVC vcResult then
@@ -397,26 +399,15 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
     let thmName := mkIdent vcName
     elabCommand (← `(theorem $thmName : $assertion := $proofTerm))
   | none =>
-    -- Use VCManager with automatic discharger
     let vcStatement ← mkTraceVCStatement mod vcName assertion
     let metadata := mkTraceVCMetadata isExpectedSat numTransitions (some vcName) (some assertion)
-    -- Filter for matching trace VCs
-    let vcFilter := (· == metadata)
-    -- Check if a VC with this name already exists (avoid duplicate work)
-    let _ ← Verifier.withVCManager fun ref => do
-      let mgr ← ref.get
-      if let some existingId := mgr.findVCByFilter vcFilter then
-        return existingId
-      let (mgr, vcId) := mgr.addVC ⟨vcStatement, metadata⟩ {} #[]
-      let mgr ← mgr.addAutomaticDischargers vcId (TraceDischarger.fromAssertion numTransitions isExpectedSat smtQuery)
-      ref.set mgr
-      return vcId
-
-    -- Start async verification with logging callback
-    let managerId ← Verifier.runFilteredAsyncWithManagerId vcFilter (logTraceResults stx isExpectedSat vcName vcFilter)
-
-    -- Display streaming widget (shows progress then trace widget)
-    displayTraceStreamingResults stx managerId isExpectedSat vcName vcFilter
+    let attach := fun (mgr : VCManager VCMetadata SmtResult) vcId => do
+      mgr.addAutomaticDischargers vcId (TraceDischarger.fromAssertion numTransitions isExpectedSat smtQuery)
+    Verifier.withCommandVC ⟨vcStatement, metadata⟩ attach fun handle => do
+      let vcFilter := (· == metadata)
+      let generation ← Verifier.runFilteredAsyncWithManagerId vcFilter
+        (logTraceResults stx isExpectedSat vcName vcFilter) (expectedId? := some handle.managerId)
+      displayTraceStreamingResults stx generation isExpectedSat vcName vcFilter
 
 
 @[incremental] elab_rules : command

@@ -23,17 +23,41 @@ It is deliberately not persistent across imports. -/
 initialize vcManagerExt : EnvExtension (HashMap Name VCManagerEnvironment) ←
   registerEnvExtension (pure {}) (asyncMode := .local)
 
-/-- Completed interactive results belong to an immutable Lean checkpoint, keyed
-by globally unique runtime generation. They never enter the shared runtime. -/
-abbrev InteractiveRegistrations := Array (Discharger SmtResult × DischargerResult SmtResult)
-initialize interactiveRegistrationsExt : EnvExtension (HashMap ManagerId InteractiveRegistrations) ←
+/-- Verification state belonging to one Lean checkpoint of a manager generation.
+Only the IDs of command-owned VCs live here. Their workers belong to the runtime,
+and their lifetimes belong to command snapshots. -/
+structure VCCheckpoint where
+  commandVCs : HashSet VCId := {}
+  observing? : Option VCId := none
+  interactive : Array (Discharger SmtResult × DischargerResult SmtResult) := #[]
+  deriving Inhabited
+
+initialize vcCheckpointsExt : EnvExtension (HashMap ManagerId VCCheckpoint) ←
   registerEnvExtension (pure {}) (asyncMode := .local)
+
+def getVCCheckpoint [Monad m] [MonadEnv m] (id : ManagerId) : m VCCheckpoint := do
+  return (vcCheckpointsExt.getState (← getEnv))[id]?.getD {}
+
+def modifyVCCheckpoint [Monad m] [MonadEnv m] (id : ManagerId) (f : VCCheckpoint → VCCheckpoint) : m Unit :=
+  modifyEnv fun env => vcCheckpointsExt.modifyState env fun checkpoints =>
+    checkpoints.insert id (f (checkpoints[id]?.getD {}))
+
+/-- A command's own observers follow that registration even when a visible sibling
+has the same name and metadata. Other commands see every ID in the checkpoint. -/
+def VCCheckpoint.visibleCommands (cp : VCCheckpoint) : HashSet VCId :=
+  match cp.observing? with
+  | some id => {id}
+  | none => cp.commandVCs
+
+private def VCCheckpoint.view (cp : VCCheckpoint) (mgr : VCManager VCMetadata SmtResult) :
+    BaseIO (VCManager VCMetadata SmtResult) :=
+  (mgr.withVisibleCommandVCs cp.visibleCommands).withInteractiveResults cp.interactive
 
 /-- Remove direct runtime access from detached workers. Historical realization
 contexts can still retain owners; source-snapshot cleanup releases abandoned
 worker captures without changing Lean declaration realization. -/
 def clearVerifierRuntime (env : Environment) : Environment :=
-  interactiveRegistrationsExt.setState (vcManagerExt.setState env {}) {}
+  vcCheckpointsExt.setState (vcManagerExt.setState env {}) {}
 
 def getVCManagerOwner [Monad m] [MonadEnv m] [MonadError m] : m VCManagerEnvironment := do
   let key := ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
@@ -59,10 +83,10 @@ def captureVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m]
     m (BaseIO (VCManager VCMetadata SmtResult)) := do
   let owner ← getVCManagerOwner
   let id ← liftM <| owner.manager.atomically (m := BaseIO) fun ref => return (← ref.get)._managerId
-  let registrations := (interactiveRegistrationsExt.getState (← getEnv))[id]?.getD #[]
+  let cp ← getVCCheckpoint id
   return do
     let mgr ← owner.manager.atomically (m := BaseIO) fun ref => ref.get
-    mgr.withInteractiveResults registrations
+    if mgr._managerId == id then cp.view mgr else return mgr.withVisibleCommandVCs {}
 
 def readVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m] :
     m (VCManager VCMetadata SmtResult) := do
@@ -119,7 +143,7 @@ private def fillOwnerLocked (pool : IO.Ref DispatcherState) (owner : VCManagerEn
 
 private def handleNotificationLocked (pool : IO.Ref DispatcherState)
   (notification : ManagerNotification VCMetadata SmtResult)
-    (registrations : InteractiveRegistrations := #[]) : BaseIO Unit := do
+    (cp : VCCheckpoint := {}) : BaseIO Unit := do
   let st ← pool.get
   let physicalTasks ← st.physicalTasks.filterM fun task => return !(← IO.hasFinished task)
   pool.set { st with physicalTasks }
@@ -135,9 +159,9 @@ private def handleNotificationLocked (pool : IO.Ref DispatcherState)
         match notification with
         | .dischargerResult id res => ref.set (← mgr.recordDischargerResult id res)
         | .startAll _ =>
-          ref.set (mgr.enableMatchingFromView (← mgr.withInteractiveResults registrations) (fun _ => true))
+          ref.set (mgr.enableMatchingFromView (← cp.view mgr) (fun _ => true))
         | .startFiltered _ filter =>
-          ref.set (mgr.enableMatchingFromView (← mgr.withInteractiveResults registrations) filter)
+          ref.set (mgr.enableMatchingFromView (← cp.view mgr) filter)
         | .reset _ =>
           mgr.cancelAllDischargers
           ref.set (← newManagerLocked pool)
@@ -164,7 +188,7 @@ handling are one transaction: retiring an idle owner cannot discard a queued
 start. Worker publications still use the shared asynchronous channel. -/
 def applyFrontendRequest (owner : VCManagerEnvironment)
     (notification : ManagerNotification VCMetadata SmtResult)
-    (registrations : InteractiveRegistrations := #[]) : BaseIO Unit := do
+    (cp : VCCheckpoint := {}) : BaseIO Unit := do
   dispatcher.atomically fun pool => do
     let id ← owner.manager.atomically fun ref => return (← ref.get)._managerId
     let requestedId := match notification with
@@ -173,26 +197,27 @@ def applyFrontendRequest (owner : VCManagerEnvironment)
       | .fill => id
     if requestedId != id then return
     pool.modify fun st => { st with owners := st.owners.insert id owner }
-    handleNotificationLocked pool notification registrations
+    handleNotificationLocked pool notification cp
 
 def applyCurrentRequest (notification : ManagerNotification VCMetadata SmtResult) : CommandElabM Unit := do
   let owner ← getVCManagerOwner
   let id ← owner.manager.atomically fun ref => return (← ref.get)._managerId
-  let registrations := (interactiveRegistrationsExt.getState (← getEnv))[id]?.getD #[]
-  applyFrontendRequest owner notification registrations
+  applyFrontendRequest owner notification (← getVCCheckpoint id)
 
 def reset (managerId : ManagerId) : CommandElabM Unit := do
   let currentId ← currentManagerId
   applyCurrentRequest (.reset managerId)
   if currentId == managerId then
-    modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.erase managerId)
+    modifyEnv fun env => vcCheckpointsExt.modifyState env (·.erase managerId)
 
 def startAll : CommandElabM Unit := do
   let managerId ← currentManagerId
   applyCurrentRequest (.startAll managerId)
 
-private def requestFiltered (filter : VCMetadata → Bool) : CommandElabM ManagerId := do
-  let managerId ← currentManagerId
+private def requestFiltered (filter : VCMetadata → Bool) (expectedId? : Option ManagerId := none) : CommandElabM ManagerId := do
+  let managerId ← match expectedId? with
+    | some id => pure id
+    | none => currentManagerId
   applyCurrentRequest (.startFiltered managerId filter)
   return managerId
 
@@ -209,6 +234,51 @@ private structure ManagerLifetimeInfo where
   token : IO.CancelToken
   deriving TypeName
 
+private def retainCommandLifetime (lifetime : IO.CancelToken) : CommandElabM Unit := do
+  Command.logSnapshotTask { stx? := none, cancelTk? := some lifetime, task := .pure default }
+  -- Insert directly even when UI info is disabled: this leaf owns a resource,
+  -- not UI metadata. #guard_msgs preserves info trees while consuming tasks.
+  -- Detached workers must clear both infoState and snapshotTasks before capture.
+  let info := Info.ofCustomInfo { stx := .missing, value := .mk { token := lifetime : ManagerLifetimeInfo } }
+  modifyInfoState fun st => { st with trees := st.trees.push (.node info {}) }
+
+/-- Register an independent VC in the current checkpoint and attach its workers before
+publishing it to the scheduler. During `observe`, command-owned work is restricted to this
+registration, even if other visible commands have the same name and metadata. Observers and
+widgets capture that view; subsequent commands see all registrations in their checkpoint. -/
+def withCommandVC (vc : VCData VCMetadata)
+    (attach : VCManager VCMetadata SmtResult → VCId → CommandElabM (VCManager VCMetadata SmtResult))
+    (observe : CommandVC → CommandElabM α) : CommandElabM α := do
+  let owner ← getVCManagerOwner
+  let lifetime ← IO.CancelToken.new
+  let handle ← withVCManager fun ref => do
+    let (mgr, handle) := (← ref.get).addCommandVC vc
+    let mgr ← attach mgr handle.vcId
+    ref.set mgr
+    return handle
+  lifetime.onSet do
+    -- Finalizers may run under the manager mutex. Retire on a different task.
+    discard <| BaseIO.asTask do
+      owner.manager.atomically fun ref => do
+        ref.set (← (← ref.get).releaseCommandVC handle)
+      discard <| vcManagerCh.send .fill
+  let previousFocus := (← getVCCheckpoint handle.managerId).observing?
+  modifyVCCheckpoint handle.managerId fun cp =>
+    { cp with commandVCs := cp.commandVCs.insert handle.vcId, observing? := some handle.vcId }
+  try
+    let result ← observe handle
+    -- Attach the lifetime after creating observers so they do not retain their own registration.
+    retainCommandLifetime lifetime
+    return result
+  catch ex =>
+    lifetime.set
+    modifyEnv fun env => vcCheckpointsExt.modifyState env
+      (·.modify handle.managerId fun cp => { cp with commandVCs := cp.commandVCs.erase handle.vcId })
+    throw ex
+  finally
+    modifyEnv fun env => vcCheckpointsExt.modifyState env
+      (·.modify handle.managerId fun cp => { cp with observing? := previousFocus })
+
 /-- Prepare an independent owner tied to the creating command's snapshots.
 The frontend's `Context.cancelTk?` also cancels parsing of later commands, so it
 does not own the lifetime of this command's reusable environment. -/
@@ -219,7 +289,7 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
   let key := ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
   if let some previous := (vcManagerExt.getState (← getEnv))[key]? then
     let previousId ← previous.manager.atomically fun ref => return (← ref.get)._managerId
-    modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.erase previousId)
+    modifyEnv fun env => vcCheckpointsExt.modifyState env (·.erase previousId)
   modifyEnv fun env => vcManagerExt.modifyState env (·.insert key owner)
   let lifetime ← IO.CancelToken.new
   let cleanupOnce ← IO.CancelToken.new
@@ -245,12 +315,7 @@ def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit :
   -- An explicitly supplied token is cancellation authority; the implicit
   -- frontend token is not. Neither is retained by the runtime.
   if let some supplied := cancelTk? then supplied.onSet close
-  Command.logSnapshotTask { stx? := none, cancelTk? := some lifetime, task := .pure default }
-  -- Insert directly even when UI info is disabled: this leaf owns a resource,
-  -- not UI metadata. #guard_msgs preserves info trees while consuming tasks.
-  -- Detached workers must clear both infoState and snapshotTasks before capture.
-  let info := Info.ofCustomInfo { stx := .missing, value := .mk { token := lifetime : ManagerLifetimeInfo } }
-  modifyInfoState fun st => { st with trees := st.trees.push (.node info {}) }
+  retainCommandLifetime lifetime
   startDispatcher
 
 /-- Preserve diagnostics, traces, and asynchronous children without granting an
@@ -284,11 +349,12 @@ def logPendingDischargerTasks (mgr : VCManager VCMetadata SmtResult)
 
 /-- Poll for discharger tasks from the manager and register them with `logSnapshotTask`.
     Waits until all VCs matching the filter are done, then returns the results.
-    Fails if the captured manager generation has been replaced.
+    Fails if the captured generation or the command's focused VC was retired.
     This enables profiler trace propagation by registering tasks on the calling thread. -/
 private def awaitFilteredWithLogging (managerId : ManagerId) (filter : VCMetadata → Bool)
     : CommandElabM (VerificationResults VCMetadata SmtResult) := do
   let owner ← getVCManagerOwner
+  let observing? := (← getVCCheckpoint managerId).observing?
   let mut registered := HashSet.emptyWithCapacity
   while true do
     liftCoreM Core.checkInterrupted
@@ -307,6 +373,9 @@ private def awaitFilteredWithLogging (managerId : ManagerId) (filter : VCMetadat
       if ← owner.cancelTk.isSet then
         throwError ownerCanceledMessage
       throwError "verification interrupted: VC manager generation {managerId} was replaced by {mgr._managerId}"
+    if let some id := observing? then
+      unless mgr.nodes.contains id do
+        throwError "verification interrupted: command-owned VC {id} was retired"
     registered ← logPendingDischargerTasks mgr filter registered
     if mgr.isDoneFiltered filter then
       let results ← liftCoreM (mgr.toResults filter)
@@ -323,8 +392,9 @@ Returns the requested generation so widget consumers use the same generation as
 the observer, even if the manager is reset before widget construction.
 Note: Widget display does not work in the callback since it runs in an async context. -/
 def runFilteredAsyncWithManagerId (filter : VCMetadata → Bool)
-    (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit) : CommandElabM ManagerId := do
-  let managerId ← requestFiltered filter
+    (callback : VerificationResults VCMetadata SmtResult → CommandElabM Unit)
+    (expectedId? : Option ManagerId := none) : CommandElabM ManagerId := do
+  let managerId ← requestFiltered filter expectedId?
   let cancelTk ← IO.CancelToken.new
   let wrappedTask ← Command.wrapAsyncAsSnapshot (fun () => do
     let results ← awaitFilteredWithLogging managerId filter
