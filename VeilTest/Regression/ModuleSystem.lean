@@ -10,3 +10,10 @@ open scoped ExportedModel
 example : ExportedModel.initial.flag = false := rfl
 
 #guard ExportedModel.runToggle == [.success () { flag := true }]
+
+-- Importers can use both symbolic and executable definitions from a spec that ran no checks.
+example := @ExportedModel.toggle.ext.wp
+example := @ExportedModel.toggle.ext.tr
+noncomputable example := @ExportedModel.relationalTransitionSystem
+example := @ExportedModel.visitsFlag
+example := @ExportedModel.visitsFlag.ast

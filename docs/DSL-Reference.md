@@ -525,6 +525,49 @@ read an updated field. Transition-relation VCs go directly to their solver.
 Use `set_option veil.frame false` before VC generation to disable automatic
 framing. Assertion-freedom VCs and symbolic traces use their primary discharger.
 
+#### Keeping invariant proofs in separate files
+
+Finalize the specification with `#gen_spec` and close it with `end M`. This also
+works with `veil.deferVCGeneration`. The defining file generates any remaining
+verification definitions at module close. Proof files import those declarations
+and reopen the Veil module by name. For example, `Counter/Spec.lean` can contain
+
+```lean
+module
+public import Veil
+
+veil module Counter
+individual x : Nat
+after_init { x := 0 }
+action step { require x < 10; x := x + 1 }
+invariant [bounded] x ≤ 10
+#gen_spec
+end Counter
+```
+
+In `Counter/Proofs.lean`, the proof can refer to declarations from the spec.
+The final check verifies initialization, each action, and exception freedom.
+
+```lean
+module
+public import Counter.Spec
+
+veil module Counter
+prove_veil_invariant_goal step bounded using wp by
+  grind
+
+#check_invariants
+end Counter
+```
+
+To divide the work further, put proofs for different goals in separate files
+that each import `Counter.Spec`. Import those files together, reopen
+`veil module Counter`, and run `#check_invariants` there. The verifier checks
+the imported theorem against its VC and uses the usual automatic dischargers
+for goals without an interactive proof. Place solver options for imported
+invariant obligations before the `veil module` opener in the checking file,
+where Veil sets up its verification manager.
+
 To check a single action, use `#check_action <name>`.
 
 #### Synthesizing Invariants
@@ -603,6 +646,25 @@ InfoView widget; if a violation is found, Veil shows a concrete counterexample
 trace. See the [Model Checker Guide](ModelChecker-Guide.md) for execution modes,
 options, deadlocks, state constraints, and performance tuning.
 
+A checking file can import the finalized spec and reopen the same Veil module.
+For example, this runs the `Counter` spec above in the interpreter:
+
+```lean
+module
+public import Counter.Spec
+meta import Counter.Spec
+
+veil module Counter
+#model_check interpreted {}
+end Counter
+```
+
+The regular import makes the model available to generated Lean declarations and
+compiled binaries. The meta import also loads its executable code for interpreted
+checks and counterexample displays during elaboration. The default execution
+mode starts with an interpreted check. A `#model_check compiled` command can use
+the regular import alone.
+
 ##### Random Simulation
 
 If you do not want exhaustive testing, you can use the `#simulate` command to
@@ -618,6 +680,11 @@ theory, optionally followed by the settings:
 Explore system behaviors with trace queries, discharged via SMT. Unlike
 `#model_check`, these queries check **all** instantiations of the module's
 parameters at once, but only up to a bounded number of steps:
+
+To keep `sat trace` and `unsat trace` in a checking file, use the same
+`public import Counter.Spec` and `meta import Counter.Spec` pair and reopen
+`veil module Counter`. The meta import lets Veil display the states and action
+labels of a satisfying trace or a counterexample.
 
 ##### Satisfiable Traces
 
@@ -666,6 +733,10 @@ instance, with the same arguments as `#model_check`:
 #temporal_check { node := Fin 3 }
 #temporal_check [electsLeader] { node := Fin 3 }
 ```
+
+In a separate checking file, use `public import Counter.Spec` and `meta import Counter.Spec`
+for the interpreted and default modes. The compiled temporal checker can use
+the regular import alone.
 
 It explores every infinite run of the instance, including runs that never take
 an enabled action, so liveness properties usually need fairness assumptions, as

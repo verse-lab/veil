@@ -401,8 +401,10 @@ private def reportPublicationError (act : CommandElabM Unit) : CommandElabM Unit
 /-- Finish the defining file's deferred work before leaving the Veil module. -/
 private def prepareModuleClose (mod : Module) : CommandElabM Unit := do
   if let some stx := mod.specFinalizedAtStx then
-    discard <| mod.ensureVerificationSpec stx
+    if (← getFinalizedSpec? mod.name).isSome then return
+    let prepared ← mod.ensureVerificationSpec stx
     Verifier.awaitAssertionChecks
+    saveFinalizedSpec prepared (← ExecutionWorkflow.getDeclSources prepared)
   else
     -- A partial module can have deferred action definitions without a spec.
     mod.generateDeferredWPs

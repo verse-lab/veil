@@ -67,6 +67,37 @@ structure DeclSource where
   character : Nat
 deriving Inhabited, Lean.ToJson
 
+/-- The DSL description and declaration-time context needed to verify a finalized spec in
+another Lean file. The verifier manager and discharger tasks belong to the importing file. -/
+structure FinalizedSpec where
+  mod : Module
+  openDecls : List OpenDecl
+  /-- Action and property locations in the spec file, for executable models generated later. -/
+  sources : Array DeclSource × Array DeclSource
+
+private initialize finalizedSpecExt :
+    SimplePersistentEnvExtension FinalizedSpec (NameMap FinalizedSpec) ←
+  registerSimplePersistentEnvExtension {
+    addEntryFn := fun s spec => s.insert spec.mod.name spec
+    addImportedFn := mkStateFromImportedEntries (fun s spec => s.insert spec.mod.name spec) {}
+  }
+
+def getFinalizedSpec? [Monad m] [MonadEnv m] (name : Name) : m (Option FinalizedSpec) := do
+  return (finalizedSpecExt.getState (← getEnv)).find? name
+
+def saveFinalizedSpec (mod : Module) (sources : Array DeclSource × Array DeclSource) :
+    Elab.Command.CommandElabM Unit := do
+  let entry : FinalizedSpec := { mod, sources, openDecls := ← getOpenDecls }
+  modifyEnv (finalizedSpecExt.addEntry · entry)
+
+def reopenFinalizedSpec? (name : Name) (stx : Syntax) : Elab.Command.CommandElabM (Option Module) := do
+  let some spec ← getFinalizedSpec? name | return none
+  -- User and enum namespaces opened in the spec can occur in stored binder syntax.
+  Elab.Command.modifyScope fun scope =>
+    { scope with openDecls := scope.openDecls ++ spec.openDecls }
+  -- Consumers of this syntax (including the verifier widget) expect a local file position.
+  return some { spec.mod with _specFinalizedAt := some stx }
+
 /-- What checking a module takes, without the module itself. `#gen_executable` records it, so
 that `#mc_config` can build its model checker in the files importing the one declaring it. -/
 structure ExecutableModule where

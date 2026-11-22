@@ -162,6 +162,14 @@ def Module.throwIfAlreadyDeclared [Monad m] [MonadError m] (mod : Module) (name 
 longer be changed, since some definitions already depend on it)? -/
 def Module.isStateDefined (mod : Module) : Bool := mod._stateDefined
 
+/-- The Lean module supplying this spec's runtime declarations if their IR is unavailable
+to an elaboration-time interpreter. A normal import suffices for compiled execution. -/
+def Module.runtimeOnlyImport? [Monad m] [MonadEnv m] (mod : Module) : m (Option Name) := do
+  let env ← getEnv
+  let theoryDecl := mod.name ++ theoryName
+  let some idx := env.getModuleIdxFor? theoryDecl | return none
+  return if getIRPhases env theoryDecl == .runtime then some env.header.moduleNames[idx]! else none
+
 def Module.isSpecFinalized (mod : Module) : Bool := mod._specFinalizedAt.isSome
 
 def Module.specFinalizedAtStx (mod : Module) : Option Syntax := mod._specFinalizedAt
