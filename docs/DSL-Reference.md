@@ -426,7 +426,8 @@ inference.
 
 #### Temporal Properties
 
-Temporal properties are LTL formulas over the runs of the system:
+Declare temporal properties before `#gen_spec`, alongside invariants and safety properties.
+They are LTL formulas over the runs of the system:
 
 ```lean
 temporal [electsLeader]

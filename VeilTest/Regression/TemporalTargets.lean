@@ -4,8 +4,8 @@ public import Veil
 
 open Lentil
 
-/-! A `temporal` property is defined both for `prove_temporal_by` and for `#temporal_check`, whether it is
-declared before or after `#gen_spec`. Without `(only := …)`, a definition that fails to elaborate is
+/-! A `temporal` property is defined both for `prove_temporal_by` and for `#temporal_check`, when its
+specification is finalized. Without `(only := …)`, a definition that fails to elaborate is
 dropped with a warning. -/
 
 veil module TemporalTargets
@@ -80,12 +80,16 @@ action raise {
 
 invariant true
 
-#gen_spec
-
 temporal (only := check) [eventuallyRaised] ◇ ⌜ flag ⌝
+
+#gen_spec
 
 run_meta do
   if (← Lean.getEnv).contains `TemporalCheckOnlyDeferred.NextStep then
     throwError "declaring a property that is only model checked generated the deferred `NextStep`"
+
+/-- error: Declare temporal properties before `#gen_spec` in the specification of module `TemporalCheckOnlyDeferred`. -/
+#guard_msgs in
+temporal [late] □ ⊤
 
 end TemporalCheckOnlyDeferred

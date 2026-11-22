@@ -17,6 +17,8 @@ action inc { x := x + 1 }
 
 temporal (only := verify) [positiveStable] □ (⌜ x > 0 ⌝ → ◯ ⌜ x > 0 ⌝)
 
+temporal (only := verify) [positiveStableWithInvariants] □ (⌜ x > 0 ⌝ → ◯ ⌜ x > 0 ⌝)
+
 #gen_spec
 
 prove_temporal_by [positiveStable]
@@ -24,8 +26,6 @@ prove_temporal_by [positiveStable]
   tmonotone
   unveil_temporal
   grind
-
-temporal (only := verify) [positiveStableWithInvariants] □ (⌜ x > 0 ⌝ → ◯ ⌜ x > 0 ⌝)
 
 prove_temporal_by [positiveStableWithInvariants]
   tclear hInit
