@@ -135,6 +135,12 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
       mod.prepareVerification stx
   return { mod with _specFinalizedAt := some stx }
 
+/-- Preparing a finalized spec adds declarations that survive `set_option … in`
+and section boundaries. Remember the corresponding module metadata in the same
+Lean checkpoint so closing the scope cannot request preparation a second time. -/
+private initialize preparedVerificationExt : EnvExtension (NameMap Module) ←
+  registerEnvExtension (pure {})
+
 /-- Called by the verification commands. If `#gen_spec` deferred VC generation
 (`veil.deferVCGeneration`), the first call generates the deferred verification
 definitions and does what `#gen_spec` skipped; otherwise this only checks that
@@ -144,12 +150,16 @@ def Module.ensureVerificationSpec (mod : Module) (stx : Syntax) : CommandElabM M
   mod.throwIfSpecNotFinalized
   let deferred := mod._vcGenerationDeferred
   unless deferred || mod.temporalProperties.any (·.verifyPending) do return mod
+  if let some prepared := (preparedVerificationExt.getState (← getEnv)).find? mod.name then
+    localEnv.modifyModule (fun _ => prepared)
+    return prepared
   let mut mod := mod
   if deferred then
     mod.generateDeferredWPs
     mod ← mod.prepareVerification stx
     mod := { mod with _vcGenerationDeferred := false }
   mod ← mod.generatePendingTemporalDefinitions .verify
+  modifyEnv fun env => preparedVerificationExt.modifyState env (·.insert mod.name mod)
   localEnv.modifyModule (fun _ => mod)
   return mod
 
