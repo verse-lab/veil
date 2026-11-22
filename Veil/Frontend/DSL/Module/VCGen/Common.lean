@@ -254,8 +254,19 @@ scoped elab "veil_discharger_order " "[" ids:rawIdent,* "]" : command => do
   let rest := entries.filter fun e => !front.any (·.name == e.name)
   automaticDischargers.modify fun _ => front ++ rest
 
+/-- Check the exported proof in the VC's environment, after inlining worker-local declarations. -/
+private def checkCustomWitness (env : Environment) (stmt : VCStatement) (witness : Expr) : TermElabM Unit :=
+  withEnv env do
+    let expected ← stmt.type
+    let .ok actual := Kernel.check env {} witness | throwError "invalid custom discharger proof"
+    unless actual == expected || Kernel.isDefEqGuarded env {} actual expected do
+      throwError "custom discharger proof has the wrong type"
+    for name in witness.getUsedConstants do
+      if (← collectAxioms name).contains ``sorryAx then
+        throwError "custom discharger proof depends on sorryAx through {name}"
+
 private def VCManager.addProofDischarger (mgr : VCManager VCMetadata SmtResult) (vcId : VCId)
-    (label : Name) (term : Term) (reportFailure : Bool := false)
+    (label : Name) (term : Term) (isCustom : Bool := false)
     (proof? : Option (TermElabM Witness) := none) : CommandElabM (VCManager VCMetadata SmtResult) := do
   let env ← Verifier.clearVerifierRuntime <$> getEnv
   mgr.mkAddDischarger vcId fun stmt id ch => do
@@ -264,15 +275,16 @@ private def VCManager.addProofDischarger (mgr : VCManager VCMetadata SmtResult) 
       -- An incomplete proof lets the manager continue to the next discharger.
       match data with
       | .inr ex =>
-        unless reportFailure do return .unknown none time
+        unless isCustom do return .unknown none time
         return .unknown (some (.unknown #[← ex.toMessageData.toString])) time
       | .inl witness =>
         let witness ← inlineFreshProofs env witness (rec := true)
         if witness.hasMVar || witness.hasFVar || witness.hasSorry then
-          unless reportFailure do return .unknown none time
+          unless isCustom do return .unknown none time
           let errors := (← Core.getMessageLog).toArray.filter (·.severity == .error)
           let reasons ← errors.mapM (·.data.toString)
           return .unknown (some (.unknown (if reasons.isEmpty then #["tactic did not produce a complete proof"] else reasons))) time
+        if isCustom then checkCustomWitness env stmt witness
         return .proven (some witness) none time
 
 /-- Attach the applicable automatic dischargers in the order active at VC generation. -/
@@ -291,7 +303,7 @@ def VCManager.addAutomaticDischargers (mgr : VCManager VCMetadata SmtResult) (vc
     | .smt => mgr ← mgr.mkAddDischarger vcId smt
     | .custom name appliesTo term =>
       if appliesTo vc.metadata then
-        mgr ← mgr.addProofDischarger vcId name term (reportFailure := true)
+        mgr ← mgr.addProofDischarger vcId name term (isCustom := true)
   return mgr
 
 end Veil
