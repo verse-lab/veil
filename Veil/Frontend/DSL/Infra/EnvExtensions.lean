@@ -14,6 +14,8 @@ namespace Veil
 
 structure LocalEnvironment where
   currentModule : Option Module
+  /-- The opening identifier and its Lean scope depth, for matching `end`. -/
+  moduleScope? : Option (Ident × Nat) := none
 deriving Inhabited
 
 structure GlobalEnvironment where

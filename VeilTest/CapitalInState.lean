@@ -40,3 +40,5 @@ action set_n_RN_capital (n m : node) (s : seq_t) {
 action set_X {
   X := true
 }
+
+end Test

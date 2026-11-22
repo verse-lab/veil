@@ -14,6 +14,8 @@ structure VCManagerEnvironment where
   manager : Std.Mutex (VCManager VCMetadata SmtResult)
   errors : IO.Ref (Array String)
   cancelTk : IO.CancelToken
+  /-- Explicit requests in this Lean checkpoint. The runtime and its results remain shared. -/
+  publication? : Option (ManagerId × Std.HashSet VCId) := none
 
 /-- A channel for communicating with the VCManager. -/
 initialize vcManagerCh : Std.Channel (ManagerNotification VCMetadata SmtResult) ← Std.Channel.new

@@ -4,7 +4,8 @@
 `safety` properties and declared `invariant`s inductive. It reports an inductive invariant, an execution
 that violates the properties, or that no universal inductive invariant exists.
 With `certify`, an invariant or a violation becomes a theorem checked by the
-Lean kernel. Run `#gen_theorems` to add its declarations to the current module.
+Lean kernel. Closing the module with `end M` adds the certificate declarations.
+Use `#gen_theorems` to make them available earlier.
 
 ## Running the Synthesizer
 
