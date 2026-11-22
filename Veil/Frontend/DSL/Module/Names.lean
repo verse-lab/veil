@@ -174,6 +174,8 @@ def localMeetsSpecificationIfSuccessfulAssumingName : Name :=
 def localMeetsSpecificationIfSuccessfulAssuming : Ident :=
   mkIdent localMeetsSpecificationIfSuccessfulAssumingName
 
+def frameTheoremName : Name := mkVeilImplementationDetailName `frame
+
 def localTransitionMeetsSpecificationIfSuccessfulAssumingName : Name :=
   mkVeilImplementationDetailName `transition_meetsSpecificationIfSuccessfulAssuming_local
 def localTransitionMeetsSpecificationIfSuccessfulAssuming : Ident :=

@@ -34,7 +34,7 @@ The following set of actions must preserve the invariant and successfully termin
     doesNotThrow ... ✅
     r_excluded ... ✅
 ---
-warning: Trusting SMT solver for 2 goals. `set_option veil.smt.trust false` to enable proof reconstruction.
+warning: Trusting SMT solver for 1 goal. `set_option veil.smt.trust false` to enable proof reconstruction.
 -/
 #guard_msgs in
 #check_invariants
@@ -44,8 +44,6 @@ info: The following set of actions must preserve the invariant and successfully 
   keep
     doesNotThrow ... ✅
     r_excluded ... ✅
----
-warning: Trusting SMT solver for 1 goal. `set_option veil.smt.trust false` to enable proof reconstruction.
 -/
 #guard_msgs in
 #check_action keep

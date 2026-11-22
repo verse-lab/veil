@@ -1,6 +1,7 @@
 module
 
 public meta import Lean
+public meta import Veil.Util.Meta
 public meta import Veil.Backend.SMT.Result
 public meta import Veil.Frontend.DSL.Module.Representation
 public meta import Veil.Frontend.DSL.Infra.EnvExtensions
@@ -101,7 +102,9 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
     (ch : Std.Channel (ManagerNotification VCMetadata SmtResult))
     (mkResult : Std.CloseableChannel ((Name × Nat) × Smt.AsyncOutput) →
       Witness ⊕ Exception → Nat → TermElabM (DischargerResult SmtResult))
-    (traceLabel : String := "discharger") : CommandElabM (Discharger SmtResult) := do
+    (traceLabel : String := "discharger") (quietOnUnknown : Bool := false)
+    (proof? : Option (TermElabM Witness) := none) :
+    CommandElabM (Discharger SmtResult) := do
   let cancelTk ← IO.CancelToken.new
   let smtCh ← Std.CloseableChannel.new
   -- Create promises to track start time and result
@@ -137,9 +140,12 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
             withTraceNode (`veil.perf.discharger ++ dischargerId.name)
                 (fun _ => return s!"{traceLabel} {dischargerId.name}") do
               liftTermElabM $ do
-                let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
-                let witness ← instantiateMVars $ ← withSynthesize (postpone := .no) $
-                  withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
+                let witness ← match proof? with
+                  | some build => build
+                  | none => do
+                    let _ ← Smt.initAsyncState dischargerId.name (.some smtCh)
+                    instantiateMVars $ ← withSynthesize (postpone := .no) $
+                      withoutErrToSorry $ elabTermEnsuringType term (← vcStatement.type)
                 let endTime ← IO.monoMsNow
                 mkResult smtCh (.inl witness) (endTime - startTime)
           catch ex =>
@@ -151,6 +157,10 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
               return .error #[← safeExceptionEntry ex, ← safeExceptionEntry ex2]
                 (endTime - startTime)
         )
+        -- A proof search that gave up has no diagnostic to report. Its tactic
+        -- errors would otherwise escape through the worker's editor snapshot.
+        if quietOnUnknown && (res matches .unknown none _) then
+          modify fun st => { st with messages := {}, snapshotTasks := #[] }
         publishDischargerResult resultPromise ch dischargerId res
       ) cancelTk
   finally
@@ -187,5 +197,21 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
     resultPromise := resultPromise,
     mkTask := mkTask
   }
+
+/-- Register a proof-only worker. An inconclusive attempt lets the manager continue. -/
+def VCManager.addProofDischarger (mgr : VCManager VCMetadata SmtResult) (vcId : VCId)
+    (term : Term) (suffix : String) (proof? : Option (TermElabM Witness) := none) :
+    CommandElabM (VCManager VCMetadata SmtResult) := do
+  let env ← Verifier.clearVerifierRuntime <$> getEnv
+  mgr.mkAddDischarger vcId fun stmt id ch => do
+    let id := { id with name := Name.mkSimple s!"{id.name}_{suffix}" }
+    Discharger.fromTermWith term stmt id ch (quietOnUnknown := true) (proof? := proof?) fun _ data time => do
+      -- Failure to find a proof is inconclusive. Preserve the primary
+      -- discharger's timeout, unknown reason, or error in the overall status.
+      let .inl witness := data | return .unknown none time
+      let witness ← inlineFreshProofs env witness (rec := true)
+      if witness.hasMVar || witness.hasFVar || witness.hasSorry then
+        return .unknown none time
+      return .proven (some witness) none time
 
 end Veil
