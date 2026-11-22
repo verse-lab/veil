@@ -2,6 +2,7 @@ module
 
 public meta import Lean
 meta import Batteries.Linter.UnreachableTactic
+meta import Veil.Frontend.DSL.Tactic.Core
 public meta import Veil.Util.Meta
 public meta import Veil.Backend.SMT.Result
 public meta import Veil.Frontend.DSL.Module.Representation
@@ -202,13 +203,19 @@ def Discharger.fromTermWith (term : Term) (vcStatement : VCStatement)
 private inductive AutomaticDischarger where
   | frame
   | smt
+  | grind
   | custom (name : Name) (appliesTo : VCMetadata → Bool) (term : Term)
   deriving Inhabited
 
 private def AutomaticDischarger.name : AutomaticDischarger → Name
   | .frame => `frame
   | .smt => `smt
+  | .grind => `grind
   | .custom name .. => name
+
+/-- Grind is a reserved built-in even in scopes where nobody has opted into it. -/
+private def findDischarger (entries : Array AutomaticDischarger) (name : Name) : Option AutomaticDischarger :=
+  if name == `grind then some .grind else entries.find? (·.name == name)
 
 private initialize automaticDischargers :
     SimpleScopedEnvExtension (Array AutomaticDischarger) (Array AutomaticDischarger) ←
@@ -230,7 +237,7 @@ elab_rules : command
 | `(veil_discharger $id:ident $[for $target:ident]? := $proof:term) => do
   let name := id.getId.eraseMacroScopes
   let entries ← automaticDischargers.get
-  if entries.any (·.name == name) then
+  if (findDischarger entries name).isSome then
     throwErrorAt id "discharger '{name}' is already registered"
   let appliesTo : VCMetadata → Bool ← match target with
     | none => pure (fun _ => true)
@@ -240,18 +247,20 @@ elab_rules : command
       | _ => throwErrorAt t "expected discharger target 'induction' or 'trace'"
   automaticDischargers.modify (·.push (.custom name appliesTo proof))
 
-/-- Try the listed dischargers first. The remaining entries keep their relative order. -/
+/-- Try the listed dischargers first. Include `grind` to enable it for this order.
+    Other entries keep their relative order. -/
 scoped elab "veil_discharger_order " "[" ids:rawIdent,* "]" : command => do
   let entries ← automaticDischargers.get
   let mut front := #[]
   for id in ids.getElems do
     let name := id.getId.eraseMacroScopes
-    let some entry := entries.find? (·.name == name)
+    let some entry := findDischarger entries name
       | throwErrorAt id "unknown discharger '{name}'"
     if front.any (·.name == name) then
       throwErrorAt id "duplicate discharger '{name}' in order"
     front := front.push entry
-  let rest := entries.filter fun e => !front.any (·.name == e.name)
+  -- Only an explicit entry opts this order into grind.
+  let rest := entries.filter fun e => e.name != `grind && !front.any (·.name == e.name)
   automaticDischargers.modify fun _ => front ++ rest
 
 /-- Check the exported proof in the VC's environment, after inlining worker-local declarations. -/
@@ -301,6 +310,9 @@ def VCManager.addAutomaticDischargers (mgr : VCManager VCMetadata SmtResult) (vc
       if let some (term, build) := frame? then
         mgr ← mgr.addProofDischarger vcId `FRAME term (proof? := some build)
     | .smt => mgr ← mgr.mkAddDischarger vcId smt
+    | .grind =>
+      if vc.metadata.isInduction && !Verifier.isDoesNotThrow vc.metadata then
+        mgr ← mgr.addProofDischarger vcId `GRIND (← `(by unveil <;> grind))
     | .custom name appliesTo term =>
       if appliesTo vc.metadata then
         mgr ← mgr.addProofDischarger vcId name term (isCustom := true)

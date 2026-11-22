@@ -505,6 +505,13 @@ veil_discharger_order [arithmetic, frame, smt]
 
 A new discharger goes at the end of the list. The order command moves the
 listed names to the front and preserves the order of the remaining entries.
+To add a `grind` fallback for invariant initialization and preservation, use
+`veil_discharger_order [frame, smt, grind]`. It runs `unveil <;> grind` if the
+earlier workers leave the VC open. Grind is off by default. A subsequent order
+that omits `grind` disables the built-in again; leaving the Lean scope restores
+the outer order. This lets a custom discharger call `grind` itself without a
+second automatic attempt.
+
 Both commands are available inside a `veil module` or after `open scoped Veil`.
 Their settings apply in the current file and Lean scope. Use `for induction` for
 invariants and assertion checks, `for trace` for SAT and UNSAT traces, or

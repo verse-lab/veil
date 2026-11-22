@@ -159,6 +159,8 @@ invariant [CleanupBounds]
     enactor_processing E ≤ current_plan ∧
     cleanup_cursor E ≤ enactor_processing E
 
+veil_discharger_order [frame, grind, smt]
+
 #gen_spec
 
 #check_invariants
