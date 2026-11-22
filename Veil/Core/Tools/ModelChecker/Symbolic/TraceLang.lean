@@ -340,7 +340,11 @@ private def logTraceResults (stx : Syntax) (isExpectedSat : Bool) (vcName : Name
   | none => logViolation "Verification did not complete"
 
   if shouldHaveTrace isExpectedSat vcResult.status && traceJson?.isNone then
-    logViolation "Could not extract trace JSON"; logDischargerErrors vcResult.timing.dischargers
+    if let some model ← (← getCurrentModule).runtimeOnlyImport? then
+      logViolation m!"Could not display the trace. Add `meta import {model}` alongside its regular import in the checking file to evaluate the model's display instances."
+    else
+      logViolation "Could not extract trace JSON"
+    logDischargerErrors vcResult.timing.dischargers
 
 /-- Elaborate the trace command at the current ref. Its widget shows the result while the solver
 runs, through `withStreamingInfo`, so the elaborator that calls this is `@[incremental]`. -/

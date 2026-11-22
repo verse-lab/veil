@@ -358,8 +358,10 @@ private def finishRequestedChecks (closing := false) : CommandElabM Unit := do
     if closing then
       if let some stx := mod.specFinalizedAtStx then
         report do
-          discard <| mod.ensureVerificationSpec stx
-          Verifier.awaitAssertionChecks
+          if (← getFinalizedSpec? mod.name).isNone then
+            let prepared ← mod.ensureVerificationSpec stx
+            Verifier.awaitAssertionChecks
+            saveFinalizedSpec prepared (← ExecutionWorkflow.getDeclSources prepared)
       else
         -- A partial module can have deferred action definitions without a spec.
         report mod.generateDeferredWPs

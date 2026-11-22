@@ -80,6 +80,7 @@ def actionLabelNames (mod : Module) : List String :=
 /-- Where the actions and the properties of `mod` are in this file, by the names that model checking
 results give them. -/
 def getDeclSources (mod : Module) : CommandElabM (Array DeclSource × Array DeclSource) := do
+  if let some spec ← getFinalizedSpec? mod.name then return spec.sources
   let actions ← mod.procedures.filterMapM fun p => match p.info with
     -- Traces name the initial step `after_init`
     | .initializer => source "after_init" p.userSyntax
@@ -301,7 +302,12 @@ private def elaborateInterpretedComputation (instanceId : Nat) (callExpr : Term)
   trace[veil.desugar] "{resultExpr}"
   liftTermElabM <| Term.withoutErrToSorry do
     let expr ← elabTermForExecution resultExpr
-    ModelChecker.Compilation.evalJsonComputation expr
+    try
+      ModelChecker.Compilation.evalJsonComputation expr
+    catch ex =>
+      if ex.isInterrupt then throw ex
+      let some model ← (← getCurrentModule).runtimeOnlyImport? | throw ex
+      throwError "To interpret this model, add `meta import {model}` alongside its regular import in the checking file.\n{ex.toMessageData}"
 
 /-- Log model checking result. -/
 private def logModelCheckResult (kind : TraceDisplay.ResultKind) (stx : Syntax)

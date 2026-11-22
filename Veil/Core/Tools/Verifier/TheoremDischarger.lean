@@ -1,6 +1,6 @@
 module
 
-meta import Veil.Core.Tools.Verifier.Server
+public meta import Veil.Core.Tools.Verifier.Server
 
 public meta section
 
@@ -12,6 +12,27 @@ namespace Veil.Verifier
 
 private def veilAttrName : Name :=
   Name.mkSimple "veil"
+
+/-- Checked theorem declarations are persistent. Their dischargers, witnesses and
+manager IDs are rebuilt and type-checked in each file that verifies the spec. -/
+private structure InvariantProofEntry where
+  specName : Name
+  theoremName : Name
+  /-- Imported public theorems can appear as axioms. Record an unfinished body
+  while it is still available to the attribute in the declaring file. -/
+  unfinished? : Option String
+
+private abbrev InvariantProofs := NameMap (NameMap InvariantProofEntry)
+
+private def addProofEntry (s : InvariantProofs) (entry : InvariantProofEntry) : InvariantProofs :=
+  let proofs := (s.find? entry.specName).getD {}
+  s.insert entry.specName (proofs.insert entry.theoremName entry)
+
+private initialize invariantProofExt : SimplePersistentEnvExtension InvariantProofEntry InvariantProofs ←
+  registerSimplePersistentEnvExtension {
+    addEntryFn := addProofEntry
+    addImportedFn := mkStateFromImportedEntries addProofEntry {}
+  }
 
 private def vcNameMatches (vcName declName : Name) : Bool :=
   vcName == declName || vcName == Name.mkSimple declName.getString!
@@ -138,6 +159,27 @@ private def theoremSorryMessage (declName : Name) (value : Expr) : MessageData :
   else
     m!"interactive proof `{declName}` contains `sorry`"
 
+/-- Register imported proofs with the new file's manager through the same path as a local theorem. -/
+def restoreInvariantProofs (specName : Name) : CoreM Unit := do
+  let some entries := (invariantProofExt.getState (← getEnv)).find? specName | return
+  for (_, entry) in entries do
+    if let some message := entry.unfinished? then
+      let owner ← getVCManagerOwner
+      let id ← owner.manager.atomically fun ref => return (← ref.get)._managerId
+      let result := .error #[(Exception.error .missing message, Json.str message)] 0
+      if let .error err ← registerFinishedTheoremDischarger owner id entry.theoremName result then
+        throwError err
+    else
+      registerTheoremDischarger entry.theoremName
+
+private def saveInvariantProof (declName : Name) (unfinished? : Option String) : AttrM Unit := do
+  let some mod := (← localEnv.get).currentModule | return
+  if isPrivateName declName then return
+  let owner ← getVCManagerOwner
+  let mgr ← owner.manager.atomically fun ref => ref.get
+  if (findMatchingVCs mgr declName).any (fun id => mgr.nodes[id]!.metadata.isInduction) then
+    modifyEnv (invariantProofExt.addEntry · { specName := mod.name, theoremName := declName, unfinished? })
+
 initialize
   registerBuiltinAttribute {
     name := veilAttrName
@@ -156,8 +198,10 @@ initialize
         let mgr ← owner.manager.atomically fun ref => ref.get
         let res ← registerFinishedTheoremDischarger owner mgr._managerId declName result
         if let .error err := res then throwError err
-        return
-      registerTheoremDischarger declName
+        saveInvariantProof declName (some (← fallback.toString))
+      else
+        registerTheoremDischarger declName
+        saveInvariantProof declName none
   }
 
 end Veil.Verifier

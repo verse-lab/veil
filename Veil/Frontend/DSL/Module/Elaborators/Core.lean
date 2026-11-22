@@ -7,6 +7,8 @@ public meta import Veil.Frontend.DSL.Module.Syntax
 public meta import Veil.Frontend.DSL.Infra.EnvExtensions
 public meta import Veil.Frontend.DSL.Module.Util
 public meta import Veil.Frontend.DSL.Module.Util.ExecutionWorkflow
+public meta import Veil.Frontend.DSL.Module.VCGen.Induction
+public meta import Veil.Core.Tools.Verifier.TheoremDischarger
 public meta import Veil.Util.StreamingInfo
 public meta import Veil.Frontend.DSL.Action.Elaborators
 public meta import Veil.Frontend.DSL.State.SubState
@@ -71,7 +73,6 @@ def elabModuleDeclaration : CommandElab := fun stx => do
     as a wall of unknown-identifier errors from `#gen_state`. `setExporting` is a no-op outside
     the module system, so files without a `module` header are unaffected. -/
     checkVeilIsPubliclyImported stx
-    let genv ← globalEnv.get
     let name := modName.getId
     let lenv ← localEnv.get
     if let some mod := lenv.currentModule then
@@ -86,13 +87,16 @@ def elabModuleDeclaration : CommandElab := fun stx => do
     -- defaults to its namespace, so `end` restores the surrounding Lean defaults.
     let exposeAttr ← `(Parser.Term.attrInstance| expose)
     modifyScope fun scope => { scope with isPublic := true, attrs := exposeAttr :: scope.attrs }
-    if genv.containsModule name then
-      logInfo m!"Module {name} has been previously defined. Importing it here."
-      let mod := genv.modules[name]!
-      localEnv.modifyModule (fun _ => mod)
-    else
-      let mod ← Module.freshWithName name
-      localEnv.modifyModule (fun _ => mod)
+    let mod ← match ← reopenFinalizedSpec? name stx with
+      | some mod => pure mod
+      | none => match (← globalEnv.get).modules[name]? with
+        | some mod => pure mod
+        | none => Module.freshWithName name
+    localEnv.modifyModule (fun _ => mod)
+    if mod.isSpecFinalized && !(Verifier.vcManagerExt.getState (← getEnv)).contains name then
+      Verifier.runManager
+      mod.generateVCs
+      liftCoreM <| Verifier.restoreInvariantProofs mod.name
   | _ => throwUnsupportedSyntax
 
 @[command_elab Veil.typeDeclaration]
