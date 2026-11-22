@@ -12,7 +12,6 @@ private meta def addGoal (n : Name) : CommandElabM Unit := withVCManager fun ref
   ref.set mgr
 
 veil module OwnedA
-set_option veil.deferVCGeneration true
 after_init { pure () }
 action step { pure () }
 invariant true
@@ -21,7 +20,6 @@ run_cmd addGoal `onlyA
 end OwnedA
 
 veil module OwnedB
-set_option veil.deferVCGeneration true
 after_init { pure () }
 action step { pure () }
 invariant true
@@ -32,17 +30,18 @@ end OwnedB
 veil module OwnedA
 run_cmd do
   let mgr ← readVCManager
-  unless mgr.nodes.valuesArray.map (·.name) == #[`onlyA] do
+  unless mgr.nodes.valuesArray.any (·.name == `onlyA) && !mgr.nodes.valuesArray.any (·.name == `onlyB) do
     throwError "reopened A read B manager"
 @[veil] theorem onlyA : True := True.intro
 run_cmd do
   let mgr ← readVCManager
-  unless mgr._doneWith[0]? == some .proven do throwError "A attribute wrote wrong owner"
+  let some goal := mgr.nodes.valuesArray.find? (·.name == `onlyA) | throwError "missing A goal"
+  unless mgr._doneWith[goal.uid]? == some .proven do throwError "A attribute wrote wrong owner"
   -- Add a synthetic automatic witness to the shared runtime; never install an
   -- effective checkpoint view back into that runtime.
   withVCManager fun ref => do
     let mgr ← ref.get
-    let (mgr, id) := mgr.addVC { (mgr.nodes[0]!).toVCData with name := `generatedA } {}
+    let (mgr, id) := mgr.addVC { goal.toVCData with name := `generatedA } {}
     let target := { (mgr.nodes[id]!) with successful := some 0 }
     ref.set { mgr with
       nodes := mgr.nodes.insert id target
@@ -55,9 +54,10 @@ end OwnedA
 veil module OwnedB
 run_cmd do
   let mgr ← readVCManager
-  unless mgr.nodes.valuesArray.map (·.name) == #[`onlyB] do
+  let some goal := mgr.nodes.valuesArray.find? (·.name == `onlyB) | throwError "missing B goal"
+  if mgr.nodes.valuesArray.any (fun vc => vc.name == `onlyA || vc.name == `generatedA) then
     throwError "A mutation leaked into reopened B"
-  unless mgr._doneWith.isEmpty do throwError "A theorem registration leaked into B"
+  if mgr._doneWith.contains goal.uid then throwError "A theorem registration leaked into B"
 @[veil] theorem onlyB : True := True.intro
 end OwnedB
 
@@ -75,7 +75,9 @@ end OwnedA
 
 veil module OwnedB
 run_cmd do
-  unless (← readVCManager)._doneWith[0]? == some .proven do
+  let mgr ← readVCManager
+  let some goal := mgr.nodes.valuesArray.find? (·.name == `onlyB) | throwError "missing B goal"
+  unless mgr._doneWith[goal.uid]? == some .proven do
     throwError "foreign-owner reset changed B effective proof"
 end OwnedB
 

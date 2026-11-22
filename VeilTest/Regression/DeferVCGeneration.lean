@@ -406,3 +406,54 @@ run_meta do
   let procs := [`initializer, `p1, `p2, `a1, `p3, `a2, `a3, `a4, `bump, `a5]
   checkSameVerificationDefinitions `ToggledEager `ToggledA procs
   checkSameVerificationDefinitions `ToggledEager `ToggledB procs
+
+-- A model-check-only spec can use the executable model before the symbolic
+-- definitions exist. Closing it still prepares the spec for downstream Lean code.
+veil module DeferredAtClose
+set_option veil.deferVCGeneration true
+set_option veil.printCounterexamples false
+individual flag : Bool
+after_init { flag := false }
+action fail { assert false }
+invariant [off] flag = false
+temporal [alwaysOff] □ ⌜ ¬ flag ⌝
+#gen_spec
+
+#gen_theorems
+run_cmd do
+  if (← Lean.getEnv).contains `DeferredAtClose.fail.ext.wp ||
+      !(← Veil.Verifier.readVCManager).nodes.isEmpty then
+    throwError "prepared before module close"
+
+namespace Helper
+/-- warning: This assertion can fail even if the module's invariants hold when `fail` starts. -/
+#guard_msgs in
+end DeferredAtClose.Helper
+
+example := @DeferredAtClose.fail.ext.wp
+noncomputable example := @DeferredAtClose.relationalTransitionSystem
+example := @DeferredAtClose.alwaysOff
+
+run_cmd do
+  let some owner := (Veil.Verifier.vcManagerExt.getState (← Lean.getEnv))[`DeferredAtClose]?
+    | throwError "no verifier for the finalized spec"
+  let mgr ← owner.manager.atomically fun ref => ref.get
+  unless mgr.nodes.valuesArray.any (·.name == `fail_off) do
+    throwError "close did not generate invariant VCs"
+  for (id, vc) in mgr.nodes do
+    if Veil.Verifier.isDoesNotThrow vc.metadata then
+      unless mgr._doneWith.contains id do throwError "close returned before checking {vc.name}"
+    else if mgr.enabledVCs.contains id then
+      throwError "close requested invariant proof {vc.name}"
+
+-- No #gen_spec: only the pending declaration work is due.
+veil module DeferredPartial
+set_option veil.deferVCGeneration true
+individual flag : Bool
+after_init { flag := false }
+action toggle { flag := !flag }
+end DeferredPartial
+example := @DeferredPartial.toggle.ext.wp
+run_cmd do
+  if (← Lean.getEnv).contains `DeferredPartial.relationalTransitionSystem then
+    throwError "closing a partial module finalized its spec"

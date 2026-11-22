@@ -328,6 +328,11 @@ private def awaitFilteredManager (owner : VCManagerEnvironment) (managerId : Man
     IO.sleep 10
   panic! "unreachable"
 
+/-- Wait for the assertion checks started by spec preparation. Their warnings are
+reported by the original request, independently of theorem publication. -/
+def awaitAssertionChecks : CommandElabM Unit := do
+  discard <| awaitFilteredManager (← getVCManagerOwner) (← currentManagerId) isDoesNotThrow
+
 private def awaitFilteredWithLogging (managerId : ManagerId) (filter : VCMetadata → Bool) :
     CommandElabM (VerificationResults VCMetadata SmtResult) := do
   let mgr ← awaitFilteredManager (← getVCManagerOwner) managerId filter (logTasks := true)
