@@ -546,6 +546,12 @@ For example, after `#check_action keep`, its proved obligations are available
 after `end M` as theorems in namespace `M`. Use `#gen_theorems` if you need the
 same theorems earlier in the module.
 
+Place `set_option veil.deferVCGeneration true` before the actions to postpone
+their verification definitions. A verification command can generate them earlier.
+At `end M`, Veil generates any remaining definitions. For a finalized spec it
+also prepares the invariant obligations and waits for the automatic assertion
+checks. Invariant-preservation solvers run only for requested checks.
+
 If you need a theorem without using `#check_invariants`, run
 `#updr certify` followed by `#gen_theorems`. For this option, the other
 options, how the search works and its limits, see the

@@ -335,7 +335,7 @@ def registerTheoremGenerator (moduleName : Name) (generate : CommandElabM Unit) 
     pending.insert moduleName ((pending.find? moduleName).getD #[] |>.push generate)
 
 /-- Publish in the scope where the module was opened, even inside a helper namespace. -/
-private def finishRequestedChecks : CommandElabM Unit := do
+private def finishRequestedChecks (closing := false) : CommandElabM Unit := do
   let mod ← getCurrentModule
   let some (_, depth) := (← localEnv.get).moduleScope? | throwUnsupportedSyntax
   let scopes ← getScopes
@@ -345,13 +345,21 @@ private def finishRequestedChecks : CommandElabM Unit := do
       try act catch ex =>
         if ex.isInterrupt then throw ex
         logException ex
+    if closing then
+      if let some stx := mod.specFinalizedAtStx then
+        report do
+          discard <| mod.ensureVerificationSpec stx
+          Verifier.awaitAssertionChecks
+      else
+        -- A partial module can have deferred action definitions without a spec.
+        report mod.generateDeferredWPs
     report (Verifier.publishRequestedTheorems mod.name)
     let generators := (pendingTheoremGenerators.getState (← getEnv)).find? mod.name |>.getD #[]
     modifyEnv fun env => pendingTheoremGenerators.modifyState env (·.erase mod.name)
     for generate in generators do report generate
 
 @[command_elab Veil.genTheorems]
-def elabGenTheorems : CommandElab := fun _ => finishRequestedChecks
+def elabGenTheorems : CommandElab := fun _ => finishRequestedChecks (closing := false)
 
 /-- A named Lean `end` can close several scopes at once. Only publish if it closes
 the Veil module. Leave other closes and malformed names to Lean's elaborator. -/
@@ -364,7 +372,7 @@ def elabVeilEnd : CommandElab := fun stx => do
   unless scopes.length - depth < names.length && names.length < scopes.length &&
       names.reverse == (scopes.take names.length).map (Name.mkSimple ·.header) do
     throwUnsupportedSyntax
-  finishRequestedChecks
+  finishRequestedChecks (closing := true)
   elabEnd stx
 
 @[scoped command_elab Lean.Parser.Command.eoi, scoped command_elab Lean.Parser.Command.exit]
