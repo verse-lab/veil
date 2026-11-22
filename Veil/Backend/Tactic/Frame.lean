@@ -1,7 +1,6 @@
 module
 
 public meta import Veil.Frontend.DSL.Module.Util.LocalRProp
-public meta import Veil.Frontend.DSL.Module.VCGen.Frame.Updates
 public meta import Veil.Frontend.DSL.Infra.EnvExtensions
 public meta import Veil.Core.Tools.Verifier.Manager
 public meta import Veil.Frontend.DSL.Infra.Metadata
@@ -23,22 +22,9 @@ Two generated definitions tell us when to try this construction.
   `next` tells us which state fields the action copies from the input state.
 * The clause's `LocalRProp.core` takes theory and state fields as arguments.
   Opening it with fresh locals tells us which named fields occur in the clause.
-
-If every field read by the clause is copied, we return the old proof directly.
-Two other rules reuse it on the unchanged part of a collection:
-
-* After one `TSet.insert`, old members still satisfy a universal clause, and
-  an existing existential witness still belongs to the set. For a universal
-  clause we check the new element, in either position for a pair of members.
-  For example, a clause about append messages can reduce to `true` on a new
-  vote. An append message that requires a substantive proof goes to fallback.
-* After writing one or two functions at the same key, a pointwise clause
-  still holds at every other key. At the written key we require a direct
-  proof, such as reflexivity or an explicit action guard.
-
-The ordinary Lean lemmas and their bounded proof builders live in
-`Frame/Updates.lean`. Mixed writes, additional keys, and unsupported clause
-shapes decline. We choose one rule from the fields the clause actually reads.
+  If a field that occurs there is updated, framing declines. For example,
+  `counter := 1` also preserves `counter ≤ 2`, but proving that needs a
+  different argument.
 
 For an eligible clause we supply the three premises of the module's frame
 theorem (see `Module.defineFrameTheorem`):
@@ -47,8 +33,8 @@ theorem (see `Module.defineFrameTheorem`):
 * `hwp` is the action's existing `wp_local_eq` theorem instantiated at this clause.
   It connects the public WP to the extracted predicate on individual field values.
 * `keep` takes the field values, the pre-state clause proof, and the action's
-  guards and choices. It returns the old proof directly or applies the selected
-  update lemma to transport it to the post-state.
+  guards and choices. It returns the clause proof. Because the fields used by
+  the clause are copied, its post-state type is definitionally equal.
 
 Lean's kernel checks the assembled term against the original VC. Construction
 uses neither a solver nor a simplifier. When the worker declines, the verifier
@@ -65,18 +51,13 @@ register_option veil.frame : Bool := {
   descr := "Use structural frame proofs first for supported invariant preservation VCs."
 }
 
-/-! ## Choosing a rule from the fields read and written -/
-
-/-- A copied field has no entry in the write map. A point update is a candidate
-until the proof builder checks the read, the key, and the old branch. -/
-private inductive FieldWrite where
-  | insertion | pointUpdate | other
+/-! ## Recognizing when the clause is unchanged -/
 
 /-- What proof construction needs from the WP. Both guards and choices introduce
 binders between the pre-state hypothesis and the postcondition. -/
 private structure FrameAction where
   numWpBinders : Nat
-  writes : NameMap FieldWrite
+  changedFields : NameSet
 
 /-- A copy must project the *same named field* from the *input state*. Lean can
 encode this either as a kernel projection (whose index we resolve using the
@@ -90,22 +71,18 @@ private def copiesField (env : Environment) (info : StructureInfo) (state : Expr
 /-- Recover the possibly changed fields from the state passed to the continuation.
 The extracted WP can pass the input state directly or construct a new record.
 Constructor arguments end with one value per field in declaration order. -/
-private def classifyStateWrites (stateName : Name) (state next : Expr) : MetaM (NameMap FieldWrite) := do
+private def changedStateFields (stateName : Name) (state next : Expr) : MetaM NameSet := do
   if next == state then return {}
   let env ← getEnv
   let some info := getStructureInfo? env stateName | throwError "expected a state structure"
   unless next.getAppFn.isConstOf (stateName ++ `mk) do throwError "expected a state constructor"
   let values := next.getBoundedAppArgs info.fieldNames.size
   unless values.size == info.fieldNames.size do throwError "expected a value for each state field"
-  let mut writes := {}
+  let mut changed := {}
   for field in info.fieldNames, value in values do
     unless copiesField env info state field value do
-      let kind := if value.isAppOfArity ``TSet.insert 5 && copiesField env info state field value.appArg! then
-        FieldWrite.insertion
-      else if value.isLambda && value.bindingBody!.headBeta.isAppOf ``ite then .pointUpdate
-      else .other
-      writes := writes.insert field kind
-  return writes
+      changed := changed.insert field
+  return changed
 
 /-- Recognize `fun … post reader state => ∀ guards/choices, post result reader next`.
 Comparing fresh locals ensures that a binder introduced by a choice cannot be
@@ -117,33 +94,24 @@ private def inspectFrameAction (act stateName : Name) : MetaM FrameAction := do
     forallTelescope body fun guards body => do
       let .app (.app (.app k _) rd) next := body | throwError "expected a postcondition call"
       unless k == post && rd == reader do throwError "unsupported frame WP"
-      return ⟨guards.size, ← classifyStateWrites stateName state next⟩
+      return ⟨guards.size, ← changedStateFields stateName state next⟩
 
-private inductive FrameRule where
-  | copy | insertion | pointUpdate
-
-/-- The clause core takes theory fields followed by state fields in declaration
-order. Pair their names with fresh locals so a shadowing quantifier cannot be
-mistaken for a field read. Disjoint reads take the copy path immediately.
-Only one insertion or up to two point writes can affect a supported clause. -/
-private def selectRule (mod : Module) (inv : Name) (shape : FrameAction) : MetaM FrameRule := do
-  if shape.writes.isEmpty then return .copy
+/-- The core takes theory fields followed by state fields in declaration order.
+Pair those binders with their field names and look for uses of changed fields,
+including uses as arguments to opaque functions. -/
+private def checkClauseFieldsUnchanged (mod : Module) (inv : Name) (changed : NameSet) : MetaM Unit := do
+  if changed.isEmpty then return
   let inst ← getConstInfoDefn (inv ++ `instLocalRProp)
   lambdaTelescope inst.value fun _ value => do
+    -- The generated instance ends in `LocalRProp.mk … core core_eq`.
     let .app (.app _ core) _ := value | throwError "expected a LocalRProp constructor"
     let fields := mod.immutableComponents ++ mod.mutableComponents
     lambdaBoundedTelescope core fields.size fun binders body => do
       unless binders.size == fields.size do throwError "expected one binder per field"
       let reads := (collectFVars {} body).fvarSet
-      let mut relevant := #[]
       for field in fields, binder in binders do
-        if let some write := shape.writes.find? field.name then
-          if reads.contains binder.fvarId! then relevant := relevant.push write
-      match relevant with
-      | #[] => return .copy
-      | #[.insertion] => return .insertion
-      | #[.pointUpdate] | #[.pointUpdate, .pointUpdate] => return .pointUpdate
-      | _ => throwError "unsupported updates to fields read by this clause"
+        if changed.contains field.name && reads.contains binder.fvarId! then
+          throwError "action updates field {field.name} used by the invariant"
 
 /-! ## Supplying the three premises of the frame theorem -/
 
@@ -177,32 +145,16 @@ private def instantiateLocalWpEquality (actName : Name) (act post postInst rd st
   let some (_, _, rhs) := hwpType.eq? | throwError "expected extracted WP equality"
   return (hwp, rhs.getBoundedAppFn 4)
 
-/-- The copy path is just a local variable. Update rules may need head
-reduction to expose a constructor or an equality. Bound that work so an
-expensive user definition in a new case cannot consume the caller's entire
-budget. Lean counts 1,000 internal heartbeats per user-facing heartbeat. -/
-private def FrameRule.prove (rule : FrameRule) (old goal : Expr) (guards : Array Expr) : MetaM Expr := do
-  if let .copy := rule then return old
-  let now ← IO.getNumHeartbeats
-  withTheReader Core.Context (fun ctx =>
-    let limit := now - ctx.initHeartbeats + 32 * 1000
-    { ctx with maxHeartbeats := if ctx.maxHeartbeats == 0 then limit else min limit ctx.maxHeartbeats }) do
-    match rule with
-    | .insertion => Frame.frameInsertion old goal
-    | .pointUpdate => Frame.framePointUpdate old goal guards
-    | .copy => return old
-
-/-- Construct the theorem's remaining premise under the fields and action guards.
+/-- Construct `fun fields hpre guards => hpre` at the theorem's remaining premise.
 Open exactly the WP binders counted by `inspectFrameAction`. A clause can itself
 begin with `∀` or an implication, and those binders belong to the proof we return. -/
-private def mkKeepProof (rule : FrameRule) (mod : Module) (shape : FrameAction) (keepType : Expr) : MetaM Expr := do
+private def mkKeepProof (mod : Module) (shape : FrameAction) (keepType : Expr) : MetaM Expr := do
   let numFields := mod.immutableComponents.size + mod.mutableComponents.size
   forallBoundedTelescope keepType (some numFields) fun fields premise =>
     forallBoundedTelescope premise (some 1) fun hyps wp => do
       let #[hpre] := hyps | throwError "expected the pre-state clause"
-      forallBoundedTelescope wp (some shape.numWpBinders) fun guards target => do
-        let keep ← rule.prove hpre target guards
-        mkLambdaFVars (fields ++ #[hpre] ++ guards) keep
+      forallBoundedTelescope wp (some shape.numWpBinders) fun guards _ =>
+        mkLambdaFVars (fields ++ #[hpre] ++ guards) hpre
 
 /-- Match an open public VC, check the clause's fields, then apply the module
 theorem with `extract`, `hwp`, and `keep` in declaration order. -/
@@ -216,7 +168,7 @@ private def frameProof (mod : Module) (target : Expr) : MetaM Expr := do
   unless preName == ns ++ assembledInvariantsName do
     throwError "expected the assembled pre-state invariants"
   let shape ← inspectFrameAction actName (ns ++ stateName)
-  let rule ← selectRule mod postName shape
+  checkClauseFieldsUnchanged mod postName shape.changedFields
   let postInst := mkAppN (mkConst (postName ++ `instLocalRProp)) post.getAppArgs
   withLocalDeclD `rd ρ fun rd => withLocalDeclD `st σ fun st => do
     let extract ← projectInvariant pre post rd st
@@ -225,7 +177,7 @@ private def frameProof (mod : Module) (target : Expr) : MetaM Expr := do
     let bridge := mkAppN (mkConst (ns ++ frameTheoremName))
       (moduleArgs ++ #[act, assu, pre, post, postInst, pred, extract, hwp])
     let .forallE _ keepType _ _ ← inferType bridge | throwError "expected frame premise"
-    return mkApp bridge (← mkKeepProof rule mod shape keepType)
+    return mkApp bridge (← mkKeepProof mod shape keepType)
 
 /-- Common entry point for the tactic and worker. Rebind the VC parameters and
 check the result against the full target before returning it to either caller. -/
@@ -296,8 +248,8 @@ def FrameDischarger.proveInvariant (self : FrameDischarger) (vc : VCData VCMetad
   let some target ← self.clauseGoal? clause vc.toVCStatement | throwError "expected a pre-state invariant clause"
   mkFrameProof (← getCurrentModule) target
 
-/-- Close a raw invariant-preservation VC using a copied clause, a set insertion,
-or a pointwise update at a single key. -/
+/-- Close a raw invariant-preservation VC by returning its pre-state clause
+under the action's guards when the clause's fields are unchanged. -/
 scoped elab "veil_frame" : tactic => liftMetaTactic fun goal => goal.withContext do
   goal.assign (← mkFrameProof (← getCurrentModule) (← goal.getType))
   return []

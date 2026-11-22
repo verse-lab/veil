@@ -510,23 +510,17 @@ The complete statement is generated from the current specification, and
 snapshots, including the initial simplification and unchanged proof prefix.
 Existing explicit `@[veil] theorem` declarations remain supported.
 
-On a raw weakest-precondition (WP) preservation goal, run `by veil_frame`
-before `unveil`. The tactic is scoped to `Veil`, which `veil module` opens
-automatically. It recognizes guards and choices followed by a single post-state
-and tries one of three rules.
-
-- If the action copies every field the clause reads, reuse the pre-state proof.
-- If the action inserts one element into a `TSet`, an existential clause can keep
-  its witness. For a universal clause, check the inserted element. For a clause
-  about pairs, check it in each position.
-- If the clause quantifies over an index and the action writes one or two fields
-  at the same key, reuse the pre-state proof at every other key. At the written
-  key the tactic accepts a direct proof, such as reflexivity or an action guard.
+On a raw weakest-precondition preservation statement, `by veil_frame` can prove
+that an action preserves a clause by carrying it over from the pre-state.
+It recognizes extracted WPs consisting of choices or guards followed by one
+post-state whose fields are copied or updated. It checks that the action copies
+every field the clause uses. Run it before `unveil`. The tactic syntax is in the
+`Veil` scope, which `veil module` opens automatically. The tactic needs no SMT or
+`grind` and fails immediately on an unsupported WP shape.
 
 WP invariant VCs try framing before the configured solver (SMT by default).
-When the clause or update has another shape, or the new case needs further
-reasoning, the solver gets the goal. Initializers and transition-relation VCs
-go directly to their usual solver.
+The frame worker declines initialization goals and preservation goals that
+read an updated field. Transition-relation VCs go directly to their solver.
 Use `set_option veil.frame false` before VC generation to disable automatic
 framing. Assertion-freedom VCs and symbolic traces use their primary discharger.
 
