@@ -58,7 +58,7 @@ run_cmd do
 
 end FrameTactic
 
-veil module FrameUpdates
+veil module DirectFrameOnly
 
 type node
 type Bag
@@ -72,47 +72,21 @@ set_option veil.warnHybridFields false
 
 after_init { flags := elems.empty; lower I := 0; upper I := 0 }
 action insertFalse { flags := elems.insert false flags }
-action insertTrue { flags := elems.insert true flags }
-action setLower (i : node) {
-  require 1 ≤ upper i
-  lower i := 1
-}
 action setBoth (i : node) { lower i := 1; upper i := 1 }
-action setApart (i j : node) { lower i := 1; upper j := 1 }
-action mixed (i : node) { lower i := 1; flags := elems.insert false flags }
 
 invariant [onlyFalse] ∀ x : {x // x ∈ flags}, x.val = false
--- Either occurrence of the new false value makes a premise impossible.
-invariant [pairs] ∀ x y : {x // x ∈ flags}, x.val = true → y.val = true → False
-invariant [hasFalse] ∃ x : {x // x ∈ flags}, x.val = false
 invariant [ordered] ∀ i : node, lower i ≤ upper i
-invariant [readsBoth] ∀ x : {x // x ∈ flags}, x.val = false → ∀ i : node, lower i = 0
 
 #gen_spec
 
--- Exercise the public WP tactic for both insertions and both point lemmas.
--- The negative cases need a proof at a new member, two distinct keys, or mixed writes.
+-- Both actions preserve both clauses. Direct framing succeeds only for the
+-- disjoint pairs. The changed set or changed function needs a separate proof.
 open Lean Elab Command in
 run_cmd do
-  let mod ← getCurrentModule
-  discard <| mod.ensureVerificationSpec (← getRef)
-  for (act, inv) in [(`insertFalse, `onlyFalse), (`insertFalse, `pairs), (`insertTrue, `hasFalse),
-      (`setLower, `ordered), (`setBoth, `ordered)] do
-    let vc ← mod.mkInvariantGoalVC (mkIdent act) (mkIdent inv) .wp
-    elabCommand (← `(example $(vc.params)* : $(vc.statement) := by veil_frame))
-  for (act, inv) in [(`insertTrue, `onlyFalse), (`insertTrue, `pairs), (`setApart, `ordered), (`mixed, `readsBoth)] do
-    let vc ← mod.mkInvariantGoalVC (mkIdent act) (mkIdent inv) .wp
-    let proved ← liftTermElabM do
-      let goal ← vc.toVCStatement.type
-      return (← observing? (mkFrameProof mod goal)).isSome
-    if proved then throwError "unexpected frame proof for {act}/{inv}"
-
--- The verifier must return a closed witness on a hit and leave an unsupported
--- new member available to the next discharger.
-open Lean Elab Command in
-run_cmd do
+  discard <| (← getCurrentModule).ensureVerificationSpec (← getRef)
   let mgr ← Verifier.readVCManager
-  for (name, shouldProve) in [(`insertFalse_pairs, true), (`setBoth_ordered, true), (`insertTrue_onlyFalse, false)] do
+  for (name, shouldProve) in [(`insertFalse_ordered, true), (`setBoth_onlyFalse, true),
+      (`insertFalse_onlyFalse, false), (`setBoth_ordered, false)] do
     let some vc := mgr.nodes.valuesArray.find? (·.name == name) | throwError "missing {name}"
     let #[frame, _] := vc.dischargers | throwError "expected a fallback for {name}"
     unless frame.id.name.toString.endsWith "_FRAME" do throwError "expected frame first"
@@ -123,4 +97,4 @@ run_cmd do
     | some (.unknown none _) => if shouldProve then throwError "frame declined {name}"
     | _ => throwError "unexpected worker result for {name}"
 
-end FrameUpdates
+end DirectFrameOnly

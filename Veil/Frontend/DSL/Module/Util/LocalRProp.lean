@@ -685,9 +685,8 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
       exact $hLocal $hLocalArgs* ($(mkIdent ``And.left) $hpre) ($(mkIdent ``And.right) $hpre))
 
 /-- Lift preservation of one clause on the action's already-extracted abstract WP.
-The tactic projects the pre-state clause, instantiates the action’s WP equality,
-and supplies a field-level preservation proof under the guards. Each framing
-rule builds that last premise of the same module theorem. -/
+The frame tactic supplies only two lambdas: a projection from the pre-state
+invariants and a proof returning the unchanged clause under the action's guards. -/
 def Module.defineFrameTheorem (mod : Module) : TermElabM Command := do
   let rd := mkVeilImplementationDetailIdent `rd
   let st := mkVeilImplementationDetailIdent `st

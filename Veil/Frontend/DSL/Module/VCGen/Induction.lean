@@ -12,7 +12,7 @@ public meta import Veil.Frontend.DSL.Tactic
 public meta import Veil.Core.UI.Verifier.Model
 public meta import Veil.Core.UI.Verifier.InductionCounterexample
 public meta import Veil.Frontend.DSL.Module.VCGen.Common
-public meta import Veil.Frontend.DSL.Module.VCGen.Frame
+public meta import Veil.Backend.Tactic.Frame
 
 public meta section
 

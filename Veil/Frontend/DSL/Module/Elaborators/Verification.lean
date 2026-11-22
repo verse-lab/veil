@@ -5,7 +5,7 @@ public meta import Veil.Frontend.DSL.Module.Elaborators.TemporalDefinitions
 public meta import Veil.Frontend.DSL.Tactic
 public meta import Veil.Core.UI.Verifier.AssertionErrors
 public meta import Veil.Frontend.DSL.Module.VCGen
-public meta import Veil.Frontend.DSL.Module.VCGen.Frame
+public meta import Veil.Backend.Tactic.Frame
 public meta import Veil.Core.Tools.Verifier.Server
 public meta import Veil.Core.Tools.Verifier.Results
 meta import Veil.Core.Tools.Verifier.TheoremDischarger
