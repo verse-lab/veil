@@ -7,6 +7,7 @@ public meta import Veil.Frontend.DSL.Infra.EnvExtensions
 public meta import Veil.Frontend.DSL.Infra.Metadata
 public meta import Veil.Util.Meta
 public meta import Veil.Core.Tools.Verifier.Server
+public import Veil.Frontend.DSL.Action.Semantics.Theorems
 public meta import Veil.Frontend.DSL.Tactic
 -- FIXME: it really doesn't make sense to import this here
 public meta import Veil.Core.UI.Verifier.Model
@@ -260,6 +261,32 @@ def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
       let mgr ← mgr.mkAddDischarger vcId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
       ref.set mgr
 
+/-- Transport the proof under exactly the module and action parameters shared
+by the two VC statements. Only native WP → TR needs to establish locality. -/
+private def convertInvariantProof (externalAction : Name) (nativeTransition : Bool)
+    (sourceStyle : VCStyle) (source statement : Expr) : TermElabM Expr :=
+  Meta.forallTelescope statement fun xs goal => do
+    let h := mkAppN source xs
+    let trGoal ← if sourceStyle == .wp then pure goal else Meta.inferType h
+    let proof ← match_expr trGoal with
+      | Transition.meetsSpecificationIfSuccessfulAssuming _ _ tr assu pre post => do
+        let trName := toTransitionName externalAction
+        if nativeTransition then
+          let trTerm ← exprToSyntax tr
+          let sourceProof ← exprToSyntax h
+          let term ← match sourceStyle with
+            | .tr => `(term| Transition.wp_of_invariant $trTerm $sourceProof)
+            | .wp => `(term| Transition.invariant_of_wp $trTerm $sourceProof
+                (by intros; simp only [$(mkIdent trName):ident, decide_eq_true_eq, substateSimp])
+                (by intros; simp only [invSimp, substateSimp]))
+          withoutErrToSorry <| elabTermAndSynthesize term goal
+        else
+          let derived := mkAppN (mkConst (toDerivedEqName externalAction)) tr.getAppArgs
+          let iff ← Meta.mkAppM ``VeilM.invariant_iff_transition #[derived, assu, pre, post]
+          Meta.mkAppM (if sourceStyle == .wp then ``Iff.mp else ``Iff.mpr) #[iff, h]
+      | _ => throwError "expected a transition invariant for `{externalAction}`, got{indentExpr trGoal}"
+    Meta.mkLambdaFVars xs (← instantiateMVars proof)
+
 /-- Generate invariant preservation VCs for all actions × invariant clauses.
     These VCs check that each action preserves each invariant clause. -/
 def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
@@ -276,7 +303,11 @@ def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
       let trVC ← mkMeetsSpecificationIfSuccessfulClauseTrVC mod act.name
         act.declarationKind invClause.name
         (if trPrimary then InductionVCKind.primary else InductionVCKind.alternative)
-      return acc'.push (act, wpVC, trVC, trPrimary)
+      let convert := convertInvariantProof (mod.name ++ toExtName act.name) trPrimary
+      let wpVariant := { trVC.toVCStatement with ofProof := convert .wp : VCTheoremVariant }
+      let trVariant := { wpVC.toVCStatement with ofProof := convert .tr : VCTheoremVariant }
+      return acc'.push (act, { wpVC with variant? := some wpVariant },
+        { trVC with variant? := some trVariant }, trPrimary)
     return acc ++ clauseVCs
   -- Add all VCs atomically
   Verifier.withVCManager fun ref => do

@@ -163,9 +163,15 @@ structure Discharger (ResultT : Type) where
   the `task` field for later access. -/
   mkTask : BaseIO SnapshotTreeTask
 
+/-- Another statement of the same obligation. The frontend supplies a conversion
+from the published proof to a proof of this statement. -/
+structure VCTheoremVariant extends VCStatement where
+  ofProof (sourceProof targetType : Expr) : Elab.Term.TermElabM Expr
+
 structure VCData (VCMetaT : Type) extends VCStatement where
   /-- Metadata associated with this VC, provided by the frontend. -/
   metadata : VCMetaT
+  variant? : Option VCTheoremVariant := none
 deriving Inhabited
 
 structure VerificationCondition (VCMetaT ResultT : Type) extends VCIdentifier, VCData VCMetaT where

@@ -373,35 +373,42 @@ def waitFilteredSync (filter : VCMetadata → Bool) : CommandElabM (Verification
   let managerId ← requestFiltered filter
   awaitFilteredWithLogging managerId filter
 
-private def ensureExistingTheoremMatches (fullName : Name) (statement : Expr) : TermElabM Unit := do
-  let some info := (← getEnv).find? fullName
-    | return
-  unless ← Meta.isDefEq info.type statement do
-    throwError "cannot generate VC theorem `{fullName}` because a declaration with that name already exists with a different type"
-
-private def addProvenVCTheorem (vc : VerificationCondition VCMetadata SmtResult)
-    (witness : Witness) : TermElabM (Option Name) := do
-  let fullName := (← getCurrNamespace).append vc.name
-  let statement ← vc.toVCStatement.type
-  if (← getEnv).contains fullName then
-    ensureExistingTheoremMatches fullName statement
+/-- Return the name when the newly published proof uses an admission. -/
+private def publishVC (vc : VCStatement) (prove : Expr → TermElabM Expr)
+    (inheritsSorry := false) : TermElabM (Option Name) := do
+  let fullName := (← getCurrNamespace) ++ vc.name
+  let statement ← vc.type
+  if let some info := (← getEnv).find? fullName then
+    unless ← Meta.isDefEq info.type statement do
+      throwError "cannot generate VC theorem `{fullName}` because a declaration with that name already exists with a different type"
     return none
-  let witness ← instantiateMVars witness
-  let name ← withOptions (warn.sorry.set · false) <| addVeilTheorem vc.name statement witness
-  return if statement.hasSorry || witness.hasSorry then some name else none
+  let proof ← instantiateMVars (← prove statement)
+  let name ← withOptions (warn.sorry.set · false) <| addVeilTheorem vc.name statement proof
+  return if inheritsSorry || proof.hasSorry then some name else none
 
-/-- Install each witness independently and group the warnings about `sorryAx`. -/
+/-- Publish direct witnesses first, so a variant uses an independent proof when
+one is available. A derived theorem refers to its source theorem by name. -/
 private def publishWitnesses (mgr : VCManager VCMetadata SmtResult) (ordered : Array VCId) :
     CommandElabM Unit := do
   let mut affected := #[]
+  let mut variants := #[]
   for id in ordered do
-    if let some (vc, witness) := mgr.provenWitness? id then
-      try
-        if let some name ← liftTermElabM (addProvenVCTheorem vc witness) then
-          affected := affected.push name
-      catch ex =>
-        if ex.isInterrupt then throw ex
-        logException ex
+    let some (vc, witness) := mgr.provenWitness? id | continue
+    try
+      let admitted ← liftTermElabM <| publishVC vc.toVCStatement (fun _ => pure witness)
+      if let some name := admitted then affected := affected.push name
+      if let some variant := vc.variant? then
+        variants := variants.push (variant, (← getCurrNamespace) ++ vc.name, admitted.isSome)
+    catch ex =>
+      if ex.isInterrupt then throw ex
+      logException ex
+  for (variant, source, admitted) in variants do
+    try
+      let result ← liftTermElabM <| publishVC variant.toVCStatement (variant.ofProof (mkConst source)) admitted
+      if let some name := result then affected := affected.push name
+    catch ex =>
+      if ex.isInterrupt then throw ex
+      logException ex
   if warn.sorry.get (← getOptions) && !affected.isEmpty then
     let lines := (affected.qsort Name.lt).toList.map (MessageData.ofConstName · (fullNames := true))
     logWarning <| .tagged `hasSorry m!"Published VC theorems using `sorryAx`{indentD (MessageData.joinSep lines Format.line)}"
