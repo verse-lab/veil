@@ -239,7 +239,7 @@ private def extractTraceJson? (result : Option (DischargerResult SmtResult)) : O
   | _ => none
 
 /-- Extract structured JSON trace and raw HTML from a discharger result (if SAT). -/
-private def extractTraceData? (result : Option (DischargerResult SmtResult)) : Option (Json × Option Html) :=
+private def extractTraceData? (result : Option (DischargerResult SmtResult)) : Option (Json × Option ProofWidgets.Html) :=
   match result with
   | some (.proven _ (some (.sat counterexamples)) _)
   | some (.disproven (some (.sat counterexamples)) _) =>
@@ -257,7 +257,7 @@ private def extractTraceJsonFromVC (vcResult : VCResult VCMetadata SmtResult) : 
   vcResult.timing.dischargers.findSome? (extractTraceJson? ·.result)
 
 /-- Extract trace JSON and raw HTML from a VCResult's discharger results. -/
-private def extractTraceDataFromVC (vcResult : VCResult VCMetadata SmtResult) : Option (Json × Option Html) :=
+private def extractTraceDataFromVC (vcResult : VCResult VCMetadata SmtResult) : Option (Json × Option ProofWidgets.Html) :=
   vcResult.timing.dischargers.findSome? (extractTraceData? ·.result)
 
 /-- Check if we expect a trace based on query type and result. -/
@@ -298,7 +298,7 @@ private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (getManag
       let props : TraceDisplayProps :=
         { result := traceJson, layout := "vertical", rawHtml := rawHtml?,
           kind := .symbolicTrace }
-      token.update (Html.ofComponent TraceDisplayViewer props #[])
+      token.update (ProofWidgets.Html.ofComponent TraceDisplayViewer props #[])
     else
       token.update (.text s!"{formatTraceStatus isExpectedSat vcResult.status}")
 

@@ -41,7 +41,7 @@ structure TraceDisplayProps where
   /-- Display orientation: "vertical" or "horizontal" -/
   layout : String := "vertical"
   /-- Optional raw HTML representation of the SMT model, for displaying the unprocessed model. -/
-  rawHtml : Option Html := none
+  rawHtml : Option ProofWidgets.Html := none
   /-- Which command produced `result`. The widget picks its renderer from this
   rather than from which keys happen to be present. -/
   kind : Veil.TraceDisplay.ResultKind := .modelCheck
@@ -58,7 +58,7 @@ def displayTraceWidget (stx : Syntax) (kind : Veil.TraceDisplay.ResultKind)
     (resultJson : Json) : Elab.Command.CommandElabM Unit := do
   let props : TraceDisplayProps :=
     { result := resultJson, layout := "vertical", kind }
-  let html := Html.ofComponent TraceDisplayViewer props #[]
+  let html := ProofWidgets.Html.ofComponent TraceDisplayViewer props #[]
   Elab.Command.liftCoreM <| Widget.savePanelWidgetInfo
     (hash HtmlDisplayPanel.javascript)
     (return json% { html: $(← rpcEncode html) })

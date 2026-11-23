@@ -42,7 +42,7 @@ end Array
 namespace Vector
 
 @[inline]
-def modify {α : Type u} {n : Nat} (v : Vector α n) (i : Nat) (f : α → α) (h_lt : i < n) : Vector α n :=
+def modifyInBound {α : Type u} {n : Nat} (v : Vector α n) (i : Nat) (f : α → α) (h_lt : i < n) : Vector α n :=
   ⟨v.toArray.modifyInBound i f (v.size_toArray.symm ▸ h_lt),
    (Eq.trans Array.size_modifyInBound v.size_toArray)⟩
 

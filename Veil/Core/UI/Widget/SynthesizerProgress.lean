@@ -11,11 +11,11 @@ open Lean Elab Command ProofWidgets Jsx RefreshComponent
 
 private def seconds (ms : Nat) : String := s!"{ms / 1000}.{(ms % 1000) / 100} s"
 
-private def row (label value : String) : Html :=
+private def row (label value : String) : ProofWidgets.Html :=
   <tr><th style={json% {"textAlign": "left", "paddingRight": "1em"}}>{.text label}</th>
     <td>{.text value}</td></tr>
 
-private def clauseList (clauses : Array String) : Html :=
+private def clauseList (clauses : Array String) : ProofWidgets.Html :=
   if clauses.isEmpty then <p>{.text "No strengthening clauses."}</p>
   else .element "ol" #[("style", json% {"paddingLeft": "1.5em"})] <|
     clauses.map fun clause =>
@@ -25,7 +25,7 @@ private def clauseList (clauses : Array String) : Html :=
         </code>
       </li>
 
-private def frameDetails (s : Snapshot) : Html :=
+private def frameDetails (s : Snapshot) : ProofWidgets.Html :=
   -- Do not control `open`: React retains the user's expanded state across refreshes.
   <details key="frames" style={json% {"marginTop": "0.75em"}}>
     <summary style={json% {"cursor": "pointer"}}>{.text "Frames"}</summary>
@@ -40,7 +40,7 @@ private def frameDetails (s : Snapshot) : Html :=
     </div>
   </details>
 
-private def activityDetails (s : Snapshot) : Html :=
+private def activityDetails (s : Snapshot) : ProofWidgets.Html :=
   <details key="recent-activity" style={json% {"marginTop": "0.75em"}}>
     <summary style={json% {"cursor": "pointer"}}>{.text "Recent activity"}</summary>
     <div style={json% {"maxHeight": "32em", "overflowY": "auto", "paddingRight": "0.5em"}}>
@@ -55,7 +55,7 @@ private def activityDetails (s : Snapshot) : Html :=
   </details>
 
 /-- This is a count of work performed, not an estimate of how far the search is from a proof. -/
-def render (s : Snapshot) (now : Nat) : Html := Id.run do
+def render (s : Snapshot) (now : Nat) : ProofWidgets.Html := Id.run do
   let heading := match s.status with
     | .running => s.phase
     | .finished => "Finished"

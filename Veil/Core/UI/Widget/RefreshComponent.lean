@@ -19,7 +19,7 @@ also in another process. A `RefreshComponent` follows a new computation only whe
 reference, but the RPC references of a file are numbered from zero again when the file restarts, so
 the component on display would keep showing the computation of the previous elaboration. The key
 makes the infoview display a new component instead. -/
-def keyedPerElaboration (html : Html) : BaseIO Html := do
+def keyedPerElaboration (html : ProofWidgets.Html) : BaseIO ProofWidgets.Html := do
   return .element "div" #[("key", toJson (toString (← IO.monoNanosNow)))] #[html]
 
 end Veil

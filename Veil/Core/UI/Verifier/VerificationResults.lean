@@ -49,7 +49,7 @@ inductive StreamingStatus where
   | done
 deriving Inhabited, Server.RpcEncodable
 
-private def displayWidget (atStx : Syntax) (html : Html) : CommandElabM Unit := do
+private def displayWidget (atStx : Syntax) (html : ProofWidgets.Html) : CommandElabM Unit := do
   liftCoreM <| Widget.savePanelWidgetInfo
     (hash HtmlDisplayPanel.javascript)
     (return json% { html: $(← Server.rpcEncode html) })
@@ -67,7 +67,7 @@ private def getTheoremInsertInfo : CommandElabM (Lsp.Position × String) := do
 
 def displayResults (atStx : Syntax) (results : VerificationResults VCMetadata SmtResult) : CommandElabM Unit := do
   let (theoremInsertPos, documentUri) ← getTheoremInsertInfo
-  let html := Html.ofComponent VerificationResultsViewer {
+  let html := ProofWidgets.Html.ofComponent VerificationResultsViewer {
     results,
     theoremInsertPos,
     optionInsertPos := none,
@@ -89,7 +89,7 @@ private partial def runStreamingResults (theoremInsertPos : Lsp.Position)
   -- CAREFUL: do not sleep while holding the lock
   IO.sleep 100
   let (results, status) ← getter
-  let html := Html.ofComponent VerificationResultsViewer {
+  let html := ProofWidgets.Html.ofComponent VerificationResultsViewer {
     results,
     theoremInsertPos,
     optionInsertPos,

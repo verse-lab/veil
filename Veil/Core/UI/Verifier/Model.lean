@@ -39,7 +39,7 @@ Parameters:
 - `leftExpr`: Expression for the left column (rendered as InteractiveExpr)
 - `rightExpr`: Expression for the right column (rendered as InteractiveCode) -/
 private def renderRow [Monad m] [MonadLiftT BaseIO m] [MonadLiftT MetaM m]
-    (ctx : Smt.ModelContext) (leftExpr rightExpr : Expr) : m (Option Html) := do
+    (ctx : Smt.ModelContext) (leftExpr rightExpr : Expr) : m (Option ProofWidgets.Html) := do
   -- if !(← ctx.containsFVar leftExpr) then
     -- return none
   let rightFmt ← Widget.ppExprTagged rightExpr
@@ -60,7 +60,7 @@ Parameters:
 Returns an array containing the section header and rows, or empty array if data is empty. -/
 private def renderSection [Monad m] [MonadLiftT BaseIO m] [MonadLiftT MetaM m]
   (data : Array (Expr × Expr)) (headers : String × String)
-  (ctx : Smt.ModelContext) : m (Array Html) := do
+  (ctx : Smt.ModelContext) : m (Array ProofWidgets.Html) := do
   if data.isEmpty then
     return #[]
   let rowsOpt ← data.mapM fun (leftExpr, rightExpr) => renderRow ctx leftExpr rightExpr
@@ -81,7 +81,7 @@ Displays sorts (universe interpretations) and values (constant assignments)
 in a structured table format using `InteractiveCode` for interactive expression browsing.
 
 Returns an empty model message if both `sorts` and `values` are empty. -/
-def renderSmtModel [Monad m] [MonadLiftT BaseIO m] [MonadLiftT MetaM m] (model : Smt.Model) : m Html := do
+def renderSmtModel [Monad m] [MonadLiftT BaseIO m] [MonadLiftT MetaM m] (model : Smt.Model) : m ProofWidgets.Html := do
   -- Handle empty model case
   if model.isEmpty then
     return <div className="font-code">

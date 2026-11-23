@@ -144,7 +144,7 @@ private def statusWithCompilation (p : Progress) : String :=
   | _ => p.status
 
 /-- Generate HTML for compilation failure message with details. -/
-private def compilationFailureHtml (err : String) : Html :=
+private def compilationFailureHtml (err : String) : ProofWidgets.Html :=
   <details style={json% {"marginTop": "8px"}}>
     <summary style={json% {"color": "#cc6600", "cursor": "pointer", "fontSize": "12px"}}>
       Compilation failed - continuing with interpreted mode (click for details)
@@ -155,7 +155,7 @@ private def compilationFailureHtml (err : String) : Html :=
   </details>
 
 /-- Generate HTML for a single log line. -/
-private def logLineHtml (line : Concrete.CompilationLogLine) : Html := Id.run do
+private def logLineHtml (line : Concrete.CompilationLogLine) : ProofWidgets.Html := Id.run do
   let timeStr := formatElapsedTime line.timestamp
   let contentStyle := if line.isError
     then json% {"color": "#ff8888"}
@@ -166,7 +166,7 @@ private def logLineHtml (line : Concrete.CompilationLogLine) : Html := Id.run do
   </div>
 
 /-- Generate HTML for live compilation log during compilation. -/
-private def compilationLogHtml (elapsedMs : Nat) (logLines : Array Concrete.CompilationLogLine) : Html :=
+private def compilationLogHtml (elapsedMs : Nat) (logLines : Array Concrete.CompilationLogLine) : ProofWidgets.Html :=
   <details style={json% {"marginTop": "8px"}}>
     <summary style={json% {"color": "var(--vscode-descriptionForeground)", "cursor": "pointer", "fontSize": "12px"}}>
       Compilation log ({.text (toString logLines.size)} lines, {.text (formatElapsedTime elapsedMs)})
@@ -186,7 +186,7 @@ private def compilationLogHtml (elapsedMs : Nat) (logLines : Array Concrete.Comp
 /-- Common style for right-aligned text. -/
 private def rightAlignStyle : Json := json% {"textAlign": "right"}
 
-private def statRow (label value : String) : Html :=
+private def statRow (label value : String) : ProofWidgets.Html :=
   <tr>
     <td style={json% {"paddingRight": "12px"}}>{.text label}</td>
     <td style={rightAlignStyle}>{.text value}</td>
@@ -256,7 +256,7 @@ private def gridRowStyle (highlight : Bool := false) : Json :=
 private def variantNumStyle : Json := json% {"textAlign": "right", "color": "#aaa", "fontSize": "10px"}
 
 /-- Render a single variant row (for expanded view): a label's arguments and its statistics. -/
-private def variantRow (variant : String × ActionStatDisplay) : Html :=
+private def variantRow (variant : String × ActionStatDisplay) : ProofWidgets.Html :=
   let (args, stat) := variant
   let displayName := if args.isEmpty then "(no args)" else args
   .element "div" #[("style", gridRowStyle (stat.statesGenerated == 0))] #[
@@ -277,8 +277,8 @@ private def actionGroupCss : String :=
   ".veil-action-group > summary { cursor: pointer; }
 .veil-action-group[open] > summary .veil-action-toggle { transform: rotate(90deg); }"
 
-/-- Render an action group as Html. For multi-variant groups, uses details/summary. -/
-private def actionGroupHtml (group : ActionGroup) : Html := Id.run do
+/-- Render an action group as ProofWidgets.Html. For multi-variant groups, uses details/summary. -/
+private def actionGroupHtml (group : ActionGroup) : ProofWidgets.Html := Id.run do
   let rowStyle := gridRowStyle (group.totalGenerated == 0)
   if group.variants.length == 1 then
     return <div style={rowStyle}>
@@ -307,7 +307,7 @@ private def getNeverEnabledActions (groups : List ActionGroup) (allActionLabels 
   (zeroInGroups ++ missingFromGroups).mergeSort (· < ·)
 
 /-- Render warning for actions that were never enabled. -/
-private def neverEnabledWarning (neverEnabled : List String) : Html :=
+private def neverEnabledWarning (neverEnabled : List String) : ProofWidgets.Html :=
   if neverEnabled.isEmpty then .text ""
   else
     let warningStyle := json% {"color": "#cc6600", "fontSize": "11px", "marginTop": "6px", "padding": "4px 8px", "backgroundColor": "#332200", "borderRadius": "4px"}
@@ -319,7 +319,7 @@ private def neverEnabledWarning (neverEnabled : List String) : Html :=
 private def rightBoldStyle : Json := json% {"textAlign": "right", "fontWeight": "bold"}
 
 /-- Render action coverage with grouped actions using CSS Grid. -/
-private def actionCoverageHtml (actionStats : List ActionStatDisplay) (allActionLabels : List String) : Html := Id.run do
+private def actionCoverageHtml (actionStats : List ActionStatDisplay) (allActionLabels : List String) : ProofWidgets.Html := Id.run do
   if actionStats.isEmpty && allActionLabels.isEmpty then return .text ""
   let groups := groupActionStats actionStats
   let neverEnabled := getNeverEnabledActions groups allActionLabels
@@ -431,7 +431,7 @@ private def historyToChartData (history : Array ProgressHistoryPoint) (getValue 
   }
 
 /-- Render a single chart with the given configuration. -/
-private def renderChart (history : Array ProgressHistoryPoint) (leftMargin : Nat) (config : ChartConfig) : Html := Id.run do
+private def renderChart (history : Array ProgressHistoryPoint) (leftMargin : Nat) (config : ChartConfig) : ProofWidgets.Html := Id.run do
   let data := historyToChartData history config.getValue
   return <div style={json% {"marginBottom": "12px"}}>
     <div style={json% {"fontSize": "11px", "color": "var(--vscode-descriptionForeground)", "marginBottom": "4px"}}>
@@ -463,15 +463,15 @@ private def formatTimeHMS (ms : Nat) : String :=
 private def tableCellStyle : Json := json% {"padding": "4px 8px", "textAlign": "right"}
 
 /-- Create a table header cell. -/
-private def th (text : String) : Html :=
+private def th (text : String) : ProofWidgets.Html :=
   .element "th" #[("style", json% {"padding": "4px 8px", "textAlign": "right", "fontWeight": "bold"})] #[.text text]
 
 /-- Create a table data cell. -/
-private def td (text : String) : Html :=
+private def td (text : String) : ProofWidgets.Html :=
   .element "td" #[("style", tableCellStyle)] #[.text text]
 
 /-- Render a single row in the history table. -/
-private def historyTableRow (point : ProgressHistoryPoint) : Html :=
+private def historyTableRow (point : ProgressHistoryPoint) : ProofWidgets.Html :=
   .element "tr" #[("style", json% {"borderBottom": "1px solid var(--vscode-panel-border)"})] #[
     .element "td" #[("style", json% {"padding": "4px 8px", "textAlign": "right", "fontFamily": "monospace"})] #[.text (formatTimeHMS point.timestamp)],
     td (toString point.diameter), td (toString point.statesFound),
@@ -479,9 +479,9 @@ private def historyTableRow (point : ProgressHistoryPoint) : Html :=
   ]
 
 /-- Render the history as a table view (TLC-style). -/
-private def renderTableView (history : Array ProgressHistoryPoint) : Html := Id.run do
+private def renderTableView (history : Array ProgressHistoryPoint) : ProofWidgets.Html := Id.run do
   let headerStyle := json% {"borderBottom": "1px solid var(--vscode-panel-border)", "position": "sticky", "top": "0", "backgroundColor": "var(--vscode-textBlockQuote-background)"}
-  let headerRow : Html := .element "tr" #[("style", headerStyle)] #[th "Time", th "Diameter", th "Found", th "Distinct", th "Queue"]
+  let headerRow : ProofWidgets.Html := .element "tr" #[("style", headerStyle)] #[th "Time", th "Diameter", th "Found", th "Distinct", th "Queue"]
   let tableRows := #[headerRow] ++ history.map historyTableRow
   return <div style={json% {"maxHeight": "300px", "overflow": "auto"}}>
     <table style={json% {"borderCollapse": "collapse", "fontSize": "11px", "width": "100%"}}>
@@ -490,9 +490,9 @@ private def renderTableView (history : Array ProgressHistoryPoint) : Html := Id.
   </div>
 
 /-- Render the history as graphs. -/
-private def renderGraphView (history : Array ProgressHistoryPoint) (leftMargin : Nat) : Html :=
+private def renderGraphView (history : Array ProgressHistoryPoint) (leftMargin : Nat) : ProofWidgets.Html :=
   let charts := chartConfigs.map fun config =>
-    Html.ofComponent ChartErrorBoundary ⟨⟩ #[renderChart history leftMargin config]
+    ProofWidgets.Html.ofComponent ChartErrorBoundary ⟨⟩ #[renderChart history leftMargin config]
   .element "div" #[] charts
 
 /-- Convert history to JSON string for export. -/
@@ -508,7 +508,7 @@ private def historyToJsonString (history : Array ProgressHistoryPoint) : String 
   toString (toJson rows)
 
 /-- Render the metrics history section (collapsible) with table/graph toggle. -/
-private def metricsHistoryHtml (history : Array ProgressHistoryPoint) : Html := Id.run do
+private def metricsHistoryHtml (history : Array ProgressHistoryPoint) : ProofWidgets.Html := Id.run do
   if history.size < 2 then return .text ""  -- Need at least 2 points for a chart
   let pointCount := history.size
   let timeRange := match (history[0]?, history[history.size - 1]?) with
@@ -527,7 +527,7 @@ private def metricsHistoryHtml (history : Array ProgressHistoryPoint) : Html := 
       Metrics History ({.text (toString pointCount)} samples, {.text timeRange})
     </summary>
     <div style={json% {"marginTop": "4px", "fontSize": "11px"}}>
-      {Html.ofComponent MetricsHistoryToggle ⟨historyJson⟩ #[tableView, graphView]}
+      {ProofWidgets.Html.ofComponent MetricsHistoryToggle ⟨historyJson⟩ #[tableView, graphView]}
     </div>
   </details>
 
@@ -536,7 +536,7 @@ model checker's metrics history.
 
 Nothing is drawn until at least two traces are in, since a "distribution" over one
 sample says nothing that the single trace does not. -/
-private def depthHistogramHtml (h : Veil.Histogram) : Html := Id.run do
+private def depthHistogramHtml (h : Veil.Histogram) : ProofWidgets.Html := Id.run do
   let total := h.total
   if total ≤ 1 then return .text ""
   let buckets := h.buckets
@@ -564,9 +564,9 @@ private def depthHistogramHtml (h : Veil.Histogram) : Html := Id.run do
     </table>
   </details>
 
-/-- Convert Progress to Html for display, with optional Stop button. Uses TLC-style terminology. -/
-def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html := Id.run do
-  let (progressRows, metricsHistory, actionCoverage) : Array Html × Html × Html :=
+/-- Convert Progress to ProofWidgets.Html for display, with optional Stop button. Uses TLC-style terminology. -/
+def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : ProofWidgets.Html := Id.run do
+  let (progressRows, metricsHistory, actionCoverage) : Array ProofWidgets.Html × ProofWidgets.Html × ProofWidgets.Html :=
     match p.details with
     | .liveness live =>
         (#[
@@ -592,7 +592,7 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html := I
           <i>{.text (statusWithCompilation p)}</i>
         </div>
         {match instanceId? with
-         | some id => Html.ofComponent StopButton ⟨id, p.startTimeMs⟩ #[]
+         | some id => ProofWidgets.Html.ofComponent StopButton ⟨id, p.startTimeMs⟩ #[]
          | none => .text ""}
       </div>
     else if p.isCancelled then
@@ -615,7 +615,7 @@ def progressToHtml (p : Progress) (instanceId? : Option Nat := none) : Html := I
   </div>
 
 /-- Display a widget with the given HTML. -/
-private def displayWidget (atStx : Syntax) (html : Html) : CommandElabM Unit := do
+private def displayWidget (atStx : Syntax) (html : ProofWidgets.Html) : CommandElabM Unit := do
   liftCoreM <| Widget.savePanelWidgetInfo
     (hash HtmlDisplayPanel.javascript)
     (return json% { html: $(← Server.rpcEncode html) })
@@ -631,7 +631,7 @@ private def hasTraceData : Json → Bool
   | _ => false
 
 /-- Render an error box with the given message. -/
-private def errorBox (errorMsg : String) : Html :=
+private def errorBox (errorMsg : String) : ProofWidgets.Html :=
   <div style={json% {"padding": "12px", "margin": "8px", "backgroundColor": "var(--vscode-inputValidation-errorBackground, #5a1d1d)", "border": "1px solid var(--vscode-inputValidation-errorBorder, #be1100)", "borderRadius": "6px"}}>
     <div style={json% {"fontWeight": "bold", "marginBottom": "8px", "color": "var(--vscode-errorForeground, #f48771)"}}>
       {.text "Error"}
@@ -649,11 +649,11 @@ private def resultKindOf (p : Progress) : Veil.TraceDisplay.ResultKind :=
   | .simulation .. => .simulate
   | .liveness .. => .liveness
 
-private def noResultData : Html :=
+private def noResultData : ProofWidgets.Html :=
   <div style={json% {"color": "#cc6600"}}><i>No result data available</i></div>
 
 /-- Create the final result display with both progress summary and result viewer. -/
-def mkFinalResultHtml (p : Progress) (resultJson : Option Json) : Html :=
+def mkFinalResultHtml (p : Progress) (resultJson : Option Json) : ProofWidgets.Html :=
   <div className="model-checker-result">
     {progressToHtml p}
     {match resultJson with
@@ -662,7 +662,7 @@ def mkFinalResultHtml (p : Progress) (resultJson : Option Json) : Html :=
        | some errorMsg => errorBox errorMsg
        | none =>
          if hasTraceData json then
-           Html.ofComponent TraceDisplayViewer
+           ProofWidgets.Html.ofComponent TraceDisplayViewer
              { result := json, layout := "vertical", rawHtml := none,
                kind := resultKindOf p } #[]
          else noResultData
@@ -679,7 +679,7 @@ private partial def runProgressUpdates (id : Nat) (token : RefreshToken) : CoreM
     token.update (mkFinalResultHtml progress (← getResultJson id))
 
 /-- Create a streaming progress widget that polls progress by instance ID. -/
-def mkProgressWidget (instanceId : Nat) : CoreM Html := do
+def mkProgressWidget (instanceId : Nat) : CoreM ProofWidgets.Html := do
   mkRefreshComponentM (.text "Starting model checker...") (runProgressUpdates instanceId)
 
 /-- Display a streaming progress widget at the given syntax. The command elaborator publishes it

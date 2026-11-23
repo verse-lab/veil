@@ -299,7 +299,10 @@ theorem LogInvariants.update_layer {look : LogLookup σₕ κ} {rep : σₕ → 
     obtain ⟨rep', dep', hinv, hitems, hmono⟩ := ih h' hnodup.2
       (fun it hit => by unfold lookUpdate ; grind)
       (fun it hit => by grind)
-      (fun it hit => by unfold repUpdate ; grind)
+      (fun it hit => by
+        obtain ⟨p', l', i', sp', he', hr', hi'⟩ := hstep it (List.mem_cons_of_mem _ hit)
+        have hp' := hknown p' (by simp [hr'])
+        unfold repUpdate ; grind)
       (fun it hit => by grind)
       (fun x hx' => by unfold lookUpdate ; grind)
     refine ⟨rep', dep', hinv, ?_, ?_⟩

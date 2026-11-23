@@ -1,16 +1,16 @@
 import Lake
 open Lake DSL System
 
-require smt from git "https://github.com/verse-lab/lean-smt.git" @ "b8633e75c15b51134b4e6d6d3d15668d959e519f"
-require Loom from git "https://github.com/verse-lab/loom.git" @ "dc269f28f868233c64c96ccdf3b680558fc54186"
-require VerifiedHAMT from git "https://github.com/verse-lab/VerifiedHAMT.git" @ "244601f8deb02c0d6d8f855bebc4bbe368ad0c98"
-require Lasso from git "https://github.com/verse-lab/Lasso.git" @ "74515461312c16e466a0fbd1f0debc1acae564ad"
-require lentil from git "https://github.com/verse-lab/Lentil.git" @ "61e533f322b95c58ba27822d365383122efec0c7"
+require smt from git "https://github.com/verse-lab/lean-smt.git" @ "78630e3bd78a75885be171f0cad2c6593fcdd50c"
+require Loom from git "https://github.com/verse-lab/loom.git" @ "1251ec43f694ef6d4a022fe75420366d57c10ec9"
+require VerifiedHAMT from git "https://github.com/verse-lab/VerifiedHAMT.git" @ "033dadfdd930d107755cc29b3fee772e22e099c7"
+require Lasso from git "https://github.com/verse-lab/Lasso.git" @ "83ef1ac89101ad406e553528e93eaf9d64d830a1"
+require lentil from git "https://github.com/verse-lab/Lentil.git" @ "08229d5850af73ac07d60d5f803e4cba30d30959"
 
-require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.35.0"
-require aesop from git "https://github.com/leanprover-community/aesop" @ "v4.35.0"
+require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.37.0-rc1"
+require aesop from git "https://github.com/leanprover-community/aesop" @ "v4.37.0-rc1"
 
-require proofwidgets from git "https://github.com/leanprover-community/ProofWidgets4" @ "df72b022e558978a1c50264cfc4d7fec86fa8e04"
+require proofwidgets from git "https://github.com/leanprover-community/ProofWidgets4" @ "197b8bdfd8bbfea6dff6ac04170a710b231c3aaa"
 
 package veil where
   preferReleaseBuild := true
@@ -162,17 +162,20 @@ script veilModelCheckBuild args do
     -- here could change its definitions or run a nested check under our build lock.
     -- Fetch and await Lean artifacts without rebuilding, in the same job store used
     -- below, so native facets reuse these checked jobs rather than scheduling them again.
-    let importTraces ← mods.mapM fun mod =>
-      return (← (IO.FS.readFile mod.traceFile).toBaseIO).toOption
+    -- Since Lean v4.36 a module's IR artifacts (the C among them) have a trace of their own.
+    let readTraces (mod : Module) : FetchM (Option String × Option String) := do
+      return ((← (IO.FS.readFile mod.traceFile).toBaseIO).toOption,
+        (← (IO.FS.readFile mod.irTraceFile).toBaseIO).toOption)
+    let importTraces ← mods.mapM readTraces
     for (mod, previousTrace) in mods.zip importTraces do
       let checked ← withTheReader BuildContext (fun ctx => { ctx with noBuild := true })
-        mod.leanArts.fetch
+        mod.irArts.fetch
       unless (← checked.wait?).isSome do
         error s!"Imported Lean artifacts for '{mod.name}' need rebuilding. Run `lake build +{mod.name}` \
           in this workspace, then reload the importing file before compiling this check."
       -- `noBuild` may still restore cached artifacts. Do not link a different imported
       -- version into C emitted before that restoration.
-      unless (← (IO.FS.readFile mod.traceFile).toBaseIO).toOption == previousTrace do
+      unless (← readTraces mod) == previousTrace do
         error s!"Imported Lean artifacts for '{mod.name}' changed during validation. \
           Reload the importing file before compiling this check."
     let c ← inputTextFile (buildDir / "ModelCheckerMain.c")

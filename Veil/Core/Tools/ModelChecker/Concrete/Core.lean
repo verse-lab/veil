@@ -132,7 +132,7 @@ instance [instf : FinEncodableInjOnly κ] [inste : Enumeration κ] : LabelTable 
   replicate a := Vector.replicate instf.card a
   modify label f vec :=
     let idx := instf.encode label
-    vec.modify idx.val f idx.isLt
+    vec.modifyInBound idx.val f idx.isLt
   zipWith f vec1 vec2 := vec1.zipWith f vec2
   toList vec := inste.allValues.map fun label => (label, vec[instf.encode label])
 

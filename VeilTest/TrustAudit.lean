@@ -14,7 +14,8 @@ comes from hand-written `unsafe` code the kernel never checked still prints a cl
 
 This file checks that it stays gone. It walks every constant reachable from each shipped route — through
 types *and* values — and reports any that carries `@[implemented_by]` or is `unsafe`, ignoring Lean's own
-core (`Array.foldlM → Array.foldlMUnsafe` and friends, which every Lean program has).
+core (`Array.foldlM → Array.foldlMUnsafe` and friends, which every Lean program has) and the `T.ctorIdx`
+implementations it generates with inductive types.
 
 **The positive control at the bottom is load-bearing.** Without it a passing run would be
 indistinguishable from an audit that simply never finds anything. -/
@@ -40,6 +41,14 @@ def isCore (n : Name) : Bool :=
    `ST, `EStateM, `Char, `Option, `Prod, `Subtype, `Substring, `System, `Float,
    `Int, `Fin, `BitVec, `ByteArray, `FloatArray].any (·.isPrefixOf n)
 
+/-- Lean v4.37.0-rc1 generates, with an inductive type `T`, a `T.ctorIdx` that the compiler implements by
+`T.ctorIdx._impl`, which reads the object's tag (`Lean.mkCtorIdx`). It generates both for the project's
+types too, so this is the toolchain's `@[implemented_by]` rather than Veil's. -/
+def isGeneratedCtorIdx (env : Environment) (n impl : Name) : Bool :=
+  match n with
+  | .str ind "ctorIdx" => impl == .str n "_impl" && (env.find? ind matches some (.inductInfo _))
+  | _ => false
+
 /-- `(non-core implemented_by, unsafe)` reachable from `roots`. -/
 def scan (roots : List Name) : CoreM (Array (Name × Name) × Array Name) := do
   let env ← getEnv
@@ -48,7 +57,8 @@ def scan (roots : List Name) : CoreM (Array (Name × Name) × Array Name) := do
   let mut unsaf : Array Name := #[]
   for n in seen.toList do
     if !isCore n then
-      if let some i := Lean.Compiler.getImplementedBy? env n then impl := impl.push (n, i)
+      if let some i := Lean.Compiler.getImplementedBy? env n then
+        unless isGeneratedCtorIdx env n i do impl := impl.push (n, i)
       if let some ci := env.find? n then
         if ci.isUnsafe then unsaf := unsaf.push n
   return (impl, unsaf)

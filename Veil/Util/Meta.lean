@@ -285,7 +285,7 @@ def addVeilTheorem (n : Name) (statement : Expr) (proof : Expr) (attr : Array At
   -- Use dynamic trace class name so each theorem appears separately in the profiler
   withTraceNode (`veil.perf.definition ++ n) (fun _ => return s!"thm {n}") do
     let fullName ← if addNamespace then pure $ (← getCurrNamespace).append n else pure n
-    let decl := Declaration.thmDecl (mkTheoremValEx fullName [] statement proof [])
+    let decl := Declaration.thmDecl { name := fullName, levelParams := [], type := statement, value := proof, all := [] }
     addDecl decl
     enableRealizationsForConst fullName
     Term.applyAttributes fullName attr
