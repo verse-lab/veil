@@ -558,7 +558,9 @@ Close each `veil module M` with `end M`. The close waits for the checks requeste
 in this module and adds their proven verification conditions to Lean's environment.
 For example, after `#check_action keep`, its proved obligations are available
 after `end M` as theorems in namespace `M`. Use `#gen_theorems` if you need the
-same theorems earlier in the module.
+same theorems earlier in the module. Each proved invariant clause gets both a WP
+theorem (e.g. `keep_safe`) and a transition theorem (`keep_safe_tr`). Veil
+derives the second form from the proof of the first without another solver call.
 
 Place `set_option veil.deferVCGeneration true` before the actions to postpone
 their verification definitions. A verification command can generate them earlier.

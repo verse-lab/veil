@@ -20,6 +20,7 @@ invariant [excluded] r N ∨ ¬ r N
 /--
 warning: Published VC theorems using `sorryAx`
   PublicationWarnings.early_excluded
+  PublicationWarnings.early_excluded_tr
 -/
 #guard_msgs in
 #gen_theorems
@@ -34,7 +35,7 @@ set_option warn.sorry false in
 #gen_theorems
 
 -- Request in reverse order. Publication groups only newly added declarations
--- with a directly admitted proof, and reports them in deterministic name order.
+-- whose proof uses the admitted witness, and reports them in deterministic name order.
 #guard_msgs (drop info, drop warning) in
 #check_action other
 #guard_msgs (drop info, drop warning) in
@@ -42,7 +43,9 @@ set_option warn.sorry false in
 /--
 warning: Published VC theorems using `sorryAx`
   PublicationWarnings.keep_excluded
+  PublicationWarnings.keep_excluded_tr
   PublicationWarnings.other_excluded
+  PublicationWarnings.other_excluded_tr
 -/
 #guard_msgs in
 end PublicationWarnings

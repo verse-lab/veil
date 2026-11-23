@@ -406,7 +406,7 @@ def elabTraceSpec (r : TSyntax `expected_smt_result) (name : Option (TSyntax `id
       if let some existingId := mgr.findVCByFilter vcFilter then
         return existingId
       -- Add VC and discharger atomically
-      let (mgr', vcId) := mgr.addVC ⟨vcStatement, metadata⟩ {} #[]
+      let (mgr', vcId) := mgr.addVC { vcStatement with metadata } {} #[]
       let mgr'' ← mgr'.mkAddDischarger vcId (TraceDischarger.fromAssertion numTransitions isExpectedSat)
       ref.set mgr''
       return vcId
