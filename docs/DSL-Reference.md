@@ -110,6 +110,12 @@ open Between TotalOrder
 
 The `open` command makes the type class fields available without qualification.
 
+In a Lean file that starts with `module`, Veil uses the class in the signatures
+of generated public declarations. Declare a class defined in that file with
+`public class`, or put it in a `public section`. For a class from another
+module, bring it into scope with `public import`. If a private class shadows
+the public class, qualify the public name, as in `instantiate m : Orders.Marked proc`.
+
 See `Std.lean` for the complete list of type classes.
 
 ### 4. State and Theory Components

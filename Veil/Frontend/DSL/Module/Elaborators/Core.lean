@@ -155,12 +155,57 @@ where
         | _ => throwError "unable to extract type from binder {m}"
       pure (domainTerms, codomainTerm)
 
+-- Instance types are reused as binders in generated public declarations. Check a
+-- named class before recording it, so a visibility error is reported only once.
+private def resolveInstanceClassIdent (mod : Module) (id : Syntax) : CommandElabM Syntax := do
+  let env := (← getEnv).setExporting false
+  unless env.header.isModule do return id
+  if mod.parameters.any (·.name == id.getId) then return id
+  let resolveNames := preprocessSyntaxAndResolve id fun n => do
+    return (← resolveGlobalName n (enableLog := false)).filterMap fun (c, fields) =>
+      if fields.isEmpty then some c else none
+  let publicEnv := env.setExporting true
+  let publicNames := (← withExporting resolveNames).filter publicEnv.contains
+  let [name] ← withoutExporting resolveNames | return id
+  if publicNames.contains name || !isClass env name then return id
+  if !publicNames.isEmpty then
+    unless isPrivateName name do return id
+    let classes := publicNames.filter fun c => !isPrivateName c && isClass publicEnv c
+    -- Qualify in the scope of the user's command, where even the full name
+    -- may need a leading `_root_` to get past the shadowing declaration.
+    let qualified ← withoutExporting <| classes.filterMapM (unresolveNameGlobal? · (fullNames := true))
+    if qualified.isEmpty then return id
+    let hint ← liftCoreM <| MessageData.hint "Qualify the intended public class in `instantiate`."
+      (qualified.toArray.map fun n => { suggestion := mkIdent n, diffGranularity := .none }) (ref? := id)
+    let msg := m!"`{id}` resolves to the private class `{privateToUserName name}` here. \
+      Veil uses the public scope for generated declarations.{hint}"
+    -- Keep later uses of the instance well typed when the public class is unique.
+    let [target] := classes | throwErrorAt id msg
+    logErrorAt id msg
+    return mkCIdentFrom id target
+  if isPrivateName name then
+    throwErrorAt id "Class `{id}` must be public to be used with `instantiate`. \
+      Declare it with `public class`."
+  if let some idx := env.getModuleIdxFor? name then
+    throwErrorAt id "Class `{id}` must be publicly imported to be used with `instantiate`. \
+      Add `public import {env.header.moduleNames[idx]!}`."
+  return id
+
+private partial def resolveInstanceClass (mod : Module) (stx : Syntax) : CommandElabM Syntax := do
+  if stx.isOfKind ``Parser.Term.app || stx.isOfKind ``Parser.Term.explicitUniv then
+    return stx.setArg 0 (← resolveInstanceClass mod stx[0])
+  if stx.isOfKind ``Parser.Term.explicit || stx.isOfKind ``Parser.Term.paren then
+    return stx.setArg 1 (← resolveInstanceClass mod stx[1])
+  if stx.isIdent then return ← resolveInstanceClassIdent mod stx
+  return stx
+
 @[command_elab Veil.instanceDeclaration]
 def elabInstantiate : CommandElab := fun stx => do
   let mod ← getCurrentModule (errMsg := "You cannot instantiate a typeclass outside of a Veil module!")
   mod.throwIfStateAlreadyDefined
   let new_mod : Module ← match stx with
   | `(instantiate $inst:ident : $tp:term) => do
+    let tp : Term := ⟨← resolveInstanceClass mod tp⟩
     let p : Parameter := { kind := .moduleTypeclass .userDefined, name := inst.getId, «type» := tp, userSyntax := stx }
     pure { mod with parameters := mod.parameters.push p }
   | _ => throwUnsupportedSyntax
