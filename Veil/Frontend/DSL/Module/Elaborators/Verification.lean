@@ -1,5 +1,6 @@
 module
 
+public meta import Veil.Frontend.DSL.Module.Util.BmcCache
 public meta import Veil.Frontend.DSL.Module.Elaborators.Core
 public meta import Veil.Frontend.DSL.Module.Elaborators.TemporalDefinitions
 public meta import Veil.Frontend.DSL.Tactic
@@ -62,6 +63,7 @@ private def Module.prepareVerification (mod : Module) (stx : Syntax) : CommandEl
     let (rtsCmd, mod) ← Module.assembleRelationalTransitionSystem mod
     elabVeilCommand rtsCmd
     pure mod
+  mod.generateBmcNormalForms
   Verifier.runManager
   mod.generateDoesNotThrowVCs
   -- Warn at the assertion site. Explicit invariant checks report failed VCs at the command.

@@ -43,6 +43,10 @@ register_simp_attr actSimp
 /-- Attribute added for simplifications done for symbolic model checking. -/
 register_simp_attr nextSimp
 
+/-- Exact, specialized transition equalities for BMC. Applied only at a clause's
+root, never as recursive simplification rules. -/
+register_simp_attr bmcNormalize
+
 /-- Attribute added to `DerivedDefinition`s that are `.actionLike`, to unfold them. -/
 register_simp_attr derivedActSimp
 
