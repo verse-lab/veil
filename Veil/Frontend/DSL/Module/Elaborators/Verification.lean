@@ -140,6 +140,27 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
       mod.prepareVerification stx
   return { mod with _specFinalizedAt := some stx }
 
+private def getVeilModuleScope : CommandElabM Elab.Command.Scope := do
+  let some (_, depth) := (← localEnv.get).moduleScope? | throwUnsupportedSyntax
+  let scopes ← getScopes
+  return scopes[scopes.length - depth]!
+
+/-- The declarations and VC manager survive `section` and `open … in`. Record
+the derived definitions they added so the enclosing scope can recover its
+module metadata without running preparation a second time. -/
+private initialize preparedDefinitions : EnvExtension (NameMap (Array DerivedDefinition)) ←
+  registerEnvExtension (pure {})
+
+private def Module.prepareDeferredVerification (mod : Module) (stx : Syntax) : CommandElabM Module := do
+  let ns ← getCurrNamespace
+  if let some defs := (preparedDefinitions.getState (← getEnv)).find? ns then
+    return ← defs.foldlM (init := mod) fun m d => m.registerDerivedDefinition d
+  mod.generateDeferredWPs
+  let prepared ← mod.prepareVerification stx
+  let defs := prepared._derivedDefinitions.valuesArray.filter fun d => !mod._derivedDefinitions.contains d.name
+  modifyEnv fun env => preparedDefinitions.modifyState env (·.insert ns defs)
+  return prepared
+
 /-- Called by the verification commands. If `#gen_spec` deferred VC generation
 (`veil.deferVCGeneration`), the first call generates the deferred verification
 definitions and does what `#gen_spec` skipped; otherwise this only checks that
@@ -149,14 +170,17 @@ def Module.ensureVerificationSpec (mod : Module) (stx : Syntax) : CommandElabM M
   mod.throwIfSpecNotFinalized
   let deferred := mod._vcGenerationDeferred
   unless deferred || mod.temporalProperties.any (·.verifyPending) do return mod
-  let mut mod := mod
-  if deferred then
-    mod.generateDeferredWPs
-    mod ← mod.prepareVerification stx
-    mod := { mod with _vcGenerationDeferred := false }
-  mod ← mod.generatePendingTemporalDefinitions .verify
-  localEnv.modifyModule (fun _ => mod)
-  return mod
+  let prepare : CommandElabM Module := do
+    let mod ← if deferred then do
+        let prepared ← mod.prepareDeferredVerification stx
+        pure { prepared with _vcGenerationDeferred := false }
+      else pure mod
+    let mod ← mod.generatePendingTemporalDefinitions .verify
+    localEnv.modifyModule (fun _ => mod)
+    return mod
+  let ns := (← getVeilModuleScope).currNamespace
+  if ns == (← getCurrNamespace) then prepare
+  else withScope (fun scope => { scope with currNamespace := ns }) prepare
 
 /-- The tactics of the proof `tacs`, to splice after generated tactics in a single
 sequence rather than nest `tacs` as `($tacs)`, a single tactic: once a tactic of a
@@ -370,9 +394,7 @@ requires a finalized spec. Closing also finishes deferred definitions and waits
 for the automatic assertion checks of a finalized spec. -/
 private def finishRequestedChecks (closing := false) : CommandElabM Unit := do
   let mod ← getCurrentModule
-  let some (_, depth) := (← localEnv.get).moduleScope? | throwUnsupportedSyntax
-  let scopes ← getScopes
-  let moduleScope := scopes[scopes.length - depth]!
+  let moduleScope ← getVeilModuleScope
   withScope (fun here => { here with currNamespace := moduleScope.currNamespace, openDecls := moduleScope.openDecls }) do
     let report (act : CommandElabM Unit) := do
       try act catch ex =>

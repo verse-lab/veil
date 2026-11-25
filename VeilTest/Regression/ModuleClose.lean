@@ -64,3 +64,32 @@ run_meta do
   for suffix in [`keep_off, `keep_off_tr] do
     let name := Lean.Name.mkSimple "" ++ suffix
     unless (← Lean.getEnv).contains name do throwError "bare end did not publish {name}"
+
+-- Preparing a deferred spec in a helper scope must survive that scope closing.
+veil module ScopedPreparation
+set_option veil.deferVCGeneration true
+set_option veil.smt.trust false
+individual flag : Bool
+after_init { flag := false }
+action keep { flag := false }
+action idle { pure () }
+invariant [off] flag = false
+temporal [alwaysOff] □ ⌜ flag = false ⌝
+#gen_spec
+
+namespace Helper
+#guard_msgs (drop info) in
+#check_action keep
+end Helper
+
+#guard_msgs (drop info) in
+#check_action idle
+end ScopedPreparation
+
+run_meta do
+  for name in [``ScopedPreparation.keep_off, ``ScopedPreparation.keep_off_tr,
+      ``ScopedPreparation.idle_off, ``ScopedPreparation.idle_off_tr] do
+    if (← Lean.collectAxioms name).contains ``sorryAx then
+      throwError "unexpected sorryAx in {name}"
+  unless (← Lean.getEnv).contains `ScopedPreparation.alwaysOff do
+    throwError "missing temporal definition in the module namespace"
