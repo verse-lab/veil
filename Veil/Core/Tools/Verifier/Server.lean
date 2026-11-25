@@ -373,43 +373,56 @@ def waitFilteredSync (filter : VCMetadata → Bool) : CommandElabM (Verification
   let managerId ← requestFiltered filter
   awaitFilteredWithLogging managerId filter
 
-/-- Return the name when the newly published proof uses an admission. -/
-private def publishVC (vc : VCStatement) (prove : Expr → TermElabM Expr)
-    (inheritsSorry := false) : TermElabM (Option Name) := do
+/-- Return a closed proof at the canonical VC type and the name of any new declaration. -/
+private def publishVC (vc : VCStatement) (witness : Expr)
+    (convert : Expr → Expr → TermElabM Expr := fun proof _ => pure proof) :
+    TermElabM (Expr × Option Name) := do
   let fullName := (← getCurrNamespace) ++ vc.name
   let statement ← vc.type
-  if let some info := (← getEnv).find? fullName then
-    unless ← Meta.isDefEq info.type statement do
-      throwError "cannot generate VC theorem `{fullName}` because a declaration with that name already exists with a different type"
-    return none
-  let proof ← instantiateMVars (← prove statement)
+  if (← getEnv).contains fullName then
+    -- An interactive witness may already carry the exact universe specialization.
+    let existing ← if witness.isConstOf fullName then pure witness else Meta.mkConstWithFreshMVarLevels fullName
+    if ← Meta.isDefEq (← Meta.inferType existing) statement then
+      let existing ← instantiateMVars existing
+      -- A phantom universe can remain unconstrained. Check the concrete instance
+      -- before passing it to a companion in a separate term elaboration.
+      let closed := if existing.hasLevelMVar then
+          existing.replaceLevel fun l => if l.isMVar then some .zero else none
+        else existing
+      if ← Meta.isDefEq (← Meta.inferType closed) statement then
+        -- Conversion inspects the canonical VC even if the user stated a defeq form.
+        return (Meta.mkExpectedPropHint closed statement, none)
+    throwError "cannot generate VC theorem `{fullName}` because a declaration with that name already exists with a different type"
+  let proof ← instantiateMVars (← convert witness statement)
   let name ← withOptions (warn.sorry.set · false) <| addVeilTheorem vc.name statement proof
-  return if inheritsSorry || proof.hasSorry then some name else none
+  return (mkConst name, some name)
 
 /-- Publish direct witnesses first, so a variant uses an independent proof when
 one is available. A derived theorem refers to its source theorem by name. -/
 private def publishWitnesses (mgr : VCManager VCMetadata SmtResult) (ordered : Array VCId) :
     CommandElabM Unit := do
-  let mut affected := #[]
+  let mut published := #[]
   let mut variants := #[]
   for id in ordered do
     let some (vc, witness) := mgr.provenWitness? id | continue
     try
-      let admitted ← liftTermElabM <| publishVC vc.toVCStatement (fun _ => pure witness)
-      if let some name := admitted then affected := affected.push name
+      let (source, added?) ← liftTermElabM <| publishVC vc.toVCStatement witness
+      if let some name := added? then published := published.push name
       if let some variant := vc.variant? then
-        variants := variants.push (variant, (← getCurrNamespace) ++ vc.name, admitted.isSome)
+        variants := variants.push (variant, source)
     catch ex =>
       if ex.isInterrupt then throw ex
       logException ex
-  for (variant, source, admitted) in variants do
+  for (variant, source) in variants do
     try
-      let result ← liftTermElabM <| publishVC variant.toVCStatement (variant.ofProof (mkConst source)) admitted
-      if let some name := result then affected := affected.push name
+      let (_, added?) ← liftTermElabM <| publishVC variant.toVCStatement source variant.ofProof
+      if let some name := added? then published := published.push name
     catch ex =>
       if ex.isInterrupt then throw ex
       logException ex
-  if warn.sorry.get (← getOptions) && !affected.isEmpty then
+  unless warn.sorry.get (← getOptions) do return
+  let affected ← published.filterM fun name => return (← collectAxioms name).contains ``sorryAx
+  unless affected.isEmpty do
     let lines := (affected.qsort Name.lt).toList.map (MessageData.ofConstName · (fullNames := true))
     logWarning <| .tagged `hasSorry m!"Published VC theorems using `sorryAx`{indentD (MessageData.joinSep lines Format.line)}"
 

@@ -5,7 +5,9 @@
 that violates the properties, or that no universal inductive invariant exists.
 With `certify`, an invariant or a violation becomes a theorem checked by the
 Lean kernel. Closing the module with `end M` adds the certificate declarations.
-Use `#gen_theorems` to make them available earlier.
+Use `#gen_theorems` to make them available earlier. If a certificate import
+fails, publication stops there and the module stays open. After correcting the
+error, the next publication retries that import and continues in order.
 
 ## Running the Synthesizer
 

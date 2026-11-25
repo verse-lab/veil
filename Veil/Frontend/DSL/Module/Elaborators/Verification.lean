@@ -329,17 +329,45 @@ def elabCheckAction : CommandElab := fun stx => do
     runFilteredInvariantCheck stx mod (isInductionForAction actionName)
 
 
-/-- Optional tools can queue checked results for `#gen_theorems`. Keeping these actions in the
-environment ties them to the document snapshot that started the work, including across edits. -/
-private initialize pendingTheoremGenerators : EnvExtension (NameMap (Array (CommandElabM Unit))) ←
+private structure TheoremGeneratorQueue where
+  pending : Std.Queue (CommandElabM Unit) := ∅
+  running : Bool := false
+  deriving Inhabited
+
+/-- Optional tools can queue checked results for publication. The Lean environment
+ties the queue to the document snapshot that started the work, including across edits. -/
+private initialize pendingTheoremGenerators : EnvExtension (NameMap TheoremGeneratorQueue) ←
   registerEnvExtension (pure {})
 
+/-- Register a callback for the next publication. Throw to retry a failed import. -/
 def registerTheoremGenerator (moduleName : Name) (generate : CommandElabM Unit) :
     CommandElabM Unit :=
-  modifyEnv fun env => pendingTheoremGenerators.modifyState env fun pending =>
-    pending.insert moduleName ((pending.find? moduleName).getD #[] |>.push generate)
+  modifyEnv fun env => pendingTheoremGenerators.modifyState env fun queues =>
+    let q := (queues.find? moduleName).getD {}
+    queues.insert moduleName { q with pending := q.pending.enqueue generate }
 
-/-- Publish in the scope where the module was opened, even inside a helper namespace. -/
+/-- Commit one callback at a time. A nested publication leaves the FIFO to the
+outer drain, including callbacks registered by the running generator. -/
+private def drainTheoremGenerators (moduleName : Name) : CommandElabM Unit := do
+  while true do
+    liftCoreM Core.checkInterrupted
+    let env ← getEnv
+    let some q := (pendingTheoremGenerators.getState env).find? moduleName | return
+    if q.running then return
+    let some (generate, tail) := q.pending.dequeue? | return
+    modifyEnv fun env => pendingTheoremGenerators.modifyState env (·.insert moduleName ⟨tail, true⟩)
+    -- Restore this head on failure or interruption, including the environment
+    -- from before it registered children. Earlier successful heads stay committed.
+    discard <| MonadFinally.tryFinally' generate fun result =>
+      if result.isNone then setEnv env else pure ()
+    modifyEnv fun env => pendingTheoremGenerators.modifyState env fun queues =>
+      let q := (queues.find? moduleName).getD {}
+      if q.pending.isEmpty then queues.erase moduleName
+      else queues.insert moduleName { q with running := false }
+
+/-- Publish requested results in the module namespace. An explicit publication
+requires a finalized spec. Closing also finishes deferred definitions and waits
+for the automatic assertion checks of a finalized spec. -/
 private def finishRequestedChecks (closing := false) : CommandElabM Unit := do
   let mod ← getCurrentModule
   let some (_, depth) := (← localEnv.get).moduleScope? | throwUnsupportedSyntax
@@ -350,6 +378,7 @@ private def finishRequestedChecks (closing := false) : CommandElabM Unit := do
       try act catch ex =>
         if ex.isInterrupt then throw ex
         logException ex
+    unless closing do mod.throwIfSpecNotFinalized
     if closing then
       if let some stx := mod.specFinalizedAtStx then
         report do
@@ -359,9 +388,15 @@ private def finishRequestedChecks (closing := false) : CommandElabM Unit := do
         -- A partial module can have deferred action definitions without a spec.
         report mod.generateDeferredWPs
     report (Verifier.publishRequestedTheorems mod.name)
-    let generators := (pendingTheoremGenerators.getState (← getEnv)).find? mod.name |>.getD #[]
-    modifyEnv fun env => pendingTheoremGenerators.modifyState env (·.erase mod.name)
-    for generate in generators do report generate
+    -- Keep a failing close open for retry. A callback declining its own syntax
+    -- must not tell Lean to fall through to the builtin `end` elaborator.
+    try drainTheoremGenerators mod.name catch ex =>
+      if let .internal id .. := ex then
+        if id == unsupportedSyntaxExceptionId then
+          throwError "a theorem generator for `{mod.name}` encountered unsupported syntax"
+        if isAbortExceptionId id && !(← MonadLog.hasErrors) then
+          throwError "a theorem generator for `{mod.name}` aborted publication"
+      throw ex
 
 @[command_elab Veil.genTheorems]
 def elabGenTheorems : CommandElab := fun _ => finishRequestedChecks (closing := false)
@@ -371,12 +406,17 @@ the Veil module. Leave other closes and malformed names to Lean's elaborator. -/
 @[scoped command_elab Lean.Parser.Command.«end»]
 def elabVeilEnd : CommandElab := fun stx => do
   let some (_, depth) := (← localEnv.get).moduleScope? | throwUnsupportedSyntax
-  let `(end $header:ident $[.%$_$_]?) := stx | throwUnsupportedSyntax
+  let `(end $[$header? $[.%$_$_]?]?) := stx | throwUnsupportedSyntax
   let scopes ← getScopes
-  let names := header.getId.components
-  unless scopes.length - depth < names.length && names.length < scopes.length &&
-      names.reverse == (scopes.take names.length).map (Name.mkSimple ·.header) do
-    throwUnsupportedSyntax
+  let count := header?.map (·.getId.getNumParts) |>.getD 1
+  unless scopes.length - depth < count && count < scopes.length do throwUnsupportedSyntax
+  match header? with
+  | none => unless scopes.head!.header.isEmpty do throwUnsupportedSyntax
+  | some header =>
+    let candidates := scopes.take count
+    unless candidates.all (fun s => !s.header.isEmpty) &&
+        header.getId.components.reverse == candidates.map (Name.mkSimple ·.header) do
+      throwUnsupportedSyntax
   finishRequestedChecks (closing := true)
   elabEnd stx
 

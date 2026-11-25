@@ -105,3 +105,73 @@ error: cannot generate VC theorem `PublishedTheoremConflict.keep_all_marked_tr` 
 #gen_theorems
 
 end PublishedTheoremConflict
+
+-- The existing direct theorem has a universe parameter that disappears when
+-- its statement is reduced. The companion must use an instantiated constant.
+public def wrapProp.{u} (_ : Type (u+1)) (p : Prop) : Prop := p
+
+veil module PolymorphicSource
+individual flag : Bool
+after_init { flag := false }
+action keep { flag := false }
+transition reset { flag' = false }
+invariant [off] flag = false
+#gen_spec
+#check_action keep
+#check_action reset
+
+open Lean Elab Command in
+run_cmd do
+  let mgr ← Veil.Verifier.readVCManager
+  for (name, tactic) in [(`keep_off, ← `(tactic| veil_solve_wp)), (`reset_off_tr, ← `(tactic| veil_solve_tr))] do
+    let some vc := mgr.nodes.valuesArray.find? (·.name == name) | throwError "missing {name}"
+    elabCommand (← `(command| theorem $(mkIdent name).{u} $(vc.params)* :
+      wrapProp (Type u) $(vc.statement) := by unfold wrapProp; $tactic:tactic))
+
+end PolymorphicSource
+
+run_cmd checkForms `PolymorphicSource #[`keep_off, `keep_off_tr, `reset_off, `reset_off_tr]
+
+-- Specialization can also require a particular nonzero level. This small VC
+-- has an identity conversion, so the kernel checks the exact reused source.
+namespace ConstrainedSource
+
+set_option warn.sorry false in
+public theorem source.{u} : ∀ _ : Type u, True := by sorry
+
+set_option warn.sorry false in
+set_option linter.checkUnivs false in
+public theorem multi.{u,v} : ∀ _ : Type (max u v), True := by sorry
+
+open Lean Elab Command Veil Verifier in
+private meta def publishSpecialization : CommandElabM Unit := do
+  runManager
+  let statement ← `(∀ _ : Type 2, True)
+  let level := Level.succ (.succ .zero)
+  -- Infer the nonzero universe for `source`. For `multi`, the witness itself
+  -- supplies an exact solution to the underdetermined max-universe constraint.
+  let proofs := #[(`source, `companion, mkConst ``multi [.zero, level]),
+                  (`multi, `multiCompanion, mkConst ``multi [level, .zero])]
+  for (name, companion, witness) in proofs do
+    let variant : VCTheoremVariant := {
+      name := companion, params := #[], statement, ofProof := fun proof _ => pure proof }
+    withVCManager fun ref => do
+      let (mgr, id) := (← ref.get).addVC {
+        name, params := #[], statement, metadata := default, variant? := some variant } {}
+      ref.set { mgr with
+        nodes := mgr.nodes.modify id ({ · with successful := some 0 })
+        _dischargerResults := mgr._dischargerResults.insert (id, 0) (.proven (some witness) none 0) }
+  addProvenTheoremsInDependencyOrder (fun _ => true)
+
+/--
+warning: Published VC theorems using `sorryAx`
+  ConstrainedSource.companion
+  ConstrainedSource.multiCompanion
+-/
+#guard_msgs in
+run_cmd publishSpecialization
+
+example : ∀ _ : Type 2, True := companion
+example : ∀ _ : Type 2, True := multiCompanion
+
+end ConstrainedSource
