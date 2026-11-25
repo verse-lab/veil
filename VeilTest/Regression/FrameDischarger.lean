@@ -38,6 +38,16 @@ run_cmd do
 
 -- Exercise the public export path. A successful status alone does not require
 -- a witness, and a kernel-accepted declaration can still depend on sorryAx.
+set_option veil.printCounterexamples false
+
+/-- noLive ... ❌ -/
+#guard_msgs (substring := true) in
+#check_action write
+
+/-- zero ... ❌ -/
+#guard_msgs (substring := true) in
+#check_action reset
+
 #gen_theorems
 
 open Lean Elab Command Veil in

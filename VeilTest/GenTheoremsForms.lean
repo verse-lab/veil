@@ -23,6 +23,7 @@ action write (n : node) { marked n := true }
 transition keep (n : node) { ∀ N, marked' N ↔ marked N }
 action trFallback (n : node) { marked n := true }
 transition wpFallback (n : node) { ∀ N, marked' N ↔ marked N }
+action framed { pure () }
 action unchecked { pure () }
 invariant [all_marked] marked N = true
 #gen_spec
@@ -58,9 +59,19 @@ run_cmd do
 
 #check_action trFallback
 #check_action wpFallback
+
+#guard_msgs (drop info) in
+#check_action framed
+run_cmd do
+  let mgr ← Veil.Verifier.readVCManager
+  let some vc := mgr.nodes.valuesArray.find? (·.name == `framed_all_marked) | throwError "missing VC"
+  let some winner := vc.successful.bind (vc.dischargers[·]?) | throwError "expected a proved VC"
+  unless winner.id.name.toString.endsWith "_FRAME" do throwError "expected a framing witness"
+  if (← Lean.getEnv).contains `InvariantForms.framed_all_marked then throwError "published before close"
 end InvariantForms
 
 run_cmd checkForms `InvariantForms #[
+  `framed_all_marked, `framed_all_marked_tr,
   `trFallback_all_marked, `trFallback_all_marked_tr, `wpFallback_all_marked, `wpFallback_all_marked_tr]
 
 run_cmd do

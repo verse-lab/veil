@@ -3,6 +3,8 @@ module
 public import Veil
 
 veil module PublicationWarnings
+-- Exercise publication of admitted SMT witnesses.
+set_option veil.frame false
 set_option veil.smt.trust true
 type node
 relation r : node → Bool
