@@ -143,9 +143,9 @@ private def currentParameters : TermElabM Parameters :=
 /-- Warn if parameters shadow state components. -/
 private def warnParameterShadows (mod : Module) (body : ActionSyntax)
     (parameters : Parameters) : TermElabM Unit :=
-  mod.signature.filter (parameters.names.contains ·.name) |>.forM fun field => do
-    let kind := if field.isMutable then "mutable state" else "immutable theory"
-    logWarningAt body m!"parameter `{field.name}` shadows {kind} component `{field.name}`; references to this name resolve to the parameter"
+  for name in parameters.names do
+    if let some field := mod.fieldShadowedBy? name then
+      warnFieldShadow body "parameter" name field
 
 def elabVeilDo (procName : Name) (readerType stateType : Term)
     (body : ActionSyntax) : TermElabM Expr := do

@@ -43,6 +43,13 @@ Lentil reads `⌜ t ⌝` as `state_pred t` with `t : σ → Prop`. While Veil el
 module (`veil.temporal.moduleAtoms`), `t` is instead a proposition over the module's fields, as in an
 assertion: the theory fields are bound around the whole formula, and the state fields around each atom. -/
 
+private def temporalEnvironmentType (name : Name) : TermElabM Term := do
+  -- User-facing field views are lets. The generated types are parameters.
+  let some decl := (← getLCtx).findDeclRev? fun decl =>
+      if decl.userName == name && decl.kind == .implDetail && !decl.isLet then some decl else none
+    | throwError "missing temporal environment type {name}"
+  exprToSyntax decl.toExpr
+
 /-- Internal: the atom `⌜ t ⌝` of a `[tlfml| …]` formula, see `elabTlfmlStateAtom`. -/
 syntax (name := tlfmlStateAtom) "veil_tlfml_state_atom% " term:max : term
 
@@ -64,10 +71,10 @@ elaborated, `state_pred (fun st => t)` with the state fields bound in `t` as in 
   unless veil.temporal.moduleAtoms.get (← getOptions) do
     return ← elabTerm (← `($(mkIdent ``Lentil.state_pred) $t)) expectedType?
   let mod ← getCurrentModule
-  let st := mkVeilImplementationDetailIdent `st
-  let body ← mod.withTheoryAndStateTermTemplate [(.state .none "_conc", st, true)] (some (← `(Prop)))
-    (fun _ _ => `(uqc% ($t:term)))
-  elabTerm (← `($(mkIdent ``Lentil.state_pred) fun ($st : $environmentState) => $body)) expectedType?
+  let st ← Lean.mkIdent <$> mkFreshUserName `st
+  let stateType ← temporalEnvironmentType environmentStateName
+  let body ← mod.withUserFieldNames [(.state, st, true)] (some (← `(Prop))) (← `(uqc% ($t:term)))
+  elabTerm (← `($(mkIdent ``Lentil.state_pred) fun ($st : $stateType) => $body)) expectedType?
 
 /-- Elaborate a temporal action relation on the proof side. In a module's temporal property, the
 parameters of an action left open (`Module.resolveActionAtom?`) are existentially quantified: e.g. for
@@ -90,7 +97,8 @@ parameters of an action left open (`Module.resolveActionAtom?`) are existentiall
       xs := xs.push x
       actualArgs := actualArgs.push x
     actualArgs := actualArgs.push arg
-  elabTerm (← `(fun (s s' : $environmentState) => ∃ $[$xs:ident]*, $a $actualArgs* s s')) expectedType?
+  let stateType ← temporalEnvironmentType environmentStateName
+  elabTerm (← `(fun (s s' : $stateType) => ∃ $[$xs:ident]*, $a $actualArgs* s s')) expectedType?
 
 /-! ## Deep formula elaboration -/
 
@@ -153,13 +161,16 @@ Tried before the plain reading of `[ltl| …]` (`Lasso.elabLtlAtom`), to which i
 @[term_elab Lasso.ltlFormula] def elabModuleLtlAtom : TermElab := fun stx expectedType? => do
   unless veil.temporal.moduleAtoms.get (← getOptions) do throwUnsupportedSyntax
   let mod ← getCurrentModule
-  let (th, st) := (mkIdent `th, mkIdent `st)
+  let th ← Lean.mkIdent <$> mkFreshUserName `th
+  let st ← Lean.mkIdent <$> mkFreshUserName `st
   let statePredicate (targets : List (TheoryAndStateTermTemplateArgKind × Term × Bool)) (t : Term) := do
-    let body ← mod.withTheoryAndStateTermTemplate targets (some (← `(Prop))) (fun _ _ => `(uqc% ($t:term)))
+    let theoryType ← temporalEnvironmentType environmentTheoryName
+    let stateType ← temporalEnvironmentType environmentStateName
+    let body ← mod.withUserFieldNames targets (some (← `(Prop))) (← `(uqc% ($t:term)))
     -- The constructor does not take the field's default, so `name` is given explicitly
     `($(mkIdent ``LivenessMC.LivenessAtom.state) ($(mkIdent ``ModelChecker.SafetyProperty.mk)
         ($(mkIdent `name) := $(quote Name.anonymous))
-        ($(mkIdent `property) := fun ($th : $environmentTheory) ($st : $environmentState) => $body)))
+        ($(mkIdent `property) := fun ($th : $theoryType) ($st : $stateType) => $body)))
   let atom ← match stx with
     -- Model checking instantiates each quantifier over the module's enumeration of its domain.
     | `([ltl| ∀ $x:ident, $f]) =>
@@ -170,7 +181,7 @@ Tried before the plain reading of `[ltl| …]` (`Lasso.elabLtlAtom`), to which i
       return ← elabTerm (← `($(mkIdent ``LivenessMC.existsEnum) fun $x => [ltl| $f])) expectedType?
     | `([ltl| ∃ $x:ident : $t, $f]) =>
       return ← elabTerm (← `($(mkIdent ``LivenessMC.existsEnum) fun ($x : $t) => [ltl| $f])) expectedType?
-    | `([ltl| ⌜ $t:term ⌝]) => statePredicate [(.theory, th, true), (.state .none "_conc", st, true)] t
+    | `([ltl| ⌜ $t:term ⌝]) => statePredicate [(.theory, th, true), (.state, st, true)] t
     | `([ltl| ⌞ $t:term ⌟]) => statePredicate [(.theory, th, true)] t
     -- `Enabled a`/`⟨ a ⟩` are decided by a predicate on the action label, not on a state
     | `([ltl| Enabled $t:term]) =>
@@ -226,7 +237,8 @@ private def Module.defineTemporalCheck (mod : Module) (tp : TemporalProperty) : 
       $(mkIdent ``Veil.LivenessMC.LivenessProperty) $environmentTheory $environmentState $(← mod.labelTypeStx)))
     let (insts, e) ← elabBinders binders fun vs => do
       -- The atoms are read against this module (`elabModuleLtlAtom`)
-      let (insts, e) ← withOptions (veil.temporal.moduleAtoms.set · true) <|
+      let (insts, e) ← withGeneratedFieldContext baseParams vs <|
+        withOptions (veil.temporal.moduleAtoms.set · true) <|
         getRequiredDecidableInstances defName body (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
           (alsoExtract := #[``Veil.Enumeration])
       let e ← Meta.mkLambdaFVars (vs ++ insts.map (·.2)) (← instantiateMVars e)
@@ -268,7 +280,7 @@ private def Module.defineTemporalVerify (mod : Module) (tp : TemporalProperty) :
   --   let send := fun x => @send.ext.tr <modArgs> x th
   -- For action `poll` (no params), generate:
   --   let poll := @poll.ext.tr <modArgs> th
-  let thIdent := mkVeilImplementationDetailIdent `th
+  let thIdent ← Lean.mkIdent <$> liftCoreM (mkFreshUserName `th)
   let mut letBindings : Array (Ident × Term) := #[]
   for act in mod.actions do
     let actTrName := mkIdent <| toTransitionName <| toExtName act.name
@@ -281,16 +293,16 @@ private def Module.defineTemporalVerify (mod : Module) (tp : TemporalProperty) :
   -- (`Veil.elabTlfmlStateAtom`).
   -- Assemble the body: let bindings + [tlfml| user_formula ]
   let fullBody ← do
-    let body ← letBindings.foldrM (init := ← `([tlfml| $(tp.formula)])) fun (bindName, bindVal) body =>
-      `(let $bindName := $bindVal; $body)
     -- Expose immutable theory fields in temporal formulas, matching assertions and ghosts.
+    let body ← `([tlfml| $(tp.formula)])
     let temporalPredType ← `($(mkIdent ``Lentil.pred) $environmentState)
+    let generated ← (baseParams.filter Parameter.isGeneratedFieldContext).mapM (·.ident)
     let bodyWithTheory ← liftTermElabM <|
-      mod.withTheoryAndStateTermTemplate
-        [(.theory, thIdent, true)]
-        (some temporalPredType)
-        (fun _ _ => pure body)
-    `(fun ($thIdent : $environmentTheory) => $bodyWithTheory)
+      mod.withUserFieldNames [(.theory, thIdent, true)] (some temporalPredType) body
+        (generated := generated)
+    let body ← letBindings.foldrM (init := bodyWithTheory) fun (bindName, bindVal) body =>
+      `(let $bindName := $bindVal; $body)
+    `(fun ($thIdent : $environmentTheory) => $body)
   -- Generate the definition
   -- NOTE: We might use `remove_unused_args%` to trim some unused arguments, but
   -- that makes the later use of the temporal property in proofs more complicated,
@@ -349,6 +361,26 @@ private def TemporalProperty.clearPending (tp : TemporalProperty) (side : Tempor
     checkPending := tp.checkPending && !side.needsCheck
     verifyPending := tp.verifyPending && !side.needsVerify }
 
+open Batteries.ExtendedBinder in
+/-- Mutable fields are visible in state atoms. A temporal binder can shadow
+one in any state atom within the scope of its body. -/
+private partial def temporalStateScopes (formula : TSyntax `tlfml) : Array Syntax.Range :=
+  let withBinder (binder : Syntax) (body : TSyntax `tlfml) :=
+    let scopes := temporalStateScopes body
+    if scopes.isEmpty then scopes else scopes ++ binder.getRange?.toArray
+  match formula with
+  | `(tlfml| ⌜ $_:term ⌝) => formula.raw.getRange?.toArray
+  | `(tlfml| ⌞ $_:term ⌟)
+  | `(tlfml| Enabled $_:term)
+  | `(tlfml| ⟨ $_:term ⟩)
+  | `(tlfml| 𝒲ℱ $_:term)
+  | `(tlfml| 𝒮ℱ $_:term)
+  | `(tlfml| $_:term) => #[]
+  | `(tlfml| ∀ $binder:extBinder, $body:tlfml)
+  | `(tlfml| ∃ $binder:extBinder, $body:tlfml) => withBinder binder body
+  | `(tlfml| $_:tlfml_bigop $binder:binderIdent ∈ $_:term, $body:tlfml) => withBinder binder body
+  | _ => formula.raw.getArgs.flatMap fun child => temporalStateScopes ⟨child⟩
+
 /-- Generate the definition of `tp` for `side`, handling failures through `Module.dropTemporalDefinition`
 and clearing its pending flag. -/
 def Module.generateTemporalDefinition (mod : Module) (tp : TemporalProperty) (side : TemporalTarget) :
@@ -356,8 +388,18 @@ def Module.generateTemporalDefinition (mod : Module) (tp : TemporalProperty) (si
   let sideName := if side.needsCheck then "check" else "verify"
   withTraceNode (`veil.perf.elaborator.temporal ++ tp.name) (fun _ => return s!"temporal {tp.name} ({sideName})") do
     let define := if side.needsCheck then mod.defineTemporalCheck tp else mod.defineTemporalVerify tp
+    let firstTree := (← getInfoTrees).size
     let mod ← match ← commitIfNoErrors define with
-      | .ok mod => pure mod
+      | .ok result =>
+        -- A property with both definitions has already been checked for shadowing on the deep side.
+        if side.needsCheck || !(← getEnv).contains (mod.name ++ toTemporalAstName tp.name) then
+          let params := mod.parameters.foldl
+            (fun names p => if p.isGeneratedFieldContext then names else names.insert p.name) ({} : NameSet)
+          let scopes := temporalStateScopes tp.formula
+          mod.warnTermShadows tp.formula firstTree (parameters := params)
+            (includeState := fun span => scopes.any fun scope =>
+              scope.start ≤ span.start && span.stop ≤ scope.stop)
+        pure result
       | .error errs => mod.dropTemporalDefinition tp side errs
     return mod.modifyTemporalProperty tp.name (·.clearPending side)
 

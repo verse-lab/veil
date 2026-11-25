@@ -115,6 +115,8 @@ See `Std.lean` for the complete list of type classes.
 ### 4. State and Theory Components
 
 State components define the **signature** of your transition system.
+Each component name must be unique within the module, including across mutable
+state and immutable theory declarations.
 There are three kinds:
 
 #### Individuals
@@ -301,8 +303,10 @@ Actions can themselves be called from other actions and procedures.
 
 Besides imperative `action`s, transitions can be defined directly as two-state
 relations via the `transition` keyword, with the post-state accessed through
-primed variables. Any field not mentioned in primed form is implicitly framed
-(assumed unchanged):
+primed variables. Veil keeps a field unchanged unless the transition refers to
+its post-state value. For example, if a parameter or local binder is named
+`x'`, references to that binder leave `x` framed. A reference to the post-state
+`x'` elsewhere in the transition still allows `x` to change.
 
 ```lean
 transition byz {

@@ -137,9 +137,6 @@ def findUserLocal? (name : Name) : TermElabM (Option LocalDecl) := do
     else
       return none
 
-def isUserShadowed (name : Name) : TermElabM Bool :=
-  return (← findUserLocal? name).isSome
-
 /-- Fold over the user-visible (non-implementation-detail) local
 declarations. -/
 def foldUserLocals (init : α) (f : α → LocalDecl → α) : TermElabM α :=
@@ -148,12 +145,6 @@ def foldUserLocals (init : α) (f : α → LocalDecl → α) : TermElabM α :=
 
 private def userLocalNames : TermElabM NameSet :=
   foldUserLocals {} fun names decl => names.insert decl.userName
-
-/-- Bind the logical value of a component under its implementation-detail
-name, such as `__veil_X`, then elaborate `k` with that value in scope. -/
-private def bindImplementationDetailField (fieldName : Name) (ty value : Expr)
-    (k : Expr → DoElabM Expr) : DoElabM Expr :=
-  mapLetDecl (mkVeilImplementationDetailName fieldName) ty value (kind := .implDetail) k
 
 /-- Elaborate `k`, the remainder of the action, with the value also available
 under the plain component name, unless that name is shadowed by a user
@@ -166,11 +157,11 @@ private def bindUserFacingField (shadowed : NameSet) (fieldName : Name)
     mapLetDecl fieldName ty value (kind := .implDetail) fun _ => k
 
 /-- The *concrete* value of mutable `field` in the current state: a projection
-of the newest `currentStateBindingName` binding, which `openStateAround`
-introduces for every statement. Lean resolves the dotted identifier
-`__veil_state.field` as that local followed by the projection `.field`. -/
-def currentStateField (field : Name) : Ident :=
-  mkIdent (currentStateBindingName ++ field)
+of the current state binding introduced by `openStateAround`. -/
+def currentStateField (field : Name) : DoElabM Term := do
+  let some st := findFieldBinder? (← getLCtx) .actionState currentStateBindingName
+    | throwError "missing action state binding"
+  `($(mkIdent st.userName).$(mkIdent field))
 
 /-- Elaborate the logical value of mutable `field` in the current state, by
 applying its `FieldRepresentation.get` operation to the concrete value.
@@ -178,7 +169,7 @@ Returns the field's declared type and the value. -/
 private def elabStateFieldView (field : StateComponent) : DoElabM (Expr × Expr) := do
   let declaredTy ← Term.elabType (← field.typeStx)
   let viewStx ←
-    `(($fieldRepresentation _).$(mkIdent `get) $(currentStateField field.name))
+    `(($fieldRepresentation _).$(mkIdent `get) $(← currentStateField field.name))
   let view ← Term.elabTermEnsuringType viewStx declaredTy
   return (declaredTy, view)
 
@@ -197,9 +188,8 @@ rebuilds the current state from the same projections. State openings are
 rebuilt around every statement, and the newer `__veil_state` and views shadow
 the previous ones.
 
-An immutable theory field is bound twice: under its implementation-detail
-name `__veil_X`, which `veil_exact_theory` finds even when a user declaration
-shadows `X`, and, if unshadowed, under `X`. Theory fields are opened once,
+An immutable theory field is bound twice: under a private name for
+`veil_exact_theory`, and, if unshadowed, under `X`. Theory fields are opened once,
 because the reader is immutable.
 
 The views of one state opening are abstracted with a single `mkLetFVars`
@@ -216,7 +206,8 @@ private def bindTheoryFields (shadowed : NameSet) (theoryName : Name)
     let ty ← Term.elabType (← field.typeStx)
     let valueStx ← `($(mkIdent theoryName).$(mkIdent field.name))
     let value ← Term.elabTermEnsuringType valueStx ty
-    bindImplementationDetailField field.name ty value fun implementationValue =>
+    let privateName ← mkPrivateFieldIdent .theory field.name
+    mapLetDecl privateName.getId ty value (kind := .implDetail) fun implementationValue =>
       bindUserFacingField shadowed field.name ty implementationValue rest
 
 /-- Bind the view of every unshadowed field in `fields` (see
@@ -229,30 +220,7 @@ private def bindStateFields (shadowed : NameSet) (fields : Array StateComponent)
   let views ← (fields.filter (!shadowed.contains ·.name)).mapM fun field => do
     let (ty, value) ← elabStateFieldView field
     return (field.name, ty, value)
-  bindAll views 0 #[]
-where
-  /-- Bind `views[i:]` as `let`s, then elaborate `k` and abstract all of
-  `fvars` with one `mkLetFVars`. -/
-  bindAll (views : Array (Name × Expr × Expr)) (i : Nat) (fvars : Array Expr) :
-      DoElabM Expr := do
-    if h : i < views.size then
-      let (name, ty, value) := views[i]
-      withLetDecl name ty value (kind := .implDetail) fun x =>
-        bindAll views (i + 1) (fvars.push x)
-    else
-      /- One `mkLetFVars` for all views, rather than one per view as nested
-      `mapLetDecl`s would do. `k` returns the rest of the action, and every
-      `mkLetFVars` traverses it twice: `elimMVarDeps` replaces each pending
-      metavariable whose local context contains the abstracted variables with
-      a new auxiliary metavariable connected by a delayed assignment, and
-      `abstractRange` turns the variables into bound ones. Abstracting the
-      views one at a time repeats both traversals once per view and chains one
-      delayed assignment per view onto every pending metavariable, which made
-      an opening cost (number of fields) × (size of the rest of the action).
-      Abstracting them together does each traversal once and yields the same
-      term. -/
-      mkLetFVars fvars (← k) (usedLetOnly := true) (generalizeNondepLet := false)
-  termination_by views.size - i
+  bindFieldViews views.toList k
 
 /-- Internal element used by openings so the generated `read`/`get` does not
 redispatch through the user-statement wrapper. The right-hand side of a Veil
@@ -340,7 +308,8 @@ run the statement elaborator directly. -/
 def openStateAround (mod : Module) (k : DoElabM Expr) : DoElabM Expr := do
   let ref ← getRef
   let shadowed ← userLocalNames
-  bindInternalResultAs ref currentStateBindingName (mkIdent ``get) <|
+  let state ← mkPrivateFieldIdent .actionState currentStateBindingName
+  bindInternalResultAs ref state.getId (mkIdent ``get) <|
     bindStateFields shadowed mod.mutableComponents k
 
 /-- Inline generated field views, and ordinary local lets derived from them,
@@ -349,7 +318,7 @@ def zetaFieldDerivedLets (mod : Module) (e : Expr) : DoElabM Expr := do
   let isGeneratedFieldView (decl : LocalDecl) : Bool :=
     decl.kind == .implDetail && mod.signature.any fun field =>
       decl.userName == field.name ||
-      decl.userName == mkVeilImplementationDetailName field.name
+      isPrivateFieldBinder decl.userName .theory field.name
   let derived := (← getLCtx).foldl (init := #[]) fun (derived : Array FVarId) decl =>
     let dependsOnFieldView (value : Expr) : Bool :=
       (Lean.collectFVars {} value).fvarIds.any derived.contains

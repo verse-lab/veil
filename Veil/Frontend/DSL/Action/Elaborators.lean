@@ -57,16 +57,8 @@ def ProcedureInfo.nameInMode (pi : ProcedureInfo) (mode? : Option Mode) : Name :
   | .none => toDoName pi.name
   | .some mode => toActName pi.name mode
 
-/-- `[unchanged|s| id1 id2 ...]` expands to
-`id1 = id1s ∧ id2 = id2s ∧ ...`, where `idxs` is the name `idx` with `s` appended. -/
-macro_rules
-  | `([unchanged|$s:str| $id:ident]) => `($id = $(mkIdent <| id.getId.appendAfter s.getString))
-  | `([unchanged|$s| $id $ids*]) => `([unchanged|$s| $id] ∧ [unchanged|$s| $ids*])
-  | `([unchanged|$_|]) => `(True)
-
-/-- `[unchanged_fields|s| id1 id2 ...]` does something similar to `unchanged`,
-but it also casts the fields to their canonical types using `id`. This is
-useful when synthesizing `DecidableEq` instances for fields. -/
+/-- `[unchanged_fields|s| id1 id2 ...]` equates each field with its suffixed
+counterpart, casting to the canonical field type for `DecidableEq` synthesis. -/
 elab_rules : term
   | `([unchanged_fields|$s:str| $ids:ident*]) => do
     let mod ← getCurrentModule
@@ -355,10 +347,10 @@ where
     return (step2Result.expr, proof)
   step3PostTerm (uIdent thIdent stIdent localRPropTCArgIdent : Ident) (abstractStateSortTerm : Term) : TermElabM Term := do
     let step3PostBody ← mod.withTheoryAndStateTermTemplate
-      [(.theory, thIdent, false), (.state .none .none, stIdent, false)]
+      [(.theory, thIdent, false), (.state, stIdent, false)]
       (some (← `(Prop)))
-      (fun theoryFields stateFields => do
-        pure <| Syntax.mkApp (← `($localRPropTCArgIdent.$(mkIdent `core))) (theoryFields ++ stateFields))
+      (fun fields => do
+        pure <| Syntax.mkApp (← `($localRPropTCArgIdent.$(mkIdent `core))) fields)
       (stateSortTerm := some abstractStateSortTerm)
       (stateView := .abstract)
     `(fun $uIdent $thIdent $stIdent => $step3PostBody)
@@ -833,8 +825,8 @@ def Module.declareTransitionWeakeningLemma (mod : Module) : TermElabM Command :=
       `(fun $auxr $auxs => ¬ ($(mkIdent ``readFrom) $auxr = $auxrr ∧ $absst = $auxss))
     let ty ← `(@$localRPropTC $paramArgs* Prop $post)
     let coreStx ← do
-      let theoryFieldIdents : Array Ident := mod.immutableComponents.map fun sc => mkIdent sc.name
-      let stateFieldIdents : Array Ident := mod.mutableComponents.map fun sc => mkIdent sc.name
+      let theoryFieldIdents := mod.immutableComponents.map fun sc => Lean.mkIdent sc.name
+      let stateFieldIdents := mod.mutableComponents.map fun sc => Lean.mkIdent sc.name
       let fieldIdents : Array Ident := theoryFieldIdents ++ stateFieldIdents
       let fieldBinders : Array (TSyntax ``Lean.Parser.Term.funBinder) ← fieldIdents.mapM fun f =>
         `(Lean.Parser.Term.funBinder| $f)
@@ -1141,7 +1133,9 @@ def elabProcedureCore (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSynt
     withVeilModeVar BinderInfo.default fun mode => do
     /- We want to throw an error if anything fails or is missing during elaboration. -/
     withoutErrToSorry $ do
-    let (decInstsMvars, e) ← elabTermDecidable pi.name stx (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
+    let mod ← getCurrentModule
+    let (decInstsMvars, e) ← withGeneratedFieldContext mod.parameters vs <|
+      elabTermDecidable pi.name stx (dsimpSubReaderSubStateRefl >=> foldFieldRepresentationGet)
     /- The state/theory openings conservatively bind every field for every
     statement. This removes unused lets to keep the term as small as possible. -/
     let e ← eraseUnusedLets e
@@ -1159,9 +1153,29 @@ where
   mvarToParam (inAction : Name) (i : Nat) (typeSyntax : Term) : TermElabM Parameter := do
     return { kind := .definitionParameter inAction .typeclass, name := Name.mkSimple s!"{inAction}_dec_{i}", «type» := typeSyntax, userSyntax := .missing }
 
+/-- Lean reports reassigned variables as binders in the info tree. Collect the
+target spans once, leaving any real binders on the RHS available for warnings. -/
+private partial def assignmentTargetRanges (stx : Syntax) (inQuotation := false)
+    (ranges : Array Syntax.Range := #[]) : Array Syntax.Range := Id.run do
+  let mut ranges := ranges
+  unless inQuotation do
+    if let some lhs := Action.DoElab.assignmentLhs? ⟨stx⟩ then
+      if let some span := lhs.raw.getRange? then ranges := ranges.push span
+  return stx.getArgs.foldl (fun acc child =>
+    assignmentTargetRanges child (Action.childrenAreQuoted stx inQuotation) acc) ranges
+
 def elabProcedureBody (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (l : ActionSyntax) : TermElabM (Array Parameter × Expr) := do
   let body ← `(veil_do $(mkIdent pi.name) in $environmentTheory, $environmentState in $l)
-  elabProcedureCore vs pi br body
+  let firstTree := (← getInfoTrees).size
+  let result ← withSaveInfoContext <| elabProcedureCore vs pi br body
+  let mod ← getCurrentModule
+  let params ← explicitBindersToParameters br pi.name
+  let names := (mod.parameters ++ params).foldl
+    (fun names p => if p.isGeneratedFieldContext then names else names.insert p.name) ({} : NameSet)
+  let targets := assignmentTargetRanges l
+  mod.warnTermShadows l firstTree (parameters := names) (ignore := fun span =>
+    targets.any fun target => target.start ≤ span.start && span.stop ≤ target.stop)
+  return result
 
 def elabTransitionTerm (vs : Array Expr) (pi : ProcedureInfo) (br : Option (TSyntax ``Lean.explicitBinders)) (t : Term) : TermElabM (Array Parameter × Expr) := do
   let body ← `(@$(mkIdent ``id) ($(mkIdent ``Transition) $environmentTheory $environmentState) ($t))
@@ -1316,10 +1330,17 @@ def Module.defineProcedure (mod : Module) (pi : ProcedureInfo) (br : Option (TSy
 /-- When `act` is given in the transition form, `act.ext.tr` will be defined
 based on its syntax, and `act.do`, `act` and `act.ext` will be defined
 using `Transition.toVeilM`. -/
-def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax `Lean.explicitBinders)) (t : Term) (stx : Syntax) : CommandElabM Module := do
+def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TSyntax `Lean.explicitBinders))
+    (body t : Term) (stx : Syntax) : CommandElabM Module := do
   -- Obtain `extraParams` so we can register the action
   let actionBinders ← (← mod.declarationBaseParams (.procedure pi)).mapM (·.binder)
+  let params ← explicitBindersToParameters br pi.name
+  let firstTree := (← getInfoTrees).size
   let (extraParams, eTr) ← liftTermElabMWithBinders actionBinders $ fun vs => elabTransitionTerm vs pi br t
+  mod.warnExplicitParameterShadows br (primed := true)
+  let names := (mod.parameters ++ params).foldl
+    (fun names p => if p.isGeneratedFieldContext then names else names.insert p.name) ({} : NameSet)
+  mod.warnTermShadows body firstTree (primed := true) (parameters := names)
   let (mod, extraParams) ← liftTermElabM $ mod.canonicalizeExtraParams extraParams
   let eDo ← liftTermElabM do
     let tmp ← withVeilModeVar BinderInfo.implicit fun mode => do
@@ -1334,7 +1355,7 @@ def Module.defineTransition (mod : Module) (pi : ProcedureInfo) (br : Option (TS
         Meta.mkLambdaFVars (#[mode] ++ xs) body.expr
     instantiateMVars tmp
   -- FIXME: How to define the `l` in `ps`? Might need to change the definition of `ProcedureSpecification`
-  let ps := ProcedureSpecification.mk pi (← explicitBindersToParameters br pi.name) extraParams .none /- this is not correct -/ ⟨t.raw⟩ stx
+  let ps := ProcedureSpecification.mk pi params extraParams .none /- this is not correct -/ ⟨t.raw⟩ stx
   let _nmTr_fullyQualified ← liftTermElabM $ addVeilDefinition (toTransitionName <| toActName pi.name .external) eTr
   mod.defineProcedureCore pi eDo ps false
 

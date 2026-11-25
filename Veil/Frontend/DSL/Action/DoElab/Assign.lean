@@ -98,6 +98,8 @@ counts as an assignment shape — pre-elaboration validation (`Entry.lean`) and
 control-info reporting below must never disagree about it. -/
 def assignmentLhs? (elem : DoElem) : Option Term :=
   match elem with
+  | `(doReassign| $lhs:ident $[: $_]? := $_) => some lhs
+  | `(doReassignArrow| $lhs:ident $[: $_]? ← $_) => some lhs
   | `(doReassign| $lhs:term $[: $_]? := $_) => some lhs
   | `(doReassignArrow| $lhs:term $[: $_]? ← $_ $[| $_ $[$_]?]?) => some lhs
   | `(doElem| $lhs:term := *) => some lhs
@@ -386,7 +388,7 @@ private def elabPinnedStateAssignment (mod : Module) (component : StateComponent
     (target.args.drop domainSize) (caps.take domainSize) rhs
   let pattern ← mkAssignmentPattern mod component domainArgs (caps.take domainSize)
 
-  let concrete := currentStateField component.name
+  let concrete ← currentStateField component.name
   let setTerm ←
     `(($fieldRepresentation _).$(mkIdent `setSingle) ($pattern) ($replacement) $concrete)
   let setValue ← Term.elabTerm setTerm none
