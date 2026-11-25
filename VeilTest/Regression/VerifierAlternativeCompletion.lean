@@ -57,8 +57,11 @@ run_cmd do
       let mgr := alternative mgr fallback
       check (!mgr.dormantVCs.contains 1 && mgr.enabledVCs.contains 1) "late failure left fallback dormant/disabled"
       check ((readyIds mgr) == [1]) "late fallback not admitted"
-      check (mgr.isDoneFiltered (· == 0) && !mgr.isDoneFiltered (· == 1) && !mgr.isDone)
+      check (mgr.isDoneFiltered (fun _ metadata => metadata == 0) && !mgr.isDoneFiltered (fun _ metadata => metadata == 1) && !mgr.isDone)
         "late fallback completion/filter mismatch"
+      let mismatched := fun (id : VCId) (metadata : Nat) => id == 1 && metadata == 0
+      check (mgr.isDoneFiltered mismatched && (mgr.vcIdsInDependencyOrder mismatched).isEmpty)
+        "waiting and publication must both honor the ID and metadata"
       let running ← fallback.run
       let _ ← IO.wait entered.result?
       let vc := { mgr.nodes[1]! with dischargers := #[running] }
@@ -68,7 +71,7 @@ run_cmd do
       check ((← calls.get) == 1) "fallback executed twice"
       gate.resolve ()
       let mgr ← mgr.recordDischargerResult fallback.id (.proven none none 0)
-      check (mgr.isDone && mgr.isDoneFiltered (fun _ => true)) "completed fallback not counted"
+      check (mgr.isDone && mgr.isDoneFiltered (fun _ _ => true)) "completed fallback not counted"
     finally
       gate.resolve ()
       for task in ← tasks.get do let _ ← IO.wait task
@@ -130,9 +133,9 @@ run_cmd do
     let mgr := alternative (manager #[primary]) proof
     let mgr ← mgr.recordDischargerResult proof.id (.proven none none 0)
     check (mgr.dormantVCs.contains 1 && mgr._doneWith.contains 1) "missing overlap fixture"
-    check (!mgr.isDone && !mgr.isDoneFiltered (fun _ => true)) "overlap certified unfinished primary"
+    check (!mgr.isDone && !mgr.isDoneFiltered (fun _ _ => true)) "overlap certified unfinished primary"
     let mgr ← mgr.recordDischargerResult primary.id (.proven none none 0)
-    check (mgr.isDone && mgr.isDoneFiltered (fun _ => true)) "overlap refused fully covered manager"
+    check (mgr.isDone && mgr.isDoneFiltered (fun _ _ => true)) "overlap refused fully covered manager"
   finally release #[primary, proof]
 
 -- Membership must cover actual node IDs, rather than just matching sizes.
@@ -143,5 +146,5 @@ run_cmd do
     let staleDone := { mgr with _doneWith := mgr._doneWith.insert 99 .proven }
     let staleDormant := { mgr with dormantVCs := mgr.dormantVCs.insert 99 }
     for state in #[staleDone, staleDormant] do
-      check (!state.isDone && !state.isDoneFiltered (fun _ => true)) "extraneous ID certified missing node"
+      check (!state.isDone && !state.isDoneFiltered (fun _ _ => true)) "extraneous ID certified missing node"
   finally release #[primary]

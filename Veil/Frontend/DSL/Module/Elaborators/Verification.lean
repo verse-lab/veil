@@ -293,7 +293,7 @@ private def captureInvariantResults (managerId : ManagerId) (filter : VCMetadata
     let mgr ← getManager
     if (← owner.cancelTk.isSet) || mgr._managerId != managerId then
       throwError "verification interrupted: specification owner was canceled or reset"
-    let done := mgr.isDoneFiltered filter
+    let done := mgr.isDoneFiltered (fun _ => filter)
     let results ← mgr.toResults filter (includeTheoremText := done)
     pure (results, if done then .done else .running)
 

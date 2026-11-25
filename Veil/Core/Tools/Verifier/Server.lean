@@ -38,11 +38,14 @@ def clearVerifierRuntime (env : Environment) : Environment :=
 private def managerKey [Monad m] [MonadEnv m] : m Name := do
   return ((← localEnv.get).currentModule.map (·.name)).getD .anonymous
 
-def getVCManagerOwner [Monad m] [MonadEnv m] [MonadError m] : m VCManagerEnvironment := do
+private def getVCManagerEntry [Monad m] [MonadEnv m] [MonadError m] : m (Name × VCManagerEnvironment) := do
   let key ← managerKey
   let some owner := (vcManagerExt.getState (← getEnv))[key]?
     | throwError "verification manager has not been prepared"
-  return owner
+  return (key, owner)
+
+def getVCManagerOwner [Monad m] [MonadEnv m] [MonadError m] : m VCManagerEnvironment :=
+  Prod.snd <$> getVCManagerEntry
 
 /-- An owner closes when the command that prepared it is re-elaborated, or when
 both of its lifetime holders (child snapshot and info-tree leaf) are dropped. -/
@@ -75,8 +78,8 @@ def readVCManager [Monad m] [MonadEnv m] [MonadError m] [MonadLiftT BaseIO m] :
   liftM (← captureVCManager)
 
 /-- The caller's current generation, without projecting interactive proofs. -/
-private def currentManagerId : CommandElabM ManagerId := do
-  (← getVCManagerOwner).manager.atomically fun ref => return (← ref.get)._managerId
+private def currentManagerId (owner : VCManagerEnvironment) : CommandElabM ManagerId :=
+  owner.manager.atomically fun ref => return (← ref.get)._managerId
 
 /-- One lock protects the physical pool and active-owner registry. Its lock is
 always taken before an owner's manager mutex. Frontend mutations only take the
@@ -181,37 +184,40 @@ def applyFrontendRequest (owner : VCManagerEnvironment)
     pool.modify fun st => { st with owners := st.owners.insert id owner }
     handleNotificationLocked pool notification registrations
 
-def applyCurrentRequest (notification : ManagerNotification VCMetadata SmtResult) : CommandElabM Unit := do
-  let owner ← getVCManagerOwner
-  let id ← owner.manager.atomically fun ref => return (← ref.get)._managerId
-  let registrations := (interactiveRegistrationsExt.getState (← getEnv))[id]?.getD #[]
+private def applyOwnerRequest (owner : VCManagerEnvironment) (generation : ManagerId)
+    (notification : ManagerNotification VCMetadata SmtResult) : CommandElabM Unit := do
+  let registrations := (interactiveRegistrationsExt.getState (← getEnv))[generation]?.getD #[]
   applyFrontendRequest owner notification registrations
 
+def applyCurrentRequest (notification : ManagerNotification VCMetadata SmtResult) : CommandElabM Unit := do
+  let owner ← getVCManagerOwner
+  applyOwnerRequest owner (← currentManagerId owner) notification
+
 def reset (managerId : ManagerId) : CommandElabM Unit := do
-  let currentId ← currentManagerId
-  applyCurrentRequest (.reset managerId)
+  let (key, owner) ← getVCManagerEntry
+  let currentId ← currentManagerId owner
+  applyOwnerRequest owner currentId (.reset managerId)
   if currentId == managerId then
-    let key ← managerKey
     modifyEnv fun env => vcManagerExt.modifyState (interactiveRegistrationsExt.modifyState env (·.erase managerId))
       (·.modify key ({ · with publication? := none }))
 
 def startAll : CommandElabM Unit := do
-  let managerId ← currentManagerId
-  applyCurrentRequest (.startAll managerId)
+  let owner ← getVCManagerOwner
+  let managerId ← currentManagerId owner
+  applyOwnerRequest owner managerId (.startAll managerId)
 
 private def requestFiltered (filter : VCMetadata → Bool) (publish := false) : CommandElabM ManagerId := do
-  let owner ← getVCManagerOwner
+  let (key, owner) ← getVCManagerEntry
   let managerId ← owner.manager.atomically fun ref => do
     let mgr ← ref.get
     if publish then
       let previous := owner.publication?.filter (·.1 == mgr._managerId)
       let ids := mgr.nodes.fold (init := previous.map Prod.snd |>.getD {}) fun ids id vc =>
         if filter vc.metadata then ids.insert id else ids
-      let key ← managerKey
       modifyEnv fun env => vcManagerExt.modifyState env
         (·.insert key { owner with publication? := some (mgr._managerId, ids) })
     return mgr._managerId
-  applyCurrentRequest (.startFiltered managerId filter)
+  applyOwnerRequest owner managerId (.startFiltered managerId filter)
   return managerId
 
 def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := do
@@ -285,11 +291,11 @@ private partial def observerSnapshotTree (tree : Language.SnapshotTree) : Langua
 Reading manager state instead of consuming a channel lets overlapping observers
 see the same tasks, including work started before they began waiting. -/
 def logPendingDischargerTasks (mgr : VCManager VCMetadata SmtResult)
-    (filter : VCMetadata → Bool) (registered : HashSet DischargerIdentifier)
+    (filter : VCId → VCMetadata → Bool) (registered : HashSet DischargerIdentifier)
     : CommandElabM (HashSet DischargerIdentifier) := do
   let mut registered := registered
   for (vcId, vc) in mgr.nodes do
-    if mgr.dormantVCs.contains vcId || !filter vc.metadata then continue
+    if mgr.dormantVCs.contains vcId || !filter vcId vc.metadata then continue
     for discharger in vc.effectiveDischargers do
       if registered.contains discharger.id then continue
       if let some task := discharger.task then
@@ -302,7 +308,7 @@ def logPendingDischargerTasks (mgr : VCManager VCMetadata SmtResult)
 
 /-- Observe an existing request in its original generation and proof checkpoint. -/
 private def awaitFilteredManager (owner : VCManagerEnvironment) (managerId : ManagerId)
-    (filter : VCMetadata → Bool) (includeId : VCId → Bool := fun _ => true) (logTasks := false) :
+    (filter : VCId → VCMetadata → Bool) (logTasks := false) :
     CommandElabM (VCManager VCMetadata SmtResult) := do
   let getManager ← captureOwner owner
   let mut registered := HashSet.emptyWithCapacity
@@ -324,18 +330,19 @@ private def awaitFilteredManager (owner : VCManagerEnvironment) (managerId : Man
         throwError ownerCanceledMessage
       throwError "verification interrupted: VC manager generation {managerId} was replaced by {mgr._managerId}"
     if logTasks then registered ← logPendingDischargerTasks mgr filter registered
-    if mgr.isDoneFiltered filter includeId then return mgr
+    if mgr.isDoneFiltered filter then return mgr
     IO.sleep 10
   panic! "unreachable"
 
 /-- Wait for the assertion checks started by spec preparation. Their warnings are
 reported by the original request, independently of theorem publication. -/
 def awaitAssertionChecks : CommandElabM Unit := do
-  discard <| awaitFilteredManager (← getVCManagerOwner) (← currentManagerId) isDoesNotThrow
+  let owner ← getVCManagerOwner
+  discard <| awaitFilteredManager owner (← currentManagerId owner) (fun _ => isDoesNotThrow)
 
 private def awaitFilteredWithLogging (managerId : ManagerId) (filter : VCMetadata → Bool) :
     CommandElabM (VerificationResults VCMetadata SmtResult) := do
-  let mgr ← awaitFilteredManager (← getVCManagerOwner) managerId filter (logTasks := true)
+  let mgr ← awaitFilteredManager (← getVCManagerOwner) managerId (fun _ => filter) (logTasks := true)
   let results ← liftCoreM (mgr.toResults filter)
   liftCoreM Core.checkInterrupted
   return results
@@ -428,7 +435,7 @@ private def publishWitnesses (mgr : VCManager VCMetadata SmtResult) (ordered : A
 
 def addProvenTheoremsInDependencyOrder (filter : VCMetadata → Bool) : CommandElabM Unit := do
   let mgr ← readVCManager
-  publishWitnesses mgr (mgr.vcIdsInDependencyOrder filter)
+  publishWitnesses mgr (mgr.vcIdsInDependencyOrder (fun _ => filter))
 
 /-- Publish only the requests captured in this module's checkpoint. The commands
 that requested them already enabled and observed the work. -/
@@ -436,8 +443,9 @@ def publishRequestedTheorems (moduleName : Name) : CommandElabM Unit := do
   let some owner := (vcManagerExt.getState (← getEnv))[moduleName]? | return
   let some (generation, ids) := owner.publication? | return
   modifyEnv fun env => vcManagerExt.modifyState env (·.insert moduleName { owner with publication? := none })
-  let mgr ← awaitFilteredManager owner generation (fun _ => true) ids.contains
+  let requested := fun (id : VCId) (_ : VCMetadata) => ids.contains id
+  let mgr ← awaitFilteredManager owner generation requested
   liftCoreM Core.checkInterrupted
-  publishWitnesses mgr (mgr.vcIdsInDependencyOrder (includeId := ids.contains))
+  publishWitnesses mgr (mgr.vcIdsInDependencyOrder requested)
 
 end Veil.Verifier

@@ -15,7 +15,7 @@ private def waitFor (label : String) (p : BaseIO Bool) : CommandElabM Unit := do
 private def attached (mgr : Mgr) : CommandElabM (HashSet DischargerIdentifier) := do
   let saved := (← get).snapshotTasks
   modify fun st => { st with snapshotTasks := #[] }
-  try logPendingDischargerTasks mgr (fun _ => true) {}
+  try logPendingDischargerTasks mgr (fun _ _ => true) {}
   finally modify fun st => { st with snapshotTasks := saved }
 
 private def scenario (fallbackSucceeds : Bool) : CommandElabM Unit := do
@@ -88,7 +88,7 @@ private def scenario (fallbackSucceeds : Bool) : CommandElabM Unit := do
         let view ← getter
         check (view._doneWith[0]? == some status) s!"{stage}: interactive status lost"
         check (view.dormantVCs.contains 1) s!"{stage}: fallback visible"
-        check (view.isDone && view.isDoneFiltered (fun _ => true)) s!"{stage}: proof checkpoint waits for fallback"
+        check (view.isDone && view.isDoneFiltered (fun _ _ => true)) s!"{stage}: proof checkpoint waits for fallback"
         check ((← view.inFlightCount) == 0) s!"{stage}: hidden work counted in flight"
         check (!(← attached view).contains fallback.id) s!"{stage}: hidden fallback diagnostics attached"
         let results ← liftCoreM <| view.toResults (fun _ => true)

@@ -284,7 +284,7 @@ private partial def runTraceRefreshStep (owner : VCManagerEnvironment) (getManag
   if (← owner.cancelTk.isSet) || mgr._managerId != managerId then
     throwError "verification interrupted: specification owner was canceled or reset"
   let result? ←
-    if mgr.isDoneFiltered vcFilter then
+    if mgr.isDoneFiltered (fun _ => vcFilter) then
       pure ((← mgr.toResults vcFilter).vcs.find? (vcFilter ·.metadata))
     else
       pure none
