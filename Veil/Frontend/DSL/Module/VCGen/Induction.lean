@@ -12,6 +12,7 @@ public meta import Veil.Frontend.DSL.Tactic
 public meta import Veil.Core.UI.Verifier.Model
 public meta import Veil.Core.UI.Verifier.InductionCounterexample
 public meta import Veil.Frontend.DSL.Module.VCGen.Common
+public meta import Veil.Backend.Tactic.Frame
 
 public meta section
 
@@ -260,45 +261,45 @@ def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
       let mgr ← mgr.mkAddDischarger vcId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
       ref.set mgr
 
+/-- WP clauses try framing first. TR clauses go directly to the TR solver. -/
+private def addInvariantDischargers (mgr : VCManager VCMetadata SmtResult) (id : VCId)
+    (vc : VCData VCMetadata) (frame : FrameDischarger) : CommandElabM (VCManager VCMetadata SmtResult) := do
+  let .induction info := vc.metadata | throwError "expected an induction VC"
+  match info.style with
+  | .wp =>
+    let mgr ← if veil.frame.get (← getOptions) then
+      mgr.addProofDischarger id (← `(by veil_frame)) "FRAME" (some (frame.proveInvariant vc))
+    else pure mgr
+    mgr.mkAddDischarger id (VCDischarger.fromTerm (← `(by veil_solve_wp)) info.action (nameSuffix := "_WP"))
+  | .tr =>
+    mgr.mkAddDischarger id (VCDischarger.fromTerm (← `(by veil_solve_tr)) info.action (nameSuffix := "_TR"))
+
 /-- Generate invariant preservation VCs for all actions × invariant clauses.
     These VCs check that each action preserves each invariant clause. -/
 def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
   let actsToCheck := mod.actsToCheck
-  let wpTactic ← if mod._useLocalRPropTC then `(by veil_solve_wp) else `(by veil_solve_wp)
-  let trTactic ← `(by veil_solve_tr)
-  -- Prepare all VC data outside the lock
+  -- Build the statements outside the manager lock.
   let vcData ← actsToCheck.foldlM (init := #[]) fun acc act => do
-    let clauseVCs ← mod.checkableInvariants.foldlM (init := #[]) fun acc' invClause => do
-      let trPrimary := act.info.isTransition
+    let frame ← FrameDischarger.forAction act.info
+    let trPrimary := act.info.isTransition
+    let mut result := acc
+    for invClause in mod.checkableInvariants do
       let wpVC ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name
         act.declarationKind invClause.name
         (if trPrimary then InductionVCKind.alternative else InductionVCKind.primary)
       let trVC ← mkMeetsSpecificationIfSuccessfulClauseTrVC mod act.name
         act.declarationKind invClause.name
         (if trPrimary then InductionVCKind.primary else InductionVCKind.alternative)
-      return acc'.push (act, wpVC, trVC, trPrimary)
-    return acc ++ clauseVCs
-  -- Add all VCs atomically
+      -- Relational actions try TR first; ordinary actions and initializers try WP first.
+      let (primary, alternative) := if trPrimary then (trVC, wpVC) else (wpVC, trVC)
+      result := result.push (primary, alternative, frame)
+    return result
   Verifier.withVCManager fun ref => do
-    for (act, wpVC, trVC, trPrimary) in vcData do
-      let mgr ← ref.get
-      let mgr ←
-        if trPrimary then do
-          -- Actions written in `transition` syntax should be proved in their
-          -- native two-state form first.  The WP VC still exists as the
-          -- fallback, but it no longer drives the normal path for these actions.
-          let (mgr, trVCId) := mgr.addVC trVC {} #[]
-          let mgr ← mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
-          let (mgr, wpVCId) := mgr.addAlternativeVC wpVC trVCId #[]
-          mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
-        else do
-          -- Ordinary actions keep the existing WP-first behavior.  TR remains a
-          -- fallback counterexample/proof route if the WP VC fails.
-          let (mgr, wpVCId) := mgr.addVC wpVC {} #[]
-          let mgr ← mgr.mkAddDischarger wpVCId (VCDischarger.fromTerm wpTactic act.name (nameSuffix := "_WP"))
-          let (mgr, trVCId) := mgr.addAlternativeVC trVC wpVCId #[]
-          mgr.mkAddDischarger trVCId (VCDischarger.fromTerm trTactic act.name (nameSuffix := "_TR"))
-      ref.set mgr
+    for (primary, alternative, frame) in vcData do
+      let (mgr, id) := (← ref.get).addVC primary {} #[]
+      let mgr ← addInvariantDischargers mgr id primary frame
+      let (mgr, altId) := mgr.addAlternativeVC alternative id #[]
+      ref.set (← addInvariantDischargers mgr altId alternative frame)
 
 /-- Generate all VCs (both doesNotThrow and invariant preservation). -/
 def Module.generateVCs (mod : Module) : CommandElabM Unit := do

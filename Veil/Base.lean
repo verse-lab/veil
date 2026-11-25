@@ -171,6 +171,11 @@ register_option veil.temporal.moduleAtoms : Bool := {
   its actions, whose parameters left open (as `·`, or by leaving out the trailing arguments) stand for some value."
 }
 
+register_option veil.frame : Bool := {
+  defValue := true
+  descr := "Enable structural frame proofs for weakest-precondition invariant VCs."
+}
+
 register_option veil.deferVCGeneration : Bool := {
   defValue := false
   descr := "If true, procedures and actions declared while this option is set do not generate their verification definitions, \

@@ -684,6 +684,52 @@ def Module.defineMeetsSpecificationIfSuccessfulAssumingLocalTheorem (mod : Modul
       dsimp at $hpre:ident ⊢
       exact $hLocal $hLocalArgs* ($(mkIdent ``And.left) $hpre) ($(mkIdent ``And.right) $hpre))
 
+/-- Lift preservation of one clause on the action's already-extracted abstract WP.
+The frame tactic supplies only two lambdas: a projection from the pre-state
+invariants and a proof returning the unchanged clause under the action's guards. -/
+def Module.defineFrameTheorem (mod : Module) : TermElabM Command := do
+  let rd := mkVeilImplementationDetailIdent `rd
+  let st := mkVeilImplementationDetailIdent `st
+  let state ← mod.mkLocalVCStateFieldView "" "_conc"
+  let args ← mod.parameters.mapM (·.arg)
+  let binders ← (← mod.parameters.mapM (·.binder)).mapM mkImplicitBinder
+  let theoryArgs := mod.immutableComponents.map (fun sc => Lean.mkIdent sc.name)
+  let theoryBinders ← mod.immutableComponents.mapM fun sc => do
+    `(bracketedBinder| ($(Lean.mkIdent sc.name) : $(← sc.typeStx)))
+  let fields := theoryBinders ++ state.binders
+  let fieldArgs := theoryArgs ++ state.args
+  let sorts ← mod.uninterpretedParamIdents
+  let abs ← `($fieldAbstractDispatcher $sorts*)
+  let predType ← `((Int → Prop) → $(mkIdent ``VeilSpecM) ($theoryIdent $sorts*) ($stateIdent $abs) Unit)
+  let postCore ← mod.withTheoryAndStateTermTemplate
+    [(.theory, rd, false), (.state .none .none, st, false)] (some (← `(Prop)))
+    (fun t s => `(localPost.core $t* $s*)) (stateSortTerm := some abs) (stateView := .abstract)
+  let postFn ← `(fun (_ : Unit) $rd:ident $st:ident => $postCore)
+  let absSt ← mod.toAbstractStateBodyStx (← `($(mkIdent ``getFrom) $st)) abs
+  let localGoal ← `(localPost.core $fieldArgs* → pred (fun _ => True) $postFn ⟨$[$theoryArgs],*⟩ $(state.struct))
+  let localGoal ← if fields.isEmpty then pure localGoal else `(∀ $fields*, $localGoal)
+  let name := mkIdent frameTheoremName
+  `(command|
+    theorem $name $binders*
+        {act : $(mkIdent ``VeilM) .external $environmentTheory $environmentState Unit}
+        {assu : $environmentTheory → Prop} {pre post : $(mkIdent ``SProp) $environmentTheory $environmentState}
+        [localPost : @$localRPropTC $args* Prop post] {pred : $predType}
+        (extract : ∀ ($rd : $environmentTheory) ($st : $environmentState), pre $rd $st → post $rd $st)
+        (hwp : ∀ ($rd : $environmentTheory) ($st : $environmentState),
+          [DemonSucc| $(mkIdent ``wp) act (fun _ => post) $rd $st] =
+            pred (fun _ => True) $postFn ($(mkIdent ``readFrom) $rd) $absSt)
+        (keep : $localGoal) :
+        $(mkIdent ``VeilM.meetsSpecificationIfSuccessfulAssuming) act assu pre post := by
+      intro $rd:ident $st:ident hp
+      rw [hwp]
+      have h := (localPost.core_eq $rd $st).mp (extract $rd $st hp.2)
+      cases ht : $(mkIdent ``readFrom) $rd with
+      | mk $[$theoryArgs:ident]* =>
+        cases hs : $(mkIdent ``getFrom) $st with
+        | mk $[$(state.concArgs):ident]* =>
+          rw [ht, hs] at h
+          exact keep $theoryArgs* $(state.coreArgs)* h)
+
 /-- Generate the hidden theorem used by the local TR tactic.
 
 This is the transition analogue of

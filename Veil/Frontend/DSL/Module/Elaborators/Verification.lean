@@ -5,6 +5,7 @@ public meta import Veil.Frontend.DSL.Module.Elaborators.TemporalDefinitions
 public meta import Veil.Frontend.DSL.Tactic
 public meta import Veil.Core.UI.Verifier.AssertionErrors
 public meta import Veil.Frontend.DSL.Module.VCGen
+public meta import Veil.Backend.Tactic.Frame
 public meta import Veil.Core.Tools.Verifier.Server
 public meta import Veil.Core.Tools.Verifier.Results
 meta import Veil.Core.Tools.Verifier.TheoremDischarger
@@ -105,6 +106,10 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
         elabVeilCommand localMeetsCmd
       catch ex =>
         logWarningAt invariantCmd m!"unable to define {localMeetsSpecificationIfSuccessfulAssumingName}: {ex.toMessageData}"
+      try
+        elabVeilCommand (← liftTermElabM mod.defineFrameTheorem)
+      catch ex =>
+        logWarningAt invariantCmd m!"unable to define {frameTheoremName}: {ex.toMessageData}"
       try
         let localTrMeetsCmd ← liftTermElabM mod.defineTransitionMeetsSpecificationIfSuccessfulAssumingLocalTheorem
         elabVeilCommand localTrMeetsCmd

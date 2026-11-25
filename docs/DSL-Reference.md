@@ -510,6 +510,20 @@ The complete statement is generated from the current specification, and
 snapshots, including the initial simplification and unchanged proof prefix.
 Existing explicit `@[veil] theorem` declarations remain supported.
 
+On a raw weakest-precondition preservation statement, `by veil_frame` can prove
+that an action preserves a clause by carrying it over from the pre-state.
+It recognizes extracted WPs consisting of choices or guards followed by one
+post-state whose fields are copied or updated. It checks that the action copies
+every field the clause uses. Run it before `unveil`. The tactic syntax is in the
+`Veil` scope, which `veil module` opens automatically. The tactic needs no SMT or
+`grind` and fails immediately on an unsupported WP shape.
+
+WP invariant VCs try framing before the configured solver (SMT by default).
+The frame worker declines initialization goals and preservation goals that
+read an updated field. Transition-relation VCs go directly to their solver.
+Use `set_option veil.frame false` before VC generation to disable automatic
+framing. Assertion-freedom VCs and symbolic traces use their primary discharger.
+
 To check a single action, use `#check_action <name>`.
 
 #### Synthesizing Invariants
