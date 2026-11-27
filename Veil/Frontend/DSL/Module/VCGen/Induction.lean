@@ -168,51 +168,55 @@ private def Module.actsToCheck (mod : Module) : Array ProcedureSpecification :=
     | .action _ _ | .initializer => true
     | .procedure _ => false)
 
-private def assertionTheoremName (actName : Name) : Name :=
-  Name.mkSimple s!"{actName}_doesNotThrow"
+private inductive InductionGoal where
+  | assertionCheck (actName : Name)
+  | preservation (actName clause : Name) (style : VCStyle)
+  deriving BEq, Hashable
 
-private abbrev InvariantTheoremNames := Std.HashMap (Name × Name × VCStyle) Name
+private def InductionGoal.preferredName : InductionGoal → Name
+  | .assertionCheck act => Name.mkSimple s!"{act}_doesNotThrow"
+  | .preservation act clause .wp => Name.mkSimple s!"{act}_{clause}"
+  | .preservation act clause .tr => Name.mkSimple s!"{act}_{clause}_tr"
 
-/-- Keep the familiar theorem names wherever they are unique. Assertion checks take
-priority, followed by WP proofs and then their TR companions. Reserve every preferred
-name before assigning numeric suffixes so a collision cannot displace an unrelated VC. -/
-private def Module.invariantTheoremNames (mod : Module) : InvariantTheoremNames := Id.run do
+private abbrev InductionTheoremNames := Std.HashMap InductionGoal Name
+
+/-- Keep the familiar theorem names wherever they are free in the finalized specification.
+Assertion checks take priority, followed by WP proofs and then their TR companions. Reserve
+every preferred name before assigning suffixes so a collision cannot displace an unrelated VC.
+Lean theorems supplied by the user can still occupy these names as exact proof witnesses. -/
+private def Module.inductionTheoremNames (mod : Module) : InductionTheoremNames := Id.run do
   let actions := mod.actsToCheck.map (·.name)
   let clauses := mod.checkableInvariants.map (·.name)
-  let mut used : Std.HashSet Name := .ofList (actions.toList.map assertionTheoremName)
-  let mut reserved := used
-  let mut goals := #[]
+  let mut goals := actions.map InductionGoal.assertionCheck
   for style in [VCStyle.wp, .tr] do
     for actName in actions do
       for clause in clauses do
-        let name := Name.mkSimple s!"{actName}_{clause}{if style == .tr then "_tr" else ""}"
-        reserved := reserved.insert name
-        goals := goals.push ((actName, clause, style), name)
+        goals := goals.push (.preservation actName clause style)
+  let preferredNames := Std.HashSet.ofList (goals.toList.map InductionGoal.preferredName)
+  let mut used : Std.HashSet Name := {}
   let mut names := {}
-  for (key, preferred) in goals do
+  for goal in goals do
+    let preferred := goal.preferredName
     let mut name := preferred
-    if used.contains name then
+    if mod.isDeclared name || used.contains name then
       let mut i := 1
       repeat
         name := preferred.appendAfter s!"_{i}"
-        if !reserved.contains name && !used.contains name then break
+        if !mod.isDeclared name && !preferredNames.contains name && !used.contains name then break
         i := i + 1
     used := used.insert name
-    names := names.insert key name
+    names := names.insert goal name
   return names
 
-private def mkDoesNotThrowVC [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadEnv m]
-    [MonadRecDepth m] [MonadResolveName m] [MonadTrace m] [MonadOptions m]
-    [AddMessageContext m] [MonadLiftT IO m]
-    (mod : Module) (actName : Name) (actKind : DeclarationKind) (vcKind : InductionVCKind)
-    : m (VCData VCMetadata) := do
+private def mkDoesNotThrowVC (mod : Module) (names : InductionTheoremNames) (actName : Name)
+    (actKind : DeclarationKind) (vcKind : InductionVCKind) : CommandElabM (VCData VCMetadata) := do
   mkVCForSpecTheorem mod actName actKind (propertyName := `doesNotThrow)
-    ``VeilM.doesNotThrowAssuming_ex (assertionTheoremName actName) vcKind
+    ``VeilM.doesNotThrowAssuming_ex names[InductionGoal.assertionCheck actName]! vcKind
     (isAssertionCheck := true)
     (extraBinders := #[← `(bracketedBinder| ($exception:ident : Int))])
     (extraTerms := #[← `(term| $exception:ident)])
 
-private def mkInvariantClauseVC (mod : Module) (names : InvariantTheoremNames) (actName : Name)
+private def mkInvariantClauseVC (mod : Module) (names : InductionTheoremNames) (actName : Name)
     (actKind : DeclarationKind) (invariantClause : Name) (style : VCStyle)
     (vcKind : InductionVCKind) : CommandElabM (VCData VCMetadata) := do
   let extraDeps : Std.HashSet Name := {invariantClause}
@@ -223,7 +227,7 @@ private def mkInvariantClauseVC (mod : Module) (names : InvariantTheoremNames) (
     | .wp => ``VeilM.meetsSpecificationIfSuccessfulAssuming
     | .tr => ``Transition.meetsSpecificationIfSuccessfulAssuming
   mkVCForSpecTheorem mod actName (propertyName := invariantClause) actKind
-    specName names[(actName, invariantClause, style)]! vcKind style
+    specName names[InductionGoal.preservation actName invariantClause style]! vcKind style
     (extraDeps := extraDeps) (extraTerms := extraTerms)
 
 private def mkPreservesInvariantsIfSuccessfulVC [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
@@ -254,22 +258,24 @@ def Module.mkInvariantGoalVC (mod : Module) (actionId propertyId : Ident)
     (style : VCStyle) : CommandElabM (VCData VCMetadata) := do
   let some act := mod.actsToCheck.find? (·.name == actionId.getId)
     | throwErrorAt actionId "unknown action or initializer `{actionId.getId}`"
+  let names := mod.inductionTheoremNames
   if propertyId.getId == `doesNotThrow then
     unless style == .wp do
       throwErrorAt propertyId "`doesNotThrow` only supports `using wp`"
-    return ← mkDoesNotThrowVC mod act.name act.declarationKind .primary
+    return ← mkDoesNotThrowVC mod names act.name act.declarationKind .primary
   unless mod.checkableInvariants.any (·.name == propertyId.getId) do
     throwErrorAt propertyId "unknown invariant `{propertyId.getId}`"
-  mkInvariantClauseVC mod mod.invariantTheoremNames act.name act.declarationKind propertyId.getId style .primary
+  mkInvariantClauseVC mod names act.name act.declarationKind propertyId.getId style .primary
 
 /-- Generate doesNotThrow VCs for all actions.
     These VCs check that actions don't throw exceptions assuming the invariants hold. -/
 def Module.generateDoesNotThrowVCs (mod : Module) : CommandElabM Unit := do
   let actsToCheck := mod.actsToCheck
+  let names := mod.inductionTheoremNames
   let wpTactic ← `(by veil_solve_wp_doesnotthrow)
   -- Prepare VC data outside the lock
   let vcData ← actsToCheck.mapM fun act =>
-    return (act, ← mkDoesNotThrowVC mod act.name act.declarationKind InductionVCKind.primary)
+    return (act, ← mkDoesNotThrowVC mod names act.name act.declarationKind InductionVCKind.primary)
   -- Add all VCs atomically
   Verifier.withVCManager fun ref => do
     for (act, vc) in vcData do
@@ -322,7 +328,7 @@ private def convertInvariantProof (externalAction : Name) (nativeTransition : Bo
     These VCs check that each action preserves each invariant clause. -/
 def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
   let actsToCheck := mod.actsToCheck
-  let names := mod.invariantTheoremNames
+  let names := mod.inductionTheoremNames
   -- Build the statements outside the manager lock.
   let vcData ← actsToCheck.foldlM (init := #[]) fun acc act => do
     let frame ← FrameDischarger.forAction act.info

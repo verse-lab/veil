@@ -235,3 +235,23 @@ run_cmd do
   let some clause := mgr.nodes.valuesArray.find? (·.name == `keep_doesNotThrow_1)
     | throwError "missing homonymous invariant"
   if mgr.enabledVCs.contains clause.uid then throwError "close started the invariant solver"
+
+-- Proofs share the Lean namespace with the model declarations. Exercise both
+-- automatic publication and interactive selection when the usual names are taken.
+veil module DeclaredNameCollisions
+individual flag : Bool
+after_init { flag := false }
+action keep { flag := false }
+action keep_off { pure () }
+action keep_doesNotThrow { pure () }
+ghost relation keep_off_tr := flag
+invariant [off] ¬ flag
+invariant [keep_off_1] True
+#gen_spec
+
+prove_veil_invariant_goal keep doesNotThrow using wp by
+  done
+#check_action keep
+end DeclaredNameCollisions
+
+run_cmd checkForms `DeclaredNameCollisions #[`keep_doesNotThrow_1, `keep_off_2, `keep_off_tr_1]
