@@ -163,9 +163,15 @@ structure Discharger (ResultT : Type) where
   the `task` field for later access. -/
   mkTask : BaseIO SnapshotTreeTask
 
+/-- Another statement of the same obligation. The frontend supplies a conversion
+from the published proof to a proof of this statement. -/
+structure VCTheoremVariant extends VCStatement where
+  ofProof (sourceProof targetType : Expr) : Elab.Term.TermElabM Expr
+
 structure VCData (VCMetaT : Type) extends VCStatement where
   /-- Metadata associated with this VC, provided by the frontend. -/
   metadata : VCMetaT
+  variant? : Option VCTheoremVariant := none
 deriving Inhabited
 
 structure VerificationCondition (VCMetaT ResultT : Type) extends VCIdentifier, VCData VCMetaT where
@@ -425,10 +431,10 @@ def VCManager.suggestions [Monad m] [MonadQuotation m] [MonadExceptOf Exception 
 their downstream dependents. Ties are broken by VC id for deterministic theorem
 declaration order. -/
 def VCManager.vcIdsInDependencyOrder (mgr : VCManager VCMetaT ResultT)
-    (filter : VCMetaT → Bool := fun _ => true) : Array VCId := Id.run do
+    (filter : VCId → VCMetaT → Bool := fun _ _ => true) : Array VCId := Id.run do
   let selectedIds := (List.range mgr._nextVcId).filter fun vcId =>
     match mgr.nodes[vcId]? with
-    | some vc => filter vc.metadata
+    | some vc => filter vcId vc.metadata
     | none => false
   topologicalSort selectedIds fun vcId =>
     (mgr.upstream[vcId]?.getD {}).toList
@@ -713,9 +719,9 @@ def VCManager.isDone (mgr : VCManager VCMetaT ResultT) : Bool :=
     mgr._doneWith.contains vcId || mgr.dormantVCs.contains vcId
 
 /-- Check if all VCs matching the filter are done. -/
-def VCManager.isDoneFiltered (mgr : VCManager VCMetaT ResultT) (filter : VCMetaT → Bool) : Bool :=
+def VCManager.isDoneFiltered (mgr : VCManager VCMetaT ResultT) (filter : VCId → VCMetaT → Bool) : Bool :=
   mgr.nodes.toArray.all fun (vcId, vc) =>
-    !filter vc.metadata || mgr._doneWith.contains vcId || mgr.dormantVCs.contains vcId
+    !filter vcId vc.metadata || mgr._doneWith.contains vcId || mgr.dormantVCs.contains vcId
 
 instance (priority := low) printDependencies [ToMessageData VCMetaT] : ToMessageData (VCManager VCMetaT ResultT) where
   toMessageData mgr :=

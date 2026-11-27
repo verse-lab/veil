@@ -401,21 +401,11 @@ Options:
 does not have them yet, so `#gen_executable` with other options must come before them. -/
 scoped syntax (name := genExecutable) kw_gen_executable Parser.Tactic.optConfig : command
 
-/-- Run the current module's verification conditions (VCs) and add Lean theorem
-declarations for those with successful proof witnesses.
-
-Requires a finalized specification (`#gen_spec`). If `veil.deferVCGeneration`
-is enabled, generate the deferred verification definitions and VCs first.
-Starts any pending checks and blocks elaboration until all VCs have completed;
-no preceding `#check_invariants` is needed.
-
-Theorems use the VC names in the current namespace, e.g. `keep_excluded` for
-action `keep` and invariant `[excluded]`, or `keep_doesNotThrow` for its assertion
-check. VCs without a successful proof witness are skipped, including successful
-trace queries that do not produce proofs.
-
-Repeated calls to this reuse existing declarations with definitionally equal types;
-a name collision with a different type is an error. -/
+/-- After `#gen_spec`, wait for the checks requested by this module and publish their
+successful proofs as Lean theorems. For example, `#check_action keep` followed by
+`#gen_theorems` publishes both the WP and TR proofs of each proved invariant for `keep`.
+Optional tools such as `#updr certify` also publish their requested theorems here.
+Closing the module with `end M` performs the same publication. -/
 scoped syntax (name := genTheorems) kw_gen_theorems : command
 
 scoped syntax (name := checkInvariants) "#check_invariants" : command

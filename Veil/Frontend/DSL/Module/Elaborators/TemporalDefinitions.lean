@@ -246,8 +246,17 @@ private def Module.defineTemporalCheck (mod : Module) (tp : TemporalProperty) : 
     { name := defName, kind := .invariantLike, params := #[], extraParams := extraParams ++ decParams,
       derivedFrom := {}, stx := none }
 
+/-- The shallow declaration and its extracted parameters outlive the Lean scope
+where a verification command first needed them. -/
+private initialize temporalVerifyParams : EnvExtension (NameMap (Syntax × Array Parameter)) ←
+  registerEnvExtension (pure {})
+
 /-- Define `p`, the shallow definition of `tp`, and record its extra parameters in `tp`. -/
 private def Module.defineTemporalVerify (mod : Module) (tp : TemporalProperty) : CommandElabM Module := do
+  let name := (← getCurrNamespace) ++ tp.name
+  if let some (declaration, extraParams) := (temporalVerifyParams.getState (← getEnv)).find? name then
+    if declaration.structRangeEq tp.userSyntax then
+      return mod.modifyTemporalProperty tp.name ({ · with extraParams })
   -- The dependencies decide which extracted `Decidable` parameters `p` binds. The formula needs those of
   -- the actions (bound to their transitions below) and of the ghosts (used in atoms). Only `p._proof` needs
   -- those of `Init`, `NextStep`, `Invariants` and `Assumptions`: its statement mentions them and reuses the
@@ -299,6 +308,7 @@ private def Module.defineTemporalVerify (mod : Module) (tp : TemporalProperty) :
   -- The atoms are read against this module (`Veil.elabTlfmlStateAtom`)
   withScope (fun scope => { scope with opts := veil.temporal.moduleAtoms.set scope.opts true }) do
     elabVeilCommand cmd
+  modifyEnv fun env => temporalVerifyParams.modifyState env (·.insert name (tp.userSyntax, extraParams))
   return mod.modifyTemporalProperty tp.name ({ · with extraParams })
 
 /-! ## Definition generation and error handling

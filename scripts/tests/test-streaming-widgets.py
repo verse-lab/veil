@@ -77,6 +77,7 @@ end StreamingCounter
 
 FLAG = '''
 veil module StreamingFlag
+set_option veil.smt.trust false
 individual flag : Bool
 after_init { flag := false }
 action flip { flag := !flag }

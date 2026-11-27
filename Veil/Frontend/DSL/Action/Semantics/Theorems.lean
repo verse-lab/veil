@@ -282,6 +282,41 @@ theorem Transition.meetsSpecificationIfSuccessful_eq [Inhabited α] (act : VeilM
   apply wp_cons act; rotate_left; apply hwp _ _ hpre
   intro _ _ _; aesop
 
+/-- Ordinary actions expose their derived transition as a named relation. -/
+theorem VeilM.invariant_iff_transition [Inhabited α] {act : VeilM m ρ σ α} {tr : Transition ρ σ}
+    (derived : act.toTransitionDerived = tr) (assu : ρ → Prop) (pre post : SProp ρ σ) :
+    act.meetsSpecificationIfSuccessfulAssuming assu pre post ↔
+    tr.meetsSpecificationIfSuccessfulAssuming assu pre post := by
+  subst tr
+  rw [← VeilM.toTransitionDerived_sound]
+  exact Iff.of_eq (Transition.meetsSpecificationIfSuccessful_eq act _ _).symm
+
+/-- The WP of a native transition ranges over updates to the module's substate. -/
+private theorem Transition.toVeilM_invariant_iff [lens : IsSubStateOf σ τ] (tr : Transition ρ τ)
+    (assu : ρ → Prop) (pre post : SProp ρ τ) :
+    (tr.toVeilM (m := m) (x := lens)).returnUnit.meetsSpecificationIfSuccessfulAssuming assu pre post ↔
+    ∀ r s, assu r ∧ pre r s → ∀ t : σ, tr r s (setIn t s) → post r (setIn t s) := by
+  classical
+  simp only [VeilM.meetsSpecificationIfSuccessfulAssuming, VeilM.meetsSpecificationIfSuccessful,
+    _root_.triple, pi_le_iff, prop_le, Transition.toVeilM, VeilM.returnUnit, wpSimp]
+
+theorem Transition.wp_of_invariant [lens : IsSubStateOf σ τ] (tr : Transition ρ τ)
+    {assu : ρ → Prop} {pre post : SProp ρ τ} (h : tr.meetsSpecificationIfSuccessfulAssuming assu pre post) :
+    (tr.toVeilM (m := m) (x := lens)).returnUnit.meetsSpecificationIfSuccessfulAssuming assu pre post :=
+  (tr.toVeilM_invariant_iff ..).2 fun r s hp t => h r s (setIn t s) hp
+
+/-- The reverse direction uses locality: the relation and invariant can observe
+only the module's substate of the new ambient state. -/
+theorem Transition.invariant_of_wp [lens : IsSubStateOf σ τ] (tr : Transition ρ τ)
+    {assu : ρ → Prop} {pre post : SProp ρ τ}
+    (h : (tr.toVeilM (m := m) (x := lens)).returnUnit.meetsSpecificationIfSuccessfulAssuming assu pre post)
+    (localTr : ∀ r s t, tr r s (setIn (getFrom t : σ) s) = tr r s t)
+    (localPost : ∀ r s t, post r (setIn (getFrom t : σ) s) = post r t) :
+    tr.meetsSpecificationIfSuccessfulAssuming assu pre post := by
+  intro r s t hp ht
+  rw [← localPost r s t]
+  exact (tr.toVeilM_invariant_iff ..).1 h r s hp _ ((localTr r s t).mpr ht)
+
 theorem Transition.preservesInvariantsOnSuccesful_eq [Inhabited α] (act : VeilM m ρ σ α) (inv : SProp ρ σ) :
   act.toTransition.preservesInvariantsIfSuccesful inv = act.preservesInvariantsIfSuccesful inv := by
   apply Transition.meetsSpecificationIfSuccessful_eq

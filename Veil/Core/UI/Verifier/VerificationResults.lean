@@ -334,7 +334,7 @@ def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationR
     for vc in initVCs do
       let .induction m := vc.metadata | continue
       let status := effectiveStatus vc results.vcs
-      msg := msg ++ m!"  {m.property} ... {statusEmoji status}\n"
+      msg := msg ++ m!"  {m.propertyLabel} ... {statusEmoji status}\n"
       if includeCounterexamples && status == some .disproven then
         if let some ceMsg := formatCounterexamples vc results.vcs then
           msg := msg ++ ceMsg
@@ -347,7 +347,7 @@ def formatVerificationResults [Monad m] [MonadOptions m](results : VerificationR
       for vc in vcs do
         let .induction m := vc.metadata | continue
         let status := effectiveStatus vc results.vcs
-        msg := msg ++ m!"    {m.property} ... {statusEmoji status}\n"
+        msg := msg ++ m!"    {m.propertyLabel} ... {statusEmoji status}\n"
         if includeCounterexamples && status == some .disproven then
           if let some ceMsg := formatCounterexamples vc results.vcs then
             msg := msg ++ ceMsg

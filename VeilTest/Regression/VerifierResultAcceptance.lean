@@ -34,7 +34,7 @@ private def assertState (mgr : VCManager Unit Nat) (entries solved : Nat)
   check (mgr._totalSolved == solved) "currently proven VC count changed"
   check (mgr.nodes[0]!.successful == successful) "wrong successful witness selection"
   check (mgr._doneWith[0]? == status) "wrong VC completion/status"
-  check (mgr.isDoneFiltered (fun _ => true) == status.isSome) "filtered completion disagrees with status"
+  check (mgr.isDoneFiltered (fun _ _ => true) == status.isSome) "filtered completion disagrees with status"
   check (mgr.isDone == status.isSome) "completion disagrees with status"
 
 -- Wrong VC, position, name and generation are rejected, even when a forged

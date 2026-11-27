@@ -75,3 +75,5 @@ action state_access_if_prop (n : node) {
   else
     return false
 }
+
+end Test

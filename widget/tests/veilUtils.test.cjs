@@ -226,4 +226,24 @@ assert.equal((bigDiff.match(/<li>/g) || []).length, 13);
 assert.ok(bigDiff.includes('<code class="removed-element">3 ↦ {3, 4}</code>'));
 assert.ok(bigDiff.includes('<code class="changed-element">3 ↦ {3, 5}</code>'));
 
+// A declared [doesNotThrow] invariant and the automatic assertion check share a property name.
+// Both labels must survive grouping under their action. Older payloads only have `property`.
+const editorContext = React.createContext(null);
+const { ActionSection } = loadTsx('verificationResults.tsx', '\nexport { ActionSection };', (name) => {
+  if (name === '@leanprover/infoview') return { EditorContext: editorContext };
+  if (name === './veilUtils') return utils;
+  if (name === './htmlDisplay') return { __esModule: true, default: () => null };
+  return require(name);
+});
+const labels = ['doesNotThrow', '[doesNotThrow]', 'off'];
+const vcs = labels.map((label, id) => ({
+  id, status: 'proven', timing: { dischargers: [] },
+  metadata: { type: 'induction', data: label === 'off' ? { property: 'off' } :
+    { property: 'doesNotThrow', propertyLabel: label } },
+}));
+const actionRows = renderToStaticMarkup(React.createElement(ActionSection, {
+  action: 'keep', vcs, alternativeMap: new Map(),
+}));
+assert.deepEqual(Array.from(actionRows.matchAll(/class="property-name">([^<]+)</g), m => m[1]), labels);
+
 console.log('veilUtils rendering regression tests passed');

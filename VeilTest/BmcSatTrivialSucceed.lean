@@ -27,3 +27,5 @@ invariant true
 
 #guard_msgs(drop warning, drop info) in
 sat trace [ini] { }
+
+end Test

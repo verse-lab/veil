@@ -65,7 +65,7 @@ private def Module.prepareVerification (mod : Module) (stx : Syntax) : CommandEl
   Verifier.runManager
   mod.generateDoesNotThrowVCs
   -- Warn at the assertion site. Explicit invariant checks report failed VCs at the command.
-  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowWarnings
+  Verifier.runFilteredAsync Verifier.isDoesNotThrow logDoesNotThrowWarnings (publish := false)
   mod.generateInvariantVCs
   -- Invariant VCs are generated here; verifier commands decide when to start them.
   return mod
@@ -140,6 +140,27 @@ def Module.ensureSpecIsFinalized (mod : Module) (stx : Syntax) : CommandElabM Mo
       mod.prepareVerification stx
   return { mod with _specFinalizedAt := some stx }
 
+private def getVeilModuleScope : CommandElabM Elab.Command.Scope := do
+  let some (_, depth) := (← localEnv.get).moduleScope? | throwUnsupportedSyntax
+  let scopes ← getScopes
+  return scopes[scopes.length - depth]!
+
+/-- The declarations and VC manager survive `section` and `open … in`. Record
+the derived definitions they added so the enclosing scope can recover its
+module metadata without running preparation a second time. -/
+private initialize preparedDefinitions : EnvExtension (NameMap (Array DerivedDefinition)) ←
+  registerEnvExtension (pure {})
+
+private def Module.prepareDeferredVerification (mod : Module) (stx : Syntax) : CommandElabM Module := do
+  let ns ← getCurrNamespace
+  if let some defs := (preparedDefinitions.getState (← getEnv)).find? ns then
+    return ← defs.foldlM (init := mod) fun m d => m.registerDerivedDefinition d
+  mod.generateDeferredWPs
+  let prepared ← mod.prepareVerification stx
+  let defs := prepared._derivedDefinitions.valuesArray.filter fun d => !mod._derivedDefinitions.contains d.name
+  modifyEnv fun env => preparedDefinitions.modifyState env (·.insert ns defs)
+  return prepared
+
 /-- Called by the verification commands. If `#gen_spec` deferred VC generation
 (`veil.deferVCGeneration`), the first call generates the deferred verification
 definitions and does what `#gen_spec` skipped; otherwise this only checks that
@@ -149,14 +170,17 @@ def Module.ensureVerificationSpec (mod : Module) (stx : Syntax) : CommandElabM M
   mod.throwIfSpecNotFinalized
   let deferred := mod._vcGenerationDeferred
   unless deferred || mod.temporalProperties.any (·.verifyPending) do return mod
-  let mut mod := mod
-  if deferred then
-    mod.generateDeferredWPs
-    mod ← mod.prepareVerification stx
-    mod := { mod with _vcGenerationDeferred := false }
-  mod ← mod.generatePendingTemporalDefinitions .verify
-  localEnv.modifyModule (fun _ => mod)
-  return mod
+  let prepare : CommandElabM Module := do
+    let mod ← if deferred then do
+        let prepared ← mod.prepareDeferredVerification stx
+        pure { prepared with _vcGenerationDeferred := false }
+      else pure mod
+    let mod ← mod.generatePendingTemporalDefinitions .verify
+    localEnv.modifyModule (fun _ => mod)
+    return mod
+  let ns := (← getVeilModuleScope).currNamespace
+  if ns == (← getCurrNamespace) then prepare
+  else withScope (fun scope => { scope with currNamespace := ns }) prepare
 
 /-- The tactics of the proof `tacs`, to splice after generated tactics in a single
 sequence rather than nest `tacs` as `($tacs)`, a single tactic: once a tactic of a
@@ -269,7 +293,7 @@ private def captureInvariantResults (managerId : ManagerId) (filter : VCMetadata
     let mgr ← getManager
     if (← owner.cancelTk.isSet) || mgr._managerId != managerId then
       throwError "verification interrupted: specification owner was canceled or reset"
-    let done := mgr.isDoneFiltered filter
+    let done := mgr.isDoneFiltered (fun _ => filter)
     let results ← mgr.toResults filter (includeTheoremText := done)
     pure (results, if done then .done else .running)
 
@@ -329,38 +353,103 @@ def elabCheckAction : CommandElab := fun stx => do
     runFilteredInvariantCheck stx mod (isInductionForAction actionName)
 
 
-/-- Optional tools can queue checked results for `#gen_theorems`. Keeping these actions in the
-environment ties them to the document snapshot that started the work, including across edits. -/
-private initialize pendingTheoremGenerators : EnvExtension (NameMap (Array (CommandElabM Unit))) ←
+private structure TheoremGeneratorQueue where
+  pending : Std.Queue (CommandElabM Unit) := ∅
+  running : Bool := false
+  deriving Inhabited
+
+/-- Optional tools can queue checked results for publication. The Lean environment
+ties the queue to the document snapshot that started the work, including across edits. -/
+private initialize pendingTheoremGenerators : EnvExtension (NameMap TheoremGeneratorQueue) ←
   registerEnvExtension (pure {})
 
+/-- Register a callback for the next publication. Throw to retry a failed import. -/
 def registerTheoremGenerator (moduleName : Name) (generate : CommandElabM Unit) :
     CommandElabM Unit :=
-  modifyEnv fun env => pendingTheoremGenerators.modifyState env fun pending =>
-    pending.insert moduleName ((pending.find? moduleName).getD #[] |>.push generate)
+  modifyEnv fun env => pendingTheoremGenerators.modifyState env fun queues =>
+    let q := (queues.find? moduleName).getD {}
+    queues.insert moduleName { q with pending := q.pending.enqueue generate }
 
-/-- Elaborate `#gen_theorems`, completing verification before making successful
-VC proof witnesses available as theorem declarations to subsequent commands. -/
+/-- Commit one callback at a time. A nested publication leaves the FIFO to the
+outer drain, including callbacks registered by the running generator. -/
+private def drainTheoremGenerators (moduleName : Name) : CommandElabM Unit := do
+  while true do
+    liftCoreM Core.checkInterrupted
+    let env ← getEnv
+    let some q := (pendingTheoremGenerators.getState env).find? moduleName | return
+    if q.running then return
+    let some (generate, tail) := q.pending.dequeue? | return
+    modifyEnv fun env => pendingTheoremGenerators.modifyState env (·.insert moduleName ⟨tail, true⟩)
+    -- Restore this head on failure or interruption, including the environment
+    -- from before it registered children. Earlier successful heads stay committed.
+    discard <| MonadFinally.tryFinally' generate fun result =>
+      if result.isNone then setEnv env else pure ()
+    modifyEnv fun env => pendingTheoremGenerators.modifyState env fun queues =>
+      let q := (queues.find? moduleName).getD {}
+      if q.pending.isEmpty then queues.erase moduleName
+      else queues.insert moduleName { q with running := false }
+
+private def withVeilModuleScope (act : CommandElabM Unit) : CommandElabM Unit := do
+  let scope ← getVeilModuleScope
+  withScope (fun here => { here with currNamespace := scope.currNamespace, openDecls := scope.openDecls }) act
+
+private def reportPublicationError (act : CommandElabM Unit) : CommandElabM Unit := do
+  try act catch ex =>
+    if ex.isInterrupt then throw ex
+    logException ex
+
+/-- Finish the defining file's deferred work before leaving the Veil module. -/
+private def prepareModuleClose (mod : Module) : CommandElabM Unit := do
+  if let some stx := mod.specFinalizedAtStx then
+    discard <| mod.ensureVerificationSpec stx
+    Verifier.awaitAssertionChecks
+  else
+    -- A partial module can have deferred action definitions without a spec.
+    mod.generateDeferredWPs
+
+private def publishRequestedChecks (mod : Module) : CommandElabM Unit := do
+  reportPublicationError (Verifier.publishRequestedTheorems mod.name)
+  -- Keep a failing close open for retry. A callback declining its own syntax
+  -- must not tell Lean to fall through to the builtin `end` elaborator.
+  try drainTheoremGenerators mod.name catch ex =>
+    if let .internal id .. := ex then
+      if id == unsupportedSyntaxExceptionId then
+        throwError "a theorem generator for `{mod.name}` encountered unsupported syntax"
+      if isAbortExceptionId id && !(← MonadLog.hasErrors) then
+        throwError "a theorem generator for `{mod.name}` aborted publication"
+    throw ex
+
 @[command_elab Veil.genTheorems]
-def elabGenTheorems : CommandElab := fun stx => do
-  withTraceNode `veil.perf.elaborator.genTheorems (fun _ => return "#gen_theorems") do
-    let mod ← getCurrentModule (errMsg := "You cannot #gen_theorems outside of a Veil module!")
-    let _ ← mod.ensureVerificationSpec stx
-    -- Include every VC kind, including the `doesNotThrow` checks started by
-    -- `#gen_spec`, and wait for their proof witnesses.
-    let _ ← Verifier.waitFilteredSync (fun _ => true)
-    -- Add declarations on the command elaboration thread, in dependency order
-    -- so each proof can refer to theorem constants for its upstream VCs.
-    Verifier.addProvenTheoremsInDependencyOrder (fun _ => true)
-    while true do
-      let pending := (pendingTheoremGenerators.getState (← getEnv)).find? mod.name |>.getD #[]
-      let some generate := pending[0]? | break
-      generate
-      -- A later failed import must not make us retry declarations already added successfully.
-      modifyEnv fun env => pendingTheoremGenerators.modifyState env fun generators =>
-        let current := (generators.find? mod.name).getD #[]
-        let remaining := current.extract 1 current.size
-        if remaining.isEmpty then generators.erase mod.name
-        else generators.insert mod.name remaining
+def elabGenTheorems : CommandElab := fun _ => do
+  let mod ← getCurrentModule
+  mod.throwIfSpecNotFinalized
+  withVeilModuleScope <| publishRequestedChecks mod
+
+/-- A named Lean `end` can close several scopes at once. Only publish if it closes
+the Veil module. Leave other closes and malformed names to Lean's elaborator. -/
+@[scoped command_elab Lean.Parser.Command.«end»]
+def elabVeilEnd : CommandElab := fun stx => do
+  let some (_, depth) := (← localEnv.get).moduleScope? | throwUnsupportedSyntax
+  let `(end $[$header? $[.%$_$_]?]?) := stx | throwUnsupportedSyntax
+  let scopes ← getScopes
+  let count := header?.map (·.getId.getNumParts) |>.getD 1
+  unless scopes.length - depth < count && count < scopes.length do throwUnsupportedSyntax
+  match header? with
+  | none => unless scopes.head!.header.isEmpty do throwUnsupportedSyntax
+  | some header =>
+    let candidates := scopes.take count
+    unless candidates.all (fun s => !s.header.isEmpty) &&
+        header.getId.components.reverse == candidates.map (Name.mkSimple ·.header) do
+      throwUnsupportedSyntax
+  let mod ← getCurrentModule
+  withVeilModuleScope do
+    reportPublicationError (prepareModuleClose mod)
+    publishRequestedChecks mod
+  elabEnd stx
+
+@[scoped command_elab Lean.Parser.Command.eoi, scoped command_elab Lean.Parser.Command.exit]
+def elabUnclosedVeilModule : CommandElab := fun _ => do
+  let some (opener, _) := (← localEnv.get).moduleScope? | throwUnsupportedSyntax
+  throwErrorAt opener "Unclosed Veil module `{opener.getId}`. Close it with `end {opener.getId}`."
 
 end Veil

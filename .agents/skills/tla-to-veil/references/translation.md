@@ -275,4 +275,4 @@ This skill keeps no list of Veil bugs: Veil changes, and such notes go stale. Wh
 - If the translation has to go on, work around the failure with a comment that names it, and list it among the remaining gaps.
 - Try the direct form before any detour. Keep a detour only for a failure you can reproduce now, not for one that an older note describes.
 
-`set_option veil.deferVCGeneration true`, placed before the first action, skips generating verification conditions, which `#model_check` doesn't need, so it suits a module meant for model checking. It only postpones failures in that generation to the first verification command (e.g. `#check_invariants`); build once with it off and report what it hides.
+`set_option veil.deferVCGeneration true`, placed before the first action, lets `#model_check` run before symbolic verification is prepared. The first verification command or `end M` completes the deferred work. For a finalized spec, closing the module also waits for the automatic assertion checks. If preparation fails at close, turn the option off to locate the failing declaration.

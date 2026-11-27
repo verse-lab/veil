@@ -141,3 +141,5 @@ def theory5 : Theory (Fin 5) pcLabel :=
 -- TLC on DiningPhilosophers.cfg (NP = 5): 67 distinct states.
 --#model_check { philosopher := Fin 5 } theory5
 --#temporal_check { philosopher := Fin 5 } theory5
+
+end DiningPhilosophers

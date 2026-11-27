@@ -10,7 +10,7 @@ private def snapshots (mgr : VCManager VCMetadata SmtResult) :
   let saved := (← get).snapshotTasks
   modify fun st => { st with snapshotTasks := #[] }
   try
-    discard <| logPendingDischargerTasks mgr (fun _ => true) {}
+    discard <| logPendingDischargerTasks mgr (fun _ _ => true) {}
     return (← get).snapshotTasks
   finally
     modify fun st => { st with snapshotTasks := saved }

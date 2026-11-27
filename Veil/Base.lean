@@ -180,7 +180,7 @@ register_option veil.deferVCGeneration : Bool := {
   defValue := false
   descr := "If true, procedures and actions declared while this option is set do not generate their verification definitions, \
   and `#gen_spec` run while it is set generates no verification conditions, so it also skips the assertion-failure (`doesNotThrow`) checks. \
-  The first verification command (e.g. `#check_invariants`) generates the definitions and runs the checks. \
+  The first verification command (e.g. `#check_invariants`) or the closing `end M` completes deferred preparation and runs the assertion checks. \
   If the option is turned off within a module, the next declaration or `#gen_spec` first generates the definitions deferred so far. \
   `#model_check`, `#simulate`, and `#temporal_check` need neither."
 }

@@ -40,7 +40,7 @@ private def readyIds (mgr : VCManager Unit Unit) : List (VCId × DischargerId) :
 
 private def checkPending (mgr : VCManager Unit Unit) : IO Unit := do
   check (!mgr._doneWith.contains 0) "pending VC was finalized"
-  check (!mgr.isDoneFiltered (fun _ => true)) "pending VC was reported done"
+  check (!mgr.isDoneFiltered (fun _ _ => true)) "pending VC was reported done"
   check (mgr.dormantVCs.contains 1) "pending primary woke its alternative"
 
 -- Publishing A's unknown result cannot make B ready before A is committed.

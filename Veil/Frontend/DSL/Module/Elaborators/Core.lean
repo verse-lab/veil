@@ -77,6 +77,8 @@ def elabModuleDeclaration : CommandElab := fun stx => do
     if let some mod := lenv.currentModule then
       throwError s!"Module {mod.name} is already open, but you are now trying to open module {name}. Nested modules are not supported!"
     elabVeilCommand $ ← `(namespace $modName)
+    let depth := (← getScopes).length
+    localEnv.modify fun env => { env with moduleScope? := some (modName, depth) }
     elabVeilCommand $ ← `(open Veil)
     elabVeilCommand $ ← `(open scoped Veil.Action.DoElab Veil.TermReduce)
     overrideLeanDefaults
