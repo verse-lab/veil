@@ -324,7 +324,9 @@ private def allocExecutionContext (mod : Module) (stx : Syntax)
     (resultKind : TraceDisplay.ResultKind) (initialProgress : ModelChecker.Concrete.ProgressDetails) :
     CommandElabM ExecutionContext := do
   let (instanceId, cancelToken) ← ModelChecker.Concrete.allocProgressInstance initialProgress
-  let assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap)
+  let assertionSources ← match ← getFinalizedSpec? mod.name with
+    | some spec => pure spec.assertionSources
+    | none => pure (extractAssertionSources (← globalEnv.get).assertions (← getFileMap) (some mod.name))
   let (actions, properties) ← getDeclSources mod
   let sources := infoviewSources actions properties (← IO.currentDir)
   return { stx, instanceId, cancelToken, assertionSources, parallelCfg, resultKind, sources }

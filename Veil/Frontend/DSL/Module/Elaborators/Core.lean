@@ -87,7 +87,7 @@ def elabModuleDeclaration : CommandElab := fun stx => do
     -- defaults to its namespace, so `end` restores the surrounding Lean defaults.
     let exposeAttr ← `(Parser.Term.attrInstance| expose)
     modifyScope fun scope => { scope with isPublic := true, attrs := exposeAttr :: scope.attrs }
-    let mod ← match ← reopenFinalizedSpec? name stx with
+    let mod ← match ← reopenFinalizedSpec? name with
       | some mod => pure mod
       | none => match (← globalEnv.get).modules[name]? with
         | some mod => pure mod

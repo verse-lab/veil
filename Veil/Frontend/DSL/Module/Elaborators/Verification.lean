@@ -303,8 +303,11 @@ private def runFilteredInvariantCheck
     (filter : VCMetadata → Bool)
     : CommandElabM Unit := do
   let managerId ← Verifier.runFilteredAsyncWithManagerId filter (logVerificationResults stx)
-  Verifier.displayStreamingResults stx (← captureInvariantResults managerId filter)
-    mod.specFinalizedAtStx
+  -- Solver options apply where this file prepared the manager.
+  let optionAnchor ← if (← getFinalizedSpec? mod.name).isSome then do
+      pure <| (← localEnv.get).moduleScope?.map (·.1.raw)
+    else pure mod.specFinalizedAtStx
+  Verifier.displayStreamingResults stx (← captureInvariantResults managerId filter) optionAnchor
 
 private def isInductionForAction (actionName : Name) : VCMetadata → Bool
   | .induction m => m.action == actionName

@@ -313,6 +313,10 @@ def violationMessage (property : Array Term) (propertyName : String) (path : Dec
 def addStrengtheningSuggestion (mod : Veil.Module) (clauses : Array Admitted) :
     CommandElabM Unit := do
   if clauses.isEmpty then return
+  if let some spec ← getFinalizedSpec? mod.name then
+    if spec.definingModule != (← getEnv).mainModule then
+      logInfo m!"Add the strengthening invariants before `#gen_spec` in `{spec.definingModule}`."
+      return
   let some finalizer := mod.specFinalizedAtStx | return
   let (some startPos, some endPos) := (finalizer.getPos?, finalizer.getTailPos?) | return
   let fileMap ← getFileMap

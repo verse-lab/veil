@@ -9,27 +9,6 @@ open Lean Elab Command
 
 namespace Veil
 
-/-- Source location info for an assertion, used to enrich model checker output. -/
-structure AssertionSourceInfo where
-  moduleName : Name
-  procedureName : Name
-  line : Nat
-  column : Nat
-deriving Inhabited, ToJson
-
-/-- Extract source info for all assertions from the assertion environment.
-This must be called during elaboration when FileMap is available. -/
-def extractAssertionSources (actx : AssertionEnvironment) (fileMap : FileMap)
-    : Std.HashMap AssertionId AssertionSourceInfo :=
-  actx.find.fold (init := {}) fun acc id assertion =>
-    let ctx := assertion.ctx
-    let (line, column) := match ctx.stx.getPos? with
-      | some pos =>
-        let position := fileMap.toPosition pos
-        (position.line, position.column)
-      | none => (0, 0)
-    acc.insert id { moduleName := ctx.module, procedureName := ctx.procedure, line, column }
-
 /-- Enrich JSON with assertion source info for any assertion failures.
 Looks for "exception_id" fields in the JSON and adds corresponding source info. -/
 partial def enrichJsonWithAssertions (json : Json) (sources : Std.HashMap AssertionId AssertionSourceInfo)
