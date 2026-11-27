@@ -2,22 +2,24 @@
  "schemaVersion": "2025-09-10",
  "outputs": null,
  "log":
- [{"message": "/tmp/veil-fix221/widget> npm clean-install", "level": "trace"},
-  {"message":
-   "stdout:\nadded 168 packages, and audited 169 packages in 3s\n\n49 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities",
+ [{"message": "/tmp/veil-stack-restack/widget> npm clean-install",
    "level": "trace"},
-  {"message": "/tmp/veil-fix221/widget> npm run build", "level": "trace"},
+  {"message":
+   "stdout:\nadded 168 packages, and audited 169 packages in 2s\n\n49 packages are looking for funding\n  run `npm fund` for details\n\nfound 0 vulnerabilities",
+   "level": "trace"},
+  {"message": "/tmp/veil-stack-restack/widget> npm run build",
+   "level": "trace"},
   {"message":
    "stdout:\n> @veil/widgets@0.1.0 build\n> npx tsc && rollup --environment NODE_ENV:production --config",
    "level": "trace"},
   {"message":
-   "stderr:\ndist/traceDisplayInfoview.js → js...\ncreated js in 700ms\n\ndist/verificationResults.js → js...\ncreated js in 957ms",
+   "stderr:\ndist/traceDisplayInfoview.js → js...\ncreated js in 465ms\n\ndist/verificationResults.js → js...\ncreated js in 476ms",
    "level": "trace"}],
  "inputs":
- [["/tmp/veil-fix221/widget/src", "f7f084f7b7ca790a"],
-  ["/tmp/veil-fix221/widget/rollup.config.js", "b2681a0ed17b6497"],
-  ["/tmp/veil-fix221/widget/tsconfig.json", "0f6f942bf0b8580e"],
-  ["/tmp/veil-fix221/widget/package.json", "183e6b10d255457f"],
-  ["/tmp/veil-fix221/widget/package-lock.json", "d6f3467bcb187694"],
+ [["/tmp/veil-stack-restack/widget/src", "07e2da40b47dcac5"],
+  ["/tmp/veil-stack-restack/widget/rollup.config.js", "b2681a0ed17b6497"],
+  ["/tmp/veil-stack-restack/widget/tsconfig.json", "0f6f942bf0b8580e"],
+  ["/tmp/veil-stack-restack/widget/package.json", "183e6b10d255457f"],
+  ["/tmp/veil-stack-restack/widget/package-lock.json", "d6f3467bcb187694"],
   ["isDev", "feefd2a0d3a1847e"]],
- "depHash": "6d6590a3a56eeab7"}
+ "depHash": "4bb4e95afb79d5f8"}

@@ -19,6 +19,9 @@ action toggle {
 }
 
 invariant flag = true ∨ enabled
+temporal [visitsFlag] ◇ ⌜ flag ⌝
+
+#gen_spec
 
 def initial : State FieldConcreteType := { flag := false }
 def runToggle := __veil_exec_action% {} {} initial toggle

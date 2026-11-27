@@ -125,7 +125,7 @@ interface VerificationResultsProps {
   results: VerificationResults;
   /** Start of the outer verification command's line for inserting theorem stubs before it. */
   theoremInsertPos: InsertPosition;
-  /** Position before #gen_spec for option insertion */
+  /** Start of the command that prepared verification in this file. */
   optionInsertPos?: InsertPosition | null;
   /** Document URI for edit operations */
   documentUri: string;
@@ -521,7 +521,7 @@ const useTheoremInserter = (documentUri: string, theoremInsertPos: InsertPositio
   return insertTheorem;
 };
 
-/** Hook to insert `set_option veil.smt.trust false` above `#gen_spec`. */
+/** Hook to insert `set_option veil.smt.trust false` before the command that prepared verification. */
 const useTrustOptionInserter = (documentUri: string, optionInsertPos?: InsertPosition | null) => {
   const editorCtx = React.useContext(EditorContext);
 
@@ -644,7 +644,7 @@ const TrustedSmtBanner: React.FC<{
           className="vr-trusted-smt-option"
           onClick={handleInsertTrustOption}
           disabled={inserting || !optionInsertPos}
-          title="Insert this option above #gen_spec"
+          title="Insert this option before verification is prepared"
         >
           <code>{TRUST_RECONSTRUCTION_OPTION}</code>
         </button>{' '}

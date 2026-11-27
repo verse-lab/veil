@@ -313,6 +313,10 @@ def violationMessage (property : Array Term) (propertyName : String) (path : Dec
 def addStrengtheningSuggestion (mod : Veil.Module) (clauses : Array Admitted) :
     CommandElabM Unit := do
   if clauses.isEmpty then return
+  if let some spec ← getFinalizedSpec? mod.name then
+    if spec.definingModule != (← getEnv).mainModule then
+      logInfo m!"Add the strengthening invariants before `#gen_spec` in `{spec.definingModule}`."
+      return
   let some finalizer := mod.specFinalizedAtStx | return
   let (some startPos, some endPos) := (finalizer.getPos?, finalizer.getTailPos?) | return
   let fileMap ← getFileMap
@@ -453,7 +457,6 @@ private def runWithProgress (mod : Veil.Module) (opts : Options) :
 
 /-- The worker's immutable environment changes, ready to import into a later command. -/
 private structure CertifiedRun where
-  moduleName : Name
   before : Environment
   after : Environment
 
@@ -471,17 +474,14 @@ private def CertifiedRun.addTheorems (run : CertifiedRun) : CommandElabM Unit :=
     match info with
     | .defnInfo _ | .thmInfo _ | .axiomInfo _ => pure ()
     | _ => throwError "cannot import synthesized certificate: unsupported declaration {name}"
-  let candidate ← dest.replayConsts run.before run.after
+  let mut candidate ← dest.replayConsts run.before run.after
   let checked := candidate.toKernelEnv
   for (name, info) in added do
     let some actual := checked.find? name
       | throwError "cannot import synthesized certificate: kernel replay failed at {name}"
     unless actual.type == info.type && actual.value? == info.value? do
       throwError "cannot import synthesized certificate: kernel replay changed {name}"
-  -- The normalization cache is snapshot-local and is not among the extensions Lean replays.
-  let candidate := if let some record := (TrNorm.built.getState run.after).find? run.moduleName then
-      TrNorm.built.modifyState candidate (·.insert run.moduleName record)
-    else candidate
+    candidate := TrNorm.replayCheckedRelation run.after candidate name
   setEnv candidate
 
 private def importCertificate (result : Task (Option (Except String (Option CertifiedRun)))) :
@@ -506,7 +506,7 @@ private def startUpdr (stx : Syntax) (mod : Veil.Module) (opts : Options) :
       let before ← getEnv
       let cert? ← runWithProgress mod opts
       let after ← getEnv
-      result.resolve (.ok (cert?.map fun _ => { moduleName := mod.name, before, after : CertifiedRun }))
+      result.resolve (.ok (cert?.map fun _ => { before, after : CertifiedRun }))
     catch e =>
       result.resolve (.error (← e.toMessageData.toString))
       throw e
