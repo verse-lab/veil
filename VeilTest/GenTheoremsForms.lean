@@ -212,6 +212,19 @@ after_init { flag := false }
 action keep { flag := false }
 invariant [doesNotThrow] flag = false
 #gen_spec
+
+-- Paste both suggested proofs and fill their holes. The compact selector
+-- `doesNotThrow` is already used by the automatic assertion obligation.
+open Lean Elab Command in
+run_cmd do
+  for name in [`keep_doesNotThrow_1, `keep_doesNotThrow_tr] do
+    let mgr ← Veil.Verifier.readVCManager
+    let some vc := mgr.nodes.valuesArray.find? (·.name == name) | throwError "missing {name}"
+    let stub ← liftCoreM <| Veil.mkTheoremText vc
+    let filled := stub.replace "sorry" "all_goals grind"
+    elabCommand (← ofExcept <| Parser.runParserCategory (← getEnv) `command filled)
+    let mgr ← Veil.Verifier.readVCManager
+    unless (mgr.provenWitness? vc.uid).isSome do throwError "suggested proof did not prove {name}"
 end AssertionHomonym
 
 run_cmd do
