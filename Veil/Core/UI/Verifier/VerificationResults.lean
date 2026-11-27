@@ -26,7 +26,7 @@ structure VerificationResultsProps where
   results : VerificationResults VCMetadata SmtResult
   /-- Start of the outer verification command's line, for inserting theorem stubs before it. -/
   theoremInsertPos : Lsp.Position
-  /-- Position before #gen_spec for inserting the trust-disabling option. -/
+  /-- Start of the command that prepared verification in this file, for the trust option. -/
   optionInsertPos : Option Lsp.Position
   /-- Document URI for edit operations. -/
   documentUri : String

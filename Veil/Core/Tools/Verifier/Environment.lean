@@ -14,6 +14,9 @@ structure VCManagerEnvironment where
   manager : Std.Mutex (VCManager VCMetadata SmtResult)
   errors : IO.Ref (Array String)
   cancelTk : IO.CancelToken
+  /-- Start of the outer command that set up this manager in the current file.
+  A widget edit changing the solver options must precede this command. -/
+  setupRef : Syntax
   /-- Explicit requests in this Lean checkpoint. The runtime and its results remain shared. -/
   publication? : Option (ManagerId × Std.HashSet VCId) := none
 

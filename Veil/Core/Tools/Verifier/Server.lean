@@ -241,7 +241,10 @@ does not own the lifetime of this command's reusable environment. -/
 def runManager (cancelTk? : Option IO.CancelToken := none) : CommandElabM Unit := do
   let cancelTk ← IO.CancelToken.new
   let mgr ← liftM <| dispatcher.atomically newManagerLocked
-  let owner := { manager := ← Std.Mutex.new mgr, errors := ← IO.mkRef #[], cancelTk : VCManagerEnvironment }
+  let pos := (← read).cmdPos
+  let owner : VCManagerEnvironment := {
+    manager := ← Std.Mutex.new mgr, errors := ← IO.mkRef #[], cancelTk, setupRef := Syntax.ofRange ⟨pos, pos⟩
+  }
   let key ← managerKey
   if let some previous := (vcManagerExt.getState (← getEnv))[key]? then
     let previousId ← previous.manager.atomically fun ref => return (← ref.get)._managerId

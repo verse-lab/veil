@@ -299,15 +299,11 @@ private def captureInvariantResults (managerId : ManagerId) (filter : VCMetadata
 
 private def runFilteredInvariantCheck
     (stx : Syntax)
-    (mod : Module)
     (filter : VCMetadata → Bool)
     : CommandElabM Unit := do
   let managerId ← Verifier.runFilteredAsyncWithManagerId filter (logVerificationResults stx)
-  -- Solver options apply where this file prepared the manager.
-  let optionAnchor ← if (← getFinalizedSpec? mod.name).isSome then do
-      pure <| (← localEnv.get).moduleScope?.map (·.1.raw)
-    else pure mod.specFinalizedAtStx
-  Verifier.displayStreamingResults stx (← captureInvariantResults managerId filter) optionAnchor
+  let owner ← Verifier.getVCManagerOwner
+  Verifier.displayStreamingResults stx (← captureInvariantResults managerId filter) owner.setupRef
 
 private def isInductionForAction (actionName : Name) : VCMetadata → Bool
   | .induction m => m.action == actionName
@@ -338,8 +334,8 @@ def elabCheckInvariants : CommandElab := fun stx => withStreamingInfo stx do
   withTraceNode `veil.perf.elaborator.checkInvariants (fun _ => return "#check_invariants") do
     -- Skip in compilation mode (no verification feedback needed)
     let mod ← getCurrentModule (errMsg := "You cannot #check_invariant outside of a Veil module!")
-    let mod ← mod.ensureVerificationSpec stx
-    runFilteredInvariantCheck stx mod VCMetadata.isInduction
+    discard <| mod.ensureVerificationSpec stx
+    runFilteredInvariantCheck stx VCMetadata.isInduction
 
 @[command_elab Veil.checkAction, incremental]
 def elabCheckAction : CommandElab := fun stx => do
@@ -352,8 +348,8 @@ def elabCheckAction : CommandElab := fun stx => do
     let actionName := stx[1].getId
     unless (getCheckableAction? mod actionName).isSome do
       throwUnknownCheckAction mod actionName
-    let mod ← mod.ensureVerificationSpec stx
-    runFilteredInvariantCheck stx mod (isInductionForAction actionName)
+    discard <| mod.ensureVerificationSpec stx
+    runFilteredInvariantCheck stx (isInductionForAction actionName)
 
 
 private structure TheoremGeneratorQueue where

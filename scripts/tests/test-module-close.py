@@ -3,6 +3,71 @@
 from lean_lsp import ROOT, LeanServer
 
 
+def trust_option_position(server, uri, session, line):
+    """Read the verification widget's edit position through the same RPCs as the infoview."""
+    cursor = {"line": line, "character": 2}
+
+    def rpc(method, params):
+        return server.send("$/lean/rpc/call", {
+            "textDocument": {"uri": uri}, "position": cursor, "sessionId": session,
+            "method": method, "params": params,
+        }, True)
+
+    widget, = rpc("Lean.Widget.getWidgets", cursor)["widgets"]
+    refresh, = widget["props"]["html"]["element"][2]
+    state = refresh["component"][2]["state"]
+    # Version 1 is the initial "Loading..." text. The first update contains the results.
+    updated = rpc("ProofWidgets.RefreshComponent.awaitRefresh", {"state": state, "oldIdx": 1})
+    return updated["html"]["component"][2]["optionInsertPos"]
+
+
+def check_reopened_trust_options(server, uri):
+    source = """module
+public import VeilTest.Regression.ImportedProofs.Spec
+set_option warn.sorry false
+set_option veil.smt.trust true
+
+veil module Local
+type node
+relation r : node → Bool
+after_init { r N := false }
+action keep { pure () }
+invariant [excluded] r N ∨ ¬ r N
+set_option veil.deferVCGeneration true
+#gen_spec
+set_option veil.deferVCGeneration false in
+#gen_spec
+end Local
+
+veil module NodeProofs -- first import
+end NodeProofs
+
+veil module Local
+#check_invariants -- local
+end Local
+
+veil module NodeProofs
+#check_invariants -- imported
+end NodeProofs
+"""
+    server.change(uri, 10, source)
+    diagnostics = server.diagnostics(uri, 10, "trust before reconstruction")
+    assert not [d for d in diagnostics if d["severity"] == 1], diagnostics
+    assert sum("Trusting SMT solver" in d["message"] for d in diagnostics) == 2, diagnostics
+    session = server.send("$/lean/rpc/connect", {"uri": uri}, True)["sessionId"]
+    lines = source.splitlines(keepends=True)
+    insertions = []
+    for check, setup in [("#check_invariants -- local", "set_option veil.deferVCGeneration false in"),
+                         ("#check_invariants -- imported", "veil module NodeProofs -- first import")]:
+        pos = trust_option_position(server, uri, session, lines.index(check + "\n"))
+        assert pos == {"line": lines.index(setup + "\n"), "character": 0}, (check, pos)
+        insertions.append(pos["line"])
+    for line in sorted(insertions, reverse=True):
+        lines.insert(line, "set_option veil.smt.trust false\n")
+    server.change(uri, 11, "".join(lines))
+    server.check(uri, 11, "reconstruction after applying widget edits")
+
+
 def main():
     server = LeanServer("module-close")
     uri = (ROOT / "VeilTest" / "Regression" / "ModuleClose.lean").as_uri()
@@ -46,6 +111,8 @@ invariant [off] flag = false
                 )
             server.change(uri, version, spec + checks + publication)
             server.check(uri, version, f"requested {actions}")
+
+        check_reopened_trust_options(server, uri)
     finally:
         server.close()
 
