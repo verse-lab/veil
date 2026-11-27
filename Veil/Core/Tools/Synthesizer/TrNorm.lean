@@ -20,8 +20,8 @@ with `ic3_trNorm`, and certificates rewrite along the equation.
 
 ## Implementation notes
 
-* The two names are reserved: a declaration under them that this process did not build and the
-  kernel did not check is an error, never used in its place (`TrNorm.throwIfForeign`).
+* The two names are reserved for the kernel-checked pair. A persistent tag identifies the
+  generated definition when reusing it in another file (`TrNorm.throwIfForeign`).
 * A failed normalization restores the environment, warns once, and leaves the module's queries
   written with `tr`.
 * With `set_option veil.synthesizer.normalizeTr false` every query is written with `tr`.
@@ -47,11 +47,11 @@ register_option veil.synthesizer.debug.failNormalize : String := {
 
 /-- Add a declaration the kernel accepts, and nothing otherwise. Lean's `addDecl` registers a
 rejected declaration as an axiom, so the kernel first checks it in a dry run. -/
-def addCheckedDecl (d : Declaration) : CoreM Unit :=
+def addCheckedDecl (d : Declaration) (forceExpose := false) : CoreM Unit :=
   withOptions (fun o ↦ maxHeartbeats.set (Elab.async.set o false) 0) do
     match Kernel.Environment.addDecl (← getEnv).toKernelEnv (← getOptions) d with
     | .error ex => throwKernelException ex
-    | .ok _ => withOptions (debug.skipKernelTC.set · true) (addDecl d)
+    | .ok _ => withOptions (debug.skipKernelTC.set · true) (addDecl d forceExpose)
 
 namespace TrNorm
 
@@ -61,44 +61,32 @@ def defName (mod : Veil.Module) : Name := mod.name ++ `ic3_trNorm
 /-- `Mod.ic3_tr_eq_norm : ∀ …, tr th st0 lbl st1 = ic3_trNorm … th st0 lbl st1`. -/
 def eqName (mod : Veil.Module) : Name := mod.name ++ `ic3_tr_eq_norm
 
-/-- The declarations this process built for a module, as the kernel checked them. -/
-structure Record where
-  mod : Name
-  defType : Expr
-  defValue : Expr
-  eqType : Expr
-  eqValue : Expr
+/-- Set only after the kernel accepts the generated definition and its equation.
+On import Lean looks up the tag in the selected declaration's defining module. -/
+private initialize checkedRelation : TagDeclarationExtension ← mkTagDeclarationExtension
 
-/-- Whether the environment holds the declarations of `r` under their names. -/
-def Record.holdsIn (r : Record) (env : Environment) : Bool :=
-  match env.find? (r.mod ++ `ic3_trNorm), env.find? (r.mod ++ `ic3_tr_eq_norm) with
-  | some (.defnInfo d), some (.thmInfo t) =>
-    d.type == r.defType && d.value == r.defValue && t.type == r.eqType && t.value == r.eqValue
-  | _, _ => false
+/-- Transfer the worker's tag for a fresh declaration whose kernel replay succeeded. -/
+def replayCheckedRelation (source dest : Environment) (name : Name) : Environment :=
+  if checkedRelation.isTagged source name then checkedRelation.tag dest name else dest
 
-/-- Provenance follows the environment, so concurrent searches and abandoned editor snapshots
-cannot replace each other's normalization records. -/
-initialize built : EnvExtension (NameMap Record) ← registerEnvExtension (pure {})
+private def wasBuilt (mod : Veil.Module) (env : Environment) : Bool :=
+  checkedRelation.isTagged env (defName mod) && env.contains (eqName mod) &&
+    env.getModuleIdxFor? (defName mod) == env.getModuleIdxFor? (eqName mod)
 
 /-- Normalization failures are retried in a fresh environment. -/
 initialize failed : EnvExtension NameSet ← registerEnvExtension (pure {})
 
-/-- The record of `mod`, if this process built its normalized transition relation. -/
-def record? (mod : Veil.Module) : CoreM (Option Record) := do
-  return (built.getState (← getEnv)).find? mod.name
-
-/-- The normalized transition relation of `mod`, when the option is on and the environment holds
-the declarations this process built. -/
+/-- The checked normalized relation, when normalization is enabled. -/
 def available (mod : Veil.Module) : CoreM (Option Name) := do
-  unless veil.synthesizer.normalizeTr.get (← getOptions) do return none
-  let some r ← record? mod | return none
-  return if r.holdsIn (← getEnv) then some (defName mod) else none
+  if veil.synthesizer.normalizeTr.get (← getOptions) && wasBuilt mod (← getEnv) then
+    return some (defName mod)
+  return none
 
-/-- Fail when a reserved name is declared and does not hold what this process built. -/
+/-- Fail when a reserved name is declared and does not belong to the generated pair. -/
 def throwIfForeign (mod : Veil.Module) : CoreM Unit := do
   unless veil.synthesizer.normalizeTr.get (← getOptions) do return
   let env ← getEnv
-  if (← record? mod).any (·.holdsIn env) then return
+  if wasBuilt mod env then return
   for n in [defName mod, eqName mod] do
     if env.contains n then
       throwError "IC3: {n} is already declared; the names `ic3_trNorm` and `ic3_tr_eq_norm` are \
@@ -125,7 +113,7 @@ def simpContextOf (tac : TSyntax `tactic) : TermElabM (Simp.Context × Simp.Simp
 `fun sorts [insts] th st0 lbl st1 ↦ Label.casesOn lbl P₁ … Pₙ`, where `Pₐ` is
 `tr th st0 (Label.a args) st1` after the three `simp` passes of Veil's preprocessing; the theorem
 is proven by cases on the label from the proofs of those passes. -/
-def build (ctx : QueryCtx) (faultAt : Option String) : TermElabM Record := do
+def build (ctx : QueryCtx) (faultAt : Option String) : TermElabM Unit := do
   let (st0, st1, lbl) := (stateIdent 0, stateIdent 1, mkIdent `lbl)
   let labelT ← `($(mkIdent labelTypeName) $(ctx.sorts)*)
   let binders ← (ctx.sortBinders ++ ctx.typeclassBinders).mapM bracketedBinderToFunBinder
@@ -162,7 +150,8 @@ def build (ctx : QueryCtx) (faultAt : Option String) : TermElabM Record := do
     proofs := proofs.push (sg.ctorName.getD .anonymous, pf)
   let defValue ← instantiateMVars defMVar
   let name := defName ctx.mod
-  addCheckedDecl (.defnDecl ⟨⟨name, [], fnTy⟩, defValue, .abbrev, .safe, [name]⟩)
+  -- Queries in importing files unfold the normalized predicate.
+  addCheckedDecl (.defnDecl ⟨⟨name, [], fnTy⟩, defValue, .abbrev, .safe, [name]⟩) (forceExpose := true)
   if faultAt == some "afterDef" then
     throwError "injected failure, veil.synthesizer.debug.failNormalize afterDef"
   -- The theorem, by cases on the label; the kernel checks each case by unfolding.
@@ -178,7 +167,7 @@ def build (ctx : QueryCtx) (faultAt : Option String) : TermElabM Record := do
     sg.mvarId.assign (pf.beta (args ++ sg.fields))
   let eqValue ← instantiateMVars eqMVar
   addCheckedDecl (.thmDecl ⟨⟨eqName ctx.mod, [], eqType⟩, eqValue, [eqName ctx.mod]⟩)
-  return { mod := ctx.mod.name, defType := fnTy, defValue, eqType, eqValue }
+  modifyEnv (checkedRelation.tag · name)
 
 /-- The normalized transition relation of the module, built on first use; `none` when the option
 is off or the normalization failed, which restores the environment and warns once. -/
@@ -194,8 +183,7 @@ def ensure (ctx : QueryCtx) : TermElabM (Option Name) := do
     (do
       if faultAt == some "before" then
         throwError "injected failure, veil.synthesizer.debug.failNormalize before"
-      let r ← build ctx faultAt
-      modifyEnv fun env => built.modifyState env (·.insert ctx.mod.name r)
+      build ctx faultAt
       pure (some (defName ctx.mod)))
     fun e ↦ do
       setEnv envBefore
@@ -233,7 +221,7 @@ def Status.key : Status → String
 def status (mod : Veil.Module) (builtBefore : Bool) : CoreM Status := do
   unless veil.synthesizer.normalizeTr.get (← getOptions) do return .off
   if (failed.getState (← getEnv)).contains mod.name then return .failed
-  if (← record? mod).isSome then return if builtBefore then .reused else .normalized
+  if wasBuilt mod (← getEnv) then return if builtBefore then .reused else .normalized
   return .unused
 
 end TrNorm
