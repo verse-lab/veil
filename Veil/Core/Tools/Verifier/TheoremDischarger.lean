@@ -13,26 +13,28 @@ namespace Veil.Verifier
 private def veilAttrName : Name :=
   Name.mkSimple "veil"
 
-/-- Checked theorem declarations are persistent. Their dischargers, witnesses and
-manager IDs are rebuilt and type-checked in each file that verifies the spec. -/
+/-- Sibling proof files can declare the same theorem name. Keep the defining
+Lean module so reopening a spec restores only the declaration selected by Lean. -/
 private structure InvariantProofEntry where
   specName : Name
   theoremName : Name
-  /-- Imported public theorems can appear as axioms. Record an unfinished body
-  while it is still available to the attribute in the declaring file. -/
-  unfinished? : Option String
+  definingModule : Name
 
-private abbrev InvariantProofs := NameMap (NameMap InvariantProofEntry)
+private abbrev InvariantProofs := NameMap (Array InvariantProofEntry)
 
 private def addProofEntry (s : InvariantProofs) (entry : InvariantProofEntry) : InvariantProofs :=
-  let proofs := (s.find? entry.specName).getD {}
-  s.insert entry.specName (proofs.insert entry.theoremName entry)
+  s.insert entry.specName (((s.find? entry.specName).getD #[]).push entry)
 
 private initialize invariantProofExt : SimplePersistentEnvExtension InvariantProofEntry InvariantProofs ←
   registerSimplePersistentEnvExtension {
     addEntryFn := addProofEntry
     addImportedFn := mkStateFromImportedEntries addProofEntry {}
   }
+
+private def definingModule (env : Environment) (declName : Name) : Name :=
+  match env.getModuleIdxFor? declName with
+  | some idx => env.header.moduleNames[idx]!
+  | none => env.mainModule
 
 private def vcNameMatches (vcName declName : Name) : Bool :=
   vcName == declName || vcName == Name.mkSimple declName.getString!
@@ -43,17 +45,19 @@ private def findMatchingVCs (mgr : VCManager VCMetadata SmtResult)
     if vcNameMatches vc.name declName then some vcId else none
 
 private def interactiveDischargerName (theoremName : Name) : Name :=
-  Name.mkSimple s!"{theoremName.getString!}_INTERACTIVE"
+  theoremName.appendAfter "_INTERACTIVE"
 
 private def validateTheoremWitness (declName : Name) (vcStatement : VCStatement) :
     CoreM (Except Exception Expr) := do
   try
+    if (← collectAxioms declName).contains ``sorryAx then
+      throwError "interactive proof `{declName}` depends on `sorry`"
     let witness ← MetaM.run' do
       let expectedType ← TermElabM.run' do
         vcStatement.type
       let witness ← instantiateMVars <| ← TermElabM.run' do
         withSynthesize (postpone := .no) $
-          withoutErrToSorry $ elabTermEnsuringType (mkIdent declName) expectedType
+          withoutErrToSorry $ elabTermEnsuringType (mkCIdent declName) expectedType
       if witness.hasMVar || witness.hasFVar || witness.hasSyntheticSorry then
         throwError "unsolved goals"
       pure witness
@@ -88,32 +92,23 @@ private def mkFinishedTheoremDischarger (managerId : ManagerId)
     mkTask := pure task
   }
 
+/-- Commit the checked witness only while its manager generation is still current. -/
 private def registerFinishedTheoremDischarger
-    (owner : VCManagerEnvironment) (managerId : ManagerId)
-    (declName : Name) (result : DischargerResult SmtResult) : AttrM (Except String Unit) := do
-  -- Recheck the captured owner generation after validation, and commit the
-  -- immutable registration while holding its lock. A reset cannot interleave.
+    (owner : VCManagerEnvironment) (managerId : ManagerId) (vcId : VCId)
+    (declName : Name) (result : DischargerResult SmtResult) : AttrM Unit :=
   owner.manager.atomically fun ref => do
     let mgr ← ref.get
-    if mgr._managerId != managerId then
-      return Except.error "verification manager was reset during theorem validation"
+    unless mgr._managerId == managerId do
+      throwError "verification manager was reset during theorem validation"
+    let some vc := mgr.nodes[vcId]?
+      | throwError "`@[veil]` found verification condition {vcId}, but it is no longer registered"
+    let discharger ← mkFinishedTheoremDischarger managerId vc declName result
     let registrations := (interactiveRegistrationsExt.getState (← getEnv))[managerId]?.getD #[]
-    let vcIds := findMatchingVCs mgr declName
-    if vcIds.isEmpty then
-      return Except.error s!"`@[veil]` could not find a verification condition named `{declName}`"
-    else if vcIds.size = 1 then
-      let vcId := vcIds[0]!
-      let some vc := mgr.nodes[vcId]?
-        | return Except.error s!"`@[veil]` found verification condition {vcId}, but it is no longer registered"
-      let discharger ← mkFinishedTheoremDischarger managerId vc declName result
-      let registrations := match registrations.findIdx? (fun (d, _) =>
-          d.id.vcId == discharger.id.vcId && d.id.name == discharger.id.name) with
-        | some i => registrations.set! i (discharger, result)
-        | none => registrations.push (discharger, result)
-      modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.insert managerId registrations)
-      return Except.ok ()
-    else
-      return Except.error s!"`@[veil]` is ambiguous for `{declName}`; matched {vcIds.size} verification conditions"
+    let registrations := match registrations.findIdx? (fun (d, _) =>
+        d.id.vcId == vcId && d.id.name == discharger.id.name) with
+      | some i => registrations.set! i (discharger, result)
+      | none => registrations.push (discharger, result)
+    modifyEnv fun env => interactiveRegistrationsExt.modifyState env (·.insert managerId registrations)
 
 private def currentErrorEntries (fallback : MessageData) : AttrM (Array (Exception × Json)) := do
   let msgLog ← Core.getMessageLog
@@ -126,31 +121,23 @@ private def currentErrorEntries (fallback : MessageData) : AttrM (Array (Excepti
       let text ← msg.data.toString
       pure (Exception.error Syntax.missing msg.data, Json.str text)
 
-private def registerTheoremDischarger (declName : Name) : AttrM Unit := do
-  let res ← do
-    let owner ← getVCManagerOwner
-    let mgr ← owner.manager.atomically fun ref => ref.get
-    let vcIds := findMatchingVCs mgr declName
-    if vcIds.isEmpty then
-      pure <| Except.error s!"`@[veil]` could not find a verification condition named `{declName}`"
-    else if vcIds.size = 1 then
-      let vcId := vcIds[0]!
-      let some vc := mgr.nodes[vcId]?
-        | pure <| Except.error s!"`@[veil]` found verification condition {vcId}, but it is no longer registered"
-      let witnessResult ← validateTheoremWitness declName vc.toVCStatement
-      match witnessResult with
-      | .error ex => do
-        let message ← ex.toMessageData.toString
-        let result : DischargerResult SmtResult :=
-          .error #[(ex, Json.str message)] 0
-        registerFinishedTheoremDischarger owner mgr._managerId declName result
-      | .ok witness => do
-        let result : DischargerResult SmtResult :=
-          .proven (some witness) none 0
-        registerFinishedTheoremDischarger owner mgr._managerId declName result
-    else
-      pure <| Except.error s!"`@[veil]` is ambiguous for `{declName}`; matched {vcIds.size} verification conditions"
-  if let .error err := res then throwError err
+private def registerTheoremDischarger (declName : Name) (errors : Array (Exception × Json) := #[]) :
+    AttrM VCMetadata := do
+  let owner ← getVCManagerOwner
+  let mgr ← owner.manager.atomically fun ref => ref.get
+  let ids := findMatchingVCs mgr declName
+  let #[vcId] := ids
+    | if ids.isEmpty then
+        throwError "`@[veil]` could not find a verification condition named `{declName}`"
+      else
+        throwError "`@[veil]` is ambiguous for `{declName}`; matched {ids.size} verification conditions"
+  let vc := mgr.nodes[vcId]!
+  let result ← if !errors.isEmpty then pure (.error errors 0) else do
+    match ← validateTheoremWitness declName vc.toVCStatement with
+    | .error ex => pure (.error #[(ex, Json.str (← ex.toMessageData.toString))] 0)
+    | .ok witness => pure (.proven (some witness) none 0)
+  registerFinishedTheoremDischarger owner mgr._managerId vcId declName result
+  return vc.metadata
 
 /-- User-facing message for theorems containing `sorry`: either synthetic or explicit -/
 private def theoremSorryMessage (declName : Name) (value : Expr) : MessageData :=
@@ -159,26 +146,14 @@ private def theoremSorryMessage (declName : Name) (value : Expr) : MessageData :
   else
     m!"interactive proof `{declName}` contains `sorry`"
 
-/-- Register imported proofs with the new file's manager through the same path as a local theorem. -/
+/-- Recheck each selected declaration against the reopened spec. Lean's exported
+axiom dependencies are available even when the theorem body is hidden. -/
 def restoreInvariantProofs (specName : Name) : CoreM Unit := do
-  let some entries := (invariantProofExt.getState (← getEnv)).find? specName | return
-  for (_, entry) in entries do
-    if let some message := entry.unfinished? then
-      let owner ← getVCManagerOwner
-      let id ← owner.manager.atomically fun ref => return (← ref.get)._managerId
-      let result := .error #[(Exception.error .missing message, Json.str message)] 0
-      if let .error err ← registerFinishedTheoremDischarger owner id entry.theoremName result then
-        throwError err
-    else
-      registerTheoremDischarger entry.theoremName
-
-private def saveInvariantProof (declName : Name) (unfinished? : Option String) : AttrM Unit := do
-  let some mod := (← localEnv.get).currentModule | return
-  if isPrivateName declName then return
-  let owner ← getVCManagerOwner
-  let mgr ← owner.manager.atomically fun ref => ref.get
-  if (findMatchingVCs mgr declName).any (fun id => mgr.nodes[id]!.metadata.isInduction) then
-    modifyEnv (invariantProofExt.addEntry · { specName := mod.name, theoremName := declName, unfinished? })
+  let env ← getEnv
+  let some entries := (invariantProofExt.getState env).find? specName | return
+  for entry in entries do
+    if entry.definingModule == definingModule env entry.theoremName then
+      discard <| registerTheoremDischarger entry.theoremName
 
 initialize
   registerBuiltinAttribute {
@@ -187,21 +162,20 @@ initialize
     add := fun declName stx kind => do
       unless kind == AttributeKind.global do
         throwAttrMustBeGlobal veilAttrName kind
-      -- Public theorems are exported as axioms; inspect the local proof to
-      -- retain the checks for unfinished interactive proofs.
       let .thmInfo info ← withoutExporting <| getConstInfo declName
         | throwError "`[veil]` only applies to theorems"
-      if info.value.hasSorry then
-        let fallback := theoremSorryMessage declName info.value
-        let result : DischargerResult SmtResult := .error (← currentErrorEntries fallback) 0
-        let owner ← getVCManagerOwner
-        let mgr ← owner.manager.atomically fun ref => ref.get
-        let res ← registerFinishedTheoremDischarger owner mgr._managerId declName result
-        if let .error err := res then throwError err
-        saveInvariantProof declName (some (← fallback.toString))
-      else
-        registerTheoremDischarger declName
-        saveInvariantProof declName none
+      let errors ← if info.value.hasSorry then
+          currentErrorEntries (theoremSorryMessage declName info.value)
+        else pure #[]
+      let metadata ← registerTheoremDischarger declName errors
+      if metadata.isInduction && !isPrivateName declName then
+        let some mod := (← localEnv.get).currentModule | return
+        let entry : InvariantProofEntry := {
+          specName := mod.name
+          theoremName := declName
+          definingModule := definingModule (← getEnv) declName
+        }
+        modifyEnv (invariantProofExt.addEntry · entry)
   }
 
 end Veil.Verifier

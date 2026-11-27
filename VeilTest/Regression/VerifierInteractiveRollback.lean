@@ -197,8 +197,11 @@ run_cmd do
   setEnv before
   expectStatus (some .proven)
   reset generation
-  let result ← liftCoreM <| registerFinishedTheoremDischarger owner generation `bad
-    (.proven (some (mkConst ``True.intro)) none 0)
-  ensure (match result with | .error _ => true | _ => false) "stale validated registration crossed reset"
+  let rejected ← try
+    liftCoreM <| registerFinishedTheoremDischarger owner generation 0 `bad
+      (.proven (some (mkConst ``True.intro)) none 0)
+    pure false
+  catch ex => pure ((← ex.toMessageData.toString) == "verification manager was reset during theorem validation")
+  ensure rejected "stale validated registration crossed reset"
   ensure ((← readVCManager).nodes.isEmpty) "stale registration mutated reset manager"
   liftIO <| IO.println "invalid witness rollback and generation validation: PASS"
