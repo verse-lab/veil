@@ -63,3 +63,29 @@ run_meta do
 /-- warning: declaration uses `sorry` -/
 #guard_msgs in
 theorem outsidePublication : True := by sorry
+
+veil module IndependentWitness
+set_option veil.smt.trust false
+individual flag : Bool
+after_init { flag := false }
+action keep { flag := false }
+invariant [off] ¬ flag
+#gen_spec
+namespace Finished
+prove_veil_invariant_goal keep off using wp by
+  done
+end Finished
+
+-- The canonical name is occupied, but the check has an independent completed proof.
+set_option warn.sorry false in
+theorem keep_off : type_of% @Finished.keep_off := by sorry
+#check_action keep
+#guard_msgs in
+end IndependentWitness
+
+run_meta do
+  unless (← Lean.collectAxioms ``IndependentWitness.keep_off).contains ``sorryAx do
+    throwError "expected the existing canonical proof to depend on sorryAx"
+  for name in [``IndependentWitness.Finished.keep_off, ``IndependentWitness.keep_off_tr] do
+    if (← Lean.collectAxioms name).contains ``sorryAx then
+      throwError "{name} depends on the unfinished proof"

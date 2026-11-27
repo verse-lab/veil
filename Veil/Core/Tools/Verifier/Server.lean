@@ -418,6 +418,13 @@ private def publishWitnesses (mgr : VCManager VCMetadata SmtResult) (ordered : A
       let (source, added?) ← liftTermElabM <| publishVC vc.toVCStatement witness
       if let some name := added? then published := published.push name
       if let some variant := vc.variant? then
+        -- An admitted theorem can already occupy the canonical name even when
+        -- a different discharger proved the VC. Keep that proof for the companion.
+        let fullName := (← getCurrNamespace) ++ vc.name
+        let source ← if added?.isNone && !witness.isConstOf fullName &&
+            (← collectAxioms fullName).contains ``sorryAx then
+          liftTermElabM do return Meta.mkExpectedPropHint witness (← vc.type)
+        else pure source
         variants := variants.push (variant, source)
     catch ex =>
       if ex.isInterrupt then throw ex
