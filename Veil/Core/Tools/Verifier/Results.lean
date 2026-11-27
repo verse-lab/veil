@@ -232,9 +232,12 @@ def VCManager.findPrimaryVC (mgr : VCManager VCMetaT ResultT) (vcId : VCId) : Op
 def mkTheoremText (vc : VerificationCondition VCMetadata ResultT) : CoreM String := do
   if vc.successful.isNone then
     if let .induction metadata := vc.metadata then
-      let action ← Lean.PrettyPrinter.ppTerm (mkIdent metadata.action)
-      let property ← Lean.PrettyPrinter.ppTerm (mkIdent metadata.property)
-      return s!"prove_veil_invariant_goal {action.pretty} {property.pretty} using {metadata.style} by\n  sorry"
+      -- The short selector `doesNotThrow` denotes the automatic assertion check.
+      -- For a user invariant with that name the full theorem stub identifies the goal.
+      if metadata.isAssertionCheck || metadata.property != `doesNotThrow then
+        let action ← Lean.PrettyPrinter.ppTerm (mkIdent metadata.action)
+        let property ← Lean.PrettyPrinter.ppTerm (mkIdent metadata.property)
+        return s!"prove_veil_invariant_goal {action.pretty} {property.pretty} using {metadata.style} by\n  sorry"
   let cmd ← vc.theoremStx
   let fmt ← Lean.PrettyPrinter.ppCommand cmd
   return s!"@[veil]\n{fmt.pretty}"

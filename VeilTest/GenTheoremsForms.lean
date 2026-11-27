@@ -186,3 +186,39 @@ example : ∀ _ : Type 2, True := companion
 example : ∀ _ : Type 2, True := multiCompanion
 
 end ConstrainedSource
+
+-- WP and TR publication must agree with the names used by interactive proofs.
+veil module CollidingForms
+individual flag : Bool
+after_init { flag := false }
+action keep { flag := false }
+invariant [off] flag = false
+invariant [off_tr] True
+invariant [off_tr_1] True
+#gen_spec
+prove_veil_invariant_goal keep off using tr by
+  grind
+#check_action keep
+end CollidingForms
+
+run_cmd checkForms `CollidingForms #[`keep_off, `keep_off_tr_2, `keep_off_tr,
+  `keep_off_tr_tr, `keep_off_tr_1, `keep_off_tr_1_tr]
+
+-- Closing after #gen_spec waits for automatic assertion checks. An invariant with
+-- the same display name must stay idle, even though it now has a distinct VC name.
+veil module AssertionHomonym
+individual flag : Bool
+after_init { flag := false }
+action keep { flag := false }
+invariant [doesNotThrow] flag = false
+#gen_spec
+end AssertionHomonym
+
+run_cmd do
+  let env ← Lean.getEnv
+  let some owner := (Veil.Verifier.vcManagerExt.getState env)[`AssertionHomonym]?
+    | throwError "missing manager"
+  let mgr ← owner.manager.atomically fun ref => ref.get
+  let some clause := mgr.nodes.valuesArray.find? (·.name == `keep_doesNotThrow_1)
+    | throwError "missing homonymous invariant"
+  if mgr.enabledVCs.contains clause.uid then throwError "close started the invariant solver"

@@ -14,7 +14,7 @@ def logDoesNotThrowWarnings (results : VerificationResults VCMetadata SmtResult)
   let actx := (← globalEnv.get).assertions
   for vc in results.vcs do
     let .induction m := vc.metadata | continue  -- Only induction VCs have doesNotThrow
-    if m.property != `doesNotThrow then continue
+    unless m.isAssertionCheck do continue
     for d in vc.timing.dischargers do
       let .some (.disproven (.some (.sat ces)) _) := d.result | continue
       for ce in ces.filterMap id do

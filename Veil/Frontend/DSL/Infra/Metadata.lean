@@ -99,6 +99,8 @@ structure InductionVCMetadata where
   action : Name
   /-- The property that this VC is about. -/
   property : Name
+  /-- The automatic exception-freedom check, distinct from any user invariant of the same name. -/
+  isAssertionCheck : Bool := false
   /-- Module parameters for the VC statement. -/
   baseParams : Array Parameter
   /-- Extra parameters for the VC statement. -/
@@ -116,6 +118,7 @@ instance : BEq InductionVCMetadata where
     a.style == b.style &&
     a.action == b.action &&
     a.property == b.property &&
+    a.isAssertionCheck == b.isAssertionCheck &&
     a.baseParams == b.baseParams &&
     a.extraParams == b.extraParams &&
     a.stmtDerivedFrom.toArray == b.stmtDerivedFrom.toArray &&
@@ -131,6 +134,7 @@ instance : ToJson InductionVCMetadata where
       ("style", toJson m.style),
       ("action", toJson m.action),
       ("property", toJson m.property),
+      ("isAssertionCheck", toJson m.isAssertionCheck),
     ]
 
 instance : FromJson InductionVCMetadata where
@@ -144,6 +148,7 @@ instance : FromJson InductionVCMetadata where
       style := style
       action := action
       property := property
+      isAssertionCheck := (json.getObjValAs? Bool "isAssertionCheck").toOption.getD (property == `doesNotThrow)
       baseParams := #[]
       extraParams := #[]
       stmtDerivedFrom := ∅

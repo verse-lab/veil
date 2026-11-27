@@ -118,7 +118,7 @@ private def mkVCForSpecTheorem [Monad m] [MonadMacroAdapter m] [MonadExceptOf Ex
     [AddMessageContext m] [MonadLiftT IO m]
     (mod : Module) (actName : Name) (propertyName : Name) (actKind : DeclarationKind)
     (specName : Name) (vcName : Name) (vcKind : InductionVCKind)
-    (style : VCStyle := .wp) (extraDeps : Std.HashSet Name := {})
+    (style : VCStyle := .wp) (isAssertionCheck := false) (extraDeps : Std.HashSet Name := {})
     (extraBinders : Array (TSyntax ``Lean.Parser.Term.bracketedBinder) := #[])
     (extraTerms : Array Term := #[]) : m (VCData VCMetadata) := do
   -- FIXME: make all the name-related/parameter functions work with `ext` names
@@ -155,11 +155,51 @@ private def mkVCForSpecTheorem [Monad m] [MonadMacroAdapter m] [MonadExceptOf Ex
       style := style,
       «action» := actName,
       property := propertyName,
+      isAssertionCheck := isAssertionCheck,
       baseParams := thmBaseParams,
       extraParams := thmExtraParams,
       stmtDerivedFrom := dependsOn
     }
   }
+
+/-- Actions and initializers for which the verifier builds obligations. -/
+private def Module.actsToCheck (mod : Module) : Array ProcedureSpecification :=
+  mod.procedures.filter (fun s => match s.info with
+    | .action _ _ | .initializer => true
+    | .procedure _ => false)
+
+private def assertionTheoremName (action : Name) : Name :=
+  Name.mkSimple s!"{action}_doesNotThrow"
+
+private abbrev InvariantTheoremNames := Std.HashMap (Name × Name × VCStyle) Name
+
+/-- Keep the familiar theorem names wherever they are unique. Assertion checks take
+priority, followed by WP proofs and then their TR companions. Reserve every preferred
+name before assigning numeric suffixes so a collision cannot displace an unrelated VC. -/
+private def Module.invariantTheoremNames (mod : Module) : InvariantTheoremNames := Id.run do
+  let actions := mod.actsToCheck.map (·.name)
+  let clauses := mod.checkableInvariants.map (·.name)
+  let mut used : Std.HashSet Name := .ofList (actions.toList.map assertionTheoremName)
+  let mut reserved := used
+  let mut goals := #[]
+  for style in [VCStyle.wp, .tr] do
+    for action in actions do
+      for clause in clauses do
+        let name := Name.mkSimple s!"{action}_{clause}{if style == .tr then "_tr" else ""}"
+        reserved := reserved.insert name
+        goals := goals.push ((action, clause, style), name)
+  let mut names := {}
+  for (key, preferred) in goals do
+    let mut name := preferred
+    if used.contains name then
+      let mut i := 1
+      repeat
+        name := preferred.appendAfter s!"_{i}"
+        if !reserved.contains name && !used.contains name then break
+        i := i + 1
+    used := used.insert name
+    names := names.insert key name
+  return names
 
 private def mkDoesNotThrowVC [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadEnv m]
     [MonadRecDepth m] [MonadResolveName m] [MonadTrace m] [MonadOptions m]
@@ -167,13 +207,14 @@ private def mkDoesNotThrowVC [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exce
     (mod : Module) (actName : Name) (actKind : DeclarationKind) (vcKind : InductionVCKind)
     : m (VCData VCMetadata) := do
   mkVCForSpecTheorem mod actName actKind (propertyName := `doesNotThrow)
-    ``VeilM.doesNotThrowAssuming_ex (Name.mkSimple s!"{actName}_doesNotThrow") vcKind
+    ``VeilM.doesNotThrowAssuming_ex (assertionTheoremName actName) vcKind
+    (isAssertionCheck := true)
     (extraBinders := #[← `(bracketedBinder| ($exception:ident : Int))])
     (extraTerms := #[← `(term| $exception:ident)])
 
 private def mkMeetsSpecificationIfSuccessfulClauseVC [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadEnv m] [MonadRecDepth m] [MonadResolveName m]
     [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
-    (mod : Module) (actName : Name) (actKind : DeclarationKind) (invariantClause : Name)
+    (mod : Module) (names : InvariantTheoremNames) (actName : Name) (actKind : DeclarationKind) (invariantClause : Name)
     (vcKind : InductionVCKind) : m (VCData VCMetadata) := do
   let extraDeps : Std.HashSet Name := {invariantClause}
   let extraTerms := #[← `(term|
@@ -181,7 +222,7 @@ private def mkMeetsSpecificationIfSuccessfulClauseVC [Monad m] [MonadMacroAdapte
       $(← mod.declarationAllArgs invariantClause (.stateAssertion .invariant))*) )]
   mkVCForSpecTheorem mod actName (propertyName := invariantClause) actKind
     ``VeilM.meetsSpecificationIfSuccessfulAssuming
-    (Name.mkSimple s!"{actName}_{invariantClause}") vcKind
+    names[(actName, invariantClause, .wp)]! vcKind
     (extraDeps := extraDeps)
     (extraTerms := extraTerms)
 
@@ -208,7 +249,7 @@ an invariant clause. For ordinary actions this is the fallback VC; for actions
 defined with `transition`, this is the primary VC. -/
 private def mkMeetsSpecificationIfSuccessfulClauseTrVC [Monad m] [MonadMacroAdapter m] [MonadExceptOf Exception m] [AddErrorMessageContext m] [MonadEnv m] [MonadRecDepth m] [MonadResolveName m]
     [MonadTrace m] [MonadOptions m] [AddMessageContext m] [MonadLiftT IO m]
-    (mod : Module) (actName : Name) (actKind : DeclarationKind) (invariantClause : Name)
+    (mod : Module) (names : InvariantTheoremNames) (actName : Name) (actKind : DeclarationKind) (invariantClause : Name)
     (vcKind : InductionVCKind) : m (VCData VCMetadata) := do
   let extraDeps : Std.HashSet Name := {invariantClause}
   let extraTerms := #[← `(term|
@@ -216,17 +257,11 @@ private def mkMeetsSpecificationIfSuccessfulClauseTrVC [Monad m] [MonadMacroAdap
       $(← mod.declarationAllArgs invariantClause (.stateAssertion .invariant))*) )]
   mkVCForSpecTheorem mod actName (propertyName := invariantClause) actKind
     ``Transition.meetsSpecificationIfSuccessfulAssuming
-    (Name.mkSimple s!"{actName}_{invariantClause}_tr") vcKind
+    names[(actName, invariantClause, .tr)]! vcKind
     (style := .tr) (extraDeps := extraDeps)
     (extraTerms := extraTerms)
 
 /-! ## Module VC Generation -/
-
-/-- Get the list of actions/initializers that need VC generation. -/
-private def Module.actsToCheck (mod : Module) : Array ProcedureSpecification :=
-  mod.procedures.filter (fun s => match s.info with
-    | .action _ _ | .initializer => true
-    | .procedure _ => false)
 
 -- NOTE: This function could be the private helper of `elabProveVeilInvariantGoal`,
 -- but it's here to use the `private` definitions in this module.
@@ -242,9 +277,10 @@ def Module.mkInvariantGoalVC (mod : Module) (actionId propertyId : Ident)
     return ← mkDoesNotThrowVC mod act.name act.declarationKind .primary
   unless mod.checkableInvariants.any (·.name == propertyId.getId) do
     throwErrorAt propertyId "unknown invariant `{propertyId.getId}`"
+  let names := mod.invariantTheoremNames
   match style with
-  | .wp => mkMeetsSpecificationIfSuccessfulClauseVC mod act.name act.declarationKind propertyId.getId .primary
-  | .tr => mkMeetsSpecificationIfSuccessfulClauseTrVC mod act.name act.declarationKind propertyId.getId .primary
+  | .wp => mkMeetsSpecificationIfSuccessfulClauseVC mod names act.name act.declarationKind propertyId.getId .primary
+  | .tr => mkMeetsSpecificationIfSuccessfulClauseTrVC mod names act.name act.declarationKind propertyId.getId .primary
 
 /-- Generate doesNotThrow VCs for all actions.
     These VCs check that actions don't throw exceptions assuming the invariants hold. -/
@@ -306,16 +342,17 @@ private def convertInvariantProof (externalAction : Name) (nativeTransition : Bo
     These VCs check that each action preserves each invariant clause. -/
 def Module.generateInvariantVCs (mod : Module) : CommandElabM Unit := do
   let actsToCheck := mod.actsToCheck
+  let names := mod.invariantTheoremNames
   -- Build the statements outside the manager lock.
   let vcData ← actsToCheck.foldlM (init := #[]) fun acc act => do
     let frame ← FrameDischarger.forAction act.info
     let trPrimary := act.info.isTransition
     let mut result := acc
     for invClause in mod.checkableInvariants do
-      let wpVC ← mkMeetsSpecificationIfSuccessfulClauseVC mod act.name
+      let wpVC ← mkMeetsSpecificationIfSuccessfulClauseVC mod names act.name
         act.declarationKind invClause.name
         (if trPrimary then InductionVCKind.alternative else InductionVCKind.primary)
-      let trVC ← mkMeetsSpecificationIfSuccessfulClauseTrVC mod act.name
+      let trVC ← mkMeetsSpecificationIfSuccessfulClauseTrVC mod names act.name
         act.declarationKind invClause.name
         (if trPrimary then InductionVCKind.primary else InductionVCKind.alternative)
       let convert := convertInvariantProof (mod.name ++ toExtName act.name) trPrimary

@@ -560,7 +560,11 @@ For example, after `#check_action keep`, its proved obligations are available
 after `end M` as theorems in namespace `M`. After `#gen_spec`, use `#gen_theorems`
 if you need the same theorems earlier in the module. Each proved invariant clause gets both a WP
 theorem (e.g. `keep_safe`) and a transition theorem (`keep_safe_tr`). Veil
-derives the second form from the proof of the first without another solver call.
+derives the second form from the proof of the first without another solver call. If two goals
+would use the same theorem name, assertion checks keep their names first, then
+WP proofs, then transition proofs. Veil gives the other proof a numeric suffix.
+For example, with invariants `[off]` and `[off_tr]`, `keep_off_tr` proves the
+WP goal for `[off_tr]` and `keep_off_tr_1` proves the transition goal for `[off]`.
 
 Place `set_option veil.deferVCGeneration true` before the actions to postpone
 their verification definitions. A verification command can generate them earlier.

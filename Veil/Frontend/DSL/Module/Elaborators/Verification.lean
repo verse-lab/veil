@@ -389,39 +389,41 @@ private def drainTheoremGenerators (moduleName : Name) : CommandElabM Unit := do
       if q.pending.isEmpty then queues.erase moduleName
       else queues.insert moduleName { q with running := false }
 
-/-- Publish requested results in the module namespace. An explicit publication
-requires a finalized spec. Closing also finishes deferred definitions and waits
-for the automatic assertion checks of a finalized spec. -/
-private def finishRequestedChecks (closing := false) : CommandElabM Unit := do
-  let mod ← getCurrentModule
-  let moduleScope ← getVeilModuleScope
-  withScope (fun here => { here with currNamespace := moduleScope.currNamespace, openDecls := moduleScope.openDecls }) do
-    let report (act : CommandElabM Unit) := do
-      try act catch ex =>
-        if ex.isInterrupt then throw ex
-        logException ex
-    unless closing do mod.throwIfSpecNotFinalized
-    if closing then
-      if let some stx := mod.specFinalizedAtStx then
-        report do
-          discard <| mod.ensureVerificationSpec stx
-          Verifier.awaitAssertionChecks
-      else
-        -- A partial module can have deferred action definitions without a spec.
-        report mod.generateDeferredWPs
-    report (Verifier.publishRequestedTheorems mod.name)
-    -- Keep a failing close open for retry. A callback declining its own syntax
-    -- must not tell Lean to fall through to the builtin `end` elaborator.
-    try drainTheoremGenerators mod.name catch ex =>
-      if let .internal id .. := ex then
-        if id == unsupportedSyntaxExceptionId then
-          throwError "a theorem generator for `{mod.name}` encountered unsupported syntax"
-        if isAbortExceptionId id && !(← MonadLog.hasErrors) then
-          throwError "a theorem generator for `{mod.name}` aborted publication"
-      throw ex
+private def withVeilModuleScope (act : CommandElabM Unit) : CommandElabM Unit := do
+  let scope ← getVeilModuleScope
+  withScope (fun here => { here with currNamespace := scope.currNamespace, openDecls := scope.openDecls }) act
+
+private def reportPublicationError (act : CommandElabM Unit) : CommandElabM Unit := do
+  try act catch ex =>
+    if ex.isInterrupt then throw ex
+    logException ex
+
+/-- Finish the defining file's deferred work before leaving the Veil module. -/
+private def prepareModuleClose (mod : Module) : CommandElabM Unit := do
+  if let some stx := mod.specFinalizedAtStx then
+    discard <| mod.ensureVerificationSpec stx
+    Verifier.awaitAssertionChecks
+  else
+    -- A partial module can have deferred action definitions without a spec.
+    mod.generateDeferredWPs
+
+private def publishRequestedChecks (mod : Module) : CommandElabM Unit := do
+  reportPublicationError (Verifier.publishRequestedTheorems mod.name)
+  -- Keep a failing close open for retry. A callback declining its own syntax
+  -- must not tell Lean to fall through to the builtin `end` elaborator.
+  try drainTheoremGenerators mod.name catch ex =>
+    if let .internal id .. := ex then
+      if id == unsupportedSyntaxExceptionId then
+        throwError "a theorem generator for `{mod.name}` encountered unsupported syntax"
+      if isAbortExceptionId id && !(← MonadLog.hasErrors) then
+        throwError "a theorem generator for `{mod.name}` aborted publication"
+    throw ex
 
 @[command_elab Veil.genTheorems]
-def elabGenTheorems : CommandElab := fun _ => finishRequestedChecks (closing := false)
+def elabGenTheorems : CommandElab := fun _ => do
+  let mod ← getCurrentModule
+  mod.throwIfSpecNotFinalized
+  withVeilModuleScope <| publishRequestedChecks mod
 
 /-- A named Lean `end` can close several scopes at once. Only publish if it closes
 the Veil module. Leave other closes and malformed names to Lean's elaborator. -/
@@ -439,7 +441,10 @@ def elabVeilEnd : CommandElab := fun stx => do
     unless candidates.all (fun s => !s.header.isEmpty) &&
         header.getId.components.reverse == candidates.map (Name.mkSimple ·.header) do
       throwUnsupportedSyntax
-  finishRequestedChecks (closing := true)
+  let mod ← getCurrentModule
+  withVeilModuleScope do
+    reportPublicationError (prepareModuleClose mod)
+    publishRequestedChecks mod
   elabEnd stx
 
 @[scoped command_elab Lean.Parser.Command.eoi, scoped command_elab Lean.Parser.Command.exit]

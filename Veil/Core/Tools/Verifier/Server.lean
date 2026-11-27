@@ -223,7 +223,9 @@ private def requestFiltered (filter : VCMetadata → Bool) (publish := false) : 
 def startFiltered (filter : VCMetadata → Bool) : CommandElabM Unit := do
   discard <| requestFiltered filter
 
-def isDoesNotThrow (m : VCMetadata) : Bool := m.propertyName? == some `doesNotThrow
+def isDoesNotThrow : VCMetadata → Bool
+  | .induction m => m.isAssertionCheck
+  | .trace _ => false
 
 /-- Keeps the lifetime marker in the creating command's info tree even when a
 wrapper such as `#guard_msgs` consumes its child snapshot tasks. It must not be
