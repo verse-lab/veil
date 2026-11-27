@@ -13,14 +13,19 @@ end ImportedOpenCollisionOtherTypes
 open ImportedOpenCollisionTypes
 
 veil module ImportedOpenCollision
+set_option veil.deferVCGeneration true
+enum shade = { light, dark }
 individual flag : Bool
 after_init { flag := false }
 action keep (x : Arg) { require x; flag := false }
 invariant [off] ¬ flag
 #gen_spec
 
+-- The action-tag enum is generated inside this section.
+section
 #guard_msgs (drop info) in
 #check_invariants
+end
 end ImportedOpenCollision
 
 namespace ImportedScopeNotation

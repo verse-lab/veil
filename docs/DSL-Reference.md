@@ -566,7 +566,9 @@ that each import `Counter.Spec`. Import those files together, reopen
 the imported theorem against its VC and uses the usual automatic dischargers
 for goals without an interactive proof. Place solver options for imported
 invariant obligations before the `veil module` opener in the checking file,
-where Veil sets up its verification manager.
+where Veil sets up its verification manager. The checking file uses its own
+Lean `open` declarations. Veil also opens the namespaces of the specification’s
+enums and action tags, so their projections are available in both files.
 
 To check a single action, use `#check_action <name>`.
 

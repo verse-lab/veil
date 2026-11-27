@@ -73,7 +73,6 @@ structure FinalizedSpec where
   definingModule : Name
   assertionSources : Std.HashMap AssertionId AssertionSourceInfo
   mod : Module
-  openDecls : List OpenDecl
   /-- Action and property locations in the spec file, for executable models generated later. -/
   sources : Array DeclSource × Array DeclSource
 
@@ -90,16 +89,9 @@ def getFinalizedSpec? [Monad m] [MonadEnv m] (name : Name) : m (Option Finalized
 def saveFinalizedSpec (mod : Module) (sources : Array DeclSource × Array DeclSource) :
     Elab.Command.CommandElabM Unit := do
   let entry : FinalizedSpec := {
-    mod, sources, openDecls := ← getOpenDecls, definingModule := (← getEnv).mainModule
+    mod, sources, definingModule := (← getEnv).mainModule
     assertionSources := extractAssertionSources (← globalEnv.get).assertions (← getFileMap) (some mod.name) }
   modifyEnv (finalizedSpecExt.addEntry · entry)
-
-def reopenFinalizedSpec? (name : Name) : Elab.Command.CommandElabM (Option Module) := do
-  let some spec ← getFinalizedSpec? name | return none
-  -- Stored DSL terms can refer to user and enum namespaces opened in the defining file.
-  Elab.Command.modifyScope fun scope =>
-    { scope with openDecls := scope.openDecls ++ spec.openDecls }
-  return some spec.mod
 
 /-- What checking a module takes, without the module itself. `#gen_executable` records it, so
 that `#mc_config` can build its model checker in the files importing the one declaring it. -/

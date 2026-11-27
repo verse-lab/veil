@@ -87,8 +87,16 @@ def elabModuleDeclaration : CommandElab := fun stx => do
     -- defaults to its namespace, so `end` restores the surrounding Lean defaults.
     let exposeAttr ← `(Parser.Term.attrInstance| expose)
     modifyScope fun scope => { scope with isPublic := true, attrs := exposeAttr :: scope.attrs }
-    let mod ← match ← reopenFinalizedSpec? name with
-      | some mod => pure mod
+    let mod ← match ← getFinalizedSpec? name with
+      | some spec => do
+        -- Reopen the enum projections introduced by Veil in the defining file.
+        let mut enums := spec.mod.parameters.filterMap fun p =>
+          if p.kind == .sort .enumSort then some p.name else none
+        unless spec.mod.actions.isEmpty do enums := enums.push actionTagTypeName
+        for enumName in enums do
+          let className := mkIdent <| `_root_ ++ (← getCurrNamespace) ++ Name.toEnumClass enumName
+          elabVeilCommand $ ← `(open $className:ident)
+        pure spec.mod
       | none => match (← globalEnv.get).modules[name]? with
         | some mod => pure mod
         | none => Module.freshWithName name
