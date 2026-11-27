@@ -43,12 +43,12 @@ theory ghost relation belowLimit (n : Nat) := n < limit
 
 invariant [counterRefl] counter = counter
 
-#gen_spec
-
 -- Parameterized ghosts, theory fields and module parameters retain their binders.
 temporal [ghostArgs] ⌞ belowLimit bound ⌟ → (⌜ atValue bound ⌝ → ⌜ atValue bound ⌝)
 temporal (only := verify) [markEnabled] ∀ n : Fin actionBound, ⌞ n.val < limit ⌟ → Enabled (mark n)
 temporal (only := verify) [neverEnabled] ¬ Enabled disabled
+
+#gen_spec
 
 prove_temporal_by [ghostArgs]
   tintro hBound hAt

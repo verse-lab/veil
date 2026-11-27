@@ -38,11 +38,11 @@ safety [agreement] chosen V1 ∧ chosen V2 → V1 = V2
 
 set_option veil.smt.trust false
 
+temporal (only := verify) [success] 𝒲ℱ choose → ◇ ⌜ someChosen ⌝
+
 #gen_spec
 
 #check_invariants
-
-temporal (only := verify) [success] 𝒲ℱ choose → ◇ ⌜ someChosen ⌝
 
 prove_temporal_by [success]
   -- The proof starts with the three conjuncts named, hInit : ⌜ Init ⌝,

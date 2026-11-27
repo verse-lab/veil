@@ -42,6 +42,13 @@ temporal (only := check) [someLeafByHand]
 -- FAILS: the run `0, 1, 1, …` never reaches leaf 2
 temporal (only := check) [everyLeafFails] ∀ l : Loc, ◇ ⌜ loc = l ⌝
 
+-- Binder predicates are not supported
+temporal (only := check) [bounded] ∀ l > (0 : Loc), ◇ ⌜ loc = l ⌝
+
+/--
+error: a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `Enabled …` and `⟨ … ⟩`, the fairness conditions `𝒲ℱ …` and `𝒮ℱ …`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `𝑅`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and `∃ x : T, …`; this formula is none of them
+-/
+#guard_msgs in
 #gen_spec
 
 -- Instantiated, the quantifiers give the formulas written out
@@ -73,13 +80,6 @@ temporal (only := check) [everyLeafFails] ∀ l : Loc, ◇ ⌜ loc = l ⌝
 /-- error: ❌ Violation: liveness_failure (violates: everyLeafFails) -/
 #guard_msgs (substring := true) in
 #temporal_check [everyLeafFails] interpreted {}
-
--- Binder predicates are not supported
-/--
-error: a model-checked property can only use the atoms `⌜ … ⌝`, `⌞ … ⌟`, `Enabled …` and `⟨ … ⟩`, the fairness conditions `𝒲ℱ …` and `𝒮ℱ …`, the connectives `⊤`, `⊥`, `¬`, `∧`, `∨`, `→`, `↔`, `□`, `◇`, `◯`, `𝑈`, `𝑅`, `↝` and `⇒`, and the quantifiers `∀ x, …`, `∀ x : T, …`, `∃ x, …` and `∃ x : T, …`; this formula is none of them
--/
-#guard_msgs in
-temporal (only := check) [bounded] ∀ l > (0 : Loc), ◇ ⌜ loc = l ⌝
 
 end TemporalQuantifiersHub
 
@@ -118,6 +118,8 @@ temporal [someVisited] ∃ n, ◇ ⌜ visiting n ⌝
 -- No temporal quantifier
 temporal (only := check) [anyVisited] ◇ ⌜ ∃ n, visiting n ⌝
 
+temporal (only := check) [overNat] ∀ k : Nat, ◇ ⌜ k = k ⌝
+
 -- Nothing is dropped
 #guard_msgs in
 #gen_spec
@@ -144,8 +146,6 @@ run_meta do
 #temporal_check [eachVisitedWhole] interpreted { node := Fin 2 }
 
 -- Without an `Enumeration Nat` instance, `#temporal_check` cannot instantiate the property
-temporal (only := check) [overNat] ∀ k : Nat, ◇ ⌜ k = k ⌝
-
 /--
 error: failed to synthesize instance of type class
   Enumeration Nat

@@ -12,6 +12,8 @@ namespace Veil
 @[command_elab Veil.temporalDeclaration]
 def elabTemporalDeclaration : CommandElab := fun stx => do
   let mut mod ← getCurrentModule (errMsg := "You cannot declare a temporal property outside of a Veil module!")
+  if mod.isSpecFinalized then
+    throwErrorAt stx "Declare temporal properties before `#gen_spec` in the specification of module `{mod.name}`."
   mod ← mod.ensureStateIsDefined
   let (only?, name?, formula) ← match stx with
     | `(command|temporal $[(only := $t:ident)]? $[$name:propertyName]? $f:tlfml) => pure (t, name, f)
@@ -31,12 +33,7 @@ def elabTemporalDeclaration : CommandElab := fun stx => do
   mod := { mod with
     temporalProperties := mod.temporalProperties.push tp
     _declarations := mod._declarations.insert name .temporalProperty }
-  if mod.isSpecFinalized then
-    if tp.checkPending then
-      mod ← mod.generateTemporalDefinition tp .check
-    localEnv.modifyModule (fun _ => mod)
-    if tp.verifyPending then
-      mod ← mod.ensureVerificationSpec stx
+
   localEnv.modifyModule (fun _ => mod)
 
 private def Module.getStatementForTemporalTheorems [Monad m] [MonadQuotation m] [MonadExceptOf Exception m] [AddErrorMessageContext m]
