@@ -401,13 +401,55 @@ private def reportPublicationError (act : CommandElabM Unit) : CommandElabM Unit
     if ex.isInterrupt then throw ex
     logException ex
 
+/-- Preserve constant references in exported binder syntax even when the checking
+file defines a closer namespace with the same name. Local binder references
+remain ordinary identifiers. -/
+private def exportBinderTypeSyntax (ty : Expr) : MetaM Term := do
+  let (stx, infos) ← withOptions (fun _ => pp.all.set {} true) <|
+    PrettyPrinter.delabCore ty {} PrettyPrinter.Delaborator.delab
+  return ⟨stx.raw.rewriteBottomUp fun t => Id.run do
+    let some (.synthetic pos ..) := t.getInfo? | return t
+    let some (.ofTermInfo info) := infos.get? pos.byteIdx | return t
+    let .const name _ := info.expr | return t
+    let id := mkIdent (_root_.Lean.rootNamespace ++ name)
+    if t.isIdent then return id.raw
+    if t.isOfKind ``Parser.Term.explicitUniv then return t.setArg 0 id
+    return t⟩
+
+/-- Recover the types of user-written binders from the checked Lean declaration.
+Module parameters precede the procedure's extra instances and action arguments.
+Veil supplies the syntax of its generated binders. -/
+private def exportBinderTypes (decl : Name) (offset : Nat) (params : Array Parameter) :
+    MetaM (Array Parameter) := do
+  let isUserBinder (p : Parameter) := p.kind matches
+    .userParameter | .moduleTypeclass .userDefined | .definitionParameter _ .explicit
+  unless params.any isUserBinder do return params
+  let info ← getConstInfo decl
+  Meta.forallBoundedTelescope info.type (some (offset + params.size)) fun xs _ => do
+    params.mapIdxM fun i p => do
+      unless isUserBinder p do return p
+      let some x := xs[offset + i]? | throwError "missing binder {p.name} in {decl}"
+      let binderType ← Meta.inferType x
+      return { p with «type» := ← exportBinderTypeSyntax binderType }
+
+/-- The source syntax of a parameter may depend on local notation and open namespaces.
+Store binder types from the defining file so importers can use the same checks. -/
+private def Module.withExportedBinderTypes (mod : Module) : MetaM Module := do
+  let parameters ← exportBinderTypes (mod.name ++ initializerName) 0 mod.parameters
+  let procedures ← mod.procedures.mapM fun proc => do
+    let params ← exportBinderTypes (mod.name ++ proc.name)
+      (parameters.size + proc.extraParams.size) proc.params
+    return { proc with params }
+  return { mod with parameters, procedures }
+
 /-- Finish the defining file's deferred work before leaving the Veil module. -/
 private def prepareModuleClose (mod : Module) : CommandElabM Unit := do
   if let some stx := mod.specFinalizedAtStx then
     if (← getFinalizedSpec? mod.name).isSome then return
     let prepared ← mod.ensureVerificationSpec stx
     Verifier.awaitAssertionChecks
-    saveFinalizedSpec prepared (← ExecutionWorkflow.getDeclSources prepared)
+    let exported ← liftTermElabM prepared.withExportedBinderTypes
+    saveFinalizedSpec exported (← ExecutionWorkflow.getDeclSources prepared)
   else
     -- A partial module can have deferred action definitions without a spec.
     mod.generateDeferredWPs
