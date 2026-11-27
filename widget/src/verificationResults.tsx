@@ -23,6 +23,7 @@ import {
 interface InductionMetadataData {
   stmtDerivedFrom?: string[];
   property: string;
+  propertyLabel?: string;
   kind?: 'primary' | 'alternative';
   action: string;
   style?: 'wp' | 'tr';
@@ -851,6 +852,8 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
   const [showTRCounterexample, setShowTRCounterexample] = React.useState(true);
   const [showRawHtml, setShowRawHtml] = React.useState(false);
   const effectiveStatus = getEffectiveStatus(vc, alternativeVC);
+  const metadata = getInductionData(vc);
+  const propertyLabel = metadata?.propertyLabel ?? metadata?.property ?? '';
 
   // Cache the last known time to prevent flickering during state transitions
   const lastKnownTimeRef = React.useRef<number | null>(null);
@@ -1128,7 +1131,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
           <span className="property-toggle">{expanded ? '▼' : '▶'}</span>
         )}
         <span className="property-icon">{isQueued ? '⏳' : getStatusIcon(effectiveStatus)}</span>
-        <span className="property-name">{getInductionData(vc)?.property}</span>
+        <span className="property-name">{propertyLabel}</span>
         {trWasInvoked && (
           <span className={`vc-style-badge tr-badge ${trIsRunning ? 'tr-running' : ''}`}>
             TR{trIsRunning && '...'}
@@ -1174,7 +1177,7 @@ const PropertyRow: React.FC<PropertyRowProps> = ({ vc, alternativeVC, documentUr
           {activeCounterexample.structuredJson && !showRawHtml ? (
             <StructuredCexView
               data={activeCounterexample.structuredJson}
-              property={getInductionData(vc)?.property ?? ''}
+              property={propertyLabel}
               isInitializer={getInductionData(vc)?.action === 'initializer'}
               headerRightContent={
                 <>

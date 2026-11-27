@@ -124,8 +124,13 @@ instance : BEq InductionVCMetadata where
     a.stmtDerivedFrom.toArray == b.stmtDerivedFrom.toArray &&
     a.assertion == b.assertion
 
+/-- Show a declared property with its DSL brackets when it shares the automatic check's name. -/
+def InductionVCMetadata.propertyLabel (m : InductionVCMetadata) : String :=
+  if m.property == `doesNotThrow && !m.isAssertionCheck then s!"[{m.property}]"
+  else toString m.property
+
 instance : ToString InductionVCMetadata where
-  toString m := s!"({m.kind}: {m.action}.{m.property})"
+  toString m := s!"({m.kind}: {m.action}.{m.propertyLabel})"
 
 instance : ToJson InductionVCMetadata where
   toJson m :=
@@ -134,6 +139,7 @@ instance : ToJson InductionVCMetadata where
       ("style", toJson m.style),
       ("action", toJson m.action),
       ("property", toJson m.property),
+      ("propertyLabel", toJson m.propertyLabel),
       ("isAssertionCheck", toJson m.isAssertionCheck),
     ]
 
@@ -237,7 +243,7 @@ def VCMetadata.propertyName? : VCMetadata → Option Name
 
 /-- Get a display name for the VC. -/
 def VCMetadata.displayName : VCMetadata → String
-  | .induction m => s!"{m.action}.{m.property}"
+  | .induction m => s!"{m.action}.{m.propertyLabel}"
   | .trace m =>
     let kind := if m.isExpectedSat then "sat" else "unsat"
     match m.traceName with

@@ -205,7 +205,7 @@ run_cmd checkForms `CollidingForms #[`keep_off, `keep_off_tr_2, `keep_off_tr,
   `keep_off_tr_tr, `keep_off_tr_1, `keep_off_tr_1_tr]
 
 -- Closing after #gen_spec waits for automatic assertion checks. An invariant with
--- the same display name must stay idle, even though it now has a distinct VC name.
+-- the same property name must stay idle, even though it now has a distinct VC name.
 veil module AssertionHomonym
 individual flag : Bool
 after_init { flag := false }
@@ -255,3 +255,35 @@ prove_veil_invariant_goal keep doesNotThrow using wp by
 end DeclaredNameCollisions
 
 run_cmd checkForms `DeclaredNameCollisions #[`keep_doesNotThrow_1, `keep_off_2, `keep_off_tr_1]
+
+veil module HomonymousRows
+individual flag : Bool
+after_init { flag := false }
+action keep { flag := false }
+invariant [doesNotThrow] ¬ flag
+#gen_spec
+/--
+info: The following set of actions must preserve the invariant and successfully terminate:
+  keep
+    doesNotThrow ... ✅
+    [doesNotThrow] ... ✅
+-/
+#guard_msgs in
+#check_action keep
+
+-- The widget gets both row labels alongside the unchanged property and theorem names.
+open Lean in
+run_cmd do
+  let mgr ← Veil.Verifier.readVCManager
+  let rows ← Elab.Command.liftCoreM <| mgr.toResults (fun _ => true)
+  for (name, label) in [(`keep_doesNotThrow, "doesNotThrow"), (`keep_doesNotThrow_1, "[doesNotThrow]")] do
+    let some row := rows.vcs.find? (·.name == name) | throwError "no row for {name}"
+    let data ← ofExcept <| (toJson row.metadata).getObjVal? "data"
+    let some stub := row.theoremText | throwError "missing proof link for {name}"
+    unless (stub.splitToList Char.isWhitespace).contains name.toString do
+      throwError "proof link for {name} inserts {stub}"
+    let property ← ofExcept <| data.getObjValAs? String "property"
+    let propertyLabel ← ofExcept <| data.getObjValAs? String "propertyLabel"
+    unless row.alternativeFor.isNone && property == "doesNotThrow" && propertyLabel == label do
+      throwError "unexpected widget row for {name}: {data}"
+end HomonymousRows
